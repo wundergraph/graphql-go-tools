@@ -4912,22 +4912,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 				dataSources:      makeDataSource(t, makeDataSourceOpts{includeCostConfig: true}),
 				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
-				// Cost breakdown with federation:
-				// Query.accounts: fieldCost=5, multiplier=3 (listSize)
-				//   accounts returns interface [Node!]! with implementing types [User, Admin]
-				//
-				// Children (per interface member type):
-				//   User.some: User: fieldCost=3 (DS1:2 + DS2:1 summed)
-				//     User.title: 4 (DS2, resolved via _entities federation)
-				//   cost = 3 + 4 = 7
-				//
-				//   Admin.some: User: fieldCost=3 (DS1 only)
-				//   cost = 3
-				//
-				// Children total = 7 + 3 = 10
-				// (is it possible to improve accuracy here by using the largest fragment instead of the sum?)
-				// Total = (5 + 10) * 3 = 45
-				expectedEstimatedCost: intPtr(45),
+				// 3 * (5 + max(7, 3))
+				expectedEstimatedCost: intPtr(36),
+				// total __ 2 Users ________ 1 Admin
+				// 3 * (5 + 0.67*(3 + 4*1) + 0.33*3)
+				// 3 * (5 + 4.69 + 1)
+				expectedActualCost: intPtr(32),
 			},
 			computeCosts(),
 		))

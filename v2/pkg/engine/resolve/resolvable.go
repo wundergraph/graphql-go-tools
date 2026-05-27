@@ -62,12 +62,17 @@ type Resolvable struct {
 
 	currentFieldInfo *FieldInfo
 
-	// actualListSizes maps the JSON path to the list size in the final response.
+	// arrayStats maps the JSON path to its accumulated array stats in the final response.
 	// Used to compute the actual cost of the operation.
-	actualListSizes map[string]int
+	arrayStats map[string]ArrayStats
 
 	subgraphExtensions []*astjson.Object
 	allowedExtensions  map[string]*astjson.Value
+}
+
+type ArrayStats struct {
+	Size      int            // the Size of the resolved array/list
+	TypeNames map[string]int // distribution of TypeNames in the array
 }
 
 type ResolvableOptions struct {
@@ -111,7 +116,7 @@ func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
 		astjsonArena:       a,
-		actualListSizes:    make(map[string]int),
+		arrayStats:         make(map[string]ArrayStats),
 	}
 }
 
@@ -139,7 +144,7 @@ func (r *Resolvable) Reset() {
 	clear(r.subgraphExtensions)
 	clear(r.authorizationAllow)
 	clear(r.authorizationDeny)
-	clear(r.actualListSizes)
+	clear(r.arrayStats)
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
@@ -953,7 +958,23 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 
 	if !r.print {
 		pathKey := r.currentFieldPath()
-		r.actualListSizes[pathKey] += len(values)
+		stats := r.arrayStats[pathKey]
+		stats.Size += len(values)
+		if stats.TypeNames == nil && len(values) > 0 {
+			stats.TypeNames = make(map[string]int)
+		}
+		for _, arrayValue := range values {
+			var typeName string
+			if b := arrayValue.GetStringBytes("__typename"); b != nil {
+				typeName = string(b)
+			} else if obj, ok := arr.Item.(*Object); ok {
+				typeName = obj.TypeName
+			}
+			if typeName != "" {
+				stats.TypeNames[typeName]++
+			}
+		}
+		r.arrayStats[pathKey] = stats
 	}
 
 	hasPrintedValue := false
