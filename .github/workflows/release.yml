@@ -21,7 +21,7 @@ jobs:
           client-id: ${{ secrets.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           repositories: |
-            cosmo
+            graphql-go-tools
           permission-actions: write
           permission-contents: write
           permission-workflows: write
