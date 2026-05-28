@@ -14,8 +14,20 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Authenticate
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: |
+            cosmo
+          permission-actions: write
+          permission-contents: write
+          permission-workflows: write
+
       - uses: googleapis/release-please-action@v4
         with:
-          token: ${{ secrets.GH_TOKEN_RELEASES }}
+          token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: release-please-manifest.json
