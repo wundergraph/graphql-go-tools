@@ -865,17 +865,17 @@ func TestBuildJsonSchema(t *testing.T) {
 		t.Logf("Default recursion depth schema: %v", string(data))
 	})
 
-	t.Run("recursive types are emitted via $ref and ignore the deprecated recursion depth", func(t *testing.T) {
+	t.Run("recursive types are emitted via $ref and $defs", func(t *testing.T) {
 		// Define schema with recursive input type
 		schemaSDL := scalarDefinitions + `
 			schema {
 				query: Query
 			}
-			
+
 			type Query {
 				processNode(node: RecursiveNode): Boolean
 			}
-			
+
 			"""A node that can contain child nodes of the same type"""
 			input RecursiveNode {
 				id: ID!
@@ -899,27 +899,16 @@ func TestBuildJsonSchema(t *testing.T) {
 		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
 		require.False(t, report.HasErrors(), "operation parsing failed")
 
-		// maxRecursionDepth is deprecated and ignored: recursive types are emitted via
-		// "$ref"/"$defs", which supports arbitrary nesting depth. Passing a different
-		// depth must therefore produce an identical schema.
-		customSchema, err := BuildJsonSchemaWithOptions(&operationDoc, &definitionDoc, 3)
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
 		require.NoError(t, err)
 
-		defaultSchema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		data, err := json.Marshal(schema)
 		require.NoError(t, err)
-
-		customData, err := json.Marshal(customSchema)
-		require.NoError(t, err)
-		defaultData, err := json.Marshal(defaultSchema)
-		require.NoError(t, err)
-
-		assert.JSONEq(t, string(defaultData), string(customData),
-			"the deprecated recursion depth option must not affect the generated schema")
 
 		// The recursive type is defined once under "$defs" and referenced via "$ref".
-		require.Contains(t, customSchema.Defs, "RecursiveNode",
+		require.Contains(t, schema.Defs, "RecursiveNode",
 			"recursive input type should be defined under $defs")
-		assert.Contains(t, string(customData), `"$ref":"#/$defs/RecursiveNode"`,
+		assert.Contains(t, string(data), `"$ref":"#/$defs/RecursiveNode"`,
 			"recursive input type should be referenced via $ref")
 	})
 

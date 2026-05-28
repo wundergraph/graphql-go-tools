@@ -29,18 +29,8 @@ var (
 	_ astvisitor.EnterVariableDefinitionVisitor = (*VariablesSchemaBuilder)(nil)
 )
 
-// NewVariablesSchemaBuilder creates a new VariablesSchemaBuilder with default settings
+// NewVariablesSchemaBuilder creates a new VariablesSchemaBuilder.
 func NewVariablesSchemaBuilder(operationDocument, definitionDocument *ast.Document) *VariablesSchemaBuilder {
-	return NewVariablesSchemaBuilderWithOptions(operationDocument, definitionDocument, 3)
-}
-
-// NewVariablesSchemaBuilderWithOptions creates a new VariablesSchemaBuilder.
-//
-// Deprecated: maxRecursionDepth is accepted for backwards compatibility but is no
-// longer used. Recursive input types are represented via "$ref"/"$defs", which
-// terminates by construction and supports arbitrary nesting depth.
-func NewVariablesSchemaBuilderWithOptions(operationDocument, definitionDocument *ast.Document, maxRecursionDepth int) *VariablesSchemaBuilder {
-	_ = maxRecursionDepth // retained for API compatibility; see doc comment
 	return &VariablesSchemaBuilder{
 		operationDocument:  operationDocument,
 		definitionDocument: definitionDocument,
@@ -538,20 +528,9 @@ func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value)
 // Recursive input types are represented via "$ref"/"$defs" and support arbitrary
 // nesting depth.
 func BuildJsonSchema(operationDocument, definitionDocument *ast.Document) (*JsonSchema, error) {
-	return BuildJsonSchemaWithOptions(operationDocument, definitionDocument, 0)
-}
-
-// BuildJsonSchemaWithOptions builds a JSON schema for the variables of the given operation.
-//
-// Deprecated: maxRecursionDepth is accepted for backwards compatibility but is no
-// longer used. Recursive input types are represented via "$ref"/"$defs", which
-// terminates by construction and supports arbitrary nesting depth.
-func BuildJsonSchemaWithOptions(operationDocument, definitionDocument *ast.Document, maxRecursionDepth int) (*JsonSchema, error) {
 	if len(operationDocument.OperationDefinitions) == 0 {
 		return nil, fmt.Errorf("no operations found in document")
 	}
 
-	builder := NewVariablesSchemaBuilderWithOptions(operationDocument, definitionDocument, maxRecursionDepth)
-
-	return builder.Build()
+	return NewVariablesSchemaBuilder(operationDocument, definitionDocument).Build()
 }
