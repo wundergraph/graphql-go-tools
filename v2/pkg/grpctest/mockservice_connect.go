@@ -21,6 +21,7 @@ import (
 // data source against either transport without duplicating fixtures.
 type MockServiceConnect struct {
 	productv1connect.UnimplementedProductServiceHandler
+
 	inner *MockService
 }
 

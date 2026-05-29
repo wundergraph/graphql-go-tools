@@ -13,7 +13,8 @@ import (
 )
 
 func TestNewFactoryConnect_NilCtx(t *testing.T) {
-	_, err := NewFactoryConnect(nil, &stubRPCTransport{})
+	var nilCtx context.Context
+	_, err := NewFactoryConnect(nilCtx, &stubRPCTransport{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "execution context is required")
 }
