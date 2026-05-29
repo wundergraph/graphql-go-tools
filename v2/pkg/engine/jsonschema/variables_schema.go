@@ -121,7 +121,7 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 	// Convert type to schema starting from the operation document
 	varSchema := v.processOperationTypeRef(typeRef)
 
-	// Skip this variable if we reached maximum recursion depth
+	// Skip this variable if its type could not be resolved to a schema
 	if varSchema == nil {
 		return
 	}
@@ -391,7 +391,7 @@ func (v *VariablesSchemaBuilder) processInputField(fieldRef int, schema *JsonSch
 	// Process the field type starting from the definition document
 	fieldSchema := v.processDefinitionTypeRef(fieldTypeRef)
 
-	// Skip this field if we reached maximum recursion depth
+	// Skip this field if its type could not be resolved to a schema
 	if fieldSchema == nil {
 		return
 	}
