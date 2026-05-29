@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.0...v2.4.1) (2026-05-25)
+
+
+### Bug Fixes
+
+* use float64 for intermediate cost calculations ([#1514](https://github.com/wundergraph/graphql-go-tools/issues/1514)) ([d415ae5](https://github.com/wundergraph/graphql-go-tools/commit/d415ae5b6940b26386dd1d0047910b18528a8637))
+
 ## [2.4.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.3.1...v2.4.0) (2026-05-21)
 
 
