@@ -27,6 +27,13 @@ type JsonSchema struct {
 	Description          string                 `json:"description,omitempty"`
 	Nullable             bool                   `json:"nullable,omitempty"`
 
+	// Ref references a schema defined under the root "$defs" (e.g. "#/$defs/MyInput").
+	// Used to represent recursive input types, which cannot be inlined.
+	Ref string `json:"$ref,omitempty"`
+	// Defs holds reusable schema definitions, referenced via Ref. Only populated
+	// on the root schema.
+	Defs map[string]*JsonSchema `json:"$defs,omitempty"`
+
 	// Array-specific fields
 	Items *JsonSchema `json:"items,omitempty"`
 
@@ -107,6 +114,14 @@ func (s *JsonSchema) MarshalJSON() ([]byte, error) {
 		m["pattern"] = s.Pattern
 	}
 
+	if s.Ref != "" {
+		m["$ref"] = s.Ref
+	}
+
+	if len(s.Defs) > 0 {
+		m["$defs"] = s.Defs
+	}
+
 	return json.Marshal(m)
 }
 
@@ -121,6 +136,19 @@ func NewObjectSchema() *JsonSchema {
 		Required:             []string{},
 		Nullable:             true, // Default to nullable
 	}
+}
+
+// NewRefSchema creates a schema that references a definition under the root "$defs".
+func NewRefSchema(typeName string) *JsonSchema {
+	return &JsonSchema{
+		Ref:      defsRef(typeName),
+		Nullable: true, // Default to nullable; callers adjust based on context
+	}
+}
+
+// defsRef returns the JSON Pointer to a definition under the root "$defs".
+func defsRef(typeName string) string {
+	return "#/$defs/" + typeName
 }
 
 // NewAnySchema creates a schema representing any value (serialized as {} in JSON)
