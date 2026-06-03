@@ -12,6 +12,7 @@ import (
 )
 
 func TestNewInitialHttpRequestContext(t *testing.T) {
+	t.Parallel()
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
 
@@ -52,6 +53,7 @@ func TestSubscriptionCancellations(t *testing.T) {
 }
 
 func TestSubscriptionIdsShouldBeUnique(t *testing.T) {
+	t.Parallel()
 	sc := subscriptionCancellations{}
 	var ctx context.Context
 	var err error

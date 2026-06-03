@@ -12,7 +12,10 @@ import (
 
 func TestExecutionEngine_Cost(t *testing.T) {
 
+	t.Parallel()
+
 	t.Run("common on star wars scheme", func(t *testing.T) {
+		t.Parallel()
 		rootNodes := []plan.TypeField{
 			{TypeName: "Query", FieldNames: []string{"hero", "droid", "search"}},
 			{TypeName: "Human", FieldNames: []string{"name", "height", "friends"}},
@@ -886,6 +889,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("union types", func(t *testing.T) {
+		t.Parallel()
 		unionSchema := `
 			type Query {
 			   search(term: String!): [SearchResult!]
@@ -1057,6 +1061,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("listSize", func(t *testing.T) {
+		t.Parallel()
 		listSchema := `
 			input Search {
                 pagination: Page
@@ -2031,6 +2036,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("nested lists with compounding multipliers", func(t *testing.T) {
+		t.Parallel()
 		nestedSchema := `
 			type Query {
 			   users(first: Int): [User!]
@@ -2812,6 +2818,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("sizedFields", func(t *testing.T) {
+		t.Parallel()
 		connSchema := `
 			type Query {
 				users(first: Int, last: Int): UserConnection!
@@ -3429,6 +3436,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("sizedFields on abstract types", func(t *testing.T) {
+		t.Parallel()
 		t.Run("parent returns interface, child via inline fragment", func(t *testing.T) {
 			s2Schema := `
 					interface Connection {
@@ -3617,6 +3625,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 
 		t.Run("sizedFields on interface field", func(t *testing.T) {
+			t.Parallel()
 			s4Schema := `
 					interface Paginated {
 						items(first: Int): ItemConnection
@@ -3853,6 +3862,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 
 		t.Run("sizedField returns list of abstract type", func(t *testing.T) {
+			t.Parallel()
 			s7Schema := `
 					interface Publishable {
 						id: ID!
