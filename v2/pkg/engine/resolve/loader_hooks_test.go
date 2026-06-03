@@ -104,8 +104,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Subgraph errors are available on resolve context when error propagation is disabled", func(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
-		rCtx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		rCtx := t.Context()
 		r := New(rCtx, ResolverOptions{
 			MaxConcurrency:               1024,
 			Debug:                        false,

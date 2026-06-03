@@ -37,7 +37,7 @@ func TestInboundSingleFlight_ConcurrentFollowerTimeout(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(numFollowers)
 
-	for i := 0; i < numFollowers; i++ {
+	for range numFollowers {
 		go func() {
 			defer wg.Done()
 			ctx, cancel := context.WithCancel(context.Background())

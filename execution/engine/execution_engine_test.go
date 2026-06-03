@@ -135,7 +135,7 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		}
 
 		if testCase.expectedJSONResponse != "" {
-			assert.JSONEq(t, testCase.expectedJSONResponse, actualResponse)
+			assert.Equal(t, compactJSONForAssert(t, testCase.expectedJSONResponse), compactJSONForAssert(t, actualResponse))
 		}
 
 		if testCase.expectedResponse != "" {
@@ -178,8 +178,25 @@ func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.Pl
 	return cfg
 }
 
+func mustGraphqlDataSourceConfigurationWithName(t *testing.T, id, name string, factory plan.PlannerFactory[graphql_datasource.Configuration], metadata *plan.DataSourceMetadata, customConfig graphql_datasource.Configuration) plan.DataSourceConfiguration[graphql_datasource.Configuration] {
+	t.Helper()
+
+	cfg, err := plan.NewDataSourceConfigurationWithName[graphql_datasource.Configuration](
+		id,
+		name,
+		factory,
+		metadata,
+		customConfig,
+	)
+	require.NoError(t, err)
+
+	return cfg
+}
+
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
+	t.Parallel()
 	t.Run("no compression", func(t *testing.T) {
+		t.Parallel()
 		rw := graphql.NewEngineResultWriter()
 		_, err := rw.Write([]byte(`{"key": "value"}`))
 		require.NoError(t, err)
@@ -197,14 +214,16 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 	})
 
 	t.Run("compression based on content encoding header", func(t *testing.T) {
-		rw := graphql.NewEngineResultWriter()
-		_, err := rw.Write([]byte(`{"key": "value"}`))
-		require.NoError(t, err)
-
-		headers := make(http.Header)
-		headers.Set("Content-Type", "application/json")
+		t.Parallel()
 
 		t.Run("gzip", func(t *testing.T) {
+			t.Parallel()
+			rw := graphql.NewEngineResultWriter()
+			_, err := rw.Write([]byte(`{"key": "value"}`))
+			require.NoError(t, err)
+
+			headers := make(http.Header)
+			headers.Set("Content-Type", "application/json")
 			headers.Set(httpclient.ContentEncodingHeader, "gzip")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
@@ -223,6 +242,13 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 		})
 
 		t.Run("deflate", func(t *testing.T) {
+			t.Parallel()
+			rw := graphql.NewEngineResultWriter()
+			_, err := rw.Write([]byte(`{"key": "value"}`))
+			require.NoError(t, err)
+
+			headers := make(http.Header)
+			headers.Set("Content-Type", "application/json")
 			headers.Set(httpclient.ContentEncodingHeader, "deflate")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
@@ -1356,7 +1382,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	t.Run("execute operation with variables for arguments", runWithoutError(
 		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
-			operation: graphql.LoadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
+			operation: graphql.LoadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]any{"droidID": "R2D2"}),
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
@@ -1419,7 +1445,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
 				OperationName: "MyHeroes",
-				Variables: stringify(map[string]interface{}{
+				Variables: stringify(map[string]any{
 					"heroNames": []string{"Luke Skywalker", "R2-D2"},
 				}),
 				Query: `query MyHeroes($heroNames: [String!]!){
@@ -1673,7 +1699,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
 				OperationName: "",
-				Variables:     stringify(map[string]interface{}{}),
+				Variables:     stringify(map[string]any{}),
 				Query: `query{
 						charactersByIds(ids: 1) {
 							name
@@ -1742,7 +1768,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
 				OperationName: "",
-				Variables: stringify(map[string]interface{}{
+				Variables: stringify(map[string]any{
 					"ids": 1,
 				}),
 				Query: `query($ids: [Int]) { charactersByIds(ids: $ids) { name } }`,
@@ -1932,7 +1958,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
 						OperationName: "queryVariables",
-						Variables: stringify(map[string]interface{}{
+						Variables: stringify(map[string]any{
 							"name":         "Luke",
 							"nameOptional": "Skywalker",
 						}),
@@ -5955,8 +5981,7 @@ func BenchmarkIntrospection(b *testing.B) {
 	require.NoError(b, err)
 	expectedResponse := buf.Bytes()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := b.Context()
 	type benchCase struct {
 		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
@@ -5987,7 +6012,7 @@ func BenchmarkIntrospection(b *testing.B) {
 	require.Equal(b, string(expectedResponse), writer.String())
 
 	pool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return newBenchCase()
 		},
 	}
@@ -6010,8 +6035,7 @@ func BenchmarkIntrospection(b *testing.B) {
 }
 
 func BenchmarkExecutionEngine(b *testing.B) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := b.Context()
 	type benchCase struct {
 		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
@@ -6072,7 +6096,7 @@ func BenchmarkExecutionEngine(b *testing.B) {
 	require.Equal(b, "{\"data\":{\"hello\":\"world\"}}", writer.String())
 
 	pool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return newBenchCase()
 		},
 	}

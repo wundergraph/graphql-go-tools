@@ -21,7 +21,7 @@ import (
 // keeping an object alive, the GC will collect it and subsequent access will
 // SIGSEGV or return corrupted data.
 func forceGC() {
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		runtime.GC()
 	}
 }
@@ -48,7 +48,7 @@ func newTestResolver(t *testing.T, opts ResolverOptions) *Resolver {
 func resolveWithGCPressure(t *testing.T, resolver *Resolver, setupCtx func() *Context, setupResp func() *GraphQLResponse) string {
 	t.Helper()
 	var lastOutput string
-	for i := 0; i < gcIterations; i++ {
+	for i := range gcIterations {
 		response := setupResp()
 		resolveCtx := setupCtx()
 		forceGC()
@@ -72,8 +72,7 @@ func TestArenaGCSafety_FetchError(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
-	assert.Contains(t, output, `"data"`)
+	assert.Equal(t, `{"errors":[{"message":"Failed to fetch from Subgraph 'testService' at Path 'query'."}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_EmptyResponse(t *testing.T) {
@@ -85,7 +84,7 @@ func TestArenaGCSafety_EmptyResponse(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"Failed to fetch from Subgraph 'testService' at Path 'query', Reason: empty response."}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_InvalidJSON(t *testing.T) {
@@ -97,7 +96,7 @@ func TestArenaGCSafety_InvalidJSON(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"Failed to fetch from Subgraph 'testService' at Path 'query', Reason: invalid JSON."}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_InvalidShape(t *testing.T) {
@@ -109,7 +108,7 @@ func TestArenaGCSafety_InvalidShape(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"Failed to fetch from Subgraph 'testService' at Path 'query', Reason: no data or errors in response."}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_SubgraphErrorsWrapMode(t *testing.T) {
@@ -121,7 +120,7 @@ func TestArenaGCSafety_SubgraphErrorsWrapMode(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"Failed to fetch from Subgraph 'testService' at Path 'query'.","extensions":{"errors":[{"message":"downstream error"}]}}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_SubgraphErrorsPassthrough(t *testing.T) {
@@ -135,8 +134,7 @@ func TestArenaGCSafety_SubgraphErrorsPassthrough(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
-	assert.Contains(t, output, `downstream error`)
+	assert.Equal(t, `{"errors":[{"message":"downstream error"}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_SubgraphErrorsWithExtensionCode(t *testing.T) {
@@ -152,8 +150,7 @@ func TestArenaGCSafety_SubgraphErrorsWithExtensionCode(t *testing.T) {
 		},
 	)
 	// The extension code is set on errors; verify the output is valid
-	assert.Contains(t, output, `"errors"`)
-	assert.Contains(t, output, `downstream error`)
+	assert.Equal(t, `{"errors":[{"message":"downstream error"}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_SubgraphErrorsWithServiceName(t *testing.T) {
@@ -168,7 +165,7 @@ func TestArenaGCSafety_SubgraphErrorsWithServiceName(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `testService`)
+	assert.Equal(t, `{"errors":[{"message":"downstream error","extensions":{"serviceName":"testService"}}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_SubgraphErrorsWithExtensionCodeAndServiceName(t *testing.T) {
@@ -184,8 +181,7 @@ func TestArenaGCSafety_SubgraphErrorsWithExtensionCodeAndServiceName(t *testing.
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
-	assert.Contains(t, output, `testService`)
+	assert.Equal(t, `{"errors":[{"message":"downstream error","extensions":{"serviceName":"testService"}}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_AuthorizationRejected(t *testing.T) {
@@ -209,8 +205,7 @@ func TestArenaGCSafety_AuthorizationRejected(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
-	assert.Contains(t, output, `Unauthorized`)
+	assert.Equal(t, `{"errors":[{"message":"Unauthorized request to Subgraph 'testService' at Path 'query', Reason: not allowed.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_RateLimitRejected(t *testing.T) {
@@ -231,8 +226,7 @@ func TestArenaGCSafety_RateLimitRejected(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
-	assert.Contains(t, output, `Rate limit`)
+	assert.Equal(t, `{"errors":[{"message":"Rate limit exceeded for Subgraph 'testService' at Path 'query', Reason: rate limit exceeded."}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_RateLimitWithExtensionCode(t *testing.T) {
@@ -256,7 +250,7 @@ func TestArenaGCSafety_RateLimitWithExtensionCode(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `RATE_LIMIT_EXCEEDED`)
+	assert.Equal(t, `{"errors":[{"message":"Rate limit exceeded for Subgraph 'testService' at Path 'query', Reason: rate limit exceeded.","extensions":{"code":"RATE_LIMIT_EXCEEDED"}}],"data":{"field":null}}`, output)
 }
 
 // --- Successful data merge tests ---
@@ -270,8 +264,7 @@ func TestArenaGCSafety_MergeResult(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `hello world`)
-	assert.NotContains(t, output, `"errors"`)
+	assert.Equal(t, `{"data":{"field":"hello world"}}`, output)
 }
 
 // --- Resolvable SetNull path tests ---
@@ -322,7 +315,7 @@ func TestArenaGCSafety_NullableFieldNull(t *testing.T) {
 			}
 		},
 	)
-	assert.Contains(t, output, `"obj":null`)
+	assert.Equal(t, `{"data":{"obj":null}}`, output)
 }
 
 func TestArenaGCSafety_NonNullableFieldNull(t *testing.T) {
@@ -375,8 +368,7 @@ func TestArenaGCSafety_NonNullableFieldNull(t *testing.T) {
 		},
 	)
 	// The non-nullable field being null should bubble up to null the wrapper object
-	assert.Contains(t, output, `"wrapper":null`)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.wrapper.name'.","path":["wrapper","name"]}],"data":{"wrapper":null}}`, output)
 }
 
 // --- Authorization skip errors (TrueValue) test ---
@@ -447,8 +439,7 @@ func TestArenaGCSafety_AuthRejectionNullableField(t *testing.T) {
 			}
 		},
 	)
-	assert.Contains(t, output, `"name"`)
-	assert.Contains(t, output, `"data"`)
+	assert.Equal(t, `{"data":{"user":{"name":"Alice","secret":"classified"}}}`, output)
 }
 
 // --- Nested fetch tree tests ---
@@ -515,8 +506,7 @@ func TestArenaGCSafety_SequenceWithErrorThenSuccess(t *testing.T) {
 			}
 		},
 	)
-	assert.Contains(t, output, `first fetch failed`)
-	assert.Contains(t, output, `ok`)
+	assert.Equal(t, `{"errors":[{"message":"first fetch failed"}],"data":{"field":null,"other":"ok"}}`, output)
 }
 
 func TestArenaGCSafety_ParallelFetches(t *testing.T) {
@@ -590,8 +580,7 @@ func TestArenaGCSafety_ParallelFetches(t *testing.T) {
 			}
 		},
 	)
-	assert.Contains(t, output, `Bob`)
-	assert.Contains(t, output, `Widget`)
+	assert.Equal(t, `{"data":{"user":{"name":"Bob"},"product":{"title":"Widget"}}}`, output)
 }
 
 // --- Array nullability tests (SetNull for arrays) ---
@@ -641,7 +630,7 @@ func TestArenaGCSafety_NullableArrayWithNullItem(t *testing.T) {
 		},
 	)
 	// Non-nullable item being null should propagate to null the nullable array
-	assert.Contains(t, output, `"items":null`)
+	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.items'.","path":["items",0]}],"data":{"items":null}}`, output)
 }
 
 // --- Mixed success and error responses ---
@@ -660,8 +649,7 @@ func TestArenaGCSafety_PartialDataWithErrors(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `partial value`)
-	assert.Contains(t, output, `partial failure`)
+	assert.Equal(t, `{"errors":[{"message":"partial failure","path":["field"]}],"data":{"field":"partial value"}}`, output)
 }
 
 // --- Large/stress tests ---
@@ -674,7 +662,7 @@ func TestArenaGCSafety_ManyErrors(t *testing.T) {
 
 	// Build a response with 20 errors
 	var errMsgs []string
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		errMsgs = append(errMsgs, `{"message":"error `+strings.Repeat("x", 100)+`"}`)
 	}
 	errorsJSON := "[" + strings.Join(errMsgs, ",") + "]"
@@ -686,7 +674,7 @@ func TestArenaGCSafety_ManyErrors(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},{"message":"error xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}],"data":{"field":null}}`, output)
 }
 
 // --- Verify JSON validity ---
@@ -722,14 +710,14 @@ func TestArenaGCSafety_OutputIsValidJSON(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			resolver := newTestResolver(t, tc.opts)
-			for i := 0; i < gcIterations; i++ {
+			for i := range gcIterations {
 				resp, _ := gcTestResponse(FakeDataSource(tc.data))
 				ctx := NewContext(context.Background())
 				forceGC()
 				buf := &bytes.Buffer{}
 				_, err := resolver.ArenaResolveGraphQLResponse(ctx, resp, buf)
 				require.NoError(t, err)
-				var parsed map[string]interface{}
+				var parsed map[string]any
 				require.NoError(t, json.Unmarshal(buf.Bytes(), &parsed), "invalid JSON on iteration %d: %s", i, buf.String())
 			}
 		})
@@ -785,8 +773,7 @@ func TestArenaGCSafety_StatusCodeFallback(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
-	assert.Contains(t, output, `503`)
+	assert.Equal(t, `{"errors":[{"message":"503: Service Unavailable","extensions":{"statusCode":503}}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_ApolloRouterCompatError(t *testing.T) {
@@ -805,7 +792,7 @@ func TestArenaGCSafety_ApolloRouterCompatError(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `SUBREQUEST_HTTP_ERROR`)
+	assert.Equal(t, `{"errors":[{"message":"HTTP fetch failed from 'testService': 500: Internal Server Error","path":[],"extensions":{"code":"SUBREQUEST_HTTP_ERROR","service":"testService","reason":"500: Internal Server Error","http":{"status":500}}},{"message":"bad","extensions":{"statusCode":500}}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_SubgraphStatusCodeInExtensions(t *testing.T) {
@@ -823,8 +810,7 @@ func TestArenaGCSafety_SubgraphStatusCodeInExtensions(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"statusCode"`)
-	assert.Contains(t, output, `502`)
+	assert.Equal(t, `{"errors":[{"message":"fail","extensions":{"statusCode":502}}],"data":{"field":null}}`, output)
 }
 
 // --- Group B: Loader error filtering codepaths ---
@@ -842,8 +828,7 @@ func TestArenaGCSafety_OmitErrorExtensions(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
-	assert.NotContains(t, output, `"extensions"`)
+	assert.Equal(t, `{"errors":[{"message":"err"}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_OmitErrorLocations(t *testing.T) {
@@ -858,7 +843,7 @@ func TestArenaGCSafety_OmitErrorLocations(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"locations"`)
+	assert.Equal(t, `{"errors":[{"message":"err","locations":[{"line":1,"column":2}]}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_OmitAllErrorLocations(t *testing.T) {
@@ -890,8 +875,7 @@ func TestArenaGCSafety_AllowedExtensionFields(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"code"`)
-	assert.NotContains(t, output, `"secret"`)
+	assert.Equal(t, `{"errors":[{"message":"err","extensions":{"code":"X"}}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_WrapModeWithPropagation(t *testing.T) {
@@ -907,8 +891,7 @@ func TestArenaGCSafety_WrapModeWithPropagation(t *testing.T) {
 			return resp
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
-	assert.Contains(t, output, `inner`)
+	assert.Equal(t, `{"errors":[{"message":"Failed to fetch from Subgraph 'testService' at Path 'query'.","extensions":{"errors":[{"message":"inner"}]}}],"data":{"field":null}}`, output)
 }
 
 // --- Group C: Resolvable scalar walk functions ---
@@ -925,8 +908,7 @@ func TestArenaGCSafety_BooleanField(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `true`)
-	assert.NotContains(t, output, `"errors"`)
+	assert.Equal(t, `{"data":{"active":true}}`, output)
 }
 
 func TestArenaGCSafety_IntegerField(t *testing.T) {
@@ -941,7 +923,7 @@ func TestArenaGCSafety_IntegerField(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `42`)
+	assert.Equal(t, `{"data":{"count":42}}`, output)
 }
 
 func TestArenaGCSafety_FloatField(t *testing.T) {
@@ -956,7 +938,7 @@ func TestArenaGCSafety_FloatField(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `9.99`)
+	assert.Equal(t, `{"data":{"price":9.99}}`, output)
 }
 
 func TestArenaGCSafety_FloatTruncation(t *testing.T) {
@@ -975,7 +957,7 @@ func TestArenaGCSafety_FloatTruncation(t *testing.T) {
 		},
 	)
 	// Whole-number float should be truncated to int representation
-	assert.Contains(t, output, `"price":10`)
+	assert.Equal(t, `{"data":{"price":10}}`, output)
 }
 
 func TestArenaGCSafety_BigIntField(t *testing.T) {
@@ -990,7 +972,7 @@ func TestArenaGCSafety_BigIntField(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `9007199254740993`)
+	assert.Equal(t, `{"data":{"id":9007199254740993}}`, output)
 }
 
 func TestArenaGCSafety_ScalarField(t *testing.T) {
@@ -1005,7 +987,7 @@ func TestArenaGCSafety_ScalarField(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `"key"`)
+	assert.Equal(t, `{"data":{"meta":{"key":"value"}}}`, output)
 }
 
 func TestArenaGCSafety_EnumValid(t *testing.T) {
@@ -1020,7 +1002,7 @@ func TestArenaGCSafety_EnumValid(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `"ACTIVE"`)
+	assert.Equal(t, `{"data":{"status":"ACTIVE"}}`, output)
 }
 
 func TestArenaGCSafety_EnumInvalid(t *testing.T) {
@@ -1036,7 +1018,7 @@ func TestArenaGCSafety_EnumInvalid(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"Enum \"Status\" cannot represent value: \"UNKNOWN\"","path":["status"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":{"status":null}}`, output)
 }
 
 func TestArenaGCSafety_StringUnescapeResponseJson(t *testing.T) {
@@ -1052,7 +1034,7 @@ func TestArenaGCSafety_StringUnescapeResponseJson(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `nested`)
+	assert.Equal(t, `{"data":{"payload":{"nested":"value"}}}`, output)
 }
 
 func TestArenaGCSafety_CustomNode(t *testing.T) {
@@ -1068,7 +1050,7 @@ func TestArenaGCSafety_CustomNode(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `"hello"`)
+	assert.Equal(t, `{"data":{"custom":"hello"}}`, output)
 }
 
 func TestArenaGCSafety_ArrayObjectItemWalkFail(t *testing.T) {
@@ -1121,8 +1103,7 @@ func TestArenaGCSafety_ArrayObjectItemWalkFail(t *testing.T) {
 			}
 		},
 	)
-	assert.Contains(t, output, `"ok"`)
-	assert.Contains(t, output, `null`)
+	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.items.name'.","path":["items",1,"name"]}],"data":{"items":[{"name":"ok"},null]}}`, output)
 }
 
 func TestArenaGCSafety_ValueCompletion(t *testing.T) {
@@ -1174,8 +1155,7 @@ func TestArenaGCSafety_ValueCompletion(t *testing.T) {
 			}
 		},
 	)
-	assert.Contains(t, output, `"extensions"`)
-	assert.Contains(t, output, `"valueCompletion"`)
+	assert.Equal(t, `{"data":{"wrapper":null},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field .required.","path":["wrapper","required"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, output)
 }
 
 // --- Group D: Type-mismatch error paths ---
@@ -1193,7 +1173,7 @@ func TestArenaGCSafety_BooleanTypeMismatch(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"Bool cannot represent non-boolean value: \"\"not_a_bool\"\"","path":["active"]}],"data":null}`, output)
 }
 
 func TestArenaGCSafety_IntegerTypeMismatch(t *testing.T) {
@@ -1208,7 +1188,7 @@ func TestArenaGCSafety_IntegerTypeMismatch(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"Int cannot represent non-integer value: \"\"not_a_number\"\"","path":["count"]}],"data":null}`, output)
 }
 
 func TestArenaGCSafety_FloatTypeMismatch(t *testing.T) {
@@ -1223,7 +1203,7 @@ func TestArenaGCSafety_FloatTypeMismatch(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"Float cannot represent non-float value: \"\"not_a_float\"\"","path":["price"]}],"data":null}`, output)
 }
 
 func TestArenaGCSafety_StringTypeMismatch(t *testing.T) {
@@ -1238,5 +1218,5 @@ func TestArenaGCSafety_StringTypeMismatch(t *testing.T) {
 			)
 		},
 	)
-	assert.Contains(t, output, `"errors"`)
+	assert.Equal(t, `{"errors":[{"message":"String cannot represent non-string value: \"123\"","path":["name"]}],"data":null}`, output)
 }

@@ -15,7 +15,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
+//nolint:tparallel // Subtests mutate shared engineConfig state within the parent test.
 func TestNewConfiguration(t *testing.T) {
+	t.Parallel()
 	var engineConfig Configuration
 
 	t.Run("should create a new engine v2 config", func(t *testing.T) {
@@ -72,6 +74,7 @@ func TestNewConfiguration(t *testing.T) {
 }
 
 func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
+	t.Parallel()
 	client := &http.Client{}
 	streamingClient := &http.Client{}
 	engineCtx, cancel := context.WithCancel(context.Background())

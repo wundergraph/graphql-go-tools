@@ -215,19 +215,29 @@ func TestClient_ReadFromClient(t *testing.T) {
 }
 
 func TestClient_IsConnected(t *testing.T) {
-	_, connToClient := net.Pipe()
-	websocketClient := NewClient(abstractlogger.NoopLogger, connToClient)
+	t.Parallel()
 
 	t.Run("should return true when a connection is established", func(t *testing.T) {
+		t.Parallel()
+		_, connToClient := net.Pipe()
+		t.Cleanup(func() {
+			_ = connToClient.Close()
+		})
+		websocketClient := NewClient(abstractlogger.NoopLogger, connToClient)
+
 		isConnected := websocketClient.IsConnected()
 		assert.True(t, isConnected)
 	})
 
 	t.Run("should return false when a connection is closed", func(t *testing.T) {
+		t.Parallel()
+		_, connToClient := net.Pipe()
+		websocketClient := NewClient(abstractlogger.NoopLogger, connToClient)
+
 		err := connToClient.Close()
 		require.NoError(t, err)
 
-		websocketClient.isClosedConnection = true
+		websocketClient.changeConnectionStateToClosed()
 
 		isConnected := websocketClient.IsConnected()
 		assert.False(t, isConnected)
