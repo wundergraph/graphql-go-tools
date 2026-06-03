@@ -173,6 +173,11 @@ type result struct {
 	// l2CacheOpErrors accumulates cache operation errors in goroutines, merged on main thread.
 	l2CacheOpErrors []CacheOperationError
 
+	// l2FieldHashes accumulates synthesized root-field cache-hit field-hash events
+	// (one per RootFields entry, recorded at L2 hit sites in applyRootFetchL2Results).
+	// Mirrors the per-result slice + main-thread merge pattern of l2AnalyticsEvents.
+	l2FieldHashes []EntityFieldHash
+
 	// analyticsEntityType caches the entity type name for analytics recording.
 	// Set during prepareCacheKeys, used by L2 write recording.
 	analyticsEntityType string
@@ -222,6 +227,7 @@ type result struct {
 type shadowCacheEntry struct {
 	cachedValue  *astjson.Value // saved from L2 cache hit
 	cacheKey     string         // for correlation
+	keyRaw       string         // entity key JSON extracted from the schema-shape value BEFORE alias denormalization (so aliased @key fields still match cacheConfig.KeyFields)
 	remainingTTL time.Duration  // remaining TTL from L2 CacheEntry (0 = unknown)
 }
 
@@ -625,6 +631,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			}
 			if len(results[i].l2CacheOpErrors) > 0 {
 				l.ctx.cacheAnalytics.MergeL2CacheOpErrors(results[i].l2CacheOpErrors)
+			}
+			if len(results[i].l2FieldHashes) > 0 {
+				l.ctx.cacheAnalytics.MergeL2FieldHashes(results[i].l2FieldHashes)
 			}
 		}
 	}

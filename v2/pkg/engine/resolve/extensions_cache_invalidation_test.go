@@ -216,7 +216,7 @@ func TestExtensionsCacheInvalidationAnalytics(t *testing.T) {
 		env.ctx.ExecutionOptions.Caching.EnableCacheAnalytics = true
 
 		env.run()
-		stats := env.ctx.GetCacheStats()
+		stats := normalizeCacheAnalyticsSnapshot(env.ctx.GetCacheStats())
 
 		assert.Equal(t, []MutationEvent{
 			{

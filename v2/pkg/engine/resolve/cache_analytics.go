@@ -50,6 +50,7 @@ const (
 
 // CacheKeyEvent records a single cache key lookup result.
 type CacheKeyEvent struct {
+	Timestamp  time.Time // when the lookup occurred; stamped by Record* if zero
 	CacheKey   string
 	EntityType string
 	Kind       CacheKeyEventKind
@@ -61,6 +62,7 @@ type CacheKeyEvent struct {
 
 // CacheWriteEvent records a single cache write operation.
 type CacheWriteEvent struct {
+	Timestamp   time.Time // when the write occurred; stamped by RecordWrite if zero
 	CacheKey    string
 	EntityType  string
 	ByteSize    int
@@ -74,6 +76,7 @@ type CacheWriteEvent struct {
 
 // FetchTimingEvent records the duration of a subgraph fetch or cache lookup.
 type FetchTimingEvent struct {
+	Timestamp      time.Time   // when the fetch started; stamped by RecordFetchTiming if zero
 	DataSource     string      // subgraph name
 	EntityType     string      // entity type (empty for root fetches)
 	DurationMs     int64       // time spent on this operation in milliseconds
@@ -87,21 +90,54 @@ type FetchTimingEvent struct {
 
 // SubgraphErrorEvent records a subgraph error for analytics.
 type SubgraphErrorEvent struct {
-	DataSource string // subgraph name
-	EntityType string // entity type (empty for root fetches)
-	Message    string // error message (truncated for safety)
-	Code       string // error code from errors[0].extensions.code (empty if not present)
+	Timestamp  time.Time // when the error was observed; stamped by RecordError if zero
+	DataSource string    // subgraph name
+	EntityType string    // entity type (empty for root fetches)
+	Message    string    // error message (truncated for safety)
+	Code       string    // error code from errors[0].extensions.code (empty if not present)
 }
 
-// EntityFieldHash stores an xxhash of a scalar field value on an entity type,
-// along with the entity's key data and the source of the data.
+// EntityFieldHash stores an xxhash of a scalar field value reached from inside
+// an entity scope. KeyRaw/KeyHash always refer to the enclosing entity's @key,
+// even when the field lives on a nested value type. FieldPath is the schema-name
+// chain from the entity down to (but not including) the leaf — nil for direct
+// entity scalars, e.g. User.address.street → []string{"address"}. Array indexes
+// are omitted; nested entities reset the path.
 type EntityFieldHash struct {
-	EntityType string
+	Timestamp  time.Time // when the hash was computed; stamped by HashFieldValue if zero
+	EntityType string    // enclosing entity type name (cache identity)
+	FieldPath  []string  // schema-name field path from the enclosing entity to the parent (nil for direct entity scalars)
 	FieldName  string
 	FieldHash  uint64      // xxhash of the non-key field value
 	KeyRaw     string      // raw key JSON e.g. {"id":"1234"} (when HashKeys=false)
 	KeyHash    uint64      // xxhash of key JSON (when HashKeys=true)
-	Source     FieldSource // where the entity data came from (L1/L2/Subgraph)
+	Source     FieldSource // category: where the entity data came from (L1/L2/Subgraph/ShadowCached)
+	DataSource string      // subgraph name that owns this entity (empty if not resolvable)
+}
+
+// EntityFieldSelection records that the response walker entered an Object
+// or Array accessor field inside an entity scope. The accessor itself has no
+// scalar value, so unlike EntityFieldHash there is no FieldHash — the row's
+// existence is the signal. Coverage analytics consumers use it to count an
+// accessor as observed when only its leaves (which router flattening
+// attributes to the enclosing entity) carry telemetry.
+//
+// EntityType is the enclosing entity (same attribution rule as
+// EntityFieldHash). ChildTypeName is the accessor's named return type
+// (unwrapped of NonNull/List), e.g. "Details" for `details: Details!` or
+// "Hobby" for `hobbies: [Hobby!]!`. For interface/union accessors it is the
+// abstract type name. FieldPath is the schema-name chain from the entity to
+// the accessor's parent (nil when the accessor sits directly on the entity).
+type EntityFieldSelection struct {
+	Timestamp     time.Time // when the selection was recorded; stamped by RecordFieldSelection if zero
+	EntityType    string    // enclosing entity type name
+	FieldPath     []string  // schema-name path from the entity to the accessor's parent (nil for direct entity accessors)
+	FieldName     string    // accessor field's schema name
+	ChildTypeName string    // accessor's named return type (unwrapped); abstract type name for interface/union
+	KeyRaw        string    // raw key JSON e.g. {"id":"1234"} (when HashKeys=false)
+	KeyHash       uint64    // xxhash of key JSON (when HashKeys=true)
+	Source        FieldSource
+	DataSource    string // subgraph name that owns the enclosing entity (empty if not resolvable)
 }
 
 // EntityTypeInfo holds the entity type name and its instance count.
@@ -123,10 +159,12 @@ type entitySourceRecord struct {
 	entityType string
 	keyJSON    string
 	source     FieldSource
+	dataSource string // subgraph name (empty if unknown)
 }
 
 // ShadowComparisonEvent records a comparison between cached and fresh data in shadow mode.
 type ShadowComparisonEvent struct {
+	Timestamp     time.Time     // when the comparison was performed; stamped by RecordShadowComparison if zero
 	CacheKey      string        // cache key for correlation
 	EntityType    string        // entity type name
 	IsFresh       bool          // true if ProvidesData fields match between cached and fresh
@@ -143,14 +181,16 @@ type ShadowComparisonEvent struct {
 // Recorded during mutation execution by proactively comparing the mutation response
 // with the L2 cached value for the same entity.
 type MutationEvent struct {
-	MutationRootField string // e.g., "updateUsername"
-	EntityType        string // e.g., "User"
-	EntityCacheKey    string // display key e.g. {"__typename":"User","key":{"id":"1234"}}
-	HadCachedValue    bool   // true if L2 had a cached value for this entity
-	IsStale           bool   // true if cached value differs from mutation response (always false when HadCachedValue=false)
-	CachedHash        uint64 // xxhash of cached ProvidesData fields (0 when HadCachedValue=false)
-	FreshHash         uint64 // xxhash of mutation response ProvidesData fields
-	CachedBytes       int    // 0 when HadCachedValue=false
+	Timestamp         time.Time // when the mutation was observed; stamped by RecordMutationEvent if zero
+	MutationRootField string    // e.g., "updateUsername"
+	EntityType        string    // e.g., "User"
+	DataSource        string    // subgraph name that owns the mutated entity (empty when not resolvable)
+	EntityCacheKey    string    // display key e.g. {"__typename":"User","key":{"id":"1234"}}
+	HadCachedValue    bool      // true if L2 had a cached value for this entity
+	IsStale           bool      // true if cached value differs from mutation response (always false when HadCachedValue=false)
+	CachedHash        uint64    // xxhash of cached ProvidesData fields (0 when HadCachedValue=false)
+	FreshHash         uint64    // xxhash of mutation response ProvidesData fields
+	CachedBytes       int       // 0 when HadCachedValue=false
 	FreshBytes        int
 	Source            CacheOperationSource // what triggered this event (query/mutation/subscription)
 }
@@ -159,12 +199,13 @@ type MutationEvent struct {
 // Cache errors are non-fatal (the engine falls back to subgraph fetch), but tracking them
 // in analytics allows operators to detect cache infrastructure issues.
 type CacheOperationError struct {
-	Operation  string // "get", "set", "set_negative", or "delete"
-	CacheName  string // named cache instance
-	EntityType string // entity type (empty for root fetches)
-	DataSource string // subgraph name
-	Message    string // error message (truncated for safety)
-	ItemCount  int    // number of keys involved in the failed operation
+	Timestamp  time.Time // when the error occurred; stamped by RecordCacheOperationError if zero
+	Operation  string    // "get", "set", "set_negative", or "delete"
+	CacheName  string    // named cache instance
+	EntityType string    // entity type (empty for root fetches)
+	DataSource string    // subgraph name
+	Message    string    // error message (truncated for safety)
+	ItemCount  int       // number of keys involved in the failed operation
 }
 
 // HeaderImpactEvent records a fresh fetch that wrote to L2 cache with header-prefixed keys.
@@ -172,11 +213,12 @@ type CacheOperationError struct {
 // different HeaderHash values but identical ResponseHash values, the forwarded headers
 // do not affect the subgraph response, and IncludeSubgraphHeaderPrefix can be disabled.
 type HeaderImpactEvent struct {
-	BaseKey      string // cache key WITHOUT header prefix (stable identity for grouping)
-	HeaderHash   uint64 // hash of forwarded headers for this subgraph
-	ResponseHash uint64 // xxhash of the response value bytes written to L2
-	EntityType   string // entity type (e.g., "User") or "Query" for root fields
-	DataSource   string // subgraph name
+	Timestamp    time.Time // when the header-prefixed write occurred; stamped by RecordHeaderImpactEvent if zero
+	BaseKey      string    // cache key WITHOUT header prefix (stable identity for grouping)
+	HeaderHash   uint64    // hash of forwarded headers for this subgraph
+	ResponseHash uint64    // xxhash of the response value bytes written to L2
+	EntityType   string    // entity type (e.g., "User") or "Query" for root fields
+	DataSource   string    // subgraph name
 }
 
 // CacheAnalyticsCollector accumulates cache analytics events during request execution.
@@ -188,6 +230,7 @@ type CacheAnalyticsCollector struct {
 	l2KeyEvents        []CacheKeyEvent
 	writeEvents        []CacheWriteEvent
 	fieldHashes        []EntityFieldHash       // flat slice (was: nested maps)
+	fieldSelections    []EntityFieldSelection  // accessor-row events; gated by CachingOptions.EmitFieldSelections
 	entityCounts       []entityCount           // simple type→count (was: map)
 	entitySources      []entitySourceRecord    // records where each entity's data came from
 	fetchTimings       []FetchTimingEvent      // main thread timings
@@ -205,8 +248,9 @@ func NewCacheAnalyticsCollector() *CacheAnalyticsCollector {
 		l1KeyEvents:   make([]CacheKeyEvent, 0, 16),
 		l2KeyEvents:   make([]CacheKeyEvent, 0, 16),
 		writeEvents:   make([]CacheWriteEvent, 0, 8),
-		fieldHashes:   make([]EntityFieldHash, 0, 32),
-		entityCounts:  make([]entityCount, 0, 4),
+		fieldHashes:     make([]EntityFieldHash, 0, 32),
+		fieldSelections: make([]EntityFieldSelection, 0, 8),
+		entityCounts:    make([]entityCount, 0, 4),
 		entitySources: make([]entitySourceRecord, 0, 16),
 		fetchTimings:  make([]FetchTimingEvent, 0, 8),
 		errorEvents:   make([]SubgraphErrorEvent, 0, 4),
@@ -249,6 +293,7 @@ func (c *CacheAnalyticsCollector) ResetForReuse() {
 	c.l2KeyEvents = c.l2KeyEvents[:0]
 	c.writeEvents = c.writeEvents[:0]
 	c.fieldHashes = c.fieldHashes[:0]
+	c.fieldSelections = c.fieldSelections[:0]
 	c.entityCounts = c.entityCounts[:0]
 	c.entitySources = c.entitySources[:0]
 	c.fetchTimings = c.fetchTimings[:0]
@@ -265,6 +310,7 @@ func (c *CacheAnalyticsCollector) ResetForReuse() {
 // RecordL1KeyEvent records an L1 cache key lookup event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordL1KeyEvent(kind CacheKeyEventKind, entityType, cacheKey, dataSource string, byteSize int) {
 	c.l1KeyEvents = append(c.l1KeyEvents, CacheKeyEvent{
+		Timestamp:  time.Now(),
 		CacheKey:   cacheKey,
 		EntityType: entityType,
 		Kind:       kind,
@@ -279,6 +325,7 @@ func (c *CacheAnalyticsCollector) RecordL1KeyEvent(kind CacheKeyEventKind, entit
 // Use MergeL2Events to merge events collected on per-result slices from goroutines.
 func (c *CacheAnalyticsCollector) RecordL2KeyEvent(kind CacheKeyEventKind, entityType, cacheKey, dataSource string, byteSize int) {
 	c.l2KeyEvents = append(c.l2KeyEvents, CacheKeyEvent{
+		Timestamp:  time.Now(),
 		CacheKey:   cacheKey,
 		EntityType: entityType,
 		Kind:       kind,
@@ -295,24 +342,128 @@ func (c *CacheAnalyticsCollector) MergeL2Events(events []CacheKeyEvent) {
 
 // RecordWrite records a cache write event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordWrite(event CacheWriteEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.writeEvents = append(c.writeEvents, event)
 }
 
 // HashFieldValue computes an xxhash of the given field value bytes and records it
 // as an EntityFieldHash with entity key and source information.
-func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, valueBytes []byte, keyRaw string, keyHash uint64, source FieldSource) {
+//
+// entityType is the enclosing entity type name (cache identity). fieldPath is
+// the chain of schema field names from the enclosing entity down to (but not
+// including) the hashed leaf — empty for direct entity scalars. The slice is
+// copied so callers may reuse their scratch buffer. dataSource is the
+// subgraph name that owns the entity (may be empty if not resolvable).
+func (c *CacheAnalyticsCollector) HashFieldValue(entityType, fieldName string, fieldPath []string, valueBytes []byte, keyRaw string, keyHash uint64, source FieldSource, dataSource string) {
 	c.xxh.Reset()
 	_, _ = c.xxh.Write(valueBytes)
 	hash := c.xxh.Sum64()
 
+	var pathCopy []string
+	if len(fieldPath) > 0 {
+		pathCopy = make([]string, len(fieldPath))
+		copy(pathCopy, fieldPath)
+	}
+
 	c.fieldHashes = append(c.fieldHashes, EntityFieldHash{
+		Timestamp:  time.Now(),
 		EntityType: entityType,
+		FieldPath:  pathCopy,
 		FieldName:  fieldName,
 		FieldHash:  hash,
 		KeyRaw:     keyRaw,
 		KeyHash:    keyHash,
 		Source:     source,
+		DataSource: dataSource,
 	})
+}
+
+// RecordFieldSelection appends an EntityFieldSelection. Same attribution
+// model as HashFieldValue (entityType is the enclosing entity, fieldPath is
+// the chain from the entity to the accessor's parent), but no value bytes
+// are hashed — the accessor is a structural marker, not a value carrier.
+// childTypeName is the accessor's named return type (unwrapped); abstract
+// type name for interface/union accessors.
+//
+// The fieldPath slice is copied so callers may reuse their scratch buffer.
+func (c *CacheAnalyticsCollector) RecordFieldSelection(entityType, fieldName string, fieldPath []string, childTypeName, keyRaw string, keyHash uint64, source FieldSource, dataSource string) {
+	var pathCopy []string
+	if len(fieldPath) > 0 {
+		pathCopy = make([]string, len(fieldPath))
+		copy(pathCopy, fieldPath)
+	}
+	c.fieldSelections = append(c.fieldSelections, EntityFieldSelection{
+		Timestamp:     time.Now(),
+		EntityType:    entityType,
+		FieldPath:     pathCopy,
+		FieldName:     fieldName,
+		ChildTypeName: childTypeName,
+		KeyRaw:        keyRaw,
+		KeyHash:       keyHash,
+		Source:        source,
+		DataSource:    dataSource,
+	})
+}
+
+// BuildRootFieldCacheHits synthesizes per-(typeName,fieldName) field-hash events
+// for a root-field cache hit (@openfed__queryCache on Query.<f> / Mutation.<f>).
+// Emits one EntityFieldHash per entry in rootFields — a single subgraph fetch
+// can pack multiple root fields under one queryCache key, and the heatmap
+// attributes the hit to every covered coordinate.
+//
+// Unlike HashFieldValue (which runs per leaf inside an entity scope during the
+// response walk), root-field caches have no enclosing entity. We synthesize a
+// field-level event here so per-(Type,Field) cache-hit telemetry — used by the
+// hub heatmap — is produced for root fields the same way it already is for
+// scalars under an entity scope. The KeyHash carries an xxhash of the rendered
+// cache key string so the router's PII guard accepts the event; FieldHash is
+// the xxhash of the cached response bytes when supplied, otherwise zero.
+//
+// The events are appended to dst and returned. Main thread only (uses the
+// collector's reusable xxhash digest). Callers append the returned slice to a
+// per-result accumulator and merge it via MergeL2FieldHashes on the main
+// thread, mirroring the L2 key-event pattern.
+//
+// Returns dst unchanged when rootFields is empty, cacheKey is empty, or the
+// cacheKey hashes to zero (defensive — the router drops zero-keyhash events).
+func (c *CacheAnalyticsCollector) BuildRootFieldCacheHits(dst []EntityFieldHash, rootFields []GraphCoordinate, cacheKey, dataSource string, source FieldSource, valueBytes []byte) []EntityFieldHash {
+	if len(rootFields) == 0 || cacheKey == "" {
+		return dst
+	}
+	c.xxh.Reset()
+	_, _ = c.xxh.WriteString(cacheKey)
+	keyHash := c.xxh.Sum64()
+	if keyHash == 0 {
+		return dst
+	}
+	var fieldHash uint64
+	if len(valueBytes) > 0 {
+		c.xxh.Reset()
+		_, _ = c.xxh.Write(valueBytes)
+		fieldHash = c.xxh.Sum64()
+	}
+	now := time.Now()
+	for i := range rootFields {
+		dst = append(dst, EntityFieldHash{
+			Timestamp:  now,
+			EntityType: rootFields[i].TypeName,
+			FieldName:  rootFields[i].FieldName,
+			FieldHash:  fieldHash,
+			KeyHash:    keyHash,
+			Source:     source,
+			DataSource: dataSource,
+		})
+	}
+	return dst
+}
+
+// MergeL2FieldHashes merges field-hash events collected on a per-result slice
+// (the same per-result accumulator pattern used by L2 key events) into the
+// collector. Must be called on the main thread.
+func (c *CacheAnalyticsCollector) MergeL2FieldHashes(events []EntityFieldHash) {
+	c.fieldHashes = append(c.fieldHashes, events...)
 }
 
 // IncrementEntityCount increments the instance count for the given entity type.
@@ -338,12 +489,13 @@ func (c *CacheAnalyticsCollector) IncrementEntityCount(typeName string, keyJSON 
 }
 
 // RecordEntitySource records the source of data for a specific entity instance.
-// Main thread only.
-func (c *CacheAnalyticsCollector) RecordEntitySource(entityType, keyJSON string, source FieldSource) {
+// Main thread only. dataSource is the subgraph name (may be empty).
+func (c *CacheAnalyticsCollector) RecordEntitySource(entityType, keyJSON, dataSource string, source FieldSource) {
 	c.entitySources = append(c.entitySources, entitySourceRecord{
 		entityType: entityType,
 		keyJSON:    keyJSON,
 		source:     source,
+		dataSource: dataSource,
 	})
 }
 
@@ -357,6 +509,9 @@ func (c *CacheAnalyticsCollector) MergeEntitySources(sources []entitySourceRecor
 // It is exported for external consumers such as cosmo router; this repository
 // has no production caller. If cosmo no longer uses it, internalize it in the next breaking window.
 func (c *CacheAnalyticsCollector) RecordFetchTiming(event FetchTimingEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.fetchTimings = append(c.fetchTimings, event)
 }
 
@@ -368,6 +523,9 @@ func (c *CacheAnalyticsCollector) MergeL2FetchTimings(timings []FetchTimingEvent
 
 // RecordError records a subgraph error event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordError(event SubgraphErrorEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.errorEvents = append(c.errorEvents, event)
 }
 
@@ -380,21 +538,33 @@ func (c *CacheAnalyticsCollector) MergeL2Errors(events []SubgraphErrorEvent) {
 // RecordShadowComparison records a shadow mode comparison between cached and fresh data.
 // Main thread only.
 func (c *CacheAnalyticsCollector) RecordShadowComparison(event ShadowComparisonEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.shadowComparisons = append(c.shadowComparisons, event)
 }
 
 // RecordMutationEvent records a mutation entity impact event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordMutationEvent(event MutationEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.mutationEvents = append(c.mutationEvents, event)
 }
 
 // RecordHeaderImpactEvent records a header impact event. Main thread only.
 func (c *CacheAnalyticsCollector) RecordHeaderImpactEvent(event HeaderImpactEvent) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.headerImpactEvents = append(c.headerImpactEvents, event)
 }
 
 // RecordCacheOperationError records a cache operation error. Main thread only.
 func (c *CacheAnalyticsCollector) RecordCacheOperationError(event CacheOperationError) {
+	if event.Timestamp.IsZero() {
+		event.Timestamp = time.Now()
+	}
 	c.cacheOpErrors = append(c.cacheOpErrors, event)
 }
 
@@ -415,6 +585,17 @@ func (c *CacheAnalyticsCollector) EntitySource(entityType, keyJSON string) Field
 	return FieldSourceSubgraph
 }
 
+// EntityDataSource returns the subgraph name that owns a given entity instance.
+// Returns "" if no record is found.
+func (c *CacheAnalyticsCollector) EntityDataSource(entityType, keyJSON string) string {
+	for i := len(c.entitySources) - 1; i >= 0; i-- {
+		if c.entitySources[i].entityType == entityType && c.entitySources[i].keyJSON == keyJSON {
+			return c.entitySources[i].dataSource
+		}
+	}
+	return ""
+}
+
 // Snapshot produces a read-only CacheAnalyticsSnapshot from the collected data.
 // Duplicate events (same cache key appearing multiple times due to entity batch positions)
 // are consolidated: consumers see one event per unique (CacheKey, Kind) for reads,
@@ -428,6 +609,7 @@ func (c *CacheAnalyticsCollector) Snapshot() CacheAnalyticsSnapshot {
 		L1Reads:            deduplicateKeyEvents(c.l1KeyEvents),
 		L2Reads:            deduplicateKeyEvents(c.l2KeyEvents),
 		FieldHashes:        slices.Clone(c.fieldHashes),
+		FieldSelections:    slices.Clone(c.fieldSelections),
 		FetchTimings:       slices.Clone(c.fetchTimings),
 		ErrorEvents:        slices.Clone(c.errorEvents),
 		ShadowComparisons:  deduplicateShadowComparisons(c.shadowComparisons),
@@ -526,18 +708,35 @@ func deduplicateShadowComparisons(events []ShadowComparisonEvent) []ShadowCompar
 }
 
 // deduplicateHeaderImpactEvents removes duplicate header impact events,
-// keeping the first occurrence for each unique event identity.
+// keeping the first occurrence for each unique event identity. Identity
+// excludes Timestamp — auto-stamping populates a different time.Now() per
+// Record* call, so two semantically identical events would otherwise look
+// distinct under whole-struct equality.
 func deduplicateHeaderImpactEvents(events []HeaderImpactEvent) []HeaderImpactEvent {
 	if len(events) == 0 {
 		return events
 	}
-	seen := make(map[HeaderImpactEvent]struct{}, len(events))
+	type dedupKey struct {
+		BaseKey      string
+		HeaderHash   uint64
+		ResponseHash uint64
+		EntityType   string
+		DataSource   string
+	}
+	seen := make(map[dedupKey]struct{}, len(events))
 	out := make([]HeaderImpactEvent, 0, len(events))
 	for _, ev := range events {
-		if _, ok := seen[ev]; ok {
+		k := dedupKey{
+			BaseKey:      ev.BaseKey,
+			HeaderHash:   ev.HeaderHash,
+			ResponseHash: ev.ResponseHash,
+			EntityType:   ev.EntityType,
+			DataSource:   ev.DataSource,
+		}
+		if _, ok := seen[k]; ok {
 			continue
 		}
-		seen[ev] = struct{}{}
+		seen[k] = struct{}{}
 		out = append(out, ev)
 	}
 	return out
@@ -562,6 +761,11 @@ type CacheAnalyticsSnapshot struct {
 
 	// Field value hashes: flat slice of EntityFieldHash
 	FieldHashes []EntityFieldHash
+
+	// Field selection events: flat slice of EntityFieldSelection — one per
+	// Object/Array accessor entered inside an entity scope when
+	// CachingOptions.EmitFieldSelections is true. Empty when the flag is off.
+	FieldSelections []EntityFieldSelection
 
 	// Entity tracking: type + count inline
 	EntityTypes []EntityTypeInfo
@@ -1032,14 +1236,15 @@ func appendKeyFieldsJSON(buf []byte, value *astjson.Value, keyFields []KeyField)
 
 // walkCachedResponseForSources walks a cached JSON value to find entity instances
 // and accumulates their source records on a per-result slice (goroutine-safe).
-func walkCachedResponseForSources(value *astjson.Value, keyFields []KeyField, entityType string, source FieldSource, out *[]entitySourceRecord) {
+// dataSource is the subgraph name the cached response originated from (may be empty).
+func walkCachedResponseForSources(value *astjson.Value, keyFields []KeyField, entityType, dataSource string, source FieldSource, out *[]entitySourceRecord) {
 	if value == nil {
 		return
 	}
 	switch value.Type() {
 	case astjson.TypeArray:
 		for _, item := range value.GetArray() {
-			walkCachedResponseForSources(item, keyFields, entityType, source, out)
+			walkCachedResponseForSources(item, keyFields, entityType, dataSource, source, out)
 		}
 	case astjson.TypeObject:
 		keyJSON := buildEntityKeyJSON(value, keyFields)
@@ -1048,6 +1253,7 @@ func walkCachedResponseForSources(value *astjson.Value, keyFields []KeyField, en
 				entityType: entityType,
 				keyJSON:    string(keyJSON),
 				source:     source,
+				dataSource: dataSource,
 			})
 		}
 	}

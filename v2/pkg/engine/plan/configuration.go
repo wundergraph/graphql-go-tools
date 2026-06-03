@@ -50,6 +50,15 @@ type Configuration struct {
 	// DisableEntityCaching disables planning of L2 entity caching metadata and mutation-impact logic.
 	// L1 cache templates are still generated regardless of this setting.
 	DisableEntityCaching bool
+
+	// ForceHashAnalyticsKeys, when true, forces every entity's plan-time
+	// HashKeys flag to true regardless of the per-entity HashAnalyticsKeys
+	// setting in the federation config. The plan visitor ORs this with the
+	// per-entity setting; a true value here cannot be downgraded by the
+	// per-entity flag. Use this when the analytics export pipeline must
+	// avoid emitting raw entity keys (e.g., to satisfy PII / GDPR boundaries).
+	// Default: false (per-entity setting controls hashing).
+	ForceHashAnalyticsKeys bool
 	// DisableFetchProvidesData disables planning of meta information about which fields are provided by a fetch
 	DisableFetchProvidesData bool
 

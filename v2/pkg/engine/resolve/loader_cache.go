@@ -684,9 +684,20 @@ func (l *Loader) prepareCacheKeys(info *FetchInfo, cfg FetchCacheConfiguration, 
 	// Check if this is an entity fetch (L1 only applies to entity fetches)
 	isEntity := cfg.isEntityFetch()
 
-	// Set analytics entity type for cache event recording
-	if l.ctx.cacheAnalyticsEnabled() && info != nil && len(info.RootFields) > 0 {
-		res.analyticsEntityType = info.RootFields[0].TypeName
+	// Set analytics entity type for cache event recording.
+	// For root-field caches that delegate to a specific entity via
+	// EntityKeyMappings (e.g. Query.employee → Employee), attribute analytics
+	// to the underlying entity rather than the operation root type. Hub /
+	// Studio per-entity dashboards group cache events by EntityType, so
+	// tagging Query.employee L2 reads as "Query" caused the per-Employee
+	// "Reads sampled" / hit-rate cards to stay at 0 even when the cache
+	// served every request.
+	if l.ctx.cacheAnalyticsEnabled() && info != nil {
+		if rt, ok := cfg.CacheKeyTemplate.(*RootQueryCacheKeyTemplate); ok && len(rt.EntityKeyMappings) > 0 {
+			res.analyticsEntityType = rt.EntityKeyMappings[0].EntityTypeName
+		} else if len(info.RootFields) > 0 {
+			res.analyticsEntityType = info.RootFields[0].TypeName
+		}
 	}
 
 	// Always generate cache keys (needed for merging cached data into response)
@@ -893,6 +904,10 @@ func (l *Loader) tryCacheLoad(ctx context.Context, info *FetchInfo, cfg FetchCac
 				l.ctx.cacheAnalytics.MergeL2Errors(res.l2ErrorEvents)
 				res.l2ErrorEvents = nil
 			}
+			if len(res.l2FieldHashes) > 0 {
+				l.ctx.cacheAnalytics.MergeL2FieldHashes(res.l2FieldHashes)
+				res.l2FieldHashes = nil
+			}
 		}
 		if err != nil || skipFetch {
 			return skipFetch, err
@@ -968,7 +983,7 @@ func (l *Loader) tryL1CacheLoad(info *FetchInfo, cacheKeys []*CacheKey, res *res
 					if len(res.cacheConfig.KeyFields) > 0 {
 						keyJSON := buildEntityKeyJSON(cachedValue, res.cacheConfig.KeyFields)
 						if len(keyJSON) > 0 {
-							l.ctx.cacheAnalytics.RecordEntitySource(entityType, string(keyJSON), FieldSourceL1)
+							l.ctx.cacheAnalytics.RecordEntitySource(entityType, string(keyJSON), dataSource, FieldSourceL1)
 						}
 					}
 				}
@@ -1014,6 +1029,12 @@ type l2CacheLookupState struct {
 	tracingCache            bool
 	shadowMode              bool
 	hasAliases              bool
+	// isRootFieldCache is true when this fetch is cached via a root-field
+	// template (@openfed__queryCache) — the apply* functions use it to emit
+	// per-(Query.<f>) synthetic field-hash events that drive the hub heatmap's
+	// cache-hit tint. Entity caches do not set this; their leaf-level field
+	// hashes are emitted from the response walk under an entity scope.
+	isRootFieldCache        bool
 	entityType              string
 	dataSource              string
 	remainingTTLs           map[string]time.Duration
@@ -1058,11 +1079,16 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, info *FetchInfo, res *resul
 		return false, nil
 	}
 
-	// Extract entity type and data source for analytics (read-only, goroutine-safe)
+	// Extract entity type and data source for analytics (read-only, goroutine-safe).
+	// Prefer res.analyticsEntityType — it was set in prepareCacheKeys and already
+	// accounts for root-field caches that delegate to a specific entity via
+	// EntityKeyMappings. Falling back to info.RootFields[0].TypeName for
+	// defense-in-depth keeps non-root entity fetches working unchanged.
 	analyticsEnabled := l.ctx.cacheAnalyticsEnabled()
 	var entityType, dataSource string
 	if analyticsEnabled && info != nil {
-		if len(info.RootFields) > 0 {
+		entityType = res.analyticsEntityType
+		if entityType == "" && len(info.RootFields) > 0 {
 			entityType = info.RootFields[0].TypeName
 		}
 		dataSource = info.DataSourceName
@@ -1387,11 +1413,13 @@ func (l *Loader) populateFromCacheBulk(a arena.Arena, res *result, byKey map[str
 }
 
 func (l *Loader) prepareL2LookupState(info *FetchInfo, res *result, cacheEntries []*CacheEntry, analyticsEnabled, tracingCache bool, entityType, dataSource string) l2CacheLookupState {
+	_, isRootFieldCache := res.cacheConfig.CacheKeyTemplate.(*RootQueryCacheKeyTemplate)
 	state := l2CacheLookupState{
 		analyticsEnabled: analyticsEnabled,
 		tracingCache:     tracingCache,
 		shadowMode:       res.cacheConfig.ShadowMode,
 		hasAliases:       info != nil && info.ProvidesData != nil && info.ProvidesData.HasAliases,
+		isRootFieldCache: isRootFieldCache,
 		entityType:       entityType,
 		dataSource:       dataSource,
 	}
@@ -1488,6 +1516,7 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 					Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: 4,
 					Shadow: state.shadowMode,
 				})
+				l.recordRootFieldL2Hit(info, res, state, res.l1CacheKeys[i].Keys[0], nil)
 			}
 			if state.tracingCache {
 				res.cacheTraceNegativeHits++
@@ -1525,13 +1554,30 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 		res.l2CacheKeys[i].fromCacheRemainingTTL = res.l1CacheKeys[i].fromCacheRemainingTTL
 		res.l2CacheKeys[i].fromCacheNeedsWriteback = res.l1CacheKeys[i].fromCacheNeedsWriteback
 
+		// Extract the entity key from the schema-shape value BEFORE
+		// denormalization. cacheConfig.KeyFields are schema names; once
+		// aliases are reapplied, an `id` key field would no longer match a
+		// `userId: id` aliased field. Without this, the entitySourceRecord
+		// is silently dropped (causing EntitySource / EntityDataSource lookups
+		// to fall back to defaults) and shadow-mode field hashes lose their
+		// entity-key correlation. Computed once for both the analytics and
+		// shadow-mode branches below.
+		var preDenormKeyJSON []byte
+		if (state.analyticsEnabled || state.shadowMode) && len(res.cacheConfig.KeyFields) > 0 && len(res.l1CacheKeys[i].Keys) > 0 {
+			preDenormKeyJSON = buildEntityKeyJSON(res.l1CacheKeys[i].FromCache, res.cacheConfig.KeyFields)
+		}
+
 		if state.hasAliases {
 			res.l1CacheKeys[i].FromCache = l.structuralCopyDenormalizedPassthrough(res.l1CacheKeys[i].FromCache, res.providesData)
 		}
 
-		var byteSize int
-		if (state.analyticsEnabled || state.tracingCache) && len(res.l1CacheKeys[i].Keys) > 0 {
-			byteSize = len(res.l1CacheKeys[i].FromCache.MarshalTo(nil))
+		var (
+			hitBytes []byte
+			byteSize int
+		)
+		if (state.analyticsEnabled || state.tracingCache) && len(res.l1CacheKeys[i].Keys) > 0 && res.l1CacheKeys[i].FromCache != nil {
+			hitBytes = res.l1CacheKeys[i].FromCache.MarshalTo(nil)
+			byteSize = len(hitBytes)
 		}
 
 		if state.analyticsEnabled && len(res.l1CacheKeys[i].Keys) > 0 {
@@ -1544,14 +1590,19 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 				Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: byteSize,
 				CacheAgeMs: cacheAgeMs, Shadow: state.shadowMode,
 			})
-			if len(res.cacheConfig.KeyFields) > 0 {
-				keyJSON := buildEntityKeyJSON(res.l1CacheKeys[i].FromCache, res.cacheConfig.KeyFields)
-				if len(keyJSON) > 0 {
-					res.l2EntitySources = append(res.l2EntitySources, entitySourceRecord{
-						entityType: state.entityType, keyJSON: string(keyJSON), source: FieldSourceL2,
-					})
-				}
+			if len(preDenormKeyJSON) > 0 {
+				res.l2EntitySources = append(res.l2EntitySources, entitySourceRecord{
+					entityType: state.entityType, keyJSON: string(preDenormKeyJSON), source: FieldSourceL2, dataSource: state.dataSource,
+				})
 			}
+			// Synthesize a per-(typeName,fieldName) field-hash event for root-
+			// field caches (@openfed__queryCache). Gated inside the helper on
+			// state.isRootFieldCache so entity caches — whose leaf hashes are
+			// emitted from the response walk under an entity scope — don't
+			// double-emit. Drives the hub heatmap's per-field cache-hit tint
+			// for Query.<f> / Mutation.<f>, which has no enclosing entity at
+			// the root and is therefore invisible to the response walk.
+			l.recordRootFieldL2Hit(info, res, state, res.l1CacheKeys[i].Keys[0], hitBytes)
 		}
 
 		if state.shadowMode {
@@ -1559,7 +1610,11 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 			if len(res.l2CacheKeys[i].Keys) > 0 {
 				remaining = state.remainingTTLs[res.l2CacheKeys[i].Keys[0]]
 			}
-			l.saveShadowCachedValue(res, i, res.l1CacheKeys[i].FromCache, res.l1CacheKeys[i].Keys[0], remaining)
+			// preDenormKeyJSON was extracted from the schema-shape FromCache
+			// before denormalization above; FromCache is now alias-denormalized
+			// so re-extracting the key in compareShadowValues would miss
+			// aliased @key fields. Persist it on the shadow entry instead.
+			l.saveShadowCachedValue(res, i, res.l1CacheKeys[i].FromCache, res.l1CacheKeys[i].Keys[0], string(preDenormKeyJSON), remaining)
 			if state.tracingCache {
 				res.cacheTraceShadowHit = true
 			}
@@ -1586,6 +1641,25 @@ func (l *Loader) applyEntityFetchL2Results(info *FetchInfo, res *result, state l
 	}
 
 	return allComplete
+}
+
+// recordRootFieldL2Hit appends per-(typeName,fieldName) field-hash events to
+// the per-result accumulator for a root-field cache hit. One event per entry
+// in info.RootFields so multi-root-field queryCache hits tint every covered
+// coordinate in the heatmap. Skips when:
+//   - analytics is off,
+//   - shadow mode (a shadow comparison is not a hit served from cache),
+//   - this isn't a root-field cache (entity caches emit per-leaf field hashes
+//     from the response walk under an entity scope — synthesizing here would
+//     double-emit), or
+//   - info.RootFields is empty.
+//
+// valueBytes is optional; when supplied it's xxhash'd into FieldHash.
+func (l *Loader) recordRootFieldL2Hit(info *FetchInfo, res *result, state l2CacheLookupState, cacheKey string, valueBytes []byte) {
+	if !state.analyticsEnabled || state.shadowMode || !state.isRootFieldCache || info == nil || len(info.RootFields) == 0 {
+		return
+	}
+	res.l2FieldHashes = l.ctx.cacheAnalytics.BuildRootFieldCacheHits(res.l2FieldHashes, info.RootFields, cacheKey, state.dataSource, FieldSourceL2, valueBytes)
 }
 
 func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2CacheLookupState) bool {
@@ -1620,6 +1694,7 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 					Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: 4,
 					Shadow: state.shadowMode,
 				})
+				l.recordRootFieldL2Hit(info, res, state, ck.Keys[0], nil)
 			}
 			if state.tracingCache {
 				res.cacheTraceNegativeHits++
@@ -1662,6 +1737,16 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 			continue
 		}
 
+		// Walk the schema-shape value for entitySourceRecord emission BEFORE
+		// denormalization. cacheConfig.KeyFields are schema names; once
+		// aliases are reapplied, an `id` key field would no longer match a
+		// `userId: id` aliased field and entity-source records would be
+		// silently dropped, leaving EntitySource / EntityDataSource lookups
+		// to fall back to defaults for cached alias reads.
+		if state.analyticsEnabled && len(res.cacheConfig.KeyFields) > 0 && len(ck.Keys) > 0 {
+			walkCachedResponseForSources(ck.FromCache, res.cacheConfig.KeyFields, state.entityType, state.dataSource, FieldSourceL2, &res.l2EntitySources)
+		}
+
 		if state.hasAliases {
 			if res.batchEntityKeyMode && state.batchEntityProvidesData != nil {
 				res.l2CacheKeys[i].FromCache = l.structuralCopyDenormalized(ck.FromCache, state.batchEntityProvidesData)
@@ -1670,9 +1755,13 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 			}
 		}
 
-		var byteSize int
-		if (state.analyticsEnabled || state.tracingCache) && len(ck.Keys) > 0 {
-			byteSize = len(res.l2CacheKeys[i].FromCache.MarshalTo(nil))
+		var (
+			hitBytes []byte
+			byteSize int
+		)
+		if (state.analyticsEnabled || state.tracingCache) && len(ck.Keys) > 0 && res.l2CacheKeys[i].FromCache != nil {
+			hitBytes = res.l2CacheKeys[i].FromCache.MarshalTo(nil)
+			byteSize = len(hitBytes)
 		}
 
 		if state.analyticsEnabled && len(ck.Keys) > 0 {
@@ -1682,9 +1771,13 @@ func (l *Loader) applyRootFetchL2Results(info *FetchInfo, res *result, state l2C
 				Kind: CacheKeyHit, DataSource: state.dataSource, ByteSize: byteSize,
 				CacheAgeMs: cacheAgeMs, Shadow: state.shadowMode,
 			})
-			if len(res.cacheConfig.KeyFields) > 0 {
-				walkCachedResponseForSources(res.l2CacheKeys[i].FromCache, res.cacheConfig.KeyFields, state.entityType, FieldSourceL2, &res.l2EntitySources)
-			}
+			// Synthesize a per-(typeName,fieldName) field-hash event for every
+			// covered root field. Drives the hub heatmap's per-field cache-hit
+			// tint for @openfed__queryCache — the entity-scope response walk
+			// emits FieldHashes for leaves inside entity caches but cannot
+			// attribute hits to Query.<f> / Mutation.<f> because there is no
+			// enclosing entity at the root.
+			l.recordRootFieldL2Hit(info, res, state, ck.Keys[0], hitBytes)
 		}
 
 		if state.tracingCache {
@@ -2480,13 +2573,18 @@ func (l *Loader) applyL2CacheKeyInterceptor(key string, res *result) string {
 }
 
 // saveShadowCachedValue saves a cached L2 value for later staleness comparison in shadow mode.
-func (l *Loader) saveShadowCachedValue(res *result, index int, cachedValue *astjson.Value, cacheKey string, remainingTTL time.Duration) {
+// keyRaw must be the entity key JSON extracted from the schema-shape value BEFORE
+// alias denormalization — by the time compareShadowValues runs, cachedValue may
+// have been denormalized in place, so re-extracting the key from it would miss
+// aliased @key fields and lose entity-key correlation on shadow field hashes.
+func (l *Loader) saveShadowCachedValue(res *result, index int, cachedValue *astjson.Value, cacheKey, keyRaw string, remainingTTL time.Duration) {
 	if res.shadowCachedValues == nil {
 		res.shadowCachedValues = make(map[int]shadowCacheEntry, len(res.l1CacheKeys))
 	}
 	res.shadowCachedValues[index] = shadowCacheEntry{
 		cachedValue:  cachedValue,
 		cacheKey:     cacheKey,
+		keyRaw:       keyRaw,
 		remainingTTL: remainingTTL,
 	}
 }
@@ -2553,24 +2651,104 @@ func (l *Loader) compareShadowValues(res *result, info *FetchInfo) {
 		// Fresh field hashes are already recorded during resolution (FieldSourceSubgraph).
 		// Here we record cached field hashes so the consumer can diff per-field.
 		if info.ProvidesData != nil {
-			// Build entity key for correlation with resolution-time hashes
-			var keyRaw string
-			if len(res.cacheConfig.KeyFields) > 0 {
-				if keyJSON := buildEntityKeyJSON(entry.cachedValue, res.cacheConfig.KeyFields); len(keyJSON) > 0 {
-					keyRaw = string(keyJSON)
+			// Use the pre-denormalization keyRaw captured when the shadow
+			// entry was saved. cachedValue may already be alias-denormalized
+			// here, so re-extracting via buildEntityKeyJSON would miss
+			// aliased @key fields and lose entity-key correlation on the
+			// FieldSourceShadowCached hashes.
+			//
+			// Recurse to mirror the fresh-side per-leaf emission so nested
+			// value-type scalars (e.g. User.address.street) line up by
+			// (entityType, fieldName, FieldPath) instead of being collapsed
+			// into a single whole-subobject hash.
+			l.hashShadowCachedLeaves(cachedProvides, info.ProvidesData, entityType, entry.keyRaw, dataSource, nil)
+		}
+	}
+}
+
+// hashShadowCachedLeaves walks the cached value against ProvidesData and emits
+// one HashFieldValue event per scalar leaf, accumulating fieldPath through
+// nested value types. This mirrors the fresh-resolution emission in
+// resolvable.renderFieldValue so shadow-mode comparisons can correlate
+// per-field hashes across the (entityType, fieldName, FieldPath) tuple.
+//
+// fieldPath is reused across recursive calls; entries are appended on descent
+// and trimmed on return. HashFieldValue copies the slice when storing, so the
+// reuse is safe.
+func (l *Loader) hashShadowCachedLeaves(
+	cachedValue *astjson.Value,
+	providesData *Object,
+	entityType, keyRaw, dataSource string,
+	fieldPath []string,
+) {
+	if cachedValue == nil || providesData == nil {
+		return
+	}
+	for _, field := range providesData.Fields {
+		fieldName := string(field.Name)
+		// Skip __typename — meta field, not part of the entity's data identity
+		// (the fresh-side resolvable also doesn't hash it).
+		if fieldName == "__typename" {
+			continue
+		}
+		fieldVal := cachedValue.Get(fieldName)
+		if fieldVal == nil {
+			continue
+		}
+		// Schema-name (alias-stripped) component for FieldPath. ProvidesData
+		// is plan-time so OriginalName is usually empty; fall back to Name.
+		schemaName := string(field.OriginalName)
+		if schemaName == "" {
+			schemaName = fieldName
+		}
+
+		// Prefer the planner's per-field resolver subgraph over the entity-
+		// scope dataSource arg. Mirrors the per-field attribution applied at
+		// the fresh-response emission site in resolvable.go (see
+		// fieldDataSource). Falls back to the recursion's dataSource arg
+		// (entity-scope) when planner info is missing.
+		fieldDS := dataSource
+		if field.Info != nil && len(field.Info.Source.Names) > 0 {
+			fieldDS = field.Info.Source.Names[0]
+		}
+
+		switch v := field.Value.(type) {
+		case *Object:
+			fieldPath = append(fieldPath, schemaName)
+			l.hashShadowCachedLeaves(fieldVal, v, entityType, keyRaw, dataSource, fieldPath)
+			fieldPath = fieldPath[:len(fieldPath)-1]
+		case *Array:
+			if itemObj, ok := v.Item.(*Object); ok {
+				// Array of objects: walk each element under the same path.
+				fieldPath = append(fieldPath, schemaName)
+				if items, _ := fieldVal.Array(); len(items) > 0 {
+					for _, item := range items {
+						l.hashShadowCachedLeaves(item, itemObj, entityType, keyRaw, dataSource, fieldPath)
+					}
+				}
+				fieldPath = fieldPath[:len(fieldPath)-1]
+			} else {
+				// Array of scalars: hash each item with the array's fieldName,
+				// matching the resolvable's per-item emission.
+				if items, _ := fieldVal.Array(); len(items) > 0 {
+					fieldPath = append(fieldPath, schemaName)
+					for _, item := range items {
+						bytes := item.MarshalTo(nil)
+						l.ctx.cacheAnalytics.HashFieldValue(
+							entityType, fieldName, fieldPath,
+							bytes, keyRaw, 0, FieldSourceShadowCached, fieldDS,
+						)
+					}
+					fieldPath = fieldPath[:len(fieldPath)-1]
 				}
 			}
-			for _, field := range info.ProvidesData.Fields {
-				fieldName := string(field.Name)
-				fieldVal := cachedProvides.Get(fieldName)
-				if fieldVal != nil {
-					fieldBytes := fieldVal.MarshalTo(nil)
-					l.ctx.cacheAnalytics.HashFieldValue(
-						entityType, fieldName, fieldBytes,
-						keyRaw, 0, FieldSourceShadowCached,
-					)
-				}
-			}
+		default:
+			// Scalar leaf: hash with the accumulated path.
+			bytes := fieldVal.MarshalTo(nil)
+			l.ctx.cacheAnalytics.HashFieldValue(
+				entityType, fieldName, fieldPath,
+				bytes, keyRaw, 0, FieldSourceShadowCached, fieldDS,
+			)
 		}
 	}
 }
@@ -2734,6 +2912,7 @@ func (l *Loader) detectSingleMutationEntityImpact(
 	l.ctx.cacheAnalytics.RecordMutationEvent(MutationEvent{
 		MutationRootField: mutationFieldName,
 		EntityType:        cfg.EntityTypeName,
+		DataSource:        info.DataSourceName,
 		EntityCacheKey:    displayKey,
 		HadCachedValue:    false,
 		IsStale:           false,

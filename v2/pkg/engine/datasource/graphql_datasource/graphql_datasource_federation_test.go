@@ -2061,6 +2061,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																				Names: []string{"account.service"},
 																			},
 																			ExactParentTypeName: "ShippingInfo",
+																			CacheAnalyticsHash:  true,
 																		},
 																		Value: &resolve.String{
 																			Path: []string{"z"},

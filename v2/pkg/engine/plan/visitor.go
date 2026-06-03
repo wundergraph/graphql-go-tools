@@ -529,14 +529,59 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 	}
 
 	// Mark non-key fields on concrete entity types for cache analytics hashing;
-	// polymorphic parents fall through to the runtime fallback.
+	// polymorphic parents fall through to the runtime fallback. Also mark scalar
+	// fields on value types reachable from an entity through pure value-type
+	// traversal (e.g. User.address.street where Address has no @key) — these
+	// are attributed to the nearest enclosing entity for cache identity.
 	if v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition {
 		if analytics := v.caching.entityCacheAnalytics(enclosingTypeName); analytics != nil {
 			fieldInfo.CacheAnalyticsHash = !analytics.IsKeyField(fieldName)
+		} else if v.hasEntityAncestor() {
+			// Value-type scalar nested under an entity scope. Plan-time
+			// CacheAnalyticsHash gates the runtime emission; the resolvable
+			// will attribute the hash to currentEntityTypeName (the nearest
+			// enclosing entity preserved by walkObject's save/restore) with
+			// ExactParentTypeName recorded separately for disambiguation.
+			fieldInfo.CacheAnalyticsHash = true
 		}
 	}
 
 	return fieldInfo
+}
+
+// hasEntityAncestor reports whether the current field's enclosing scope sits
+// inside an entity reached via pure value-type traversal (no nested entity
+// boundary above it). The immediate enclosing type is assumed already checked
+// by the caller and not to be an entity. We walk the type-definition chain
+// backwards and return true at the first entity found; an interface ancestor
+// is conservatively treated as a non-entity stop (the runtime polymorphic
+// fallback handles those).
+func (v *Visitor) hasEntityAncestor() bool {
+	td := v.Walker.TypeDefinitions
+	// The last entry is the current EnclosingTypeDefinition (the immediate
+	// parent of the field). Walk strictly above it.
+	for i := len(td) - 2; i >= 0; i-- {
+		node := td[i]
+		switch node.Kind {
+		case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+			// An abstract type ancestor breaks pure value-type traversal:
+			// the runtime concrete type may or may not be an entity, so any
+			// entity above the polymorphic boundary cannot be the cache
+			// identity. Defer to the runtime polymorphic fallback.
+			return false
+		case ast.NodeKindObjectTypeDefinition:
+		default:
+			continue
+		}
+		typeName := node.NameString(v.Definition)
+		if typeName == "" {
+			continue
+		}
+		if analytics := v.caching.entityCacheAnalytics(typeName); analytics != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (v *Visitor) fieldHasAuthorizationRule(typeName, fieldName string) bool {
