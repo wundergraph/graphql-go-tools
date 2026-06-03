@@ -2158,7 +2158,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				expectedResponse: `{"data":{"heroDefault":"R2D2","heroDefaultRequired":"R2D2"}}`,
 			},
 		))
-
 	})
 
 	t.Run("execute query with data source on field with interface return type", runWithoutError(
@@ -4628,7 +4627,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("execute operation with nested fetch on one of the types", func(t *testing.T) {
-
 		t.Parallel()
 
 		definition := `
@@ -4972,7 +4970,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("validation of optional @requires dependencies", func(t *testing.T) {
-
 		t.Parallel()
 
 		t.Run("execute operation with @requires and @external", func(t *testing.T) {
@@ -6003,7 +6000,6 @@ func BenchmarkIntrospection(b *testing.B) {
 		}
 	}
 
-	ctx = context.Background()
 	req := graphql.StarwarsRequestForQuery(b, starwars.FileIntrospectionQuery)
 
 	writer := graphql.NewEngineResultWriter()
@@ -6031,7 +6027,6 @@ func BenchmarkIntrospection(b *testing.B) {
 			pool.Put(bc)
 		}
 	})
-
 }
 
 func BenchmarkExecutionEngine(b *testing.B) {
@@ -6085,7 +6080,6 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		}
 	}
 
-	ctx = context.Background()
 	req := graphql.Request{
 		Query: "{hello}",
 	}
@@ -6115,7 +6109,6 @@ func BenchmarkExecutionEngine(b *testing.B) {
 			pool.Put(bc)
 		}
 	})
-
 }
 
 func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesting.FederationSetup) (engine *ExecutionEngine, schema *graphql.Schema, err error) {
