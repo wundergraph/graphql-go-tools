@@ -827,7 +827,7 @@ func BenchmarkResolvable_Resolve(b *testing.B) {
 	b.SetBytes(int64(len(expected)))
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		out.Reset()
 		err = res.Resolve(context.Background(), object, nil, out)
 		if err != nil {
@@ -913,7 +913,7 @@ func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 	b.SetBytes(int64(len(expected)))
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		out.Reset()
 		err = res.Resolve(context.Background(), object, nil, out)
 		if err != nil {

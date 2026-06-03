@@ -13,6 +13,8 @@ import (
 func TestExecutionEngine_Cost(t *testing.T) {
 	t.Parallel()
 
+	t.Parallel()
+
 	t.Run("common on star wars scheme", func(t *testing.T) {
 		t.Parallel()
 		rootNodes := []plan.TypeField{
@@ -4465,6 +4467,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 
 		t.Run("sizedFields on interface field", func(t *testing.T) {
+			t.Parallel()
 			s4Schema := `
 					interface Paginated {
 						items(first: Int): ItemConnection
@@ -4701,6 +4704,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 
 		t.Run("sizedField returns list of abstract type", func(t *testing.T) {
+			t.Parallel()
 			s7Schema := `
 					interface Publishable {
 						id: ID!

@@ -11,7 +11,9 @@ import (
 )
 
 func TestTimeOutChecker(t *testing.T) {
+	t.Parallel()
 	t.Run("should stop timer if context is done before", func(t *testing.T) {
+		t.Parallel()
 		timeOutActionExecuted := false
 		timeOutAction := func() {
 			timeOutActionExecuted = true
@@ -33,6 +35,7 @@ func TestTimeOutChecker(t *testing.T) {
 	})
 
 	t.Run("should stop process if timer runs out", func(t *testing.T) {
+		t.Parallel()
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 
