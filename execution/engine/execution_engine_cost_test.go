@@ -11,8 +11,10 @@ import (
 )
 
 func TestExecutionEngine_Cost(t *testing.T) {
+	t.Parallel()
 
 	t.Run("common on star wars scheme", func(t *testing.T) {
+		t.Parallel()
 		rootNodes := []plan.TypeField{
 			{TypeName: "Query", FieldNames: []string{"hero", "droid", "search", "searchResults"}},
 			{TypeName: "Human", FieldNames: []string{"name", "height", "friends"}},
@@ -1028,6 +1030,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("union types", func(t *testing.T) {
+		t.Parallel()
 		unionSchema := `
 			type Query {
 			   search(term: String!): [SearchResult!]
@@ -1187,6 +1190,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("listSize", func(t *testing.T) {
+		t.Parallel()
 		listSchema := `
 			input Search {
                 pagination: Page
@@ -2161,6 +2165,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("nested lists with compounding multipliers", func(t *testing.T) {
+		t.Parallel()
 		nestedSchema := `
 			type Query {
 			   users(first: Int): [User!]
@@ -2942,6 +2947,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("abstract list with concrete fragment charges only matched items", func(t *testing.T) {
+		t.Parallel()
 		schemaStr := `
 			type Query {
 			  boards(ids: [ID!]!, limit: Int): [Board!]!
@@ -3429,6 +3435,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("nested abstract lists", func(t *testing.T) {
+		t.Parallel()
 		schemaStr := `
 			type Query {
 			  things: [Thing!]!
@@ -3647,6 +3654,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("sizedFields", func(t *testing.T) {
+		t.Parallel()
 		connSchema := `
 			type Query {
 				users(first: Int, last: Int): UserConnection!
@@ -4264,6 +4272,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("sizedFields on abstract types", func(t *testing.T) {
+		t.Parallel()
 		t.Run("parent returns interface, child via inline fragment", func(t *testing.T) {
 			s2Schema := `
 					interface Connection {
@@ -4785,6 +4794,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("validate requireOneSlicingArgument on concrete types", func(t *testing.T) {
+		t.Parallel()
 		listSchema := `
 			type Query {
 			   items(first: Int, last: Int): [Item!] # @listSize(assumedSize: 10, SlicingArguments: ["first", "last"], RequireOneSlicingArgument: true/false)
@@ -5182,6 +5192,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("validate requireOneSlicingArgument with schema defaults", func(t *testing.T) {
+		t.Parallel()
 		listSchema := `
 			input Page {
 				first: Int = 8
@@ -5500,6 +5511,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("validate requireOneSlicingArgument on abstract types", func(t *testing.T) {
+		t.Parallel()
 		// Abstract type tests: @listSize with requireOneSlicingArgument on concrete types,
 		// accessed through an interface field.
 		abstractSchema := `
@@ -5679,6 +5691,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 	})
 
 	t.Run("input object cost", func(t *testing.T) {
+		t.Parallel()
 		inputObjectSchema := `
 			type Query {
 				create(input: CreateInput!): User
