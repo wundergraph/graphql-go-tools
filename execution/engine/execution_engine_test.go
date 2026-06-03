@@ -4629,8 +4629,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	t.Run("execute operation with nested fetch on one of the types", func(t *testing.T) {
 		t.Parallel()
 
-		t.Parallel()
-
 		definition := `
 			type User implements Node {
 				id: ID!
@@ -4972,8 +4970,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("validation of optional @requires dependencies", func(t *testing.T) {
-		t.Parallel()
-
 		t.Parallel()
 
 		t.Run("execute operation with @requires and @external", func(t *testing.T) {

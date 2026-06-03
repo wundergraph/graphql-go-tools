@@ -3,25 +3,12 @@ package resolve
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
-
-func compactJSONForAssert(t testing.TB, input string) string {
-	t.Helper()
-
-	var value any
-	err := json.Unmarshal([]byte(input), &value)
-	assert.NoError(t, err)
-
-	normalized, err := json.Marshal(value)
-	assert.NoError(t, err)
-	return string(normalized)
-}
 
 // TestParseErrorBehavior verifies case-insensitive parsing of error behavior
 // strings, including whitespace trimming and unknown value rejection.
