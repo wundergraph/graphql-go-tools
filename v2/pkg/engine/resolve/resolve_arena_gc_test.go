@@ -859,7 +859,7 @@ func TestArenaGCSafety_OmitAllErrorLocations(t *testing.T) {
 			return resp
 		},
 	)
-	assert.NotContains(t, output, `"locations"`)
+	assert.Equal(t, `{"errors":[{"message":"err"}],"data":{"field":null}}`, output)
 }
 
 func TestArenaGCSafety_AllowedExtensionFields(t *testing.T) {
