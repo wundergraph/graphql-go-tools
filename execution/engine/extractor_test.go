@@ -11,6 +11,7 @@ import (
 )
 
 func TestExtractor_ExtractFieldsFromRequest(t *testing.T) {
+	t.Parallel()
 	schema, err := graphql.NewSchemaFromString(testDefinition)
 	require.NoError(t, err)
 

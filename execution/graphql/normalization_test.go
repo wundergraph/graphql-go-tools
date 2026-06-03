@@ -14,7 +14,9 @@ import (
 )
 
 func TestRequest_Normalize(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when schema is nil", func(t *testing.T) {
+		t.Parallel()
 		request := Request{
 			OperationName: "Hello",
 			Variables:     nil,
@@ -29,6 +31,7 @@ func TestRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("should successfully normalize request with fragments", func(t *testing.T) {
+		t.Parallel()
 		schema := StarwarsSchema(t)
 		request := StarwarsRequestForQuery(t, starwars.FileFragmentsQuery)
 		request.OperationName = "Fragments"
@@ -77,6 +80,7 @@ func TestRequest_Normalize(t *testing.T) {
 	}
 
 	t.Run("should successfully normalize single query with arguments", func(t *testing.T) {
+		t.Parallel()
 		request := StarwarsRequestForQuery(t, starwars.FileDroidWithArgQuery)
 
 		runNormalization(t, &request, `{"a":"R2D2"}`, `query($a: ID!){
@@ -87,6 +91,7 @@ func TestRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("should successfully normalize query and remove unused variables", func(t *testing.T) {
+		t.Parallel()
 		request := Request{
 			OperationName: "MySearch",
 			Variables: stringify(map[string]interface{}{
@@ -106,6 +111,7 @@ func TestRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("should successfully normalize query and remove variables with no value provided", func(t *testing.T) {
+		t.Parallel()
 		request := Request{
 			OperationName: "MySearch",
 			Variables: stringify(map[string]interface{}{
@@ -123,6 +129,7 @@ func TestRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("should successfully normalize multiple queries with arguments", func(t *testing.T) {
+		t.Parallel()
 		request := StarwarsRequestForQuery(t, starwars.FileMultiQueriesWithArguments)
 		request.OperationName = "GetDroid"
 
@@ -135,6 +142,7 @@ func TestRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("input coercion for lists without variables", func(t *testing.T) {
+		t.Parallel()
 		schema := InputCoercionForListSchema(t)
 		request := Request{
 			OperationName: "charactersByIds",
@@ -149,6 +157,7 @@ func TestRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("input coercion for lists with variable extraction", func(t *testing.T) {
+		t.Parallel()
 		schema := InputCoercionForListSchema(t)
 		request := Request{
 			OperationName: "GetCharactersByIds",
@@ -163,6 +172,7 @@ func TestRequest_Normalize(t *testing.T) {
 	})
 
 	t.Run("input coercion for lists with variables", func(t *testing.T) {
+		t.Parallel()
 		schema := InputCoercionForListSchema(t)
 		request := Request{
 			OperationName: "charactersByIds",
@@ -180,7 +190,9 @@ func TestRequest_Normalize(t *testing.T) {
 }
 
 func Test_normalizationResultFromReport(t *testing.T) {
+	t.Parallel()
 	t.Run("should return successful result when report does not have errors", func(t *testing.T) {
+		t.Parallel()
 		report := operationreport.Report{}
 		result, err := NormalizationResultFromReport(report)
 
@@ -189,6 +201,7 @@ func Test_normalizationResultFromReport(t *testing.T) {
 	})
 
 	t.Run("should return graphql errors and internal error when report contains them", func(t *testing.T) {
+		t.Parallel()
 		internalErr := errors.New("errors occurred")
 		externalErr := operationreport.ExternalError{
 			Message:   "graphql error",
