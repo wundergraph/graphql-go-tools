@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -165,6 +166,7 @@ type BatchEntityFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Caching              FetchCacheConfiguration
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -205,6 +207,7 @@ type EntityFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Caching              FetchCacheConfiguration
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
@@ -271,13 +274,15 @@ type FetchConfiguration struct {
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
+
+	Caching FetchCacheConfiguration
 }
 
-func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
-	if fc.Input != other.Input {
+func (f *FetchConfiguration) Equals(other *FetchConfiguration) bool {
+	if f.Input != other.Input {
 		return false
 	}
-	if !slices.EqualFunc(fc.Variables, other.Variables, func(a, b Variable) bool {
+	if !slices.EqualFunc(f.Variables, other.Variables, func(a, b Variable) bool {
 		return a.Equals(b)
 	}) {
 		return false
@@ -285,20 +290,210 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 
 	// Note: we do not compare datasources, as they will always be a different instance.
 
-	if fc.RequiresEntityFetch != other.RequiresEntityFetch {
+	if f.RequiresEntityFetch != other.RequiresEntityFetch {
 		return false
 	}
-	if fc.RequiresEntityBatchFetch != other.RequiresEntityBatchFetch {
+	if f.RequiresEntityBatchFetch != other.RequiresEntityBatchFetch {
 		return false
 	}
-	if !fc.PostProcessing.Equals(&other.PostProcessing) {
+	if !f.PostProcessing.Equals(&other.PostProcessing) {
 		return false
 	}
-	if fc.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
+	if f.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
 		return false
 	}
+	return f.Caching.Equals(&other.Caching)
+}
 
+func (f *FetchCacheConfiguration) Equals(other *FetchCacheConfiguration) bool {
+	if f.Enabled != other.Enabled {
+		return false
+	}
+	if f.CacheName != other.CacheName {
+		return false
+	}
+	if f.TTL != other.TTL {
+		return false
+	}
+	if f.IncludeSubgraphHeaderPrefix != other.IncludeSubgraphHeaderPrefix {
+		return false
+	}
+	if f.EnablePartialCacheLoad != other.EnablePartialCacheLoad {
+		return false
+	}
+	if f.ShadowMode != other.ShadowMode {
+		return false
+	}
+	if f.EnableMutationL2CachePopulation != other.EnableMutationL2CachePopulation {
+		return false
+	}
+	if f.MutationCacheTTLOverride != other.MutationCacheTTLOverride {
+		return false
+	}
+	if f.NegativeCacheTTL != other.NegativeCacheTTL {
+		return false
+	}
+	if f.PartialBatchLoad != other.PartialBatchLoad {
+		return false
+	}
+	if !slices.Equal(f.BatchEntityKeyArgumentPathHint, other.BatchEntityKeyArgumentPathHint) {
+		return false
+	}
 	return true
+}
+
+type FetchCacheConfiguration struct {
+	// Enabled indicates if L2 caching is enabled for this fetch.
+	// L1 caching is controlled separately via ctx.ExecutionOptions.Caching.EnableL1Cache.
+	Enabled bool
+	// CacheName is the name of the cache to use for this fetch
+	CacheName string
+	// TTL is the time to live which will be set for new cache entries
+	TTL time.Duration
+	// CacheKeyTemplate can be used to render a cache key for the fetch.
+	// In case of a root fetch, the variables will be one or more field arguments
+	// For entity fetches, the variables will be a single Object Variable with only @key fields
+	CacheKeyTemplate CacheKeyTemplate
+	// IncludeSubgraphHeaderPrefix indicates if cache keys should be prefixed with the subgraph header hash.
+	// The prefix format is "id:cacheKey" where id is the hash from HeadersForSubgraph.
+	// Defaults to true.
+	IncludeSubgraphHeaderPrefix bool
+	// RootFieldL1EntityCacheKeyTemplates holds L1 cache key templates for entities returned by root fields.
+	RootFieldL1EntityCacheKeyTemplates map[string]CacheKeyTemplate
+
+	// EnablePartialCacheLoad enables fetching only cache-missed entities.
+	// When true and some entities are cached while others are not, only the missing
+	// entities are fetched from the subgraph. Cached entities are served directly.
+	// This is propagated from EntityCacheConfiguration during planning.
+	EnablePartialCacheLoad bool
+
+	// UseL1Cache controls whether this fetch uses L1 (per-request) cache.
+	// Set by postprocessor based on whether a prior fetch can populate L1
+	// for this entity type. Defaults to true for backward compatibility.
+	UseL1Cache bool
+
+	// HashAnalyticsKeys controls whether entity keys are hashed (true) or stored raw (false)
+	// in cache analytics EntityFieldHash entries. Propagated from EntityCacheConfiguration.
+	HashAnalyticsKeys bool
+
+	// KeyFields holds the full @key structure, pre-extracted at plan time.
+	// Used for entity source tracking during cache analytics.
+	KeyFields []KeyField
+
+	// ShadowMode enables shadow caching for this fetch.
+	// When true, L2 cache reads and writes still occur, but cached data is never served.
+	// Fresh data is always fetched from the subgraph and compared against the cached value
+	// to detect staleness. L1 cache works normally (not affected by shadow mode).
+	ShadowMode bool
+
+	// MutationEntityImpactConfig is set when this fetch is a mutation that returns a cached entity.
+	// Used by detectMutationEntityImpact() to proactively compare mutation response with L2 cache.
+	MutationEntityImpactConfig *MutationEntityImpactConfig
+
+	// EnableMutationL2CachePopulation allows mutation entity fetches to write
+	// to the L2 cache. Propagated from MutationFieldCacheConfiguration.
+	// By default, mutations do NOT populate L2.
+	EnableMutationL2CachePopulation bool
+
+	// MutationCacheTTLOverride overrides the entity TTL for mutation-triggered L2 writes.
+	// Propagated from MutationFieldCacheConfiguration.TTL.
+	// When zero, the entity's default TTL is used.
+	MutationCacheTTLOverride time.Duration
+
+	// NegativeCacheTTL is the TTL for caching null entity results (entity not found).
+	// When > 0, null responses (entity returned null without errors) are cached to avoid
+	// repeated subgraph lookups for non-existent entities.
+	// When 0 (default), null entities are not cached.
+	NegativeCacheTTL time.Duration
+
+	// PartialBatchLoad enables partial fetch mode for batch arguments (ArgumentIsEntityKey + list).
+	// When false (default), batch cache is all-or-nothing: any miss fetches the full list.
+	// When true, only missing IDs are fetched; cached entities are served directly.
+	PartialBatchLoad bool
+	// BatchEntityKeyArgumentPathHint describes the root-field argument that acts as the entity key list.
+	// This enables batch short-circuiting and partial variable filtering even when cache reads are disabled.
+	BatchEntityKeyArgumentPathHint []string
+
+	// RequestScopedFields lists fields annotated with @requestScoped whose values are
+	// identical for all entities in a request. Each field participates in per-request
+	// L1 caching symmetrically: it can be injected from L1 (skipping the fetch) AND
+	// exported to L1 (populating the cache after a fetch).
+	RequestScopedFields []RequestScopedField
+}
+
+// RequestScopedField describes a field that participates in per-request L1 caching.
+//
+// Symmetric model: every @requestScoped field is both a reader (inject from L1
+// before fetch) and a writer (export to L1 after fetch). There is no separate
+// hint/export distinction.
+//
+// The L1 cache stores values in normalized form (schema field names + arg hashes).
+// ProvidesData describes the shape the query expects AT THIS FETCH LOCATION,
+// using response-side field names (aliases). The resolver uses ProvidesData for:
+//   - Injection: `validateItemHasRequiredData` + `structuralCopyProjected`
+//   - Export: `structuralCopyNormalized` (alias → schema name, arg → arg-hash)
+type RequestScopedField struct {
+	// FieldName is the response key at the entity-fetch location (alias if present,
+	// else the schema field name). Used when writing the injected value onto entity items.
+	FieldName string
+	// FieldPath is the path in the response data (e.g. ["currentViewer"]).
+	// Uses response keys (aliases) as they appear in the current fetch's output.
+	FieldPath []string
+	// L1Key is the coordinate-based L1 cache key (e.g. "viewer.Personalized.currentViewer").
+	L1Key string
+	// ProvidesData describes the field's value shape at this fetch location,
+	// including nested sub-fields, aliases, and arg variants.
+	ProvidesData *Object
+}
+
+func (f FetchCacheConfiguration) isEntityFetch() bool {
+	if f.CacheKeyTemplate == nil {
+		return false
+	}
+	return f.CacheKeyTemplate.IsEntityFetch()
+}
+
+func (f FetchCacheConfiguration) batchEntityKeyArgumentPath() []string {
+	if len(f.BatchEntityKeyArgumentPathHint) > 0 {
+		return f.BatchEntityKeyArgumentPathHint
+	}
+	if f.CacheKeyTemplate == nil {
+		return nil
+	}
+	return f.CacheKeyTemplate.BatchEntityKeyArgumentPath()
+}
+
+func (f FetchCacheConfiguration) hasBatchEntityKey() bool {
+	return len(f.batchEntityKeyArgumentPath()) > 0
+}
+
+func (f FetchCacheConfiguration) entityMergePath(postProcessing PostProcessingConfiguration) []string {
+	if f.CacheKeyTemplate == nil {
+		return nil
+	}
+	return f.CacheKeyTemplate.EntityMergePath(postProcessing)
+}
+
+// MutationEntityImpactConfig holds information for detecting entity cache changes from mutations.
+// Set at plan time when a mutation returns a federation entity with L2 caching configured.
+type MutationEntityImpactConfig struct {
+	EntityTypeName              string     // "User"
+	KeyFields                   []KeyField // [{Name: "id"}]
+	CacheName                   string     // "default"
+	IncludeSubgraphHeaderPrefix bool
+	// InvalidateCache when true causes the L2 cache entry for this entity to be deleted
+	// after the mutation completes. Configured per mutation field via MutationCacheInvalidationConfiguration.
+	InvalidateCache bool
+	// PopulateCache when true causes the L2 cache entry for this entity to be written
+	// directly from the mutation response payload after the mutation completes. Use case:
+	// `@cachePopulate` on a single-subgraph mutation that returns the full entity, where
+	// no follow-up entity fetch exists to inherit EnableMutationL2CachePopulation.
+	// Mutually informative with InvalidateCache (a single mutation field is annotated with
+	// only one or the other in composition).
+	PopulateCache bool
+	// PopulateTTL is the TTL to use when writing under PopulateCache. When zero the cache
+	// implementation's default TTL applies.
+	PopulateTTL time.Duration
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
@@ -363,6 +558,7 @@ type FetchInfo struct {
 	// with the request to the subgraph as part of the "fetch_reason" extension.
 	// Specifically, it is created only for fields stored in the DataSource.RequireFetchReasons().
 	PropagatedFetchReasons []FetchReason
+	ProvidesData           *Object
 }
 
 type GraphCoordinate struct {
@@ -384,6 +580,7 @@ type DataSourceLoadTrace struct {
 	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
 	LoadSkipped                bool            `json:"load_skipped"`
 	LoadStats                  *LoadStats      `json:"load_stats,omitempty"`
+	CacheTrace                 *CacheTrace     `json:"cache_trace,omitempty"`
 	Path                       string          `json:"-"`
 }
 

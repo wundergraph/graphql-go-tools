@@ -1,4 +1,4 @@
-package engine
+package engine_test
 
 import (
 	"encoding/json"

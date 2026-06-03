@@ -129,8 +129,11 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		abstractlogger.String("status", "connected"),
 	)
 
-	// Create connection
-	conn := newSSEConnection(resp, handler)
+	// Create connection. The onClose hook lets the connection evict itself
+	// from t.conns when its read loop terminates naturally (complete/EOF/error)
+	// without the consumer invoking the cancel func.
+	var conn *sseConnection
+	conn = newSSEConnection(resp, handler, func() { t.removeConn(conn) })
 
 	t.mu.Lock()
 	t.conns[conn] = struct{}{}

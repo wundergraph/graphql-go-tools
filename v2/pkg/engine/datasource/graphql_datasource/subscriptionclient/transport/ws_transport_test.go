@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
 )
 
 func TestWSTransport_Subscribe(t *testing.T) {
@@ -899,6 +900,71 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 		msg := receive(t, time.Second)
 		assert.Contains(t, string(msg.Payload.Data), "99")
 	})
+}
+
+func TestWSTransport_negotiateSubprotocol(t *testing.T) {
+	t.Parallel()
+
+	tr := &WSTransport{}
+
+	graphQLWSProto := protocol.NewGraphQLWS()
+	graphQLTransportWSProto := protocol.NewGraphQLTransportWS()
+
+	cases := []struct {
+		name      string
+		requested common.WSSubprotocol
+		accepted  string
+		wantErr   bool
+		// wantSameTypeAs is the reference instance whose dynamic type the
+		// returned protocol must match.
+		wantSameTypeAs protocol.Protocol
+	}{
+		{
+			name:           "auto + empty accepted defaults to graphql-ws (legacy upstream compatibility)",
+			requested:      common.SubprotocolAuto,
+			accepted:       "",
+			wantSameTypeAs: graphQLWSProto,
+		},
+		{
+			name:           "auto + graphql-transport-ws accepted picks transport-ws",
+			requested:      common.SubprotocolAuto,
+			accepted:       string(common.SubprotocolGraphQLTransportWS),
+			wantSameTypeAs: graphQLTransportWSProto,
+		},
+		{
+			name:           "auto + graphql-ws accepted picks graphql-ws",
+			requested:      common.SubprotocolAuto,
+			accepted:       string(common.SubprotocolGraphQLWS),
+			wantSameTypeAs: graphQLWSProto,
+		},
+		{
+			name:      "explicit graphql-ws but server echoes nothing fails",
+			requested: common.SubprotocolGraphQLWS,
+			accepted:  "",
+			wantErr:   true,
+		},
+		{
+			name:      "explicit graphql-transport-ws but server echoes graphql-ws fails",
+			requested: common.SubprotocolGraphQLTransportWS,
+			accepted:  string(common.SubprotocolGraphQLWS),
+			wantErr:   true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			proto, err := tr.negotiateSubprotocol(tc.requested, tc.accepted)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, proto)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, proto)
+			assert.IsType(t, tc.wantSameTypeAs, proto)
+		})
+	}
 }
 
 func TestWSTransport_Heartbeat(t *testing.T) {

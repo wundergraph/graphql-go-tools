@@ -1155,7 +1155,7 @@ func TestArenaGCSafety_ValueCompletion(t *testing.T) {
 			}
 		},
 	)
-	assert.Equal(t, `{"data":{"wrapper":null},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field .required.","path":["wrapper","required"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, output)
+	assert.Equal(t, `{"data":{"wrapper":null},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Query.wrapper.required.","path":["wrapper","required"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, output)
 }
 
 // --- Group D: Type-mismatch error paths ---

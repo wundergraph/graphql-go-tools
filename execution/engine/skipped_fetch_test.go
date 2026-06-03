@@ -42,7 +42,7 @@ func TestSkippedFetchOnNullParent(t *testing.T) {
 	t.Cleanup(reviewsServer.Close)
 
 	ctx := t.Context()
-	factory := NewFederationEngineConfigFactory(ctx)
+	factory := NewFederationEngineConfigFactory(ctx, nil)
 
 	cfgData, err := os.ReadFile("testdata/config_factory_federation/config.json")
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestSkippedFetchOnNullParent(t *testing.T) {
 	// Build the engine configuration using the router config
 	var rc1 nodev1.RouterConfig
 	assert.NoError(t, protojson.Unmarshal(cfgData, &rc1))
-	engineConfig, err := factory.BuildEngineConfiguration(&rc1)
+	engineConfig, err := factory.BuildEngineConfigurationWithRouterConfig(&rc1)
 	require.NoError(t, err)
 
 	eng, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConfig, resolve.ResolverOptions{

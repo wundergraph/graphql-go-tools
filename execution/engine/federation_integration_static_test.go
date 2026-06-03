@@ -24,8 +24,7 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 	t.Run("operation", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFn := context.WithCancel(context.Background())
-		setup, err := federationtesting.NewFederationSetup()
-		require.NoError(t, err)
+		setup := federationtesting.NewFederationSetup()
 		t.Cleanup(func() {
 			cancelFn()
 			setup.Close()
@@ -62,8 +61,7 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 	t.Run("subscription", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancelFn := context.WithCancel(context.Background())
-		setup, err := federationtesting.NewFederationSetup()
-		require.NoError(t, err)
+		setup := federationtesting.NewFederationSetup()
 		t.Cleanup(func() {
 			cancelFn()
 			setup.Close()

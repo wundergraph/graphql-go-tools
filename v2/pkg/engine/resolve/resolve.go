@@ -210,6 +210,23 @@ type ResolverOptions struct {
 	// and will override any values set for those options
 	// using runtime.GOMAXPROCS(0) allows the deduplication to scale with the CPU resources available to the process
 	SetDeduplicationShardCountToGOMAXPROCS bool
+
+	// Caches is the registry of L2 cache backends keyed by logical cache name.
+	// Subscription entity-cache populate/invalidate and entity-fetch L2 lookups
+	// resolve a backend through this map.
+	Caches map[string]LoaderCache
+
+	// EntityCacheConfigs maps subgraph name → entity type name → invalidation config.
+	// Used by extension-driven cache invalidation for mutations and subscriptions.
+	EntityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
+
+	// OnSubscriptionCacheWrite is invoked once per cache entry written by the
+	// subscription trigger-level entity cache (populate mode). See SUBSCRIPTION_CACHE_SPEC R11.
+	OnSubscriptionCacheWrite func(CacheWriteEvent)
+
+	// OnSubscriptionCacheInvalidate is invoked once per trigger event after a
+	// successful subscription cache invalidate. See SUBSCRIPTION_CACHE_SPEC R12.
+	OnSubscriptionCacheInvalidate func(entityType string, keys []string)
 }
 
 // New returns a new Resolver. ctx.Done() is used to cancel all active subscriptions and streams.
@@ -327,6 +344,8 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
 			singleFlight:                                 sf,
 			jsonArena:                                    a,
+			caches:                                       options.Caches,
+			entityCacheConfigs:                           options.EntityCacheConfigs,
 		},
 	}
 }
@@ -466,6 +485,11 @@ type trigger struct {
 	// initialized is set to true when the trigger is started and initialized.
 	initialized atomic.Bool
 	updater     *subscriptionUpdater
+	// cacheConfig is computed once at trigger creation from the first subscription.
+	// All subscriptions on a trigger share the same plan (and hence the same
+	// EntityCachePopulation config), so the config is invariant across the
+	// trigger's lifetime. nil when no subscription cache integration is configured.
+	cacheConfig *triggerEntityCacheConfig
 }
 
 func (t *trigger) subscriptionIds() map[context.Context]SubscriptionIdentifier {
@@ -825,6 +849,7 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 		subscriptions: make(map[SubscriptionIdentifier]*subscriptionState),
 		cancel:        cancel,
 		updater:       updater,
+		cacheConfig:   r.buildTriggerCacheConfig(add.ctx, add.resolve),
 	}
 	r.triggers[triggerID] = trig
 	updater.subsFn = trig.subscriptionIds
@@ -1092,6 +1117,15 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
 
+	// Spec R3 + R4: when subscription entity-cache integration is configured for
+	// this trigger, run the cache populate/invalidate ONCE per trigger event
+	// BEFORE fanning the event out to subscribers. This guarantees that any
+	// subscriber that issues a child entity fetch as part of resolving this event
+	// (or the next one) reads the just-populated entity from L2.
+	if trig.cacheConfig != nil {
+		r.runTriggerEntityCache(trig.cacheConfig, data)
+	}
+
 	subs, filterErrors := trig.filterSubscriptions(data)
 
 	for _, fe := range filterErrors {
@@ -1119,6 +1153,12 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d:%d,%d\n", id, subIdentifier.ConnectionID, subIdentifier.SubscriptionID)
+	}
+
+	// Spec R3 + R4: same as handleTriggerUpdate — a targeted single-subscriber
+	// update is still a cache-affecting event. Run cache op before delivery.
+	if trig.cacheConfig != nil {
+		r.runTriggerEntityCache(trig.cacheConfig, data)
 	}
 
 	sub, filterErr := trig.filterSubscription(subIdentifier, data)

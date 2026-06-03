@@ -394,6 +394,49 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						PostProcessing: DefaultPostProcessingConfiguration,
+						Caching: resolve.FetchCacheConfiguration{
+							CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
+								RootFields: []resolve.QueryField{
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "droid",
+										},
+										Args: []resolve.FieldArgument{
+											{
+												Name: "id",
+												Variable: &resolve.ContextVariable{
+													Path:     []string{"id"},
+													Renderer: resolve.NewJSONVariableRenderer(),
+												},
+											},
+										},
+										ResponseKey: "droid",
+									},
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "hero",
+										},
+										ResponseKey: "hero",
+									},
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "stringList",
+										},
+										ResponseKey: "stringList",
+									},
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "nestedStringList",
+										},
+										ResponseKey: "nestedStringList",
+									},
+								},
+							},
+						},
 					},
 					Info: &resolve.FetchInfo{
 						OperationType:  ast.OperationTypeQuery,
@@ -415,6 +458,103 @@ func TestGraphQLDataSource(t *testing.T) {
 							{
 								TypeName:  "Query",
 								FieldName: "nestedStringList",
+							},
+						},
+						ProvidesData: &resolve.Object{
+							Nullable:   false,
+							Path:       []string{},
+							HasAliases: true,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("droid"),
+									Value: &resolve.Object{
+										Nullable:   true,
+										Path:       []string{"droid"},
+										HasAliases: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.Scalar{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+											},
+											{
+												Name:         []byte("aliased"),
+												OriginalName: []byte("name"),
+												Value: &resolve.Scalar{
+													Path:     []string{"aliased"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("friends"),
+												Value: &resolve.Array{
+													Path:     []string{"friends"},
+													Nullable: true,
+													Item: &resolve.Object{
+														Nullable: true,
+														Path:     []string{},
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("name"),
+																Value: &resolve.Scalar{
+																	Path:     []string{"name"},
+																	Nullable: false,
+																},
+															},
+														},
+													},
+												},
+											},
+											{
+												Name: []byte("primaryFunction"),
+												Value: &resolve.Scalar{
+													Path:     []string{"primaryFunction"},
+													Nullable: false,
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Nullable: true,
+										Path:     []string{"hero"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.Scalar{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+											},
+										},
+									},
+								},
+								{
+									Name: []byte("stringList"),
+									Value: &resolve.Array{
+										Path:     []string{"stringList"},
+										Nullable: true,
+										Item: &resolve.Scalar{
+											Path:     []string{},
+											Nullable: true,
+										},
+									},
+								},
+								{
+									Name: []byte("nestedStringList"),
+									Value: &resolve.Array{
+										Path:     []string{"nestedStringList"},
+										Nullable: true,
+										Item: &resolve.Scalar{
+											Path:     []string{},
+											Nullable: true,
+										},
+									},
+								},
 							},
 						},
 					},
@@ -681,7 +821,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		DisableResolveFieldPositions: true,
-	}, WithFieldInfo(), WithDefaultPostProcessor()))
+	}, WithFieldInfo(), WithDefaultPostProcessor(), WithFetchProvidesData(), WithEntityCaching(), WithCacheKeyTemplates()))
 
 	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
 		query MyQuery {

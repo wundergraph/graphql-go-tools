@@ -26,3 +26,26 @@ func newProducts() []*model.Product {
 		},
 	}
 }
+
+// newExtraProducts returns products not listed in TopProducts but findable by UPC.
+func newExtraProducts() []*model.Product {
+	return []*model.Product{
+		{
+			Upc:     "top-4",
+			Name:    "Bowler",
+			Price:   64,
+			InStock: 12,
+		},
+	}
+}
+
+func newDigitalProducts() []*model.DigitalProduct {
+	return []*model.DigitalProduct{
+		{
+			Upc:         "digital-1",
+			Name:        "eBook: GraphQL in Action",
+			Price:       29,
+			DownloadURL: "https://example.com/downloads/graphql-in-action",
+		},
+	}
+}

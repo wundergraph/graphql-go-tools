@@ -1,0 +1,999 @@
+# Entity Caching Integration Guide
+
+This guide covers everything needed to integrate the entity caching system into a GraphQL Federation router. After reading this, you should be able to fully configure L1/L2 caching, implement a cache backend, set up invalidation, and collect analytics.
+
+## Overview
+
+The caching system has two levels:
+
+| Level | Storage | Scope | Applies To | Default |
+|-------|---------|-------|-----------|---------|
+| **L1** | In-memory plain `map` per request, main-thread only | Single request | Entity fetches only | Disabled |
+| **L2** | External cache (Redis, etc.) | Cross-request with TTL | Entity + root field fetches | Disabled |
+
+Both levels are opt-in and disabled by default. L1 prevents redundant fetches for the same entity within a single request. L2 shares entity data across requests.
+
+**Key principle**: Cache keys use only `@key` fields for stable entity identity (never `@requires`).
+
+## 1. Implement the LoaderCache Interface
+
+To use L2 caching, implement the `LoaderCache` interface from `v2/pkg/engine/resolve`:
+
+```go
+import "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+
+type LoaderCache interface {
+    // Get retrieves cache entries by keys.
+    // Returns a slice of the same length as keys. Use nil for cache misses.
+    // Called from goroutines during parallel resolution — must be thread-safe.
+    Get(ctx context.Context, keys []string) ([]*resolve.CacheEntry, error)
+
+    // Set stores cache entries with a TTL.
+    // Called from goroutines during parallel resolution — must be thread-safe.
+    Set(ctx context.Context, entries []*resolve.CacheEntry, ttl time.Duration) error
+
+    // Delete removes cache entries by keys.
+    // Called during cache invalidation (extension-based, mutation-based).
+    Delete(ctx context.Context, keys []string) error
+}
+
+type CacheEntry struct {
+    Key          string           // Cache key string (JSON format)
+    Value        []byte           // Opaque cached payload bytes (e.g., entity JSON or root-field response bytes); callers interpret
+    RemainingTTL time.Duration    // Remaining TTL from cache (0 = unknown/not supported)
+    WriteReason  CacheWriteReason // Why this entry was written (set by the engine, not by backends)
+}
+```
+
+**Thread safety requirement**: `Get`, `Set`, and `Delete` may be called from multiple goroutines during parallel fetch execution. Your implementation must be safe for concurrent use.
+
+**RemainingTTL**: If your cache backend supports it, return the remaining TTL in `CacheEntry.RemainingTTL`. This is used for cache analytics (cache age tracking) and shadow mode staleness detection. Return 0 if not supported.
+
+## 2. Configure Per-Subgraph Caching
+
+### SubgraphCachingConfig
+
+Each subgraph can have independent caching configuration. Pass these via the factory option:
+
+```go
+import (
+    "github.com/wundergraph/graphql-go-tools/execution/engine"
+    "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+)
+
+subgraphCachingConfigs := engine.SubgraphCachingConfigs{
+    {
+        SubgraphName: "accounts",  // Must match SubgraphConfiguration.Name
+        EntityCaching: plan.EntityCacheConfigurations{...},
+        RootFieldCaching: plan.RootFieldCacheConfigurations{...},
+        MutationFieldCaching: plan.MutationFieldCacheConfigurations{...},
+        MutationCacheInvalidation: plan.MutationCacheInvalidationConfigurations{...},
+        SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{...},
+    },
+}
+
+factory := engine.NewFederationEngineConfigFactory(
+    ctx,
+    subgraphsConfigs,
+    engine.WithSubgraphEntityCachingConfigs(subgraphCachingConfigs),
+)
+config, err := factory.BuildEngineConfiguration()
+```
+
+### Entity Cache Configuration
+
+Controls L2 caching for entity types resolved via `_entities` queries:
+
+```go
+plan.EntityCacheConfiguration{
+    // TypeName is the entity type to cache (must match __typename from subgraph).
+    TypeName: "User",
+
+    // CacheName identifies which LoaderCache instance to use.
+    // Multiple entity types can share a cache by using the same name.
+    CacheName: "default",
+
+    // TTL specifies how long cached entities remain valid.
+    // Zero TTL means entries never expire (not recommended for production).
+    TTL: 60 * time.Second,
+
+    // IncludeSubgraphHeaderPrefix controls whether forwarded headers affect cache keys.
+    // When true, cache keys include a hash of headers sent to the subgraph,
+    // ensuring different header configurations (e.g., different auth tokens)
+    // use separate cache entries.
+    IncludeSubgraphHeaderPrefix: true,
+
+    // EnablePartialCacheLoad enables fetching only cache-missed entities.
+    // Default (false): any miss in a batch refetches ALL entities.
+    // When true: only missing entities are fetched, cached ones served directly.
+    EnablePartialCacheLoad: false,
+
+    // HashAnalyticsKeys controls whether entity keys are hashed or stored raw
+    // in cache analytics. When true, KeyHash is populated instead of KeyRaw.
+    HashAnalyticsKeys: false,
+
+    // ShadowMode enables shadow caching: L2 reads/writes happen but cached data
+    // is never served. Fresh data is always fetched and compared against cache
+    // for staleness detection. L1 cache is unaffected.
+    ShadowMode: false,
+
+    // NegativeCacheTTL is the TTL for caching null entity results (entity not found).
+    // When > 0, null responses from _entities are cached as sentinels.
+    // When 0 (default), null entities are not cached.
+    NegativeCacheTTL: 5 * time.Second,
+}
+```
+
+### Root Field Cache Configuration
+
+Controls L2 caching for root query fields (e.g., `Query.topProducts`):
+
+```go
+plan.RootFieldCacheConfiguration{
+    TypeName:  "Query",
+    FieldName: "topProducts",
+    CacheName: "default",
+    TTL:       30 * time.Second,
+    IncludeSubgraphHeaderPrefix: true,
+
+    // EntityKeyMappings enables cache sharing between root fields and entity fetches.
+    // When set, the L2 cache key uses entity key format instead of root field format.
+    // Example: Query.user(id: "123") shares cache with User entity key {"id":"123"}.
+    EntityKeyMappings: []plan.EntityKeyMapping{
+        {
+            EntityTypeName: "User",
+            FieldMappings: []plan.FieldMapping{
+                {
+                    EntityKeyField: "id",           // @key field on User
+                    ArgumentPath:   []string{"id"}, // Root field argument name
+
+                    // ArgumentIsEntityKey marks the argument as a direct entity
+                    // key lookup. When true AND the argument is a list type,
+                    // each list element maps 1:1 to an entity in the response
+                    // (positional correspondence). This enables batch cache key
+                    // construction, empty list optimization, and partial fetch mode.
+                    // See "Batch Entity Key Mode" section below.
+                    ArgumentIsEntityKey: false,
+                },
+            },
+        },
+    },
+
+    // PartialBatchLoad enables partial fetch mode for batch arguments
+    // (ArgumentIsEntityKey + list). When false (default), batch cache is
+    // all-or-nothing: any miss fetches the full list. When true, only
+    // missing IDs are fetched; cached entities are served directly.
+    // Only applies when EntityKeyMappings uses ArgumentIsEntityKey.
+    PartialBatchLoad: false,
+
+    ShadowMode: false,
+}
+```
+
+### Mutation Field Cache Configuration
+
+Controls whether entity fetches triggered by a mutation populate L2:
+
+```go
+plan.MutationFieldCacheConfiguration{
+    // Mutation field name
+    FieldName: "addReview",
+
+    // By default, mutations skip L2 reads AND L2 writes.
+    // Set to true to allow entity fetches during this mutation to write to L2.
+    EnableEntityL2CachePopulation: true,
+
+    // TTL overrides the entity's default cache TTL for L2 writes triggered by this mutation.
+    // When zero (default), the entity's default TTL (from EntityCacheConfiguration) is used.
+    // Useful for @cachePopulate(maxAge: 60) on mutation fields.
+    TTL: 60 * time.Second,
+}
+```
+
+**Mutation caching behavior**:
+- Mutations **always skip L2 reads** (always fetch fresh from subgraph)
+- Mutations **skip L2 writes by default**
+- With `EnableEntityL2CachePopulation: true`, entity fetches triggered by this mutation **will write to L2**
+- With `TTL` set, mutation-triggered L2 writes use this TTL instead of the entity's default
+
+### Mutation Cache Invalidation Configuration
+
+Configures automatic L2 cache deletion after a mutation completes:
+
+```go
+plan.MutationCacheInvalidationConfiguration{
+    FieldName:      "updateUser",
+    // EntityTypeName can be omitted — it's inferred from the mutation return type.
+    EntityTypeName: "User",
+}
+```
+
+When the mutation returns an entity with `@key` fields, the corresponding L2 cache entry is deleted.
+
+### Subscription Entity Population Configuration
+
+Controls how subscription events update the L2 cache:
+
+```go
+plan.SubscriptionEntityPopulationConfiguration{
+    TypeName:  "Product",
+    CacheName: "default",
+    TTL:       30 * time.Second,
+    IncludeSubgraphHeaderPrefix: true,
+
+    // When true and the subscription only provides @key fields (no additional
+    // entity fields), DELETE the L2 cache entry on each event.
+    // When false (default), populate L2 with entity data from the event.
+    EnableInvalidationOnKeyOnly: false,
+}
+```
+
+**Two modes**:
+- **Populate** (default): subscription provides entity fields beyond `@key` → write to L2
+- **Invalidate** (`EnableInvalidationOnKeyOnly: true`): subscription provides only `@key` → delete from L2
+
+## 3. Wire Caches into the Resolver
+
+Register your `LoaderCache` implementations in the `ResolverOptions`:
+
+```go
+resolver := resolve.New(ctx, resolve.ResolverOptions{
+    MaxConcurrency: 32,
+
+    // Register named cache instances (referenced by CacheName in configs)
+    Caches: map[string]resolve.LoaderCache{
+        "default": myRedisCache,
+        "fast":    myInMemoryCache,
+    },
+
+    // Required for extension-based cache invalidation
+    // Maps subgraphName → entityTypeName → invalidation config
+    EntityCacheConfigs: map[string]map[string]*resolve.EntityCacheInvalidationConfig{
+        "accounts": {
+            "User": {
+                CacheName:                   "default",
+                IncludeSubgraphHeaderPrefix: true,
+            },
+        },
+    },
+
+    // ... other options
+})
+```
+
+## 4. Enable Caching at Runtime
+
+Set caching options per-request on the execution context:
+
+```go
+ctx := resolve.NewContext(context.Background())
+ctx.ExecutionOptions.Caching = resolve.CachingOptions{
+    // Enable per-request in-memory entity cache
+    EnableL1Cache: true,
+
+    // Enable external cross-request cache
+    EnableL2Cache: true,
+
+    // Enable detailed cache analytics collection
+    EnableCacheAnalytics: true,
+
+    // Optional: transform L2 cache keys (e.g., for tenant isolation)
+    L2CacheKeyInterceptor: func(ctx context.Context, key string, info resolve.L2CacheKeyInterceptorInfo) string {
+        if tenantID, ok := ctx.Value("tenant-id").(string); ok {
+            return tenantID + ":" + key
+        }
+        return key
+    },
+}
+```
+
+**L2CacheKeyInterceptor** receives:
+```go
+type L2CacheKeyInterceptorInfo struct {
+    SubgraphName string  // e.g., "accounts"
+    CacheName    string  // e.g., "default"
+}
+```
+
+The interceptor is applied **after** subgraph header prefix. It does NOT affect L1 keys.
+
+## 5. Cache Key Format
+
+### Entity Keys
+
+Generated by `EntityQueryCacheKeyTemplate` from `@key` fields:
+```json
+{"__typename":"User","key":{"id":"123"}}
+{"__typename":"Product","key":{"upc":"top-1"}}
+{"__typename":"Order","key":{"id":"1","orgId":"acme"}}
+```
+
+The `__typename` value comes from the response data.
+When `__typename` is missing from the response,
+the plan-time `TypeName` field on `EntityQueryCacheKeyTemplate` is used as fallback.
+
+### Root Field Keys
+
+Generated by `RootQueryCacheKeyTemplate` from field name and arguments:
+```json
+{"__typename":"Query","field":"topProducts"}
+{"__typename":"Query","field":"user","args":{"id":"123"}}
+{"__typename":"Query","field":"search","args":{"max":10,"term":"C3PO"}}
+```
+
+Arguments are sorted alphabetically for stable key generation.
+
+### Key Transformations (applied in order)
+
+1. **Global cache key prefix** (when `GlobalCacheKeyPrefix` is set on the request's `CachingOptions`):
+   ```text
+   v42:{"__typename":"User","key":{"id":"123"}}
+   ```
+
+2. **Subgraph header hash prefix** (when `IncludeSubgraphHeaderPrefix = true`):
+   ```text
+   v42:{headerHash}:{"__typename":"User","key":{"id":"123"}}
+   ```
+
+3. **L2CacheKeyInterceptor** (when set):
+   ```text
+   tenant-X:v42:{headerHash}:{"__typename":"User","key":{"id":"123"}}
+   ```
+
+### Entity Field Argument-Aware Keys
+
+When entity fields have arguments (e.g., `greeting(style: "formal")`), the field argument values are hashed via xxhash and appended as a suffix to the cache key. Different argument values produce different cache entries.
+
+### EntityKeyMappings (Cache Sharing)
+
+When `EntityKeyMappings` is configured on a root field, the L2 cache key uses entity key format instead of root field format. This means:
+- `Query.user(id: "123")` → cache key `{"__typename":"User","key":{"id":"123"}}`
+- A subsequent `_entities` fetch for `User(id: "123")` hits the same cache entry
+
+**Multiple key mappings:** An entity with multiple `@key` directives can have multiple `EntityKeyMapping` entries. Each mapping independently generates a cache key when all its arguments are available. If a mapping's arguments are missing from the query variables, that mapping is skipped — the remaining mappings still produce keys.
+
+```go
+// Example: Product has @key(fields: "id") and @key(fields: "sku region")
+EntityKeyMappings: []plan.EntityKeyMapping{
+    {EntityTypeName: "Product", FieldMappings: []plan.FieldMapping{
+        {EntityKeyField: "id", ArgumentPath: []string{"id"}},
+    }},
+    {EntityTypeName: "Product", FieldMappings: []plan.FieldMapping{
+        {EntityKeyField: "sku", ArgumentPath: []string{"sku"}},
+        {EntityKeyField: "region", ArgumentPath: []string{"region"}},
+    }},
+}
+// productByAll(id, sku, region) → 2 cache keys (both mappings resolve)
+// productBySku(sku, region)     → 1 cache key (only sku+region mapping resolves)
+```
+
+**Nested keys with structured arguments:** For entities with nested `@key` fields (e.g., `@key(fields: "store { id region }")`), use dot-notation for `EntityKeyField` and multi-element paths for `ArgumentPath`:
+
+```go
+// Nested key with structured input: query productByStore(store: {id: "s1", region: "us"})
+EntityKeyMappings: []plan.EntityKeyMapping{
+    {EntityTypeName: "Product", FieldMappings: []plan.FieldMapping{
+        {EntityKeyField: "store.id", ArgumentPath: []string{"store", "id"}},
+        {EntityKeyField: "store.region", ArgumentPath: []string{"store", "region"}},
+    }},
+}
+// Produces: {"__typename":"Product","key":{"store":{"id":"s1","region":"us"}}}
+```
+
+**Write-side behavior:** L2 reads use the argument-derived key set.
+L2 writes use smart cache key backfill to make precise per-key decisions based on
+final entity data:
+
+- **Existing keys** that hit on read are refreshed only when the data changed
+  (multi-candidate writeback) or when a subgraph fetch returned fresh data.
+- **Requested missing keys** (keys generated from arguments on read but absent in L2)
+  are backfilled only when the final entity value proves them — the mapped key field
+  must be present in the entity and render to the exact same key string.
+  Request arguments alone are not sufficient to prove a cache association on write.
+- **Derived keys** beyond the original request are written when the final entity data
+  contains the mapped key fields for other `EntityKeyMapping` entries.
+  For example, if a root field is queried with `id` and the response contains `username`,
+  the `username` key is also written, enabling cross-lookup by `username` on subsequent requests.
+
+If a root field provides only a subset of arguments (e.g., only `sku` and `region` but
+not `id`), the read uses only the matching keys.
+The write may add the `id` key if the subgraph response contains `id`.
+
+**Variable remapping:** `RemapVariables` applies only to single-element argument paths.
+Multi-element paths (structured argument navigation like `["store", "id"]`) are not remapped.
+
+### Batch Entity Key Mode
+
+When a root field takes a **list argument** that maps 1:1 to entities in the response
+(e.g., `products(ids: ["1","2","3"])` returns exactly three products in order),
+set `ArgumentIsEntityKey: true` on the corresponding `FieldMapping`.
+This enables per-entity cache key construction from each list element,
+rather than treating the entire list as a single opaque cache key.
+
+**Configuration:**
+```go
+plan.RootFieldCacheConfiguration{
+    TypeName:  "Query",
+    FieldName: "products",
+    CacheName: "default",
+    TTL:       60 * time.Second,
+    EntityKeyMappings: []plan.EntityKeyMapping{
+        {
+            EntityTypeName: "Product",
+            FieldMappings: []plan.FieldMapping{
+                {
+                    EntityKeyField:      "id",
+                    ArgumentPath:        []string{"ids"},
+                    ArgumentIsEntityKey: true,
+                },
+            },
+        },
+    },
+    // Optional: enable partial fetch (only missing IDs fetched)
+    PartialBatchLoad: false,
+}
+```
+
+**Behavior:**
+
+- **Cache key construction**: One cache key per list element.
+  `products(ids: ["1","2","3"])` produces three keys:
+  `{"__typename":"Product","key":{"id":"1"}}`,
+  `{"__typename":"Product","key":{"id":"2"}}`,
+  `{"__typename":"Product","key":{"id":"3"}}`.
+  Each key uses the same entity key format as `_entities` fetches,
+  enabling cache sharing between root fields and entity resolution.
+
+- **Positional correspondence**: The engine assumes the response array has the same
+  length and order as the input list argument.
+  Element `ids[0]` corresponds to response `data.products[0]`, etc.
+  `CacheKey.BatchIndex` records each key's position for response reassembly.
+
+- **Empty list short-circuit**: When the list argument is `[]` or `null`,
+  the engine returns an empty response (`[]`) immediately without calling the
+  resolver or the cache.
+  This avoids unnecessary work for trivially empty queries.
+
+- **Full fetch mode** (`PartialBatchLoad: false`, default): Any cache miss in the batch
+  causes the full list to be sent to the subgraph.
+  All returned entities are cached.
+
+- **Partial fetch mode** (`PartialBatchLoad: true`): Only missing IDs are sent to the
+  subgraph.
+  The input list variable is filtered to exclude IDs that were cache hits.
+  Cached entities are served directly and merged with fresh results in the correct
+  positional order.
+
+**Cache sharing with scalar root fields:**
+Batch entity keys use the same format as scalar `EntityKeyMappings`.
+A scalar root field `product(id: "1")` and a batch root field `products(ids: ["1","2"])`
+both produce `{"__typename":"Product","key":{"id":"1"}}` for ID `"1"`,
+so they share the same L2 cache entry.
+
+### TypeName Fallback
+
+Entity cache keys normally use `__typename` from the response data.
+When `__typename` is missing from the response,
+the plan-time `TypeName` on `EntityQueryCacheKeyTemplate` is used as fallback
+instead of a hardcoded default.
+This ensures cache keys always reflect the correct entity type.
+
+### CacheKeyTemplate Interface
+
+The `CacheKeyTemplate` interface (used by both `EntityQueryCacheKeyTemplate` and
+`RootQueryCacheKeyTemplate`) exposes the following methods:
+
+```go
+type CacheKeyTemplate interface {
+    RenderCacheKeys(ctx *Context, fetch *SingleFetch, keys *[]CacheKey) error
+    IsEntityFetch() bool
+    BatchEntityKeyArgumentPath() []string
+    EntityMergePath(postProcessing PostProcessingConfiguration) []string
+}
+```
+
+- `IsEntityFetch()` — reports whether rendered keys describe entity fetch inputs.
+- `BatchEntityKeyArgumentPath()` — returns the argument path for batch entity lookups.
+  Returns nil when the template does not support batch entity key construction.
+- `EntityMergePath()` — returns the entity-level merge path for root-field entity mappings.
+  Returns nil when the template stores complete response payloads.
+
+**Constructor**: Use `NewRootQueryCacheKeyTemplate(rootFields, entityKeyMappings)` to create
+`RootQueryCacheKeyTemplate` instances.
+The constructor precomputes batch entity key metadata via `precomputeDerivedFields()`.
+
+## 6. Cache Behavior by Operation Type
+
+### Queries
+
+```text
+L1 check (main thread, entity fetches only)
+  ↓ miss
+L2 check (goroutine, entity + root fetches)
+  ↓ miss
+Subgraph fetch (goroutine)
+  ↓ response
+Populate L1 + L2 (main thread for L1, goroutine for L2)
+```
+
+L1 is checked first on the main thread. If it's a complete hit, the goroutine is not spawned (saves overhead). L2 and fetch happen in parallel goroutines.
+
+### Mutations
+
+- **Always skip L2 reads** — fetch fresh data from subgraph
+- **Skip L2 writes by default** — unless `EnableEntityL2CachePopulation: true` on the mutation field
+- **Optional invalidation** — with `MutationCacheInvalidationConfiguration`, delete L2 entry after mutation
+- **Mutation impact detection** — when analytics enabled, compare mutation response against cached value
+
+### Subscriptions
+
+Based on `SubscriptionEntityPopulationConfiguration`:
+- **Populate mode** (default): on each subscription event, write entity data to L2
+- **Invalidate mode** (`EnableInvalidationOnKeyOnly: true`): on each event with only `@key` fields, delete L2 entry
+
+## 7. Cache Invalidation
+
+### Mutation-Triggered Invalidation
+
+Configure via `MutationCacheInvalidationConfiguration`. After a mutation completes and returns an entity, the L2 cache entry for that entity is deleted.
+
+### Subgraph Response Extension Invalidation
+
+Subgraphs can signal cache invalidation through GraphQL response extensions:
+
+```json
+{
+  "data": { "updateUser": { "id": "1", "name": "Updated" } },
+  "extensions": {
+    "cacheInvalidation": {
+      "keys": [
+        { "typename": "User", "key": { "id": "1" } },
+        { "typename": "User", "key": { "id": "2" } }
+      ]
+    }
+  }
+}
+```
+
+The engine automatically:
+1. Parses `extensions.cacheInvalidation.keys` from each subgraph response
+2. Builds L2 cache keys matching entity type and key fields
+3. Applies the full L2 key-transformation pipeline in order: `GlobalCacheKeyPrefix` → subgraph header prefix → `L2CacheKeyInterceptor` (same ordering as cache writes)
+4. Calls `LoaderCache.Delete()` for each key
+5. **Optimization**: skips delete if the same key is being written in the same fetch (no unnecessary round-trip)
+
+**Requirements for extension-based invalidation**:
+- `EntityCacheConfigs` must be set on `ResolverOptions` (maps subgraph name → entity type → cache config)
+- `EnableL2Cache` must be true on the request context
+
+### Subscription-Based Invalidation
+
+With `EnableInvalidationOnKeyOnly: true`, subscription events that only contain `@key` fields trigger L2 deletion.
+
+### Manual Invalidation
+
+Call `LoaderCache.Delete()` directly with cache keys. The key format is:
+```text
+[optional-global-prefix:][optional-interceptor-prefix:][optional-header-hash:]{"__typename":"TypeName","key":{...}}
+```
+
+If `GlobalCacheKeyPrefix` is configured on the router, reads and writes both prepend it
+to every key. Manual invalidation callers must include the same global prefix, otherwise
+`Delete()` will target a different key than the live reads/writes use and the entry will
+remain in the cache.
+
+## 8. Partial Cache Loading
+
+Controls what happens when some entities in a batch are cached and others are not.
+
+**Default (`EnablePartialCacheLoad: false`)**:
+Any cache miss in a batch → refetch ALL entities from the subgraph. This keeps the cache maximally fresh because every entity gets a fresh value on each batch miss.
+
+**Enabled (`EnablePartialCacheLoad: true`)**:
+Only missing entities are fetched from the subgraph. Cached entities are served directly within their TTL window. This reduces subgraph load but cached entities may be slightly stale (within TTL).
+
+Choose based on your freshness vs. performance tradeoff.
+
+## 9. Shadow Mode
+
+Shadow mode lets you test caching in production without serving cached data to clients.
+
+**Behavior**:
+- L2 cache reads and writes happen normally
+- Cached data is **never served** — fresh data is always fetched from the subgraph
+- Fresh and cached data are compared for staleness detection
+- L1 cache works normally (not affected by shadow mode)
+
+**Configuration**: Set `ShadowMode: true` on `EntityCacheConfiguration` or `RootFieldCacheConfiguration`.
+
+**Staleness results** are available in `CacheAnalyticsSnapshot.ShadowComparisons`:
+```go
+type ShadowComparisonEvent struct {
+    CacheKey      string        // Cache key for correlation
+    EntityType    string        // Entity type name
+    IsFresh       bool          // true if cached data matches fresh data
+    CachedHash    uint64        // xxhash of cached ProvidesData fields
+    FreshHash     uint64        // xxhash of fresh ProvidesData fields
+    CachedBytes   int           // Size of cached ProvidesData
+    FreshBytes    int           // Size of fresh ProvidesData
+    DataSource    string        // Subgraph name
+    CacheAgeMs    int64         // Age of cached entry (ms, 0 = unknown)
+    ConfiguredTTL time.Duration // TTL configured for this entity
+}
+```
+
+## 10. Cache Analytics
+
+Enable via `EnableCacheAnalytics: true` in `CachingOptions`. After execution, collect stats:
+
+```go
+snapshot := ctx.GetCacheStats()
+```
+
+### CacheAnalyticsSnapshot
+
+```go
+type CacheAnalyticsSnapshot struct {
+    L1Reads           []CacheKeyEvent          // L1 read events (hit/miss)
+    L2Reads           []CacheKeyEvent          // L2 read events (hit/miss/partial-hit)
+    L1Writes          []CacheWriteEvent        // L1 write events
+    L2Writes          []CacheWriteEvent        // L2 write events
+    FetchTimings      []FetchTimingEvent       // Per-fetch timing with HTTP status
+    ErrorEvents       []SubgraphErrorEvent     // Subgraph errors
+    FieldHashes       []EntityFieldHash        // Field value hashes for staleness
+    EntityTypes       []EntityTypeInfo         // Entity counts by type
+    ShadowComparisons []ShadowComparisonEvent  // Shadow mode results
+    MutationEvents    []MutationEvent          // Mutation impact on cache
+}
+```
+
+### Convenience Methods
+
+```go
+snapshot.L1HitRate()           // float64 [0, 1]
+snapshot.L2HitRate()           // float64 [0, 1]
+snapshot.L1HitCount()          // int64
+snapshot.L2HitCount()          // int64
+snapshot.CachedBytesServed()   // int64
+snapshot.EventsByEntityType()  // map[string]EntityTypeCacheStats
+```
+
+### Key Event Types
+
+**CacheKeyEvent** — per-key cache lookup:
+```go
+type CacheKeyEvent struct {
+    CacheKey   string            // Cache key
+    EntityType string            // Entity type name
+    Kind       CacheKeyEventKind // CacheKeyHit, CacheKeyMiss, CacheKeyPartialHit
+    DataSource string            // Subgraph name
+    ByteSize   int               // Cached entry size
+    CacheAgeMs int64             // Age in ms (L2 only, 0 = unknown)
+    Shadow     bool              // Shadow mode event
+}
+```
+
+**CacheWriteEvent** — per-key cache write:
+```go
+type CacheWriteEvent struct {
+    CacheKey    string               // Cache key
+    EntityType  string               // Entity type name
+    ByteSize    int                  // Written entry size
+    DataSource  string               // Subgraph name
+    CacheLevel  CacheLevel           // CacheLevelL1 or CacheLevelL2
+    TTL         time.Duration        // TTL used for this write
+    Shadow      bool                 // Shadow mode event
+    Source      CacheOperationSource // "query", "mutation", or "subscription"
+    WriteReason CacheWriteReason     // "refresh", "backfill", "derived", or "" (see below)
+}
+```
+
+`WriteReason` is set for root field `EntityKeyMappings` L2 writes:
+- `"refresh"` — existing cached key rewritten with fresh or merged data
+- `"backfill"` — missing requested key proven by final entity data
+- `"derived"` — new key derived from entity data not in the original request
+
+Empty for entity fetches and non-EntityKeyMappings root field writes.
+
+**FetchTimingEvent** — per-fetch timing:
+```go
+type FetchTimingEvent struct {
+    DataSource     string      // Subgraph name
+    EntityType     string      // Entity type (empty for root fields)
+    DurationMs     int64       // Fetch/lookup duration
+    Source         FieldSource // FieldSourceSubgraph, FieldSourceL1, FieldSourceL2
+    ItemCount      int         // Number of entities
+    IsEntityFetch  bool        // true for _entities queries
+    HTTPStatusCode int         // HTTP status (0 for cache hits)
+    ResponseBytes  int         // Response body size (0 for cache hits)
+    TTFBMs         int64       // Time to first byte
+}
+```
+
+**MutationEvent** — mutation impact on cached entities:
+```go
+type MutationEvent struct {
+    MutationRootField string // e.g., "updateUser"
+    EntityType        string // e.g., "User"
+    EntityCacheKey    string // Display key JSON
+    HadCachedValue    bool   // true if L2 had an entry
+    IsStale           bool   // true if cached differs from mutation response
+    CachedHash        uint64 // Hash of cached ProvidesData
+    FreshHash         uint64 // Hash of mutation response ProvidesData
+    CachedBytes       int    // 0 when HadCachedValue=false
+    FreshBytes        int
+}
+```
+
+### Integration Pattern
+
+```go
+// After each request:
+snapshot := ctx.GetCacheStats()
+
+// Export to observability
+metrics.RecordL1HitRate(snapshot.L1HitRate())
+metrics.RecordL2HitRate(snapshot.L2HitRate())
+metrics.RecordCachedBytesServed(snapshot.CachedBytesServed())
+
+for _, timing := range snapshot.FetchTimings {
+    metrics.RecordFetchDuration(timing.DataSource, timing.DurationMs, timing.Source)
+}
+
+for _, shadow := range snapshot.ShadowComparisons {
+    if !shadow.IsFresh {
+        log.Warn("stale cache entry", "entity", shadow.EntityType, "key", shadow.CacheKey, "age_ms", shadow.CacheAgeMs)
+    }
+}
+
+for _, mutation := range snapshot.MutationEvents {
+    if mutation.IsStale {
+        log.Info("mutation updated stale cache", "field", mutation.MutationRootField, "entity", mutation.EntityType)
+    }
+}
+```
+
+## 11. Cache Trace in Response Extensions
+
+When the trace feature is enabled (`TraceOptions.Enable = true` with `IncludeTraceOutputInResponseExtensions = true`), each fetch in the response's `extensions.trace` includes a `cache_trace` object with per-fetch caching details. This provides real-time visibility into cache behavior for each subgraph call.
+
+### Enabling Cache Trace
+
+Cache trace is included automatically when tracing is enabled. To exclude it (e.g., to reduce response size), set `ExcludeCacheStats: true`:
+
+```go
+opts := engine.WithRequestTraceOptions(resolve.TraceOptions{
+    Enable:                                 true,
+    IncludeTraceOutputInResponseExtensions: true,
+    ExcludeCacheStats:                      false, // default: included
+})
+```
+
+**Zero overhead**: When `Enable` is false or `ExcludeCacheStats` is true, no cache trace data is collected — no timing calls, no allocations, no counting.
+
+### CacheTrace Structure
+
+Each fetch node in `extensions.trace.fetches` includes:
+
+```go
+type CacheTrace struct {
+    L1Enabled  bool   `json:"l1_enabled"`   // L1 enabled for this fetch (runtime state)
+    L2Enabled  bool   `json:"l2_enabled"`   // L2 enabled for this fetch (runtime state)
+    CacheName  string `json:"cache_name"`   // Named cache instance
+    TTLSeconds int64  `json:"ttl_seconds"`  // Configured TTL
+
+    L1Hit  int `json:"l1_hit"`   // L1 cache hits
+    L1Miss int `json:"l1_miss"`  // L1 cache misses
+    L2Hit  int `json:"l2_hit"`   // L2 cache hits
+    L2Miss int `json:"l2_miss"`  // L2 cache misses
+
+    NegativeCacheHits int `json:"negative_cache_hits,omitempty"` // Null entities from cache
+
+    // L2 operation timing
+    L2GetDurationNano   int64  `json:"l2_get_duration_nanoseconds,omitempty"`
+    L2SetDurationNano   int64  `json:"l2_set_duration_nanoseconds,omitempty"`
+    L2SetNegativeDurationNano int64 `json:"l2_set_negative_duration_nanoseconds,omitempty"`
+
+    // Configuration flags
+    PartialCacheLoad            bool `json:"partial_cache_load,omitempty"`
+    ShadowMode                  bool `json:"shadow_mode,omitempty"`
+    ShadowHit                   bool `json:"shadow_hit,omitempty"`
+    IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix,omitempty"`
+
+    // Per-entity details (entity/batch fetches only)
+    Entities []CacheTraceEntity `json:"entities,omitempty"`
+
+    // Cache keys used (when ExcludeRawInputData is false)
+    Keys []string `json:"keys,omitempty"`
+
+    // Errors from cache operations
+    L2GetError string `json:"l2_get_error,omitempty"`
+    L2SetError string `json:"l2_set_error,omitempty"`
+}
+```
+
+### Example Response
+
+```json
+{
+  "data": { "topProducts": [...] },
+  "extensions": {
+    "trace": {
+      "fetches": {
+        "kind": "Sequence",
+        "children": [{
+          "kind": "Single",
+          "fetch": {
+            "kind": "Single",
+            "source_name": "accounts",
+            "trace": {
+              "duration_load_nanoseconds": 5000000,
+              "cache_trace": {
+                "l1_enabled": true,
+                "l2_enabled": true,
+                "cache_name": "default",
+                "ttl_seconds": 60,
+                "l1_hit": 0,
+                "l1_miss": 1,
+                "l2_hit": 1,
+                "l2_miss": 0,
+                "l2_get_duration_nanoseconds": 250000,
+                "keys": ["{\"__typename\":\"User\",\"key\":{\"id\":\"1\"}}"]
+              }
+            }
+          }
+        }]
+      }
+    }
+  }
+}
+```
+
+## 12. Complete Integration Example
+
+```go
+package main
+
+import (
+    "context"
+    "time"
+
+    "github.com/wundergraph/graphql-go-tools/execution/engine"
+    "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+    "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+)
+
+func setupCaching() {
+    // 1. Define subgraph caching configurations
+    cachingConfigs := engine.SubgraphCachingConfigs{
+        {
+            SubgraphName: "accounts",
+            EntityCaching: plan.EntityCacheConfigurations{
+                {
+                    TypeName:                    "User",
+                    CacheName:                   "default",
+                    TTL:                         5 * time.Minute,
+                    IncludeSubgraphHeaderPrefix: true,
+                },
+            },
+            RootFieldCaching: plan.RootFieldCacheConfigurations{
+                {
+                    TypeName:                    "Query",
+                    FieldName:                   "me",
+                    CacheName:                   "default",
+                    TTL:                         1 * time.Minute,
+                    IncludeSubgraphHeaderPrefix: true,
+                },
+            },
+            MutationFieldCaching: plan.MutationFieldCacheConfigurations{
+                {
+                    FieldName:                     "updateUser",
+                    EnableEntityL2CachePopulation:  true,
+                },
+            },
+            MutationCacheInvalidation: plan.MutationCacheInvalidationConfigurations{
+                {
+                    FieldName:      "deleteUser",
+                    EntityTypeName: "User",
+                },
+            },
+        },
+        {
+            SubgraphName: "products",
+            EntityCaching: plan.EntityCacheConfigurations{
+                {
+                    TypeName:  "Product",
+                    CacheName: "default",
+                    TTL:       10 * time.Minute,
+                },
+            },
+            RootFieldCaching: plan.RootFieldCacheConfigurations{
+                {
+                    TypeName:  "Query",
+                    FieldName: "topProducts",
+                    CacheName: "default",
+                    TTL:       30 * time.Second,
+                },
+            },
+            SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
+                {
+                    TypeName:                    "Product",
+                    CacheName:                   "default",
+                    TTL:                         10 * time.Minute,
+                    EnableInvalidationOnKeyOnly: true,
+                },
+            },
+        },
+    }
+
+    // 2. Create engine configuration
+    factory := engine.NewFederationEngineConfigFactory(
+        context.Background(),
+        subgraphConfigs, // []engine.SubgraphConfiguration
+        engine.WithSubgraphEntityCachingConfigs(cachingConfigs),
+    )
+    config, _ := factory.BuildEngineConfiguration()
+
+    // 3. Create resolver with cache instances
+    resolver := resolve.New(context.Background(), resolve.ResolverOptions{
+        MaxConcurrency: 64,
+        Caches: map[string]resolve.LoaderCache{
+            "default": NewRedisCache("redis://localhost:6379"),
+        },
+        EntityCacheConfigs: map[string]map[string]*resolve.EntityCacheInvalidationConfig{
+            "accounts": {
+                "User": {CacheName: "default", IncludeSubgraphHeaderPrefix: true},
+            },
+            "products": {
+                "Product": {CacheName: "default"},
+            },
+        },
+    })
+
+    // 4. Per-request: enable caching
+    execCtx := resolve.NewContext(context.Background())
+    execCtx.ExecutionOptions.Caching = resolve.CachingOptions{
+        EnableL1Cache:        true,
+        EnableL2Cache:        true,
+        EnableCacheAnalytics: true,
+        L2CacheKeyInterceptor: func(ctx context.Context, key string, info resolve.L2CacheKeyInterceptorInfo) string {
+            // Optional: add tenant isolation
+            if tenantID, ok := ctx.Value("tenant-id").(string); ok {
+                return tenantID + ":" + key
+            }
+            return key
+        },
+    }
+
+    // 5. Resolve (uses config from step 2)
+    resolveInfo, _ := resolver.ResolveGraphQLResponse(execCtx, response, initialData, writer)
+
+    // 6. Collect cache analytics
+    snapshot := execCtx.GetCacheStats()
+    _ = snapshot.L1HitRate()
+    _ = snapshot.L2HitRate()
+    _ = snapshot.CachedBytesServed()
+    _ = config
+    _ = resolveInfo
+}
+```
+
+## 13. Configuration Reference Summary
+
+| Configuration | Package | Purpose |
+|--------------|---------|---------|
+| `SubgraphCachingConfig` | `execution/engine` | Top-level per-subgraph config container |
+| `EntityCacheConfiguration` | `v2/pkg/engine/plan` | L2 entity caching (TypeName, TTL, etc.) |
+| `RootFieldCacheConfiguration` | `v2/pkg/engine/plan` | L2 root field caching (FieldName, EntityKeyMappings, PartialBatchLoad) |
+| `FieldMapping.ArgumentIsEntityKey` | `v2/pkg/engine/plan` | Marks argument as direct entity key for batch cache key construction |
+| `CacheKeyTemplate` | `v2/pkg/engine/resolve` | Interface for cache key rendering (entity + root field templates) |
+| `NewRootQueryCacheKeyTemplate` | `v2/pkg/engine/resolve` | Constructor for root field cache key templates (precomputes batch metadata) |
+| `MutationFieldCacheConfiguration` | `v2/pkg/engine/plan` | Mutation L2 write control |
+| `MutationCacheInvalidationConfiguration` | `v2/pkg/engine/plan` | Mutation-triggered L2 deletion |
+| `SubscriptionEntityPopulationConfiguration` | `v2/pkg/engine/plan` | Subscription L2 populate/invalidate |
+| `CachingOptions` | `v2/pkg/engine/resolve` | Per-request L1/L2/analytics enable |
+| `L2CacheKeyInterceptor` | `v2/pkg/engine/resolve` | Custom key transform (tenant isolation) |
+| `LoaderCache` | `v2/pkg/engine/resolve` | Cache backend interface |
+| `EntityCacheInvalidationConfig` | `v2/pkg/engine/resolve` | Extension-based invalidation lookup |
+| `ResolverOptions.Caches` | `v2/pkg/engine/resolve` | Named cache instance registry |
+| `TraceOptions.ExcludeCacheStats` | `v2/pkg/engine/resolve` | Exclude cache trace from response extensions |

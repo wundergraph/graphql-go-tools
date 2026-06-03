@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,7 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 	) {
 		engineConfigFactory := NewFederationEngineConfigFactory(
 			engineCtx,
+			nil, // no subgraphsConfigs — RouterConfig comes through the explicit Build call below
 			WithFederationHttpClient(httpClient),
 			WithFederationStreamingClient(streamingClient),
 			WithFederationSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
@@ -41,7 +43,7 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 		// Build the engine configuration using the router config
 		var rc1 nodev1.RouterConfig
 		assert.NoError(t, protojson.Unmarshal(data, &rc1))
-		config, err := engineConfigFactory.BuildEngineConfiguration(&rc1)
+		config, err := engineConfigFactory.BuildEngineConfigurationWithRouterConfig(&rc1)
 		assert.NoError(t, err)
 
 		expectedConfig := expectedConfigFactory(t, baseSchema)
@@ -74,8 +76,9 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 			require.NoError(t, err)
 
 			conf.SetDataSources([]plan.DataSource{
-				mustGraphqlDataSourceConfiguration(t,
+				mustGraphqlDataSourceConfigurationWithName(t,
 					"0",
+					"account",
 					gqlFactory,
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
@@ -120,8 +123,9 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 						CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
 					}),
 				),
-				mustGraphqlDataSourceConfiguration(t,
+				mustGraphqlDataSourceConfigurationWithName(t,
 					"1",
+					"products",
 					gqlFactory,
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
@@ -166,8 +170,9 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 						CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
 					}),
 				),
-				mustGraphqlDataSourceConfiguration(t,
+				mustGraphqlDataSourceConfigurationWithName(t,
 					"2",
+					"reviews",
 					gqlFactory,
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
@@ -353,3 +358,114 @@ type Review {
   product: Product!
 }`
 )
+
+func TestFederationEngineConfigFactory_BuildEngineConfigurationWithRouterConfig_NilGuards(t *testing.T) {
+	engineCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	factory := NewFederationEngineConfigFactory(engineCtx, nil)
+
+	tests := []struct {
+		name        string
+		routerConf  *nodev1.RouterConfig
+		expectedErr string
+	}{
+		{
+			name:        "nil router config",
+			routerConf:  nil,
+			expectedErr: "router config is nil",
+		},
+		{
+			name:        "nil engine config",
+			routerConf:  &nodev1.RouterConfig{},
+			expectedErr: "router config engine config is nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := factory.BuildEngineConfigurationWithRouterConfig(tt.routerConf)
+			assert.Equal(t, Configuration{}, config)
+			assert.EqualError(t, err, tt.expectedErr)
+		})
+	}
+}
+
+// TestFederationEngineConfigFactory_StaticRouterConfig_AttachesPerSubgraphCacheConfig
+// verifies that when callers use the static-RouterConfig path
+// (subgraphsConfigs == nil, BuildEngineConfigurationWithRouterConfig), per-subgraph
+// caching configuration keyed by real subgraph names ("products") still attaches
+// to the matching datasource. The factory backfills the datasource-id -> subgraph-name
+// map from routerConfig.Subgraphs so FindBySubgraphName lookups succeed.
+func TestFederationEngineConfigFactory_StaticRouterConfig_AttachesPerSubgraphCacheConfig(t *testing.T) {
+	engineCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	factory := NewFederationEngineConfigFactory(
+		engineCtx,
+		nil, // no subgraphsConfigs — static-RouterConfig path
+		WithFederationHttpClient(&http.Client{}),
+		WithFederationStreamingClient(&http.Client{}),
+		WithFederationSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+		WithSubgraphEntityCachingConfigs(SubgraphCachingConfigs{
+			{
+				SubgraphName: "products",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+				},
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 60 * time.Second},
+				},
+			},
+		}),
+	)
+
+	data, err := os.ReadFile("testdata/config_factory_federation/config.json")
+	require.NoError(t, err)
+
+	var rc nodev1.RouterConfig
+	require.NoError(t, protojson.Unmarshal(data, &rc))
+
+	config, err := factory.BuildEngineConfigurationWithRouterConfig(&rc)
+	require.NoError(t, err)
+
+	// Pull every datasource from the resulting plan and assert the cache config
+	// landed on "products" only. The other subgraphs ("account", "reviews") must
+	// have empty entity / root-field caching to confirm we didn't leak the
+	// products config across subgraphs.
+	type cacheView struct {
+		Name             string
+		EntityCaching    plan.EntityCacheConfigurations
+		RootFieldCaching plan.RootFieldCacheConfigurations
+	}
+	got := make([]cacheView, 0, len(config.plannerConfig.DataSources))
+	for _, ds := range config.plannerConfig.DataSources {
+		got = append(got, cacheView{
+			Name:             ds.Name(),
+			EntityCaching:    ds.FederationConfiguration().EntityCaching,
+			RootFieldCaching: ds.FederationConfiguration().RootFieldCaching,
+		})
+	}
+
+	assert.Equal(t, []cacheView{
+		{
+			Name:             "account",
+			EntityCaching:    nil,
+			RootFieldCaching: nil,
+		},
+		{
+			Name: "products",
+			EntityCaching: plan.EntityCacheConfigurations{
+				{TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+			},
+			RootFieldCaching: plan.RootFieldCacheConfigurations{
+				{TypeName: "Query", FieldName: "topProducts", CacheName: "default", TTL: 60 * time.Second},
+			},
+		},
+		{
+			Name:             "reviews",
+			EntityCaching:    nil,
+			RootFieldCaching: nil,
+		},
+	}, got)
+}

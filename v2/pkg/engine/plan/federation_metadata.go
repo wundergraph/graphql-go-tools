@@ -4,16 +4,39 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
+// RequestScopedField declares a field whose value resolves to the same value for
+// all other fields in the same subgraph that share the same L1Key (all fields with
+// @requestScoped(key: "X") have L1Key = "{subgraphName}.X"). The directive is
+// purely symmetric — there is no receiver/provider distinction. Every field that
+// participates is both:
+//   - A reader (the planner emits a hint so the resolver can inject from L1)
+//   - A writer (the planner emits an export so the resolver stores the value after fetch)
+//
+// The first field to resolve populates L1; subsequent fields inject from L1 and can
+// skip their fetch when all required sub-fields are present.
+type RequestScopedField struct {
+	FieldName string // field name, e.g. "currentViewer"
+	TypeName  string // enclosing type name, e.g. "Personalized" or "Query"
+	L1Key     string // L1 cache key, format "{subgraphName}.{key}"
+}
+
 type FederationMetaData struct {
-	Keys             FederationFieldConfigurations
-	Requires         FederationFieldConfigurations
-	Provides         FederationFieldConfigurations
-	EntityInterfaces []EntityInterfaceConfiguration
-	InterfaceObjects []EntityInterfaceConfiguration
+	Keys                         FederationFieldConfigurations
+	Requires                     FederationFieldConfigurations
+	Provides                     FederationFieldConfigurations
+	EntityInterfaces             []EntityInterfaceConfiguration
+	InterfaceObjects             []EntityInterfaceConfiguration
+	EntityCaching                EntityCacheConfigurations
+	RootFieldCaching             RootFieldCacheConfigurations
+	MutationFieldCaching         MutationFieldCacheConfigurations
+	SubscriptionEntityPopulation SubscriptionEntityPopulationConfigurations
+	MutationCacheInvalidation    MutationCacheInvalidationConfigurations
+	RequestScopedFields          []RequestScopedField
 
 	entityTypeNames map[string]struct{}
 }
@@ -26,6 +49,10 @@ type FederationInfo interface {
 	HasInterfaceObject(typeName string) bool
 	HasEntityInterface(typeName string) bool
 	EntityInterfaceNames() []string
+	EntityCacheConfig(typeName string) *EntityCacheConfiguration
+	RootFieldCacheConfig(typeName, fieldName string) *RootFieldCacheConfiguration
+	MutationCacheInvalidationConfig(fieldName string) *MutationCacheInvalidationConfiguration
+	MutationFieldCacheConfig(fieldName string) *MutationFieldCacheConfiguration
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {
@@ -72,6 +99,292 @@ func (d *FederationMetaData) EntityInterfaceNames() (out []string) {
 type EntityInterfaceConfiguration struct {
 	InterfaceTypeName string
 	ConcreteTypeNames []string
+}
+
+// EntityCacheConfiguration defines L2 caching behavior for a specific entity type.
+// This configuration is subgraph-local: each subgraph configures caching for entities it provides.
+// Caching is opt-in: entities without configuration will not be cached in L2.
+type EntityCacheConfiguration struct {
+	// TypeName is the GraphQL type name of the entity to cache (e.g., "User", "Product").
+	// This must match the __typename returned by the subgraph for _entities queries.
+	TypeName string `json:"type_name"`
+
+	// CacheName identifies which LoaderCache instance to use for storing this entity.
+	// Multiple entity types can share a cache by using the same CacheName.
+	// The cache name must be registered in the Loader's caches map at runtime.
+	CacheName string `json:"cache_name"`
+
+	// TTL (Time To Live) specifies how long cached entities remain valid.
+	// After TTL expires, the next request will fetch fresh data from the subgraph.
+	// A zero TTL means entries never expire (not recommended for production).
+	TTL time.Duration `json:"ttl"`
+
+	// IncludeSubgraphHeaderPrefix controls whether forwarded headers affect cache keys.
+	// When true, cache keys include a hash of the headers sent to the subgraph,
+	// ensuring different header configurations (e.g., different auth tokens) use
+	// separate cache entries. Set to true when subgraph responses vary by headers.
+	IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix"`
+
+	// EnablePartialCacheLoad enables fetching only cache-missed entities from the subgraph.
+	// Default behavior (false): If ANY entity in a batch is missing from cache, ALL entities
+	// are fetched from the subgraph. This keeps the cache fresh but may overfetch.
+	// When enabled (true): Only missing entities are fetched; cached entities are served
+	// directly from cache. This reduces subgraph load but cached entities may become stale
+	// within their TTL window. Use when cache freshness is acceptable within TTL bounds.
+	EnablePartialCacheLoad bool `json:"enable_partial_cache_load"`
+
+	// HashAnalyticsKeys controls whether entity keys are hashed (true) or stored raw (false)
+	// in cache analytics EntityFieldHash entries. When true, KeyHash is populated instead of KeyRaw.
+	HashAnalyticsKeys bool `json:"hash_analytics_keys"`
+
+	// ShadowMode enables shadow caching for this entity type.
+	// When true, L2 cache reads and writes still occur, but cached data is never served.
+	// Instead, fresh data is always fetched from the subgraph and compared against the cached value
+	// to detect staleness. L1 cache works normally (not affected by shadow mode).
+	ShadowMode bool `json:"shadow_mode"`
+
+	// NegativeCacheTTL is the TTL for caching null entity results (entity not found).
+	// When > 0, null responses (entity returned null without errors from _entities) are cached
+	// as negative sentinels to avoid repeated subgraph lookups for non-existent entities.
+	// When 0 (default), null entities are not cached and will be re-fetched on every request.
+	NegativeCacheTTL time.Duration `json:"negative_cache_ttl,omitzero"`
+}
+
+// EntityCacheConfigurations is a collection of entity cache configurations.
+type EntityCacheConfigurations []EntityCacheConfiguration
+
+// FindByTypeName returns the cache configuration for the given entity type.
+// Returns nil if no configuration exists (caching disabled for this entity).
+func (c EntityCacheConfigurations) FindByTypeName(typeName string) *EntityCacheConfiguration {
+	for i := range c {
+		if c[i].TypeName == typeName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
+// RootFieldCacheConfiguration defines L2 caching behavior for a specific root field.
+// This configuration is subgraph-local: each subgraph configures caching for root fields it provides.
+type RootFieldCacheConfiguration struct {
+	// TypeName is the type containing the field (e.g., "Query", "Mutation")
+	TypeName string `json:"type_name"`
+	// FieldName is the name of the root field to cache (e.g., "topProducts", "me")
+	FieldName string `json:"field_name"`
+	// CacheName is the name of the cache to use (maps to LoaderCache instances)
+	CacheName string `json:"cache_name"`
+	// TTL is the time-to-live for cached responses
+	TTL time.Duration `json:"ttl"`
+	// IncludeSubgraphHeaderPrefix indicates if forwarded headers affect cache key.
+	// When true, different header values result in different cache keys.
+	IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix"`
+	// EntityKeyMappings configures derived entity cache keys for this root field.
+	// When set, the L2 cache key uses entity key format instead of root field format,
+	// enabling cache sharing between root field queries and entity fetches.
+	EntityKeyMappings []EntityKeyMapping `json:"entity_key_mappings,omitempty"`
+
+	// ShadowMode enables shadow caching for this root field.
+	// When true, L2 cache reads and writes still occur, but cached data is never served.
+	// Instead, fresh data is always fetched from the subgraph and compared against the cached value.
+	// Note: shadow mode behavior is currently implemented for entity fetches only.
+	ShadowMode bool `json:"shadow_mode"`
+
+	// PartialBatchLoad enables partial fetch mode for batch arguments (ArgumentIsEntityKey + list).
+	// When false (default), batch cache is all-or-nothing: any miss fetches the full list.
+	// When true, only missing IDs are fetched; cached entities are served directly.
+	PartialBatchLoad bool `json:"partial_batch_load,omitempty"`
+}
+
+// EntityKeyMapping defines how a root field's arguments map to entity @key fields.
+// When configured, the root field's L2 cache key uses the entity key format
+// (e.g., {"__typename":"User","key":{"id":"123"}}) instead of the root field format.
+// This enables cache sharing between root field queries and entity fetches.
+type EntityKeyMapping struct {
+	// EntityTypeName is the entity type returned by the root field (e.g., "User")
+	EntityTypeName string `json:"entity_type_name"`
+	// FieldMappings maps entity @key fields to root field arguments
+	FieldMappings []FieldMapping `json:"field_mappings"`
+}
+
+// FieldMapping maps an entity @key field to a root field argument path.
+type FieldMapping struct {
+	// EntityKeyField is the @key field name on the entity (e.g., "id")
+	EntityKeyField string `json:"entity_key_field"`
+	// ArgumentPath is the path into ctx.Variables to extract the argument value.
+	// Uses the same []string format as ContextVariable.Path.
+	// Object keys: ["id"], ["input", "userId"]
+	// Array index: ["ids", "0"] (decimal string)
+	// Subject to ctx.RemapVariables when len==1
+	ArgumentPath []string `json:"argument_path"`
+	// ArgumentIsEntityKey marks the argument as a direct entity key lookup.
+	// When true AND the argument is a list type, each list element maps 1:1
+	// to an entity in the response (positional correspondence).
+	// This enables:
+	//   - Batch cache key construction (one cache key per list element)
+	//   - Empty list optimization ([] → empty response, resolver skipped)
+	//   - Partial fetch mode (fetch only missing entities by filtering the list)
+	// When false, the argument is treated as a filter/search parameter and
+	// the engine cannot make assumptions about the response shape.
+	ArgumentIsEntityKey bool `json:"argument_is_entity_key,omitempty"`
+}
+
+// RootFieldCacheConfigurations is a collection of root field cache configurations.
+type RootFieldCacheConfigurations []RootFieldCacheConfiguration
+
+// FindByTypeAndField returns the cache configuration for the given type and field.
+// Returns nil if no configuration exists (caching disabled for this root field).
+func (c RootFieldCacheConfigurations) FindByTypeAndField(typeName, fieldName string) *RootFieldCacheConfiguration {
+	for i := range c {
+		if c[i].TypeName == typeName && c[i].FieldName == fieldName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
+// MutationFieldCacheConfiguration controls cache behavior for entity fetches
+// triggered by a specific mutation root field. The subgraph that owns the mutation
+// field decides whether entity data fetched during that mutation populates L2.
+type MutationFieldCacheConfiguration struct {
+	// FieldName is the mutation root field name (e.g., "addReview", "deleteUser").
+	FieldName string `json:"field_name"`
+	// EnableEntityL2CachePopulation allows entity fetches triggered by this
+	// mutation to write to the L2 cache. Mutations always skip L2 reads
+	// (existing behavior). By default, mutations do NOT populate L2.
+	// Set to true to opt in to L2 cache population for this mutation field.
+	EnableEntityL2CachePopulation bool `json:"enable_entity_l2_cache_population"`
+	// TTL overrides the entity's default cache TTL for L2 writes triggered by this mutation.
+	// When zero, the entity's default TTL (from EntityCacheConfiguration) is used.
+	TTL time.Duration `json:"ttl,omitempty"`
+}
+
+// MutationFieldCacheConfigurations is a collection of mutation field cache configurations.
+type MutationFieldCacheConfigurations []MutationFieldCacheConfiguration
+
+// FindByFieldName returns the mutation field cache config for the given field name.
+// Returns nil if no configuration exists.
+func (c MutationFieldCacheConfigurations) FindByFieldName(fieldName string) *MutationFieldCacheConfiguration {
+	for i := range c {
+		if c[i].FieldName == fieldName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
+// SubscriptionEntityPopulationConfiguration defines how a subscription should
+// manage L2 cache entries for root entities received via subscription events.
+//
+// Two modes are supported:
+//   - Populate: When the subscription selects entity fields beyond @key, write those
+//     fields to L2 on each event. This allows subsequent queries to hit the L2 cache.
+//   - Invalidate: When the subscription only provides @key fields (and
+//     EnableInvalidationOnKeyOnly is true), DELETE the L2 cache entry on each event.
+//     This ensures stale data is evicted when the entity changes.
+type SubscriptionEntityPopulationConfiguration struct {
+	// TypeName is the entity type managed by this subscription (e.g., "Product").
+	TypeName string `json:"type_name"`
+	// FieldName is the subscription root field name (e.g., "itemCreated").
+	// Used to disambiguate when multiple subscription fields return the same entity type.
+	FieldName string `json:"field_name,omitempty"`
+	// CacheName identifies which LoaderCache instance to use.
+	CacheName string `json:"cache_name"`
+	// TTL is the time-to-live for populated cache entries.
+	TTL time.Duration `json:"ttl"`
+	// IncludeSubgraphHeaderPrefix controls whether forwarded headers affect cache keys.
+	IncludeSubgraphHeaderPrefix bool `json:"include_subgraph_header_prefix"`
+	// EnableInvalidationOnKeyOnly: when true and the subscription only provides
+	// @key fields (no additional entity fields), DELETE the L2 cache entry on
+	// each subscription event instead of populating it.
+	EnableInvalidationOnKeyOnly bool `json:"enable_invalidation_on_key_only"`
+}
+
+// SubscriptionEntityPopulationConfigurations is a collection of subscription entity population configurations.
+type SubscriptionEntityPopulationConfigurations []SubscriptionEntityPopulationConfiguration
+
+// FindByTypeAndFieldName returns the subscription entity population config matching
+// both the entity type name and subscription field name. Returns nil if no match.
+func (c SubscriptionEntityPopulationConfigurations) FindByTypeAndFieldName(typeName, fieldName string) *SubscriptionEntityPopulationConfiguration {
+	for i := range c {
+		if c[i].TypeName == typeName && c[i].FieldName == fieldName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
+// MutationCacheInvalidationConfiguration defines which mutation fields should
+// invalidate (delete) L2 cache entries for the entity they return.
+type MutationCacheInvalidationConfiguration struct {
+	// FieldName is the mutation field name (e.g., "updateUser", "deleteUser").
+	FieldName string `json:"field_name"`
+	// EntityTypeName is the return entity type (e.g., "User").
+	// If empty, it is inferred from the mutation return type at plan time.
+	EntityTypeName string `json:"entity_type_name,omitempty"`
+}
+
+// MutationCacheInvalidationConfigurations is a collection of mutation cache invalidation configurations.
+type MutationCacheInvalidationConfigurations []MutationCacheInvalidationConfiguration
+
+// FindByFieldName returns the invalidation config for the given mutation field.
+// Returns nil if no configuration exists (no invalidation for this field).
+func (c MutationCacheInvalidationConfigurations) FindByFieldName(fieldName string) *MutationCacheInvalidationConfiguration {
+	for i := range c {
+		if c[i].FieldName == fieldName {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
+// EntityCacheConfig returns the cache configuration for the given entity type.
+// Returns nil if no configuration exists (caching is not configured for this entity).
+func (d *FederationMetaData) EntityCacheConfig(typeName string) *EntityCacheConfiguration {
+	return d.EntityCaching.FindByTypeName(typeName)
+}
+
+// RootFieldCacheConfig returns the cache configuration for the given root field.
+// Returns nil if no configuration exists (caching is not configured for this root field).
+func (d *FederationMetaData) RootFieldCacheConfig(typeName, fieldName string) *RootFieldCacheConfiguration {
+	return d.RootFieldCaching.FindByTypeAndField(typeName, fieldName)
+}
+
+// MutationCacheInvalidationConfig returns the invalidation config for the given mutation field.
+// Returns nil if no configuration exists (no invalidation for this field).
+func (d *FederationMetaData) MutationCacheInvalidationConfig(fieldName string) *MutationCacheInvalidationConfiguration {
+	return d.MutationCacheInvalidation.FindByFieldName(fieldName)
+}
+
+// MutationFieldCacheConfig returns the cache configuration for the given mutation field.
+// Returns nil if no configuration exists.
+func (d *FederationMetaData) MutationFieldCacheConfig(fieldName string) *MutationFieldCacheConfiguration {
+	return d.MutationFieldCaching.FindByFieldName(fieldName)
+}
+
+// RequestScopedFieldsForType returns all @requestScoped fields for the given type.
+// These are fields that can be read from (and written to) the coordinate L1 cache.
+func (d *FederationMetaData) RequestScopedFieldsForType(typeName string) []RequestScopedField {
+	var result []RequestScopedField
+	for _, f := range d.RequestScopedFields {
+		if f.TypeName == typeName {
+			result = append(result, f)
+		}
+	}
+	return result
+}
+
+// RequestScopedExportsForField returns the L1 keys that should be exported when
+// a given field is fetched. Under the symmetric model, every field annotated with
+// @requestScoped exports its value to L1 (so another field with the same key can
+// later inject from it). The lookup matches by TypeName + FieldName.
+func (d *FederationMetaData) RequestScopedExportsForField(typeName, fieldName string) []string {
+	var keys []string
+	for _, f := range d.RequestScopedFields {
+		if f.TypeName == typeName && f.FieldName == fieldName {
+			keys = append(keys, f.L1Key)
+		}
+	}
+	return keys
 }
 
 type FederationFieldConfiguration struct {

@@ -11,14 +11,14 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/products/graph/model"
 )
 
+// FindDigitalProductByUpc is the resolver for the findDigitalProductByUpc field.
+func (r *entityResolver) FindDigitalProductByUpc(ctx context.Context, upc string) (*model.DigitalProduct, error) {
+	return r.findDigitalProduct(upc), nil
+}
+
 // FindProductByUpc is the resolver for the findProductByUpc field.
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {
-	for _, h := range r.products {
-		if h.Upc == upc {
-			return h, nil
-		}
-	}
-	return nil, nil
+	return r.findProduct(upc), nil
 }
 
 // Entity returns generated.EntityResolver implementation.

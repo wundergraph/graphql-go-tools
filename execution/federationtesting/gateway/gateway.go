@@ -2,55 +2,171 @@ package gateway
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"sync"
 
-	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
-	"google.golang.org/protobuf/encoding/protojson"
-
-	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
 
 	"github.com/wundergraph/graphql-go-tools/execution/engine"
-	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/gateway/httphandler"
+	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// GatewayOption is a function that configures a Gateway
+type GatewayOption func(*Gateway)
+
+type DataSourceObserver interface {
+	UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration)
+}
+
+type DataSourceSubject interface {
+	Register(observer DataSourceObserver)
+}
+
+type HandlerFactory interface {
+	Make(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler
+}
+
+type HandlerFactoryFn func(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler
+
+func (h HandlerFactoryFn) Make(schema *graphql.Schema, engine *engine.ExecutionEngine) http.Handler {
+	return h(schema, engine)
+}
+
 func NewGateway(
-	configFileContent []byte,
+	gqlHandlerFactory HandlerFactory,
 	httpClient *http.Client,
 	logger log.Logger,
-	enableART bool,
-) (*Gateway, error) {
-	var rc nodev1.RouterConfig
-	if err := protojson.Unmarshal(configFileContent, &rc); err != nil {
-		return nil, fmt.Errorf("can't unmarshal composed config: %w", err)
+	loaderCaches map[string]resolve.LoaderCache,
+	opts ...GatewayOption,
+) *Gateway {
+	g := &Gateway{
+		gqlHandlerFactory: gqlHandlerFactory,
+		httpClient:        httpClient,
+		logger:            logger,
+		loaderCaches:      loaderCaches,
+
+		mu:        &sync.Mutex{},
+		readyCh:   make(chan struct{}),
+		readyOnce: &sync.Once{},
 	}
 
-	ctx := context.Background()
-	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, engine.WithFederationHttpClient(httpClient))
-
-	engineConfig, err := engineConfigFactory.BuildEngineConfiguration(&rc)
-	if err != nil {
-		return nil, fmt.Errorf("can't build engine configuration: %w", err)
+	for _, opt := range opts {
+		opt(g)
 	}
 
-	executionEngine, err := engine.NewExecutionEngine(ctx, logger, engineConfig, resolve.ResolverOptions{
-		MaxConcurrency: 1024,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("can't create an engine: %w", err)
-	}
-
-	upgrader := &ws.HTTPUpgrader{
-		Header: http.Header{},
-	}
-
-	handler := httphandler.NewGraphqlHTTPHandler(engineConfig.Schema(), executionEngine, upgrader, logger, enableART)
-
-	return &Gateway{handler}, nil
+	return g
 }
 
 type Gateway struct {
-	http.Handler
+	gqlHandlerFactory            HandlerFactory
+	httpClient                   *http.Client
+	logger                       log.Logger
+	loaderCaches                 map[string]resolve.LoaderCache
+	subgraphEntityCachingConfigs engine.SubgraphCachingConfigs
+	resolverOptionsFns           []func(*resolve.ResolverOptions) // Applied to ResolverOptions before creating the engine
+	remapVariables               map[string]string
+
+	gqlHandler http.Handler
+	mu         *sync.Mutex
+
+	readyCh   chan struct{}
+	readyOnce *sync.Once
+}
+
+// WithSubgraphEntityCachingConfigs configures per-subgraph entity caching for the gateway
+func WithSubgraphEntityCachingConfigs(configs engine.SubgraphCachingConfigs) GatewayOption {
+	return func(g *Gateway) {
+		g.subgraphEntityCachingConfigs = configs
+	}
+}
+
+func WithRemapVariables(remap map[string]string) GatewayOption {
+	return func(g *Gateway) {
+		g.remapVariables = remap
+	}
+}
+
+// WithResolverOptions adds a function that customizes ResolverOptions before the engine is created.
+// Multiple functions are applied in order.
+func WithResolverOptions(fn func(*resolve.ResolverOptions)) GatewayOption {
+	return func(g *Gateway) {
+		g.resolverOptionsFns = append(g.resolverOptionsFns, fn)
+	}
+}
+
+// buildEntityCacheConfigs converts SubgraphCachingConfigs into the runtime lookup map
+// needed by the resolver for extensions-based cache invalidation.
+// Only EntityCaching entries are processed — RootFieldCaching uses a different key format
+// and is not eligible for extensions-based invalidation.
+func buildEntityCacheConfigs(configs engine.SubgraphCachingConfigs) map[string]map[string]*resolve.EntityCacheInvalidationConfig {
+	if len(configs) == 0 {
+		return nil
+	}
+	result := make(map[string]map[string]*resolve.EntityCacheInvalidationConfig, len(configs))
+	for _, sc := range configs {
+		if len(sc.EntityCaching) == 0 {
+			continue
+		}
+		entityMap := make(map[string]*resolve.EntityCacheInvalidationConfig, len(sc.EntityCaching))
+		for _, ec := range sc.EntityCaching {
+			entityMap[ec.TypeName] = &resolve.EntityCacheInvalidationConfig{
+				CacheName:                   ec.CacheName,
+				IncludeSubgraphHeaderPrefix: ec.IncludeSubgraphHeaderPrefix,
+			}
+		}
+		result[sc.SubgraphName] = entityMap
+	}
+	return result
+}
+
+func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	g.mu.Lock()
+	handler := g.gqlHandler
+	g.mu.Unlock()
+
+	handler.ServeHTTP(w, r)
+}
+
+func (g *Gateway) Ready() {
+	<-g.readyCh
+}
+
+func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfiguration) {
+	ctx := context.Background()
+
+	opts := []engine.FederationEngineConfigFactoryOption{
+		engine.WithFederationHttpClient(g.httpClient),
+	}
+	if len(g.subgraphEntityCachingConfigs) > 0 {
+		opts = append(opts, engine.WithSubgraphEntityCachingConfigs(g.subgraphEntityCachingConfigs))
+	}
+
+	engineConfigFactory := engine.NewFederationEngineConfigFactory(ctx, subgraphsConfigs, opts...)
+
+	engineConfig, err := engineConfigFactory.BuildEngineConfiguration()
+	if err != nil {
+		g.logger.Error("get engine config: %v", log.Error(err))
+		return
+	}
+
+	resolverOpts := resolve.ResolverOptions{
+		MaxConcurrency:     1024,
+		Caches:             g.loaderCaches,
+		EntityCacheConfigs: buildEntityCacheConfigs(g.subgraphEntityCachingConfigs),
+	}
+	for _, fn := range g.resolverOptionsFns {
+		fn(&resolverOpts)
+	}
+	executionEngine, err := engine.NewExecutionEngine(ctx, g.logger, engineConfig, resolverOpts)
+	if err != nil {
+		g.logger.Error("create engine: %v", log.Error(err))
+		return
+	}
+
+	g.mu.Lock()
+	g.gqlHandler = g.gqlHandlerFactory.Make(engineConfig.Schema(), executionEngine)
+	g.mu.Unlock()
+
+	g.readyOnce.Do(func() { close(g.readyCh) })
 }

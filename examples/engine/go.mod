@@ -19,8 +19,8 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	github.com/wundergraph/astjson v1.1.0 // indirect
-	github.com/wundergraph/go-arena v1.1.0 // indirect
+	github.com/wundergraph/astjson v1.1.1-0.20260419105127-f600d161463f // indirect
+	github.com/wundergraph/go-arena v1.2.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect

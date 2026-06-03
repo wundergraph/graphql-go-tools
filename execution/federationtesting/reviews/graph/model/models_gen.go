@@ -17,6 +17,14 @@ type Iface interface {
 	GetSubject() string
 }
 
+type CacheEntity struct {
+	ID     string       `json:"id"`
+	A      string       `json:"a"`
+	Nested *CacheEntity `json:"nested"`
+}
+
+func (CacheEntity) IsEntity() {}
+
 type Cat struct {
 	Name string `json:"name"`
 }

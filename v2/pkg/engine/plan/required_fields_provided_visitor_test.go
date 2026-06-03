@@ -136,6 +136,17 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:           "local child field is implicitly accessible without explicit provided fields",
+			typeName:       "User",
+			requiredFields: "name",
+			parentPath:     "query.me",
+			providedFields: map[string]struct{}{},
+			expected:       true,
+			datasource: dsb().
+				ChildNode("User", "name").
+				DS(),
+		},
+		{
 			name:           "no provided fields",
 			typeName:       "User",
 			requiredFields: "id",

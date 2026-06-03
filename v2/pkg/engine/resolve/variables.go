@@ -11,7 +11,6 @@ const (
 	ObjectVariableKind
 	HeaderVariableKind
 	ResolvableObjectVariableKind
-	ListVariableKind
 )
 
 const (

@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/wundergraph/cosmo/composition-go"
 	"github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/common"
 	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
 
@@ -27,6 +29,30 @@ type SubgraphConfiguration struct {
 	SubscriptionProtocol SubscriptionProtocol
 }
 
+// SubgraphCachingConfig defines L2 caching configuration for a specific subgraph.
+// This allows fine-grained control over which entities and root fields are cached per subgraph.
+type SubgraphCachingConfig struct {
+	SubgraphName                 string                                          // Name of the subgraph (must match SubgraphConfiguration.Name)
+	EntityCaching                plan.EntityCacheConfigurations                  // Caching config for entity types in this subgraph
+	RootFieldCaching             plan.RootFieldCacheConfigurations               // Caching config for root fields in this subgraph
+	MutationFieldCaching         plan.MutationFieldCacheConfigurations           // Caching config for mutation field behavior in this subgraph
+	SubscriptionEntityPopulation plan.SubscriptionEntityPopulationConfigurations // Caching config for subscription entity population/invalidation
+	MutationCacheInvalidation    plan.MutationCacheInvalidationConfigurations    // Caching config for mutation-triggered cache invalidation
+}
+
+// SubgraphCachingConfigs is a list of per-subgraph caching configurations.
+type SubgraphCachingConfigs []SubgraphCachingConfig
+
+// FindBySubgraphName returns the caching config for the given subgraph name, or nil if not found.
+func (c SubgraphCachingConfigs) FindBySubgraphName(name string) *SubgraphCachingConfig {
+	for i := range c {
+		if c[i].SubgraphName == name {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
 type SubscriptionProtocol string
 
 const (
@@ -41,6 +67,7 @@ type federationEngineConfigFactoryOptions struct {
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
+	subgraphCachingConfigs    SubgraphCachingConfigs
 
 	grpcClient grpc.ClientConnInterface
 }
@@ -77,7 +104,35 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 	}
 }
 
-func NewFederationEngineConfigFactory(engineCtx context.Context, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
+// WithSubgraphEntityCachingConfigs registers per-subgraph caching configuration.
+// Each SubgraphCachingConfig specifies the caches that apply to a particular subgraph.
+// Despite the historical name, the option carries the full SubgraphCachingConfig:
+// EntityCaching, RootFieldCaching, MutationFieldCaching, SubscriptionEntityPopulation,
+// and MutationCacheInvalidation.
+//
+// Example:
+//
+//	WithSubgraphEntityCachingConfigs(SubgraphCachingConfigs{
+//	    {
+//	        SubgraphName: "products",
+//	        EntityCaching: plan.EntityCacheConfigurations{
+//	            {TypeName: "Product", CacheName: "default", TTL: 30 * time.Second},
+//	        },
+//	    },
+//	    {
+//	        SubgraphName: "accounts",
+//	        EntityCaching: plan.EntityCacheConfigurations{
+//	            {TypeName: "User", CacheName: "default", TTL: 60 * time.Second},
+//	        },
+//	    },
+//	})
+func WithSubgraphEntityCachingConfigs(configs SubgraphCachingConfigs) FederationEngineConfigFactoryOption {
+	return func(options *federationEngineConfigFactoryOptions) {
+		options.subgraphCachingConfigs = configs
+	}
+}
+
+func NewFederationEngineConfigFactory(engineCtx context.Context, subgraphsConfigs []SubgraphConfiguration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -86,7 +141,6 @@ func NewFederationEngineConfigFactory(engineCtx context.Context, opts ...Federat
 				TLSHandshakeTimeout: 0 * time.Second,
 			},
 		},
-		// TODO
 		grpcClient: nil,
 		streamingClient: &http.Client{
 			Timeout: 0,
@@ -107,6 +161,8 @@ func NewFederationEngineConfigFactory(engineCtx context.Context, opts ...Federat
 		subscriptionClientFactory: options.subscriptionClientFactory,
 		subscriptionType:          options.subscriptionType,
 		customResolveMap:          options.customResolveMap,
+		subgraphCachingConfigs:    options.subgraphCachingConfigs,
+		subgraphsConfigs:          subgraphsConfigs,
 	}
 }
 
@@ -119,12 +175,31 @@ type FederationEngineConfigFactory struct {
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
+	subgraphCachingConfigs    SubgraphCachingConfigs
 	subgraphsConfigs          []SubgraphConfiguration
 
 	grpcClient grpc.ClientConnInterface
 }
 
-func (f *FederationEngineConfigFactory) BuildEngineConfiguration(routerConfig *nodev1.RouterConfig) (Configuration, error) {
+func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (Configuration, error) {
+	rc, err := f.Compose()
+	if err != nil {
+		return Configuration{}, err
+	}
+	return f.buildEngineConfiguration(rc)
+}
+
+func (f *FederationEngineConfigFactory) BuildEngineConfigurationWithRouterConfig(c *nodev1.RouterConfig) (Configuration, error) {
+	if c == nil {
+		return Configuration{}, errors.New("router config is nil")
+	}
+	if c.EngineConfig == nil {
+		return Configuration{}, errors.New("router config engine config is nil")
+	}
+	return f.buildEngineConfiguration(c)
+}
+
+func (f *FederationEngineConfigFactory) buildEngineConfiguration(routerConfig *nodev1.RouterConfig) (Configuration, error) {
 	plannerConfiguration, err := f.createPlannerConfiguration(routerConfig)
 	if err != nil {
 		return Configuration{}, err
@@ -147,6 +222,41 @@ func (f *FederationEngineConfigFactory) BuildEngineConfiguration(routerConfig *n
 	}
 
 	return conf, nil
+}
+
+// Compose produces a federated router configuration.
+func (f *FederationEngineConfigFactory) Compose() (*nodev1.RouterConfig, error) {
+	subgraphs := make([]*composition.Subgraph, len(f.subgraphsConfigs))
+
+	for i, subgraphConfig := range f.subgraphsConfigs {
+		subgraphs[i] = &composition.Subgraph{
+			Name:   subgraphConfig.Name,
+			URL:    subgraphConfig.URL,
+			Schema: subgraphConfig.SDL,
+		}
+
+		if subgraphConfig.SubscriptionUrl != "" {
+			subgraphs[i].SubscriptionURL = subgraphConfig.SubscriptionUrl
+		}
+
+		if subgraphConfig.SubscriptionProtocol == "" {
+			subgraphs[i].SubscriptionProtocol = string(SubscriptionProtocolWS)
+		} else {
+			subgraphs[i].SubscriptionProtocol = string(subgraphConfig.SubscriptionProtocol)
+		}
+	}
+
+	resultJSON, err := composition.BuildRouterConfiguration(subgraphs...)
+	if err != nil {
+		return nil, err
+	}
+
+	var routerConfig nodev1.RouterConfig
+	if err := protojson.Unmarshal([]byte(resultJSON), &routerConfig); err != nil {
+		return nil, err
+	}
+
+	return &routerConfig, nil
 }
 
 func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig *nodev1.RouterConfig) (*plan.Configuration, error) {
@@ -185,12 +295,42 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 		})
 	}
 
+	// Create a mapping from datasource ID to subgraph name.
+	// The composition library generates datasources in the same order as
+	// subgraphsConfigs entries, indexed by stringified position.
+	dsIDToSubgraphName := make(map[string]string)
+	for i, subgraphConfig := range f.subgraphsConfigs {
+		dsIDToSubgraphName[fmt.Sprintf("%d", i)] = subgraphConfig.Name
+	}
+	// Backfill from routerConfig.Subgraphs when subgraphsConfigs is empty or
+	// partial. Without this, the static-RouterConfig path (subgraphsConfigs == nil)
+	// would name every datasource by its numeric ID, so per-subgraph cache configs
+	// keyed by real names like "products" would never match in
+	// SubgraphCachingConfigs.FindBySubgraphName.
+	for _, sg := range routerConfig.GetSubgraphs() {
+		id, name := sg.GetId(), sg.GetName()
+		if id == "" || name == "" {
+			continue
+		}
+		if _, ok := dsIDToSubgraphName[id]; !ok {
+			dsIDToSubgraphName[id] = name
+		}
+	}
+
 	for _, ds := range engineConfig.DatasourceConfigurations {
 		if ds.Kind != nodev1.DataSourceKind_GRAPHQL {
 			return nil, fmt.Errorf("invalid datasource kind %q", ds.Kind)
 		}
 
-		dataSource, err := f.subgraphDataSourceConfiguration(engineConfig, ds)
+		// Final fallback to the datasource ID when no SubgraphConfiguration entry
+		// and no routerConfig.Subgraphs entry maps it — matches master's
+		// NewDataSourceConfiguration default (name = id) so callers don't end up
+		// registering datasources with empty names.
+		subgraphName := dsIDToSubgraphName[ds.Id]
+		if subgraphName == "" {
+			subgraphName = ds.Id
+		}
+		dataSource, err := f.subgraphDataSourceConfiguration(engineConfig, ds, subgraphName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create data source configuration for data source %s: %w", ds.Id, err)
 		}
@@ -201,7 +341,7 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 	return &outConfig, nil
 }
 
-func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineConfig *nodev1.EngineConfiguration, in *nodev1.DataSourceConfiguration) (plan.DataSource, error) {
+func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineConfig *nodev1.EngineConfiguration, in *nodev1.DataSourceConfiguration, subgraphName string) (plan.DataSource, error) {
 	var out plan.DataSource
 
 	factory, err := f.graphqlDataSourceFactory()
@@ -293,10 +433,11 @@ func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineCo
 		return nil, fmt.Errorf("error creating custom configuration for data source %s: %w", in.Id, err)
 	}
 
-	out, err = plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
+	out, err = plan.NewDataSourceConfigurationWithName[graphql_datasource.Configuration](
 		in.Id,
+		subgraphName,
 		factory,
-		f.dataSourceMetaData(in),
+		f.dataSourceMetaData(in, subgraphName),
 		customConfiguration,
 	)
 	if err != nil {
@@ -306,7 +447,7 @@ func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineCo
 	return out, nil
 }
 
-func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSourceConfiguration) *plan.DataSourceMetadata {
+func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSourceConfiguration, subgraphName string) *plan.DataSourceMetadata {
 	var d plan.DirectiveConfigurations = make([]plan.DirectiveConfiguration, 0, len(in.Directives))
 
 	out := &plan.DataSourceMetadata{
@@ -371,6 +512,17 @@ func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSource
 			InterfaceTypeName: interfaceObjectConfiguration.InterfaceTypeName,
 			ConcreteTypeNames: interfaceObjectConfiguration.ConcreteTypeNames,
 		})
+	}
+
+	// Add caching configuration for this specific subgraph
+	// Look up the caching config by subgraph name for explicit per-subgraph configuration
+	subgraphCachingConfig := f.subgraphCachingConfigs.FindBySubgraphName(subgraphName)
+	if subgraphCachingConfig != nil {
+		out.FederationMetaData.EntityCaching = subgraphCachingConfig.EntityCaching
+		out.FederationMetaData.RootFieldCaching = subgraphCachingConfig.RootFieldCaching
+		out.FederationMetaData.MutationFieldCaching = subgraphCachingConfig.MutationFieldCaching
+		out.FederationMetaData.SubscriptionEntityPopulation = subgraphCachingConfig.SubscriptionEntityPopulation
+		out.FederationMetaData.MutationCacheInvalidation = subgraphCachingConfig.MutationCacheInvalidation
 	}
 
 	return out
