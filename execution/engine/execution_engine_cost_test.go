@@ -12,9 +12,6 @@ import (
 
 func TestExecutionEngine_Cost(t *testing.T) {
 	t.Parallel()
-
-	t.Parallel()
-
 	t.Run("common on star wars scheme", func(t *testing.T) {
 		t.Parallel()
 		rootNodes := []plan.TypeField{
