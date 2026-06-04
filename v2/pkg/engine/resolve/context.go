@@ -46,10 +46,10 @@ type Context struct {
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
 
-	// ArrayStats is populated by the resolver after resolution completes,
+	// TypeNameStats is populated by the resolver after resolution completes,
 	// before the response body is written. Maps JSON path to array stats.
 	// Used to compute the actual cost.
-	ArrayStats map[string]ArrayStats
+	TypeNameStats map[string]TypeNameStats
 
 	// GetDeduplicationData is called after the leader of an inbound singleflight request
 	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
@@ -321,7 +321,7 @@ func (c *Context) Free() {
 	c.LoaderHooks = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
-	c.ArrayStats = nil
+	c.TypeNameStats = nil
 }
 
 func (c *Context) VariablesView() VariablesView {

@@ -62,15 +62,15 @@ type Resolvable struct {
 
 	currentFieldInfo *FieldInfo
 
-	// arrayStats maps the JSON path to its accumulated array stats in the final response.
+	// typeNameStats maps the JSON path to its accumulated array/object stats in the final response.
 	// Used to compute the actual cost of the operation.
-	arrayStats map[string]ArrayStats
+	typeNameStats map[string]TypeNameStats
 
 	subgraphExtensions []*astjson.Object
 	allowedExtensions  map[string]*astjson.Value
 }
 
-type ArrayStats struct {
+type TypeNameStats struct {
 	Size      int            // the Size of the resolved array/list. It is 1 for non-list objects.
 	TypeNames map[string]int // distribution of TypeNames in the array
 }
@@ -116,7 +116,7 @@ func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
 		astjsonArena:       a,
-		arrayStats:         make(map[string]ArrayStats),
+		typeNameStats:      make(map[string]TypeNameStats),
 	}
 }
 
@@ -144,7 +144,7 @@ func (r *Resolvable) Reset() {
 	clear(r.subgraphExtensions)
 	clear(r.authorizationAllow)
 	clear(r.authorizationDeny)
-	clear(r.arrayStats)
+	clear(r.typeNameStats)
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
@@ -963,7 +963,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	if !r.print {
 		// Record arrays stats for Cost Control.
 		pathKey := r.currentFieldPath()
-		stats := r.arrayStats[pathKey]
+		stats := r.typeNameStats[pathKey]
 		stats.Size += len(values)
 		if stats.TypeNames == nil && len(values) > 0 {
 			stats.TypeNames = make(map[string]int)
@@ -979,7 +979,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 				stats.TypeNames[typeName]++
 			}
 		}
-		r.arrayStats[pathKey] = stats
+		r.typeNameStats[pathKey] = stats
 	}
 
 	hasPrintedValue := false
@@ -1028,13 +1028,13 @@ func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 		return
 	}
 	pathKey := r.currentFieldPath()
-	stats := r.arrayStats[pathKey]
+	stats := r.typeNameStats[pathKey]
 	stats.Size++
 	if stats.TypeNames == nil {
 		stats.TypeNames = make(map[string]int, 1)
 	}
 	stats.TypeNames[string(typeName)]++
-	r.arrayStats[pathKey] = stats
+	r.typeNameStats[pathKey] = stats
 }
 
 // Helper to build JSON path (field names only, no array indices)

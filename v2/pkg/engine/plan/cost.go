@@ -411,7 +411,7 @@ func (node *CostTreeNode) maxDirectiveArgumentWeightsImplementingFields(config *
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
 // When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
 // For actual cost, multipliers are computed as averages (totalCount/parentCount).
-func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, arrayStats map[string]resolve.ArrayStats) float64 {
+func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, arrayStats map[string]resolve.TypeNameStats) float64 {
 	if node == nil {
 		return 0
 	}
@@ -531,7 +531,7 @@ func (node *CostTreeNode) costsAndMultiplier(
 	configs map[DSHash]*DataSourceCostConfig,
 	vars resolve.VariablesView,
 	defaultListSize int,
-	arrayStats map[string]resolve.ArrayStats,
+	arrayStats map[string]resolve.TypeNameStats,
 ) (nodeCost costNodeResult) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
@@ -588,7 +588,7 @@ func (node *CostTreeNode) costsAndMultiplier(
 				if len(returnedTypeNames) == 1 {
 					if _, returned := returnedTypeNames[node.fieldTypeName]; returned {
 						// Subgraph did not return __typename for elements of this list,
-						// the response have seen only the abstract typeName for elements of this list.
+						// the response has seen only the abstract typeName for elements of this list.
 						treatAsMaximum = true
 					}
 				}
@@ -620,10 +620,6 @@ func (node *CostTreeNode) costsAndMultiplier(
 						nodeCost.field += 0
 					}
 				}
-				// In theory, we could consider the maximum of implementing types in the combination
-				// with the fields being returned by the fragments, which happens in the cost method.
-				// Maybe we could move the block above to the cost method?
-				// But what about dataSources and the max weight of fields among implementing types?
 			default:
 				nodeCost.field += float64(dsCostConfig.ObjectTypeWeight(node.fieldTypeName))
 			}
@@ -733,7 +729,7 @@ func (node *CostTreeNode) costsAndMultiplier(
 	// ancestor's node returning a list.
 	// If this node is enclosed by a node returning an abstract type, then we need to downsize
 	// multiplier too.
-	var ancestorStats resolve.ArrayStats
+	var ancestorStats resolve.TypeNameStats
 	var ancestorNode *CostTreeNode
 	// Find the nearest enclosing list ancestor.
 	for p := node.parent; p != nil && p.fieldCoords != costTreeRootNodeCoords; p = p.parent {
@@ -888,7 +884,7 @@ func (c *CostCalculator) EstimateCost(vars resolve.VariablesView) int {
 }
 
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
-func (c *CostCalculator) ActualCost(vars resolve.VariablesView, arrayStats map[string]resolve.ArrayStats) int {
+func (c *CostCalculator) ActualCost(vars resolve.VariablesView, arrayStats map[string]resolve.TypeNameStats) int {
 	return int(math.RoundToEven(c.tree.cost(c.costConfigs, vars, actualCostMode, arrayStats)))
 }
 
@@ -972,7 +968,7 @@ func (node *CostTreeNode) buildASTPath() ast.Path {
 
 // DebugPrint prints the cost tree structure for debugging purposes.
 // It shows each node's field coordinate, costs, multipliers, and computed totals.
-func (c *CostCalculator) DebugPrint(vars resolve.VariablesView, arrayStats map[string]resolve.ArrayStats) string {
+func (c *CostCalculator) DebugPrint(vars resolve.VariablesView, arrayStats map[string]resolve.TypeNameStats) string {
 	if c.tree == nil || len(c.tree.children) == 0 {
 		return "<empty cost tree>"
 	}
@@ -992,7 +988,7 @@ func (c *CostCalculator) DebugPrint(vars resolve.VariablesView, arrayStats map[s
 }
 
 // debugPrint recursively prints a node and its children with indentation.
-func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, arrayStats map[string]resolve.ArrayStats, depth int) {
+func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, arrayStats map[string]resolve.TypeNameStats, depth int) {
 	// implementation is a bit crude and redundant, we could skip calculating nodes all over again.
 	// but it should suffice for debugging tests.
 	if node == nil || node.fieldCoords.FieldName == "__typename" {

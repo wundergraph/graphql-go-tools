@@ -208,9 +208,9 @@ func (r *Request) EstimatedCost() int {
 	return r.estimatedCost
 }
 
-func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, arrayStats map[string]resolve.ArrayStats) {
+func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, typeNameStats map[string]resolve.TypeNameStats) {
 	if calc != nil {
-		r.actualCost = calc.ActualCost(vars, arrayStats)
+		r.actualCost = calc.ActualCost(vars, typeNameStats)
 		// Debugging of cost trees. Uncomment to debug.
 		// fmt.Println(calc.DebugPrint(vars, arrayStats))
 	} else {
