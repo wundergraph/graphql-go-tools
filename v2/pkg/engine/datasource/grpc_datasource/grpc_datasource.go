@@ -16,7 +16,6 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
@@ -53,10 +52,9 @@ type DataSource struct {
 	definition        *ast.Document
 	disabled          bool
 
-	pool     *arena.Pool
-	program  *program
-	codecOpt grpc.CallOption
-	wireBuf  bytes.Buffer
+	pool    *arena.Pool
+	program *program
+	wireBuf bytes.Buffer
 }
 
 type ProtoConfig struct {
@@ -97,7 +95,6 @@ func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource
 		disabled:          config.Disabled,
 		pool:              arena.NewArenaPool(),
 		program:           program,
-		codecOpt:          grpc.ForceCodecV2(&connectCodec{}),
 	}, nil
 }
 

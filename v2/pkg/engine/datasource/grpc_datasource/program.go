@@ -84,7 +84,6 @@ func (f *request) createProtoWire(requestVariables *astjson.Value) ([]byte, erro
 	return f.wire.createProtoWire(requestVariables)
 }
 
-// TODO: Implement this
 func (f *request) createProtoWireWithContext(a arena.Arena, requestVariables *astjson.Value, contextMessage protoref.Message) ([]byte, error) {
 	return f.wire.createProtoWireWithContext(a, requestVariables, f.context, contextMessage)
 }
