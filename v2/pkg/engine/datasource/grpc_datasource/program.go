@@ -89,6 +89,14 @@ func (f *request) createProtoWireWithContext(a arena.Arena, requestVariables *as
 	return f.wire.createProtoWireWithContext(a, requestVariables, f.context, contextMessage)
 }
 
+func (f *request) createProtoMessage(requestVariables *astjson.Value) (protoref.Message, error) {
+	return f.wire.createProtoMessage(requestVariables)
+}
+
+func (f *request) createProtoMessageWithContext(a arena.Arena, requestVariables *astjson.Value, contextMessage protoref.Message) (protoref.Message, error) {
+	return f.wire.createProtoMessageWithContext(a, requestVariables, f.context, contextMessage)
+}
+
 func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, error) {
 	stageIndexes, err := compileStageIndexes(plan)
 	if err != nil {
