@@ -8121,8 +8121,9 @@ func TestStartupHookFailure(t *testing.T) {
 	t.Run("cleans up all subscribers when trigger creator hook fails", func(t *testing.T) {
 		resolverCtx := t.Context()
 
-		ctxAInner := t.Context()
-		ctxBInner := t.Context()
+		type ctxKey struct{ name string }
+		ctxAInner := context.WithValue(t.Context(), ctxKey{"sub"}, "A")
+		ctxBInner := context.WithValue(t.Context(), ctxKey{"sub"}, "B")
 
 		subBRegistered := make(chan struct{})
 
