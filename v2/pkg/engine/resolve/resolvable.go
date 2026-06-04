@@ -71,7 +71,7 @@ type Resolvable struct {
 }
 
 type ArrayStats struct {
-	Size      int            // the Size of the resolved array/list
+	Size      int            // the Size of the resolved array/list. It is 1 for non-list objects.
 	TypeNames map[string]int // distribution of TypeNames in the array
 }
 
@@ -739,6 +739,10 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 	}
 
+	if !r.print {
+		r.recordObjectTypeStats(obj, typeName) // For Cost Control
+	}
+
 	if r.print && !isRoot {
 		r.printBytes(lBrace)
 	}
@@ -957,6 +961,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	values := value.GetArray()
 
 	if !r.print {
+		// Record arrays stats for Cost Control.
 		pathKey := r.currentFieldPath()
 		stats := r.arrayStats[pathKey]
 		stats.Size += len(values)
@@ -1013,6 +1018,23 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.printBytes(rBrack)
 	}
 	return false
+}
+
+// recordObjectTypeStats records the runtime __typename of a single (non-array) object
+// that resolves an abstract (interface/union) field.
+func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
+	// An array item Object has an empty Path
+	if len(obj.Path) == 0 || typeName == nil || !obj.isAbstract() {
+		return
+	}
+	pathKey := r.currentFieldPath()
+	stats := r.arrayStats[pathKey]
+	stats.Size++
+	if stats.TypeNames == nil {
+		stats.TypeNames = make(map[string]int, 1)
+	}
+	stats.TypeNames[string(typeName)]++
+	r.arrayStats[pathKey] = stats
 }
 
 // Helper to build JSON path (field names only, no array indices)

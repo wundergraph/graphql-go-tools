@@ -453,7 +453,17 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars re
 				}
 			}
 		} else {
-			for _, c := range perTypeCost {
+			// Actual cost: only charge fragments whose concrete type was actually returned at runtime.
+			var returnedTypeNames map[string]int
+			if stats, ok := arrayStats[node.jsonPath]; ok {
+				returnedTypeNames = stats.TypeNames
+			}
+			for typeName, c := range perTypeCost {
+				if returnedTypeNames != nil {
+					if _, returned := returnedTypeNames[typeName]; !returned {
+						continue // type was not returned at runtime
+					}
+				}
 				typeCost += c // sum of
 			}
 		}
@@ -494,7 +504,7 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars re
 
 // costNodeResult contains intermediate results for a node.
 type costNodeResult struct {
-	field      int
+	field      float64
 	args       int
 	directives int
 	multiplier float64
@@ -563,28 +573,59 @@ func (node *CostTreeNode) costsAndMultiplier(
 		}
 
 		if fieldWeight != nil && fieldWeight.HasWeight {
-			nodeCost.field += fieldWeight.Weight
+			nodeCost.field += float64(fieldWeight.Weight)
 		} else {
 			// Use the weight of the type returned by this field
 			switch {
 			case node.returnsSimpleType:
-				nodeCost.field += dsCostConfig.EnumScalarTypeWeight(node.fieldTypeName)
+				nodeCost.field += float64(dsCostConfig.EnumScalarTypeWeight(node.fieldTypeName))
 			case node.returnsAbstractType:
-				// For the abstract field, find the max weight among all implementing types
-				maxWeight := 0
-				for _, implTypeName := range node.implementingTypeNames {
-					weight := dsCostConfig.ObjectTypeWeight(implTypeName)
-					if weight > maxWeight {
-						maxWeight = weight
+				var returnedTypeNames map[string]int
+				if stats, ok := arrayStats[node.jsonPath]; ok {
+					returnedTypeNames = stats.TypeNames
+				}
+				treatAsMaximum := false
+				if len(returnedTypeNames) == 1 {
+					if _, returned := returnedTypeNames[node.fieldTypeName]; returned {
+						// Subgraph did not return __typename for elements of this list,
+						// the response have seen only the abstract typeName for elements of this list.
+						treatAsMaximum = true
 					}
 				}
-				nodeCost.field += maxWeight
+				if isEstimation || treatAsMaximum {
+					// Find the max weight among all implementing types:
+					maxWeight := 0
+					for _, implTypeName := range node.implementingTypeNames {
+						weight := dsCostConfig.ObjectTypeWeight(implTypeName)
+						if weight > maxWeight {
+							maxWeight = weight
+						}
+					}
+					nodeCost.field += float64(maxWeight)
+				} else {
+					// Adjust the cost of field as weighted sum based on the distribution of
+					// typeNames in the response.
+					var sum, count float64
+					for _, implTypeName := range node.implementingTypeNames {
+						if returnedTypeNames != nil {
+							if actual, returned := returnedTypeNames[implTypeName]; returned {
+								sum += float64(actual * dsCostConfig.ObjectTypeWeight(implTypeName))
+								count += float64(actual)
+							}
+						}
+					}
+					if count > 0 {
+						nodeCost.field += sum / count
+					} else {
+						nodeCost.field += 0
+					}
+				}
 				// In theory, we could consider the maximum of implementing types in the combination
 				// with the fields being returned by the fragments, which happens in the cost method.
 				// Maybe we could move the block above to the cost method?
 				// But what about dataSources and the max weight of fields among implementing types?
 			default:
-				nodeCost.field += dsCostConfig.ObjectTypeWeight(node.fieldTypeName)
+				nodeCost.field += float64(dsCostConfig.ObjectTypeWeight(node.fieldTypeName))
 			}
 		}
 
@@ -745,7 +786,7 @@ func (node *CostTreeNode) costsAndMultiplier(
 			}
 		}
 		if found {
-			nodeCost.multiplier = weightedSum / float64(nodeCost.field*ancestorStats.Size)
+			nodeCost.multiplier = weightedSum / (nodeCost.field * float64(ancestorStats.Size))
 		}
 	}
 	if !node.isEnclosingTypeAbstract {
@@ -1002,7 +1043,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		nodeCost.multiplier = 0
 	}
 
-	fmt.Fprintf(sb, "%s  fieldCost = %d", indent, nodeCost.field)
+	fmt.Fprintf(sb, "%s  fieldCost = %.2f", indent, nodeCost.field)
 
 	if nodeCost.args > 0 {
 		fmt.Fprintf(sb, ", argsCost = %d", nodeCost.args)

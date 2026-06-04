@@ -286,7 +286,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse:      `{"data":{"hero":{}}}`,
 				expectedEstimatedCost: intPtr(19), // Query.hero (2) + Droid.name (17=max(7, 17))
-				expectedActualCost:    intPtr(19),
+				expectedActualCost:    intPtr(2),
 			},
 			computeCosts(),
 		))
@@ -368,7 +368,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 				expectedEstimatedCost: intPtr(30), // Query.Human (13) + Droid.name (17=max(7, 17))
-				expectedActualCost:    intPtr(30),
+				// name is interface so the actual cost is taken as max
+				expectedActualCost: intPtr(30),
 			},
 			computeCosts(),
 		))
@@ -393,7 +394,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
-								sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
+								sendResponseBody: `{"data":{"hero":{"__typename":"Droid","friends":[
 									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
 									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
 								]}}}`,
@@ -419,8 +420,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(107), // hero(7)+10*(max(7,5) + max(Human.name(2)+Human.height(1),Droid.name(2)))
-				expectedActualCost:    intPtr(26),  // hero(7)+ 2*(7 + 0.5 * (2+0+2+1))
+				expectedEstimatedCost: intPtr(107), // 7 + 10*(max(7,5) + max(Human(2+1),Droid(2)))
+				expectedActualCost:    intPtr(22),  // 5 +  2*(       6 + 0.5 * (2+0+2+1))
 			},
 			computeCosts(),
 		))
@@ -476,7 +477,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
 				expectedEstimatedCost: intPtr(207), // max(7,5)+ 20 * (7 + max(2,2+1))
-				expectedActualCost:    intPtr(26),  // hero(7) +  2 * (7 + 0.5*(2+0+2+1))
+				expectedActualCost:    intPtr(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
 			},
 			computeCosts(),
 		))
@@ -633,8 +634,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
 				// Estimated with default list size 10: hero(7) + 10 * (7 + max(2, 2+1))
 				expectedEstimatedCost: intPtr(107),
-				// Actual uses real list size 2: hero(7) + 2 * (7 + 0.5 * (2 + 2 + 1))
-				expectedActualCost: intPtr(26),
+				// Actual uses real list size 2:        hero(7) +  2 * (6 + 0.5 * (2 + 2 + 1))
+				expectedActualCost: intPtr(24),
 			},
 			computeCosts(),
 		))
@@ -745,9 +746,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//   friends listSize: max(4, 6) = 6
 				//   Character type: max(Human=2, Droid=3) = 3
 				//   name: max(Human.name=3, Droid.name=5) = 5
-				// Total: 2 + 5 + 6 * (3 + 5)
-				expectedEstimatedCost: intPtr(55),
-				expectedActualCost:    intPtr(15), // 2 + 5 + 1 * (3 + 5)
+				expectedEstimatedCost: intPtr(55), // 2 + 1*(5 + 6*(3 + 1*5))
+				expectedActualCost:    intPtr(15), // 2 + 1*(5 + 1*(3 + 1*5))
 			},
 			computeCosts(),
 		))
@@ -808,7 +808,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//   name: max(Human.name=3, Droid.name=5) = 5
 				// Total: 2 + 5 + 6 * (3 + 5)
 				expectedEstimatedCost: intPtr(55),
-				expectedActualCost:    intPtr(13), // 2 + 5 + 1 * (3 + 3)
+				expectedActualCost:    intPtr(12), // 2 + 1*5 + 1*(2 + 1*3)
 			},
 			computeCosts(),
 		))
@@ -1131,7 +1131,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// For each SearchResult, use max across all union members:
 				//   Type weight: max(User=5, Post=9, Comment=1) = 9
 				expectedEstimatedCost: intPtr(60), // 5 * (3 + max(5, 9, 1))
-				expectedActualCost:    intPtr(8),  // 1 * (3 + (1*2 + 1*3))
+				expectedActualCost:    intPtr(7),  // 1 * (2 + 1*2 + 1*3)
 			},
 			computeCosts(),
 		))
@@ -1182,7 +1182,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"search":[{"name":"John"}]}}`,
 				expectedEstimatedCost: intPtr(45), // 3 * (max(6,10) + max(2,5))
-				expectedActualCost:    intPtr(12), // 1 * (10 + 1*2)
+				expectedActualCost:    intPtr(8),  // 1 * (6 + 1*2)
 			},
 			computeCosts(),
 		))
