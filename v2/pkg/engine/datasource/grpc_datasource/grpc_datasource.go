@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/cespare/xxhash/v2"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
@@ -29,7 +30,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-type fetchData struct {
+type fetchResult struct {
 	kind            CallKind
 	responseMessage *dynamicpb.Message
 	response        *astjson.Value
@@ -109,30 +110,44 @@ func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
-	switch d.transport.(type) {
-	case *grpcTransport:
-		// convert headers to grpc metadata and attach to ctx
-		if len(headers) > 0 {
-			// assume that each header has exactly one value for default pairs size
-			pairs := make([]string, 0, len(headers)*2)
-			for headerName, headerValues := range headers {
-				headerName = strings.ToLower(headerName)
-				for _, v := range headerValues {
-					pairs = append(pairs, headerName, v)
-				}
+	// convert headers to grpc metadata and attach to ctx
+	// TODO: ConnectRPC will have to handle headers differently when using a http client.
+	if len(headers) > 0 {
+		// assume that each header has exactly one value for default pairs size
+		pairs := make([]string, 0, len(headers)*2)
+		for headerName, headerValues := range headers {
+			headerName = strings.ToLower(headerName)
+			for _, v := range headerValues {
+				pairs = append(pairs, headerName, v)
 			}
-			ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
 		}
-
-		return d.loadWithGRPC(ctx, input)
-		// case *connectTransport:
-		// 	return d.loadWithConnect(ctx, headers, input)
+		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
 	}
 
-	return nil, fmt.Errorf("unsupported transport type: %T", d.transport)
+	switch d.transport.(type) {
+	case *grpcTransport:
+		return d.loadWithGRPC(ctx, input)
+	default:
+		return d.loadWithConnect(ctx, input)
+	}
 }
 
 func (d *DataSource) loadWithGRPC(ctx context.Context, input []byte) (data []byte, err error) {
+	return d.execute(ctx, input, wireRequestBuilder)
+}
+
+// loadWithConnect is the Connect-style load path. It walks the precompiled
+// program stages (same as loadWithGRPC) but builds real protoref.Message values
+// instead of raw wire bytes, so transports that need proto.Marshal /
+// protojson.Marshal (e.g. the Connect client) can serialize them directly.
+func (d *DataSource) loadWithConnect(ctx context.Context, input []byte) (data []byte, err error) {
+	return d.execute(ctx, input, messageRequestBuilder)
+}
+
+// execute walks the precompiled program stages, running each stage's fetches in
+// parallel via runFetch and merging their responses into a single result object.
+// The only thing that varies between transports is buildRequest.
+func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest requestBuilder) (data []byte, err error) {
 	var poolItems []*arena.PoolItem
 	defer func() {
 		d.pool.ReleaseMany(poolItems)
@@ -141,7 +156,6 @@ func (d *DataSource) loadWithGRPC(ctx context.Context, input []byte) (data []byt
 	item := d.acquirePoolItem(input, 0)
 	poolItems = append(poolItems, item)
 
-	// get variables from input
 	value, err := astjson.ParseBytesWithArena(item.Arena, input)
 	if err != nil {
 		return nil, err
@@ -163,58 +177,52 @@ func (d *DataSource) loadWithGRPC(ctx context.Context, input []byte) (data []byt
 	}
 
 	root := astjson.ObjectValue(nil)
-
-	callMap := make(map[int]fetchData)
-
+	callMap := make(map[int]fetchResult)
 	representations := getRepresentations(astJsonVariables)
+
 	for _, stage := range d.program.stages {
-		results := make([]fetchData, 0, len(stage.fetches))
+		results := make([]fetchResult, len(stage.fetches))
 
-		for _, fetch := range stage.fetches {
-			buffer, skip, err := createProtoWire(item.Arena, &fetch, callMap, astJsonVariables)
-			if err != nil {
-				return nil, err
-			}
+		errGrp, errCtx := errgroup.WithContext(ctx)
 
-			if skip {
+		for i, fetch := range stage.fetches {
+			// Each fetch gets its own arena so the request builder and
+			// marshalResponseJSON never share allocator state across goroutines.
+			fetchItem := d.acquirePoolItem(input, fetch.id+1)
+			poolItems = append(poolItems, fetchItem)
+			fetchBuilder := newJSONBuilder(fetchItem.Arena, d.mapping)
+
+			errGrp.Go(func() error {
+				result, err := d.runFetch(
+					errCtx,
+					&fetch,
+					fetchItem.Arena,
+					fetchBuilder,
+					callMap,
+					astJsonVariables,
+					representations,
+					buildRequest,
+				)
+				if err != nil {
+					return err
+				}
+				results[i] = result
+				return nil
+			})
+		}
+
+		if err := errGrp.Wait(); err != nil {
+			return builder.writeErrorBytes(err), nil
+		}
+
+		// Populate callMap and merge into root serially — no concurrent map access.
+		for i, result := range results {
+			callMap[stage.fetches[i].id] = result
+
+			if result.skipped {
 				continue
 			}
 
-			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
-			err = d.transport.Invoke(ctx, fetch.methodFullName, NewPreWiredInputMessage(buffer), responseMessage)
-			if err != nil {
-				return builder.writeErrorBytes(err), nil
-			}
-
-			responseJson, err := builder.marshalResponseJSON(&fetch.response.rpcMessage, responseMessage)
-			if err != nil {
-				return builder.writeErrorBytes(err), nil
-			}
-
-			fetchResult := fetchData{
-				kind:            fetch.kind,
-				response:        responseJson,
-				responseMessage: responseMessage,
-				responsePath:    fetch.responsePath,
-			}
-
-			// In case of a federated response, we need to ensure that the response is valid.
-			// The number of entities per type must match the number of lookup keys in the variables.
-			// On success we build the index map used by mergeEntities to place each response
-			// entity at the correct position in the final _entities array.
-			if fetch.kind == CallKindEntity {
-				if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
-					return builder.writeErrorBytes(err), nil
-				}
-
-				fetchResult.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, representations)
-			}
-
-			results = append(results, fetchResult)
-			callMap[fetch.id] = fetchResult
-		}
-
-		for _, result := range results {
 			switch result.kind {
 			case CallKindResolve, CallKindRequired:
 				err = builder.mergeWithPath(root, result.response, result.responsePath)
@@ -231,6 +239,62 @@ func (d *DataSource) loadWithGRPC(ctx context.Context, input []byte) (data []byt
 	return resultValue.MarshalTo(nil), err
 }
 
+// runFetch executes one fetch: build request → invoke transport → marshal response → validate entity.
+// The caller owns the per-fetch arena and builder so parallel callers do not share allocator state.
+func (d *DataSource) runFetch(
+	ctx context.Context,
+	fetch *fetchProgram,
+	a arena.Arena,
+	fetchBuilder *jsonBuilder,
+	callMap map[int]fetchResult,
+	astJsonVariables *astjson.Value,
+	representations []*astjson.Value,
+	buildRequest requestBuilder,
+) (fetchResult, error) {
+	request, skip, err := buildRequest(a, fetch, callMap, astJsonVariables)
+	if err != nil {
+		return fetchResult{}, err
+	}
+
+	if skip {
+		return fetchResult{
+			kind:         fetch.kind,
+			responsePath: fetch.responsePath,
+			skipped:      true,
+		}, nil
+	}
+
+	responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
+	if err := d.transport.Invoke(ctx, fetch.methodFullName, request, responseMessage); err != nil {
+		return fetchResult{}, err
+	}
+
+	responseJson, err := fetchBuilder.marshalResponseJSON(&fetch.response.rpcMessage, responseMessage)
+	if err != nil {
+		return fetchResult{}, err
+	}
+
+	result := fetchResult{
+		kind:            fetch.kind,
+		response:        responseJson,
+		responseMessage: responseMessage,
+		responsePath:    fetch.responsePath,
+	}
+
+	// In case of a federated response, we need to ensure that the response is valid.
+	// The number of entities per type must match the number of lookup keys in the variables.
+	// On success we build the index map used by mergeEntities to place each response
+	// entity at the correct position in the final _entities array.
+	if fetch.kind == CallKindEntity {
+		if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
+			return fetchResult{}, err
+		}
+		result.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, representations)
+	}
+
+	return result, nil
+}
+
 func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 	keyGen := xxhash.New()
 	_, _ = keyGen.Write(input)
@@ -242,7 +306,14 @@ func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 	return item
 }
 
-func createProtoWire(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchData, requestVariables *astjson.Value) ([]byte, bool, error) {
+// requestBuilder produces the per-fetch request value passed to RPCTransport.Invoke.
+// loadWithGRPC supplies wireRequestBuilder (pre-encoded bytes wrapped in PreWiredInputMessage);
+// loadWithConnect supplies messageRequestBuilder (a populated protoref.Message).
+type requestBuilder func(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchResult, requestVariables *astjson.Value) (any, bool, error)
+
+// wireRequestBuilder builds a pre-encoded gRPC request for the fetch, ready to be
+// handed to RPCTransport.Invoke via PreWiredInputMessage.
+func wireRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchResult, requestVariables *astjson.Value) (any, bool, error) {
 	var buffer []byte
 	var err error
 
@@ -268,26 +339,12 @@ func createProtoWire(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchDa
 		}
 
 		if contextFetch.responseMessage == nil || contextFetch.skipped {
-			fetchResult := fetchData{
-				kind:         fetch.kind,
-				responsePath: fetch.responsePath,
-				skipped:      true,
-			}
-
-			callMap[fetch.id] = fetchResult
 			return nil, true, nil
 		}
 
 		buffer, err = fetch.request.createProtoWireWithContext(a, requestVariables, contextFetch.responseMessage)
 		if err != nil {
 			if err == errShouldSkip {
-				fetchResult := fetchData{
-					kind:         fetch.kind,
-					responsePath: fetch.responsePath,
-					skipped:      true,
-				}
-
-				callMap[fetch.id] = fetchResult
 				return nil, true, nil
 			}
 
@@ -295,13 +352,13 @@ func createProtoWire(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchDa
 		}
 	}
 
-	return buffer, false, nil
+	return NewPreWiredInputMessage(buffer), false, nil
 }
 
-// createProtoMessage is the proto-message counterpart of createProtoWire. It
+// messageRequestBuilder is the proto-message counterpart of wireRequestBuilder. It
 // dispatches on fetch.kind and returns a populated dynamicpb message ready to
 // be marshaled by a Connect-style transport.
-func createProtoMessage(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchData, requestVariables *astjson.Value) (protoref.Message, bool, error) {
+func messageRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchResult, requestVariables *astjson.Value) (any, bool, error) {
 	var message protoref.Message
 	var err error
 
@@ -327,22 +384,12 @@ func createProtoMessage(a arena.Arena, fetch *fetchProgram, callMap map[int]fetc
 		}
 
 		if contextFetch.responseMessage == nil || contextFetch.skipped {
-			callMap[fetch.id] = fetchData{
-				kind:         fetch.kind,
-				responsePath: fetch.responsePath,
-				skipped:      true,
-			}
 			return nil, true, nil
 		}
 
 		message, err = fetch.request.createProtoMessageWithContext(a, requestVariables, contextFetch.responseMessage)
 		if err != nil {
 			if err == errShouldSkip {
-				callMap[fetch.id] = fetchData{
-					kind:         fetch.kind,
-					responsePath: fetch.responsePath,
-					skipped:      true,
-				}
 				return nil, true, nil
 			}
 			return nil, false, err
@@ -350,113 +397,6 @@ func createProtoMessage(a arena.Arena, fetch *fetchProgram, callMap map[int]fetc
 	}
 
 	return message, false, nil
-}
-
-// loadWithConnect is the Connect-style load path. It walks the precompiled
-// program stages (same as loadWithGRPC) but builds real protoref.Message values
-// instead of raw wire bytes, so transports that need proto.Marshal /
-// protojson.Marshal (e.g. the Connect client) can serialize them directly.
-func (d *DataSource) loadWithConnect(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
-	var poolItems []*arena.PoolItem
-	defer func() {
-		d.pool.ReleaseMany(poolItems)
-	}()
-
-	item := d.acquirePoolItem(input, 0)
-	poolItems = append(poolItems, item)
-
-	value, err := astjson.ParseBytesWithArena(item.Arena, input)
-	if err != nil {
-		return nil, err
-	}
-
-	if value.Exists("body") {
-		value = value.Get("body")
-	}
-
-	astJsonVariables := value.Get("variables")
-	if !value.Exists() {
-		return nil, fmt.Errorf("variables are required")
-	}
-
-	builder := newJSONBuilder(item.Arena, d.mapping)
-
-	if d.disabled {
-		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
-	}
-
-	if len(headers) > 0 {
-		pairs := make([]string, 0, len(headers)*2)
-		for headerName, headerValues := range headers {
-			headerName = strings.ToLower(headerName)
-			for _, v := range headerValues {
-				pairs = append(pairs, headerName, v)
-			}
-		}
-		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
-	}
-
-	root := astjson.ObjectValue(nil)
-	callMap := make(map[int]fetchData)
-
-	representations := getRepresentations(astJsonVariables)
-	for _, stage := range d.program.stages {
-		results := make([]fetchData, 0, len(stage.fetches))
-
-		for _, fetch := range stage.fetches {
-			requestMessage, skip, err := createProtoMessage(item.Arena, &fetch, callMap, astJsonVariables)
-			if err != nil {
-				return nil, err
-			}
-
-			if skip {
-				continue
-			}
-
-			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
-			if err := d.transport.Invoke(ctx, fetch.methodFullName, requestMessage, responseMessage); err != nil {
-				return builder.writeErrorBytes(err), nil
-			}
-
-			responseJson, err := builder.marshalResponseJSON(&fetch.response.rpcMessage, responseMessage)
-			if err != nil {
-				return builder.writeErrorBytes(err), nil
-			}
-
-			fetchResult := fetchData{
-				kind:            fetch.kind,
-				response:        responseJson,
-				responseMessage: responseMessage,
-				responsePath:    fetch.responsePath,
-			}
-
-			if fetch.kind == CallKindEntity {
-				if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
-					return builder.writeErrorBytes(err), nil
-				}
-
-				fetchResult.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, representations)
-			}
-
-			results = append(results, fetchResult)
-			callMap[fetch.id] = fetchResult
-		}
-
-		for _, result := range results {
-			switch result.kind {
-			case CallKindResolve, CallKindRequired:
-				err = builder.mergeWithPath(root, result.response, result.responsePath)
-			default:
-				root, err = builder.mergeValues(root, result)
-			}
-			if err != nil {
-				return builder.writeErrorBytes(err), nil
-			}
-		}
-	}
-
-	resultValue := builder.toDataObject(root)
-	return resultValue.MarshalTo(nil), err
 }
 
 // LoadWithFiles implements resolve.DataSource interface.

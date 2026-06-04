@@ -135,7 +135,7 @@ func Test_DataSource_loadWithConnect_ParityWithGRPC(t *testing.T) {
 			input := fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars)
 
 			grpcOut, grpcErr := ds.loadWithGRPC(context.Background(), input)
-			connectOut, connectErr := ds.loadWithConnect(context.Background(), nil, input)
+			connectOut, connectErr := ds.loadWithConnect(context.Background(), input)
 
 			require.NoError(t, grpcErr)
 			require.NoError(t, connectErr)
