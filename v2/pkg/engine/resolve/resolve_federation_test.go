@@ -11,7 +11,7 @@ import (
 )
 
 type TestingTB interface {
-	Errorf(format string, args ...interface{})
+	Errorf(format string, args ...any)
 	Helper()
 	FailNow()
 }

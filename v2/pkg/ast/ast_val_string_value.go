@@ -78,18 +78,7 @@ func (d *Document) BlockStringValueContentBytes(ref int) []byte {
 	lines := splitBytesIntoLines(rawValue)
 
 	// find the common indent size (-1 means no common indent)
-	commonIndent := -1
-	for i, line := range lines {
-		if i == 0 {
-			continue
-		}
-		indent := leadingWhitespaceCount(line)
-		if indent < len(line) {
-			if commonIndent == -1 || indent < commonIndent {
-				commonIndent = indent
-			}
-		}
-	}
+	commonIndent := commonBlockStringIndent(lines)
 
 	// remove the common indent from each line
 	if commonIndent != -1 {

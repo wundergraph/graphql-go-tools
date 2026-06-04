@@ -16,6 +16,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/dynamicpb"
@@ -46,7 +47,7 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	plan              *RPCExecutionPlan
-	cc                grpc.ClientConnInterface
+	transport         RPCTransport
 	rc                *RPCCompiler
 	mapping           *GRPCMapping
 	federationConfigs plan.FederationFieldConfigurations
@@ -73,8 +74,8 @@ type DataSourceConfig struct {
 	Disabled          bool
 }
 
-// NewDataSource creates a new gRPC datasource
-func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
+// NewDataSource creates a new datasource with the given RPCTransport.
+func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource, error) {
 	planner, err := NewPlanner(config.SubgraphName, config.Mapping, config.FederationConfigs)
 	if err != nil {
 		return nil, err
@@ -90,7 +91,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 
 	return &DataSource{
 		plan:              plan,
-		cc:                client,
+		transport:         transport,
 		rc:                config.Compiler,
 		mapping:           config.Mapping,
 		definition:        config.Definition,
@@ -111,6 +112,17 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+	switch d.transport.(type) {
+	case *grpcTransport:
+		return d.loadWithGRPC(ctx, headers, input)
+		// case *connectTransport:
+		// 	return d.loadWithConnect(ctx, headers, input)
+	}
+
+	return nil, fmt.Errorf("unsupported transport type: %T", d.transport)
+}
+
+func (d *DataSource) loadWithGRPC(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	var poolItems []*arena.PoolItem
 	defer func() {
 		d.pool.ReleaseMany(poolItems)
@@ -134,9 +146,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		return nil, fmt.Errorf("variables are required")
 	}
 
-	variables := gjson.ParseBytes(input).Get("body.variables")
-
-	builder := newJSONBuilder(item.Arena, d.mapping, variables)
+	builder := newJSONBuilder(item.Arena, d.mapping)
 
 	if d.disabled {
 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
@@ -174,7 +184,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 			}
 
 			responseMessage := dynamicpb.NewMessage(fetch.response.responseType.desc)
-			err = d.cc.Invoke(ctx, fetch.methodFullName, NewPreWiredInputMessage(buffer), responseMessage)
+			err = d.transport.Invoke(ctx, fetch.methodFullName, NewPreWiredInputMessage(buffer), responseMessage)
 			if err != nil {
 				return builder.writeErrorBytes(err), nil
 			}
@@ -302,115 +312,130 @@ func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, inp
 	panic("unimplemented")
 }
 
-// func (d *DataSource) LoadOld(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
-// 	// get variables from input
-// 	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
+func (d *DataSource) LoadOld(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 
-// 	var poolItems []*arena.PoolItem
-// 	defer func() {
-// 		d.pool.ReleaseMany(poolItems)
-// 	}()
+	var poolItems []*arena.PoolItem
+	defer func() {
+		d.pool.ReleaseMany(poolItems)
+	}()
 
-// 	item := d.acquirePoolItem(input, 0)
-// 	poolItems = append(poolItems, item)
+	item := d.acquirePoolItem(input, 0)
+	poolItems = append(poolItems, item)
 
-// 	builder := newJSONBuilder(item.Arena, d.mapping, variables)
+	// get variables from input
+	inputValue, err := astjson.ParseBytesWithArena(item.Arena, input)
+	if err != nil {
+		return nil, err
+	}
 
-// 	if d.disabled {
-// 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
-// 	}
+	if inputValue.Exists("body") {
+		inputValue = inputValue.Get("body")
+	}
 
-// 	// convert headers to grpc metadata and attach to ctx
-// 	if len(headers) > 0 {
-// 		// assume that each header has exactly one value for default pairs size
-// 		pairs := make([]string, 0, len(headers)*2)
-// 		for headerName, headerValues := range headers {
-// 			headerName = strings.ToLower(headerName)
-// 			for _, v := range headerValues {
-// 				pairs = append(pairs, headerName, v)
-// 			}
-// 		}
-// 		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
-// 	}
+	astJsonVariables := inputValue.Get("variables")
+	if !inputValue.Exists() {
+		return nil, fmt.Errorf("variables are required")
+	}
 
-// 	graph := NewDependencyGraph(d.plan)
+	builder := newJSONBuilder(item.Arena, d.mapping)
 
-// 	root := astjson.ObjectValue(nil)
+	if d.disabled {
+		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
+	}
 
-// 	representations := getRepresentations(variables)
-// 	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
-// 		// TODO: Compile fetches should be converted to a program.
-// 		// The program defines all the fetches that need to be executed in parallel for a given query.
+	// convert headers to grpc metadata and attach to ctx
+	if len(headers) > 0 {
+		// assume that each header has exactly one value for default pairs size
+		pairs := make([]string, 0, len(headers)*2)
+		for headerName, headerValues := range headers {
+			headerName = strings.ToLower(headerName)
+			for _, v := range headerValues {
+				pairs = append(pairs, headerName, v)
+			}
+		}
+		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
+	}
 
-// 		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
-// 		if err != nil {
-// 			return err
-// 		}
+	graph := NewDependencyGraph(d.plan)
 
-// 		results := make([]resultData, len(serviceCalls))
-// 		errGrp, errGrpCtx := errgroup.WithContext(ctx)
+	root := astjson.ObjectValue(nil)
 
-// 		// make gRPC calls
-// 		for index, serviceCall := range serviceCalls {
-// 			item := d.acquirePoolItem(input, index)
-// 			poolItems = append(poolItems, item)
+	variables := gjson.ParseBytes(input).Get("body.variables")
 
-// 			builder := newJSONBuilder(item.Arena, d.mapping, variables)
-// 			errGrp.Go(func() error {
-// 				// Invoke the gRPC method - this will populate serviceCall.Output
-// 				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
-// 				if err != nil {
-// 					return err
-// 				}
+	representations := getRepresentations(astJsonVariables)
+	if err := graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		// TODO: Compile fetches should be converted to a program.
+		// The program defines all the fetches that need to be executed in parallel for a given query.
 
-// 				response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
-// 				if err != nil {
-// 					return err
-// 				}
+		serviceCalls, err := d.rc.CompileFetches(graph, nodes, variables)
+		if err != nil {
+			return err
+		}
 
-// 				results[index] = resultData{
-// 					kind:         serviceCall.RPC.Kind,
-// 					response:     response,
-// 					responsePath: serviceCall.RPC.ResponsePath,
-// 				}
+		results := make([]fetchData, len(serviceCalls))
+		errGrp, errGrpCtx := errgroup.WithContext(ctx)
 
-// 				// In case of a federated response, we need to ensure that the response is valid.
-// 				// The number of entities per type must match the number of lookup keys in the variables.
-// 				// On success we build the index map used by mergeEntities to place each response
-// 				// entity at the correct position in the final _entities array.
-// 				if serviceCall.RPC.Kind == CallKindEntity {
-// 					if err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations); err != nil {
-// 						return err
-// 					}
+		// make gRPC calls
+		for index, serviceCall := range serviceCalls {
+			item := d.acquirePoolItem(input, index)
+			poolItems = append(poolItems, item)
 
-// 					results[index].entityIndexMap = newEntityIndexMap(serviceCall.RPC.RequestedEntityType, representations)
-// 				}
+			builder := newJSONBuilder(item.Arena, d.mapping)
+			errGrp.Go(func() error {
+				// Invoke the gRPC method - this will populate serviceCall.Output
+				err := d.transport.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
+				if err != nil {
+					return err
+				}
 
-// 				return nil
-// 			})
-// 		}
+				response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
+				if err != nil {
+					return err
+				}
 
-// 		if err := errGrp.Wait(); err != nil {
-// 			return err
-// 		}
+				results[index] = fetchData{
+					kind:         serviceCall.RPC.Kind,
+					response:     response,
+					responsePath: serviceCall.RPC.ResponsePath,
+				}
 
-// 		for _, result := range results {
-// 			switch result.kind {
-// 			case CallKindResolve, CallKindRequired:
-// 				err = builder.mergeWithPath(root, result.response, result.responsePath)
-// 			default:
-// 				root, err = builder.mergeValues(root, result)
-// 			}
-// 			if err != nil {
-// 				return err
-// 			}
-// 		}
+				// In case of a federated response, we need to ensure that the response is valid.
+				// The number of entities per type must match the number of lookup keys in the variables.
+				// On success we build the index map used by mergeEntities to place each response
+				// entity at the correct position in the final _entities array.
+				if serviceCall.RPC.Kind == CallKindEntity {
+					if err := validateEntityResponse(response, serviceCall.RPC.RequestedEntityType, representations); err != nil {
+						return err
+					}
 
-// 		return nil
-// 	}); err != nil {
-// 		return builder.writeErrorBytes(err), nil
-// 	}
+					results[index].entityIndexMap = newEntityIndexMap(serviceCall.RPC.RequestedEntityType, representations)
+				}
 
-// 	value := builder.toDataObject(root)
-// 	return value.MarshalTo(nil), err
-// }
+				return nil
+			})
+		}
+
+		if err := errGrp.Wait(); err != nil {
+			return err
+		}
+
+		for _, result := range results {
+			switch result.kind {
+			case CallKindResolve, CallKindRequired:
+				err = builder.mergeWithPath(root, result.response, result.responsePath)
+			default:
+				root, err = builder.mergeValues(root, result)
+			}
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return builder.writeErrorBytes(err), nil
+	}
+
+	value := builder.toDataObject(root)
+	return value.MarshalTo(nil), err
+}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1651,7 +1652,6 @@ func testFnWithPostEvaluationAndOptions(opts ResolverOptions, fn func(t *testing
 }
 
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
-
 	t.Run("empty graphql response", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Data: &Object{
@@ -3066,8 +3066,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("when data null and errors present not nullable array should result to null data upstream error and resolve error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(
-					`{"errors":[{"message":"Could not get name","locations":[{"line":3,"column":5}],"path":["todos","0","name"]}],"data":null}`),
+				FetchConfiguration: FetchConfiguration{
+					DataSource: FakeDataSource(
+						`{"errors":[{"message":"Could not get name","locations":[{"line":3,"column":5}],"path":["todos","0","name"]}],"data":null}`),
 					PostProcessing: PostProcessingConfiguration{
 						SelectResponseDataPath:   []string{"data"},
 						SelectResponseErrorsPath: []string{"errors"},
@@ -3917,7 +3918,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									{
-
 										Name: []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
@@ -3964,7 +3964,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			}, *NewContext(context.Background()), `{"data":{"me":{"id":"1234","username":"Me","reviews":[{"body":"foo","product":{"upc":"top-1","name":"Trilby"}},{"body":"bar","product":{"upc":"top-2","name":"Fedora"}},{"body":"baz","product":null},{"body":"bat","product":{"upc":"top-4","name":"Boater"}},{"body":"bal","product":{"upc":"top-5","name":"Top Hat"}},{"body":"ban","product":{"upc":"top-6","name":"Bowler"}}]}}}`
 		}))
 		t.Run("federation with fetch error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -4105,7 +4104,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									{
-
 										Name: []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
@@ -4151,7 +4149,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			}, *NewContext(context.Background()), `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query.me.reviews.@.product', Reason: no data or errors in response."},{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",0,"product","name"]},{"message":"Cannot return null for non-nullable field 'Query.me.reviews.product.name'.","path":["me","reviews",1,"product","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
 		}))
 		t.Run("federation with fetch error and non null fields inside an array", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
-
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
 				Load(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -4291,7 +4288,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 										},
 									},
 									{
-
 										Name: []byte("reviews"),
 										Value: &Array{
 											Path:     []string{"reviews"},
@@ -4567,7 +4563,6 @@ func testFnArena(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLRe
 }
 
 func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
-
 	t.Run("empty graphql response", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
@@ -5662,7 +5657,7 @@ type SubscriptionRecorder struct {
 	buf      *bytes.Buffer
 	messages []string
 	complete atomic.Bool
-	closed   atomic.Bool
+	errors   [][]byte
 	mux      sync.Mutex
 	onFlush  func(p []byte)
 }
@@ -5717,20 +5712,6 @@ func (s *SubscriptionRecorder) AwaitComplete(t *testing.T, timeout time.Duration
 	}
 }
 
-func (s *SubscriptionRecorder) AwaitClosed(t *testing.T, timeout time.Duration) {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for {
-		if s.closed.Load() {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for close")
-		}
-		time.Sleep(time.Millisecond * 10)
-	}
-}
-
 func (s *SubscriptionRecorder) Write(p []byte) (n int, err error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -5756,8 +5737,10 @@ func (s *SubscriptionRecorder) Heartbeat() error {
 	return nil
 }
 
-func (s *SubscriptionRecorder) Close(_ SubscriptionCloseKind) {
-	s.closed.Store(true)
+func (s *SubscriptionRecorder) Error(data []byte) {
+	s.mux.Lock()
+	s.errors = append(s.errors, slices.Clone(data))
+	s.mux.Unlock()
 }
 
 func (s *SubscriptionRecorder) Messages() []string {
@@ -5817,7 +5800,7 @@ func (f *_fakeStream) Start(ctx *Context, headers http.Header, input []byte, upd
 		for {
 			select {
 			case <-ctx.ctx.Done():
-				updater.Complete()
+				updater.Done()
 				f.isDone.Store(true)
 				return
 			default:
@@ -5826,6 +5809,7 @@ func (f *_fakeStream) Start(ctx *Context, headers http.Header, input []byte, upd
 				if done {
 					time.Sleep(f.delay)
 					updater.Complete()
+					updater.Done()
 					f.isDone.Store(true)
 					return
 				}
@@ -5844,7 +5828,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	}
 
 	setup := func(ctx context.Context, stream SubscriptionDataSource) (*Resolver, *GraphQLSubscription, *SubscriptionRecorder, SubscriptionIdentifier) {
-
 		fetches := Sequence()
 		fetches.Trigger = &FetchTreeNode{
 			Kind: FetchTreeNodeKindTrigger,
@@ -6099,7 +6082,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		messages := recorder.Messages()
 
 		assert.Greater(t, len(messages), 2)
-		time.Sleep(resolver.heartbeatInterval)
+		time.Sleep(10 * time.Millisecond)
 		// Validate that despite the time, we don't see any heartbeats sent
 		assert.Contains(t, messages, `{"data":{"counter":0}}`)
 		assert.Contains(t, messages, `{"data":{"counter":1}}`)
@@ -6126,7 +6109,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 
 		for i := 1; i <= 10; i++ {
-			id.ConnectionID = int64(i)
+			id.ConnectionID = ConnectionID(i)
 			id.SubscriptionID = int64(i)
 			recorder.complete.Store(false)
 			err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
@@ -6136,7 +6119,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		recorder.AwaitComplete(t, defaultTimeout)
 
-		time.Sleep(resolver.heartbeatInterval)
+		time.Sleep(10 * time.Millisecond)
 
 		assert.Len(t, recorder.Messages(), 20)
 
@@ -6239,9 +6222,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
 		recorder.AwaitAnyMessageCount(t, defaultTimeout)
-		err = resolver.AsyncUnsubscribeSubscription(id)
+		err = resolver.UnsubscribeSubscription(id)
 		assert.NoError(t, err)
-		recorder.AwaitClosed(t, defaultTimeout)
 		fakeStream.AwaitIsDone(t, defaultTimeout)
 	})
 
@@ -6264,9 +6246,28 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
 		recorder.AwaitAnyMessageCount(t, defaultTimeout)
-		err = resolver.AsyncUnsubscribeClient(id.ConnectionID)
+		err = resolver.UnsubscribeClient(id.ConnectionID)
 		assert.NoError(t, err)
-		recorder.AwaitClosed(t, defaultTimeout)
+		fakeStream.AwaitIsDone(t, defaultTimeout)
+	})
+
+	t.Run("should stop stream on unsubscribe client with close reason", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
+		}, time.Millisecond*10, nil, nil)
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := NewContext(context.Background())
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+		recorder.AwaitAnyMessageCount(t, defaultTimeout)
+		err = resolver.UnsubscribeClient(id.ConnectionID)
+		assert.NoError(t, err)
 		fakeStream.AwaitIsDone(t, defaultTimeout)
 	})
 
@@ -6340,13 +6341,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, _, _ := setup(c, fakeStream)
 
-		ctx := &Context{
-			ctx: context.Background(),
-			ExecutionOptions: ExecutionOptions{
-				SendHeartbeat: true,
-			},
-		}
-
 		const numSubscriptions = 2
 		var resolverCompleted atomic.Uint32
 		var recorderCompleted atomic.Uint32
@@ -6358,6 +6352,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			}
 			recorder.complete.Store(false)
 
+			// Each subscription needs its own Context so they get separate entries
+			// in the trigger's subscriptions map (keyed by *Context).
+			subCtx := NewContext(context.Background())
+			subCtx.ExecutionOptions.SendHeartbeat = true
+
 			go func() {
 				defer recorderCompleted.Add(1)
 
@@ -6367,7 +6366,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			go func() {
 				defer resolverCompleted.Add(1)
 
-				err := resolver.ResolveGraphQLSubscription(ctx, plan, recorder)
+				err := resolver.ResolveGraphQLSubscription(subCtx, plan, recorder)
 				assert.ErrorIs(t, err, context.Canceled)
 			}()
 		}
@@ -6408,9 +6407,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitAnyMessageCount(t, defaultTimeout)
 
-		err = resolver.AsyncUnsubscribeSubscription(id)
+		err = resolver.UnsubscribeSubscription(id)
 		assert.NoError(t, err)
-		recorder.AwaitClosed(t, defaultTimeout)
 		fakeStream.AwaitIsDone(t, defaultTimeout)
 	})
 
@@ -8045,6 +8043,199 @@ func Benchmark_NestedBatchingArena(b *testing.B) {
 			ctx.Free()
 			ctxPool.Put(ctx)
 		}
+	})
+}
+
+// startFailStream blocks until subBReady is closed, then returns an error from Start.
+type startFailStream struct {
+	subBReady chan struct{}
+}
+
+func (s *startFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
+	<-s.subBReady
+	return errors.New("connection refused")
+}
+
+func TestSourceStartFailure(t *testing.T) {
+	t.Run("broadcasts error to all subscribers", func(t *testing.T) {
+		resolverCtx, cancelResolver := context.WithCancel(context.Background())
+		defer cancelResolver()
+
+		subBReady := make(chan struct{})
+
+		stream := &startFailStream{subBReady: subBReady}
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: stream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`),
+						},
+					},
+				},
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("counter"),
+							Value: &Integer{
+								Path: []string{"counter"},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		resolver := New(resolverCtx, ResolverOptions{
+			MaxConcurrency:                1024,
+			AsyncErrorWriter:              &TestErrorWriter{},
+			SubscriptionHeartbeatInterval: time.Hour,
+		})
+
+		writerA := &SubscriptionRecorder{buf: &bytes.Buffer{}}
+		writerB := &SubscriptionRecorder{buf: &bytes.Buffer{}}
+
+		idA := SubscriptionIdentifier{ConnectionID: NewConnectionID(), SubscriptionID: 1}
+		idB := SubscriptionIdentifier{ConnectionID: NewConnectionID(), SubscriptionID: 2}
+
+		ctxA := NewContext(context.Background())
+		ctxB := NewContext(context.Background())
+
+		// Subscribe A — creates the trigger.
+		err := resolver.AsyncResolveGraphQLSubscription(ctxA, plan, writerA, idA)
+		require.NoError(t, err)
+
+		// Subscribe B — joins the existing trigger.
+		err = resolver.AsyncResolveGraphQLSubscription(ctxB, plan, writerB, idB)
+		require.NoError(t, err)
+
+		// Unblock Source.Start() so it returns an error.
+		close(subBReady)
+
+		timeout := 2 * time.Second
+		writerA.AwaitAnyMessageCount(t, timeout)
+		writerB.AwaitAnyMessageCount(t, timeout)
+	})
+}
+
+// hookFailStream is a SubscriptionDataSource + HookableSubscriptionDataSource.
+// The hook for the subscription whose context matches failCtx blocks until
+// subBRegistered is closed, then returns an error. All other hooks succeed.
+type hookFailStream struct {
+	subBRegistered chan struct{}
+	failCtx        context.Context
+	sourceStarted  atomic.Bool
+}
+
+func (s *hookFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
+	s.sourceStarted.Store(true)
+	select {}
+}
+
+func (s *hookFailStream) SubscriptionOnStart(ctx StartupHookContext, _ []byte) error {
+	if ctx.Context == s.failCtx {
+		<-s.subBRegistered
+		return errors.New("startup hook failed")
+	}
+	return nil
+}
+
+func TestStartupHookFailure(t *testing.T) {
+	t.Run("cleans up all subscribers when trigger creator hook fails", func(t *testing.T) {
+		resolverCtx, cancelResolver := context.WithCancel(context.Background())
+		defer cancelResolver()
+
+		ctxAInner, cancelA := context.WithCancel(context.Background())
+		defer cancelA()
+		ctxBInner, cancelB := context.WithCancel(context.Background())
+		defer cancelB()
+
+		subBRegistered := make(chan struct{})
+
+		stream := &hookFailStream{
+			subBRegistered: subBRegistered,
+			failCtx:        ctxAInner,
+		}
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: stream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`),
+						},
+					},
+				},
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("counter"),
+							Value: &Integer{
+								Path: []string{"counter"},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		resolver := New(resolverCtx, ResolverOptions{
+			MaxConcurrency:                1024,
+			AsyncErrorWriter:              &TestErrorWriter{},
+			SubscriptionHeartbeatInterval: time.Hour,
+		})
+
+		writerA := &SubscriptionRecorder{buf: &bytes.Buffer{}}
+		writerB := &SubscriptionRecorder{buf: &bytes.Buffer{}}
+
+		idA := SubscriptionIdentifier{ConnectionID: NewConnectionID(), SubscriptionID: 1}
+		idB := SubscriptionIdentifier{ConnectionID: NewConnectionID(), SubscriptionID: 2}
+
+		ctxA := NewContext(ctxAInner)
+		ctxB := NewContext(ctxBInner)
+
+		// Subscribe A — creates the trigger.
+		err := resolver.AsyncResolveGraphQLSubscription(ctxA, plan, writerA, idA)
+		require.NoError(t, err)
+
+		// Subscribe B — joins the existing trigger.
+		err = resolver.AsyncResolveGraphQLSubscription(ctxB, plan, writerB, idB)
+		require.NoError(t, err)
+
+		// Unblock A's startup hook so it fails.
+		close(subBRegistered)
+
+		// Sub A should receive an error.
+		writerA.AwaitAnyMessageCount(t, time.Second)
+
+		// Sub B should also be cleaned up — not left orphaned on a triggerless source.
+		require.Eventually(t, func() bool {
+			writerB.mux.Lock()
+			hasMessages := len(writerB.messages) > 0
+			writerB.mux.Unlock()
+			return hasMessages || writerB.complete.Load()
+		}, 2*time.Second, 10*time.Millisecond,
+			"sub B was orphaned: no error, no complete — "+
+				"trigger left without a data source after first subscription's startup hook failed")
+
+		require.False(t, stream.sourceStarted.Load(), "Source.Start() should not have been called")
 	})
 }
 

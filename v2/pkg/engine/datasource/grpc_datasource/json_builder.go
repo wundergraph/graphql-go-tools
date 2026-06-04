@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/tidwall/gjson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
@@ -32,17 +31,15 @@ const (
 // - Error response formatting
 type jsonBuilder struct {
 	mapping   *GRPCMapping // Mapping configuration for GraphQL to gRPC translation
-	variables gjson.Result // GraphQL variables containing entity representations
 	jsonArena arena.Arena
 }
 
 // newJSONBuilder creates a new JSON builder instance with the provided mapping
 // and variables. The builder automatically creates an index map for proper
 // federation entity ordering if representations are present in the variables.
-func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) *jsonBuilder {
+func newJSONBuilder(a arena.Arena, mapping *GRPCMapping) *jsonBuilder {
 	return &jsonBuilder{
 		mapping:   mapping,
-		variables: variables,
 		jsonArena: a,
 	}
 }

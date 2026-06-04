@@ -41,7 +41,9 @@ func (w *websocketHook) OnBeforeStart(reqCtx context.Context, operation *graphql
 	return nil
 }
 
+//nolint:tparallel // Subtests share websocket clients, hooks, and test servers; parallel execution is unsafe here.
 func TestHandler_Handle(t *testing.T) {
+	t.Parallel()
 	t.Run("engine v2", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -567,10 +569,9 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 
 	engineConf := engine.NewConfiguration(chatSchema)
 
-	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(
-		httpclient.DefaultNetHttpClient,
-		httpclient.DefaultNetHttpClient,
-		ctx,
+	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(ctx,
+		graphql_datasource.WithUpgradeClient(httpclient.DefaultNetHttpClient),
+		graphql_datasource.WithStreamingClient(httpclient.DefaultNetHttpClient),
 	)
 
 	factory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, subscriptionClient)

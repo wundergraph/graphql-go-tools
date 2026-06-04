@@ -11,6 +11,7 @@ import (
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 type SubscriptionFilter struct {
@@ -25,14 +26,14 @@ type SubscriptionFieldFilter struct {
 	Values    []InputTemplate
 }
 
-func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buffer) (bool, error) {
+func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte) (bool, error) {
 	if f == nil {
 		return false, nil
 	}
 
 	if f.And != nil {
 		for _, filter := range f.And {
-			skip, err := filter.SkipEvent(ctx, data, buf)
+			skip, err := filter.SkipEvent(ctx, data)
 			if err != nil {
 				return false, err
 			}
@@ -47,7 +48,7 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 
 	if f.Or != nil {
 		for _, filter := range f.Or {
-			skip, err := filter.SkipEvent(ctx, data, buf)
+			skip, err := filter.SkipEvent(ctx, data)
 			if err != nil {
 				return false, err
 			}
@@ -61,7 +62,7 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 	}
 
 	if f.Not != nil {
-		skip, err := f.Not.SkipEvent(ctx, data, buf)
+		skip, err := f.Not.SkipEvent(ctx, data)
 		if err != nil {
 			return false, err
 		}
@@ -69,7 +70,7 @@ func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buf
 	}
 
 	if f.In != nil {
-		return f.In.SkipEvent(ctx, data, buf)
+		return f.In.SkipEvent(ctx, data)
 	}
 
 	return false, nil
@@ -84,7 +85,7 @@ var (
 	ErrInvalidSubscriptionFilterTemplate = errors.New("invalid subscription filter template")
 )
 
-func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buffer) (bool, error) {
+func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte) (bool, error) {
 	if f == nil {
 		return false, nil
 	}
@@ -93,6 +94,11 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 	if _err != nil {
 		return true, nil
 	}
+
+	// Scratch buffer for rendering filter template values. Pooled to avoid
+	// per-event allocations.
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
 
 	for i := range f.Values {
 		buf.Reset()

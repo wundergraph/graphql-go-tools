@@ -12,11 +12,6 @@ var defaultCodec = encoding.GetCodecV2("proto")
 
 type connectCodec struct{}
 
-// TODO: force codec as client option instead of registering it globally.
-func init() {
-	encoding.RegisterCodecV2(&connectCodec{})
-}
-
 // Name implements [encoding.CodecV2].
 func (c *connectCodec) Name() string {
 	// we use the default proto codec to allow marshalling our own message but not

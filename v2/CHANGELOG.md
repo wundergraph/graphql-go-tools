@@ -1,5 +1,81 @@
 # Changelog
 
+## [2.4.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.1...v2.4.2) (2026-06-03)
+
+
+### Bug Fixes
+
+* **astprinter:** preserve description indentation and break prose-bearing field args ([#1500](https://github.com/wundergraph/graphql-go-tools/issues/1500)) ([d81c9a7](https://github.com/wundergraph/graphql-go-tools/commit/d81c9a7b6689e98a985afc645b2527e1aec7703c))
+* bump grpc to v1.80.0 ([#1511](https://github.com/wundergraph/graphql-go-tools/issues/1511)) ([5c2debf](https://github.com/wundergraph/graphql-go-tools/commit/5c2debfdd83a02ccc08468fe508540100624c177))
+* **jsonschema:** emit $ref/$defs for recursive input types ([#1513](https://github.com/wundergraph/graphql-go-tools/issues/1513)) ([1369a25](https://github.com/wundergraph/graphql-go-tools/commit/1369a25643a280a08e11ac8a12adef4505184e5b))
+
+## [2.4.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.0...v2.4.1) (2026-05-25)
+
+
+### Bug Fixes
+
+* use float64 for intermediate cost calculations ([#1514](https://github.com/wundergraph/graphql-go-tools/issues/1514)) ([d415ae5](https://github.com/wundergraph/graphql-go-tools/commit/d415ae5b6940b26386dd1d0047910b18528a8637))
+
+## [2.4.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.3.1...v2.4.0) (2026-05-21)
+
+
+### Features
+
+* **grpc_datasource:** introduce RPCTransport abstraction with gRPC implementation ([#1490](https://github.com/wundergraph/graphql-go-tools/issues/1490)) ([faffd81](https://github.com/wundergraph/graphql-go-tools/commit/faffd819a6154943222c5c3e8cb016387e916df4))
+
+
+### Bug Fixes
+
+* use remapped variables in cost calculation ([#1505](https://github.com/wundergraph/graphql-go-tools/issues/1505)) ([972ad0f](https://github.com/wundergraph/graphql-go-tools/commit/972ad0f7e38c9201784293a09cdefd6c50d67fc9))
+
+## [2.3.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.3.0...v2.3.1) (2026-05-20)
+
+
+### Bug Fixes
+
+* handle default values for slicingArguments ([#1499](https://github.com/wundergraph/graphql-go-tools/issues/1499)) ([f3afd10](https://github.com/wundergraph/graphql-go-tools/commit/f3afd102f5304f43efd146ec68679de1b967b680))
+* multiply with 0 for empty lists in actual costs ([#1502](https://github.com/wundergraph/graphql-go-tools/issues/1502)) ([1cb6bde](https://github.com/wundergraph/graphql-go-tools/commit/1cb6bde9f169efd5be4cad7f0be5535fd07493cc))
+
+## [2.3.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.2.0...v2.3.0) (2026-05-15)
+
+
+### Features
+
+* support dot-path in slicingArguments ([#1485](https://github.com/wundergraph/graphql-go-tools/issues/1485)) ([2cb8d5e](https://github.com/wundergraph/graphql-go-tools/commit/2cb8d5eee1aa8ef697868cbe323ebd1160fc3319))
+
+
+### Bug Fixes
+
+* find proper parent when sizedFields parent is a non-list wrapper ([#1493](https://github.com/wundergraph/graphql-go-tools/issues/1493)) ([6b96976](https://github.com/wundergraph/graphql-go-tools/commit/6b96976de1f1e457ee1cd5ff14039776e12f2ad0)), closes [#1492](https://github.com/wundergraph/graphql-go-tools/issues/1492)
+
+## [2.2.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.1.0...v2.2.0) (2026-05-12)
+
+
+### Features
+
+* add Description support for VariableDefinition (September 2025 spec) ([#1457](https://github.com/wundergraph/graphql-go-tools/issues/1457)) ([b035eea](https://github.com/wundergraph/graphql-go-tools/commit/b035eea9957414d9f7a1f0d6577d1b5a8a8ec650))
+* allow rendering custom extensions in the final JSON response ([#1489](https://github.com/wundergraph/graphql-go-tools/issues/1489)) ([e6f080e](https://github.com/wundergraph/graphql-go-tools/commit/e6f080ea6d937ef97b8cfb44370f2a479681b1cc))
+* switch from composition-go wrapper to cosmo wgc composition ([#1483](https://github.com/wundergraph/graphql-go-tools/issues/1483)) ([34d07fc](https://github.com/wundergraph/graphql-go-tools/commit/34d07fc6106dbedf6e95939595b2fb71430b47f1))
+
+## [2.1.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0...v2.1.0) (2026-04-30)
+
+
+### Features
+
+* subscriptions overhaul ([#1374](https://github.com/wundergraph/graphql-go-tools/issues/1374)) ([6c0ac71](https://github.com/wundergraph/graphql-go-tools/commit/6c0ac71e071abf06fdf618d45d100769f0017acd))
+
+## [2.0.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.270...v2.0.0) (2026-04-27)
+
+
+### Features
+
+* support costs on arguments of directives ([#1465](https://github.com/wundergraph/graphql-go-tools/issues/1465)) ([2eca1ab](https://github.com/wundergraph/graphql-go-tools/commit/2eca1ab9932395d9b3181d28e8e6c2c03818f68b))
+
+
+### Bug Fixes
+
+* grpc datasource stack overflows on recursive input ([#1466](https://github.com/wundergraph/graphql-go-tools/issues/1466)) ([eba0f58](https://github.com/wundergraph/graphql-go-tools/commit/eba0f58ff241520a8b66fc206c41ff73d8f33d03))
+
 ## [2.0.0-rc.270](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.269...v2.0.0-rc.270) (2026-04-09)
 
 

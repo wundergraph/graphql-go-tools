@@ -15,7 +15,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
+//nolint:tparallel // Subtests mutate shared engineConfig state within the parent test.
 func TestNewConfiguration(t *testing.T) {
+	t.Parallel()
 	var engineConfig Configuration
 
 	t.Run("should create a new engine v2 config", func(t *testing.T) {
@@ -72,10 +74,11 @@ func TestNewConfiguration(t *testing.T) {
 }
 
 func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
+	t.Parallel()
 	client := &http.Client{}
 	streamingClient := &http.Client{}
 	engineCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	doc, report := astparser.ParseGraphqlDocumentString(graphqlGeneratorSchema)
 	require.Falsef(t, report.HasErrors(), "document parser report has errors")
@@ -106,6 +109,7 @@ func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
 	}
 
 	t.Run("without subscription configuration", func(t *testing.T) {
+		t.Parallel()
 		dataSourceConfig := mustConfiguration(t, graphqlDataSource.ConfigurationInput{
 			Fetch: &graphqlDataSource.FetchConfiguration{
 				URL:    "http://localhost:8080",
@@ -137,6 +141,7 @@ func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
 	})
 
 	t.Run("with subscription configuration (SSE)", func(t *testing.T) {
+		t.Parallel()
 		dataSourceConfig := mustConfiguration(t, graphqlDataSource.ConfigurationInput{
 			Fetch: &graphqlDataSource.FetchConfiguration{
 				URL:    "http://localhost:8080",
@@ -174,10 +179,12 @@ func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
 }
 
 func TestGraphqlFieldConfigurationsGenerator_Generate(t *testing.T) {
+	t.Parallel()
 	schema, err := graphql.NewSchemaFromString(graphqlGeneratorSchema)
 	require.NoError(t, err)
 
 	t.Run("should generate field configs without predefined field configs", func(t *testing.T) {
+		t.Parallel()
 		fieldConfigurations := newGraphQLFieldConfigsGenerator(schema).Generate()
 		sort.Slice(fieldConfigurations, func(i, j int) bool { // make the resulting slice deterministic again
 			return fieldConfigurations[i].TypeName < fieldConfigurations[j].TypeName
@@ -218,6 +225,7 @@ func TestGraphqlFieldConfigurationsGenerator_Generate(t *testing.T) {
 	})
 
 	t.Run("should generate field configs with predefined field configs", func(t *testing.T) {
+		t.Parallel()
 		predefinedFieldConfigs := plan.FieldConfigurations{
 			{
 				TypeName:  "User",
@@ -280,11 +288,11 @@ func TestGraphqlFieldConfigurationsGenerator_Generate(t *testing.T) {
 
 }
 
-var mockSubscriptionClient = graphqlDataSource.NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, context.Background())
+var mockSubscriptionClient = graphqlDataSource.NewGraphQLSubscriptionClient(context.Background())
 
 type MockSubscriptionClientFactory struct{}
 
-func (m *MockSubscriptionClientFactory) NewSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...graphqlDataSource.Options) graphqlDataSource.GraphQLSubscriptionClient {
+func (m *MockSubscriptionClientFactory) NewSubscriptionClient(engineCtx context.Context, options ...graphqlDataSource.SubscriptionClientOption) graphqlDataSource.GraphQLSubscriptionClient {
 	return mockSubscriptionClient
 }
 

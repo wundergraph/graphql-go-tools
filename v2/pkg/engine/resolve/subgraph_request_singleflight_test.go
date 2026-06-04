@@ -61,6 +61,9 @@ func TestSubgraphRequestSingleFlight_LeaderFollowerSizeHint(t *testing.T) {
 	}
 	if item == nil {
 		t.Fatalf("expected item, got nil")
+		// adding a `return` statement here because staticcheck reports that
+		// item could be nil in the next line even though t.Fatalf calls FailNow
+		return
 	}
 	if item.sizeHint != 0 {
 		t.Fatalf("expected empty size hint, got %d", item.sizeHint)
@@ -175,8 +178,8 @@ func TestSubgraphRequestSingleFlight_SizeHintRollingWindow(t *testing.T) {
 	fetchItem := newFetchItem(fetchInfo)
 
 	var fetchKey uint64
-	for i := 0; i < 50; i++ {
-		item, shared := flight.GetOrCreateItem(fetchItem, []byte(fmt.Sprintf("body-%d", i)), 0)
+	for i := range 50 {
+		item, shared := flight.GetOrCreateItem(fetchItem, fmt.Appendf(nil, "body-%d", i), 0)
 		if shared {
 			t.Fatalf("expected leader for iteration %d", i)
 		}
