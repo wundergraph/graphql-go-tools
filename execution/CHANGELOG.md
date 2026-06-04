@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.4](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.3...execution/v1.15.4) (2026-06-03)
+
+
+### Bug Fixes
+
+* bump grpc to v1.80.0 ([#1511](https://github.com/wundergraph/graphql-go-tools/issues/1511)) ([5c2debf](https://github.com/wundergraph/graphql-go-tools/commit/5c2debfdd83a02ccc08468fe508540100624c177))
+* use float64 for intermediate cost calculations ([#1514](https://github.com/wundergraph/graphql-go-tools/issues/1514)) ([d415ae5](https://github.com/wundergraph/graphql-go-tools/commit/d415ae5b6940b26386dd1d0047910b18528a8637))
+
 ## [1.15.3](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.2...execution/v1.15.3) (2026-05-21)
 
 

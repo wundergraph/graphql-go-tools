@@ -9,17 +9,21 @@ import (
 )
 
 func TestCreateTypeFieldLookupKey(t *testing.T) {
+	t.Parallel()
 	lookupKey := CreateTypeFieldLookupKey("Query", "hello")
 	assert.Equal(t, TypeFieldLookupKey("Query.hello"), lookupKey)
 }
 
 func TestCreateTypeFieldArgumentsLookupMap(t *testing.T) {
+	t.Parallel()
 	t.Run("should return nil if slice is empty", func(t *testing.T) {
+		t.Parallel()
 		lookupMap := CreateTypeFieldArgumentsLookupMap([]graphql.TypeFieldArguments{})
 		assert.Nil(t, lookupMap)
 	})
 
 	t.Run("should return a lookup map", func(t *testing.T) {
+		t.Parallel()
 		typeFieldArgs := []graphql.TypeFieldArguments{
 			{
 				TypeName:      "Query",
