@@ -182,7 +182,7 @@ func (w *wireMessage) createProtoWireWithContext(a arena.Arena, data *astjson.Va
 
 	contextValues := make([]map[string]protoref.Value, 0)
 	for _, contextField := range context.fields {
-		values := resolveContextDataForPath(contextMessage, contextField.p)
+		values := resolveContextDataForPath(contextMessage, contextField.resolvePath)
 
 		for index, value := range values {
 			if index >= len(contextValues) {

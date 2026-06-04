@@ -114,7 +114,20 @@ func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	switch d.transport.(type) {
 	case *grpcTransport:
-		return d.loadWithGRPC(ctx, headers, input)
+		// convert headers to grpc metadata and attach to ctx
+		if len(headers) > 0 {
+			// assume that each header has exactly one value for default pairs size
+			pairs := make([]string, 0, len(headers)*2)
+			for headerName, headerValues := range headers {
+				headerName = strings.ToLower(headerName)
+				for _, v := range headerValues {
+					pairs = append(pairs, headerName, v)
+				}
+			}
+			ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
+		}
+
+		return d.loadWithGRPC(ctx, input)
 		// case *connectTransport:
 		// 	return d.loadWithConnect(ctx, headers, input)
 	}
@@ -122,7 +135,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	return nil, fmt.Errorf("unsupported transport type: %T", d.transport)
 }
 
-func (d *DataSource) loadWithGRPC(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+func (d *DataSource) loadWithGRPC(ctx context.Context, input []byte) (data []byte, err error) {
 	var poolItems []*arena.PoolItem
 	defer func() {
 		d.pool.ReleaseMany(poolItems)
@@ -150,19 +163,6 @@ func (d *DataSource) loadWithGRPC(ctx context.Context, headers http.Header, inpu
 
 	if d.disabled {
 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
-	}
-
-	// convert headers to grpc metadata and attach to ctx
-	if len(headers) > 0 {
-		// assume that each header has exactly one value for default pairs size
-		pairs := make([]string, 0, len(headers)*2)
-		for headerName, headerValues := range headers {
-			headerName = strings.ToLower(headerName)
-			for _, v := range headerValues {
-				pairs = append(pairs, headerName, v)
-			}
-		}
-		ctx = metadata.AppendToOutgoingContext(ctx, pairs...)
 	}
 
 	root := astjson.ObjectValue(nil)
@@ -301,19 +301,7 @@ func createProtoWire(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchDa
 	return buffer, false, nil
 }
 
-// LoadWithFiles implements resolve.DataSource interface.
-// Similar to Load, but handles file uploads if needed.
-//
-// Note: File uploads are typically not part of gRPC, so this method
-// might not be applicable for most gRPC use cases.
-//
-// Currently unimplemented.
-func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
-	panic("unimplemented")
-}
-
-func (d *DataSource) LoadOld(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
-
+func (d *DataSource) loadWithConnect(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	var poolItems []*arena.PoolItem
 	defer func() {
 		d.pool.ReleaseMany(poolItems)
@@ -377,10 +365,6 @@ func (d *DataSource) LoadOld(ctx context.Context, headers http.Header, input []b
 
 		// make gRPC calls
 		for index, serviceCall := range serviceCalls {
-			item := d.acquirePoolItem(input, index)
-			poolItems = append(poolItems, item)
-
-			builder := newJSONBuilder(item.Arena, d.mapping)
 			errGrp.Go(func() error {
 				// Invoke the gRPC method - this will populate serviceCall.Output
 				err := d.transport.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
@@ -438,4 +422,15 @@ func (d *DataSource) LoadOld(ctx context.Context, headers http.Header, input []b
 
 	value := builder.toDataObject(root)
 	return value.MarshalTo(nil), err
+}
+
+// LoadWithFiles implements resolve.DataSource interface.
+// Similar to Load, but handles file uploads if needed.
+//
+// Note: File uploads are typically not part of gRPC, so this method
+// might not be applicable for most gRPC use cases.
+//
+// Currently unimplemented.
+func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+	panic("unimplemented")
 }

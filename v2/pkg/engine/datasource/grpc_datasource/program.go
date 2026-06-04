@@ -71,11 +71,8 @@ type fetchRequestContext struct {
 type fetchRequestContextField struct {
 	runtime     *runtimeField
 	jsonName    string
-	p           ast.Path
-	resolvePath resolvePath
+	resolvePath ast.Path
 }
-
-type resolvePath []*runtimeField
 
 type response struct {
 	// response type is the type of the response message.
@@ -402,10 +399,9 @@ func compileFetchRequestContext(message, contextMessage *runtimeMessage, rpcMess
 		}
 
 		fetchRequestContextField := &fetchRequestContextField{
-			runtime:  rtField,
-			p:        field.ResolvePath,
-			jsonName: field.JSONPath,
-			// resolvePath: field.ResolvePath,
+			runtime:     rtField,
+			resolvePath: field.ResolvePath,
+			jsonName:    field.JSONPath,
 		}
 		fetchRequestContext.fields = append(fetchRequestContext.fields, *fetchRequestContextField)
 	}
