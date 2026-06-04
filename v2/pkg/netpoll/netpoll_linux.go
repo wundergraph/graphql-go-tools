@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 package netpoll
 
@@ -121,7 +120,7 @@ retry:
 		conns = e.connbuf[:0]
 	}
 	e.lock.RLock()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		conn := e.conns[int(e.events[i].Fd)]
 		if conn != nil {
 			conns = append(conns, conn)
