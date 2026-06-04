@@ -41,7 +41,7 @@ type JsonSchema struct {
 	Enum []string `json:"enum,omitempty"`
 
 	// Default value
-	Default interface{} `json:"default,omitempty"`
+	Default any `json:"default,omitempty"`
 
 	// String-specific fields
 	Format string `json:"format,omitempty"`
@@ -57,7 +57,7 @@ type JsonSchema struct {
 // MarshalJSON customizes JSON serialization to omit empty fields
 func (s *JsonSchema) MarshalJSON() ([]byte, error) {
 	// Use a map to only include non-empty fields
-	m := make(map[string]interface{})
+	m := make(map[string]any)
 
 	if s.Type != "" {
 		// Always use a single type, regardless of nullability
@@ -216,7 +216,7 @@ func (s *JsonSchema) WithDescription(description string) *JsonSchema {
 }
 
 // WithDefault adds a default value to the schema
-func (s *JsonSchema) WithDefault(defaultValue interface{}) *JsonSchema {
+func (s *JsonSchema) WithDefault(defaultValue any) *JsonSchema {
 	s.Default = defaultValue
 	return s
 }

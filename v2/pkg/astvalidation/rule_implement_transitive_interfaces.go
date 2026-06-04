@@ -47,11 +47,11 @@ func (v *implementTransitiveInterfacesVisitor) EnterDocument(operation, definiti
 func (v *implementTransitiveInterfacesVisitor) LeaveDocument(operation, definition *ast.Document) {
 	for typeName, interfaceNames := range v.typesImplementingInterfaces {
 		interfaceNamesLookupList := map[string]bool{}
-		for i := 0; i < len(interfaceNames); i++ {
+		for i := range interfaceNames {
 			interfaceNamesLookupList[interfaceNames[i]] = true
 		}
 
-		for i := 0; i < len(interfaceNames); i++ {
+		for i := range interfaceNames {
 			implementedInterfaceName := interfaceNames[i]
 			if _, ok := v.typesImplementingInterfaces[implementedInterfaceName]; !ok {
 				continue
@@ -119,7 +119,7 @@ func (v *implementTransitiveInterfacesVisitor) EnterObjectTypeExtension(ref int)
 //	typeName -> [interfaceOne, interfaceBase]
 //	interfaceOne -> [interfaceBase]
 func (v *implementTransitiveInterfacesVisitor) collectImplementedInterfaces(typeName string, implementedInterfacesRefs []int) {
-	for i := 0; i < len(implementedInterfacesRefs); i++ {
+	for i := range implementedInterfacesRefs {
 		implementedInterfaceRef := implementedInterfacesRefs[i]
 		implementedInterfaceName := v.definition.TypeNameString(implementedInterfaceRef)
 

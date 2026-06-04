@@ -136,7 +136,7 @@ func (i *inputCoercionForListVisitor) makeJSONArray(nestingDepth int, value []by
 	defer pool.BytesBuffer.Put(out)
 
 	// value type is a non-array. Let's build an array from it.
-	for idx := 0; idx < nestingDepth; idx++ {
+	for range nestingDepth {
 		_, err := out.Write(literal.LBRACK)
 		if err != nil {
 			return nil, err
@@ -162,7 +162,7 @@ func (i *inputCoercionForListVisitor) makeJSONArray(nestingDepth int, value []by
 		}
 	}
 
-	for idx := 0; idx < nestingDepth; idx++ {
+	for range nestingDepth {
 		_, err = out.Write(literal.RBRACK)
 		if err != nil {
 			return nil, err

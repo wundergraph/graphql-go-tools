@@ -58,18 +58,18 @@ func (v *implementingTypesAreSupersetsVisitor) LeaveDocument(operation, definiti
 		}
 
 		typeNameFieldsLookupMap := map[string]bool{}
-		for i := 0; i < len(typeNameFields); i++ {
+		for i := range typeNameFields {
 			typeNameFieldsLookupMap[typeNameFields[i]] = true
 		}
 
-		for i := 0; i < len(interfacesNames); i++ {
+		for i := range interfacesNames {
 			nodes, exists := v.definition.Index.NodesByNameStr(interfacesNames[i])
 			if !exists {
 				continue
 			}
 
 			var interfaceFieldRefs []int
-			for j := 0; j < len(nodes); j++ {
+			for j := range nodes {
 				switch nodes[j].Kind {
 				case ast.NodeKindInterfaceTypeDefinition:
 					interfaceFieldRefs = append(interfaceFieldRefs, v.definition.InterfaceTypeDefinitions[nodes[j].Ref].FieldsDefinition.Refs...)
@@ -125,14 +125,12 @@ func (v *implementingTypesAreSupersetsVisitor) EnterInterfaceTypeExtension(ref i
 		return // if exists is false then something is really wrong
 	}
 
-	for i := 0; i < len(nodesWithTypeName); i++ {
+	for i := range nodesWithTypeName {
 		switch nodesWithTypeName[i].Kind {
 		case ast.NodeKindInterfaceTypeDefinition:
 			baseInterfaceRef := nodesWithTypeName[i].Ref
 			baseInterfaceTypeFieldRefs := v.definition.InterfaceTypeDefinitions[baseInterfaceRef].FieldsDefinition.Refs
-			for j := 0; j < len(baseInterfaceTypeFieldRefs); j++ {
-				fieldDefinitionRefs = append(fieldDefinitionRefs, baseInterfaceTypeFieldRefs[j])
-			}
+			fieldDefinitionRefs = append(fieldDefinitionRefs, baseInterfaceTypeFieldRefs...)
 		default:
 			continue
 		}
@@ -168,14 +166,12 @@ func (v *implementingTypesAreSupersetsVisitor) EnterObjectTypeExtension(ref int)
 		return // if exists is false then something is really wrong
 	}
 
-	for i := 0; i < len(nodesWithTypeName); i++ {
+	for i := range nodesWithTypeName {
 		switch nodesWithTypeName[i].Kind {
 		case ast.NodeKindObjectTypeDefinition:
 			baseObjectTypeRef := nodesWithTypeName[i].Ref
 			baseObjectTypeInterfaceRefs := v.definition.ObjectTypeDefinitions[baseObjectTypeRef].FieldsDefinition.Refs
-			for j := 0; j < len(baseObjectTypeInterfaceRefs); j++ {
-				fieldDefinitionRefs = append(fieldDefinitionRefs, baseObjectTypeInterfaceRefs[j])
-			}
+			fieldDefinitionRefs = append(fieldDefinitionRefs, baseObjectTypeInterfaceRefs...)
 		default:
 			continue
 		}
@@ -197,7 +193,7 @@ func (v *implementingTypesAreSupersetsVisitor) collectFieldsForTypeName(typeName
 		v.implementingTypesWithFields[typeName] = []string{}
 	}
 
-	for i := 0; i < len(fieldDefinitionRefs); i++ {
+	for i := range fieldDefinitionRefs {
 		fieldName := v.definition.FieldDefinitionNameString(fieldDefinitionRefs[i])
 
 		skipFieldName := false
@@ -228,7 +224,7 @@ func (v *implementingTypesAreSupersetsVisitor) collectInterfaceNamesForImplement
 		v.implementingTypesWithInterfacesNames[typeName] = []string{}
 	}
 
-	for i := 0; i < len(typeRefs); i++ {
+	for i := range typeRefs {
 		interfaceName := v.definition.TypeNameString(typeRefs[i])
 		skipInterfaceName := false
 		for j := 0; j < len(v.implementingTypesWithInterfacesNames[typeName]); j++ {

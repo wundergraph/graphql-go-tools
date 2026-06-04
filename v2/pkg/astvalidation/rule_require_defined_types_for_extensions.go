@@ -80,7 +80,7 @@ func (r *requireDefinedTypesForExtensionsVisitor) extensionIsValidForNodeKind(na
 		return true
 	}
 
-	for i := 0; i < len(nodes); i++ {
+	for i := range nodes {
 		if nodes[i].Kind == definitionNodeKind {
 			return true
 		}

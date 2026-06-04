@@ -104,28 +104,29 @@ func (p Path) RemoveLastItem() Path {
 }
 
 func (p Path) String() string {
-	out := "["
+	var out strings.Builder
+	out.WriteString("[")
 	for i := range p {
 		if i != 0 {
-			out += ","
+			out.WriteString(",")
 		}
 		switch p[i].Kind {
 		case ArrayIndex:
-			out += strconv.Itoa(p[i].ArrayIndex)
+			out.WriteString(strconv.Itoa(p[i].ArrayIndex))
 		case FieldName:
 			if len(p[i].FieldName) == 0 {
-				out += "query"
+				out.WriteString("query")
 			} else {
-				out += unsafebytes.BytesToString(p[i].FieldName)
+				out.WriteString(unsafebytes.BytesToString(p[i].FieldName))
 			}
 		case InlineFragmentName:
-			out += InlineFragmentPathPrefix
-			out += strconv.Itoa(p[i].FragmentRef)
-			out += unsafebytes.BytesToString(p[i].FieldName)
+			out.WriteString(InlineFragmentPathPrefix)
+			out.WriteString(strconv.Itoa(p[i].FragmentRef))
+			out.WriteString(unsafebytes.BytesToString(p[i].FieldName))
 		}
 	}
-	out += "]"
-	return out
+	out.WriteString("]")
+	return out.String()
 }
 
 func (p Path) DotDelimitedString() string {

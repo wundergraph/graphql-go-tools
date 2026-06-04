@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/wundergraph/astjson"
@@ -366,11 +367,8 @@ func (node *CostTreeNode) sizedFieldImplementingFields(config *DataSourceCostCon
 		if listSize == nil {
 			continue
 		}
-		for _, sf := range listSize.SizedFields {
-			if sf == childFieldName {
-				result = append(result, listSize)
-				break
-			}
+		if slices.Contains(listSize.SizedFields, childFieldName) {
+			result = append(result, listSize)
 		}
 	}
 	return result
@@ -717,11 +715,9 @@ func NewCostCalculator(config Configuration) *CostCalculator {
 		}
 		c.costConfigs[ds.Hash()] = dsCostConfig
 	}
-	c.defaultListSize = config.StaticCostDefaultListSize
-	if c.defaultListSize < 1 {
+	c.defaultListSize = max(config.StaticCostDefaultListSize,
 		// Zero would estimate all lists as zero.
-		c.defaultListSize = 1
-	}
+		1)
 	return &c
 }
 

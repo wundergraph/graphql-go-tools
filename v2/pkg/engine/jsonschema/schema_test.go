@@ -134,13 +134,13 @@ func TestJsonSchema_MarshalJSON(t *testing.T) {
 		require.NoError(t, err)
 
 		// Parse it back to verify
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
 		// Verify structure - there should be no $ref
-		properties := parsed["properties"].(map[string]interface{})
-		nestedProp := properties["nested"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
+		nestedProp := properties["nested"].(map[string]any)
 
 		// Check that it's properly inlined
 		assert.Equal(t, "object", nestedProp["type"])
@@ -148,11 +148,11 @@ func TestJsonSchema_MarshalJSON(t *testing.T) {
 		assert.Contains(t, nestedProp, "properties")
 
 		// Check the array contains the same schema inline
-		itemsProp := properties["items"].(map[string]interface{})
+		itemsProp := properties["items"].(map[string]any)
 		assert.Equal(t, "array", itemsProp["type"])
 		assert.Contains(t, itemsProp, "items")
 
-		itemsSchema := itemsProp["items"].(map[string]interface{})
+		itemsSchema := itemsProp["items"].(map[string]any)
 		assert.Equal(t, "object", itemsSchema["type"])
 		assert.Equal(t, "Nested schema", itemsSchema["description"])
 	})
@@ -278,7 +278,7 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -305,19 +305,19 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(objSchema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
-		strProp := properties["str"].(map[string]interface{})
+		strProp := properties["str"].(map[string]any)
 		assert.Equal(t, "default string", strProp["default"])
 
-		numProp := properties["num"].(map[string]interface{})
+		numProp := properties["num"].(map[string]any)
 		assert.Equal(t, float64(42), numProp["default"])
 
-		boolProp := properties["bool"].(map[string]interface{})
+		boolProp := properties["bool"].(map[string]any)
 		assert.Equal(t, true, boolProp["default"])
 	})
 
@@ -329,7 +329,7 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -352,7 +352,7 @@ func TestSchemaFeatures(t *testing.T) {
 			data, err := json.Marshal(schema)
 			require.NoError(t, err)
 
-			var parsed map[string]interface{}
+			var parsed map[string]any
 			err = json.Unmarshal(data, &parsed)
 			require.NoError(t, err)
 
@@ -372,7 +372,7 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -527,23 +527,23 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
 		// Explicitly nullable property should have nullable=true
-		nullableProp := properties["nullableString"].(map[string]interface{})
+		nullableProp := properties["nullableString"].(map[string]any)
 		assert.Equal(t, true, nullableProp["nullable"])
 
 		// Non-nullable property should not have nullable field (omitempty)
-		nonNullableProp := properties["nonNullableString"].(map[string]interface{})
+		nonNullableProp := properties["nonNullableString"].(map[string]any)
 		_, hasNullable := nonNullableProp["nullable"]
 		assert.False(t, hasNullable)
 
 		// Default property should have nullable=true
-		defaultProp := properties["defaultString"].(map[string]interface{})
+		defaultProp := properties["defaultString"].(map[string]any)
 		assert.Equal(t, true, defaultProp["nullable"])
 
 		// Test WithNullable method

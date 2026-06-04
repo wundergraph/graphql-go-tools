@@ -346,7 +346,7 @@ func Test_DataSource_Load_WithRecursiveInputType(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	output, err := ds.Load(context.Background(), nil, []byte(fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)))
+	output, err := ds.Load(context.Background(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
 	require.NoError(t, err)
 
 	type response struct {
@@ -627,7 +627,7 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 		name     string
 		query    string
 		vars     string
-		validate func(t *testing.T, data map[string]interface{})
+		validate func(t *testing.T, data map[string]any)
 	}{
 		{
 			name: "Query random pet with only common fields",
@@ -640,8 +640,8 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				randomPet, ok := data["randomPet"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				randomPet, ok := data["randomPet"].(map[string]any)
 				require.True(t, ok, "randomPet should be an object")
 				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
@@ -677,8 +677,8 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				randomPet, ok := data["randomPet"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				randomPet, ok := data["randomPet"].(map[string]any)
 				require.True(t, ok, "randomPet should be an object")
 				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
@@ -717,8 +717,8 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				randomPet, ok := data["randomPet"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				randomPet, ok := data["randomPet"].(map[string]any)
 				require.True(t, ok, "randomPet should be an object")
 				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
@@ -749,8 +749,8 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				randomPet, ok := data["randomPet"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				randomPet, ok := data["randomPet"].(map[string]any)
 				require.True(t, ok, "randomPet should be an object")
 				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
@@ -783,8 +783,8 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				randomPet, ok := data["randomPet"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				randomPet, ok := data["randomPet"].(map[string]any)
 				require.True(t, ok, "randomPet should be an object")
 				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
@@ -853,7 +853,7 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 
 			// Parse the response
 			var resp struct {
-				Data   map[string]interface{} `json:"data"`
+				Data   map[string]any `json:"data"`
 				Errors []struct {
 					Message string `json:"message"`
 				} `json:"errors,omitempty"`
@@ -878,14 +878,14 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 		name     string
 		query    string
 		vars     string
-		validate func(t *testing.T, data map[string]interface{})
+		validate func(t *testing.T, data map[string]any)
 	}{
 		{
 			name:  "Query random search result",
 			query: `query { randomSearchResult { __typename ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				searchResult, ok := data["randomSearchResult"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				searchResult, ok := data["randomSearchResult"].(map[string]any)
 				require.True(t, ok, "randomSearchResult should be an object")
 				require.NotEmpty(t, searchResult, "randomSearchResult should not be empty")
 				require.Contains(t, searchResult, "__typename")
@@ -920,8 +920,8 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			name:  "Query search with input - mixed results",
 			query: `query($input: SearchInput!) { search(input: $input) { __typename ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }`,
 			vars:  `{"variables":{"input":{"query":"test","limit":6}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				searchResults, ok := data["search"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				searchResults, ok := data["search"].([]any)
 				require.True(t, ok, "search should be an array")
 				require.NotEmpty(t, searchResults, "search should not be empty")
 				require.Len(t, searchResults, 6, "should return 6 results as per limit")
@@ -929,7 +929,7 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 				// Verify we have a mix of all three types (Product, User, Category)
 				var productCount, userCount, categoryCount int
 				for i, result := range searchResults {
-					searchResult := result.(map[string]interface{})
+					searchResult := result.(map[string]any)
 					require.Contains(t, searchResult, "__typename")
 					typeName := searchResult["__typename"].(string)
 
@@ -972,15 +972,15 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			name:  "Query search with limited results",
 			query: `query($input: SearchInput!) { search(input: $input) { __typename ... on Product { id name } ... on User { id name } } }`,
 			vars:  `{"variables":{"input":{"query":"limited","limit":3}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				searchResults, ok := data["search"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				searchResults, ok := data["search"].([]any)
 				require.True(t, ok, "search should be an array")
 				require.NotEmpty(t, searchResults, "search should not be empty")
 				require.Len(t, searchResults, 3, "should return 3 results as per limit")
 
 				// Only check Product and User types since Category fragments are not selected
 				for _, result := range searchResults {
-					searchResult := result.(map[string]interface{})
+					searchResult := result.(map[string]any)
 					require.Contains(t, searchResult, "__typename")
 					typeName := searchResult["__typename"].(string)
 
@@ -1007,8 +1007,8 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			name:  "Mutation perform action - success case",
 			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }`,
 			vars:  `{"variables":{"input":{"type":"create_user","payload":"user data"}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				actionResult, ok := data["performAction"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				actionResult, ok := data["performAction"].(map[string]any)
 				require.True(t, ok, "performAction should be an object")
 				require.NotEmpty(t, actionResult, "performAction should not be empty")
 				require.Contains(t, actionResult, "__typename")
@@ -1024,8 +1024,8 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			name:  "Mutation perform action - validation error case",
 			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }`,
 			vars:  `{"variables":{"input":{"type":"error_action","payload":"invalid data"}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				actionResult, ok := data["performAction"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				actionResult, ok := data["performAction"].(map[string]any)
 				require.True(t, ok, "performAction should be an object")
 				require.NotEmpty(t, actionResult, "performAction should not be empty")
 				require.Contains(t, actionResult, "__typename")
@@ -1041,8 +1041,8 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			name:  "Mutation perform action - invalid action error case",
 			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }`,
 			vars:  `{"variables":{"input":{"type":"invalid_action","payload":"test"}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				actionResult, ok := data["performAction"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				actionResult, ok := data["performAction"].(map[string]any)
 				require.True(t, ok, "performAction should be an object")
 				require.NotEmpty(t, actionResult, "performAction should not be empty")
 				require.Contains(t, actionResult, "__typename")
@@ -1058,8 +1058,8 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			name:  "Mutation perform action - only success fragment",
 			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } } }`,
 			vars:  `{"variables":{"input":{"type":"success_only","payload":"test"}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				actionResult, ok := data["performAction"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				actionResult, ok := data["performAction"].(map[string]any)
 				require.True(t, ok, "performAction should be an object")
 				require.NotEmpty(t, actionResult, "performAction should not be empty")
 				require.Contains(t, actionResult, "__typename")
@@ -1075,8 +1075,8 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			name:  "Mutation perform action - only error fragment",
 			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionError { message code } } }`,
 			vars:  `{"variables":{"input":{"type":"error_action","payload":"test"}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				actionResult, ok := data["performAction"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				actionResult, ok := data["performAction"].(map[string]any)
 				require.True(t, ok, "performAction should be an object")
 				require.NotEmpty(t, actionResult, "performAction should not be empty")
 				require.Contains(t, actionResult, "__typename")
@@ -1123,7 +1123,7 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 
 			// Parse the response
 			var resp struct {
-				Data   map[string]interface{} `json:"data"`
+				Data   map[string]any `json:"data"`
 				Errors []struct {
 					Message string `json:"message"`
 				} `json:"errors,omitempty"`
@@ -1151,7 +1151,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 		name     string
 		query    string
 		vars     string
-		validate func(t *testing.T, data map[string]interface{})
+		validate func(t *testing.T, data map[string]any)
 	}{
 		{
 			name: "Query all categories",
@@ -1163,13 +1163,13 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				categories, ok := data["categories"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 
 				// Check the first category
-				category := categories[0].(map[string]interface{})
+				category := categories[0].(map[string]any)
 				require.Contains(t, category, "id")
 				require.Contains(t, category, "name")
 				require.Contains(t, category, "kind")
@@ -1185,14 +1185,14 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"kind":"FURNITURE"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				categories, ok := data["categoriesByKind"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				categories, ok := data["categoriesByKind"].([]any)
 				require.True(t, ok, "categoriesByKind should be an array")
 				require.NotEmpty(t, categories, "categoriesByKind should not be empty")
 
 				// Check the categories are all of the requested kind
 				for _, c := range categories {
-					category := c.(map[string]interface{})
+					category := c.(map[string]any)
 					require.Equal(t, "FURNITURE", category["kind"], "category should have the requested kind")
 				}
 			},
@@ -1207,8 +1207,8 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"filter":{"category":"ELECTRONICS","pagination":{"page":1,"perPage":2}}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				categories, ok := data["filterCategories"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				categories, ok := data["filterCategories"].([]any)
 				require.True(t, ok, "filterCategories should be an array")
 				require.NotEmpty(t, categories, "filterCategories should not be empty")
 
@@ -1217,7 +1217,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 
 				// Categories should have the requested kind
 				for _, c := range categories {
-					category := c.(map[string]interface{})
+					category := c.(map[string]any)
 					require.Equal(t, "ELECTRONICS", category["kind"], "category should have the requested kind")
 				}
 			},
@@ -1259,7 +1259,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 
 			// Parse the response
 			var resp struct {
-				Data   map[string]interface{} `json:"data"`
+				Data   map[string]any `json:"data"`
 				Errors []struct {
 					Message string `json:"message"`
 				} `json:"errors,omitempty"`
@@ -1466,18 +1466,18 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 		name     string
 		query    string
 		vars     string
-		validate func(t *testing.T, data map[string]interface{})
+		validate func(t *testing.T, data map[string]any)
 	}{
 		{
 			name:  "Simple root field alias",
 			query: `query { allUsers: users { id name } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				users, ok := data["allUsers"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				users, ok := data["allUsers"].([]any)
 				require.True(t, ok, "allUsers should be an array")
 				require.NotEmpty(t, users, "allUsers should not be empty")
 
-				user := users[0].(map[string]interface{})
+				user := users[0].(map[string]any)
 				require.Contains(t, user, "id")
 				require.Contains(t, user, "name")
 				require.NotEmpty(t, user["id"])
@@ -1488,8 +1488,8 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Field alias with arguments and nested field aliases",
 			query: `query { specificUser: user(id: $id) { userId1: id userId2: id userName1: name userName2: name } }`,
 			vars:  `{"variables": {"id": "123"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				user, ok := data["specificUser"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				user, ok := data["specificUser"].(map[string]any)
 				require.True(t, ok, "specificUser should be an object")
 				require.NotEmpty(t, user, "specificUser should not be empty")
 
@@ -1513,19 +1513,19 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Multiple aliases on the same level",
 			query: `query { allUsers: users { id name } allCategories: categories { id name categoryType: kind } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				// Check users alias
-				users, ok := data["allUsers"].([]interface{})
+				users, ok := data["allUsers"].([]any)
 				require.True(t, ok, "allUsers should be an array")
 				require.NotEmpty(t, users, "allUsers should not be empty")
 
 				// Check categories alias
-				categories, ok := data["allCategories"].([]interface{})
+				categories, ok := data["allCategories"].([]any)
 				require.True(t, ok, "allCategories should be an array")
 				require.NotEmpty(t, categories, "allCategories should not be empty")
 
 				// Check first category has aliased field
-				category := categories[0].(map[string]interface{})
+				category := categories[0].(map[string]any)
 				require.Contains(t, category, "categoryType")
 				require.NotContains(t, category, "kind", "original field name should not be present")
 			},
@@ -1534,18 +1534,18 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Nested object aliases",
 			query: `query { nestedData: nestedType { identifier: id title: name childB: b { identifier: id title: name } } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nestedData, ok := data["nestedData"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nestedData, ok := data["nestedData"].([]any)
 				require.True(t, ok, "nestedData should be an array")
 				require.NotEmpty(t, nestedData, "nestedData should not be empty")
 
-				nestedItem := nestedData[0].(map[string]interface{})
+				nestedItem := nestedData[0].(map[string]any)
 				require.Contains(t, nestedItem, "identifier")
 				require.Contains(t, nestedItem, "title")
 				require.Contains(t, nestedItem, "childB")
 
 				// Check nested object aliases
-				childB := nestedItem["childB"].(map[string]interface{})
+				childB := nestedItem["childB"].(map[string]any)
 				require.Contains(t, childB, "identifier")
 				require.Contains(t, childB, "title")
 
@@ -1559,8 +1559,8 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Interface aliases",
 			query: `query { pet: randomPet { identifier: id petName: name animalKind: kind ... on Cat { volumeLevel: meowVolume } ... on Dog { volumeLevel: barkVolume } } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				pet, ok := data["pet"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				pet, ok := data["pet"].(map[string]any)
 				require.True(t, ok, "pet should be an object")
 				require.NotEmpty(t, pet, "pet should not be empty")
 
@@ -1584,8 +1584,8 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Union type aliases",
 			query: `query { searchResults: randomSearchResult { ... on Product { productId: id productName: name cost: price } ... on User { userId: id userName: name } ... on Category { categoryId: id categoryName: name categoryType: kind } } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				searchResults, ok := data["searchResults"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				searchResults, ok := data["searchResults"].(map[string]any)
 				require.True(t, ok, "searchResults should be an object")
 				require.NotEmpty(t, searchResults, "searchResults should not be empty")
 
@@ -1624,8 +1624,8 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Mutation aliases",
 			query: `mutation { newUser: createUser(input: $input) { userId: id fullName: name } }`,
 			vars:  `{"variables": {"input": {"name": "John Doe"}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				newUser, ok := data["newUser"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				newUser, ok := data["newUser"].(map[string]any)
 				require.True(t, ok, "newUser should be an object")
 				require.NotEmpty(t, newUser, "newUser should not be empty")
 
@@ -1643,12 +1643,12 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Enum field aliases",
 			query: `query { bookCategories: categoriesByKind(kind: $kind) { identifier: id title: name type: kind } }`,
 			vars:  `{"variables": {"kind": "BOOK"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				bookCategories, ok := data["bookCategories"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				bookCategories, ok := data["bookCategories"].([]any)
 				require.True(t, ok, "bookCategories should be an array")
 				require.NotEmpty(t, bookCategories, "bookCategories should not be empty")
 
-				category := bookCategories[0].(map[string]interface{})
+				category := bookCategories[0].(map[string]any)
 				require.Contains(t, category, "identifier")
 				require.Contains(t, category, "title")
 				require.Contains(t, category, "type")
@@ -1664,12 +1664,12 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Multiple aliases for the same field",
 			query: `query { users { id name1: name name2: name name3: name } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				users, ok := data["users"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				users, ok := data["users"].([]any)
 				require.True(t, ok, "users should be an array")
 				require.NotEmpty(t, users, "users should not be empty")
 
-				user := users[0].(map[string]interface{})
+				user := users[0].(map[string]any)
 				require.Contains(t, user, "id")
 				require.Contains(t, user, "name1")
 				require.Contains(t, user, "name2")
@@ -1688,16 +1688,16 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Multiple aliases for the same field with arguments",
 			query: `query($id1: ID!, $id2: ID!, $id3: ID!) { user1: user(id: $id1) { id name } user2: user(id: $id2) { id name } sameUser: user(id: $id3) { userId: id userName: name } }`,
 			vars:  `{"variables": {"id1": "123", "id2": "456", "id3": "123"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				user1, ok := data["user1"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				user1, ok := data["user1"].(map[string]any)
 				require.True(t, ok, "user1 should be an object")
 				require.NotEmpty(t, user1, "user1 should not be empty")
 
-				user2, ok := data["user2"].(map[string]interface{})
+				user2, ok := data["user2"].(map[string]any)
 				require.True(t, ok, "user2 should be an object")
 				require.NotEmpty(t, user2, "user2 should not be empty")
 
-				sameUser, ok := data["sameUser"].(map[string]interface{})
+				sameUser, ok := data["sameUser"].(map[string]any)
 				require.True(t, ok, "sameUser should be an object")
 				require.NotEmpty(t, sameUser, "sameUser should not be empty")
 
@@ -1721,12 +1721,12 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Multiple aliases for the same field in nested objects",
 			query: `query { nestedType { id name1: name name2: name b { id title1: name title2: name c { id label1: name label2: name } } } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nestedType, ok := data["nestedType"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nestedType, ok := data["nestedType"].([]any)
 				require.True(t, ok, "nestedType should be an array")
 				require.NotEmpty(t, nestedType, "nestedType should not be empty")
 
-				nestedItem := nestedType[0].(map[string]interface{})
+				nestedItem := nestedType[0].(map[string]any)
 				require.Contains(t, nestedItem, "id")
 				require.Contains(t, nestedItem, "name1")
 				require.Contains(t, nestedItem, "name2")
@@ -1736,14 +1736,14 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 				require.NotEmpty(t, nestedItem["name1"])
 
 				// Check nested object B
-				childB := nestedItem["b"].(map[string]interface{})
+				childB := nestedItem["b"].(map[string]any)
 				require.Contains(t, childB, "id")
 				require.Contains(t, childB, "title1")
 				require.Contains(t, childB, "title2")
 				require.Equal(t, childB["title1"], childB["title2"])
 
 				// Check nested object C
-				childC := childB["c"].(map[string]interface{})
+				childC := childB["c"].(map[string]any)
 				require.Contains(t, childC, "id")
 				require.Contains(t, childC, "label1")
 				require.Contains(t, childC, "label2")
@@ -1759,8 +1759,8 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Multiple aliases for the same field in interface fragments",
 			query: `query { randomPet { id name1: name name2: name kind ... on Cat { volume1: meowVolume volume2: meowVolume } ... on Dog { volume1: barkVolume volume2: barkVolume } } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				pet, ok := data["randomPet"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				pet, ok := data["randomPet"].(map[string]any)
 				require.True(t, ok, "randomPet should be an object")
 				require.NotEmpty(t, pet, "randomPet should not be empty")
 
@@ -1790,12 +1790,12 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Multiple aliases for the same field call with identical arguments",
 			query: `query($id: ID!) { user1: user(id: $id) { id name1: name name2: name name3: name } user2: user(id: $id) { userId1: id userId2: id userName1: name userName2: name } }`,
 			vars:  `{"variables": {"id": "123"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				user1, ok := data["user1"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				user1, ok := data["user1"].(map[string]any)
 				require.True(t, ok, "user1 should be an object")
 				require.NotEmpty(t, user1, "user1 should not be empty")
 
-				user2, ok := data["user2"].(map[string]interface{})
+				user2, ok := data["user2"].(map[string]any)
 				require.True(t, ok, "user2 should be an object")
 				require.NotEmpty(t, user2, "user2 should not be empty")
 
@@ -1830,8 +1830,8 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			name:  "Multiple aliases for the same field in union fragments",
 			query: `query { randomSearchResult { ... on Product { id name1: name name2: name price1: price } ... on User { id name1: name name2: name } ... on Category { id name1: name name2: name kind1: kind kind2: kind } } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				searchResult, ok := data["randomSearchResult"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				searchResult, ok := data["randomSearchResult"].(map[string]any)
 				require.True(t, ok, "randomSearchResult should be an object")
 				require.NotEmpty(t, searchResult, "randomSearchResult should not be empty")
 
@@ -1898,7 +1898,7 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 
 			// Parse the response
 			var resp struct {
-				Data   map[string]interface{} `json:"data"`
+				Data   map[string]any `json:"data"`
 				Errors []struct {
 					Message string `json:"message"`
 				} `json:"errors,omitempty"`
@@ -1923,14 +1923,14 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 		name     string
 		query    string
 		vars     string
-		validate func(t *testing.T, data map[string]interface{})
+		validate func(t *testing.T, data map[string]any)
 	}{
 		{
 			name:  "Query nullable fields type with all fields",
 			query: `query { nullableFieldsType { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]any)
 				require.True(t, ok, "nullableFieldsType should be an object")
 				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
 
@@ -1970,8 +1970,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Query nullable fields type with all aliased fields",
 			query: `query { nullableFieldsType { id name optionalString1: optionalString optionalInt1: optionalInt optionalFloat1: optionalFloat optionalBoolean1: optionalBoolean requiredString1: requiredString requiredInt1: requiredInt } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]any)
 				require.True(t, ok, "nullableFieldsType should be an object")
 				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
 
@@ -2011,8 +2011,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Query nullable fields type by ID",
 			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString requiredString } }`,
 			vars:  `{"variables":{"id":"full-data"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nullableFieldsType, ok := data["nullableFieldsTypeById"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nullableFieldsType, ok := data["nullableFieldsTypeById"].(map[string]any)
 				require.True(t, ok, "nullableFieldsTypeById should be an object")
 				require.NotEmpty(t, nullableFieldsType, "nullableFieldsTypeById should not be empty")
 
@@ -2026,8 +2026,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Query nullable fields type by ID with partial data",
 			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
 			vars:  `{"variables":{"id":"partial-data"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nullableFieldsType, ok := data["nullableFieldsTypeById"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nullableFieldsType, ok := data["nullableFieldsTypeById"].(map[string]any)
 				require.True(t, ok, "nullableFieldsTypeById should be an object")
 				require.NotEmpty(t, nullableFieldsType, "nullableFieldsTypeById should not be empty")
 
@@ -2045,8 +2045,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Query nullable fields type by ID with minimal data",
 			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
 			vars:  `{"variables":{"id":"minimal-data"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nullableFieldsType, ok := data["nullableFieldsTypeById"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nullableFieldsType, ok := data["nullableFieldsTypeById"].(map[string]any)
 				require.True(t, ok, "nullableFieldsTypeById should be an object")
 				require.NotEmpty(t, nullableFieldsType, "nullableFieldsTypeById should not be empty")
 
@@ -2064,7 +2064,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Query nullable fields type by ID - not found",
 			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString requiredString } }`,
 			vars:  `{"variables":{"id":"not-found"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				nullableFieldsType := data["nullableFieldsTypeById"]
 				require.Nil(t, nullableFieldsType, "nullableFieldsTypeById should be null for not-found ID")
 			},
@@ -2073,13 +2073,13 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Query all nullable fields types",
 			query: `query { allNullableFieldsTypes { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				allNullableFieldsTypes, ok := data["allNullableFieldsTypes"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				allNullableFieldsTypes, ok := data["allNullableFieldsTypes"].([]any)
 				require.True(t, ok, "allNullableFieldsTypes should be an array")
 				require.Len(t, allNullableFieldsTypes, 3, "should return 3 nullable field types")
 
 				// Check first entry (full data)
-				firstEntry := allNullableFieldsTypes[0].(map[string]interface{})
+				firstEntry := allNullableFieldsTypes[0].(map[string]any)
 				require.Equal(t, "nullable-1", firstEntry["id"])
 				require.Equal(t, "Full Data Entry", firstEntry["name"])
 				require.Equal(t, "Optional String Value", firstEntry["optionalString"])
@@ -2090,7 +2090,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 				require.Equal(t, float64(100), firstEntry["requiredInt"])
 
 				// Check second entry (partial data)
-				secondEntry := allNullableFieldsTypes[1].(map[string]interface{})
+				secondEntry := allNullableFieldsTypes[1].(map[string]any)
 				require.Equal(t, "nullable-2", secondEntry["id"])
 				require.Equal(t, "Partial Data Entry", secondEntry["name"])
 				require.Equal(t, "Only string is set", secondEntry["optionalString"])
@@ -2101,7 +2101,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 				require.Equal(t, float64(200), secondEntry["requiredInt"])
 
 				// Check third entry (minimal data)
-				thirdEntry := allNullableFieldsTypes[2].(map[string]interface{})
+				thirdEntry := allNullableFieldsTypes[2].(map[string]any)
 				require.Equal(t, "nullable-3", thirdEntry["id"])
 				require.Equal(t, "Minimal Data Entry", thirdEntry["name"])
 				require.Nil(t, thirdEntry["optionalString"], "optionalString should be null")
@@ -2116,13 +2116,13 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Query nullable fields type with filter",
 			query: `query($filter: NullableFieldsFilter!) { nullableFieldsTypeWithFilter(filter: $filter) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
 			vars:  `{"variables":{"filter":{"name":"TestFilter","optionalString":"FilteredString","includeNulls":true}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nullableFieldsTypes, ok := data["nullableFieldsTypeWithFilter"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nullableFieldsTypes, ok := data["nullableFieldsTypeWithFilter"].([]any)
 				require.True(t, ok, "nullableFieldsTypeWithFilter should be an array")
 				require.Len(t, nullableFieldsTypes, 3, "should return 3 filtered nullable field types")
 
 				for i, item := range nullableFieldsTypes {
-					entry := item.(map[string]interface{})
+					entry := item.(map[string]any)
 					require.Equal(t, fmt.Sprintf("filtered-%d", i+1), entry["id"])
 					require.Equal(t, fmt.Sprintf("TestFilter - %d", i+1), entry["name"])
 					require.Equal(t, "FilteredString", entry["optionalString"])
@@ -2135,8 +2135,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Create nullable fields type mutation",
 			query: `mutation($input: NullableFieldsInput!) { createNullableFieldsType(input: $input) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
 			vars:  `{"variables":{"input":{"name":"Created Type","optionalString":"Optional Value","optionalInt":42,"optionalFloat":3.14,"optionalBoolean":true,"requiredString":"Required Value","requiredInt":100}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				createdType, ok := data["createNullableFieldsType"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				createdType, ok := data["createNullableFieldsType"].(map[string]any)
 				require.True(t, ok, "createNullableFieldsType should be an object")
 				require.NotEmpty(t, createdType, "createNullableFieldsType should not be empty")
 
@@ -2154,8 +2154,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Create nullable fields type mutation with minimal input",
 			query: `mutation($input: NullableFieldsInput!) { createNullableFieldsType(input: $input) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
 			vars:  `{"variables":{"input":{"name":"Minimal Type","requiredString":"Only Required","requiredInt":200}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				createdType, ok := data["createNullableFieldsType"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				createdType, ok := data["createNullableFieldsType"].(map[string]any)
 				require.True(t, ok, "createNullableFieldsType should be an object")
 				require.NotEmpty(t, createdType, "createNullableFieldsType should not be empty")
 
@@ -2173,8 +2173,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Update nullable fields type mutation",
 			query: `mutation($id: ID!, $input: NullableFieldsInput!) { updateNullableFieldsType(id: $id, input: $input) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
 			vars:  `{"variables":{"id":"test-update","input":{"name":"Updated Type","optionalString":"Updated Optional","optionalInt":999,"requiredString":"Updated Required","requiredInt":500}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				updatedType, ok := data["updateNullableFieldsType"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				updatedType, ok := data["updateNullableFieldsType"].(map[string]any)
 				require.True(t, ok, "updateNullableFieldsType should be an object")
 				require.NotEmpty(t, updatedType, "updateNullableFieldsType should not be empty")
 
@@ -2192,7 +2192,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Update nullable fields type mutation - non-existent ID",
 			query: `mutation($id: ID!, $input: NullableFieldsInput!) { updateNullableFieldsType(id: $id, input: $input) { id name optionalString requiredString } }`,
 			vars:  `{"variables":{"id":"non-existent","input":{"name":"Should Not Exist","requiredString":"Not Created","requiredInt":0}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				updatedType := data["updateNullableFieldsType"]
 				require.Nil(t, updatedType, "updateNullableFieldsType should be null for non-existent ID")
 			},
@@ -2201,8 +2201,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Query nullable fields with only optional fields",
 			query: `query { nullableFieldsType { optionalString optionalInt optionalFloat optionalBoolean } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]any)
 				require.True(t, ok, "nullableFieldsType should be an object")
 				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
 
@@ -2223,8 +2223,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			name:  "Query nullable fields with partial selection",
 			query: `query { nullableFieldsType { id name optionalString requiredString } }`,
 			vars:  "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]any)
 				require.True(t, ok, "nullableFieldsType should be an object")
 				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
 
@@ -2276,7 +2276,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 
 			// Parse the response
 			var resp struct {
-				Data   map[string]interface{} `json:"data"`
+				Data   map[string]any `json:"data"`
 				Errors []struct {
 					Message string `json:"message"`
 				} `json:"errors,omitempty"`
@@ -2301,7 +2301,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 		name     string
 		query    string
 		vars     string
-		validate func(t *testing.T, data map[string]interface{})
+		validate func(t *testing.T, data map[string]any)
 	}{
 		{
 			name: "Should handle BlogPost with single lists of different nullability",
@@ -2317,8 +2317,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				blogPost, ok := data["blogPost"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				blogPost, ok := data["blogPost"].(map[string]any)
 				require.True(t, ok, "blogPost should be an object")
 
 				// Check required fields
@@ -2327,25 +2327,25 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				require.NotEmpty(t, blogPost["content"])
 
 				// Check required list with required items
-				tags, ok := blogPost["tags"].([]interface{})
+				tags, ok := blogPost["tags"].([]any)
 				require.True(t, ok, "tags should be an array")
 				require.NotEmpty(t, tags, "tags should not be empty")
 
 				// Check optional list with required items (can be null or array)
 				if optionalTags := blogPost["optionalTags"]; optionalTags != nil {
-					optionalTagsArr, ok := optionalTags.([]interface{})
+					optionalTagsArr, ok := optionalTags.([]any)
 					require.True(t, ok, "optionalTags should be an array if present")
 					require.NotEmpty(t, optionalTagsArr, "optionalTags should not be empty if present")
 				}
 
 				// Check required list with optional items
-				_, ok = blogPost["categories"].([]interface{})
+				_, ok = blogPost["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				// categories can contain null items
 
 				// Check optional list with optional items (can be null or array)
 				if keywords := blogPost["keywords"]; keywords != nil {
-					_, ok := keywords.([]interface{})
+					_, ok := keywords.([]any)
 					require.True(t, ok, "keywords should be an array if present")
 					// keywords array can contain null items
 				}
@@ -2363,12 +2363,12 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				blogPost, ok := data["blogPost"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				blogPost, ok := data["blogPost"].(map[string]any)
 				require.True(t, ok, "blogPost should be an object")
 
 				// Check required list of required ints
-				viewCounts, ok := blogPost["viewCounts"].([]interface{})
+				viewCounts, ok := blogPost["viewCounts"].([]any)
 				require.True(t, ok, "viewCounts should be an array")
 				require.NotEmpty(t, viewCounts, "viewCounts should not be empty")
 				for _, count := range viewCounts {
@@ -2377,14 +2377,14 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 
 				// Check optional list of optional floats
 				if ratings := blogPost["ratings"]; ratings != nil {
-					_, ok := ratings.([]interface{})
+					_, ok := ratings.([]any)
 					require.True(t, ok, "ratings should be an array if present")
 					// ratings can contain null values
 				}
 
 				// Check optional list of required booleans
 				if isPublished := blogPost["isPublished"]; isPublished != nil {
-					isPublishedArr, ok := isPublished.([]interface{})
+					isPublishedArr, ok := isPublished.([]any)
 					require.True(t, ok, "isPublished should be an array if present")
 					for _, published := range isPublishedArr {
 						require.IsType(t, true, published, "isPublished items should be booleans")
@@ -2405,16 +2405,16 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				blogPost, ok := data["blogPost"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				blogPost, ok := data["blogPost"].(map[string]any)
 				require.True(t, ok, "blogPost should be an object")
 
 				// Check required list of required lists with required items
-				tagGroups, ok := blogPost["tagGroups"].([]interface{})
+				tagGroups, ok := blogPost["tagGroups"].([]any)
 				require.True(t, ok, "tagGroups should be an array")
 				require.NotEmpty(t, tagGroups, "tagGroups should not be empty")
 				for _, group := range tagGroups {
-					groupArr, ok := group.([]interface{})
+					groupArr, ok := group.([]any)
 					require.True(t, ok, "tagGroups items should be arrays")
 					require.NotEmpty(t, groupArr, "tagGroups inner arrays should not be empty")
 					for _, tag := range groupArr {
@@ -2423,28 +2423,28 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 
 				// Check required list of optional lists with required items
-				_, ok = blogPost["relatedTopics"].([]interface{})
+				_, ok = blogPost["relatedTopics"].([]any)
 				require.True(t, ok, "relatedTopics should be an array")
 				// relatedTopics can contain null inner arrays
 
 				// Check required list of required lists with optional items
-				commentThreads, ok := blogPost["commentThreads"].([]interface{})
+				commentThreads, ok := blogPost["commentThreads"].([]any)
 				require.True(t, ok, "commentThreads should be an array")
 				require.NotEmpty(t, commentThreads, "commentThreads should not be empty")
 				for _, thread := range commentThreads {
-					_, ok := thread.([]interface{})
+					_, ok := thread.([]any)
 					require.True(t, ok, "commentThreads items should be arrays")
-					for _, item := range thread.([]interface{}) {
+					for _, item := range thread.([]any) {
 						require.IsType(t, "", item, "commentThreads items should be strings")
 					}
 				}
 
 				// Check optional list of optional lists with optional items
 				if suggestions := blogPost["suggestions"]; suggestions != nil {
-					_, ok := suggestions.([]interface{})
+					_, ok := suggestions.([]any)
 					require.True(t, ok, "suggestions should be an array if present")
-					for _, suggestion := range suggestions.([]interface{}) {
-						_, ok := suggestion.([]interface{})
+					for _, suggestion := range suggestions.([]any) {
+						_, ok := suggestion.([]any)
 						require.True(t, ok, "suggestions items should be arrays")
 					}
 				}
@@ -2463,8 +2463,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				author, ok := data["author"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				author, ok := data["author"].(map[string]any)
 				require.True(t, ok, "author should be an object")
 
 				// Check required fields
@@ -2472,18 +2472,18 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				require.NotEmpty(t, author["name"])
 
 				// Check required list with required items
-				skills, ok := author["skills"].([]interface{})
+				skills, ok := author["skills"].([]any)
 				require.True(t, ok, "skills should be an array")
 				require.NotEmpty(t, skills, "skills should not be empty")
 
 				// Check required list with optional items
-				_, ok = author["languages"].([]interface{})
+				_, ok = author["languages"].([]any)
 				require.True(t, ok, "languages should be an array")
 				// languages can contain null items
 
 				// Check optional list with optional items
 				if socialLinks := author["socialLinks"]; socialLinks != nil {
-					_, ok := socialLinks.([]interface{})
+					_, ok := socialLinks.([]any)
 					require.True(t, ok, "socialLinks should be an array if present")
 					// socialLinks can contain null items
 				}
@@ -2500,16 +2500,16 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				author, ok := data["author"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				author, ok := data["author"].(map[string]any)
 				require.True(t, ok, "author should be an object")
 
 				// Check required list of required lists with required items
-				teamsByProject, ok := author["teamsByProject"].([]interface{})
+				teamsByProject, ok := author["teamsByProject"].([]any)
 				require.True(t, ok, "teamsByProject should be an array")
 				require.NotEmpty(t, teamsByProject, "teamsByProject should not be empty")
 				for _, project := range teamsByProject {
-					projectArr, ok := project.([]interface{})
+					projectArr, ok := project.([]any)
 					require.True(t, ok, "teamsByProject items should be arrays")
 					require.NotEmpty(t, projectArr, "teamsByProject inner arrays should not be empty")
 					for _, member := range projectArr {
@@ -2519,7 +2519,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 
 				// Check optional list of optional lists with optional items
 				if collaborations := author["collaborations"]; collaborations != nil {
-					_, ok := collaborations.([]interface{})
+					_, ok := collaborations.([]any)
 					require.True(t, ok, "collaborations should be an array if present")
 					// collaborations can contain null inner arrays and null items
 				}
@@ -2537,8 +2537,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"id":"test-blog-1"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				blogPost, ok := data["blogPostById"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				blogPost, ok := data["blogPostById"].(map[string]any)
 				require.True(t, ok, "blogPostById should be an object")
 				require.Equal(t, "test-blog-1", blogPost["id"])
 				require.NotEmpty(t, blogPost["title"])
@@ -2557,8 +2557,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"id":"test-author-1"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				author, ok := data["authorById"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				author, ok := data["authorById"].(map[string]any)
 				require.True(t, ok, "authorById should be an object")
 				require.Equal(t, "test-author-1", author["id"])
 				require.NotEmpty(t, author["name"])
@@ -2578,13 +2578,13 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"filter":{"title":"Test","hasCategories":true,"minTags":2}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				blogPosts, ok := data["blogPostsWithFilter"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				blogPosts, ok := data["blogPostsWithFilter"].([]any)
 				require.True(t, ok, "blogPostsWithFilter should be an array")
 				require.NotEmpty(t, blogPosts, "blogPostsWithFilter should not be empty")
 
 				for _, post := range blogPosts {
-					blogPost, ok := post.(map[string]interface{})
+					blogPost, ok := post.(map[string]any)
 					require.True(t, ok, "each post should be an object")
 					require.NotEmpty(t, blogPost["id"])
 					require.NotEmpty(t, blogPost["title"])
@@ -2605,13 +2605,13 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"filter":{"name":"Test","hasTeams":true,"skillCount":3}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				authors, ok := data["authorsWithFilter"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				authors, ok := data["authorsWithFilter"].([]any)
 				require.True(t, ok, "authorsWithFilter should be an array")
 				require.NotEmpty(t, authors, "authorsWithFilter should not be empty")
 
 				for _, auth := range authors {
-					author, ok := auth.(map[string]interface{})
+					author, ok := auth.(map[string]any)
 					require.True(t, ok, "each author should be an object")
 					require.NotEmpty(t, author["id"])
 					require.NotEmpty(t, author["name"])
@@ -2634,30 +2634,30 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"input":{"title":"New Blog Post","content":"Content here","tags":["tech","programming"],"optionalTags":["optional1","optional2"],"categories":["Technology","Programming"],"keywords":["keyword1","keyword2"],"viewCounts":[100,200,300],"ratings":[4.5,5.0,3.8],"isPublished":[true,false,true],"tagGroups":[["tech","go"],["programming","backend"]],"relatedTopics":[["topic1","topic2"],["topic3"]],"commentThreads":[["comment1","comment2"],["comment3","comment4"]],"suggestions":[["suggestion1"],["suggestion2","suggestion3"]]}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				createBlogPost, ok := data["createBlogPost"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				createBlogPost, ok := data["createBlogPost"].(map[string]any)
 				require.True(t, ok, "createBlogPost should be an object")
 				require.NotEmpty(t, createBlogPost["id"])
 				require.Equal(t, "New Blog Post", createBlogPost["title"])
 				require.Equal(t, "Content here", createBlogPost["content"])
 
 				// Verify lists
-				tags, ok := createBlogPost["tags"].([]interface{})
+				tags, ok := createBlogPost["tags"].([]any)
 				require.True(t, ok, "tags should be an array")
 				require.Contains(t, tags, "tech")
 				require.Contains(t, tags, "programming")
 
-				optionalTags, ok := createBlogPost["optionalTags"].([]interface{})
+				optionalTags, ok := createBlogPost["optionalTags"].([]any)
 				require.True(t, ok, "optionalTags should be an array")
 				require.Contains(t, optionalTags, "optional1")
 				require.Contains(t, optionalTags, "optional2")
 
 				// Verify nested lists
-				tagGroups, ok := createBlogPost["tagGroups"].([]interface{})
+				tagGroups, ok := createBlogPost["tagGroups"].([]any)
 				require.True(t, ok, "tagGroups should be an array")
 				require.Len(t, tagGroups, 2)
 
-				relatedTopics, ok := createBlogPost["relatedTopics"].([]interface{})
+				relatedTopics, ok := createBlogPost["relatedTopics"].([]any)
 				require.True(t, ok, "relatedTopics should be an array")
 				require.Len(t, relatedTopics, 2)
 			},
@@ -2677,36 +2677,36 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"input":{"name":"New Author","email":"author@example.com","skills":["Go","GraphQL","gRPC"],"languages":["English","Spanish"],"socialLinks":["twitter.com/author","github.com/author"],"teamsByProject":[["Alice","Bob"],["Charlie","David","Eve"]],"collaborations":[["Project1","Project2"],["Project3"]]}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				createAuthor, ok := data["createAuthor"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				createAuthor, ok := data["createAuthor"].(map[string]any)
 				require.True(t, ok, "createAuthor should be an object")
 				require.NotEmpty(t, createAuthor["id"])
 				require.Equal(t, "New Author", createAuthor["name"])
 				require.Equal(t, "author@example.com", createAuthor["email"])
 
 				// Verify single lists
-				skills, ok := createAuthor["skills"].([]interface{})
+				skills, ok := createAuthor["skills"].([]any)
 				require.True(t, ok, "skills should be an array")
 				require.Contains(t, skills, "Go")
 				require.Contains(t, skills, "GraphQL")
 				require.Contains(t, skills, "gRPC")
 
-				languages, ok := createAuthor["languages"].([]interface{})
+				languages, ok := createAuthor["languages"].([]any)
 				require.True(t, ok, "languages should be an array")
 				require.Contains(t, languages, "English")
 				require.Contains(t, languages, "Spanish")
 
-				socialLinks, ok := createAuthor["socialLinks"].([]interface{})
+				socialLinks, ok := createAuthor["socialLinks"].([]any)
 				require.True(t, ok, "socialLinks should be an array")
 				require.Contains(t, socialLinks, "twitter.com/author")
 				require.Contains(t, socialLinks, "github.com/author")
 
 				// Verify nested lists
-				teamsByProject, ok := createAuthor["teamsByProject"].([]interface{})
+				teamsByProject, ok := createAuthor["teamsByProject"].([]any)
 				require.True(t, ok, "teamsByProject should be an array")
 				require.Len(t, teamsByProject, 2)
 
-				collaborations, ok := createAuthor["collaborations"].([]interface{})
+				collaborations, ok := createAuthor["collaborations"].([]any)
 				require.True(t, ok, "collaborations should be an array")
 				require.Len(t, collaborations, 2)
 			},
@@ -2724,13 +2724,13 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				allBlogPosts, ok := data["allBlogPosts"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				allBlogPosts, ok := data["allBlogPosts"].([]any)
 				require.True(t, ok, "allBlogPosts should be an array")
 				require.NotEmpty(t, allBlogPosts, "allBlogPosts should not be empty")
 
 				for _, post := range allBlogPosts {
-					blogPost, ok := post.(map[string]interface{})
+					blogPost, ok := post.(map[string]any)
 					require.True(t, ok, "each post should be an object")
 					require.NotEmpty(t, blogPost["id"])
 					require.NotEmpty(t, blogPost["title"])
@@ -2749,13 +2749,13 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				allAuthors, ok := data["allAuthors"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				allAuthors, ok := data["allAuthors"].([]any)
 				require.True(t, ok, "allAuthors should be an array")
 				require.NotEmpty(t, allAuthors, "allAuthors should not be empty")
 
 				for _, auth := range allAuthors {
-					author, ok := auth.(map[string]interface{})
+					author, ok := auth.(map[string]any)
 					require.True(t, ok, "each author should be an object")
 					require.NotEmpty(t, author["id"])
 					require.NotEmpty(t, author["name"])
@@ -2798,8 +2798,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"input":{"title":"Complex Lists Blog Post","content":"Testing complex input lists","tags":["graphql","grpc","lists"],"optionalTags":["optional1","optional2"],"categories":["Technology","Programming"],"keywords":["nested","complex","types"],"viewCounts":[150,250,350],"ratings":[4.2,4.8,3.9],"isPublished":[true,false,true],"tagGroups":[["graphql","schema"],["grpc","protobuf"],["lists","arrays"]],"relatedTopics":[["backend","api"],["frontend","ui"]],"commentThreads":[["Great post!","Thanks for sharing"],["Very helpful","Keep it up"]],"suggestions":[["Add examples"],["More details","Better formatting"]],"relatedCategories":[{"name":"Web Development","kind":"ELECTRONICS"},{"name":"API Design","kind":"OTHER"}],"contributors":[{"name":"Alice Developer"},{"name":"Bob Engineer"}],"categoryGroups":[[{"name":"Backend","kind":"ELECTRONICS"},{"name":"Database","kind":"OTHER"}],[{"name":"Frontend","kind":"ELECTRONICS"}]]}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				createBlogPost, ok := data["createBlogPost"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				createBlogPost, ok := data["createBlogPost"].(map[string]any)
 				require.True(t, ok, "createBlogPost should be an object")
 
 				// Check basic fields from input
@@ -2808,57 +2808,57 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				require.Equal(t, "Testing complex input lists", createBlogPost["content"])
 
 				// Check scalar lists from input
-				tags, ok := createBlogPost["tags"].([]interface{})
+				tags, ok := createBlogPost["tags"].([]any)
 				require.True(t, ok, "tags should be an array")
 				require.Contains(t, tags, "graphql")
 				require.Contains(t, tags, "grpc")
 				require.Contains(t, tags, "lists")
 
-				optionalTags, ok := createBlogPost["optionalTags"].([]interface{})
+				optionalTags, ok := createBlogPost["optionalTags"].([]any)
 				require.True(t, ok, "optionalTags should be an array")
 				require.Contains(t, optionalTags, "optional1")
 				require.Contains(t, optionalTags, "optional2")
 
-				categories, ok := createBlogPost["categories"].([]interface{})
+				categories, ok := createBlogPost["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Contains(t, categories, "Technology")
 				require.Contains(t, categories, "Programming")
 
-				keywords, ok := createBlogPost["keywords"].([]interface{})
+				keywords, ok := createBlogPost["keywords"].([]any)
 				require.True(t, ok, "keywords should be an array")
 				require.Contains(t, keywords, "nested")
 				require.Contains(t, keywords, "complex")
 				require.Contains(t, keywords, "types")
 
 				// Check nested scalar lists from input
-				tagGroups, ok := createBlogPost["tagGroups"].([]interface{})
+				tagGroups, ok := createBlogPost["tagGroups"].([]any)
 				require.True(t, ok, "tagGroups should be an array")
 				require.Len(t, tagGroups, 3)
 
-				firstTagGroup, ok := tagGroups[0].([]interface{})
+				firstTagGroup, ok := tagGroups[0].([]any)
 				require.True(t, ok, "first tag group should be an array")
 				require.Contains(t, firstTagGroup, "graphql")
 				require.Contains(t, firstTagGroup, "schema")
 
-				relatedTopics, ok := createBlogPost["relatedTopics"].([]interface{})
+				relatedTopics, ok := createBlogPost["relatedTopics"].([]any)
 				require.True(t, ok, "relatedTopics should be an array")
 				require.Len(t, relatedTopics, 2)
 
-				commentThreads, ok := createBlogPost["commentThreads"].([]interface{})
+				commentThreads, ok := createBlogPost["commentThreads"].([]any)
 				require.True(t, ok, "commentThreads should be an array")
 				require.Len(t, commentThreads, 2)
 
-				suggestions, ok := createBlogPost["suggestions"].([]interface{})
+				suggestions, ok := createBlogPost["suggestions"].([]any)
 				require.True(t, ok, "suggestions should be an array")
 				require.Len(t, suggestions, 2)
 
 				// Check single complex lists from input - converted from input types to output types
 				// relatedCategories: [CategoryInput] -> [Category]
-				relatedCategories, ok := createBlogPost["relatedCategories"].([]interface{})
+				relatedCategories, ok := createBlogPost["relatedCategories"].([]any)
 				require.True(t, ok, "relatedCategories should be an array")
 				require.Len(t, relatedCategories, 2)
 				for i, cat := range relatedCategories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "each category should be an object")
 					require.NotEmpty(t, category["id"])
 					require.NotEmpty(t, category["name"])
@@ -2874,11 +2874,11 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 
 				// contributors: [UserInput] -> [User]
-				contributors, ok := createBlogPost["contributors"].([]interface{})
+				contributors, ok := createBlogPost["contributors"].([]any)
 				require.True(t, ok, "contributors should be an array")
 				require.Len(t, contributors, 2)
 				for i, cont := range contributors {
-					contributor, ok := cont.(map[string]interface{})
+					contributor, ok := cont.(map[string]any)
 					require.True(t, ok, "each contributor should be an object")
 					require.NotEmpty(t, contributor["id"])
 					require.NotEmpty(t, contributor["name"])
@@ -2892,16 +2892,16 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 
 				// Check nested complex lists from input - converted from input types to output types
 				// categoryGroups: [[CategoryInput!]] -> [[Category!]]
-				categoryGroups, ok := createBlogPost["categoryGroups"].([]interface{})
+				categoryGroups, ok := createBlogPost["categoryGroups"].([]any)
 				require.True(t, ok, "categoryGroups should be an array")
 				require.Len(t, categoryGroups, 2)
 
 				// First group should have 2 categories
-				firstCategoryGroup, ok := categoryGroups[0].([]interface{})
+				firstCategoryGroup, ok := categoryGroups[0].([]any)
 				require.True(t, ok, "first category group should be an array")
 				require.Len(t, firstCategoryGroup, 2)
 				for i, cat := range firstCategoryGroup {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "each category should be an object")
 					require.NotEmpty(t, category["id"])
 					require.NotEmpty(t, category["name"])
@@ -2917,10 +2917,10 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 
 				// Second group should have 1 category
-				secondCategoryGroup, ok := categoryGroups[1].([]interface{})
+				secondCategoryGroup, ok := categoryGroups[1].([]any)
 				require.True(t, ok, "second category group should be an array")
 				require.Len(t, secondCategoryGroup, 1)
-				category, ok := secondCategoryGroup[0].(map[string]interface{})
+				category, ok := secondCategoryGroup[0].(map[string]any)
 				require.True(t, ok, "category should be an object")
 				require.NotEmpty(t, category["id"])
 				require.Equal(t, "Frontend", category["name"])
@@ -2969,8 +2969,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				author, ok := data["author"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				author, ok := data["author"].(map[string]any)
 				require.True(t, ok, "author should be an object")
 
 				// Check basic fields
@@ -2980,11 +2980,11 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				// Check single complex lists
 				// writtenPosts: [BlogPost] - Optional list of blog posts
 				if writtenPosts := author["writtenPosts"]; writtenPosts != nil {
-					writtenPostsArr, ok := writtenPosts.([]interface{})
+					writtenPostsArr, ok := writtenPosts.([]any)
 					require.True(t, ok, "writtenPosts should be an array if present")
 					for _, post := range writtenPostsArr {
 						if post != nil { // posts can be null
-							blogPost, ok := post.(map[string]interface{})
+							blogPost, ok := post.(map[string]any)
 							require.True(t, ok, "each blog post should be an object")
 							require.NotEmpty(t, blogPost["id"])
 							require.NotEmpty(t, blogPost["title"])
@@ -2994,11 +2994,11 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 
 				// favoriteCategories: [Category!]! - Required list of required categories
-				favoriteCategories, ok := author["favoriteCategories"].([]interface{})
+				favoriteCategories, ok := author["favoriteCategories"].([]any)
 				require.True(t, ok, "favoriteCategories should be an array")
 				require.NotEmpty(t, favoriteCategories, "favoriteCategories should not be empty")
 				for _, cat := range favoriteCategories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "each category should be an object")
 					require.NotEmpty(t, category["id"])
 					require.NotEmpty(t, category["name"])
@@ -3007,11 +3007,11 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 
 				// relatedAuthors: [User] - Optional list of related authors/collaborators
 				if relatedAuthors := author["relatedAuthors"]; relatedAuthors != nil {
-					relatedAuthorsArr, ok := relatedAuthors.([]interface{})
+					relatedAuthorsArr, ok := relatedAuthors.([]any)
 					require.True(t, ok, "relatedAuthors should be an array if present")
 					for _, auth := range relatedAuthorsArr {
 						if auth != nil { // authors can be null
-							authorObj, ok := auth.(map[string]interface{})
+							authorObj, ok := auth.(map[string]any)
 							require.True(t, ok, "each author should be an object")
 							require.NotEmpty(t, authorObj["id"])
 							require.NotEmpty(t, authorObj["name"])
@@ -3021,11 +3021,11 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 
 				// productReviews: [Product] - Optional list of products they've reviewed
 				if productReviews := author["productReviews"]; productReviews != nil {
-					productReviewsArr, ok := productReviews.([]interface{})
+					productReviewsArr, ok := productReviews.([]any)
 					require.True(t, ok, "productReviews should be an array if present")
 					for _, prod := range productReviewsArr {
 						if prod != nil { // products can be null
-							product, ok := prod.(map[string]interface{})
+							product, ok := prod.(map[string]any)
 							require.True(t, ok, "each product should be an object")
 							require.NotEmpty(t, product["id"])
 							require.NotEmpty(t, product["name"])
@@ -3037,14 +3037,14 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				// Nested complex lists
 				// authorGroups: [[User!]] - Optional groups of required authors
 				if authorGroups := author["authorGroups"]; authorGroups != nil {
-					authorGroupsArr, ok := authorGroups.([]interface{})
+					authorGroupsArr, ok := authorGroups.([]any)
 					require.True(t, ok, "authorGroups should be an array if present")
 					for _, group := range authorGroupsArr {
 						if group != nil { // groups can be null
-							groupArr, ok := group.([]interface{})
+							groupArr, ok := group.([]any)
 							require.True(t, ok, "authorGroups items should be arrays")
 							for _, auth := range groupArr {
-								authorObj, ok := auth.(map[string]interface{})
+								authorObj, ok := auth.(map[string]any)
 								require.True(t, ok, "each author should be an object")
 								require.NotEmpty(t, authorObj["id"])
 								require.NotEmpty(t, authorObj["name"])
@@ -3054,15 +3054,15 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 
 				// categoryPreferences: [[Category!]!]! - Required groups of required category preferences
-				categoryPreferences, ok := author["categoryPreferences"].([]interface{})
+				categoryPreferences, ok := author["categoryPreferences"].([]any)
 				require.True(t, ok, "categoryPreferences should be an array")
 				require.NotEmpty(t, categoryPreferences, "categoryPreferences should not be empty")
 				for _, group := range categoryPreferences {
-					groupArr, ok := group.([]interface{})
+					groupArr, ok := group.([]any)
 					require.True(t, ok, "categoryPreferences items should be arrays")
 					require.NotEmpty(t, groupArr, "categoryPreferences inner arrays should not be empty")
 					for _, cat := range groupArr {
-						category, ok := cat.(map[string]interface{})
+						category, ok := cat.(map[string]any)
 						require.True(t, ok, "each category should be an object")
 						require.NotEmpty(t, category["id"])
 						require.NotEmpty(t, category["name"])
@@ -3072,15 +3072,15 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 
 				// projectTeams: [[User]] - Optional groups of optional users for projects
 				if projectTeams := author["projectTeams"]; projectTeams != nil {
-					projectTeamsArr, ok := projectTeams.([]interface{})
+					projectTeamsArr, ok := projectTeams.([]any)
 					require.True(t, ok, "projectTeams should be an array if present")
 					for _, team := range projectTeamsArr {
 						if team != nil { // teams can be null
-							teamArr, ok := team.([]interface{})
+							teamArr, ok := team.([]any)
 							require.True(t, ok, "projectTeams items should be arrays")
 							for _, user := range teamArr {
 								if user != nil { // users can be null
-									userObj, ok := user.(map[string]interface{})
+									userObj, ok := user.(map[string]any)
 									require.True(t, ok, "each user should be an object")
 									require.NotEmpty(t, userObj["id"])
 									require.NotEmpty(t, userObj["name"])
@@ -3113,19 +3113,19 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"filters":[{"name":"TestAuthor","hasTeams":true,"skillCount":4},{"hasTeams":false,"skillCount":2}]}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				bulkSearchAuthors, ok := data["bulkSearchAuthors"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				bulkSearchAuthors, ok := data["bulkSearchAuthors"].([]any)
 				require.True(t, ok, "bulkSearchAuthors should be an array")
 				require.Len(t, bulkSearchAuthors, 4, "Should return 2 authors per filter = 4 total")
 
 				for i, auth := range bulkSearchAuthors {
-					author, ok := auth.(map[string]interface{})
+					author, ok := auth.(map[string]any)
 					require.True(t, ok, "each author should be an object")
 					require.NotEmpty(t, author["id"])
 					require.NotEmpty(t, author["name"])
 
 					// Check skills array
-					skills, ok := author["skills"].([]interface{})
+					skills, ok := author["skills"].([]any)
 					require.True(t, ok, "skills should be an array")
 					if i < 2 { // First filter has skillCount: 4
 						require.Len(t, skills, 4, "First filter should generate 4 skills")
@@ -3134,7 +3134,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					}
 
 					// Check nested list teamsByProject
-					teamsByProject, ok := author["teamsByProject"].([]interface{})
+					teamsByProject, ok := author["teamsByProject"].([]any)
 					require.True(t, ok, "teamsByProject should be an array")
 					if i < 2 { // First filter has hasTeams: true
 						require.NotEmpty(t, teamsByProject, "First filter should have teams")
@@ -3143,12 +3143,12 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					}
 
 					// Check complex list favoriteCategories
-					favoriteCategories, ok := author["favoriteCategories"].([]interface{})
+					favoriteCategories, ok := author["favoriteCategories"].([]any)
 					require.True(t, ok, "favoriteCategories should be an array")
 					require.Len(t, favoriteCategories, 1, "Each author should have 1 favorite category")
 
 					// Check nested complex list categoryPreferences
-					categoryPreferences, ok := author["categoryPreferences"].([]interface{})
+					categoryPreferences, ok := author["categoryPreferences"].([]any)
 					require.True(t, ok, "categoryPreferences should be an array")
 					require.Len(t, categoryPreferences, 1, "Each author should have 1 category preference group")
 				}
@@ -3163,8 +3163,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"filters":null}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				bulkSearchAuthors, ok := data["bulkSearchAuthors"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				bulkSearchAuthors, ok := data["bulkSearchAuthors"].([]any)
 				require.True(t, ok, "bulkSearchAuthors should be an array")
 				require.Empty(t, bulkSearchAuthors, "Should return empty array when filters is null")
 			},
@@ -3199,20 +3199,20 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"filters":[{"title":"TestPost","hasCategories":true,"minTags":3},{"hasCategories":false,"minTags":1}]}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				bulkSearchBlogPosts, ok := data["bulkSearchBlogPosts"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				bulkSearchBlogPosts, ok := data["bulkSearchBlogPosts"].([]any)
 				require.True(t, ok, "bulkSearchBlogPosts should be an array")
 				require.Len(t, bulkSearchBlogPosts, 4, "Should return 2 posts per filter = 4 total")
 
 				for i, post := range bulkSearchBlogPosts {
-					blogPost, ok := post.(map[string]interface{})
+					blogPost, ok := post.(map[string]any)
 					require.True(t, ok, "each blog post should be an object")
 					require.NotEmpty(t, blogPost["id"])
 					require.NotEmpty(t, blogPost["title"])
 					require.NotEmpty(t, blogPost["content"])
 
 					// Check tags array based on minTags filter
-					tags, ok := blogPost["tags"].([]interface{})
+					tags, ok := blogPost["tags"].([]any)
 					require.True(t, ok, "tags should be an array")
 					if i < 2 { // First filter has minTags: 3
 						require.Len(t, tags, 3, "First filter should generate 3 tags")
@@ -3221,7 +3221,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					}
 
 					// Check categories based on hasCategories filter
-					categories, ok := blogPost["categories"].([]interface{})
+					categories, ok := blogPost["categories"].([]any)
 					require.True(t, ok, "categories should be an array")
 					if i < 2 { // First filter has hasCategories: true
 						require.NotEmpty(t, categories, "First filter should have categories")
@@ -3230,21 +3230,21 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					}
 
 					// Check nested lists
-					tagGroups, ok := blogPost["tagGroups"].([]interface{})
+					tagGroups, ok := blogPost["tagGroups"].([]any)
 					require.True(t, ok, "tagGroups should be an array")
 					require.NotEmpty(t, tagGroups, "tagGroups should not be empty")
 
 					// Check complex lists
-					relatedCategories, ok := blogPost["relatedCategories"].([]interface{})
+					relatedCategories, ok := blogPost["relatedCategories"].([]any)
 					require.True(t, ok, "relatedCategories should be an array")
 					require.Len(t, relatedCategories, 1, "Each post should have 1 related category")
 
-					contributors, ok := blogPost["contributors"].([]interface{})
+					contributors, ok := blogPost["contributors"].([]any)
 					require.True(t, ok, "contributors should be an array")
 					require.Len(t, contributors, 1, "Each post should have 1 contributor")
 
 					// Check nested complex lists
-					categoryGroups, ok := blogPost["categoryGroups"].([]interface{})
+					categoryGroups, ok := blogPost["categoryGroups"].([]any)
 					require.True(t, ok, "categoryGroups should be an array")
 					require.Len(t, categoryGroups, 1, "Each post should have 1 category group")
 				}
@@ -3285,13 +3285,13 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					]}
 				}
 				`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				bulkCreateAuthors, ok := data["bulkCreateAuthors"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				bulkCreateAuthors, ok := data["bulkCreateAuthors"].([]any)
 				require.True(t, ok, "bulkCreateAuthors should be an array")
 				require.Len(t, bulkCreateAuthors, 2, "Should create 2 authors")
 
 				for i, auth := range bulkCreateAuthors {
-					author, ok := auth.(map[string]interface{})
+					author, ok := auth.(map[string]any)
 					require.True(t, ok, "each author should be an object")
 					require.NotEmpty(t, author["id"])
 					require.Contains(t, author["id"].(string), "bulk-created-author")
@@ -3300,26 +3300,26 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					case 0:
 						require.Equal(t, "Bulk Author 1", author["name"])
 						require.Equal(t, "bulk1@example.com", author["email"])
-						skills, ok := author["skills"].([]interface{})
+						skills, ok := author["skills"].([]any)
 						require.True(t, ok, "skills should be an array")
 						require.Contains(t, skills, "Go")
 						require.Contains(t, skills, "GraphQL")
 					case 1:
 						require.Equal(t, "Bulk Author 2", author["name"])
 						require.Equal(t, "bulk2@example.com", author["email"])
-						skills, ok := author["skills"].([]interface{})
+						skills, ok := author["skills"].([]any)
 						require.True(t, ok, "skills should be an array")
 						require.Contains(t, skills, "Python")
 						require.Contains(t, skills, "REST")
 					}
 
 					// Check nested lists
-					teamsByProject, ok := author["teamsByProject"].([]interface{})
+					teamsByProject, ok := author["teamsByProject"].([]any)
 					require.True(t, ok, "teamsByProject should be an array")
 					require.NotEmpty(t, teamsByProject, "teamsByProject should not be empty")
 
 					// Check complex lists
-					favoriteCategories, ok := author["favoriteCategories"].([]interface{})
+					favoriteCategories, ok := author["favoriteCategories"].([]any)
 					require.True(t, ok, "favoriteCategories should be an array")
 					require.Len(t, favoriteCategories, 1, "Each author should have 1 favorite category")
 				}
@@ -3345,40 +3345,40 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					{"name":"Updated Author 1","email":"updated1@example.com","skills":["Rust","gRPC"],"languages":["English"], "teamsByProject":[["Team1Member1","Team1Member2"]],"favoriteCategories":[{"name":"Systems Programming","kind":"ELECTRONICS"}]},
 					{"name":"Updated Author 2","email":"updated2@example.com","skills":["Python","REST"],"languages":["English","Spanish"], "teamsByProject":[["Team2Member1"]],"favoriteCategories":[{"name":"API Design","kind":"OTHER"}]}
 				]}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				bulkUpdateAuthors, ok := data["bulkUpdateAuthors"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				bulkUpdateAuthors, ok := data["bulkUpdateAuthors"].([]any)
 				require.True(t, ok, "bulkUpdateAuthors should be an array")
 				require.Len(t, bulkUpdateAuthors, 2, "Should update 2 authors")
 
-				author, ok := bulkUpdateAuthors[0].(map[string]interface{})
+				author, ok := bulkUpdateAuthors[0].(map[string]any)
 				require.True(t, ok, "author should be an object")
 				require.NotEmpty(t, author["id"])
 				require.Contains(t, author["id"].(string), "bulk-updated-author")
 				require.Equal(t, "Updated Author 1", author["name"])
 				require.Equal(t, "updated1@example.com", author["email"])
 
-				skills, ok := author["skills"].([]interface{})
+				skills, ok := author["skills"].([]any)
 				require.True(t, ok, "skills should be an array")
 				require.Contains(t, skills, "Rust")
 				require.Contains(t, skills, "gRPC")
 
-				favoriteCategories, ok := author["favoriteCategories"].([]interface{})
+				favoriteCategories, ok := author["favoriteCategories"].([]any)
 				require.True(t, ok, "favoriteCategories should be an array")
 				require.Len(t, favoriteCategories, 1, "Should have 1 favorite category")
 
-				author, ok = bulkUpdateAuthors[1].(map[string]interface{})
+				author, ok = bulkUpdateAuthors[1].(map[string]any)
 				require.True(t, ok, "author should be an object")
 				require.NotEmpty(t, author["id"])
 				require.Contains(t, author["id"].(string), "bulk-updated-author")
 				require.Equal(t, "Updated Author 2", author["name"])
 				require.Equal(t, "updated2@example.com", author["email"])
 
-				skills, ok = author["skills"].([]interface{})
+				skills, ok = author["skills"].([]any)
 				require.True(t, ok, "skills should be an array")
 				require.Contains(t, skills, "Python")
 				require.Contains(t, skills, "REST")
 
-				favoriteCategories, ok = author["favoriteCategories"].([]interface{})
+				favoriteCategories, ok = author["favoriteCategories"].([]any)
 				require.True(t, ok, "favoriteCategories should be an array")
 				require.Len(t, favoriteCategories, 1, "Should have 1 favorite category")
 			},
@@ -3418,13 +3418,13 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: `{"variables":{"blogPosts":[{"title":"Bulk Post 1","content":"Content for bulk post 1","tags":["bulk","test"],"optionalTags":["optional1"],"categories":["Technology","Testing"],"keywords":["bulk","creation"],"viewCounts":[100,200],"ratings":[4.5,5.0],"isPublished":[true,false],"tagGroups":[["bulk","tags"],["test","creation"]],"relatedTopics":[["bulk","operations"],["testing","mutations"]],"commentThreads":[["Great bulk feature!","Very useful"],["Testing works well"]],"suggestions":[["Add more examples"],["Improve documentation"]],"relatedCategories":[{"name":"Bulk Operations","kind":"ELECTRONICS"}],"contributors":[{"name":"Bulk Creator"}],"categoryGroups":[[{"name":"Bulk Category","kind":"OTHER"}]]},{"title":"Bulk Post 2","content":"Content for bulk post 2","tags":["second","bulk"],"categories":["Development"],"viewCounts":[150],"tagGroups":[["second","post"]],"relatedTopics":[["development"]],"commentThreads":[["Second post!"]]}]}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				bulkCreateBlogPosts, ok := data["bulkCreateBlogPosts"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				bulkCreateBlogPosts, ok := data["bulkCreateBlogPosts"].([]any)
 				require.True(t, ok, "bulkCreateBlogPosts should be an array")
 				require.Len(t, bulkCreateBlogPosts, 2, "Should create 2 blog posts")
 
 				for i, post := range bulkCreateBlogPosts {
-					blogPost, ok := post.(map[string]interface{})
+					blogPost, ok := post.(map[string]any)
 					require.True(t, ok, "each blog post should be an object")
 					require.NotEmpty(t, blogPost["id"])
 					require.Contains(t, blogPost["id"].(string), "bulk-created-post")
@@ -3433,33 +3433,33 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					case 0:
 						require.Equal(t, "Bulk Post 1", blogPost["title"])
 						require.Equal(t, "Content for bulk post 1", blogPost["content"])
-						tags, ok := blogPost["tags"].([]interface{})
+						tags, ok := blogPost["tags"].([]any)
 						require.True(t, ok, "tags should be an array")
 						require.Contains(t, tags, "bulk")
 						require.Contains(t, tags, "test")
 
-						optionalTags, ok := blogPost["optionalTags"].([]interface{})
+						optionalTags, ok := blogPost["optionalTags"].([]any)
 						require.True(t, ok, "optionalTags should be an array")
 						require.Contains(t, optionalTags, "optional1")
 					case 1:
 						require.Equal(t, "Bulk Post 2", blogPost["title"])
 						require.Equal(t, "Content for bulk post 2", blogPost["content"])
-						tags, ok := blogPost["tags"].([]interface{})
+						tags, ok := blogPost["tags"].([]any)
 						require.True(t, ok, "tags should be an array")
 						require.Contains(t, tags, "second")
 						require.Contains(t, tags, "bulk")
 					}
 
 					// Check nested lists
-					tagGroups, ok := blogPost["tagGroups"].([]interface{})
+					tagGroups, ok := blogPost["tagGroups"].([]any)
 					require.True(t, ok, "tagGroups should be an array")
 					require.NotEmpty(t, tagGroups, "tagGroups should not be empty")
 
-					relatedTopics, ok := blogPost["relatedTopics"].([]interface{})
+					relatedTopics, ok := blogPost["relatedTopics"].([]any)
 					require.True(t, ok, "relatedTopics should be an array")
 					require.NotEmpty(t, relatedTopics, "relatedTopics should not be empty")
 
-					commentThreads, ok := blogPost["commentThreads"].([]interface{})
+					commentThreads, ok := blogPost["commentThreads"].([]any)
 					require.True(t, ok, "commentThreads should be an array")
 					require.NotEmpty(t, commentThreads, "commentThreads should not be empty")
 				}
@@ -3490,29 +3490,29 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					"relatedTopics":[["updated","topics"]],
 				}
 			]}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				bulkUpdateBlogPosts, ok := data["bulkUpdateBlogPosts"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				bulkUpdateBlogPosts, ok := data["bulkUpdateBlogPosts"].([]any)
 				require.True(t, ok, "bulkUpdateBlogPosts should be an array")
 				require.Len(t, bulkUpdateBlogPosts, 1, "Should update 1 blog post")
 
-				blogPost, ok := bulkUpdateBlogPosts[0].(map[string]interface{})
+				blogPost, ok := bulkUpdateBlogPosts[0].(map[string]any)
 				require.True(t, ok, "blog post should be an object")
 				require.NotEmpty(t, blogPost["id"])
 				require.Contains(t, blogPost["id"].(string), "bulk-updated-post")
 				require.Equal(t, "Updated Bulk Post", blogPost["title"])
 				require.Equal(t, "Updated content", blogPost["content"])
 
-				tags, ok := blogPost["tags"].([]interface{})
+				tags, ok := blogPost["tags"].([]any)
 				require.True(t, ok, "tags should be an array")
 				require.Contains(t, tags, "updated")
 				require.Contains(t, tags, "bulk")
 				require.Contains(t, tags, "post")
 
-				categories, ok := blogPost["categories"].([]interface{})
+				categories, ok := blogPost["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Contains(t, categories, "Updated Technology")
 
-				viewCounts, ok := blogPost["viewCounts"].([]interface{})
+				viewCounts, ok := blogPost["viewCounts"].([]any)
 				require.True(t, ok, "viewCounts should be an array")
 				require.Contains(t, viewCounts, float64(300))
 				require.Contains(t, viewCounts, float64(400))
@@ -3532,12 +3532,12 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			}`,
 			vars: "{}",
-			validate: func(t *testing.T, data map[string]interface{}) {
-				bulkSearchAuthors, ok := data["bulkSearchAuthors"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				bulkSearchAuthors, ok := data["bulkSearchAuthors"].([]any)
 				require.True(t, ok, "bulkSearchAuthors should be an array")
 				require.Empty(t, bulkSearchAuthors, "Should return empty array when filters is empty")
 
-				bulkSearchBlogPosts, ok := data["bulkSearchBlogPosts"].([]interface{})
+				bulkSearchBlogPosts, ok := data["bulkSearchBlogPosts"].([]any)
 				require.True(t, ok, "bulkSearchBlogPosts should be an array")
 				require.Empty(t, bulkSearchBlogPosts, "Should return empty array when filters is empty")
 			},
@@ -3577,7 +3577,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 
 			// Parse the response
 			var resp struct {
-				Data   map[string]interface{} `json:"data"`
+				Data   map[string]any `json:"data"`
 				Errors []struct {
 					Message string `json:"message"`
 				} `json:"errors,omitempty"`
@@ -3602,8 +3602,8 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 		Message string `json:"message"`
 	}
 	type graphqlResponse struct {
-		Data   map[string]interface{} `json:"data"`
-		Errors []graphqlError         `json:"errors,omitempty"`
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
 	}
 
 	testCases := []struct {
@@ -3611,23 +3611,23 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 		query             string
 		vars              string
 		federationConfigs plan.FederationFieldConfigurations
-		validate          func(t *testing.T, data map[string]interface{})
+		validate          func(t *testing.T, data map[string]any)
 		validateError     func(t *testing.T, errData []graphqlError)
 	}{
 		{
 			name:  "Query with field resolvers",
 			query: `query CategoriesWithFieldResolvers($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
 			vars:  `{"variables":{"filters":{"minPrice":100}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 1 category")
 
 				for productCount, category := range categories {
-					category, ok := category.(map[string]interface{})
+					category, ok := category.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"])
 					require.NotEmpty(t, category["name"])
@@ -3644,10 +3644,10 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with field resolvers and nullable lists",
 			query: "query SubcategoriesWithFieldResolvers($filter: SubcategoryItemFilter) { categories { id subcategories { id name description isActive itemCount(filters: $filter) } } }",
 			vars:  `{"variables":{"filter":{"isActive":true}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 1 category")
@@ -3660,16 +3660,16 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with field resolvers and aliases",
 			query: "query CategoriesWithFieldResolversAndAliases($filter1: ProductCountFilter, $filter2: ProductCountFilter) { categories { productCount1: productCount(filters: $filter1) productCount2: productCount(filters: $filter2) } }",
 			vars:  `{"variables":{"filter1":{"minPrice":100},"filter2":{"minPrice":200}}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 1 category")
 
 				for productCount, category := range categories {
-					category, ok := category.(map[string]interface{})
+					category, ok := category.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.Equal(t, float64(productCount), category["productCount1"])
 					require.Equal(t, float64(productCount), category["productCount2"])
@@ -3684,19 +3684,19 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with field resolvers and message type",
 			query: "query CategoriesWithNullableTypes($nullType: String, $valueType: String) { categories { nullMetrics: categoryMetrics(metricType: $nullType) { id metricType value } valueMetrics: categoryMetrics(metricType: $valueType) { id metricType value } } }",
 			vars:  `{"variables":{"nullType":"unavailable","valueType":"popularity_score"}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 1 category")
 
 				for _, category := range categories {
-					category, ok := category.(map[string]interface{})
+					category, ok := category.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["valueMetrics"])
-					valueMetrics, ok := category["valueMetrics"].(map[string]interface{})
+					valueMetrics, ok := category["valueMetrics"].(map[string]any)
 					require.True(t, ok, "categoryMetrics should be an object")
 					require.NotEmpty(t, valueMetrics, "valueMetrics should not be empty")
 					require.Len(t, valueMetrics, 3, "Should return 1 valueMetrics")
@@ -3715,16 +3715,16 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with field resolvers and null fields",
 			query: "query CategoriesWithNullableTypes($threshold1: Int, $threshold2: Int) { categories { nullScore: popularityScore(threshold: $threshold1) valueScore: popularityScore(threshold: $threshold2)  } }",
 			vars:  `{"variables":{"threshold1":100, "threshold2":50}}`, // Threshold above 50 should return null
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 1 category")
 
 				for _, category := range categories {
-					category, ok := category.(map[string]interface{})
+					category, ok := category.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["valueScore"])
 					require.Empty(t, category["nullScore"])
@@ -3738,15 +3738,15 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with field resolvers and Interface type",
 			query: "query CategoriesWithInterfaceType($includeVolume: Boolean!) { categories { kind mascot(includeVolume: $includeVolume) { ... on Cat { name } ... on Dog { name } } } }",
 			vars:  `{"variables":{"includeVolume":true}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 
 				for _, category := range categories {
-					category, ok := category.(map[string]interface{})
+					category, ok := category.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["kind"])
 					if category["kind"] == "OTHER" {
@@ -3755,7 +3755,7 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					}
 
 					require.NotEmpty(t, category["mascot"])
-					mascot, ok := category["mascot"].(map[string]interface{})
+					mascot, ok := category["mascot"].(map[string]any)
 					require.True(t, ok, "mascot should be an object")
 					require.NotEmpty(t, mascot["name"])
 				}
@@ -3768,10 +3768,10 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with field resolvers and Union type",
 			query: "query CategoriesWithUnionType($checkHealth: Boolean!) { categories { id name categoryStatus(checkHealth: $checkHealth) { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } }",
 			vars:  `{"variables":{"checkHealth":true}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 4 categories")
@@ -3780,13 +3780,13 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				// - If checkHealth && i%3 == 0, returns ActionError
 				// - Otherwise, returns ActionSuccess
 				for i, category := range categories {
-					category, ok := category.(map[string]interface{})
+					category, ok := category.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"])
 					require.NotEmpty(t, category["name"])
 					require.NotEmpty(t, category["categoryStatus"])
 
-					categoryStatus, ok := category["categoryStatus"].(map[string]interface{})
+					categoryStatus, ok := category["categoryStatus"].(map[string]any)
 					require.True(t, ok, "categoryStatus should be an object")
 
 					if i%3 == 0 {
@@ -3814,10 +3814,10 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with nested field resolver returning interface type",
 			query: "query TestContainersWithInterface($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } } } }",
 			vars:  `{"variables":{"includeExtended":false}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				containers, ok := data["testContainers"].([]interface{})
+				containers, ok := data["testContainers"].([]any)
 				require.True(t, ok, "testContainers should be an array")
 				require.NotEmpty(t, containers, "testContainers should not be empty")
 				require.Len(t, containers, 3, "Should return 3 test containers")
@@ -3826,19 +3826,19 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				// - Even indices (0, 2) return Cat
 				// - Odd indices (1) return Dog
 				for i, container := range containers {
-					container, ok := container.(map[string]interface{})
+					container, ok := container.(map[string]any)
 					require.True(t, ok, "container should be an object")
 					require.NotEmpty(t, container["id"])
 					require.NotEmpty(t, container["name"])
 					require.NotEmpty(t, container["details"])
 
-					details, ok := container["details"].(map[string]interface{})
+					details, ok := container["details"].(map[string]any)
 					require.True(t, ok, "details should be an object")
 					require.NotEmpty(t, details["id"])
 					require.NotEmpty(t, details["summary"])
 					require.NotEmpty(t, details["pet"])
 
-					pet, ok := details["pet"].(map[string]interface{})
+					pet, ok := details["pet"].(map[string]any)
 					require.True(t, ok, "pet should be an object")
 					require.NotEmpty(t, pet["name"])
 
@@ -3863,10 +3863,10 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with nested field resolver returning union type",
 			query: "query TestContainersWithUnion($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary status { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }",
 			vars:  `{"variables":{"includeExtended":true}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				containers, ok := data["testContainers"].([]interface{})
+				containers, ok := data["testContainers"].([]any)
 				require.True(t, ok, "testContainers should be an array")
 				require.NotEmpty(t, containers, "testContainers should not be empty")
 				require.Len(t, containers, 3, "Should return 3 test containers")
@@ -3875,20 +3875,20 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				// - When includeExtended=true && i%3 == 0, returns ActionError
 				// - Otherwise, returns ActionSuccess
 				for i, container := range containers {
-					container, ok := container.(map[string]interface{})
+					container, ok := container.(map[string]any)
 					require.True(t, ok, "container should be an object")
 					require.NotEmpty(t, container["id"])
 					require.NotEmpty(t, container["name"])
 					require.NotEmpty(t, container["details"])
 
-					details, ok := container["details"].(map[string]interface{})
+					details, ok := container["details"].(map[string]any)
 					require.True(t, ok, "details should be an object")
 					require.NotEmpty(t, details["id"])
 					require.NotEmpty(t, details["summary"])
 					require.Contains(t, details["summary"], "Extended summary", "Summary should contain 'Extended summary'")
 					require.NotEmpty(t, details["status"])
 
-					status, ok := details["status"].(map[string]interface{})
+					status, ok := details["status"].(map[string]any)
 					require.True(t, ok, "status should be an object")
 
 					if i%3 == 0 {
@@ -3916,23 +3916,23 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with nested field resolver returning both interface and union types",
 			query: "query TestContainersWithBoth($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } status { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }",
 			vars:  `{"variables":{"includeExtended":true}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				containers, ok := data["testContainers"].([]interface{})
+				containers, ok := data["testContainers"].([]any)
 				require.True(t, ok, "testContainers should be an array")
 				require.NotEmpty(t, containers, "testContainers should not be empty")
 				require.Len(t, containers, 3, "Should return 3 test containers")
 
 				// Validate both pet (interface) and status (union) fields
 				for i, container := range containers {
-					container, ok := container.(map[string]interface{})
+					container, ok := container.(map[string]any)
 					require.True(t, ok, "container should be an object")
 					require.NotEmpty(t, container["id"])
 					require.NotEmpty(t, container["name"])
 					require.NotEmpty(t, container["details"])
 
-					details, ok := container["details"].(map[string]interface{})
+					details, ok := container["details"].(map[string]any)
 					require.True(t, ok, "details should be an object")
 					require.NotEmpty(t, details["id"])
 					require.NotEmpty(t, details["summary"])
@@ -3940,7 +3940,7 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					require.NotEmpty(t, details["status"])
 
 					// Validate pet (Animal interface)
-					pet, ok := details["pet"].(map[string]interface{})
+					pet, ok := details["pet"].(map[string]any)
 					require.True(t, ok, "pet should be an object")
 					require.NotEmpty(t, pet["name"])
 
@@ -3957,7 +3957,7 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					}
 
 					// Validate status (ActionResult union)
-					status, ok := details["status"].(map[string]interface{})
+					status, ok := details["status"].(map[string]any)
 					require.True(t, ok, "status should be an object")
 
 					if i%3 == 0 {
@@ -3985,10 +3985,10 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with nested field resolver returning interface with deeply nested fields",
 			query: "query TestContainersWithInterface($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { id name owner { name contact { email } } breed { name characteristics { temperament } } } ... on Dog { id name owner { name contact { phone } } breed { origin characteristics { size } } } } } } }",
 			vars:  `{"variables":{"includeExtended":false}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				containers, ok := data["testContainers"].([]interface{})
+				containers, ok := data["testContainers"].([]any)
 				require.True(t, ok, "testContainers should be an array")
 				require.NotEmpty(t, containers, "testContainers should not be empty")
 				require.Len(t, containers, 3, "Should return 3 test containers")
@@ -3997,38 +3997,38 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				// - Even indices (0, 2) return Cat with owner and breed details
 				// - Odd indices (1) return Dog with owner and breed details
 				for i, container := range containers {
-					container, ok := container.(map[string]interface{})
+					container, ok := container.(map[string]any)
 					require.True(t, ok, "container should be an object")
 					require.NotEmpty(t, container["id"])
 					require.NotEmpty(t, container["name"])
 					require.NotEmpty(t, container["details"])
 
-					details, ok := container["details"].(map[string]interface{})
+					details, ok := container["details"].(map[string]any)
 					require.True(t, ok, "details should be an object")
 					require.NotEmpty(t, details["id"])
 					require.NotEmpty(t, details["summary"])
 					require.NotEmpty(t, details["pet"])
 
-					pet, ok := details["pet"].(map[string]interface{})
+					pet, ok := details["pet"].(map[string]any)
 					require.True(t, ok, "pet should be an object")
 					require.NotEmpty(t, pet["id"])
 					require.NotEmpty(t, pet["name"])
 
 					// Validate owner exists
-					owner, ok := pet["owner"].(map[string]interface{})
+					owner, ok := pet["owner"].(map[string]any)
 					require.True(t, ok, "owner should be an object")
 					require.NotEmpty(t, owner["name"])
 
 					// Validate contact exists
-					contact, ok := owner["contact"].(map[string]interface{})
+					contact, ok := owner["contact"].(map[string]any)
 					require.True(t, ok, "contact should be an object")
 
 					// Validate breed exists
-					breed, ok := pet["breed"].(map[string]interface{})
+					breed, ok := pet["breed"].(map[string]any)
 					require.True(t, ok, "breed should be an object")
 
 					// Validate characteristics exists
-					characteristics, ok := breed["characteristics"].(map[string]interface{})
+					characteristics, ok := breed["characteristics"].(map[string]any)
 					require.True(t, ok, "characteristics should be an object")
 
 					if i%2 == 0 {
@@ -4078,16 +4078,16 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with field resolver without parentheses (nullable parameter)",
 			query: "query CategoriesWithFieldResolverNoParens { categories { id name popularityScore } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, category := range categories {
-					category, ok := category.(map[string]interface{})
+					category, ok := category.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"])
 					require.NotEmpty(t, category["name"])
@@ -4105,21 +4105,21 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with nested field resolver",
 			query: "query CategoriesWithNestedResolvers($metricType: String, $baseline: Float!) { categories { categoryMetrics(metricType: $metricType) { id normalizedScore(baseline: $baseline) metricType value } } }",
 			vars:  `{"variables":{"metricType":"popularity_score","baseline":100}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for i, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category[%d] should be an object", i)
 
 					// Validate categoryMetrics is present (returns a single object, not an array)
 					require.Contains(t, category, "categoryMetrics", "category[%d] should have 'categoryMetrics' field", i)
-					metric, ok := category["categoryMetrics"].(map[string]interface{})
+					metric, ok := category["categoryMetrics"].(map[string]any)
 					require.True(t, ok, "category[%d].categoryMetrics should be an object, got %T", i, category["categoryMetrics"])
 
 					// Validate id field is present and non-empty
@@ -4150,10 +4150,10 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with recursive child categories field resolver",
 			query: "query CategoriesWithRecursiveChildCategoriesFieldResolver { categories { id name kind childCategories { id name kind childCategories { id name kind } } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 4 categories")
@@ -4163,16 +4163,16 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				depth, maxDepth := 0, 3
 
 				for depth < maxDepth {
-					var nextChildren []interface{}
+					var nextChildren []any
 
 					for _, cat := range currentLevel {
-						category, ok := cat.(map[string]interface{})
+						category, ok := cat.(map[string]any)
 						require.True(t, ok, "category at depth %d should be an object", depth)
 						require.NotEmpty(t, category["id"], "category id at depth %d should not be empty", depth)
 						require.NotEmpty(t, category["name"], "category name at depth %d should not be empty", depth)
 						require.NotEmpty(t, category["kind"], "category kind at depth %d should not be empty", depth)
 
-						if children, ok := category["childCategories"].([]interface{}); ok {
+						if children, ok := category["childCategories"].([]any); ok {
 							nextChildren = append(nextChildren, children...)
 						}
 					}
@@ -4195,15 +4195,15 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with optional categories field resolver without providing include argument",
 			query: "query CategoriesWithOptionalCategories { categories { id name optionalCategories { id name kind } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
@@ -4212,8 +4212,8 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					// The field resolver was called successfully if the field is present
 					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
 					require.Len(t, category["optionalCategories"], 2, "optionalCategories should return 2 categories")
-					for _, optionalCategory := range category["optionalCategories"].([]interface{}) {
-						optionalCategory, ok := optionalCategory.(map[string]interface{})
+					for _, optionalCategory := range category["optionalCategories"].([]any) {
+						optionalCategory, ok := optionalCategory.(map[string]any)
 						require.True(t, ok, "optionalCategory should be an object")
 						require.NotEmpty(t, optionalCategory["id"], "optionalCategory id should not be empty")
 						require.NotEmpty(t, optionalCategory["name"], "optionalCategory name should not be empty")
@@ -4229,15 +4229,15 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with optional categories and nested optional categories field resolver",
 			query: "query CategoriesWithOptionalCategories { categories { id name optionalCategories { id name kind optionalCategories { id name kind } } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
@@ -4246,8 +4246,8 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					// The field resolver was called successfully if the field is present
 					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
 					require.Len(t, category["optionalCategories"], 2, "optionalCategories should return 2 categories")
-					for _, optionalCategory := range category["optionalCategories"].([]interface{}) {
-						optionalCategory, ok := optionalCategory.(map[string]interface{})
+					for _, optionalCategory := range category["optionalCategories"].([]any) {
+						optionalCategory, ok := optionalCategory.(map[string]any)
 						require.True(t, ok, "optionalCategory should be an object")
 						require.NotEmpty(t, optionalCategory["id"], "optionalCategory id should not be empty")
 						require.NotEmpty(t, optionalCategory["name"], "optionalCategory name should not be empty")
@@ -4257,8 +4257,8 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 						// The field resolver was called successfully if the field is present
 						require.Contains(t, optionalCategory, "optionalCategories", "optionalCategories field should be present")
 						require.Len(t, optionalCategory["optionalCategories"], 2, "optionalCategories should return 2 categories")
-						for _, nestedOptionalCategory := range optionalCategory["optionalCategories"].([]interface{}) {
-							nestedOptionalCategory, ok := nestedOptionalCategory.(map[string]interface{})
+						for _, nestedOptionalCategory := range optionalCategory["optionalCategories"].([]any) {
+							nestedOptionalCategory, ok := nestedOptionalCategory.(map[string]any)
 							require.True(t, ok, "nestedOptionalCategory should be an object")
 							require.NotEmpty(t, nestedOptionalCategory["id"], "nestedOptionalCategory id should not be empty")
 							require.NotEmpty(t, nestedOptionalCategory["name"], "nestedOptionalCategory name should not be empty")
@@ -4275,51 +4275,51 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with optional categories with 3 levels of recursion",
 			query: "query CategoriesWithDeepOptionalCategories { categories { id name optionalCategories { id name optionalCategories { id name optionalCategories { id name kind } } } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
 
 					// Level 1: optionalCategories
 					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
-					level1, ok := category["optionalCategories"].([]interface{})
+					level1, ok := category["optionalCategories"].([]any)
 					require.True(t, ok, "level1 optionalCategories should be an array")
 					require.Len(t, level1, 2, "level1 optionalCategories should return 2 categories")
 
 					for _, l1 := range level1 {
-						l1Cat, ok := l1.(map[string]interface{})
+						l1Cat, ok := l1.(map[string]any)
 						require.True(t, ok, "level1 category should be an object")
 						require.NotEmpty(t, l1Cat["id"], "level1 category id should not be empty")
 						require.NotEmpty(t, l1Cat["name"], "level1 category name should not be empty")
 
 						// Level 2: nested optionalCategories
 						require.Contains(t, l1Cat, "optionalCategories", "level2 optionalCategories field should be present")
-						level2, ok := l1Cat["optionalCategories"].([]interface{})
+						level2, ok := l1Cat["optionalCategories"].([]any)
 						require.True(t, ok, "level2 optionalCategories should be an array")
 						require.Len(t, level2, 2, "level2 optionalCategories should return 2 categories")
 
 						for _, l2 := range level2 {
-							l2Cat, ok := l2.(map[string]interface{})
+							l2Cat, ok := l2.(map[string]any)
 							require.True(t, ok, "level2 category should be an object")
 							require.NotEmpty(t, l2Cat["id"], "level2 category id should not be empty")
 							require.NotEmpty(t, l2Cat["name"], "level2 category name should not be empty")
 
 							// Level 3: deeply nested optionalCategories
 							require.Contains(t, l2Cat, "optionalCategories", "level3 optionalCategories field should be present")
-							level3, ok := l2Cat["optionalCategories"].([]interface{})
+							level3, ok := l2Cat["optionalCategories"].([]any)
 							require.True(t, ok, "level3 optionalCategories should be an array")
 							require.Len(t, level3, 2, "level3 optionalCategories should return 2 categories")
 
 							for _, l3 := range level3 {
-								l3Cat, ok := l3.(map[string]interface{})
+								l3Cat, ok := l3.(map[string]any)
 								require.True(t, ok, "level3 category should be an object")
 								require.NotEmpty(t, l3Cat["id"], "level3 category id should not be empty")
 								require.NotEmpty(t, l3Cat["name"], "level3 category name should not be empty")
@@ -4337,26 +4337,26 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with both childCategories and optionalCategories at root level",
 			query: "query CategoriesWithBothFieldResolvers { categories { id name childCategories { id name kind } optionalCategories { id name kind } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
 
 					// Validate childCategories
-					childCategories, ok := category["childCategories"].([]interface{})
+					childCategories, ok := category["childCategories"].([]any)
 					require.True(t, ok, "childCategories should be an array")
 					require.NotEmpty(t, childCategories, "childCategories should not be empty")
 
 					for _, child := range childCategories {
-						childCat, ok := child.(map[string]interface{})
+						childCat, ok := child.(map[string]any)
 						require.True(t, ok, "childCategory should be an object")
 						require.NotEmpty(t, childCat["id"], "childCategory id should not be empty")
 						require.NotEmpty(t, childCat["name"], "childCategory name should not be empty")
@@ -4364,12 +4364,12 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					}
 
 					// Validate optionalCategories
-					optionalCategories, ok := category["optionalCategories"].([]interface{})
+					optionalCategories, ok := category["optionalCategories"].([]any)
 					require.True(t, ok, "optionalCategories should be an array")
 					require.Len(t, optionalCategories, 2, "optionalCategories should return 2 categories")
 
 					for _, optional := range optionalCategories {
-						optionalCat, ok := optional.(map[string]interface{})
+						optionalCat, ok := optional.(map[string]any)
 						require.True(t, ok, "optionalCategory should be an object")
 						require.NotEmpty(t, optionalCat["id"], "optionalCategory id should not be empty")
 						require.NotEmpty(t, optionalCat["name"], "optionalCategory name should not be empty")
@@ -4385,43 +4385,43 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with sibling field resolvers - nested optionalCategories only in childCategories",
 			query: "query CategoriesWithBothFieldResolversNested { categories { id name childCategories { id name kind optionalCategories { id name kind } } optionalCategories { id name kind } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
 
 					// Validate childCategories with nested optionalCategories
-					childCategories, ok := category["childCategories"].([]interface{})
+					childCategories, ok := category["childCategories"].([]any)
 					require.True(t, ok, "childCategories should be an array")
 					require.NotEmpty(t, childCategories, "childCategories should not be empty")
 
 					for _, child := range childCategories {
-						childCat, ok := child.(map[string]interface{})
+						childCat, ok := child.(map[string]any)
 						require.True(t, ok, "childCategory should be an object")
 						require.NotEmpty(t, childCat["id"], "childCategory id should not be empty")
 						require.NotEmpty(t, childCat["name"], "childCategory name should not be empty")
 						require.NotEmpty(t, childCat["kind"], "childCategory kind should not be empty")
 
-						nestedOptional, ok := childCat["optionalCategories"].([]interface{})
+						nestedOptional, ok := childCat["optionalCategories"].([]any)
 						require.True(t, ok, "nested optionalCategories should be an array")
 						require.Len(t, nestedOptional, 2, "nested optionalCategories should return 2 categories")
 					}
 
 					// Validate optionalCategories with nested childCategories
-					optionalCategories, ok := category["optionalCategories"].([]interface{})
+					optionalCategories, ok := category["optionalCategories"].([]any)
 					require.True(t, ok, "optionalCategories should be an array")
 					require.Len(t, optionalCategories, 2, "optionalCategories should return 2 categories")
 
 					for _, optional := range optionalCategories {
-						optionalCat, ok := optional.(map[string]interface{})
+						optionalCat, ok := optional.(map[string]any)
 						require.True(t, ok, "optionalCategory should be an object")
 						require.NotEmpty(t, optionalCat["id"], "optionalCategory id should not be empty")
 						require.NotEmpty(t, optionalCat["name"], "optionalCategory name should not be empty")
@@ -4439,49 +4439,49 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with sibling field resolvers - nested resolvers in both branches",
 			query: "query CategoriesWithBothFieldResolversNested { categories { id name childCategories { id name kind optionalCategories { id name kind } } optionalCategories { id name kind childCategories { id name kind } } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
 
 					// Validate childCategories with nested optionalCategories
-					childCategories, ok := category["childCategories"].([]interface{})
+					childCategories, ok := category["childCategories"].([]any)
 					require.True(t, ok, "childCategories should be an array")
 					require.NotEmpty(t, childCategories, "childCategories should not be empty")
 
 					for _, child := range childCategories {
-						childCat, ok := child.(map[string]interface{})
+						childCat, ok := child.(map[string]any)
 						require.True(t, ok, "childCategory should be an object")
 						require.NotEmpty(t, childCat["id"], "childCategory id should not be empty")
 						require.NotEmpty(t, childCat["name"], "childCategory name should not be empty")
 						require.NotEmpty(t, childCat["kind"], "childCategory kind should not be empty")
 
-						nestedOptional, ok := childCat["optionalCategories"].([]interface{})
+						nestedOptional, ok := childCat["optionalCategories"].([]any)
 						require.True(t, ok, "nested optionalCategories should be an array")
 						require.Len(t, nestedOptional, 2, "nested optionalCategories should return 2 categories")
 					}
 
 					// Validate optionalCategories with nested childCategories
-					optionalCategories, ok := category["optionalCategories"].([]interface{})
+					optionalCategories, ok := category["optionalCategories"].([]any)
 					require.True(t, ok, "optionalCategories should be an array")
 					require.Len(t, optionalCategories, 2, "optionalCategories should return 2 categories")
 
 					for _, optional := range optionalCategories {
-						optionalCat, ok := optional.(map[string]interface{})
+						optionalCat, ok := optional.(map[string]any)
 						require.True(t, ok, "optionalCategory should be an object")
 						require.NotEmpty(t, optionalCat["id"], "optionalCategory id should not be empty")
 						require.NotEmpty(t, optionalCat["name"], "optionalCategory name should not be empty")
 						require.NotEmpty(t, optionalCat["kind"], "optionalCategory kind should not be empty")
 
-						nestedChildren, ok := optionalCat["childCategories"].([]interface{})
+						nestedChildren, ok := optionalCat["childCategories"].([]any)
 						require.True(t, ok, "nested childCategories should be an array")
 						require.NotEmpty(t, nestedChildren, "nested childCategories should not be empty")
 					}
@@ -4495,26 +4495,26 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with childCategories containing nested optionalCategories",
 			query: "query CategoriesWithChildThenOptional { categories { id name childCategories { id name kind optionalCategories { id name kind } } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
 
 					// Validate childCategories with nested optionalCategories
-					childCategories, ok := category["childCategories"].([]interface{})
+					childCategories, ok := category["childCategories"].([]any)
 					require.True(t, ok, "childCategories should be an array")
 					require.NotEmpty(t, childCategories, "childCategories should not be empty")
 
 					for _, child := range childCategories {
-						childCat, ok := child.(map[string]interface{})
+						childCat, ok := child.(map[string]any)
 						require.True(t, ok, "childCategory should be an object")
 						require.NotEmpty(t, childCat["id"], "childCategory id should not be empty")
 						require.NotEmpty(t, childCat["name"], "childCategory name should not be empty")
@@ -4522,12 +4522,12 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 
 						// Nested optionalCategories inside childCategories
 						require.Contains(t, childCat, "optionalCategories", "optionalCategories inside childCategories should be present")
-						nestedOptional, ok := childCat["optionalCategories"].([]interface{})
+						nestedOptional, ok := childCat["optionalCategories"].([]any)
 						require.True(t, ok, "nested optionalCategories should be an array")
 						require.Len(t, nestedOptional, 2, "nested optionalCategories should return 2 categories")
 
 						for _, nested := range nestedOptional {
-							nestedCat, ok := nested.(map[string]interface{})
+							nestedCat, ok := nested.(map[string]any)
 							require.True(t, ok, "nested optionalCategory should be an object")
 							require.NotEmpty(t, nestedCat["id"], "nested optionalCategory id should not be empty")
 							require.NotEmpty(t, nestedCat["name"], "nested optionalCategory name should not be empty")
@@ -4544,38 +4544,38 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with optionalCategories containing nested childCategories",
 			query: "query CategoriesWithOptionalThenChild { categories { id name optionalCategories { id name kind childCategories { id name kind } } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
 
 					// Validate optionalCategories with nested childCategories
-					optionalCategories, ok := category["optionalCategories"].([]interface{})
+					optionalCategories, ok := category["optionalCategories"].([]any)
 					require.True(t, ok, "optionalCategories should be an array")
 					require.Len(t, optionalCategories, 2, "optionalCategories should return 2 categories")
 
 					for _, optional := range optionalCategories {
-						optionalCat, ok := optional.(map[string]interface{})
+						optionalCat, ok := optional.(map[string]any)
 						require.True(t, ok, "optionalCategory should be an object")
 						require.NotEmpty(t, optionalCat["id"], "optionalCategory id should not be empty")
 						require.NotEmpty(t, optionalCat["name"], "optionalCategory name should not be empty")
 						require.NotEmpty(t, optionalCat["kind"], "optionalCategory kind should not be empty")
 
 						// Nested childCategories inside optionalCategories
-						nestedChildren, ok := optionalCat["childCategories"].([]interface{})
+						nestedChildren, ok := optionalCat["childCategories"].([]any)
 						require.True(t, ok, "childCategories inside optionalCategories should be an array")
 						require.NotEmpty(t, nestedChildren, "nested childCategories should not be empty")
 
 						for _, nested := range nestedChildren {
-							nestedCat, ok := nested.(map[string]interface{})
+							nestedCat, ok := nested.(map[string]any)
 							require.True(t, ok, "nested childCategory should be an object")
 							require.NotEmpty(t, nestedCat["id"], "nested childCategory id should not be empty")
 							require.NotEmpty(t, nestedCat["name"], "nested childCategory name should not be empty")
@@ -4592,45 +4592,45 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with alternating childCategories and optionalCategories at multiple levels",
 			query: "query CategoriesWithAlternatingResolvers { categories { id childCategories { id optionalCategories { id childCategories { id kind } } } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 
 					// Level 1: childCategories
-					childCategories, ok := category["childCategories"].([]interface{})
+					childCategories, ok := category["childCategories"].([]any)
 					require.True(t, ok, "childCategories should be an array")
 					require.NotEmpty(t, childCategories, "childCategories should not be empty")
 
 					for _, child := range childCategories {
-						childCat, ok := child.(map[string]interface{})
+						childCat, ok := child.(map[string]any)
 						require.True(t, ok, "level1 childCategory should be an object")
 						require.NotEmpty(t, childCat["id"], "level1 childCategory id should not be empty")
 
 						// Level 2: optionalCategories
-						optionalCats, ok := childCat["optionalCategories"].([]interface{})
+						optionalCats, ok := childCat["optionalCategories"].([]any)
 						require.True(t, ok, "level2 optionalCategories should be an array")
 						require.Len(t, optionalCats, 2, "level2 optionalCategories should return 2 categories")
 
 						for _, optional := range optionalCats {
-							optionalCat, ok := optional.(map[string]interface{})
+							optionalCat, ok := optional.(map[string]any)
 							require.True(t, ok, "level2 optionalCategory should be an object")
 							require.NotEmpty(t, optionalCat["id"], "level2 optionalCategory id should not be empty")
 
 							// Level 3: childCategories again
-							nestedChildren, ok := optionalCat["childCategories"].([]interface{})
+							nestedChildren, ok := optionalCat["childCategories"].([]any)
 							require.True(t, ok, "level3 childCategories should be an array")
 							require.NotEmpty(t, nestedChildren, "level3 childCategories should not be empty")
 
 							for _, nestedChild := range nestedChildren {
-								nestedChildCat, ok := nestedChild.(map[string]interface{})
+								nestedChildCat, ok := nestedChild.(map[string]any)
 								require.True(t, ok, "level3 childCategory should be an object")
 								require.NotEmpty(t, nestedChildCat["id"], "level3 childCategory id should not be empty")
 								require.NotEmpty(t, nestedChildCat["kind"], "level3 childCategory kind should not be empty")
@@ -4647,15 +4647,15 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with optional categories field resolver (include=true)",
 			query: "query CategoriesWithOptionalCategories($include: Boolean) { categories { id name optionalCategories(include: $include) { id name kind } } }",
 			vars:  `{"variables":{"include":true}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
@@ -4664,8 +4664,8 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					// The field resolver was called successfully if the field is present
 					require.Contains(t, category, "optionalCategories", "optionalCategories field should be present")
 					require.Len(t, category["optionalCategories"], 2, "optionalCategories should return 2 categories")
-					for _, optionalCategory := range category["optionalCategories"].([]interface{}) {
-						optionalCategory, ok := optionalCategory.(map[string]interface{})
+					for _, optionalCategory := range category["optionalCategories"].([]any) {
+						optionalCategory, ok := optionalCategory.(map[string]any)
 						require.True(t, ok, "optionalCategory should be an object")
 						require.NotEmpty(t, optionalCategory["id"], "optionalCategory id should not be empty")
 						require.NotEmpty(t, optionalCategory["name"], "optionalCategory name should not be empty")
@@ -4682,15 +4682,15 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with optional categories field resolver (include=false)",
 			query: "query CategoriesWithOptionalCategories($include: Boolean) { categories { id name optionalCategories(include: $include) { id name kind } } }",
 			vars:  `{"variables":{"include":false}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
@@ -4707,37 +4707,37 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with recursive child categories field resolver and aliases",
 			query: "query CategoriesWithRecursiveChildCategoriesFieldResolverAndAliases { categories { child: childCategories { id name kind childchild: childCategories { id name kind } } } }",
 			vars:  `{"variables":{}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 
 					// Check aliased field "child" (childCategories)
-					child, ok := category["child"].([]interface{})
+					child, ok := category["child"].([]any)
 					require.True(t, ok, "child (aliased childCategories) should be an array")
 					require.NotEmpty(t, child, "child should not be empty")
 
 					for _, ch := range child {
-						childCategory, ok := ch.(map[string]interface{})
+						childCategory, ok := ch.(map[string]any)
 						require.True(t, ok, "child category should be an object")
 						require.NotEmpty(t, childCategory["id"], "child category id should not be empty")
 						require.NotEmpty(t, childCategory["name"], "child category name should not be empty")
 						require.NotEmpty(t, childCategory["kind"], "child category kind should not be empty")
 
 						// Check nested aliased field "childchild" (childCategories)
-						childchild, ok := childCategory["childchild"].([]interface{})
+						childchild, ok := childCategory["childchild"].([]any)
 						require.True(t, ok, "childchild (aliased childCategories) should be an array")
 						require.NotEmpty(t, childchild, "childchild should not be empty")
 
 						for _, chch := range childchild {
-							childchildCategory, ok := chch.(map[string]interface{})
+							childchildCategory, ok := chch.(map[string]any)
 							require.True(t, ok, "childchild category should be an object")
 							require.NotEmpty(t, childchildCategory["id"], "childchild category id should not be empty")
 							require.NotEmpty(t, childchildCategory["name"], "childchild category name should not be empty")
@@ -4757,15 +4757,15 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			name:  "Query with nullMetrics and two levels of nested field resolvers",
 			query: "query CategoriesWithNullMetrics($baseline: Float!, $include: Boolean) { categories { id name nullMetrics { id normalizedScore(baseline: $baseline) relatedCategory(include: $include) { id name productCount } } } }",
 			vars:  `{"variables":{"baseline":100,"include":true}}`,
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
-				categories, ok := data["categories"].([]interface{})
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.NotEmpty(t, categories, "categories should not be empty")
 				require.Len(t, categories, 4, "Should return 4 categories")
 
 				for _, cat := range categories {
-					category, ok := cat.(map[string]interface{})
+					category, ok := cat.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"], "category id should not be empty")
 					require.NotEmpty(t, category["name"], "category name should not be empty")
@@ -4830,8 +4830,8 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 		Message string `json:"message"`
 	}
 	type graphqlResponse struct {
-		Data   map[string]interface{} `json:"data"`
-		Errors []graphqlError         `json:"errors,omitempty"`
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
 	}
 
 	testCases := []struct {
@@ -4839,7 +4839,7 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 		query         string
 		vars          string
 		headers       http.Header
-		validate      func(t *testing.T, data map[string]interface{})
+		validate      func(t *testing.T, data map[string]any)
 		validateError func(t *testing.T, errData []graphqlError)
 	}{
 		{
@@ -4851,8 +4851,8 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 				h.Set("X-User-ID", "header-user-42")
 				return h
 			}(),
-			validate: func(t *testing.T, data map[string]interface{}) {
-				user, ok := data["user"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				user, ok := data["user"].(map[string]any)
 				require.True(t, ok, "user should be an object")
 				require.Equal(t, "header-user-42", user["id"], "user ID should come from header")
 				require.Equal(t, "User header-user-42", user["name"], "user name should use header-derived ID")
@@ -4870,7 +4870,7 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 				h.Set("X-User-ID", "error-user")
 				return h
 			}(),
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				// Data might be present but should have errors
 			},
 			validateError: func(t *testing.T, errData []graphqlError) {
@@ -4883,8 +4883,8 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 			query:   `query UserQuery($id: ID!) { user(id: $id) { id name } }`,
 			vars:    `{"variables":{"id":"baseline-user-99"}}`,
 			headers: nil,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				user, ok := data["user"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				user, ok := data["user"].(map[string]any)
 				require.True(t, ok, "user should be an object")
 				require.Equal(t, "baseline-user-99", user["id"], "user ID should come from query variable")
 				require.Equal(t, "User baseline-user-99", user["name"], "user name should use variable-derived ID")
@@ -4902,13 +4902,13 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 				h.Set("X-User-Prefix", "Admin")
 				return h
 			}(),
-			validate: func(t *testing.T, data map[string]interface{}) {
-				users, ok := data["users"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				users, ok := data["users"].([]any)
 				require.True(t, ok, "users should be an array")
 				require.Len(t, users, 3, "should return 3 users")
 
 				for i, u := range users {
-					user, ok := u.(map[string]interface{})
+					user, ok := u.(map[string]any)
 					require.True(t, ok, "each user should be an object")
 					require.Equal(t, fmt.Sprintf("user-%d", i+1), user["id"])
 					require.Equal(t, fmt.Sprintf("Admin %d", i+1), user["name"], "user name should use custom prefix from header")
@@ -4927,8 +4927,8 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 				h.Set("X-Custom-Name", "HeaderName")
 				return h
 			}(),
-			validate: func(t *testing.T, data map[string]interface{}) {
-				createUser, ok := data["createUser"].(map[string]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				createUser, ok := data["createUser"].(map[string]any)
 				require.True(t, ok, "createUser should be an object")
 				require.NotEmpty(t, createUser["id"], "created user should have an ID")
 				require.Equal(t, "HeaderName", createUser["name"], "created user name should come from header")
@@ -4946,15 +4946,15 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 				h.Set("X-Count-Offset", "100")
 				return h
 			}(),
-			validate: func(t *testing.T, data map[string]interface{}) {
-				categories, ok := data["categories"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "should return 4 categories")
 
 				// Verify that productCount for each category is offset by 100
 				expectedCounts := []float64{100, 101, 102, 103}
 				for i, c := range categories {
-					category, ok := c.(map[string]interface{})
+					category, ok := c.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"])
 					require.NotEmpty(t, category["name"])
@@ -4970,15 +4970,15 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 			query:   `query CategoriesWithProductCount($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
 			vars:    `{"variables":{"filters":{"minPrice":100}}}`,
 			headers: nil,
-			validate: func(t *testing.T, data map[string]interface{}) {
-				categories, ok := data["categories"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				categories, ok := data["categories"].([]any)
 				require.True(t, ok, "categories should be an array")
 				require.Len(t, categories, 4, "should return 4 categories")
 
 				// Verify default productCount values (no offset)
 				expectedCounts := []float64{0, 1, 2, 3}
 				for i, c := range categories {
-					category, ok := c.(map[string]interface{})
+					category, ok := c.(map[string]any)
 					require.True(t, ok, "category should be an object")
 					require.NotEmpty(t, category["id"])
 					require.NotEmpty(t, category["name"])
@@ -5037,8 +5037,8 @@ func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
 		Message string `json:"message"`
 	}
 	type graphqlResponse struct {
-		Data   map[string]interface{} `json:"data"`
-		Errors []graphqlError         `json:"errors,omitempty"`
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
 	}
 
 	// Parse the GraphQL schema
@@ -5088,7 +5088,7 @@ func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
 	require.Empty(t, resp.Errors, "Should not have GraphQL errors")
 
 	// Verify the response includes both the header-derived ID and the existing metadata value
-	user, ok := resp.Data["user"].(map[string]interface{})
+	user, ok := resp.Data["user"].(map[string]any)
 	require.True(t, ok, "user should be an object")
 	require.Equal(t, "header-user-456", user["id"], "user ID should come from HTTP header")
 	require.Equal(t, "User header-user-456 (existing: existing-value)", user["name"],

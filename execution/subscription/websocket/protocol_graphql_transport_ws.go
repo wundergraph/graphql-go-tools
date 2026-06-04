@@ -514,7 +514,7 @@ func (p *ProtocolGraphQLTransportWSHandler) handleComplete(engine subscription.E
 	return engine.StopSubscription(id, &p.eventHandler)
 }
 
-func (p *ProtocolGraphQLTransportWSHandler) closeConnectionWithReason(reason interface{}) {
+func (p *ProtocolGraphQLTransportWSHandler) closeConnectionWithReason(reason any) {
 	err := p.eventHandler.Writer.Client.DisconnectWithReason(
 		reason,
 	)

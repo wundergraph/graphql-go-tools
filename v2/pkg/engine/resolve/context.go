@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"sort"
 	"time"
@@ -292,16 +293,12 @@ func (c *Context) clone(ctx context.Context) *Context {
 
 	if c.RemapVariables != nil {
 		cpy.RemapVariables = make(map[string]string, len(c.RemapVariables))
-		for k, v := range c.RemapVariables {
-			cpy.RemapVariables[k] = v
-		}
+		maps.Copy(cpy.RemapVariables, c.RemapVariables)
 	}
 
 	if c.subgraphErrors != nil {
 		cpy.subgraphErrors = make(map[string]error, len(c.subgraphErrors))
-		for k, v := range c.subgraphErrors {
-			cpy.subgraphErrors[k] = v
-		}
+		maps.Copy(cpy.subgraphErrors, c.subgraphErrors)
 	}
 
 	return &cpy

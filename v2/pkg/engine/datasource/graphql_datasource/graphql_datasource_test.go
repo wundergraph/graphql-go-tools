@@ -3993,8 +3993,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			DefaultFlushIntervalMillis:   500,
 		}, WithDefaultPostProcessor()))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	t.Run("Subscription", func(t *testing.T) {
 		t.Run("Subscription", runTestOnTestDefinition(t, `
@@ -8574,8 +8573,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
 		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
-		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
-		defer cancelResolver()
+		resolverLifecycle := t.Context()
 
 		updater := &testSubscriptionUpdater{}
 
@@ -8680,8 +8678,7 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 	t.Run("should close connection on stop message", func(t *testing.T) {
 		subscriptionLifecycle, cancelSubscription := context.WithCancel(context.Background())
-		resolverLifecycle, cancelResolver := context.WithCancel(context.Background())
-		defer cancelResolver()
+		resolverLifecycle := t.Context()
 
 		updater := &testSubscriptionUpdater{}
 
@@ -9054,7 +9051,6 @@ func TestSanitizeKey(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, test.expected, sanitizeKey(test.input))

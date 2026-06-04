@@ -840,7 +840,7 @@ func (p *Planner[T]) addRepresentationsVariable() {
 
 	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
 
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))
+	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", fmt.Appendf(nil, "[%s]", variable))
 }
 
 func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
@@ -1331,7 +1331,7 @@ func (p *Planner[T]) debugPrintOperation() {
 	p.DebugPrint("printed operation:\n", op)
 }
 
-func (p *Planner[T]) DebugPrint(args ...interface{}) {
+func (p *Planner[T]) DebugPrint(args ...any) {
 	if !p.debug {
 		return
 	}
@@ -1339,9 +1339,9 @@ func (p *Planner[T]) DebugPrint(args ...interface{}) {
 	p.debugPrintln(args...)
 }
 
-func (p *Planner[T]) debugPrintln(args ...interface{}) {
+func (p *Planner[T]) debugPrintln(args ...any) {
 	// TODO! no panic when no fetch url
-	allArgs := []interface{}{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), p.config.fetch.URL)}
+	allArgs := []any{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), p.config.fetch.URL)}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
@@ -1357,7 +1357,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 		return
 	}
 
-	args := []interface{}{
+	args := []any{
 		"Execution plan:\n",
 		"Planner path: ",
 		p.dataSourcePlannerConfig.ParentPath,
