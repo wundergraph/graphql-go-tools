@@ -150,9 +150,26 @@ func IsIntrospectionDataSource(dataSourceID string) bool {
 }
 
 type Loader struct {
-	resolvable *Resolvable
-	ctx        *Context
-	info       *GraphQLResponseInfo
+	// dataBuffer holds the shared response tree and its concurrency guard.
+	dataBuffer *DataBuffer
+
+	// errors accumulates fetch-time errors for this Loader instance.
+	// Each parallel defer group gets its own Loader (via NewLoader) and so its
+	// own errors. All writes happen under dataBuffer.Lock() (arena not thread-safe).
+	errors *astjson.Value
+
+	// skipValueCompletion is set when a response has errors but no data
+	// and apolloCompatibilityValueCompletionInExtensions is enabled.
+	// Read back by the caller after ResolveFetchNode.
+	skipValueCompletion bool
+
+	// Apollo compatibility flags — copied from ResolvableOptions in NewLoader.
+	// Replaces reading l.resolvable.options at fetch time.
+	apolloCompatibilitySuppressFetchErrors         bool
+	apolloCompatibilityValueCompletionInExtensions bool
+
+	ctx  *Context
+	info *GraphQLResponseInfo
 
 	propagateSubgraphErrors           bool
 	propagateSubgraphStatusCodes      bool
@@ -190,31 +207,32 @@ type Loader struct {
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
 	// It's thread safe and can be used to de-duplicate subgraph requests.
 	singleFlight *SubgraphRequestSingleFlight
-
-	// mu, when non-nil, serialises resolvable.data / jsonArena access across
-	// concurrent defer-group goroutines. Nil during normal single-threaded
-	// execution — no locking overhead.
-	mu *sync.Mutex
 }
 
 func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
-	l.resolvable = nil
 	l.taintedObjs = nil
 }
 
-func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
-	l.Init(ctx, response.Info, resolvable)
+func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse) (err error) {
+	l.Init(ctx, response.Info)
 
 	return l.ResolveFetchNode(response.Fetches)
 }
 
-func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo, resolvable *Resolvable) {
-	l.resolvable = resolvable
+func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
+	l.errors = nil
+	l.skipValueCompletion = false
 	l.ctx = ctx
 	l.info = responseInfo
 	l.taintedObjs = make(taintedObjects)
+}
+
+func (l *Loader) ensureErrorsInitialized() {
+	if l.errors == nil {
+		l.errors = astjson.ArrayValue(l.jsonArena)
+	}
 }
 
 func (l *Loader) ResolveFetchNode(node *FetchTreeNode) error {
@@ -246,7 +264,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 	}()
 	itemsItems := make([][]*astjson.Value, len(nodes))
 	g, ctx := errgroup.WithContext(l.ctx.ctx)
-	l.lockResolvable()
+	l.dataBuffer.Lock()
 	for i := range nodes {
 		i := i
 		results[i] = &result{}
@@ -259,19 +277,19 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			return l.loadFetch(ctx, f, item, items, res)
 		})
 	}
-	l.unlockResolvable()
+	l.dataBuffer.Unlock()
 	err := g.Wait()
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	l.lockResolvable()
+	l.dataBuffer.Lock()
 	for i := range results {
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
 				l.callOnFinished(results[i].nestedMergeItems[j])
 				if err != nil {
-					l.unlockResolvable()
+					l.dataBuffer.Unlock()
 					return errors.WithStack(err)
 				}
 			}
@@ -279,12 +297,12 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
 			l.callOnFinished(results[i])
 			if err != nil {
-				l.unlockResolvable()
+				l.dataBuffer.Unlock()
 				return errors.WithStack(err)
 			}
 		}
 	}
-	l.unlockResolvable()
+	l.dataBuffer.Unlock()
 	return nil
 }
 
@@ -302,9 +320,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 	if item == nil {
 		return nil
 	}
-	l.lockResolvable()
+	l.dataBuffer.Lock()
 	items := l.selectItemsForPath(item.FetchPath)
-	l.unlockResolvable()
+	l.dataBuffer.Unlock()
 
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
@@ -313,9 +331,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		if err != nil {
 			return err
 		}
-		l.lockResolvable()
+		l.dataBuffer.Lock()
 		err = l.mergeResult(item, res, items)
-		l.unlockResolvable()
+		l.dataBuffer.Unlock()
 		l.callOnFinished(res)
 		return err
 	case *BatchEntityFetch:
@@ -325,9 +343,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		l.lockResolvable()
+		l.dataBuffer.Lock()
 		err = l.mergeResult(item, res, items)
-		l.unlockResolvable()
+		l.dataBuffer.Unlock()
 		l.callOnFinished(res)
 		return err
 	case *EntityFetch:
@@ -336,9 +354,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		l.lockResolvable()
+		l.dataBuffer.Lock()
 		err = l.mergeResult(item, res, items)
-		l.unlockResolvable()
+		l.dataBuffer.Unlock()
 		l.callOnFinished(res)
 		return err
 	default:
@@ -352,22 +370,10 @@ func (l *Loader) callOnFinished(res *result) {
 	}
 }
 
-func (l *Loader) lockResolvable() {
-	if l.mu != nil {
-		l.mu.Lock()
-	}
-}
-
-func (l *Loader) unlockResolvable() {
-	if l.mu != nil {
-		l.mu.Unlock()
-	}
-}
-
 func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Value {
 	// Use arena allocation for the initial items slice
 	items := arena.AllocateSlice[*astjson.Value](l.jsonArena, 1, 1)
-	items[0] = l.resolvable.data
+	items[0] = l.dataBuffer.Get()
 	if len(path) == 0 {
 		return l.taintedObjs.filterOutTainted(items)
 	}
@@ -584,14 +590,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 		// If we didn't get any data nor errors, we return an error because the response is invalid
 		// Returning an error here also avoids the need to walk over it later.
-		if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
+		if !hasErrors && !l.apolloCompatibilitySuppressFetchErrors {
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
 
 		// we have no data but only errors
 		// skip value completion
-		if hasErrors && l.resolvable.options.ApolloCompatibilityValueCompletionInExtensions {
-			l.resolvable.skipValueCompletion = true
+		if hasErrors && l.apolloCompatibilityValueCompletionInExtensions {
+			l.skipValueCompletion = true
 		}
 
 		// no data
@@ -604,7 +610,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
 		// TODO: unclear why we doing this
-		l.resolvable.data = responseData
+		l.dataBuffer.Set(responseData)
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
@@ -754,9 +760,9 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		// for efficiency purposes, resolvable.errors is not initialized
 		// don't change this, it's measurable
 		// downside: we have to verify it's initialized before appending to it
-		l.resolvable.ensureErrorsInitialized()
+		l.ensureErrorsInitialized()
 		// If the error propagation mode is pass-through, we append the errors to the root array
-		l.resolvable.errors.AppendArrayItems(l.jsonArena, value)
+		l.errors.AppendArrayItems(l.jsonArena, value)
 		return nil
 	}
 
@@ -794,8 +800,8 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	// for efficiency purposes, resolvable.errors is not initialized
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
-	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
+	l.ensureErrorsInitialized()
+	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
 
 	return nil
 }
@@ -1069,8 +1075,8 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 	// for efficiency purposes, resolvable.errors is not initialized
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
-	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, apolloRouterStatusError)
+	l.ensureErrorsInitialized()
+	astjson.AppendToArray(l.jsonArena, l.errors, apolloRouterStatusError)
 
 	return nil
 }
@@ -1086,8 +1092,8 @@ func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error
 	// for efficiency purposes, resolvable.errors is not initialized
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
-	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
+	l.ensureErrorsInitialized()
+	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
 	return nil
 }
 
@@ -1101,8 +1107,8 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 	// for efficiency purposes, resolvable.errors is not initialized
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
-	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
+	l.ensureErrorsInitialized()
+	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
 	return nil
 }
 
@@ -1123,8 +1129,8 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 	// for efficiency purposes, resolvable.errors is not initialized
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
-	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
+	l.ensureErrorsInitialized()
+	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
 	return nil
 }
 
@@ -1151,7 +1157,7 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	// for efficiency purposes, resolvable.errors is not initialized
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
-	l.resolvable.ensureErrorsInitialized()
+	l.ensureErrorsInitialized()
 	if res.ds.Name == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
@@ -1159,13 +1165,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
 			} else {
 				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s.",%s}`, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
 			}
 		}
 	} else {
@@ -1175,13 +1181,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
 			} else {
 				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s.",%s}`, res.ds.Name, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
+				astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
 			}
 		}
 	}
@@ -1233,8 +1239,8 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 	// for efficiency purposes, resolvable.errors is not initialized
 	// don't change this, it's measurable
 	// downside: we have to verify it's initialized before appending to it
-	l.resolvable.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.resolvable.errors, errorObject)
+	l.ensureErrorsInitialized()
+	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
 	return nil
 }
 

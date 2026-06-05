@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -179,4 +180,79 @@ func TestResolveDeferTree_SiblingFailureIsIndependent(t *testing.T) {
 	require.NoError(t, err)
 	// 1 initial response (pending frame) + 2 deferred incremental payloads
 	assert.Len(t, writer.payloads, 3)
+}
+
+func TestResolveDeferTree_ParallelSiblings_ErrorsAreIsolated(t *testing.T) {
+	t.Parallel()
+
+	rCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Pass-through mode so raw subgraph error messages appear verbatim in the
+	// incremental frames, making them easy to assert on.
+	r := New(rCtx, ResolverOptions{
+		MaxConcurrency:               1024,
+		PropagateSubgraphErrors:      true,
+		SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+	})
+
+	// Each group's data source returns errors alongside data. PostProcessing
+	// must select the "data" and "errors" paths — without SelectResponseErrorsPath
+	// the loader never extracts the errors array (loader.go gates extraction on
+	// res.postProcessing.SelectResponseErrorsPath != nil), and the errors would be
+	// silently dropped regardless of the fix.
+	groupA := &DeferFetchGroup{
+		DeferID: 1,
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group A"}]}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+		}),
+	}
+	groupB := &DeferFetchGroup{
+		DeferID: 2,
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group B"}]}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+		}),
+	}
+
+	response := minimalDeferResponse([]*DeferFetchGroup{groupA, groupB}, map[int]DeferDescriptor{
+		1: {ID: 1, ParentID: 0},
+		2: {ID: 2, ParentID: 0},
+	})
+	response.DeferTree = DeferParallel(DeferSingle(groupA), DeferSingle(groupB))
+
+	writer := &testDeferWriter{}
+	ctx := NewContext(context.Background())
+
+	_, err := r.ResolveGraphQLDeferResponse(ctx, response, writer)
+	require.NoError(t, err)
+	require.Len(t, writer.payloads, 3, "expected 1 initial + 2 incremental frames")
+
+	// Each error must appear exactly once across all incremental payloads.
+	// Before the fix both errors are discarded (errors=nil wipes them); this
+	// assertion fails with count 0 for both.
+	all := strings.Join(writer.payloads[1:], " ")
+	require.Equal(t, 1, strings.Count(all, "error from group A"),
+		"error from group A must appear in exactly one incremental frame")
+	require.Equal(t, 1, strings.Count(all, "error from group B"),
+		"error from group B must appear in exactly one incremental frame")
+
+	// Isolation: no single incremental frame must contain both errors.
+	for _, p := range writer.payloads[1:] {
+		if strings.Contains(p, "error from group A") {
+			require.NotContains(t, p, "error from group B",
+				"group A frame must not contain group B error")
+		}
+	}
 }

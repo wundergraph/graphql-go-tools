@@ -321,7 +321,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {phone}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
 								body:       `{"data":{"_entities":[{"__typename":"User","info":{"phone":"123"}}]}}`,
-								latencyMS: 10,
+								latencyMS:  10,
 							},
 						},
 					}),
@@ -1635,8 +1635,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 	})
 
 	t.Run("non-nullable field errors", func(t *testing.T) {
-		t.Skip()
-
 		definition := `
 			type Query { product: Product! }
 			type Product {

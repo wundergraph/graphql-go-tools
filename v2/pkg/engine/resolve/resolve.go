@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"runtime"
-	"sync"
 	syncatomic "sync/atomic"
 	"time"
 
@@ -95,11 +94,6 @@ type Resolver struct {
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
 	r.asyncErrorWriter = w
-}
-
-type tools struct {
-	resolvable *Resolvable
-	loader     *Loader
 }
 
 type SubgraphErrorPropagationMode int
@@ -291,27 +285,27 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SubgraphRequestSingleFlight, a arena.Arena) *tools {
-	return &tools{
-		resolvable: NewResolvable(a, options.ResolvableOptions),
-		loader: &Loader{
-			propagateSubgraphErrors:                      options.PropagateSubgraphErrors,
-			propagateSubgraphStatusCodes:                 options.PropagateSubgraphStatusCodes,
-			subgraphErrorPropagationMode:                 options.SubgraphErrorPropagationMode,
-			rewriteSubgraphErrorPaths:                    options.RewriteSubgraphErrorPaths,
-			omitSubgraphErrorLocations:                   options.OmitSubgraphErrorLocations,
-			omitSubgraphErrorExtensions:                  options.OmitSubgraphErrorExtensions,
-			allowedErrorExtensionFields:                  allowedExtensionFields,
-			attachServiceNameToErrorExtension:            options.AttachServiceNameToErrorExtensions,
-			defaultErrorExtensionCode:                    options.DefaultErrorExtensionCode,
-			allowedSubgraphErrorFields:                   allowedErrorFields,
-			allowAllErrorExtensionFields:                 options.AllowAllErrorExtensionFields,
-			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
-			propagateFetchReasons:                        options.PropagateFetchReasons,
-			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
-			singleFlight:                                 sf,
-			jsonArena:                                    a,
-		},
+func NewLoader(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SubgraphRequestSingleFlight, a arena.Arena, db *DataBuffer) *Loader {
+	return &Loader{
+		dataBuffer:                                     db,
+		apolloCompatibilitySuppressFetchErrors:         options.ResolvableOptions.ApolloCompatibilitySuppressFetchErrors,
+		apolloCompatibilityValueCompletionInExtensions: options.ResolvableOptions.ApolloCompatibilityValueCompletionInExtensions,
+		propagateSubgraphErrors:                        options.PropagateSubgraphErrors,
+		propagateSubgraphStatusCodes:                   options.PropagateSubgraphStatusCodes,
+		subgraphErrorPropagationMode:                   options.SubgraphErrorPropagationMode,
+		rewriteSubgraphErrorPaths:                      options.RewriteSubgraphErrorPaths,
+		omitSubgraphErrorLocations:                     options.OmitSubgraphErrorLocations,
+		omitSubgraphErrorExtensions:                    options.OmitSubgraphErrorExtensions,
+		allowedErrorExtensionFields:                    allowedExtensionFields,
+		attachServiceNameToErrorExtension:              options.AttachServiceNameToErrorExtensions,
+		defaultErrorExtensionCode:                      options.DefaultErrorExtensionCode,
+		allowedSubgraphErrorFields:                     allowedErrorFields,
+		allowAllErrorExtensionFields:                   options.AllowAllErrorExtensionFields,
+		apolloRouterCompatibilitySubrequestHTTPError:   options.ApolloRouterCompatibilitySubrequestHTTPError,
+		propagateFetchReasons:                          options.PropagateFetchReasons,
+		validateRequiredExternalFields:                 options.ValidateRequiredExternalFields,
+		singleFlight:                                   sf,
+		jsonArena:                                      a,
 	}
 }
 
@@ -334,26 +328,35 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		r.maxConcurrency <- struct{}{}
 	}()
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
+	resolvable := NewResolvable(nil, r.options.ResolvableOptions)
 
-	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
+	err := resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
 		return nil, err
 	}
 
+	// The DataBuffer wraps the base tree produced by Init (which may already
+	// contain initialData). The loader fetches/merges into it.
+	db := &DataBuffer{data: resolvable.data}
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, db)
+
 	if !ctx.ExecutionOptions.SkipLoader {
-		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
+		err = loader.LoadGraphQLResponseData(ctx, response)
 		if err != nil {
 			return nil, err
 		}
+		// Inject loader output into Resolvable before rendering.
+		resolvable.data = loader.dataBuffer.Get()
+		resolvable.errors = loader.errors
+		resolvable.skipValueCompletion = loader.skipValueCompletion
 	}
 
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, writer)
+	err = resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, writer)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx.ActualListSizes = t.resolvable.actualListSizes
+	ctx.ActualListSizes = resolvable.actualListSizes
 
 	return resp, err
 }
@@ -386,35 +389,42 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 
 	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
 	// we're intentionally not using defer Release to have more control over the timing (see below)
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
+	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
 
-	err = t.resolvable.Init(ctx, nil, response.Info.OperationType)
+	err = resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
 		r.inboundRequestSingleFlight.FinishErr(inflight, err)
 		r.resolveArenaPool.Release(resolveArena)
 		return nil, err
 	}
 
+	// The DataBuffer wraps the base tree produced by Init. The loader merges into it.
+	db := &DataBuffer{data: resolvable.data}
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db)
+
 	if !ctx.ExecutionOptions.SkipLoader {
-		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
+		err = loader.LoadGraphQLResponseData(ctx, response)
 		if err != nil {
 			r.inboundRequestSingleFlight.FinishErr(inflight, err)
 			r.resolveArenaPool.Release(resolveArena)
 			return nil, err
 		}
+		resolvable.data = loader.dataBuffer.Get()
+		resolvable.errors = loader.errors
+		resolvable.skipValueCompletion = loader.skipValueCompletion
 	}
 
 	// only when loading is done, acquire an arena for the response buffer
 	responseArena := r.responseBufferPool.Acquire(ctx.Request.ID)
 	buf := arena.NewArenaBuffer(responseArena.Arena)
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
+	err = resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 	if err != nil {
 		r.inboundRequestSingleFlight.FinishErr(inflight, err)
 		r.resolveArenaPool.Release(resolveArena)
 		r.responseBufferPool.Release(responseArena)
 		return nil, err
 	}
-	ctx.ActualListSizes = t.resolvable.actualListSizes
+	ctx.ActualListSizes = resolvable.actualListSizes
 
 	// first release resolverArena
 	// all data is resolved and written into the response arena
@@ -449,27 +459,37 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		r.maxConcurrency <- struct{}{}
 	}()
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
+	resolvable := NewResolvable(nil, r.options.ResolvableOptions)
 
-	err := t.resolvable.Init(ctx, nil, response.Response.Info.OperationType)
+	err := resolvable.Init(ctx, nil, response.Response.Info.OperationType)
 	if err != nil {
 		return nil, err
 	}
 
+	// The DataBuffer wraps the base tree produced by Init. The loader and every
+	// defer group merge into it.
+	db := &DataBuffer{data: resolvable.data}
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, db)
+
 	if !ctx.ExecutionOptions.SkipLoader {
-		t.loader.Init(ctx, response.Response.Info, t.resolvable)
+		loader.Init(ctx, response.Response.Info)
 
 		// fetch initial response
-		if err := t.loader.ResolveFetchNode(response.Response.Fetches); err != nil {
+		if err := loader.ResolveFetchNode(response.Response.Fetches); err != nil {
 			return nil, err
 		}
 
-		t.resolvable.deferMode = true
-		t.resolvable.currentDefer = nil
-		t.resolvable.deferDescriptors = response.DeferDescriptors
+		// Inject loader output before the initial defer render.
+		resolvable.data = loader.dataBuffer.Get()
+		resolvable.errors = loader.errors
+		resolvable.skipValueCompletion = loader.skipValueCompletion
+
+		resolvable.deferMode = true
+		resolvable.currentDefer = nil
+		resolvable.deferDescriptors = response.DeferDescriptors
 
 		// render initial response
-		err = t.resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
+		err = resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
 		if err != nil {
 			return nil, err
 		}
@@ -479,20 +499,25 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 			return nil, err
 		}
 
-		if t.resolvable.hasErrors() {
+		if resolvable.hasErrors() {
 			return resolveInfo, nil
 		}
 
 		// fetch deferred responses using the parallel execution tree
 
 		if response.DeferTree != nil {
-			renderMu := &sync.Mutex{}
-			// Use the same mutex for both the loader's merge phase and the render
-			// phase so that a concurrent merge (write) and render (read) of the
-			// shared JSON data cannot race against each other.
-			t.loader.mu = renderMu
+			// Arm the DataBuffer lock so that concurrent defer-group goroutines
+			// serialise their data merges and render phases.
+			db.enableLock = true
+			dc := &deferContext{
+				response:   response,
+				info:       response.Response.Info,
+				db:         db,
+				resolvable: resolvable,
+				writer:     writer,
+			}
 			remaining := int64(countDeferLeaves(response.DeferTree))
-			if err := r.resolveDeferTree(ctx, response.DeferTree, response, t, writer, renderMu, &remaining); err != nil {
+			if err := r.resolveDeferTree(dc, ctx, response.DeferTree, &remaining); err != nil {
 				return nil, err
 			}
 		}
@@ -520,79 +545,109 @@ func countDeferLeaves(node *DeferTreeNode) int {
 	}
 }
 
+// deferContext bundles the request-scoped state shared by every node in a
+// defer tree walk. ctx is NOT included — it varies per goroutine (cloned in the
+// parallel branch) and is passed as its own arg.
+type deferContext struct {
+	response   *GraphQLDeferResponse
+	info       *GraphQLResponseInfo
+	db         *DataBuffer
+	resolvable *Resolvable
+	writer     DeferResponseWriter
+}
+
 // resolveDeferSingle fetches and renders a single deferred fragment.
 // remaining is an atomic counter of how many leaf nodes have yet to be rendered;
 // the node that decrements it to zero writes hasNext:false (the final frame).
 //
-// renderMu serialises the render phase (clear→render→flush) so that the shared
-// Resolvable state (errors, deferID, data) is never accessed by two goroutines at
-// the same time. Network I/O via ResolveFetchNode runs before the lock, allowing
-// sibling defer fetches to overlap even when the tree node is DeferParallel.
-func (r *Resolver) resolveDeferSingle(
-	group *DeferFetchGroup,
-	response *GraphQLDeferResponse,
-	t *tools,
-	writer DeferResponseWriter,
-	renderMu *sync.Mutex,
-	remaining *int64,
-) error {
-	if err := t.loader.ResolveFetchNode(group.Fetches); err != nil {
+// Each defer group gets its OWN Loader (via NewLoader) sharing only the parent
+// DataBuffer; the render phase is serialised by db.Lock(). Network I/O via
+// ResolveFetchNode runs before the lock, allowing sibling defer fetches to overlap.
+func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *DeferFetchGroup, remaining *int64) error {
+	// FETCH PHASE — runs outside the DataBuffer lock.
+	// Each goroutine gets its OWN Loader with a NIL arena. Defer groups run
+	// concurrently and the arena is not thread-safe, so this group's errors and
+	// merge allocations go on the heap (concurrency-safe). The shared response
+	// tree (dc.db) is mutated only under dc.db.Lock() inside the merge phase.
+	groupLoader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, dc.db)
+	groupLoader.Init(ctx, dc.info) // fresh taintedObjs; errors=nil
+
+	if err := groupLoader.ResolveFetchNode(group.Fetches); err != nil {
 		return err
 	}
 
-	renderMu.Lock()
-	defer renderMu.Unlock()
-
-	// Reset per-defer error state before rendering so that errors from one defer
-	// do not leak into the next defer's completed.errors envelope.
-	t.resolvable.errors = nil
+	// RENDER PHASE — serialised by the DataBuffer lock.
+	dc.db.Lock()
+	defer dc.db.Unlock()
 
 	isLast := syncatomic.AddInt64(remaining, -1) == 0
 
-	descriptor := t.resolvable.deferDescriptors[group.DeferID]
-	t.resolvable.currentDefer = &descriptor
-	if err := t.resolvable.ResolveDefer(response.Response.Data, writer, !isLast); err != nil {
+	// Inject group-local state into Resolvable for this render.
+	dc.resolvable.data = dc.db.Get()
+	dc.resolvable.errors = groupLoader.errors
+
+	// TODO: skipValueCompletion is set inside mergeResult when a fetch response
+	// has errors but no data and apolloCompatibilityValueCompletionInExtensions
+	// is enabled. Within a single group's fetch tree, resolveParallel spawns
+	// concurrent sub-fetches that share this group's Loader — if one sub-fetch
+	// sets skipValueCompletion=true it contaminates the others in that group.
+	// This is a pre-existing issue to be addressed separately.
+	dc.resolvable.skipValueCompletion = groupLoader.skipValueCompletion
+
+	descriptor := dc.resolvable.deferDescriptors[group.DeferID]
+	dc.resolvable.currentDefer = &descriptor
+	if err := dc.resolvable.ResolveDefer(dc.response.Response.Data, dc.writer, !isLast); err != nil {
 		return err
 	}
-	return writer.Flush()
+	return dc.writer.Flush()
 }
 
 // resolveDeferTree walks a DeferTreeNode and resolves deferred fragments:
 // - Single nodes are resolved directly.
 // - Sequence nodes are resolved one child at a time (sequential).
-// - Parallel nodes spawn concurrent goroutines; rendering is serialised by renderMu
-// so the incremental frames are written safely. Sibling fetch I/O can overlap.
-func (r *Resolver) resolveDeferTree(
-	ctx *Context,
-	node *DeferTreeNode,
-	response *GraphQLDeferResponse,
-	t *tools,
-	writer DeferResponseWriter,
-	renderMu *sync.Mutex,
-	remaining *int64,
-) error {
+// - Parallel nodes spawn concurrent goroutines; rendering is serialised by the
+// shared DataBuffer lock. Sibling fetch I/O can overlap.
+func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferTreeNode, remaining *int64) error {
 	switch node.Kind {
 	case DeferTreeNodeKindSingle:
-		return r.resolveDeferSingle(node.Item, response, t, writer, renderMu, remaining)
+		return r.resolveDeferSingle(dc, ctx, node.Item, remaining)
 
 	case DeferTreeNodeKindSequence:
 		for _, child := range node.ChildNodes {
-			if err := r.resolveDeferTree(ctx, child, response, t, writer, renderMu, remaining); err != nil {
+			if err := r.resolveDeferTree(dc, ctx, child, remaining); err != nil {
 				return err
 			}
 		}
 		return nil
 
 	case DeferTreeNodeKindParallel:
-		g, gCtx := errgroup.WithContext(ctx.ctx)
+		// Plain errgroup.Group (NOT errgroup.WithContext): a failed defer group
+		// must not cancel its siblings, so we never let errgroup's error-driven
+		// cancellation fire. errgroup is used only to spawn + wait + collect one
+		// error. The client context (ctx.ctx) still cancels every in-flight fetch
+		// on disconnect, because each group's fetch is passed a clone of it.
+		var g errgroup.Group
 		for _, child := range node.ChildNodes {
 			child := child
 			g.Go(func() error {
-				err := r.resolveDeferTree(ctx.clone(gCtx), child, response, t, writer, renderMu, remaining)
-				// Only propagate the error if the parent context was cancelled
-				// (client disconnected). Defer-level errors are independent —
-				// a failed sibling must not cancel its siblings.
-				if err != nil && gCtx.Err() != nil {
+				// Clone the Context so this goroutine gets its OWN copy of the
+				// mutable per-request fields — notably the subgraphErrors map,
+				// which the fetch path writes via ctx.appendSubgraphErrors
+				// (loader.go: mergeErrors / renderErrors*). Concurrent defer groups
+				// sharing one *Context would race on that map. The underlying Go
+				// context (ctx.ctx) is passed through unchanged, so a client
+				// disconnect still cancels this group's fetch.
+				// KNOWN LIMITATION: because the clone isolates subgraphErrors,
+				// defer-group fetch subgraph errors do NOT aggregate into the
+				// request ctx, so Context.SubgraphErrors() omits them. Accepted
+				// for now.
+				childCtx := ctx.clone(ctx.ctx)
+				err := r.resolveDeferTree(dc, childCtx, child, remaining)
+				// Surface the error only if the client context was cancelled
+				// (disconnect). Ordinary defer-level subgraph errors are rendered
+				// into the group's incremental frame, not propagated, so they
+				// don't abort sibling groups.
+				if err != nil && ctx.ctx.Err() != nil {
 					return err
 				}
 				return nil
@@ -743,9 +798,9 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	copy(input, sharedInput)
 
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
+	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
 
-	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
+	if err := resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
@@ -757,7 +812,12 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 		return
 	}
 
-	if err := t.loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response, t.resolvable); err != nil {
+	// The DataBuffer wraps the base tree produced by InitSubscription (the
+	// subscription event payload). The loader merges fetched data into it.
+	db := &DataBuffer{data: resolvable.data}
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db)
+
+	if err := loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
@@ -768,8 +828,20 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 		}
 		return
 	}
+	// Inject loader output into Resolvable before rendering. InitSubscription may
+	// have already set resolvable.errors from the event payload, so append the
+	// loader's fetch errors rather than overwrite them.
+	resolvable.data = loader.dataBuffer.Get()
+	if loader.errors != nil {
+		if resolvable.errors == nil {
+			resolvable.errors = loader.errors
+		} else {
+			resolvable.errors.AppendArrayItems(resolveArena.Arena, loader.errors)
+		}
+	}
+	resolvable.skipValueCompletion = loader.skipValueCompletion
 
-	if err := t.resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
+	if err := resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
@@ -796,7 +868,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 		r.reporter.SubscriptionUpdateSent()
 	}
 
-	if t.resolvable.WroteErrorsWithoutData() && r.options.Debug {
+	if resolvable.WroteErrorsWithoutData() && r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
 	}
 }
@@ -1434,15 +1506,15 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
+		resolvable := NewResolvable(nil, r.options.ResolvableOptions)
 
-		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
+		err = resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {
 			return err
 		}
 
 		buf := &bytes.Buffer{}
-		err = t.resolvable.Resolve(ctx.ctx, subscription.Response.Data, subscription.Response.Fetches, buf)
+		err = resolvable.Resolve(ctx.ctx, subscription.Response.Data, subscription.Response.Fetches, buf)
 		if err != nil {
 			return err
 		}
@@ -1538,15 +1610,15 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
+		resolvable := NewResolvable(nil, r.options.ResolvableOptions)
 
-		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
+		err = resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {
 			return err
 		}
 
 		buf := &bytes.Buffer{}
-		err = t.resolvable.Resolve(ctx.ctx, subscription.Response.Data, subscription.Response.Fetches, buf)
+		err = resolvable.Resolve(ctx.ctx, subscription.Response.Data, subscription.Response.Fetches, buf)
 		if err != nil {
 			return err
 		}

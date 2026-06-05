@@ -286,10 +286,12 @@ func TestLoader_LoadGraphQLResponseData(t *testing.T) {
 	}
 	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
-	loader := &Loader{}
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
-	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	err = loader.LoadGraphQLResponseData(ctx, response)
+	resolvable.data = loader.dataBuffer.Get()
+	resolvable.errors = loader.errors
 	assert.NoError(t, err)
 	ctrl.Finish()
 	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
@@ -373,10 +375,12 @@ func TestLoader_MergeErrorDifferingTypes(t *testing.T) {
 	}
 	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
-	loader := &Loader{}
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
-	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	err = loader.LoadGraphQLResponseData(ctx, response)
+	resolvable.data = loader.dataBuffer.Get()
+	resolvable.errors = loader.errors
 	assert.Error(t, err)
 	assert.Equal(t, "unable to merge results from subgraph secondNames: differing types", err.Error())
 }
@@ -462,10 +466,12 @@ func TestLoader_MergeErrorDifferingArrayLength(t *testing.T) {
 	}
 	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
-	loader := &Loader{}
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
-	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	err = loader.LoadGraphQLResponseData(ctx, response)
+	resolvable.data = loader.dataBuffer.Get()
+	resolvable.errors = loader.errors
 	assert.Error(t, err)
 	assert.Equal(t, "unable to merge results from subgraph ages: differing array lengths", err.Error())
 }
@@ -742,10 +748,12 @@ func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
 	ctx := NewContext(context.Background())
 	ctx.Extensions = []byte(`{"foo":"bar"}`)
 	resolvable := NewResolvable(nil, ResolvableOptions{})
-	loader := &Loader{}
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
-	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	err = loader.LoadGraphQLResponseData(ctx, response)
+	resolvable.data = loader.dataBuffer.Get()
+	resolvable.errors = loader.errors
 	assert.NoError(t, err)
 	ctrl.Finish()
 	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
@@ -1015,7 +1023,7 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 	}
 	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
-	loader := &Loader{}
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 	expected := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
 	b.SetBytes(int64(len(expected)))
 	b.ReportAllocs()
@@ -1027,7 +1035,9 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+		err = loader.LoadGraphQLResponseData(ctx, response)
+		resolvable.data = loader.dataBuffer.Get()
+		resolvable.errors = loader.errors
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1114,12 +1124,14 @@ func TestLoader_RedactHeaders(t *testing.T) {
 		Enable: true,
 	}
 	resolvable := NewResolvable(nil, ResolvableOptions{})
-	loader := &Loader{}
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
 
-	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	err = loader.LoadGraphQLResponseData(ctx, response)
+	resolvable.data = loader.dataBuffer.Get()
+	resolvable.errors = loader.errors
 	assert.NoError(t, err)
 
 	var input struct {
@@ -1408,10 +1420,12 @@ func TestLoader_InvalidBatchItemCount(t *testing.T) {
 	}
 	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
-	loader := &Loader{}
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
-	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	err = loader.LoadGraphQLResponseData(ctx, response)
+	resolvable.data = loader.dataBuffer.Get()
+	resolvable.errors = loader.errors
 	assert.NoError(t, err)
 	ctrl.Finish()
 	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
