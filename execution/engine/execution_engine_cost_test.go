@@ -4144,7 +4144,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			// Regression test for ENG-9574.
 			// When a non-list wrapper field (Board.items_page: ItemsPage!) is configured as a
 			// @listSize sizedFields parent, the wrapper itself is never recorded in
-			// actualListSizes (population happens in walkArray only). The child list's
+			// typeNameStats (population happens in walkArray only). The child list's
 			// averaging denominator therefore falls back to 1 instead of the number of
 			// wrapper occurrences, inflating the combined actual cost.
 			boardsSchema := `
