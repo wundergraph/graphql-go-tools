@@ -26,8 +26,10 @@ import (
 )
 
 func TestHandleWithOptions(t *testing.T) {
+	t.Parallel()
 	t.Skip("timing not compatible with async rewrite of resolver")
 	t.Run("should handle protocol graphql-ws", func(t *testing.T) {
+		t.Parallel()
 		if runtime.GOOS == "windows" {
 			t.Skip("this test fails on Windows due to different timings than unix, consider fixing it at some point")
 		}
@@ -106,6 +108,7 @@ func TestHandleWithOptions(t *testing.T) {
 	})
 
 	t.Run("should handle protocol graphql-transport-ws", func(t *testing.T) {
+		t.Parallel()
 		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
 
@@ -181,6 +184,7 @@ func TestHandleWithOptions(t *testing.T) {
 	})
 
 	t.Run("should handle on before start error", func(t *testing.T) {
+		t.Parallel()
 		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
 
@@ -228,8 +232,10 @@ func TestHandleWithOptions(t *testing.T) {
 }
 
 func TestWithProtocolFromRequestHeaders(t *testing.T) {
+	t.Parallel()
 	runTest := func(headerKey string, headerValue string, expectedProtocol Protocol) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			request, err := http.NewRequest("", "", nil)
 			require.NoError(t, err)
 			request.Header.Set(headerKey, headerValue)
@@ -247,6 +253,7 @@ func TestWithProtocolFromRequestHeaders(t *testing.T) {
 	t.Run("should fallback to default protocol", runTest(HeaderSecWebSocketProtocol, "something-else", DefaultProtocol))
 	t.Run("should fallback to default protocol when header is missing", runTest("Different-Header-Key", "missing-header", DefaultProtocol))
 	t.Run("should fallback to default protocol when request is nil", func(t *testing.T) {
+		t.Parallel()
 		options := &HandleOptions{}
 		optionFunc := WithProtocolFromRequestHeaders(nil)
 		optionFunc(options)
