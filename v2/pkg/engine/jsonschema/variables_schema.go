@@ -156,10 +156,12 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 
 // GetSchema returns the built schema
 func (v *VariablesSchemaBuilder) GetSchema() *JsonSchema {
-	// If we have required fields, the root schema cannot be nullable
-	if len(v.schema.Required) > 0 {
-		v.schema.Nullable = false
-	}
+	// The root variables object is always a concrete object and must never be
+	// nullable: the variables container is either present or omitted, never the
+	// JSON literal null. Emitting a nullable root (type ["object","null"] under
+	// JSON Schema 2020-12) breaks strict consumers such as the MCP SDK, which
+	// require the input schema's type to be exactly "object".
+	v.schema.Nullable = false
 	// Attach definitions for any recursive input types referenced via "$ref"
 	if len(v.defs) > 0 {
 		v.schema.Defs = v.defs
