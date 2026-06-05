@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.2...v2.4.3) (2026-06-05)
+
+
+### Bug Fixes
+
+* calculate costs for abstract fields without double counting ([#1521](https://github.com/wundergraph/graphql-go-tools/issues/1521)) ([4175a9e](https://github.com/wundergraph/graphql-go-tools/commit/4175a9e1168ca0ac4a3c98dba1184a23ad69d8cc))
+* **jsonschema:** align nullability with JSON Schema 2020-12 ([#1518](https://github.com/wundergraph/graphql-go-tools/issues/1518)) ([6fcdf8c](https://github.com/wundergraph/graphql-go-tools/commit/6fcdf8c07098081cd390f82d06d36c7e0e56e62c))
+
 ## [2.4.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.1...v2.4.2) (2026-06-03)
 
 
