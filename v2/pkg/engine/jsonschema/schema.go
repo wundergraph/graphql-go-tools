@@ -25,7 +25,10 @@ type JsonSchema struct {
 	Required             []string               `json:"required,omitempty"`
 	AdditionalProperties *bool                  `json:"additionalProperties,omitempty"`
 	Description          string                 `json:"description,omitempty"`
-	Nullable             bool                   `json:"nullable,omitempty"`
+	// Nullable is tracked internally; serialization expresses nullability in the
+	// JSON Schema 2020-12 form (type-union, anyOf, or null in enum), not the
+	// OpenAPI 3.0 "nullable" keyword.
+	Nullable bool `json:"-"`
 
 	// Ref references a schema defined under the root "$defs" (e.g. "#/$defs/MyInput").
 	// Used to represent recursive input types, which cannot be inlined.
@@ -59,9 +62,19 @@ func (s *JsonSchema) MarshalJSON() ([]byte, error) {
 	// Use a map to only include non-empty fields
 	m := make(map[string]any)
 
+	// Nullability is expressed per JSON Schema 2020-12:
+	//   - typed schemas:        "type": [<type>, "null"]
+	//   - enum schemas:         null appended to the "enum" array
+	//   - $ref schemas:         {"anyOf": [{"$ref": ...}, {"type": "null"}]}
+	// rather than the OpenAPI 3.0 keyword "nullable: true", which standard
+	// validators ignore.
+
 	if s.Type != "" {
-		// Always use a single type, regardless of nullability
-		m["type"] = string(s.Type)
+		if s.Nullable {
+			m["type"] = []string{string(s.Type), "null"}
+		} else {
+			m["type"] = string(s.Type)
+		}
 	}
 
 	if len(s.Properties) > 0 {
@@ -80,18 +93,21 @@ func (s *JsonSchema) MarshalJSON() ([]byte, error) {
 		m["description"] = s.Description
 	}
 
-	// For object types, always include nullable field regardless of value
-	// For other types, only include nullable when it's true
-	if s.Type == TypeObject || s.Nullable {
-		m["nullable"] = s.Nullable
-	}
-
 	if s.Items != nil {
 		m["items"] = s.Items
 	}
 
 	if len(s.Enum) > 0 {
-		m["enum"] = s.Enum
+		if s.Nullable {
+			enum := make([]any, 0, len(s.Enum)+1)
+			for _, v := range s.Enum {
+				enum = append(enum, v)
+			}
+			enum = append(enum, nil)
+			m["enum"] = enum
+		} else {
+			m["enum"] = s.Enum
+		}
 	}
 
 	if s.Default != nil {
@@ -115,7 +131,14 @@ func (s *JsonSchema) MarshalJSON() ([]byte, error) {
 	}
 
 	if s.Ref != "" {
-		m["$ref"] = s.Ref
+		if s.Nullable {
+			m["anyOf"] = []map[string]string{
+				{"$ref": s.Ref},
+				{"type": "null"},
+			}
+		} else {
+			m["$ref"] = s.Ref
+		}
 	}
 
 	if len(s.Defs) > 0 {

@@ -156,10 +156,12 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 
 // GetSchema returns the built schema
 func (v *VariablesSchemaBuilder) GetSchema() *JsonSchema {
-	// If we have required fields, the root schema cannot be nullable
-	if len(v.schema.Required) > 0 {
-		v.schema.Nullable = false
-	}
+	// The root variables object is always a concrete object and must never be
+	// nullable: the variables container is either present or omitted, never the
+	// JSON literal null. Emitting a nullable root (type ["object","null"] under
+	// JSON Schema 2020-12) breaks strict consumers such as the MCP SDK, which
+	// require the input schema's type to be exactly "object".
+	v.schema.Nullable = false
 	// Attach definitions for any recursive input types referenced via "$ref"
 	if len(v.defs) > 0 {
 		v.schema.Defs = v.defs
@@ -338,7 +340,12 @@ func (v *VariablesSchemaBuilder) ensureDef(typeName string, node ast.Node) {
 		return
 	}
 	v.defs[typeName] = NewObjectSchema() // placeholder to break the recursion
-	v.defs[typeName] = v.processInputObjectType(node)
+	body := v.processInputObjectType(node)
+	// The definition body is the type itself, not nullable; nullability is
+	// applied per use-site via the "$ref" (rewritten as anyOf-with-null when
+	// the referencing context is nullable).
+	body.Nullable = false
+	v.defs[typeName] = body
 }
 
 // processEnumType processes an enum type definition
