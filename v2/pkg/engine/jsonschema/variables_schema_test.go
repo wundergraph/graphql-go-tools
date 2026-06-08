@@ -117,10 +117,7 @@ func TestBuildJsonSchema(t *testing.T) {
       "type": "object"
     }
   },
-  "type": [
-    "object",
-    "null"
-  ]
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -1362,17 +1359,14 @@ func TestBuildJsonSchema(t *testing.T) {
       "type": "object"
     }
   },
-  "type": [
-    "object",
-    "null"
-  ]
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
 		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
-	t.Run("root schema nullable based on required arguments", func(t *testing.T) {
+	t.Run("root schema is always a non-nullable object", func(t *testing.T) {
 		// Define schema with required and optional arguments
 		schemaSDL := scalarDefinitions + `
 			schema {
@@ -1452,7 +1446,10 @@ func TestBuildJsonSchema(t *testing.T) {
 		data2, err := json.MarshalIndent(schema2, "", "  ")
 		require.NoError(t, err)
 
-		// Define expected JSON schema for optional argument case
+		// Define expected JSON schema for optional argument case.
+		// Even when every variable is optional, the root variables object stays a
+		// non-nullable "object": the container is omitted or present, never the
+		// JSON literal null. Only the individual optional fields are nullable.
 		expectedJSON2 := `{
   "additionalProperties": false,
   "properties": {
@@ -1463,10 +1460,7 @@ func TestBuildJsonSchema(t *testing.T) {
       ]
     }
   },
-  "type": [
-    "object",
-    "null"
-  ]
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -1553,10 +1547,7 @@ func TestBuildJsonSchema(t *testing.T) {
       "type": "object"
     }
   },
-  "type": [
-    "object",
-    "null"
-  ]
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -1624,10 +1615,7 @@ func TestBuildJsonSchema(t *testing.T) {
       "description": "ISO-8601 date time format"
     }
   },
-  "type": [
-    "object",
-    "null"
-  ]
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
