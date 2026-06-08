@@ -408,23 +408,23 @@ func TestBuildJsonSchema(t *testing.T) {
 		// Verify includeProfile property
 		includeProfile, ok := properties["includeProfile"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, []interface{}{"boolean", "null"}, includeProfile["type"])
+		assert.Equal(t, []any{"boolean", "null"}, includeProfile["type"])
 		assert.Equal(t, true, includeProfile["default"])
 
 		// Verify age property
 		age, ok := properties["age"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, []interface{}{"integer", "null"}, age["type"])
+		assert.Equal(t, []any{"integer", "null"}, age["type"])
 
 		// Verify rating property
 		rating, ok := properties["rating"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, []interface{}{"number", "null"}, rating["type"])
+		assert.Equal(t, []any{"number", "null"}, rating["type"])
 
 		// Verify name property
 		name, ok := properties["name"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, []interface{}{"string", "null"}, name["type"])
+		assert.Equal(t, []any{"string", "null"}, name["type"])
 	})
 
 	t.Run("operation with field descriptions", func(t *testing.T) {

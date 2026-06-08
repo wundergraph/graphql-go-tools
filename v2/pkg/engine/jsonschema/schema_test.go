@@ -387,7 +387,7 @@ func TestSchemaFeatures(t *testing.T) {
 
 			// A nullable schema serializes "type" as the JSON Schema 2020-12 two-
 			// element array [<primary>, "null"], not the OpenAPI "nullable: true".
-			typeArr, ok := parsed["type"].([]interface{})
+			typeArr, ok := parsed["type"].([]any)
 			require.True(t, ok, "nullable schema should serialize type as an array")
 			require.Len(t, typeArr, 2)
 			require.Contains(t, typeArr, "null")
@@ -593,7 +593,7 @@ func TestSchemaFeatures(t *testing.T) {
 
 		// Explicitly nullable property: "type" is the two-element [<t>, "null"] array.
 		nullableProp := properties["nullableString"].(map[string]any)
-		assert.Equal(t, []interface{}{"string", "null"}, nullableProp["type"])
+		assert.Equal(t, []any{"string", "null"}, nullableProp["type"])
 		_, hasNullableKey := nullableProp["nullable"]
 		assert.False(t, hasNullableKey, "nullable keyword should not be emitted")
 
@@ -605,7 +605,7 @@ func TestSchemaFeatures(t *testing.T) {
 
 		// Default (factory-nullable) property: same shape as explicitly nullable.
 		defaultProp := properties["defaultString"].(map[string]any)
-		assert.Equal(t, []interface{}{"string", "null"}, defaultProp["type"])
+		assert.Equal(t, []any{"string", "null"}, defaultProp["type"])
 
 		// Test WithNullable method
 		schema = NewStringSchema()

@@ -2,6 +2,7 @@ package ast
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
@@ -100,8 +101,8 @@ func (d *Document) BlockStringValueContentBytes(ref int) []byte {
 
 	// find last non-whitespace-only line
 	lastLine := len(lines) - 1
-	for i := len(lines) - 1; i >= 0; i-- {
-		if leadingWhitespaceCount(lines[i]) != len(lines[i]) {
+	for i, v := range slices.Backward(lines) {
+		if leadingWhitespaceCount(v) != len(v) {
 			lastLine = i
 			break
 		}

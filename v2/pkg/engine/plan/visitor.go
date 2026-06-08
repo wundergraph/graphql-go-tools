@@ -518,8 +518,7 @@ func (v *Visitor) resolveSkipIncludeOnParent() (info skipIncludeInfo, ok bool) {
 		return skipIncludeInfo{}, false
 	}
 
-	for i := len(v.Walker.Ancestors) - 1; i >= 0; i-- {
-		ancestor := v.Walker.Ancestors[i]
+	for _, ancestor := range slices.Backward(v.Walker.Ancestors) {
 		if ancestor.Kind != ast.NodeKindInlineFragment {
 			continue
 		}
