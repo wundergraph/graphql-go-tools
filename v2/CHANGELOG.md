@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.4](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.3...v2.4.4) (2026-06-08)
+
+
+### Bug Fixes
+
+* fallback to abstract name if no __typename was sent ([#1527](https://github.com/wundergraph/graphql-go-tools/issues/1527)) ([2548d5a](https://github.com/wundergraph/graphql-go-tools/commit/2548d5ac8d4ba8d2869255e82eb2e8595032bba7))
+* **jsonschema:** root variables object is always a non-nullable "object" ([#1528](https://github.com/wundergraph/graphql-go-tools/issues/1528)) ([8327b53](https://github.com/wundergraph/graphql-go-tools/commit/8327b531bc4ae6629ae337dde0fb85fe948530db))
+
 ## [2.4.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.2...v2.4.3) (2026-06-05)
 
 
