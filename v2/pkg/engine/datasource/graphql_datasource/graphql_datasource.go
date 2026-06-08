@@ -361,28 +361,26 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			return resolve.FetchConfiguration{}
 		}
 
-		// Pick the transport. The factory's choice of constructor
-		// (NewFactoryConnect vs. NewFactoryGRPC*) is itself the explicit
-		// transport declaration: a Connect transport set on the planner
-		// always wins, because that planner could only have been produced
-		// by NewFactoryConnect. If the factory ships a gRPC client we use
-		// it for native gRPC; if Configuration carries Connect without a
-		// matching transport (a misconfiguration in the calling layer)
-		// we surface a hard error instead of silently dialing gRPC. Both
-		// transports share the same proto mapping and compiler — only the
-		// wire format differs.
+		// Pick the transport from the data source Configuration. Connect and
+		// gRPC share the same proto mapping/compiler, so only the wire format
+		// differs; the Configuration declares which one applies, and the
+		// matching factory-side resource (Connect transport or gRPC client)
+		// must be supplied. A mismatch is a configuration bug and surfaces as
+		// a hard error here rather than silently dialing the wrong protocol.
 		var transport grpcdatasource.RPCTransport
 		switch {
-		case p.connectTransport != nil:
-			transport = p.connectTransport
 		case p.config.IsConnect():
-			p.stopWithError(errors.WithStack(errors.New("connect configuration requires a connect transport (use NewFactoryConnect)")))
-			return resolve.FetchConfiguration{}
-		case p.grpcClient != nil:
-			transport = grpcdatasource.NewGRPCTransport(p.grpcClient)
+			if p.connectTransport == nil {
+				p.stopWithError(errors.WithStack(errors.New("connect configuration requires a connect transport (use NewFactoryConnect)")))
+				return resolve.FetchConfiguration{}
+			}
+			transport = p.connectTransport
 		default:
-			p.stopWithError(errors.WithStack(errors.New("grpc datasource requires either a grpc client or a connect transport (use NewFactoryGRPC, NewFactoryGRPCClientProvider, or NewFactoryConnect)")))
-			return resolve.FetchConfiguration{}
+			if p.grpcClient == nil {
+				p.stopWithError(errors.WithStack(errors.New("grpc configuration requires a grpc client (use NewFactoryGRPC or NewFactoryGRPCClientProvider)")))
+				return resolve.FetchConfiguration{}
+			}
+			transport = grpcdatasource.NewGRPCTransport(p.grpcClient)
 		}
 
 		dataSource, err = grpcdatasource.NewDataSource(transport, grpcdatasource.DataSourceConfig{
