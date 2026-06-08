@@ -1024,7 +1024,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 // that resolves an abstract (interface/union) field.
 func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 	// An array item Object has an empty Path
-	if len(obj.Path) == 0 || typeName == nil || !obj.isAbstract() {
+	if len(obj.Path) == 0 || !obj.isAbstract() {
 		return
 	}
 	pathKey := r.currentFieldPath()
@@ -1033,7 +1033,12 @@ func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 	if stats.TypeNames == nil {
 		stats.TypeNames = make(map[string]int, 1)
 	}
-	stats.TypeNames[string(typeName)]++
+	// Fall back to the declared abstract type name when the subgraph did not return __typename.
+	name := obj.TypeName
+	if typeName != nil {
+		name = string(typeName)
+	}
+	stats.TypeNames[name]++
 	r.typeNameStats[pathKey] = stats
 }
 

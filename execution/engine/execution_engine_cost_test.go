@@ -291,6 +291,44 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			computeCosts(),
 		))
 
+		// Regression test for the abstract field without __typename bug recordObjectTypeStats).
+		// When the subgraph resolves a single (non-list) abstract field and does NOT return __typename,
+		// we must still record one occurrence for that field's path, falling back to the declared
+		// abstract type name in actual costs.
+		t.Run("single abstract field without __typename takes into account implementing types", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: graphql.StarwarsSchema(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ hero { ... on Human { height } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// No __typename returned for the abstract hero field.
+								sendResponseBody: `{"data":{"hero":{"height":"12"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
+							Weights: map[plan.FieldCoordinate]*plan.FieldCost{},
+							Types: map[string]int{
+								"Human": 13,
+								"Droid": 7,
+							},
+						}},
+						customConfig,
+					),
+				},
+				expectedEstimatedCost: intPtr(13), // Query.hero(13)
+				expectedActualCost:    intPtr(13), // Query.hero(13)
+			},
+			computeCosts(),
+		))
+
 		t.Run("field returning a list of abstracts with partial fragments considers only actual type counts", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: graphql.StarwarsSchema(t),
