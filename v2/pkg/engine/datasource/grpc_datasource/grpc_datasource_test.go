@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -33,7 +32,7 @@ func Benchmark_DataSource_Load(b *testing.B) {
 	schemaDoc := grpctest.MustGraphQLSchema(b)
 
 	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}`
+	variables := `{"variables":{"filter":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}}`
 
 	// Parse the GraphQL query
 	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
@@ -175,7 +174,7 @@ func setupTestGRPCServer(t testing.TB) (conn *grpc.ClientConn, cleanup func()) {
 // Test_DataSource_Load tests the datasource.Load method with a mock gRPC interface
 func Test_DataSource_Load(t *testing.T) {
 	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}`
+	variables := `{"variables":{"filter":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}}`
 
 	// Parse the GraphQL schema
 	schemaDoc := grpctest.MustGraphQLSchema(t)
@@ -197,28 +196,12 @@ func Test_DataSource_Load(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-					},
-				},
-			},
-		},
+		Mapping:      testMapping(),
 	})
 
 	require.NoError(t, err)
 
-	_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","variables":`+variables+`}`))
+	_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 	require.NoError(t, err)
 }
 
@@ -252,37 +235,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-						ArgumentMappings: map[string]string{
-							"filter": "filter",
-						},
-					},
-				},
-				"FilterType": {
-					"name": {
-						TargetName: "name",
-					},
-					"filterField1": {
-						TargetName: "filter_field_1",
-					},
-					"filterField2": {
-						TargetName: "filter_field_2",
-					},
-				},
-			},
-		},
+		Mapping:      testMapping(),
 	})
 	require.NoError(t, err)
 
@@ -393,37 +346,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-						ArgumentMappings: map[string]string{
-							"filter": "filter",
-						},
-					},
-				},
-				"FilterType": {
-					"name": {
-						TargetName: "name",
-					},
-					"filterField1": {
-						TargetName: "filter_field_1",
-					},
-					"filterField2": {
-						TargetName: "filter_field_2",
-					},
-				},
-			},
-		},
+		Mapping:      testMapping(),
 	})
 	require.NoError(t, err)
 
@@ -611,7 +534,7 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessageDesc := responseMsg.Desc
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
-	jsonBuilder := newJSONBuilder(nil, testMapping(), gjson.Result{})
+	jsonBuilder := newJSONBuilder(nil, testMapping())
 	responseJSON, err := jsonBuilder.marshalResponseJSON(&response, responseMessage)
 	require.NoError(t, err)
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
@@ -2676,7 +2599,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					collaborations
 				}
 			}`,
-			vars: `{"variables":{"input":{"name":"New Author","email":"author@example.com","skills":["Go","GraphQL","gRPC"],"languages":["English","Spanish"],"socialLinks":["twitter.com/author","github.com/author"],"teamsByProject":[["Alice","Bob"],["Charlie","David","Eve"]],"collaborations":[["Project1","Project2"],["Project3"]]}}}`,
+			vars: `{"variables":{"input":{"name":"New Author","email":"author@example.com","skills":["Go","GraphQL","gRPC"],"languages":["English","Spanish"],"socialLinks":["twitter.com/author","github.com/author"],"teamsByProject":[["Alice","Bob"],["Charlie","David","Eve"]],"collaborations":[["Project1","Project2"],["Project3"]],"favoriteCategories":[]}}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				createAuthor, ok := data["createAuthor"].(map[string]interface{})
 				require.True(t, ok, "createAuthor should be an object")
@@ -3487,7 +3410,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					"viewCounts":[300,400,500],
 					"tagGroups":[["updated","tags"],["bulk","update"]],
 					"commentThreads":[["Updated comment"]],
-					"relatedTopics":[["updated","topics"]],
+					"relatedTopics":[["updated","topics"]]
 				}
 			]}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
