@@ -294,7 +294,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		// Regression test for the abstract field without __typename bug recordObjectTypeStats).
 		// When the subgraph resolves a single (non-list) abstract field and does NOT return __typename,
 		// we must still record one occurrence for that field's path, falling back to the declared
-		// abstract type name.
+		// abstract type name in actual costs.
 		t.Run("single abstract field without __typename takes into account implementing types", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: graphql.StarwarsSchema(t),
