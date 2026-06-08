@@ -592,7 +592,7 @@ func (r *rpcPlanningContext) createListMetadata(typeRef int) (*ListMetadata, err
 		LevelInfo:    make([]LevelInfo, nestingLevel),
 	}
 
-	for i := 0; i < nestingLevel; i++ {
+	for i := range nestingLevel {
 		md.LevelInfo[i] = LevelInfo{
 			Optional: !r.definition.TypeIsNonNull(typeRef),
 		}

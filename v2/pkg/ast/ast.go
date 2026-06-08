@@ -5,6 +5,8 @@
 // The document struct is designed in a way to enable performant parsing while keeping the ast easy to use with helper methods.
 package ast
 
+import "slices"
+
 const InvalidRef = -1
 
 type Document struct {
@@ -257,7 +259,7 @@ func FilterIntSliceByWhitelist(intSlice []int, whitelist []int) []int {
 		return []int{}
 	}
 	n := 0
-	for i := 0; i < len(intSlice); i++ {
+	for i := range intSlice {
 		if isWhitelisted(intSlice[i], whitelist) {
 			intSlice[n] = intSlice[i]
 			n++
@@ -267,10 +269,5 @@ func FilterIntSliceByWhitelist(intSlice []int, whitelist []int) []int {
 }
 
 func isWhitelisted(value int, whitelisted []int) bool {
-	for i := 0; i < len(whitelisted); i++ {
-		if whitelisted[i] == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(whitelisted, value)
 }

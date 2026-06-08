@@ -239,7 +239,6 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 	itemsItems := make([][]*astjson.Value, len(nodes))
 	g, ctx := errgroup.WithContext(l.ctx.ctx)
 	for i := range nodes {
-		i := i
 		results[i] = &result{}
 		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
 		f := nodes[i].Item.Fetch
@@ -1588,7 +1587,7 @@ WithNextItem:
 }
 
 func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
-	var obj map[string]interface{}
+	var obj map[string]any
 
 	sensitiveHeaders := []string{
 		"authorization",
@@ -1605,7 +1604,7 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	}
 
 	if headers, ok := obj["header"]; ok {
-		if headerMap, isMap := headers.(map[string]interface{}); isMap {
+		if headerMap, isMap := headers.(map[string]any); isMap {
 			for key, values := range headerMap {
 				if slices.Contains(sensitiveHeaders, strings.ToLower(key)) {
 					headerMap[key] = []string{"****"}

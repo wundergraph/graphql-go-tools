@@ -13,8 +13,7 @@ import (
 
 func TestNewInitialHttpRequestContext(t *testing.T) {
 	t.Parallel()
-	ctx, cancelFn := context.WithCancel(context.Background())
-	defer cancelFn()
+	ctx := t.Context()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost:8080", bytes.NewBufferString("lorem ipsum"))
 	require.NoError(t, err)

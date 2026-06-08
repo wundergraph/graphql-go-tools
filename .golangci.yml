@@ -8,6 +8,7 @@ linters:
     - staticcheck
     - bodyclose
     - embeddedstructfieldcheck
+    - modernize
     - tparallel
     # - unused
 
