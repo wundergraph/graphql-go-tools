@@ -62,12 +62,17 @@ type Resolvable struct {
 
 	currentFieldInfo *FieldInfo
 
-	// actualListSizes maps the JSON path to the list size in the final response.
+	// typeNameStats maps the JSON path to its accumulated array/object stats in the final response.
 	// Used to compute the actual cost of the operation.
-	actualListSizes map[string]int
+	typeNameStats map[string]TypeNameStats
 
 	subgraphExtensions []*astjson.Object
 	allowedExtensions  map[string]*astjson.Value
+}
+
+type TypeNameStats struct {
+	Size      int            // the Size of the resolved array/list. It is 1 for non-list objects.
+	TypeNames map[string]int // distribution of TypeNames in the array
 }
 
 type ResolvableOptions struct {
@@ -111,7 +116,7 @@ func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
 		astjsonArena:       a,
-		actualListSizes:    make(map[string]int),
+		typeNameStats:      make(map[string]TypeNameStats),
 	}
 }
 
@@ -139,7 +144,7 @@ func (r *Resolvable) Reset() {
 	clear(r.subgraphExtensions)
 	clear(r.authorizationAllow)
 	clear(r.authorizationDeny)
-	clear(r.actualListSizes)
+	clear(r.typeNameStats)
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
@@ -734,6 +739,10 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 	}
 
+	if !r.print {
+		r.recordObjectTypeStats(obj, typeName) // For Cost Control
+	}
+
 	if r.print && !isRoot {
 		r.printBytes(lBrace)
 	}
@@ -952,8 +961,25 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	values := value.GetArray()
 
 	if !r.print {
+		// Record arrays stats for Cost Control.
 		pathKey := r.currentFieldPath()
-		r.actualListSizes[pathKey] += len(values)
+		stats := r.typeNameStats[pathKey]
+		stats.Size += len(values)
+		if stats.TypeNames == nil && len(values) > 0 {
+			stats.TypeNames = make(map[string]int)
+		}
+		for _, arrayValue := range values {
+			var typeName string
+			if b := arrayValue.GetStringBytes("__typename"); b != nil {
+				typeName = string(b)
+			} else if obj, ok := arr.Item.(*Object); ok {
+				typeName = obj.TypeName
+			}
+			if typeName != "" {
+				stats.TypeNames[typeName]++
+			}
+		}
+		r.typeNameStats[pathKey] = stats
 	}
 
 	hasPrintedValue := false
@@ -992,6 +1018,23 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.printBytes(rBrack)
 	}
 	return false
+}
+
+// recordObjectTypeStats records the runtime __typename of a single (non-array) object
+// that resolves an abstract (interface/union) field.
+func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
+	// An array item Object has an empty Path
+	if len(obj.Path) == 0 || typeName == nil || !obj.isAbstract() {
+		return
+	}
+	pathKey := r.currentFieldPath()
+	stats := r.typeNameStats[pathKey]
+	stats.Size++
+	if stats.TypeNames == nil {
+		stats.TypeNames = make(map[string]int, 1)
+	}
+	stats.TypeNames[string(typeName)]++
+	r.typeNameStats[pathKey] = stats
 }
 
 // Helper to build JSON path (field names only, no array indices)

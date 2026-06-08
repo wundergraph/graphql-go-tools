@@ -39,8 +39,14 @@ import (
 // We don't allow configuring default weights for enums, scalars and objects.
 // But they could be in the future.
 
-const DefaultEnumScalarWeight = 0
-const DefaultObjectWeight = 1
+const (
+	defaultEnumScalarWeight = 0
+	defaultObjectWeight     = 1
+
+	undefinedMultiplier = -1
+
+	actualCostMode = -1 // -1 signals actual mode, otherwise estimation mode.
+)
 
 // FieldCost defines cost configuration for a specific field of an object or input object.
 type FieldCost struct {
@@ -91,7 +97,7 @@ type FieldListSize struct {
 // It picks the maximum value among slicing arguments, otherwise it tries to use AssumedSize.
 // If neither is available, it falls back to defaultListSize.
 func (ls *FieldListSize) multiplier(args map[string]ArgumentInfo, vars resolve.VariablesView, defaultListSize int) int {
-	multiplier := -1
+	multiplier := undefinedMultiplier
 	for _, slicingArg := range ls.SlicingArguments {
 		value, found := ls.resolveSlicingArg(slicingArg, args, vars)
 		if found && value > 0 && value > multiplier {
@@ -99,7 +105,7 @@ func (ls *FieldListSize) multiplier(args map[string]ArgumentInfo, vars resolve.V
 		}
 	}
 
-	if multiplier == -1 {
+	if multiplier == undefinedMultiplier {
 		if ls.AssumedSize > 0 {
 			multiplier = ls.AssumedSize
 		} else {
@@ -201,18 +207,18 @@ func (c *DataSourceCostConfig) EnumScalarTypeWeight(enumName string) int {
 	if cost, ok := c.Types[enumName]; ok {
 		return cost
 	}
-	return DefaultEnumScalarWeight
+	return defaultEnumScalarWeight
 }
 
 // ObjectTypeWeight returns the default object cost
 func (c *DataSourceCostConfig) ObjectTypeWeight(name string) int {
 	if c == nil {
-		return DefaultObjectWeight
+		return defaultObjectWeight
 	}
 	if cost, ok := c.Types[name]; ok {
 		return cost
 	}
-	return DefaultObjectWeight
+	return defaultObjectWeight
 }
 
 // CostTreeNode represents a node in the cost calculation tree
@@ -403,27 +409,80 @@ func (node *CostTreeNode) maxDirectiveArgumentWeightsImplementingFields(config *
 //
 // defaultListSize designates the mode of operation.
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
-// When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
+// When it is negative, then it computes the actual cost. And it uses the typeStats map.
 // For actual cost, multipliers are computed as averages (totalCount/parentCount).
-func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, actualListSizes map[string]int) float64 {
+func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, typeStats map[string]resolve.TypeNameStats) float64 {
 	if node == nil {
 		return 0
 	}
+	isEstimation := defaultListSize != actualCostMode
 
-	fieldCost, argsCost, directivesCost, multiplier := node.costsAndMultiplier(configs, vars, defaultListSize, actualListSizes)
+	nodeCost := node.costsAndMultiplier(configs, vars, defaultListSize, typeStats)
 
 	// Sum children's costs
 	var childrenCost float64
-	for _, child := range node.children {
-		childrenCost += child.cost(configs, vars, defaultListSize, actualListSizes)
+
+	if node.returnsAbstractType {
+		// We should charge fields of abstract types once, even if the same field was used
+		// in the fragment and on the abstract type.
+		perTypeFields := make(map[string]struct{})
+		for _, child := range node.children {
+			if child.fieldCoords.TypeName != node.fieldTypeName {
+				perTypeFields[child.fieldCoords.FieldName] = struct{}{}
+			}
+		}
+		perTypeCost := make(map[string]float64, len(node.implementingTypeNames))
+		for _, child := range node.children {
+			// Fields used directly on the abstract type are counted anyway.
+			if child.fieldCoords.TypeName == node.fieldTypeName {
+				if _, covered := perTypeFields[child.fieldCoords.FieldName]; covered {
+					continue
+				}
+				c := child.cost(configs, vars, defaultListSize, typeStats)
+				childrenCost += c // shared cost among all the children
+			} else {
+				c := child.cost(configs, vars, defaultListSize, typeStats)
+				perTypeCost[child.fieldCoords.TypeName] += c
+			}
+		}
+		var typeCost float64
+		if isEstimation {
+			for _, c := range perTypeCost {
+				if c > typeCost {
+					typeCost = c // max of
+				}
+			}
+		} else {
+			// Actual cost: only charge fragments whose concrete type was actually returned at runtime.
+			var returnedTypeNames map[string]int
+			if stats, ok := typeStats[node.jsonPath]; ok {
+				returnedTypeNames = stats.TypeNames
+			}
+			for typeName, c := range perTypeCost {
+				if returnedTypeNames != nil {
+					if _, returned := returnedTypeNames[typeName]; !returned {
+						continue // type was not returned at runtime
+					}
+				}
+				typeCost += c // sum of
+			}
+		}
+		childrenCost += typeCost
+	} else {
+		for _, child := range node.children {
+			childrenCost += child.cost(configs, vars, defaultListSize, typeStats)
+		}
 	}
 
-	// We enforce multiplier=1 for non-list fields.
-	if multiplier == 0 && !node.returnsListType {
-		multiplier = 1
+	// We enforce multiplier when it was not set and for the root node.
+	if (nodeCost.multiplier == undefinedMultiplier && !node.returnsListType) || node.fieldCoords == costTreeRootNodeCoords {
+		nodeCost.multiplier = 1
+	}
+	if nodeCost.multiplier == undefinedMultiplier {
+		nodeCost.multiplier = 0
 	}
 
-	cost := float64(argsCost + directivesCost)
+	cost := float64(nodeCost.args + nodeCost.directives)
 
 	// Here we do not follow IBM spec. IBM spec does not use the cost of the object itself
 	// in multiplication. It assumes that the weight of the type should be just summed up
@@ -436,11 +495,19 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars re
 	// "A: [Obj] @cost(weight: 5)" means that the cost of the field is 5 for each object in the list.
 	// "type Object @cost(weight: 5) { ... }" does exactly the same thing.
 	// Weight defined on a field has priority over the weight defined on a type.
-	cost += (childrenCost + float64(fieldCost)) * multiplier
+	cost += (childrenCost + float64(nodeCost.field)) * nodeCost.multiplier
 	if cost < 0 {
 		cost = 0
 	}
 	return cost
+}
+
+// costNodeResult contains intermediate results for a node.
+type costNodeResult struct {
+	field      float64
+	args       int
+	directives int
+	multiplier float64
 }
 
 // costsAndMultiplier returns the cost values for a node based on its data sources.
@@ -455,24 +522,26 @@ func (node *CostTreeNode) cost(configs map[DSHash]*DataSourceCostConfig, vars re
 //
 // defaultListSize designates the mode of operation.
 // When it is positive, then its value is used as a fallback value of list sizes for the estimated cost.
-// When it is negative, then it computes the actual cost. And it uses the actualListSizes map.
+// When it is negative, then it computes the actual cost. And it uses the typeStats map.
 //
 // When estimating cost, it picks the highest multiplier among different data sources.
 // Also, it picks the maximum field weight of implementing types and then
 // the maximum among slicing arguments.
-func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, actualListSizes map[string]int) (fieldCost, argsCost, directivesCost int, multiplier float64) {
+func (node *CostTreeNode) costsAndMultiplier(
+	configs map[DSHash]*DataSourceCostConfig,
+	vars resolve.VariablesView,
+	defaultListSize int,
+	typeStats map[string]resolve.TypeNameStats,
+) (nodeCost costNodeResult) {
 	if len(node.dataSourceHashes) <= 0 {
 		// no data source is responsible for this field
 		return
 	}
 
 	parent := node.parent
-	fieldCost = 0
-	argsCost = 0
-	directivesCost = 0
-	multiplier = 0
+	nodeCost.multiplier = undefinedMultiplier
 
-	isEstimation := defaultListSize > 0
+	isEstimation := defaultListSize != actualCostMode
 
 	for _, dsHash := range node.dataSourceHashes {
 		dsCostConfig, ok := configs[dsHash]
@@ -504,24 +573,53 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		}
 
 		if fieldWeight != nil && fieldWeight.HasWeight {
-			fieldCost += fieldWeight.Weight
+			nodeCost.field += float64(fieldWeight.Weight)
 		} else {
 			// Use the weight of the type returned by this field
 			switch {
 			case node.returnsSimpleType:
-				fieldCost += dsCostConfig.EnumScalarTypeWeight(node.fieldTypeName)
+				nodeCost.field += float64(dsCostConfig.EnumScalarTypeWeight(node.fieldTypeName))
 			case node.returnsAbstractType:
-				// For the abstract field, find the max weight among all implementing types
-				maxWeight := 0
-				for _, implTypeName := range node.implementingTypeNames {
-					weight := dsCostConfig.ObjectTypeWeight(implTypeName)
-					if weight > maxWeight {
-						maxWeight = weight
+				var returnedTypeNames map[string]int
+				if stats, ok := typeStats[node.jsonPath]; ok {
+					returnedTypeNames = stats.TypeNames
+				}
+				treatAsMaximum := false
+				if len(returnedTypeNames) == 1 {
+					if _, returned := returnedTypeNames[node.fieldTypeName]; returned {
+						// Subgraph did not return __typename for elements of this list,
+						// the response has seen only the abstract typeName for elements of this list.
+						treatAsMaximum = true
 					}
 				}
-				fieldCost += maxWeight
+				if isEstimation || treatAsMaximum {
+					// Find the max weight among all implementing types:
+					maxWeight := 0
+					for _, implTypeName := range node.implementingTypeNames {
+						weight := dsCostConfig.ObjectTypeWeight(implTypeName)
+						if weight > maxWeight {
+							maxWeight = weight
+						}
+					}
+					nodeCost.field += float64(maxWeight)
+				} else {
+					// Adjust the cost of field as weighted sum based on the distribution of
+					// typeNames in the response.
+					var sum, count float64
+					for _, implTypeName := range node.implementingTypeNames {
+						if returnedTypeNames != nil {
+							if actual, returned := returnedTypeNames[implTypeName]; returned {
+								sum += float64(actual * dsCostConfig.ObjectTypeWeight(implTypeName))
+								count += float64(actual)
+							}
+						}
+					}
+					if count > 0 {
+						nodeCost.field += sum / count
+					}
+				}
 			default:
-				fieldCost += dsCostConfig.ObjectTypeWeight(node.fieldTypeName)
+				nodeCost.field += float64(dsCostConfig.ObjectTypeWeight(node.fieldTypeName))
 			}
 		}
 
@@ -530,7 +628,7 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			argumentWeightFound := false
 			if fieldWeight != nil {
 				if weight, ok := fieldWeight.ArgumentWeights[argName]; ok {
-					argsCost += weight
+					nodeCost.args += weight
 					argumentWeightFound = true
 				}
 			}
@@ -538,12 +636,12 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			// Input objects always add field-level costs, as the spec says.
 			// For other types, the explicit argument weight replaces the default type weight.
 			if arg.isInputObject {
-				argsCost += arg.inputFieldsCost(vars, dsCostConfig.Weights)
+				nodeCost.args += arg.inputFieldsCost(vars, dsCostConfig.Weights)
 			} else if !argumentWeightFound {
 				if arg.isSimple {
-					argsCost += dsCostConfig.EnumScalarTypeWeight(arg.typeName)
+					nodeCost.args += dsCostConfig.EnumScalarTypeWeight(arg.typeName)
 				} else {
-					argsCost += dsCostConfig.ObjectTypeWeight(arg.typeName)
+					nodeCost.args += dsCostConfig.ObjectTypeWeight(arg.typeName)
 				}
 			}
 		}
@@ -552,11 +650,11 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 		// or from implementing types when the enclosing type is abstract.
 		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			for _, weight := range parent.maxDirectiveArgumentWeightsImplementingFields(dsCostConfig, node.fieldCoords.FieldName) {
-				directivesCost += weight
+				nodeCost.directives += weight
 			}
 		} else if fieldWeight != nil {
 			for _, weight := range fieldWeight.DirectiveArgumentWeights {
-				directivesCost += weight
+				nodeCost.directives += weight
 			}
 		}
 
@@ -571,8 +669,8 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 			m := float64(listSize.multiplier(node.arguments, vars, defaultListSize))
 			// If this node returns a list of abstract types, then it could have listSize defined.
 			// Spec allows defining listSize on the fields of interfaces.
-			if m > multiplier {
-				multiplier = m
+			if m > nodeCost.multiplier {
+				nodeCost.multiplier = m
 			}
 			continue
 		}
@@ -589,8 +687,8 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 					continue
 				}
 				m := float64(parentLS.multiplier(parent.arguments, vars, defaultListSize))
-				if m > multiplier {
-					multiplier = m
+				if m > nodeCost.multiplier {
+					nodeCost.multiplier = m
 				}
 			}
 			continue
@@ -606,40 +704,92 @@ func (node *CostTreeNode) costsAndMultiplier(configs map[DSHash]*DataSourceCostC
 				)
 				for _, implLS := range implementing {
 					m := float64(implLS.multiplier(parent.arguments, vars, defaultListSize))
-					if m > multiplier {
-						multiplier = m
+					if m > nodeCost.multiplier {
+						nodeCost.multiplier = m
 					}
 				}
 			}
 		}
 	}
 
-	if !node.returnsListType {
+	if isEstimation {
+		if !node.returnsListType {
+			return
+		}
+		if nodeCost.multiplier == undefinedMultiplier {
+			nodeCost.multiplier = float64(defaultListSize)
+		}
 		return
 	}
-	if !isEstimation {
-		// actual or dynamic cost
-		totalCount, ok := actualListSizes[node.jsonPath]
-		if ok && totalCount != 0 {
-			parentCount := 1
-			// Find the list size of nearest ancestor
-			for p := node.parent; p != nil && p.fieldCoords != costTreeRootNodeCoords; p = p.parent {
-				if p.returnsListType {
-					if pc, found := actualListSizes[p.jsonPath]; found && pc > 0 {
-						parentCount = pc
-					}
-					break
+
+	// This block adjusts the multiplier of this node in actual mode.
+	// If this node returns a list, then we need to divide its multiplier by the size of the
+	// ancestor's node returning a list.
+	// If this node is enclosed by a node returning an abstract type, then we need to downsize
+	// multiplier too.
+	var ancestorStats resolve.TypeNameStats
+	var ancestorNode *CostTreeNode
+	// Find the nearest enclosing list ancestor.
+	for p := node.parent; p != nil && p.fieldCoords != costTreeRootNodeCoords; p = p.parent {
+		if p.returnsListType {
+			ancestorNode = p
+			ancestorStats = typeStats[p.jsonPath]
+			break
+		}
+	}
+	if node.returnsListType {
+		// This node's multiplier is its own array size, averaged over the nearest enclosing list
+		// to avoid double-counting of nested lists.
+		if nodeStats, ok := typeStats[node.jsonPath]; ok && nodeStats.Size != 0 {
+			enclosingSize := ancestorStats.Size
+			if enclosingSize <= 0 {
+				enclosingSize = 1
+			}
+			nodeCost.multiplier = float64(nodeStats.Size) / float64(enclosingSize)
+		}
+		return
+	}
+
+	// Non-list field. If it sits directly under an abstract list, narrow
+	// its multiplier by the share of elements that actually match this
+	// field's concrete type. The parent list's full-size multiplier will
+	// multiply this back up to the correct per-type count.
+	if ancestorNode == nil || node.parent != ancestorNode || !ancestorNode.returnsAbstractType || ancestorStats.Size == 0 {
+		return
+	}
+	if node.isEnclosingTypeAbstract && nodeCost.field > 0 {
+		var weightedSum float64
+		found := false
+		for _, implTypeName := range parent.implementingTypeNames {
+			count, typeNameFound := ancestorStats.TypeNames[implTypeName]
+			if !typeNameFound {
+				continue
+			}
+			found = true
+			for _, dsHash := range node.dataSourceHashes {
+				dsCostConfig, ok := configs[dsHash]
+				if !ok || dsCostConfig == nil {
+					continue
+				}
+
+				coords := FieldCoordinate{implTypeName, node.fieldCoords.FieldName}
+				fieldWeight := dsCostConfig.Weights[coords]
+				if fieldWeight != nil {
+					weightedSum += float64(fieldWeight.Weight * count)
 				}
 			}
-			// We compute average to avoid double counting for nested lists
-			multiplier = float64(totalCount) / float64(parentCount)
 		}
-		// If the list is empty, it means 0 cost for the field's resolver.
-		// That may be non-conservative, but it reflects the actual cost of work done.
-		return
+		if found {
+			nodeCost.multiplier = weightedSum / (nodeCost.field * float64(ancestorStats.Size))
+		}
 	}
-	if multiplier == 0 {
-		multiplier = float64(defaultListSize)
+	if !node.isEnclosingTypeAbstract {
+		count, typeNameFound := ancestorStats.TypeNames[node.fieldCoords.TypeName]
+		if ancestorStats.Size == 0 || !typeNameFound {
+			nodeCost.multiplier = 0
+		} else {
+			nodeCost.multiplier = float64(count) / float64(ancestorStats.Size)
+		}
 	}
 	return
 }
@@ -731,13 +881,9 @@ func (c *CostCalculator) EstimateCost(vars resolve.VariablesView) int {
 	return int(math.RoundToEven(c.tree.cost(c.costConfigs, vars, c.defaultListSize, nil)))
 }
 
-const (
-	actualCostMode = -1 // -1 signals actual mode
-)
-
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
-func (c *CostCalculator) ActualCost(vars resolve.VariablesView, actualListSizes map[string]int) int {
-	return int(math.RoundToEven(c.tree.cost(c.costConfigs, vars, actualCostMode, actualListSizes)))
+func (c *CostCalculator) ActualCost(vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats) int {
+	return int(math.RoundToEven(c.tree.cost(c.costConfigs, vars, actualCostMode, typeStats)))
 }
 
 // ValidateSliceArguments checks that all fields with slicingArguments and
@@ -820,35 +966,34 @@ func (node *CostTreeNode) buildASTPath() ast.Path {
 
 // DebugPrint prints the cost tree structure for debugging purposes.
 // It shows each node's field coordinate, costs, multipliers, and computed totals.
-func (c *CostCalculator) DebugPrint(vars resolve.VariablesView, actualListSizes map[string]int) string {
+func (c *CostCalculator) DebugPrint(vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats) string {
 	if c.tree == nil || len(c.tree.children) == 0 {
 		return "<empty cost tree>"
 	}
 	costConfigs := c.costConfigs
 	defaultListSize := c.defaultListSize
 	var sb strings.Builder
-	if actualListSizes != nil {
-		defaultListSize = -1
+	if typeStats != nil {
+		defaultListSize = actualCostMode
 		sb.WriteString("Actual Cost Tree Debug\n")
 		sb.WriteString("======================\n")
 	} else {
 		sb.WriteString("Estimated Cost Tree Debug\n")
 		sb.WriteString("=========================\n")
 	}
-	c.tree.children[0].debugPrint(&sb, costConfigs, vars, defaultListSize, actualListSizes, 0)
+	c.tree.children[0].debugPrint(&sb, costConfigs, vars, defaultListSize, typeStats, 0)
 	return sb.String()
 }
 
 // debugPrint recursively prints a node and its children with indentation.
-func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, actualListSizes map[string]int, depth int) {
+func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, typeStats map[string]resolve.TypeNameStats, depth int) {
 	// implementation is a bit crude and redundant, we could skip calculating nodes all over again.
 	// but it should suffice for debugging tests.
-	if node == nil {
+	if node == nil || node.fieldCoords.FieldName == "__typename" {
 		return
 	}
 
 	indent := strings.Repeat("    ", depth)
-
 	fmt.Fprintf(sb, "%s* %s", indent, node.fieldCoords)
 
 	if node.fieldTypeName != "" {
@@ -869,33 +1014,40 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		fmt.Fprintf(sb, " [%s]", strings.Join(flags, ","))
 	}
 	if len(node.jsonPath) > 0 {
-		fmt.Fprintf(sb, " : path=%s", node.jsonPath)
+		fmt.Fprintf(sb, ", path=%s", node.jsonPath)
+	}
+	if len(node.dataSourceHashes) > 0 {
+		fmt.Fprintf(sb, ", dataSources=%v", len(node.dataSourceHashes))
 	}
 	sb.WriteString("\n")
 
-	// Compute costs for this node to display in debug output
-	fieldCost, argsCost, dirsCost, multiplier := node.costsAndMultiplier(configs, vars, defaultListSize, actualListSizes)
+	// This is somewhat redundant, but it should not be used in production.
+	// If there is a need to present a cost tree to the user,
+	// printing should be embedded into the tree calculation process.
+	subtreeCost := node.cost(configs, vars, defaultListSize, typeStats)
+	fmt.Fprintf(sb, "%s  cost = %.2f\n", indent, subtreeCost)
+
+	// Compute intermediate cost values for this node to display.
+	nodeCost := node.costsAndMultiplier(configs, vars, defaultListSize, typeStats)
 	// We enforce multiplier=1 for non-list fields.
-	if multiplier == 0 && !node.returnsListType {
-		multiplier = 1
+	if (nodeCost.multiplier == undefinedMultiplier && !node.returnsListType) || node.fieldCoords == costTreeRootNodeCoords {
+		nodeCost.multiplier = 1
 	}
-	if fieldCost != 0 || argsCost != 0 || dirsCost != 0 || multiplier != 0 {
-		fmt.Fprintf(sb, "%s  fieldCost=%d", indent, fieldCost)
-
-		if argsCost > 0 {
-			fmt.Fprintf(sb, ", argsCost=%d", argsCost)
-		}
-		if dirsCost > 0 {
-			fmt.Fprintf(sb, ", directivesCost=%d", dirsCost)
-		}
-		fmt.Fprintf(sb, ", multiplier=%.2f", multiplier)
-
-		// Show data sources
-		if len(node.dataSourceHashes) > 0 {
-			fmt.Fprintf(sb, ", dataSources=%v", node.dataSourceHashes)
-		}
-		sb.WriteString("\n")
+	if nodeCost.multiplier == undefinedMultiplier {
+		nodeCost.multiplier = 0
 	}
+
+	fmt.Fprintf(sb, "%s  fieldCost = %.2f", indent, nodeCost.field)
+
+	if nodeCost.args > 0 {
+		fmt.Fprintf(sb, ", argsCost = %d", nodeCost.args)
+	}
+	if nodeCost.directives > 0 {
+		fmt.Fprintf(sb, ", directivesCost = %d", nodeCost.directives)
+	}
+	fmt.Fprintf(sb, ", multiplier = %.2f", nodeCost.multiplier)
+
+	sb.WriteString("\n")
 
 	if len(node.arguments) > 0 {
 		var argStrs []string
@@ -918,13 +1070,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, configs map[DSHash]*Da
 		fmt.Fprintf(sb, "%s  implements: [%s]\n", indent, strings.Join(node.implementingTypeNames, ", "))
 	}
 
-	// This is somewhat redundant, but it should not be used in production.
-	// If there is a need to present a cost tree to the user,
-	// printing should be embedded into the tree calculation process.
-	subtreeCost := node.cost(configs, vars, defaultListSize, actualListSizes)
-	fmt.Fprintf(sb, "%s  subCost=%.2f\n", indent, subtreeCost)
-
 	for _, child := range node.children {
-		child.debugPrint(sb, configs, vars, defaultListSize, actualListSizes, depth+1)
+		child.debugPrint(sb, configs, vars, defaultListSize, typeStats, depth+1)
 	}
 }

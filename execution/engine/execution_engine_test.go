@@ -63,6 +63,7 @@ func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[grap
 
 func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return func(t *testing.T) {
+		t.Parallel()
 		t.Helper()
 
 		if testCase.skipReason != "" {
@@ -134,7 +135,7 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		}
 
 		if testCase.expectedJSONResponse != "" {
-			assert.JSONEq(t, testCase.expectedJSONResponse, actualResponse)
+			assert.Equal(t, compactJSONForAssert(t, testCase.expectedJSONResponse), compactJSONForAssert(t, actualResponse))
 		}
 
 		if testCase.expectedResponse != "" {
@@ -177,8 +178,25 @@ func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.Pl
 	return cfg
 }
 
+func mustGraphqlDataSourceConfigurationWithName(t *testing.T, id, name string, factory plan.PlannerFactory[graphql_datasource.Configuration], metadata *plan.DataSourceMetadata, customConfig graphql_datasource.Configuration) plan.DataSourceConfiguration[graphql_datasource.Configuration] {
+	t.Helper()
+
+	cfg, err := plan.NewDataSourceConfigurationWithName[graphql_datasource.Configuration](
+		id,
+		name,
+		factory,
+		metadata,
+		customConfig,
+	)
+	require.NoError(t, err)
+
+	return cfg
+}
+
 func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
+	t.Parallel()
 	t.Run("no compression", func(t *testing.T) {
+		t.Parallel()
 		rw := graphql.NewEngineResultWriter()
 		_, err := rw.Write([]byte(`{"key": "value"}`))
 		require.NoError(t, err)
@@ -196,14 +214,16 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 	})
 
 	t.Run("compression based on content encoding header", func(t *testing.T) {
-		rw := graphql.NewEngineResultWriter()
-		_, err := rw.Write([]byte(`{"key": "value"}`))
-		require.NoError(t, err)
-
-		headers := make(http.Header)
-		headers.Set("Content-Type", "application/json")
+		t.Parallel()
 
 		t.Run("gzip", func(t *testing.T) {
+			t.Parallel()
+			rw := graphql.NewEngineResultWriter()
+			_, err := rw.Write([]byte(`{"key": "value"}`))
+			require.NoError(t, err)
+
+			headers := make(http.Header)
+			headers.Set("Content-Type", "application/json")
 			headers.Set(httpclient.ContentEncodingHeader, "gzip")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
@@ -222,6 +242,13 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 		})
 
 		t.Run("deflate", func(t *testing.T) {
+			t.Parallel()
+			rw := graphql.NewEngineResultWriter()
+			_, err := rw.Write([]byte(`{"key": "value"}`))
+			require.NoError(t, err)
+
+			headers := make(http.Header)
+			headers.Set("Content-Type", "application/json")
 			headers.Set(httpclient.ContentEncodingHeader, "deflate")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
@@ -240,6 +267,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 }
 
 func TestWithAdditionalHttpHeaders(t *testing.T) {
+	t.Parallel()
 	reqHeader := http.Header{
 		http.CanonicalHeaderKey("X-Other-Key"):       []string{"x-other-value"},
 		http.CanonicalHeaderKey("Date"):              []string{"date-value"},
@@ -250,6 +278,7 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 	}
 
 	t.Run("should add all headers to request without excluded keys", func(t *testing.T) {
+		t.Parallel()
 		c := resolve.NewContext(context.Background())
 		c.Request = resolve.Request{
 			Header: nil,
@@ -266,6 +295,7 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 	})
 
 	t.Run("should only add headers that are not excluded", func(t *testing.T) {
+		t.Parallel()
 		c := resolve.NewContext(context.Background())
 		c.Request = resolve.Request{
 			Header: nil,
@@ -355,6 +385,7 @@ func relaxFieldSelectionMergingNullability() executionTestOptions {
 }
 
 func TestExecutionEngine_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("apollo router compatibility subrequest HTTP error enabled", runWithoutError(
 		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
@@ -543,6 +574,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	))
 
 	t.Run("introspection", func(t *testing.T) {
+		t.Parallel()
 		schema := graphql.StarwarsSchema(t)
 
 		t.Run("execute type introspection query", runWithoutError(
@@ -1350,7 +1382,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	t.Run("execute operation with variables for arguments", runWithoutError(
 		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
-			operation: graphql.LoadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]interface{}{"droidID": "R2D2"}),
+			operation: graphql.LoadStarWarsQuery(starwars.FileDroidWithArgAndVarQuery, map[string]any{"droidID": "R2D2"}),
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
@@ -1413,7 +1445,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
 				OperationName: "MyHeroes",
-				Variables: stringify(map[string]interface{}{
+				Variables: stringify(map[string]any{
 					"heroNames": []string{"Luke Skywalker", "R2-D2"},
 				}),
 				Query: `query MyHeroes($heroNames: [String!]!){
@@ -1667,7 +1699,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
 				OperationName: "",
-				Variables:     stringify(map[string]interface{}{}),
+				Variables:     stringify(map[string]any{}),
 				Query: `query{
 						charactersByIds(ids: 1) {
 							name
@@ -1736,7 +1768,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
 				OperationName: "",
-				Variables: stringify(map[string]interface{}{
+				Variables: stringify(map[string]any{
 					"ids": 1,
 				}),
 				Query: `query($ids: [Int]) { charactersByIds(ids: $ids) { name } }`,
@@ -1859,6 +1891,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	))
 
 	t.Run("execute operation with default arguments", func(t *testing.T) {
+		t.Parallel()
 		t.Run("query variables with default value", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: heroWithArgumentSchema(t),
@@ -1925,7 +1958,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
 						OperationName: "queryVariables",
-						Variables: stringify(map[string]interface{}{
+						Variables: stringify(map[string]any{
 							"name":         "Luke",
 							"nameOptional": "Skywalker",
 						}),
@@ -2125,7 +2158,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				expectedResponse: `{"data":{"heroDefault":"R2D2","heroDefaultRequired":"R2D2"}}`,
 			},
 		))
-
 	})
 
 	t.Run("execute query with data source on field with interface return type", runWithoutError(
@@ -2329,6 +2361,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	))
 
 	t.Run("invalid and inaccessible enum values", func(t *testing.T) {
+		t.Parallel()
 		schema, err := graphql.NewSchemaFromString(enumSDL)
 		require.NoError(t, err)
 
@@ -4458,7 +4491,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("variables", func(t *testing.T) {
+		t.Parallel()
 		t.Run("operation with optional input fields", func(t *testing.T) {
+			t.Parallel()
 			schemaString := `
 				type Query {
 					field(arg: Input): String
@@ -4592,6 +4627,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("execute operation with nested fetch on one of the types", func(t *testing.T) {
+		t.Parallel()
 
 		definition := `
 			type User implements Node {
@@ -4912,30 +4948,22 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 				dataSources:      makeDataSource(t, makeDataSourceOpts{includeCostConfig: true}),
 				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
-				// Cost breakdown with federation:
-				// Query.accounts: fieldCost=5, multiplier=3 (listSize)
-				//   accounts returns interface [Node!]! with implementing types [User, Admin]
-				//
-				// Children (per interface member type):
-				//   User.some: User: fieldCost=3 (DS1:2 + DS2:1 summed)
-				//     User.title: 4 (DS2, resolved via _entities federation)
-				//   cost = 3 + 4 = 7
-				//
-				//   Admin.some: User: fieldCost=3 (DS1 only)
-				//   cost = 3
-				//
-				// Children total = 7 + 3 = 10
-				// (is it possible to improve accuracy here by using the largest fragment instead of the sum?)
-				// Total = (5 + 10) * 3 = 45
-				expectedEstimatedCost: intPtr(45),
+				// 3 * (5 + max(7, 3))
+				expectedEstimatedCost: intPtr(36),
+				// total __ 2 Users ________ 1 Admin
+				// 3 * (5 + 0.67*(3 + 4*1) + 0.33*3)
+				// 3 * (5 + 4.69 + 1)
+				expectedActualCost: intPtr(32),
 			},
 			computeCosts(),
 		))
 	})
 
 	t.Run("validation of optional @requires dependencies", func(t *testing.T) {
+		t.Parallel()
 
 		t.Run("execute operation with @requires and @external", func(t *testing.T) {
+			t.Parallel()
 			definition := `
 				type User {
 					id: ID!
@@ -5096,6 +5124,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		})
 
 		t.Run("do not validate non-nullable @requires dependencies", func(t *testing.T) {
+			t.Parallel()
 			definition := `
 				type Query {
 					accounts: [User!]!
@@ -5263,6 +5292,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		})
 
 		t.Run("validate nullable @requires dependencies", func(t *testing.T) {
+			t.Parallel()
 			definition := `
 				type Query {
 					accounts: [User!]!
@@ -5430,6 +5460,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		})
 
 		t.Run("validate nested nullable @requires dependencies", func(t *testing.T) {
+			t.Parallel()
 			definition := `
 				type Query {
 					accounts: [User!]!
@@ -5633,6 +5664,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	})
 
 	t.Run("field merging with different nullability on non-overlapping union types", func(t *testing.T) {
+		t.Parallel()
 		unionSchema := `
 			union Entity = User | Organization
 			type Query { entity: Entity }
@@ -5786,6 +5818,7 @@ func testConditionalNetHttpClient(t *testing.T, testCase conditionalTestCase) *h
 }
 
 func TestExecutionEngine_GetCachedPlan(t *testing.T) {
+	t.Parallel()
 	schema, err := graphql.NewSchemaFromString(testSubscriptionDefinition)
 	require.NoError(t, err)
 
@@ -5849,12 +5882,20 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		),
 	})
 
-	engine, err := NewExecutionEngine(context.Background(), abstractlogger.NoopLogger, engineConfig, resolve.ResolverOptions{
-		MaxConcurrency: 1024,
-	})
-	require.NoError(t, err)
+	newEngine := func(t *testing.T) *ExecutionEngine {
+		t.Helper()
+
+		engine, err := NewExecutionEngine(context.Background(), abstractlogger.NoopLogger, engineConfig, resolve.ResolverOptions{
+			MaxConcurrency: 1024,
+		})
+		require.NoError(t, err)
+
+		return engine
+	}
 
 	t.Run("should reuse cached plan", func(t *testing.T) {
+		t.Parallel()
+		engine := newEngine(t)
 		t.Cleanup(engine.executionPlanCache.Purge)
 		require.Equal(t, 0, engine.executionPlanCache.Len())
 
@@ -5883,6 +5924,8 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 	})
 
 	t.Run("should create new plan and cache it", func(t *testing.T) {
+		t.Parallel()
+		engine := newEngine(t)
 		t.Cleanup(engine.executionPlanCache.Purge)
 		require.Equal(t, 0, engine.executionPlanCache.Len())
 
@@ -5925,8 +5968,7 @@ func BenchmarkIntrospection(b *testing.B) {
 	require.NoError(b, err)
 	expectedResponse := buf.Bytes()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := b.Context()
 	type benchCase struct {
 		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
@@ -5948,7 +5990,6 @@ func BenchmarkIntrospection(b *testing.B) {
 		}
 	}
 
-	ctx = context.Background()
 	req := graphql.StarwarsRequestForQuery(b, starwars.FileIntrospectionQuery)
 
 	writer := graphql.NewEngineResultWriter()
@@ -5957,7 +5998,7 @@ func BenchmarkIntrospection(b *testing.B) {
 	require.Equal(b, string(expectedResponse), writer.String())
 
 	pool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return newBenchCase()
 		},
 	}
@@ -5976,12 +6017,10 @@ func BenchmarkIntrospection(b *testing.B) {
 			pool.Put(bc)
 		}
 	})
-
 }
 
 func BenchmarkExecutionEngine(b *testing.B) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := b.Context()
 	type benchCase struct {
 		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
@@ -6031,7 +6070,6 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		}
 	}
 
-	ctx = context.Background()
 	req := graphql.Request{
 		Query: "{hello}",
 	}
@@ -6042,7 +6080,7 @@ func BenchmarkExecutionEngine(b *testing.B) {
 	require.Equal(b, "{\"data\":{\"hello\":\"world\"}}", writer.String())
 
 	pool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return newBenchCase()
 		},
 	}
@@ -6061,7 +6099,6 @@ func BenchmarkExecutionEngine(b *testing.B) {
 			pool.Put(bc)
 		}
 	})
-
 }
 
 func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesting.FederationSetup) (engine *ExecutionEngine, schema *graphql.Schema, err error) {

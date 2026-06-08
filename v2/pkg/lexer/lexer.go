@@ -130,6 +130,7 @@ func (l *Lexer) readDotOrSpread(tok *token.Token) {
 func (l *Lexer) readComment(tok *token.Token) {
 
 	tok.Keyword = keyword.COMMENT
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 
 	for {
 		next := l.readRune()

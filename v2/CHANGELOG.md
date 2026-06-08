@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.4.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.2...v2.4.3) (2026-06-05)
+
+
+### Bug Fixes
+
+* calculate costs for abstract fields without double counting ([#1521](https://github.com/wundergraph/graphql-go-tools/issues/1521)) ([4175a9e](https://github.com/wundergraph/graphql-go-tools/commit/4175a9e1168ca0ac4a3c98dba1184a23ad69d8cc))
+* **jsonschema:** align nullability with JSON Schema 2020-12 ([#1518](https://github.com/wundergraph/graphql-go-tools/issues/1518)) ([6fcdf8c](https://github.com/wundergraph/graphql-go-tools/commit/6fcdf8c07098081cd390f82d06d36c7e0e56e62c))
+
+## [2.4.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.1...v2.4.2) (2026-06-03)
+
+
+### Bug Fixes
+
+* **astprinter:** preserve description indentation and break prose-bearing field args ([#1500](https://github.com/wundergraph/graphql-go-tools/issues/1500)) ([d81c9a7](https://github.com/wundergraph/graphql-go-tools/commit/d81c9a7b6689e98a985afc645b2527e1aec7703c))
+* bump grpc to v1.80.0 ([#1511](https://github.com/wundergraph/graphql-go-tools/issues/1511)) ([5c2debf](https://github.com/wundergraph/graphql-go-tools/commit/5c2debfdd83a02ccc08468fe508540100624c177))
+* **jsonschema:** emit $ref/$defs for recursive input types ([#1513](https://github.com/wundergraph/graphql-go-tools/issues/1513)) ([1369a25](https://github.com/wundergraph/graphql-go-tools/commit/1369a25643a280a08e11ac8a12adef4505184e5b))
+
 ## [2.4.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.0...v2.4.1) (2026-05-25)
 
 
