@@ -1340,8 +1340,11 @@ func (p *Planner[T]) DebugPrint(args ...any) {
 }
 
 func (p *Planner[T]) debugPrintln(args ...any) {
-	// TODO! no panic when no fetch url
-	allArgs := []any{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), p.config.fetch.URL)}
+	var fetchUrl string
+	if p.config.fetch != nil {
+		fetchUrl = p.config.fetch.URL
+	}
+	allArgs := []any{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), fetchUrl)}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
