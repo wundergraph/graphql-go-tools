@@ -395,7 +395,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return nil, err
 	}
 
-	ctx.ActualListSizes = t.resolvable.actualListSizes
+	ctx.TypeNameStats = t.resolvable.typeNameStats
 
 	return resp, err
 }
@@ -462,7 +462,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		r.responseBufferPool.Release(responseArena)
 		return nil, err
 	}
-	ctx.ActualListSizes = t.resolvable.actualListSizes
+	ctx.TypeNameStats = t.resolvable.typeNameStats
 
 	// first release resolverArena
 	// all data is resolved and written into the response arena
