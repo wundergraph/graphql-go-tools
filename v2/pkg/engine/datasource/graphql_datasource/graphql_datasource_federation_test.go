@@ -19575,7 +19575,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 
 			firstSubgraphSDL := `
 				type Query {
-					notEntity: NotEntity @provides(fields: "entity {id name}")
+					notEntity: NotEntity @provides(fields: "entity {... on Entity {id}}")
 				}
 				
 				type NotEntity {
@@ -19627,7 +19627,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							{
 								TypeName:     "Query",
 								FieldName:    "notEntity",
-								SelectionSet: "entity {id name}",
+								SelectionSet: "entity {... on Entity {id}}",
 							},
 						},
 					},
