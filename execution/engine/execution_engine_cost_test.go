@@ -243,8 +243,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
-				expectedEstimatedCost: intPtr(22), // Query.hero (2) + Human.height (3) + Droid.name (17=max(7, 17))
-				expectedActualCost:    intPtr(22),
+				expectedEstimatedCost: intPtr(5), // Query.hero (2) + Human.height (3) — name uses scalar default (0) not max across impls
+				expectedActualCost:    intPtr(5),
 			},
 			computeCosts(),
 		))
@@ -405,9 +405,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
-				expectedEstimatedCost: intPtr(30), // Query.Human (13) + Droid.name (17=max(7, 17))
-				// name is interface so the actual cost is taken as max
-				expectedActualCost: intPtr(30),
+				expectedEstimatedCost: intPtr(13), // Query.Human (13) — name uses scalar default (0) not max across impls
+				expectedActualCost:    intPtr(13),
 			},
 			computeCosts(),
 		))
@@ -514,7 +513,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(207), // max(7,5)+ 20 * (7 + max(2,2+1))
+				expectedEstimatedCost: intPtr(107), // hero(max(7,5)) + defaultListSize(10) * (max(7,5) + 0 + 0) — fields inside abstract use scalar default
 				expectedActualCost:    intPtr(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
 			},
 			computeCosts(),
@@ -572,8 +571,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(147), // hero(max(7,5))+ 20 * (4+max(2, 2+1))
-				expectedActualCost:    intPtr(20),  // hero(7)       +  2 * (4+0.5*(2+2+1))
+				expectedEstimatedCost: intPtr(107), // hero(max(7,5)) + defaultListSize(10) * (max(4,4) + 0 + 0) — fields inside abstract use scalar default
+				expectedActualCost:    intPtr(24),  // hero(7) + 2 * (4 + 0.5*(2+2+1))
 			},
 			computeCosts(),
 		))
@@ -780,12 +779,13 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
 				// Cost calculation:
 				// Query.hero: 2
-				// Character.name: max(Human.name=3, Droid.name=5) = 5
-				//   friends listSize: max(4, 6) = 6
+				// Character.name: scalar default = 0 (not max across impls)
+				//   friends listSize: defaultListSize(10) — listSize on implementing types not used
 				//   Character type: max(Human=2, Droid=3) = 3
-				//   name: max(Human.name=3, Droid.name=5) = 5
-				expectedEstimatedCost: intPtr(55), // 2 + 1*(5 + 6*(3 + 1*5))
-				expectedActualCost:    intPtr(15), // 2 + 1*(5 + 1*(3 + 1*5))
+				//   name: scalar default = 0
+				// Total: 2 + 0 + 10 * (3 + 0) = 32
+				expectedEstimatedCost: intPtr(32), // 2 + 1*(0 + 10*(3 + 1*0))
+				expectedActualCost:    intPtr(5),  // 2 + 1*(3 + 1*0)
 			},
 			computeCosts(),
 		))
@@ -838,15 +838,15 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse: `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
-				// Cost calculation:
+				// Cost calculation with UseInterfaceDefaultCostForAbstractTypes:
 				// Query.hero: 2
-				// Character.name: max(Human.name=3, Droid.name=5) = 5
-				//   friends listSize: max(4, 6) = 6
+				// Character.name: scalar default = 0 (not max across impls)
+				//   friends listSize: defaultListSize(10) — listSize on implementing types not used
 				//   Character type: max(Human=2, Droid=3) = 3
-				//   name: max(Human.name=3, Droid.name=5) = 5
-				// Total: 2 + 5 + 6 * (3 + 5)
-				expectedEstimatedCost: intPtr(55),
-				expectedActualCost:    intPtr(12), // 2 + 1*5 + 1*(2 + 1*3)
+				//   name: scalar default = 0
+				// Total: 2 + 0 + 10 * (3 + 0) = 32
+				expectedEstimatedCost: intPtr(32),
+				expectedActualCost:    intPtr(4), // 2 + 1*(2 + 1*0)
 			},
 			computeCosts(),
 		))
@@ -3305,10 +3305,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
-				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
-				expectedEstimatedCost: intPtr(140),
-				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*10))))
-				expectedActualCost: intPtr(55),
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 0)))) — text uses scalar default (0) not max across impls
+				expectedEstimatedCost: intPtr(40),
+				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*0)))) — text actual cost also 0 for non-fragment fields
+				expectedActualCost: intPtr(35),
 			},
 			computeCosts(),
 		))
@@ -5659,7 +5659,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                abstractFieldConfig,
 				expectedResponse:      `{"data":{"search":{"items":[{"id":"1"}]}}}`,
-				expectedEstimatedCost: intPtr(11), // Paginated(1) + 5 * (Item(2) + Item.id(0))
+				expectedEstimatedCost: intPtr(21), // Paginated(1) + 5 * (Item(2) + Item.id(0)) + search default object weight(1) * 2 fields
 				expectedActualCost:    intPtr(3),  // Paginated(1) + 1 * (Item(2) + Item.id(0))
 			},
 			computeCosts(),
