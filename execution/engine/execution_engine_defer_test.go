@@ -2,6 +2,7 @@ package engine
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -1661,87 +1662,100 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			}
 		`
 
-		dataSources := []plan.DataSource{
-			mustGraphqlDataSourceConfiguration(t,
-				"id-1",
-				mustFactory(t,
-					testConditionalNetHttpClient(t, conditionalTestCase{
-						reportUnused: false,
-						expectedHost: "first",
-						expectedPath: "/",
-						responses: map[string]sendResponse{
-							`{"query":"{product {___typename: __typename}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"product":{"___typename":"Product"}}}`,
+		// makeDataSources builds the two product subgraph stubs with configurable
+		// response latencies so order-dependent defer tests produce deterministic
+		// frame ordering. The price defer group performs two roundtrips (key fetch
+		// on id-1, then entity fetch on id-2), so its total latency is
+		// keyLatencyMS + entityLatencyMS.
+		makeDataSources := func(nameLatencyMS, nameWithErrorLatencyMS, keyLatencyMS, entityLatencyMS time.Duration) []plan.DataSource {
+			return []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id-1",
+					mustFactory(t,
+						testConditionalNetHttpClient(t, conditionalTestCase{
+							reportUnused: false,
+							expectedHost: "first",
+							expectedPath: "/",
+							responses: map[string]sendResponse{
+								`{"query":"{product {___typename: __typename}}"}`: {
+									statusCode: 200,
+									body:       `{"data":{"product":{"___typename":"Product"}}}`,
+								},
+								`{"query":"{product {___typename: __typename __typename id}}"}`: {
+									statusCode: 200,
+									body:       `{"data":{"product":{"___typename":"Product","__typename":"Product","id":"1"}}}`,
+									latencyMS:  keyLatencyMS,
+								},
+								`{"query":"{product {name}}"}`: {
+									statusCode: 200,
+									body:       `{"data":{"product":{"name":null}}}`,
+									latencyMS:  nameLatencyMS,
+								},
+								`{"query":"{product {nameWithError}}"}`: {
+									statusCode: 200,
+									body:       `{"data":{"product":{"nameWithError":null}},"errors":[{"message":"upstream name error","path":["product","nameWithError"]}]}`,
+									latencyMS:  nameWithErrorLatencyMS,
+								},
 							},
-							`{"query":"{product {___typename: __typename __typename id}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"product":{"___typename":"Product","__typename":"Product","id":"1"}}}`,
-							},
-							`{"query":"{product {name}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"product":{"name":null}}}`,
-							},
-							`{"query":"{product {nameWithError}}"}`: {
-								statusCode: 200,
-								body:       `{"data":{"product":{"nameWithError":null}},"errors":[{"message":"upstream name error","path":["product","nameWithError"]}]}`,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{TypeName: "Query", FieldNames: []string{"product"}},
+							{TypeName: "Product", FieldNames: []string{"id", "name", "nameWithError"}},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{TypeName: "Product", SelectionSet: "id"},
 							},
 						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{URL: "https://first/", Method: "POST"},
+						SchemaConfiguration: mustSchemaConfig(t,
+							&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: firstSubgraphSDL},
+							firstSubgraphSDL,
+						),
 					}),
 				),
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"product"}},
-						{TypeName: "Product", FieldNames: []string{"id", "name", "nameWithError"}},
-					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{TypeName: "Product", SelectionSet: "id"},
-						},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					Fetch: &graphql_datasource.FetchConfiguration{URL: "https://first/", Method: "POST"},
-					SchemaConfiguration: mustSchemaConfig(t,
-						&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: firstSubgraphSDL},
-						firstSubgraphSDL,
+				mustGraphqlDataSourceConfiguration(t,
+					"id-2",
+					mustFactory(t,
+						testConditionalNetHttpClient(t, conditionalTestCase{
+							reportUnused: false,
+							expectedHost: "second",
+							expectedPath: "/",
+							responses: map[string]sendResponse{
+								`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[{"__typename":"Product","id":"1"}]}}`: {
+									statusCode: 200,
+									body:       `{"data":{"_entities":[{"__typename":"Product","price":null}]}}`,
+									latencyMS:  entityLatencyMS,
+								},
+							},
+						}),
 					),
-				}),
-			),
-			mustGraphqlDataSourceConfiguration(t,
-				"id-2",
-				mustFactory(t,
-					testConditionalNetHttpClient(t, conditionalTestCase{
-						reportUnused: false,
-						expectedHost: "second",
-						expectedPath: "/",
-						responses: map[string]sendResponse{
-							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[{"__typename":"Product","id":"1"}]}}`: {
-								statusCode: 200,
-								body:       `{"data":{"_entities":[{"__typename":"Product","price":null}]}}`,
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{TypeName: "Product", FieldNames: []string{"price"}},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{TypeName: "Product", SelectionSet: "id"},
 							},
 						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{URL: "https://second/", Method: "POST"},
+						SchemaConfiguration: mustSchemaConfig(t,
+							&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: secondSubgraphSDL},
+							secondSubgraphSDL,
+						),
 					}),
 				),
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Product", FieldNames: []string{"price"}},
-					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{TypeName: "Product", SelectionSet: "id"},
-						},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					Fetch: &graphql_datasource.FetchConfiguration{URL: "https://second/", Method: "POST"},
-					SchemaConfiguration: mustSchemaConfig(t,
-						&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: secondSubgraphSDL},
-						secondSubgraphSDL,
-					),
-				}),
-			),
+			}
 		}
+
+		dataSources := makeDataSources(0, 0, 0, 0)
 
 		schema, err := graphql.NewSchemaFromString(definition)
 		require.NoError(t, err)
@@ -1784,7 +1798,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { name } ... @defer { price } } }`}
 			},
-			dataSources: dataSources,
+			// name must complete first: name responds in 1ms, the price chain
+			// (key fetch + entity fetch) takes ~10ms.
+			dataSources: makeDataSources(1, 0, 5, 5),
 			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
 {"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":true}
 {"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
@@ -1796,7 +1812,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { price } ... @defer { name } } }`}
 			},
-			dataSources: dataSources,
+			// price must complete first: the price chain (key + entity) takes
+			// ~2ms, name responds after 12ms.
+			dataSources: makeDataSources(12, 0, 1, 1),
 			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
 {"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":true}
 {"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
@@ -1808,7 +1826,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { nameWithError } ... @defer { price } } }`}
 			},
-			dataSources: dataSources,
+			// nameWithError must complete first: it responds in 1ms, the price
+			// chain (key + entity) takes ~10ms.
+			dataSources: makeDataSources(0, 1, 5, 5),
 			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
 {"incremental":[{"data":{"nameWithError":null},"id":"1","errors":[{"message":"Failed to fetch from Subgraph 'id-1'."}]}],"completed":[{"id":"1"}],"hasNext":true}
 {"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}

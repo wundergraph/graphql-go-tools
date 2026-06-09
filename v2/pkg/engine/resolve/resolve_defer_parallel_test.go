@@ -256,3 +256,59 @@ func TestResolveDeferTree_ParallelSiblings_ErrorsAreIsolated(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveDeferTree_ParallelSiblings_SubgraphErrorsAggregateIntoContext:
+// defer-group subgraph errors must reach Context.SubgraphErrors(). Before the
+// Context clone is removed they are recorded on the discarded per-group clone
+// and SubgraphErrors() returns nil.
+func TestResolveDeferTree_ParallelSiblings_SubgraphErrorsAggregateIntoContext(t *testing.T) {
+	t.Parallel()
+
+	rCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	r := newResolver(rCtx)
+
+	groupA := &DeferFetchGroup{
+		DeferID: 1,
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group A"}]}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			Info: &FetchInfo{DataSourceID: "subgraph-A", DataSourceName: "subgraph-A"},
+		}),
+	}
+	groupB := &DeferFetchGroup{
+		DeferID: 2,
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group B"}]}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			Info: &FetchInfo{DataSourceID: "subgraph-B", DataSourceName: "subgraph-B"},
+		}),
+	}
+
+	response := minimalDeferResponse([]*DeferFetchGroup{groupA, groupB}, map[int]DeferDescriptor{
+		1: {ID: 1, ParentID: 0},
+		2: {ID: 2, ParentID: 0},
+	})
+	response.DeferTree = DeferParallel(DeferSingle(groupA), DeferSingle(groupB))
+
+	writer := &testDeferWriter{}
+	ctx := NewContext(context.Background())
+
+	_, err := r.ResolveGraphQLDeferResponse(ctx, response, writer)
+	require.NoError(t, err)
+
+	joined := ctx.SubgraphErrors()
+	require.Error(t, joined, "defer-group subgraph errors must aggregate into the Context")
+	assert.Contains(t, joined.Error(), "subgraph-A")
+	assert.Contains(t, joined.Error(), "subgraph-B")
+}

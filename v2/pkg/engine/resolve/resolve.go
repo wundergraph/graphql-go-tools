@@ -476,8 +476,11 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 
 		// fetch initial response
 		if err := loader.ResolveFetchNode(response.Response.Fetches); err != nil {
+			loader.appendSubgraphErrorsToContext()
 			return nil, err
 		}
+
+		loader.appendSubgraphErrorsToContext()
 
 		// Inject loader output before the initial defer render.
 		resolvable.data = loader.dataBuffer.Get()
@@ -573,6 +576,9 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	groupLoader.Init(ctx, dc.info) // fresh taintedObjs; errors=nil
 
 	if err := groupLoader.ResolveFetchNode(group.Fetches); err != nil {
+		dc.db.Lock()
+		groupLoader.appendSubgraphErrorsToContext()
+		dc.db.Unlock()
 		return err
 	}
 
@@ -585,6 +591,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	// Inject group-local state into Resolvable for this render.
 	dc.resolvable.data = dc.db.Get()
 	dc.resolvable.errors = groupLoader.errors
+	groupLoader.appendSubgraphErrorsToContext()
 
 	// TODO: skipValueCompletion is set inside mergeResult when a fetch response
 	// has errors but no data and apolloCompatibilityValueCompletionInExtensions
@@ -625,24 +632,17 @@ func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferT
 		// must not cancel its siblings, so we never let errgroup's error-driven
 		// cancellation fire. errgroup is used only to spawn + wait + collect one
 		// error. The client context (ctx.ctx) still cancels every in-flight fetch
-		// on disconnect, because each group's fetch is passed a clone of it.
+		// on disconnect.
 		var g errgroup.Group
 		for _, child := range node.ChildNodes {
 			child := child
 			g.Go(func() error {
-				// Clone the Context so this goroutine gets its OWN copy of the
-				// mutable per-request fields — notably the subgraphErrors map,
-				// which the fetch path writes via ctx.appendSubgraphErrors
-				// (loader.go: mergeErrors / renderErrors*). Concurrent defer groups
-				// sharing one *Context would race on that map. The underlying Go
-				// context (ctx.ctx) is passed through unchanged, so a client
-				// disconnect still cancels this group's fetch.
-				// KNOWN LIMITATION: because the clone isolates subgraphErrors,
-				// defer-group fetch subgraph errors do NOT aggregate into the
-				// request ctx, so Context.SubgraphErrors() omits them. Accepted
-				// for now.
-				childCtx := ctx.clone(ctx.ctx)
-				err := r.resolveDeferTree(dc, childCtx, child, remaining)
+				// Groups share the request *Context. Its only mutation during defer
+				// resolution is ctx.subgraphErrors, written exclusively under
+				// dc.db.Lock() (appendSubgraphErrorsToContext and render-time
+				// addRejectFieldError), so no per-goroutine clone is needed and
+				// group subgraph errors aggregate into Context.SubgraphErrors().
+				err := r.resolveDeferTree(dc, ctx, child, remaining)
 				// Surface the error only if the client context was cancelled
 				// (disconnect). Ordinary defer-level subgraph errors are rendered
 				// into the group's incremental frame, not propagated, so they

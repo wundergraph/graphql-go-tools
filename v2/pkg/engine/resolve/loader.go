@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	goerrors "errors"
 	"fmt"
 	"net/http"
 	"net/http/httptrace"
@@ -67,10 +68,10 @@ func (r *ResponseInfo) GetResponseBody() string {
 	return string(r.responseBody)
 }
 
-func newResponseInfo(res *result, subgraphErrors map[string]error) *ResponseInfo {
+func newResponseInfo(res *result) *ResponseInfo {
 	responseInfo := &ResponseInfo{
 		StatusCode:   res.statusCode,
-		Err:          subgraphErrors[res.ds.Name],
+		Err:          res.subgraphError,
 		responseBody: res.out,
 	}
 	if res.httpResponseContext != nil {
@@ -115,7 +116,12 @@ type result struct {
 
 	statusCode int
 	err        error
-	ds         DataSourceInfo
+	// subgraphError is THIS fetch's own subgraph error (errors.Join of res.err and
+	// the rendered SubgraphError/RateLimitError). Accumulated across the merge path
+	// because a single fetch may record more than once. Read by newResponseInfo so
+	// OnFinished reports only this fetch's error, not the request-wide aggregate.
+	subgraphError error
+	ds            DataSourceInfo
 
 	authorizationRejected        bool
 	authorizationRejectedReasons []string
@@ -158,6 +164,13 @@ type Loader struct {
 	// own errors. All writes happen under dataBuffer.Lock() (arena not thread-safe).
 	errors *astjson.Value
 
+	// subgraphErrors accumulates this Loader's subgraph errors, keyed by subgraph
+	// name, mirroring Context.subgraphErrors. Written only from mergeResult (serial
+	// within a Loader) and flushed into l.ctx.subgraphErrors once after the fetch
+	// tree resolves (see appendSubgraphErrorsToContext). Keeps concurrent fetch execution off
+	// the shared Context map.
+	subgraphErrors map[string]error
+
 	// skipValueCompletion is set when a response has errors but no data
 	// and apolloCompatibilityValueCompletionInExtensions is enabled.
 	// Read back by the caller after ResolveFetchNode.
@@ -168,6 +181,8 @@ type Loader struct {
 	apolloCompatibilitySuppressFetchErrors         bool
 	apolloCompatibilityValueCompletionInExtensions bool
 
+	// ctx is the shared request Context. It is safe to read, but must not be
+	// written to: fetches run concurrently and the Context is not synchronized.
 	ctx  *Context
 	info *GraphQLResponseInfo
 
@@ -213,10 +228,12 @@ func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
 	l.taintedObjs = nil
+	l.subgraphErrors = nil
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse) (err error) {
 	l.Init(ctx, response.Info)
+	defer l.appendSubgraphErrorsToContext()
 
 	return l.ResolveFetchNode(response.Fetches)
 }
@@ -224,6 +241,7 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
 	l.errors = nil
 	l.skipValueCompletion = false
+	l.subgraphErrors = nil
 	l.ctx = ctx
 	l.info = responseInfo
 	l.taintedObjs = make(taintedObjects)
@@ -366,7 +384,29 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 
 func (l *Loader) callOnFinished(res *result) {
 	if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-		l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
+		l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res))
+	}
+}
+
+// recordSubgraphError is the Loader-local analog of Context.appendSubgraphErrors: it keeps
+// the error on res (for OnFinished) and in l.subgraphErrors, which appendSubgraphErrorsToContext later
+// merges into the Context.
+func (l *Loader) recordSubgraphError(res *result, errs ...error) {
+	joined := goerrors.Join(errs...)
+	res.subgraphError = goerrors.Join(res.subgraphError, joined)
+	if l.subgraphErrors == nil {
+		l.subgraphErrors = make(map[string]error)
+	}
+	l.subgraphErrors[res.ds.Name] = goerrors.Join(l.subgraphErrors[res.ds.Name], joined)
+}
+
+// appendSubgraphErrorsToContext merges this Loader's accumulated subgraph errors into the
+// shared Context, preserving Context.appendSubgraphErrors' per-name errors.Join
+// semantics. Call once after the fetch tree has resolved, on a single goroutine
+// (or under the DataBuffer lock for concurrent defer groups).
+func (l *Loader) appendSubgraphErrorsToContext() {
+	for name, err := range l.subgraphErrors {
+		l.ctx.appendSubgraphErrors(DataSourceInfo{Name: name}, err)
 	}
 }
 
@@ -719,7 +759,7 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 		subgraphError.AppendDownstreamError(&gErr)
 	}
 
-	l.ctx.appendSubgraphErrors(res.ds, res.err, subgraphError)
+	l.recordSubgraphError(res, res.err, subgraphError)
 
 	return nil
 }
@@ -1098,7 +1138,7 @@ func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error
 }
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
-	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+	l.recordSubgraphError(res, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
 	errorObject, err := astjson.ParseWithArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
@@ -1118,7 +1158,7 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 		reason += fmt.Sprintf(": %s", statusText)
 	}
 
-	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+	l.recordSubgraphError(res, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
 
 	errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"%s"}`, reason))
 	if err != nil {
@@ -1150,7 +1190,7 @@ func (l *Loader) renderSubgraphBaseError(ds DataSourceInfo, path, reason string)
 
 func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *result) error {
 	for i := range res.authorizationRejectedReasons {
-		l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode))
+		l.recordSubgraphError(res, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode))
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	extensionErrorCode := fmt.Sprintf(`"extensions":{"code":"%s"}`, errorcodes.UnauthorizedFieldOrType)
@@ -1195,7 +1235,7 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 }
 
 func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result) error {
-	l.ctx.appendSubgraphErrors(res.ds, res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason))
+	l.recordSubgraphError(res, res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason))
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	var (
 		err         error
