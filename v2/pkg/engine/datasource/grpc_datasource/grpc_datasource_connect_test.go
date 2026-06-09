@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1/productv1connect"
 )
@@ -40,68 +42,76 @@ func setupTestConnectServer(t testing.TB) (baseURL string, cleanup func()) {
 	return srv.URL, cleanup
 }
 
+// connectE2E bundles the per-test inputs for the table-driven Connect e2e
+// tests below. The zero value of Ctx falls back to context.Background(),
+// of Encoding to ConnectEncodingProtobuf, and Headers/FederationConfigs
+// to nil; callers only set the knobs that matter for the case at hand.
+type connectE2E struct {
+	BaseURL           string
+	Query             string
+	Vars              string
+	Ctx               context.Context
+	Headers           http.Header
+	Encoding          ConnectEncoding
+	FederationConfigs plan.FederationFieldConfigurations
+}
+
+// loadConnectQuery runs a GraphQL query through a DataSource that dials a
+// ConnectRPC server backed by the MockService. The helper exists so the
+// table-driven Connect tests below can focus on query/mapping/validation
+// without re-stating the planner/transport scaffolding.
+func loadConnectQuery(t *testing.T, opts connectE2E) []byte {
+	t.Helper()
+
+	if opts.Ctx == nil {
+		opts.Ctx = context.Background()
+	}
+	if opts.Encoding == "" {
+		opts.Encoding = ConnectEncodingProtobuf
+	}
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(opts.Query)
+	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	transport := NewConnectTransport(ConnectTransportConfig{
+		BaseURL:  opts.BaseURL,
+		Encoding: opts.Encoding,
+	})
+
+	ds, err := NewDataSource(transport, DataSourceConfig{
+		Operation:         &queryDoc,
+		Definition:        &schemaDoc,
+		SubgraphName:      "Products",
+		Mapping:           testMapping(),
+		Compiler:          compiler,
+		FederationConfigs: opts.FederationConfigs,
+	})
+	require.NoError(t, err)
+
+	input := fmt.Sprintf(`{"query":%q,"body":%s}`, opts.Query, opts.Vars)
+	output, err := ds.Load(opts.Ctx, opts.Headers, []byte(input))
+	require.NoError(t, err)
+	return output
+}
+
 // Test_DataSource_Load_WithMockServiceConnect mirrors the gRPC end-to-end
 // happy path (Test_DataSource_Load_WithMockService) but routes the call
 // through the Connect transport instead of the gRPC client connection.
 // It proves that the data source pipeline (compiler -> JSON builder ->
 // transport -> response unmarshal) works for the Connect protocol against
-// the same MockService implementation.
+// the same MockService implementation. Runs the same query under both
+// the protobuf and JSON wire formats so the two encoders are exercised
+// from the very first happy path.
 func Test_DataSource_Load_WithMockServiceConnect(t *testing.T) {
 	baseURL, cleanup := setupTestConnectServer(t)
 	t.Cleanup(cleanup)
 
 	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"filter":{"name":"Test Product","filterField1":"filterField1","filterField2":"filterField2"}}}}`
-
-	schemaDoc := grpctest.MustGraphQLSchema(t)
-	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
-	if report.HasErrors() {
-		t.Fatalf("failed to parse query: %s", report.Error())
-	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
-	require.NoError(t, err)
-
-	transport := NewConnectTransport(ConnectTransportConfig{
-		BaseURL:  baseURL,
-		Encoding: ConnectEncodingProtobuf,
-	})
-
-	ds, err := NewDataSource(transport, DataSourceConfig{
-		Operation:    &queryDoc,
-		Definition:   &schemaDoc,
-		SubgraphName: "Products",
-		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-						ArgumentMappings: map[string]string{
-							"filter": "filter",
-						},
-					},
-				},
-				"FilterType": {
-					"name":         {TargetName: "name"},
-					"filterField1": {TargetName: "filter_field_1"},
-					"filterField2": {TargetName: "filter_field_2"},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
-	require.NoError(t, err)
+	vars := `{"variables":{"filter":{"filter":{"name":"Test Product","filterField1":"filterField1","filterField2":"filterField2"}}}}`
 
 	type response struct {
 		Data struct {
@@ -111,84 +121,21 @@ func Test_DataSource_Load_WithMockServiceConnect(t *testing.T) {
 			} `json:"complexFilterType"`
 		} `json:"data"`
 	}
-	var resp response
-	require.NoError(t, json.Unmarshal(output, &resp))
-	require.NotEmpty(t, resp.Data.ComplexFilterType, "response should contain at least one item; empty slice would otherwise panic on index below")
-	require.Equal(t, "test-id-123", resp.Data.ComplexFilterType[0].Id)
-	require.Equal(t, "Test Product", resp.Data.ComplexFilterType[0].Name)
-}
 
-// Test_DataSource_Load_WithMockServiceConnect_JSON re-runs the same
-// happy-path query with JSON encoding instead of Protobuf. Both wire
-// formats must yield identical decoded responses.
-func Test_DataSource_Load_WithMockServiceConnect_JSON(t *testing.T) {
-	baseURL, cleanup := setupTestConnectServer(t)
-	t.Cleanup(cleanup)
+	for _, encoding := range []ConnectEncoding{ConnectEncodingProtobuf, ConnectEncodingJSON} {
+		t.Run(string(encoding), func(t *testing.T) {
+			output := loadConnectQuery(t, connectE2E{
+				BaseURL:  baseURL,
+				Encoding: encoding,
+				Query:    query,
+				Vars:     vars,
+			})
 
-	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"filter":{"name":"Test Product","filterField1":"a","filterField2":"b"}}}}`
-
-	schemaDoc := grpctest.MustGraphQLSchema(t)
-	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
-	if report.HasErrors() {
-		t.Fatalf("failed to parse query: %s", report.Error())
+			var resp response
+			require.NoError(t, json.Unmarshal(output, &resp))
+			require.NotEmpty(t, resp.Data.ComplexFilterType, "response should contain at least one item; empty slice would otherwise panic on index below")
+			require.Equal(t, "test-id-123", resp.Data.ComplexFilterType[0].Id)
+			require.Equal(t, "Test Product", resp.Data.ComplexFilterType[0].Name)
+		})
 	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
-	require.NoError(t, err)
-
-	transport := NewConnectTransport(ConnectTransportConfig{
-		BaseURL:  baseURL,
-		Encoding: ConnectEncodingJSON,
-	})
-
-	ds, err := NewDataSource(transport, DataSourceConfig{
-		Operation:    &queryDoc,
-		Definition:   &schemaDoc,
-		SubgraphName: "Products",
-		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-						ArgumentMappings: map[string]string{
-							"filter": "filter",
-						},
-					},
-				},
-				"FilterType": {
-					"name":         {TargetName: "name"},
-					"filterField1": {TargetName: "filter_field_1"},
-					"filterField2": {TargetName: "filter_field_2"},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
-	require.NoError(t, err)
-
-	type response struct {
-		Data struct {
-			ComplexFilterType []struct {
-				Id   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"complexFilterType"`
-		} `json:"data"`
-	}
-	var resp response
-	require.NoError(t, json.Unmarshal(output, &resp))
-	require.NotEmpty(t, resp.Data.ComplexFilterType, "response should contain at least one item; empty slice would otherwise panic on index below")
-	require.Equal(t, "test-id-123", resp.Data.ComplexFilterType[0].Id)
-	require.Equal(t, "Test Product", resp.Data.ComplexFilterType[0].Name)
 }
