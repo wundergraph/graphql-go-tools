@@ -779,7 +779,7 @@ type FieldLimitedVisitor struct {
 	allow          bool
 }
 
-func (v *FieldLimitedVisitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, skipFor astvisitor.SkipVisitors) bool {
+func (v *FieldLimitedVisitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
 		return true
 	}

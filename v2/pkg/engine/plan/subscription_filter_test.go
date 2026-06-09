@@ -51,7 +51,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 			}
 			assert.Equal(t, expectedPlan, plan)
 
-			toJson := func(v interface{}) string {
+			toJson := func(v any) string {
 				b := &strings.Builder{}
 				e := json.NewEncoder(b)
 				e.SetIndent("", " ")

@@ -121,7 +121,7 @@ func (d *Document) DirectiveSetsAreEqual(left, right []int) bool {
 	if len(left) != len(right) {
 		return false
 	}
-	for i := 0; i < len(left); i++ {
+	for i := range left {
 		leftDirective, rightDirective := left[i], right[i]
 		if !d.DirectivesAreEqual(leftDirective, rightDirective) {
 			return false

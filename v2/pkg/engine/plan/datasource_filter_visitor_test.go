@@ -1083,7 +1083,6 @@ func TestFindBestDataSourceSet(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Description, func(t *testing.T) {
 
 			if tc.ExpectedSuggestions != nil {
@@ -1100,7 +1099,6 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			}
 
 			for i, variant := range tc.ExpectedVariants {
-				variant := variant
 				t.Run(fmt.Sprintf("Variant: %d", i), func(t *testing.T) {
 					run(t, tc.Definition, tc.Query, permutations.OrderDS(tc.DataSources, variant.dsOrder), variant.suggestions)
 				})

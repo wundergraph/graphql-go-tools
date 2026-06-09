@@ -202,8 +202,7 @@ func TestEventLoop(t *testing.T) {
 }
 
 func TestResolver_HeartbeatError_DoesNotDeadlockOnUnsubscribe(t *testing.T) {
-	resolverCtx, cancelResolver := context.WithCancel(context.Background())
-	defer cancelResolver()
+	resolverCtx := t.Context()
 
 	resolver := New(resolverCtx, ResolverOptions{
 		MaxConcurrency:                1,

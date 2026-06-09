@@ -156,10 +156,12 @@ func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
 
 // GetSchema returns the built schema
 func (v *VariablesSchemaBuilder) GetSchema() *JsonSchema {
-	// If we have required fields, the root schema cannot be nullable
-	if len(v.schema.Required) > 0 {
-		v.schema.Nullable = false
-	}
+	// The root variables object is always a concrete object and must never be
+	// nullable: the variables container is either present or omitted, never the
+	// JSON literal null. Emitting a nullable root (type ["object","null"] under
+	// JSON Schema 2020-12) breaks strict consumers such as the MCP SDK, which
+	// require the input schema's type to be exactly "object".
+	v.schema.Nullable = false
 	// Attach definitions for any recursive input types referenced via "$ref"
 	if len(v.defs) > 0 {
 		v.schema.Defs = v.defs
@@ -460,7 +462,7 @@ func (v *VariablesSchemaBuilder) processDefinitionTypeRef(typeRef int) *JsonSche
 }
 
 // convertOperationValueToNative converts a GraphQL AST value from the operation document to a native Go value
-func (v *VariablesSchemaBuilder) convertOperationValueToNative(value ast.Value) interface{} {
+func (v *VariablesSchemaBuilder) convertOperationValueToNative(value ast.Value) any {
 	switch value.Kind {
 	case ast.ValueKindString:
 		return v.operationDocument.StringValueContentString(value.Ref)
@@ -475,14 +477,14 @@ func (v *VariablesSchemaBuilder) convertOperationValueToNative(value ast.Value) 
 	case ast.ValueKindEnum:
 		return v.operationDocument.EnumValueNameString(value.Ref)
 	case ast.ValueKindList:
-		list := make([]interface{}, 0)
+		list := make([]any, 0)
 		for _, itemRef := range v.operationDocument.ListValues[value.Ref].Refs {
 			item := v.operationDocument.Value(itemRef)
 			list = append(list, v.convertOperationValueToNative(item))
 		}
 		return list
 	case ast.ValueKindObject:
-		obj := make(map[string]interface{})
+		obj := make(map[string]any)
 		for _, fieldRef := range v.operationDocument.ObjectValues[value.Ref].Refs {
 			fieldName := v.operationDocument.ObjectFieldNameString(fieldRef)
 			fieldValue := v.operationDocument.ObjectFieldValue(fieldRef)
@@ -495,7 +497,7 @@ func (v *VariablesSchemaBuilder) convertOperationValueToNative(value ast.Value) 
 }
 
 // convertDefinitionValueToNative converts a GraphQL AST value from the definition document to a native Go value
-func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value) interface{} {
+func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value) any {
 	switch value.Kind {
 	case ast.ValueKindString:
 		return v.definitionDocument.StringValueContentString(value.Ref)
@@ -510,14 +512,14 @@ func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value)
 	case ast.ValueKindEnum:
 		return v.definitionDocument.EnumValueNameString(value.Ref)
 	case ast.ValueKindList:
-		list := make([]interface{}, 0)
+		list := make([]any, 0)
 		for _, itemRef := range v.definitionDocument.ListValues[value.Ref].Refs {
 			item := v.definitionDocument.Value(itemRef)
 			list = append(list, v.convertDefinitionValueToNative(item))
 		}
 		return list
 	case ast.ValueKindObject:
-		obj := make(map[string]interface{})
+		obj := make(map[string]any)
 		for _, fieldRef := range v.definitionDocument.ObjectValues[value.Ref].Refs {
 			fieldName := v.definitionDocument.ObjectFieldNameString(fieldRef)
 			fieldValue := v.definitionDocument.ObjectFieldValue(fieldRef)

@@ -75,7 +75,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				subCancellations: subscriptionCancellations{},
 				executorPool:     executorPoolMock,
 				bufferPool: &sync.Pool{
-					New: func() interface{} {
+					New: func() any {
 						writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 						return &writer
 					},
@@ -149,7 +149,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				subCancellations: subscriptionCancellations{},
 				executorPool:     executorPoolMock,
 				bufferPool: &sync.Pool{
-					New: func() interface{} {
+					New: func() any {
 						writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 						return &writer
 					},
@@ -219,7 +219,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				subCancellations: subscriptionCancellations{},
 				executorPool:     executorPoolMock,
 				bufferPool: &sync.Pool{
-					New: func() interface{} {
+					New: func() any {
 						writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 						return &writer
 					},
@@ -284,7 +284,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 				subCancellations: subscriptionCancellations{},
 				executorPool:     executorPoolMock,
 				bufferPool: &sync.Pool{
-					New: func() interface{} {
+					New: func() any {
 						writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 						return &writer
 					},
@@ -353,7 +353,7 @@ func TestExecutorEngine_StartOperation(t *testing.T) {
 			subCancellations: subscriptionCancellations{},
 			executorPool:     executorPoolMock,
 			bufferPool: &sync.Pool{
-				New: func() interface{} {
+				New: func() any {
 					writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 					return &writer
 				},
@@ -421,7 +421,7 @@ func TestExecutorEngine_StopSubscription(t *testing.T) {
 		subCancellations: subscriptionCancellations{},
 		executorPool:     executorPoolMock,
 		bufferPool: &sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 				return &writer
 			},
@@ -489,7 +489,7 @@ func TestExecutorEngine_TerminateAllConnections(t *testing.T) {
 		subCancellations: subscriptionCancellations{},
 		executorPool:     executorPoolMock,
 		bufferPool: &sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 				return &writer
 			},

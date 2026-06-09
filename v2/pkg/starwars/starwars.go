@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type QueryVariables map[string]interface{}
+type QueryVariables map[string]any
 
 const (
 	FileSimpleHeroQuery                     = "testdata/queries/simple_hero.query"
@@ -36,7 +36,7 @@ const (
 var starwarsTestData embed.FS
 
 type TestingTB interface {
-	Errorf(format string, args ...interface{})
+	Errorf(format string, args ...any)
 	Helper()
 	FailNow()
 }
