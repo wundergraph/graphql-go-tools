@@ -53,7 +53,7 @@ func (d *Document) ObjectValuesAreEqual(left, right int) bool {
 	if len(leftFields) != len(rightFields) {
 		return false
 	}
-	for i := 0; i < len(leftFields); i++ {
+	for i := range leftFields {
 		left, right = leftFields[i], rightFields[i]
 		if !d.ObjectFieldsAreEqual(left, right) {
 			return false

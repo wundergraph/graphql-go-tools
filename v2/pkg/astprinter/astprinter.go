@@ -151,7 +151,7 @@ func (p *printVisitor) writeIndentedWithDepth(data []byte, depth int) {
 	if p.err != nil {
 		return
 	}
-	for i := 0; i < depth; i++ {
+	for range depth {
 		_, p.err = p.out.Write(p.indent)
 	}
 	_, p.err = p.out.Write(data)

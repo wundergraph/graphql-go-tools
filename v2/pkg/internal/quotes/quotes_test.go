@@ -15,7 +15,6 @@ func TestWrapBytes(t *testing.T) {
 		{[]byte("foo"), []byte(`"foo"`)},
 	}
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(string(tc.s), func(t *testing.T) {
 			r := WrapBytes(tc.s)
 			assert.Equal(t, tc.want, r)

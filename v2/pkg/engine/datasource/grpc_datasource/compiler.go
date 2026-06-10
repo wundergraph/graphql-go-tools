@@ -930,7 +930,7 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 
 	if nestingLevel > 1 {
 		items := make([]protoref.Value, 0, itemsListLen)
-		for i := 0; i < itemsListLen; i++ {
+		for i := range itemsListLen {
 			items = append(items, p.resolveUnderlyingListItems(itemsList.Get(i), nestingLevel-1)...)
 		}
 
@@ -938,7 +938,7 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 	}
 
 	result := make([]protoref.Value, itemsListLen)
-	for i := 0; i < itemsListLen; i++ {
+	for i := range itemsListLen {
 		result[i] = itemsList.Get(i)
 	}
 

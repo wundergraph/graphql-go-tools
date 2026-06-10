@@ -313,28 +313,28 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify schema structure
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
 		// Verify filter property with default values
-		properties := parsed["properties"].(map[string]interface{})
-		filter := properties["filter"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
+		filter := properties["filter"].(map[string]any)
 
 		// Verify top-level default value
-		assert.Equal(t, map[string]interface{}{"limit": float64(5)}, filter["default"])
+		assert.Equal(t, map[string]any{"limit": float64(5)}, filter["default"])
 
 		// Verify filter properties
-		filterProps := filter["properties"].(map[string]interface{})
+		filterProps := filter["properties"].(map[string]any)
 
 		// Verify input object default values
-		limit := filterProps["limit"].(map[string]interface{})
+		limit := filterProps["limit"].(map[string]any)
 		assert.Equal(t, float64(10), limit["default"])
 
-		includeDeleted := filterProps["includeDeleted"].(map[string]interface{})
+		includeDeleted := filterProps["includeDeleted"].(map[string]any)
 		assert.Equal(t, false, includeDeleted["default"])
 
-		status := filterProps["status"].(map[string]interface{})
+		status := filterProps["status"].(map[string]any)
 		assert.Equal(t, "ACTIVE", status["default"])
 	})
 
@@ -385,20 +385,20 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify schema structure
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
 		// Verify top-level structure
 		assert.Equal(t, "object", parsed["type"])
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
 		// Verify required fields
-		required := parsed["required"].([]interface{})
+		required := parsed["required"].([]any)
 		assert.Contains(t, required, "id")
 
 		// Verify ID property
-		id, ok := properties["id"].(map[string]interface{})
+		id, ok := properties["id"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "string", id["type"])
 
@@ -406,25 +406,25 @@ func TestBuildJsonSchema(t *testing.T) {
 		// array [<primary>, "null"].
 
 		// Verify includeProfile property
-		includeProfile, ok := properties["includeProfile"].(map[string]interface{})
+		includeProfile, ok := properties["includeProfile"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, []interface{}{"boolean", "null"}, includeProfile["type"])
+		assert.Equal(t, []any{"boolean", "null"}, includeProfile["type"])
 		assert.Equal(t, true, includeProfile["default"])
 
 		// Verify age property
-		age, ok := properties["age"].(map[string]interface{})
+		age, ok := properties["age"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, []interface{}{"integer", "null"}, age["type"])
+		assert.Equal(t, []any{"integer", "null"}, age["type"])
 
 		// Verify rating property
-		rating, ok := properties["rating"].(map[string]interface{})
+		rating, ok := properties["rating"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, []interface{}{"number", "null"}, rating["type"])
+		assert.Equal(t, []any{"number", "null"}, rating["type"])
 
 		// Verify name property
-		name, ok := properties["name"].(map[string]interface{})
+		name, ok := properties["name"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, []interface{}{"string", "null"}, name["type"])
+		assert.Equal(t, []any{"string", "null"}, name["type"])
 	})
 
 	t.Run("operation with field descriptions", func(t *testing.T) {
@@ -576,12 +576,12 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify schema structure
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
 		// Verify top-level required fields
-		required, ok := parsed["required"].([]interface{})
+		required, ok := parsed["required"].([]any)
 		require.True(t, ok)
 		assert.Contains(t, required, "requiredArg")
 		assert.Contains(t, required, "requiredInput")
@@ -589,26 +589,26 @@ func TestBuildJsonSchema(t *testing.T) {
 		assert.NotContains(t, required, "optionalInput")
 
 		// Verify properties
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
 		// Check required input structure
-		requiredInput := properties["requiredInput"].(map[string]interface{})
+		requiredInput := properties["requiredInput"].(map[string]any)
 		assert.Equal(t, "object", requiredInput["type"])
 
 		// Check required fields within input
-		inputRequired := requiredInput["required"].([]interface{})
+		inputRequired := requiredInput["required"].([]any)
 		assert.Contains(t, inputRequired, "requiredField")
 		assert.Contains(t, inputRequired, "requiredNestedInput")
 		assert.NotContains(t, inputRequired, "optionalField")
 		assert.NotContains(t, inputRequired, "optionalNestedInput")
 
 		// Check nested input structure
-		inputProperties := requiredInput["properties"].(map[string]interface{})
-		requiredNestedInput := inputProperties["requiredNestedInput"].(map[string]interface{})
+		inputProperties := requiredInput["properties"].(map[string]any)
+		requiredNestedInput := inputProperties["requiredNestedInput"].(map[string]any)
 		assert.Equal(t, "object", requiredNestedInput["type"])
 
 		// Check required fields within nested input
-		nestedRequired := requiredNestedInput["required"].([]interface{})
+		nestedRequired := requiredNestedInput["required"].([]any)
 		assert.Contains(t, nestedRequired, "requiredInnerField")
 		assert.NotContains(t, nestedRequired, "optionalInnerField")
 	})
@@ -877,12 +877,12 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NotEmpty(t, data, "JSON serialization should not be empty")
 
 		// Parse the JSON to verify it's valid
-		var result interface{}
+		var result any
 		err = json.Unmarshal(data, &result)
 		require.NoError(t, err, "Schema should be valid JSON")
 
 		// Basic structure checks
-		jsonMap, ok := result.(map[string]interface{})
+		jsonMap, ok := result.(map[string]any)
 		require.True(t, ok, "Schema should be a JSON object")
 
 		// Check top-level fields
@@ -1029,7 +1029,7 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify schema structure
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -1037,37 +1037,37 @@ func TestBuildJsonSchema(t *testing.T) {
 		assert.Equal(t, "object", parsed["type"])
 
 		// Verify both inputs are required
-		required, ok := parsed["required"].([]interface{})
+		required, ok := parsed["required"].([]any)
 		require.True(t, ok)
 		assert.Contains(t, required, "filter")
 		assert.Contains(t, required, "order")
 
 		// Verify properties exist
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 		assert.Contains(t, properties, "filter")
 		assert.Contains(t, properties, "order")
 
 		// Verify filter structure
-		filter := properties["filter"].(map[string]interface{})
+		filter := properties["filter"].(map[string]any)
 		assert.Equal(t, "object", filter["type"])
 		assert.Equal(t, "Input for filtering users", filter["description"])
 		assert.Contains(t, filter["properties"], "metadata")
 
 		// Verify order structure
-		order := properties["order"].(map[string]interface{})
+		order := properties["order"].(map[string]any)
 		assert.Equal(t, "object", order["type"])
 		assert.Equal(t, "Input for ordering results", order["description"])
 
 		// Verify order required fields
-		orderRequired := order["required"].([]interface{})
+		orderRequired := order["required"].([]any)
 		assert.Contains(t, orderRequired, "field")
 		assert.Contains(t, orderRequired, "direction")
 
 		// Verify enum values
-		orderProps := order["properties"].(map[string]interface{})
-		direction := orderProps["direction"].(map[string]interface{})
-		directionEnum := direction["enum"].([]interface{})
-		assert.ElementsMatch(t, []interface{}{"ASC", "DESC"}, directionEnum)
+		orderProps := order["properties"].(map[string]any)
+		direction := orderProps["direction"].(map[string]any)
+		directionEnum := direction["enum"].([]any)
+		assert.ElementsMatch(t, []any{"ASC", "DESC"}, directionEnum)
 	})
 
 	t.Run("mutually recursive types", func(t *testing.T) {

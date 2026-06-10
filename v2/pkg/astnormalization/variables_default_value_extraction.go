@@ -110,7 +110,7 @@ func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int
 	isListVariable := v.operation.TypeIsList(v.operation.VariableDefinitions[ref].Type)
 	if isListVariable && len(valueBytes) > 0 && valueBytes[0] != '[' {
 		listWraps := v.operation.TypeNumberOfListWraps(v.operation.VariableDefinitions[ref].Type)
-		for i := 0; i < listWraps; i++ {
+		for range listWraps {
 			valueBytes = append([]byte{'['}, append(valueBytes, ']')...)
 		}
 	}

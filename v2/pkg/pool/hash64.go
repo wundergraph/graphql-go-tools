@@ -9,7 +9,7 @@ import (
 var (
 	Hash64 = hash64Pool{
 		pool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return xxhash.New()
 			},
 		},

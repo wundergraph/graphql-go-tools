@@ -396,8 +396,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"something"}`))
 		assert.NoError(t, err)
@@ -432,8 +431,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockEngine := NewMockEngine(ctrl)
 
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
+			ctx := t.Context()
 
 			protocol.eventHandler.Emit(subscription.EventTypeOnConnectionOpened, "", nil, nil)
 			assert.Eventually(t, func() bool {
@@ -465,8 +463,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockEngine := NewMockEngine(ctrl)
 
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
+			ctx := t.Context()
 
 			err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"connection_init","payload":{"bad":"token"}}`))
 			assert.ErrorIs(t, err, initErr)
@@ -488,8 +485,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockEngine := NewMockEngine(ctrl)
 
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
+			ctx := t.Context()
 
 			protocol.eventHandler.Emit(subscription.EventTypeOnConnectionOpened, "", nil, nil)
 			assert.Eventually(t, func() bool {
@@ -519,8 +515,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		assert.Eventually(t, func() bool {
 			inputMessage := []byte(`{"type":"ping","payload":{"status":"ok"}}`)
@@ -537,8 +532,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		operation := []byte(`{"operationName":"Hello","query":"query Hello { hello }"}`)
 		ctrl := gomock.NewController(t)
@@ -561,8 +555,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
@@ -581,8 +574,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
@@ -601,8 +593,7 @@ func TestProtocolGraphQLTransportWSHandler_Handle(t *testing.T) {
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLTransportWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)

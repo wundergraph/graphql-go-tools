@@ -140,7 +140,7 @@ func TestDocument_ValueToJSON(t *testing.T) {
 		doc.StringValues = append(doc.StringValues, StringValue{
 			Content: doc.Input.AppendInputString("baz"),
 		})
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			doc.Values = append(doc.Values, Value{Kind: ValueKindString, Ref: i})
 		}
 		doc.IntValues = append(doc.IntValues, IntValue{
@@ -184,7 +184,7 @@ func TestDocument_ValueToJSON(t *testing.T) {
 					Ref:  1,
 				},
 			})
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			doc.IntValues = append(doc.IntValues, IntValue{
 				Raw: doc.Input.AppendInputString(strconv.Itoa(i + 1)),
 			})

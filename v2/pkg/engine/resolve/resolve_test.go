@@ -5029,8 +5029,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 }
 
 func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T) {
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := t.Context()
 	r := newResolver(rCtx)
 
 	ds := newBlockingDataSource([]byte(`{"value":"slow"}`))
@@ -5134,8 +5133,7 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T)
 }
 
 func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication_SharedData(t *testing.T) {
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := t.Context()
 	r := newResolver(rCtx)
 
 	ds := newBlockingDataSource([]byte(`{"value":"slow"}`))
@@ -5545,8 +5543,7 @@ func TestResolver_WithHeader(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rCtx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			rCtx := t.Context()
 			resolver := newResolver(rCtx)
 
 			header := make(http.Header)
@@ -5619,8 +5616,7 @@ func TestResolver_WithVariableRemapping(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rCtx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			rCtx := t.Context()
 			resolver := newResolver(rCtx)
 
 			ctx := &Context{
@@ -6043,8 +6039,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	}
 
 	t.Run("should return errors if the upstream data has errors", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, true
@@ -6067,8 +6062,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should return an error if the data source has not been defined", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		resolver, plan, recorder, id := setup(c, nil)
 
@@ -6081,8 +6075,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should successfully get result from upstream", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
@@ -6114,8 +6107,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should successfully delete multiple finished subscriptions", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 1
@@ -6172,8 +6164,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should propagate extensions to stream", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
@@ -6200,8 +6191,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should propagate initial payload to stream", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
@@ -6228,8 +6218,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe subscription", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
@@ -6252,8 +6241,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe client", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
@@ -6276,8 +6264,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should stop stream on unsubscribe client with close reason", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
@@ -6296,8 +6283,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("renders query plan with trigger", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
@@ -6325,8 +6311,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("renders query plan with trigger and additional data", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
@@ -6368,7 +6353,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		const numSubscriptions = 2
 		var resolverCompleted atomic.Uint32
 		var recorderCompleted atomic.Uint32
-		for i := 0; i < numSubscriptions; i++ {
+		for range numSubscriptions {
 			recorder := &SubscriptionRecorder{
 				buf:      &bytes.Buffer{},
 				messages: []string{},
@@ -6406,8 +6391,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should wait for all in flight operations to be completed", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), true
@@ -6437,8 +6421,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should call SubscriptionOnStart hook", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		called := make(chan bool, 1)
 
@@ -6471,8 +6454,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("SubscriptionOnStart ctx has a working subscription updater", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
@@ -6502,8 +6484,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("SubscriptionOnStart ctx updater only updates the right subscription", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		executed := atomic.Bool{}
 
@@ -6609,8 +6590,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("SubscriptionOnStart ctx updater on multiple subscriptions with same trigger works", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		id2 := SubscriptionIdentifier{
 			ConnectionID:   1,
@@ -6685,8 +6665,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("SubscriptionOnStart can send a lot of updates without blocking", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 		workChanBufferSize := 10000
 
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
@@ -6695,7 +6674,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
 		}, func(ctx StartupHookContext, input []byte) (err error) {
 			for i := 0; i < workChanBufferSize+1; i++ {
-				ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+100)))
+				ctx.Updater(fmt.Appendf(nil, `{"data":{"counter":%d}}`, i+100))
 			}
 			return nil
 		})
@@ -6714,15 +6693,14 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		recorder.AwaitComplete(t, defaultTimeout)
 		assert.Equal(t, workChanBufferSize+2, len(recorder.Messages()))
-		for i := 0; i < workChanBufferSize; i++ {
+		for i := range workChanBufferSize {
 			assert.Equal(t, fmt.Sprintf(`{"data":{"counter":%d}}`, i+100), recorder.Messages()[i])
 		}
 		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[workChanBufferSize+1])
 	})
 
 	t.Run("SubscriptionOnStart can send a lot of updates in a go routine while updates are coming from other sources", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		messagesToSendFromHook := int32(100)
 		messagesToSendFromOtherSources := int32(100)
@@ -6746,7 +6724,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
 		}, func(ctx StartupHookContext, input []byte) (err error) {
 			// send the first update immediately
-			ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, 0+20000)))
+			ctx.Updater(fmt.Appendf(nil, `{"data":{"counter":%d}}`, 0+20000))
 
 			// start a go routine to send the updates after the source started emitting messages
 			go func() {
@@ -6755,7 +6733,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				select {
 				case <-firstMessageArrived:
 					for i := 1; i < int(messagesToSendFromHook); i++ {
-						ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+20000)))
+						ctx.Updater(fmt.Appendf(nil, `{"data":{"counter":%d}}`, i+20000))
 					}
 				case <-time.After(defaultTimeout):
 					// if the first message did not arrive, do not send any updates
@@ -6803,8 +6781,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("it is possible to have two subscriptions to the same trigger", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		// sub2Ready gates the data source goroutine so that it doesn't start
 		// emitting before sub2 has been registered on the trigger. Without this,
@@ -6857,8 +6834,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("should propagate errors from SubscriptionOnStart hook", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		expectedErr := errors.New("startup hook failed")
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
@@ -6945,8 +6921,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 	*/
 
 	t.Run("matching entity should be included", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		count := 0
 
@@ -7041,8 +7016,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 	})
 
 	t.Run("non-matching entity should remain", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		count := 0
 
@@ -7135,8 +7109,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 	})
 
 	t.Run("matching array values should be included", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		count := 0
 
@@ -7230,8 +7203,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 	})
 
 	t.Run("matching array values with prefix should be included", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		count := 0
 
@@ -7329,8 +7301,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 	})
 
 	t.Run("should err when subscription filter has multiple templates", func(t *testing.T) {
-		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		c := t.Context()
 
 		count := 0
 
@@ -7441,8 +7412,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 }
 
 func Benchmark_NestedBatching(b *testing.B) {
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := b.Context()
 
 	resolver := newResolver(rCtx)
 
@@ -7718,13 +7688,13 @@ func Benchmark_NestedBatching(b *testing.B) {
 	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
 
 	pool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return bytes.NewBuffer(make([]byte, 0, 1024))
 		},
 	}
 
 	ctxPool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return NewContext(context.Background())
 		},
 	}
@@ -7756,8 +7726,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 }
 
 func Benchmark_NestedBatchingArena(b *testing.B) {
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := b.Context()
 
 	resolver := newResolver(rCtx)
 
@@ -8033,13 +8002,13 @@ func Benchmark_NestedBatchingArena(b *testing.B) {
 	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
 
 	pool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return bytes.NewBuffer(make([]byte, 0, 1024))
 		},
 	}
 
 	ctxPool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return NewContext(context.Background())
 		},
 	}
@@ -8082,8 +8051,7 @@ func (s *startFailStream) Start(_ *Context, _ http.Header, _ []byte, _ Subscript
 
 func TestSourceStartFailure(t *testing.T) {
 	t.Run("broadcasts error to all subscribers", func(t *testing.T) {
-		resolverCtx, cancelResolver := context.WithCancel(context.Background())
-		defer cancelResolver()
+		resolverCtx := t.Context()
 
 		subBReady := make(chan struct{})
 
@@ -8175,13 +8143,11 @@ func (s *hookFailStream) SubscriptionOnStart(ctx StartupHookContext, _ []byte) e
 
 func TestStartupHookFailure(t *testing.T) {
 	t.Run("cleans up all subscribers when trigger creator hook fails", func(t *testing.T) {
-		resolverCtx, cancelResolver := context.WithCancel(context.Background())
-		defer cancelResolver()
+		resolverCtx := t.Context()
 
-		ctxAInner, cancelA := context.WithCancel(context.Background())
-		defer cancelA()
-		ctxBInner, cancelB := context.WithCancel(context.Background())
-		defer cancelB()
+		type ctxKey struct{ name string }
+		ctxAInner := context.WithValue(t.Context(), ctxKey{"sub"}, "A")
+		ctxBInner := context.WithValue(t.Context(), ctxKey{"sub"}, "B")
 
 		subBRegistered := make(chan struct{})
 
@@ -8264,8 +8230,7 @@ func TestStartupHookFailure(t *testing.T) {
 }
 
 func Benchmark_NoCheckNestedBatching(b *testing.B) {
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := b.Context()
 
 	resolver := newResolver(rCtx)
 
@@ -8536,13 +8501,13 @@ func Benchmark_NoCheckNestedBatching(b *testing.B) {
 	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
 
 	pool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return bytes.NewBuffer(make([]byte, 0, 1024))
 		},
 	}
 
 	ctxPool := sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return NewContext(context.Background())
 		},
 	}

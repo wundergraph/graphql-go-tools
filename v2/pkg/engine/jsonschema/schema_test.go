@@ -153,13 +153,13 @@ func TestJsonSchema_MarshalJSON(t *testing.T) {
 		require.NoError(t, err)
 
 		// Parse it back to verify
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
 		// Verify structure - there should be no $ref
-		properties := parsed["properties"].(map[string]interface{})
-		nestedProp := properties["nested"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
+		nestedProp := properties["nested"].(map[string]any)
 
 		// Check that it's properly inlined; nullable schemas serialize "type" as
 		// the JSON Schema 2020-12 two-element array [<type>, "null"].
@@ -168,11 +168,11 @@ func TestJsonSchema_MarshalJSON(t *testing.T) {
 		assert.Contains(t, nestedProp, "properties")
 
 		// Check the array contains the same schema inline
-		itemsProp := properties["items"].(map[string]interface{})
+		itemsProp := properties["items"].(map[string]any)
 		assert.Equal(t, []any{"array", "null"}, itemsProp["type"])
 		assert.Contains(t, itemsProp, "items")
 
-		itemsSchema := itemsProp["items"].(map[string]interface{})
+		itemsSchema := itemsProp["items"].(map[string]any)
 		assert.Equal(t, []any{"object", "null"}, itemsSchema["type"])
 		assert.Equal(t, "Nested schema", itemsSchema["description"])
 	})
@@ -307,7 +307,7 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -334,19 +334,19 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(objSchema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
-		strProp := properties["str"].(map[string]interface{})
+		strProp := properties["str"].(map[string]any)
 		assert.Equal(t, "default string", strProp["default"])
 
-		numProp := properties["num"].(map[string]interface{})
+		numProp := properties["num"].(map[string]any)
 		assert.Equal(t, float64(42), numProp["default"])
 
-		boolProp := properties["bool"].(map[string]interface{})
+		boolProp := properties["bool"].(map[string]any)
 		assert.Equal(t, true, boolProp["default"])
 	})
 
@@ -358,7 +358,7 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -381,13 +381,13 @@ func TestSchemaFeatures(t *testing.T) {
 			data, err := json.Marshal(schema)
 			require.NoError(t, err)
 
-			var parsed map[string]interface{}
+			var parsed map[string]any
 			err = json.Unmarshal(data, &parsed)
 			require.NoError(t, err)
 
 			// A nullable schema serializes "type" as the JSON Schema 2020-12 two-
 			// element array [<primary>, "null"], not the OpenAPI "nullable: true".
-			typeArr, ok := parsed["type"].([]interface{})
+			typeArr, ok := parsed["type"].([]any)
 			require.True(t, ok, "nullable schema should serialize type as an array")
 			require.Len(t, typeArr, 2)
 			require.Contains(t, typeArr, "null")
@@ -406,7 +406,7 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -582,30 +582,30 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
 		// Nullability is expressed via the JSON Schema 2020-12 type-union form,
 		// not the OpenAPI "nullable" keyword (which is no longer emitted).
 
 		// Explicitly nullable property: "type" is the two-element [<t>, "null"] array.
-		nullableProp := properties["nullableString"].(map[string]interface{})
-		assert.Equal(t, []interface{}{"string", "null"}, nullableProp["type"])
+		nullableProp := properties["nullableString"].(map[string]any)
+		assert.Equal(t, []any{"string", "null"}, nullableProp["type"])
 		_, hasNullableKey := nullableProp["nullable"]
 		assert.False(t, hasNullableKey, "nullable keyword should not be emitted")
 
 		// Non-nullable property: "type" is a single string and no "nullable" key.
-		nonNullableProp := properties["nonNullableString"].(map[string]interface{})
+		nonNullableProp := properties["nonNullableString"].(map[string]any)
 		assert.Equal(t, "string", nonNullableProp["type"])
 		_, hasNullableOnNonNullable := nonNullableProp["nullable"]
 		assert.False(t, hasNullableOnNonNullable)
 
 		// Default (factory-nullable) property: same shape as explicitly nullable.
-		defaultProp := properties["defaultString"].(map[string]interface{})
-		assert.Equal(t, []interface{}{"string", "null"}, defaultProp["type"])
+		defaultProp := properties["defaultString"].(map[string]any)
+		assert.Equal(t, []any{"string", "null"}, defaultProp["type"])
 
 		// Test WithNullable method
 		schema = NewStringSchema()

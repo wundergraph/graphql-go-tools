@@ -54,7 +54,7 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int, opts ...Optio
 func resolveJsonSchemaPath(jsonSchema JsonSchema, path []string) JsonSchema {
 	switch typedJsonSchema := jsonSchema.(type) {
 	case Object:
-		for i := 0; i < len(path); i++ {
+		for i := range path {
 			propertyJsonSchema, exists := typedJsonSchema.Properties[path[i]]
 			if !exists {
 				return jsonSchema
@@ -231,7 +231,7 @@ func MustNewValidatorFromString(schema string) *Validator {
 }
 
 func (v *Validator) Validate(ctx context.Context, inputJSON []byte) error {
-	var value interface{}
+	var value any
 	if err := json.Unmarshal(inputJSON, &value); err != nil {
 		return err
 	}
