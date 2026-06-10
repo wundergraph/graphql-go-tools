@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/cespare/xxhash/v2"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -28,4 +30,13 @@ type HookableSubscriptionDataSource interface {
 	// SubscriptionOnStart is called when a new subscription is created
 	// If an error is returned, the error is propagated to the client.
 	SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error)
+}
+
+// SubscriptionTriggerHasher is an optional interface for subscription datasources
+// that need to control which fields contribute to the trigger ID hash.
+// When implemented, it replaces the default behaviour of hashing the full raw input.
+// The datasource writes only its stable, identity-relevant fields into xxh.
+// The resolver still appends the subgraph headers hash afterward.
+type SubscriptionTriggerHasher interface {
+	UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) error
 }
