@@ -1274,18 +1274,22 @@ func (r *Resolver) UnsubscribeClient(connectionID ConnectionID) error {
 // prepareTrigger safely gets the headers for the trigger Subgraph and computes the hash across headers and input
 // the generated hash is the unique triggerID
 // the headers must be forwarded to the DataSource to create the trigger
-func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, source SubscriptionDataSource) (headers http.Header, triggerID uint64) {
+func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, source SubscriptionDataSource) (
+	headers http.Header, triggerID uint64) {
 	keyGen := pool.Hash64.Get()
 	var usedHasher bool
 
+	// use custom data as hash input, if source provides it
 	hasher, implementsHasher := source.(SubscriptionTriggerHasher)
 	if implementsHasher {
-		err := hasher.UniqueRequestID(ctx, input, keyGen)
+		err := hasher.ProvideTriggerHashInput(ctx, input, keyGen)
 		if err == nil {
 			usedHasher = true
 		}
 	}
 
+	// Fallback: use input as hash source, if either the source does not provide custom data
+	// or if there was an error with it.
 	if !usedHasher {
 		_, _ = keyGen.Write(input)
 	}

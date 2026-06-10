@@ -38,5 +38,7 @@ type HookableSubscriptionDataSource interface {
 // The datasource writes only its stable, identity-relevant fields into xxh.
 // The resolver still appends the subgraph headers hash afterward.
 type SubscriptionTriggerHasher interface {
-	UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) error
+	// ProvideTriggerHashInput generates hash input to be used to create a trigger id
+	// and stores it inside xxh.
+	ProvideTriggerHashInput(ctx *Context, input []byte, xxh *xxhash.Digest) error
 }
