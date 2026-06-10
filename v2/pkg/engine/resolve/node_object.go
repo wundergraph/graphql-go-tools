@@ -99,6 +99,20 @@ func (o *Object) Equals(n Node) bool {
 	return true
 }
 
+// isAbstract returns whether the object resolves an interface or union field.
+// An abstract object's PossibleTypes holds the concrete implementers/members
+// (an entity interface additionally includes the interface name itself).
+func (o *Object) isAbstract() bool {
+	if len(o.PossibleTypes) > 1 {
+		return true
+	}
+	if len(o.PossibleTypes) == 1 {
+		_, self := o.PossibleTypes[o.TypeName]
+		return !self
+	}
+	return false
+}
+
 type EmptyObject struct{}
 
 func (*EmptyObject) NodeKind() NodeKind {

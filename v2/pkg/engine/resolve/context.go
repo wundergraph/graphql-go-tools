@@ -55,10 +55,10 @@ type Context struct {
 	// Nil when analytics is disabled. Use cacheAnalyticsEnabled() as a fast guard.
 	cacheAnalytics *CacheAnalyticsCollector
 
-	// ActualListSizes is populated by the resolver after resolution completes,
-	// before the response body is written. Maps JSON path to actual list size.
+	// TypeNameStats is populated by the resolver after resolution completes,
+	// before the response body is written. Maps JSON path to array stats.
 	// Used to compute the actual cost.
-	ActualListSizes map[string]int
+	TypeNameStats map[string]TypeNameStats
 
 	// GetDeduplicationData is called after the leader of an inbound singleflight request
 	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
@@ -431,7 +431,7 @@ func (c *Context) Free() {
 	}
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
-	c.ActualListSizes = nil
+	c.TypeNameStats = nil
 }
 
 func (c *Context) VariablesView() VariablesView {
