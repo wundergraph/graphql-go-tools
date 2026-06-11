@@ -112,6 +112,7 @@ github.com/r3labs/sse/v2 v2.8.1 h1:lZH+W4XOLIq88U5MIHOsLec7+R62uhz3bIi2yn0Sg8o=
 github.com/r3labs/sse/v2 v2.8.1/go.mod h1:Igau6Whc+F17QUgML1fYe1VPZzTV6EMCnYktEmkNJ7I=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=
+github.com/rogpeppe/go-internal v1.14.1/go.mod h1:MaRKkUm5W0goXpeCfT7UZI6fk/L7L7so1lCWt35ZSgc=
 github.com/rs/xid v1.6.0 h1:fV591PaemRlL6JfRxGDEPl69wICngIQ3shQtzfy2gxU=
 github.com/rs/xid v1.6.0/go.mod h1:7XoLgs4eV+QndskICGsho+ADou8ySMSjJKDIan90Nz0=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
@@ -154,6 +155,7 @@ github.com/wundergraph/astjson v1.1.0/go.mod h1:h12D/dxxnedtLzsKyBLK7/Oe4TAoGpRV
 github.com/wundergraph/cosmo/router v0.0.0-20260611115430-e8a965a40952 h1:pmrzfmyfaLO+CxIMbFpJGFedijeispdohl17WT7Kxj8=
 github.com/wundergraph/cosmo/router v0.0.0-20260611115430-e8a965a40952/go.mod h1:GK9C7mTNNpwQLt6zM0joXlNHL/1c5GXB0jIzShojmUg=
 github.com/wundergraph/go-arena v1.3.0 h1:n0ng5a1vbd8YGq1u3rMr0vPU5f6AZ1BXIiUhL1UIok8=
+github.com/wundergraph/go-arena v1.3.0/go.mod h1:ROOysEHWJjLQ8FSfNxZCziagb7Qw2nXY3/vgKRh7eWw=
 github.com/wundergraph/graphql-go-tools/v2 v2.4.4 h1:VCvS9bku4ie7+St3+H5SNuVz6dtQiDKujqQ439yrMBM=
 github.com/wundergraph/graphql-go-tools/v2 v2.4.4/go.mod h1:7ljNHLrBOoOszCk4ir4Z+O6Yrf+vwBBmxjwqM3imVgA=
 github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 h1:FnBeRrxr7OU4VvAzt5X7s6266i6cSVkkFPS0TuXWbIg=
