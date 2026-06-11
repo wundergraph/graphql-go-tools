@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/wundergraph/graphql-go-tools/v2 v2.1.0
+	github.com/wundergraph/graphql-go-tools/v2 v2.4.4
 )
 
 require (
@@ -27,5 +27,4 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
-	gonum.org/v1/gonum v0.17.0 // indirect
 )
