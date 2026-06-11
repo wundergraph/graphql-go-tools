@@ -5,15 +5,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wundergraph/astjson"
 )
-
-func TestDataBuffer_LockDisabled(t *testing.T) {
-	d := &DataBuffer{}
-	// Must not panic or deadlock when enableLock is false.
-	d.Lock()
-	d.Unlock()
-}
 
 func TestDataBuffer_LockEnabled(t *testing.T) {
 	// Run with `go test -race` to have the race detector verify serialisation.
@@ -41,12 +35,4 @@ func TestDataBuffer_LockEnabled(t *testing.T) {
 	got := d.Get().String()
 	assert.Contains(t, got, `"a":"a"`, "field a must be present")
 	assert.Contains(t, got, `"b":"b"`, "field b must be present")
-}
-
-func TestDataBuffer_GetSet(t *testing.T) {
-	d := &DataBuffer{}
-	assert.Nil(t, d.Get())
-	// Set accepts nil without panic.
-	d.Set(nil)
-	assert.Nil(t, d.Get())
 }

@@ -69,7 +69,7 @@ type conditionalTestCase struct {
 type sendResponse struct {
 	statusCode int
 	body       string
-	latencyMS  time.Duration
+	latency    time.Duration
 }
 
 func createConditionalTestRoundTripper(t *testing.T, testCase conditionalTestCase) testRoundTripper {
@@ -124,8 +124,8 @@ func createConditionalTestRoundTripper(t *testing.T, testCase conditionalTestCas
 			t.Logf("Send MOCK Response:\n %s", response.body)
 		}
 
-		if response.latencyMS > 0 {
-			time.Sleep(response.latencyMS * time.Millisecond)
+		if response.latency > 0 {
+			time.Sleep(response.latency)
 		}
 
 		return &http.Response{

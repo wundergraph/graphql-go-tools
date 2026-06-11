@@ -18,6 +18,7 @@ import (
 // specific selection set higher in the document order.
 type deferInfoCollector struct {
 	*astvisitor.Walker
+
 	operation   *ast.Document
 	definition  *ast.Document
 	descriptors map[int]resolve.DeferDescriptor

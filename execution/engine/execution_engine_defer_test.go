@@ -49,7 +49,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"{user {name}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"name":"Black"}}}`,
-								latencyMS:  4,
+								latency:    40 * time.Millisecond,
 							},
 							`{"query":"{user {___typename: __typename}}"}`: {
 								statusCode: 200,
@@ -58,12 +58,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"{user {title}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"title":"Sabbat"}}}`,
-								latencyMS:  6,
+								latency:    60 * time.Millisecond,
 							},
 							`{"query":"{user {id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"id":"1"}}}`,
-								latencyMS:  2,
+								latency:    20 * time.Millisecond,
 							},
 							`{"query":"{user {title id}}"}`: {
 								statusCode: 200,
@@ -92,17 +92,17 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"{user {info {___typename: __typename}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"___typename":"Info"}}}}`,
-								latencyMS:  8,
+								latency:    80 * time.Millisecond,
 							},
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
-								latencyMS:  1,
+								latency:    10 * time.Millisecond,
 							},
 							`{"query":"{user {info {phone}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"phone":"123"}}}}`,
-								latencyMS:  2,
+								latency:    20 * time.Millisecond,
 							},
 						},
 					}),
@@ -217,12 +217,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
-								latencyMS:  2,
+								latency:    20 * time.Millisecond,
 							},
 							`{"query":"{user {info {___typename: __typename}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"___typename":"Info"}}}}`,
-								latencyMS:  6,
+								latency:    60 * time.Millisecond,
 							},
 							`{"query":"{user {__typename __internal_id: id __internal_1_id: id}}"}`: {
 								statusCode: 200,
@@ -304,12 +304,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
 								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black"}]}}`,
-								latencyMS:  2,
+								latency:    20 * time.Millisecond,
 							},
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
 								body:       `{"data":{"_entities":[{"__typename":"User","title":"Sabbat"}]}}`,
-								latencyMS:  4,
+								latency:    40 * time.Millisecond,
 							},
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name title}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
@@ -322,7 +322,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {phone}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
 								body:       `{"data":{"_entities":[{"__typename":"User","info":{"phone":"123"}}]}}`,
-								latencyMS:  10,
+								latency:    100 * time.Millisecond,
 							},
 						},
 					}),
@@ -930,7 +930,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename account {type}}}}","variables":{"representations":[{"__typename":"User","billing":{"plan":"pro"},"settings":{"region":"us-east"},"id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","account":{"type":"premium"}}]}}`,
-						latencyMS:  2,
+						latency:    20 * time.Millisecond,
 					},
 					`{"query":"{user {__internal_name: name}}"}`: {
 						statusCode: 200,
@@ -1013,7 +1013,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"]}]}}`,
-						latencyMS:  5,
+						latency:    50 * time.Millisecond,
 					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
@@ -1667,7 +1667,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		// frame ordering. The price defer group performs two roundtrips (key fetch
 		// on id-1, then entity fetch on id-2), so its total latency is
 		// keyLatencyMS + entityLatencyMS.
-		makeDataSources := func(nameLatencyMS, nameWithErrorLatencyMS, keyLatencyMS, entityLatencyMS time.Duration) []plan.DataSource {
+		makeDataSources := func(nameLatency, nameWithErrorLatency, keyLatency, entityLatency time.Duration) []plan.DataSource {
 			return []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id-1",
@@ -1684,17 +1684,17 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								`{"query":"{product {___typename: __typename __typename id}}"}`: {
 									statusCode: 200,
 									body:       `{"data":{"product":{"___typename":"Product","__typename":"Product","id":"1"}}}`,
-									latencyMS:  keyLatencyMS,
+									latency:    keyLatency,
 								},
 								`{"query":"{product {name}}"}`: {
 									statusCode: 200,
 									body:       `{"data":{"product":{"name":null}}}`,
-									latencyMS:  nameLatencyMS,
+									latency:    nameLatency,
 								},
 								`{"query":"{product {nameWithError}}"}`: {
 									statusCode: 200,
 									body:       `{"data":{"product":{"nameWithError":null}},"errors":[{"message":"upstream name error","path":["product","nameWithError"]}]}`,
-									latencyMS:  nameWithErrorLatencyMS,
+									latency:    nameWithErrorLatency,
 								},
 							},
 						}),
@@ -1729,7 +1729,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[{"__typename":"Product","id":"1"}]}}`: {
 									statusCode: 200,
 									body:       `{"data":{"_entities":[{"__typename":"Product","price":null}]}}`,
-									latencyMS:  entityLatencyMS,
+									latency:    entityLatency,
 								},
 							},
 						}),
@@ -1800,7 +1800,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			},
 			// name must complete first: name responds in 1ms, the price chain
 			// (key fetch + entity fetch) takes ~10ms.
-			dataSources: makeDataSources(1, 0, 5, 5),
+			dataSources: makeDataSources(10*time.Millisecond, 0, 50*time.Millisecond, 50*time.Millisecond),
 			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
 {"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":true}
 {"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
@@ -1814,7 +1814,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			},
 			// price must complete first: the price chain (key + entity) takes
 			// ~2ms, name responds after 12ms.
-			dataSources: makeDataSources(12, 0, 1, 1),
+			dataSources: makeDataSources(50*time.Millisecond, 0, 10*time.Millisecond, 10*time.Millisecond),
 			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
 {"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":true}
 {"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
@@ -1828,7 +1828,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			},
 			// nameWithError must complete first: it responds in 1ms, the price
 			// chain (key + entity) takes ~10ms.
-			dataSources: makeDataSources(0, 1, 5, 5),
+			dataSources: makeDataSources(0, 10*time.Millisecond, 50*time.Millisecond, 50*time.Millisecond),
 			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
 {"incremental":[{"data":{"nameWithError":null},"id":"1","errors":[{"message":"Failed to fetch from Subgraph 'id-1'."}]}],"completed":[{"id":"1"}],"hasNext":true}
 {"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
