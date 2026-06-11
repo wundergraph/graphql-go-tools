@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.5](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.4...v2.4.5) (2026-06-11)
+
+
+### Bug Fixes
+
+* bump go-arena to v1.3.0 ([#1532](https://github.com/wundergraph/graphql-go-tools/issues/1532)) ([a4eb7d8](https://github.com/wundergraph/graphql-go-tools/commit/a4eb7d8a1fb34eb7e65ed351a973b7eeea08bc0c))
+
 ## [2.4.4](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.3...v2.4.4) (2026-06-08)
 
 
