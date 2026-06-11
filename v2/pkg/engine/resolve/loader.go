@@ -176,6 +176,10 @@ type Loader struct {
 
 	validateRequiredExternalFields bool
 
+	// enableDataflow runs query fetch DAGs through resolveDataflow (per-FetchID
+	// dependency gating) instead of the per-wave-barrier resolveSerial/resolveParallel.
+	enableDataflow bool
+
 	taintedObjs taintedObjects
 	mergeMu     sync.Mutex
 	useMergeMu  bool
@@ -217,6 +221,9 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	// fallbacks call resolveFetchNode, which must take the locked nested path for
 	// nested (schedule-tree) plans.
 	l.useMergeMu = fetchTreeHasNestedParallel(response.Fetches)
+	if l.enableDataflow && l.dataflowEligibleOperation() {
+		return l.resolveDataflow(response.Fetches)
+	}
 	return l.resolveFetchNode(response.Fetches)
 }
 
