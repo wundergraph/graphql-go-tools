@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
@@ -57,6 +56,9 @@ type Resolvable struct {
 	typeNames [][]byte
 
 	marshalBuf []byte
+	// fieldPathBuf is a reusable scratch buffer for currentFieldPath to avoid a
+	// per-call []string + strings.Join allocation on the resolve hot path.
+	fieldPathBuf []byte
 
 	enclosingTypeNames []string
 
@@ -1044,13 +1046,18 @@ func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 
 // Helper to build JSON path (field names only, no array indices)
 func (r *Resolvable) currentFieldPath() string {
-	var parts []string
+	buf := r.fieldPathBuf[:0]
 	for _, elem := range r.path {
 		if elem.Name != "" {
-			parts = append(parts, elem.Name)
+			if len(buf) > 0 {
+				buf = append(buf, '.')
+			}
+			buf = append(buf, elem.Name...)
 		}
 	}
-	return strings.Join(parts, ".")
+	r.fieldPathBuf = buf
+	// string(buf) copies; required because the result is used as a map key.
+	return string(buf)
 }
 
 func (r *Resolvable) walkNull() bool {

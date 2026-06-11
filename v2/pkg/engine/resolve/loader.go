@@ -230,6 +230,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		return nil
 	}
 	results := make([]*result, len(nodes))
+	// Allocate the result structs as a single slab instead of len(nodes) individual heap
+	// allocations; the pointers into it stay valid for the function lifetime.
+	resultStore := make([]result, len(nodes))
 	defer func() {
 		for i := range results {
 			// no-op if tools == nil
@@ -239,7 +242,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 	itemsItems := make([][]*astjson.Value, len(nodes))
 	g, ctx := errgroup.WithContext(l.ctx.ctx)
 	for i := range nodes {
-		results[i] = &result{}
+		results[i] = &resultStore[i]
 		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
 		f := nodes[i].Item.Fetch
 		item := nodes[i].Item
