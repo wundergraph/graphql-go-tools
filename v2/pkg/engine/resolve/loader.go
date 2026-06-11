@@ -177,6 +177,10 @@ type Loader struct {
 	validateRequiredExternalFields bool
 
 	taintedObjs taintedObjects
+	mergeMu     sync.Mutex
+	useMergeMu  bool
+
+	erroredFetchIDs map[int]struct{}
 
 	// jsonArena is the arena for JSON allocation, supplied by the Resolver.
 	// Not thread safe — only use from the main goroutine.
@@ -199,6 +203,8 @@ func (l *Loader) Free() {
 	l.ctx = nil
 	l.resolvable = nil
 	l.taintedObjs = nil
+	l.erroredFetchIDs = nil
+	l.useMergeMu = false
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -206,28 +212,51 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.ctx = ctx
 	l.info = response.Info
 	l.taintedObjs = make(taintedObjects)
+	l.erroredFetchIDs = nil
+	// useMergeMu must be set BEFORE the dataflow branch: resolveDataflow's internal
+	// fallbacks call resolveFetchNode, which must take the locked nested path for
+	// nested (schedule-tree) plans.
+	l.useMergeMu = fetchTreeHasNestedParallel(response.Fetches)
 	return l.resolveFetchNode(response.Fetches)
 }
 
 func (l *Loader) resolveFetchNode(node *FetchTreeNode) error {
+	return l.resolveFetchNodeWithCtx(l.ctx.ctx, node)
+}
+
+func (l *Loader) resolveFetchNodeWithCtx(ctx context.Context, node *FetchTreeNode) error {
 	if node == nil {
 		return nil
 	}
 	switch node.Kind {
 	case FetchTreeNodeKindSingle:
-		return l.resolveSingle(node.Item)
+		return l.resolveSingleWithCtx(ctx, node.Item)
 	case FetchTreeNodeKindSequence:
-		return l.resolveSerial(node.ChildNodes)
+		return l.resolveSerialWithCtx(ctx, node.ChildNodes)
 	case FetchTreeNodeKindParallel:
-		return l.resolveParallel(node.ChildNodes)
+		return l.resolveParallelWithCtx(ctx, node.ChildNodes)
 	default:
 		return nil
 	}
 }
 
 func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
+	return l.resolveParallelWithCtx(l.ctx.ctx, nodes)
+}
+
+func (l *Loader) resolveParallelWithCtx(ctx context.Context, nodes []*FetchTreeNode) error {
 	if len(nodes) == 0 {
 		return nil
+	}
+	// DEVIATION from upstream (improve-query-order): the gate also routes flat
+	// Parallel nodes through the locked nested path whenever useMergeMu is set.
+	// Upstream checks only !allChildrenAreSingle(nodes), which lets a flat Parallel
+	// INSIDE a nested tree run this lock-free fast path and merge concurrently with
+	// sibling branches merging under mergeMu — a verified data race.
+	// With the gate, the lock-free fast path runs only when the whole tree is flat
+	// (useMergeMu false), where single-threaded merge order is guaranteed.
+	if l.useMergeMu || !allChildrenAreSingle(nodes) {
+		return l.resolveParallelNested(ctx, nodes)
 	}
 	results := make([]*result, len(nodes))
 	// Allocate the result structs as a single slab instead of len(nodes) individual heap
@@ -240,7 +269,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		}
 	}()
 	itemsItems := make([][]*astjson.Value, len(nodes))
-	g, ctx := errgroup.WithContext(l.ctx.ctx)
+	g, ctx := errgroup.WithContext(ctx)
 	for i := range nodes {
 		results[i] = &resultStore[i]
 		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
@@ -277,8 +306,12 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 }
 
 func (l *Loader) resolveSerial(nodes []*FetchTreeNode) error {
+	return l.resolveSerialWithCtx(l.ctx.ctx, nodes)
+}
+
+func (l *Loader) resolveSerialWithCtx(ctx context.Context, nodes []*FetchTreeNode) error {
 	for i := range nodes {
-		err := l.resolveFetchNode(nodes[i])
+		err := l.resolveFetchNodeWithCtx(ctx, nodes[i])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -287,43 +320,480 @@ func (l *Loader) resolveSerial(nodes []*FetchTreeNode) error {
 }
 
 func (l *Loader) resolveSingle(item *FetchItem) error {
+	return l.resolveSingleWithCtx(l.ctx.ctx, item)
+}
+
+func (l *Loader) resolveSingleWithCtx(ctx context.Context, item *FetchItem) error {
 	if item == nil {
 		return nil
 	}
-	items := l.selectItemsForPath(item.FetchPath)
-
-	switch f := item.Fetch.(type) {
-	case *SingleFetch:
-		res := &result{}
-		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
-		if err != nil {
-			return err
-		}
-		err = l.mergeResult(item, res, items)
-		l.callOnFinished(res)
-		return err
-	case *BatchEntityFetch:
-		res := &result{}
-		defer batchEntityToolPool.Put(res.tools)
-		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		err = l.mergeResult(item, res, items)
-		l.callOnFinished(res)
-		return err
-	case *EntityFetch:
-		res := &result{}
-		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		err = l.mergeResult(item, res, items)
-		l.callOnFinished(res)
-		return err
-	default:
+	prepared, err := l.preparePhase(item)
+	// DEVIATION from upstream (codex P1 on this port): register the tools Put
+	// BEFORE the error return. prepareBatchEntityFetch acquires res.tools and can
+	// still fail afterwards (header/item/separator/footer render,
+	// SetInputUndefinedVariables, validatePreFetch); upstream returns on err before
+	// its defer is registered, leaking the pooled arena on every such request.
+	// Put(nil) is a no-op, so registering for any non-nil prepared is safe for all
+	// fetch kinds.
+	if prepared != nil {
+		defer batchEntityToolPool.Put(prepared.res.tools)
+	}
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if prepared == nil {
 		return nil
 	}
+	if err := l.loadPhase(ctx, prepared); err != nil {
+		return errors.WithStack(err)
+	}
+	return l.mergePhase(prepared)
+}
+
+type preparedFetch struct {
+	item       *FetchItem
+	items      []*astjson.Value
+	res        *result
+	source     DataSource
+	input      []byte
+	trace      *DataSourceLoadTrace
+	skipLoad   bool
+	batchFetch bool
+}
+
+// resolveParallelNested executes nested (schedule-tree) Parallel branches
+// concurrently; each leaf's mergePhase runs under mergeMu at COMPLETION time.
+// KNOWN PROPERTY (upstream design, documented for ENGINE_ENABLE_SCHEDULE_TREE):
+// order-bearing sinks (resolvable.errors, subgraphExtensions, subgraphErrors)
+// are appended in completion order across branches, so the ERROR-path byte
+// order is timing-dependent — unlike the legacy flat Parallel, which merges by
+// child index after its barrier. This holds for ANY cross-branch parallel
+// (e.g. two independent chains), not just same-path siblings; the success-path
+// data is unaffected (serialized in query order by the resolvable). The named
+// follow-up is to stage per-leaf sink appends and flush in tree order, exactly
+// as resolveDataflow's swap-capture staging already does (loader_dataflow.go
+// invariant 2); not done here to keep the port surgical.
+func (l *Loader) resolveParallelNested(ctx context.Context, nodes []*FetchTreeNode) error {
+	g, ctx := errgroup.WithContext(ctx)
+	for i := range nodes {
+		node := nodes[i]
+		g.Go(func() error {
+			return l.resolveFetchNodeWithCtx(ctx, node)
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
+func (l *Loader) preparePhase(item *FetchItem) (*preparedFetch, error) {
+	unlock := l.maybeLock()
+	defer unlock()
+
+	// DEVIATION from upstream (improve-query-order): the skip-on-errored-dependency
+	// check is gated on useMergeMu. Upstream runs it unconditionally, which observably
+	// changes flat-plan error-path bytes vs the legacy executor (dependents of an
+	// errored fetch would be skipped instead of loaded). Flags-off byte-identity is a
+	// hard constraint of this fork; nested (schedule-tree) plans keep upstream's
+	// skip-dependents behavior.
+	if l.useMergeMu && l.shouldSkipErroredDependencyLocked(item) {
+		return nil, nil
+	}
+
+	items := l.selectItemsForPath(item.FetchPath)
+	res := &result{}
+	prepared := &preparedFetch{
+		item:  item,
+		items: items,
+		res:   res,
+	}
+	switch fetch := item.Fetch.(type) {
+	case *SingleFetch:
+		err := l.prepareSingleFetch(item, fetch, items, res, prepared)
+		return prepared, err
+	case *EntityFetch:
+		err := l.prepareEntityFetch(item, fetch, items, res, prepared)
+		return prepared, err
+	case *BatchEntityFetch:
+		prepared.batchFetch = true
+		err := l.prepareBatchEntityFetch(item, fetch, items, res, prepared)
+		return prepared, err
+	default:
+		return nil, nil
+	}
+}
+
+func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
+	if prepared.skipLoad {
+		return nil
+	}
+	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
+	if prepared.res.err != nil {
+		l.recordErroredFetchID(prepared.item)
+	}
+	return nil
+}
+
+func (l *Loader) mergePhase(prepared *preparedFetch) error {
+	unlock := l.maybeLock()
+	defer unlock()
+
+	res := prepared.res
+	var err error
+	if res.nestedMergeItems != nil {
+		for j := range res.nestedMergeItems {
+			err = l.mergeResult(prepared.item, res.nestedMergeItems[j], prepared.items[j:j+1])
+			l.callOnFinished(res.nestedMergeItems[j])
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
+		return nil
+	}
+	err = l.mergeResult(prepared.item, res, prepared.items)
+	l.callOnFinished(res)
+	return err
+}
+
+func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
+	res.init(fetch.PostProcessing, fetch.Info)
+	buf := bytes.NewBuffer(nil)
+
+	inputData := l.itemsData(items)
+	if l.ctx.TracingOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+		if !l.ctx.TracingOptions.ExcludeRawInputData && inputData != nil {
+			fetch.Trace.RawInputData, _ = l.compactJSON(inputData.MarshalTo(nil))
+		}
+	}
+
+	// When we don't have parent data it makes no sense to proceed with next fetches in a sequence
+	// Right now, it is the case only for the introspection - because introspection uses
+	// only single fetches.
+	// Having null means that the previous fetch returned null as data
+	if len(items) == 1 && items[0].Type() == astjson.TypeNull {
+		res.fetchSkipped = true
+		prepared.skipLoad = true
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
+		return nil
+	}
+
+	err := fetch.InputTemplate.Render(l.ctx, inputData, buf)
+	if err != nil {
+		res.out = l.renderErrorsInvalidInput(fetchItem)
+		prepared.skipLoad = true
+		return nil
+	}
+	fetchInput := buf.Bytes()
+	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		prepared.skipLoad = true
+		return nil
+	}
+	prepared.source = fetch.DataSource
+	prepared.input = fetchInput
+	prepared.trace = fetch.Trace
+	return nil
+}
+
+func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
+	res.init(fetch.PostProcessing, fetch.Info)
+	input := l.itemsData(items)
+	if l.ctx.TracingOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+		if !l.ctx.TracingOptions.ExcludeRawInputData && input != nil {
+			fetch.Trace.RawInputData, _ = l.compactJSON(input.MarshalTo(nil))
+		}
+	}
+
+	preparedInput := bytes.NewBuffer(nil)
+	item := bytes.NewBuffer(nil)
+
+	var undefinedVariables []string
+
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	err = fetch.Input.Item.Render(l.ctx, input, item)
+	if err != nil {
+		if fetch.Input.SkipErrItem {
+			// skip fetch on render item error
+			if l.ctx.TracingOptions.Enable {
+				fetch.Trace.LoadSkipped = true
+			}
+			res.fetchSkipped = true
+			prepared.skipLoad = true
+			return nil
+		}
+		return errors.WithStack(err)
+	}
+	renderedItem := item.Bytes()
+	if bytes.Equal(renderedItem, null) {
+		// skip fetch if item is null
+		res.fetchSkipped = true
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		} else {
+			prepared.skipLoad = true
+			return nil
+		}
+	}
+	if bytes.Equal(renderedItem, emptyObject) {
+		// skip fetch if item is empty
+		res.fetchSkipped = true
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		} else {
+			prepared.skipLoad = true
+			return nil
+		}
+	}
+	_, _ = item.WriteTo(preparedInput)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	fetchInput := preparedInput.Bytes()
+
+	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
+		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
+		prepared.skipLoad = true
+		return nil
+	}
+
+	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		prepared.skipLoad = true
+		return nil
+	}
+	prepared.source = fetch.DataSource
+	prepared.input = fetchInput
+	prepared.trace = fetch.Trace
+	return nil
+}
+
+func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
+	res.init(fetch.PostProcessing, fetch.Info)
+
+	if l.ctx.TracingOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+		if !l.ctx.TracingOptions.ExcludeRawInputData && len(items) != 0 {
+			data := l.itemsData(items)
+			if data != nil {
+				fetch.Trace.RawInputData, _ = l.compactJSON(data.MarshalTo(nil))
+			}
+		}
+	}
+
+	res.tools = batchEntityToolPool.Get(len(items))
+	preparedInput := arena.NewArenaBuffer(res.tools.a)
+	itemInput := arena.NewArenaBuffer(res.tools.a)
+	batchStats := arena.AllocateSlice[[]*astjson.Value](res.tools.a, 0, len(items))
+	defer func() {
+		// we need to clear the batchStats slice to avoid memory corruption
+		// once the outer func returns, we must not keep pointers to items on the arena
+		for i := range batchStats {
+			// nolint:ineffassign
+			batchStats[i] = nil
+		}
+		// nolint:ineffassign
+		batchStats = nil
+	}()
+
+	// I tried using arena here, but it only worsened the situation
+	var undefinedVariables []string
+
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	batchItemIndex := 0
+	addSeparator := false
+
+WithNextItem:
+	for i, item := range items {
+		for j := range fetch.Input.Items {
+			itemInput.Reset()
+			err = fetch.Input.Items[j].Render(l.ctx, item, itemInput)
+			if err != nil {
+				if fetch.Input.SkipErrItems {
+					err = nil // nolint:ineffassign
+					continue
+				}
+				if l.ctx.TracingOptions.Enable {
+					fetch.Trace.LoadSkipped = true
+				}
+				return errors.WithStack(err)
+			}
+			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
+				continue
+			}
+			if fetch.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
+				continue
+			}
+
+			res.tools.keyGen.Reset()
+			_, _ = res.tools.keyGen.Write(itemInput.Bytes())
+			itemHash := res.tools.keyGen.Sum64()
+			if existingIndex, ok := res.tools.batchHashToIndex[itemHash]; ok {
+				batchStats[existingIndex] = arena.SliceAppend(res.tools.a, batchStats[existingIndex], items[i])
+				continue WithNextItem
+			} else {
+				if addSeparator {
+					err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
+					if err != nil {
+						return errors.WithStack(err)
+					}
+				}
+				_, _ = itemInput.WriteTo(preparedInput)
+				// new unique representation
+				res.tools.batchHashToIndex[itemHash] = batchItemIndex
+				// create a new targets bucket for this unique index
+				batchStats = arena.SliceAppend(res.tools.a, batchStats, []*astjson.Value{items[i]})
+				batchItemIndex++
+				addSeparator = true
+			}
+		}
+	}
+
+	if len(batchStats) == 0 {
+		// all items were skipped - discard fetch
+		res.fetchSkipped = true
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		} else {
+			prepared.skipLoad = true
+			return nil
+		}
+	}
+
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	fetchInput := preparedInput.Bytes()
+	// it's important to copy the *astjson.Value's off the arena to avoid memory corruption
+	res.batchStats = make([][]*astjson.Value, len(batchStats))
+	for i := range batchStats {
+		res.batchStats[i] = make([]*astjson.Value, len(batchStats[i]))
+		copy(res.batchStats[i], batchStats[i])
+	}
+
+	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
+		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
+		prepared.skipLoad = true
+		return nil
+	}
+
+	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		prepared.skipLoad = true
+		return nil
+	}
+
+	prepared.source = fetch.DataSource
+	prepared.input = fetchInput
+	prepared.trace = fetch.Trace
+	return nil
+}
+
+func (l *Loader) maybeLock() func() {
+	if !l.useMergeMu {
+		return func() {}
+	}
+	l.mergeMu.Lock()
+	return l.mergeMu.Unlock
+}
+
+func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
+	if item == nil || item.Fetch == nil || len(l.erroredFetchIDs) == 0 {
+		return false
+	}
+	dependencies := item.Fetch.Dependencies()
+	if dependencies == nil {
+		return false
+	}
+	for _, dependencyID := range dependencies.DependsOnFetchIDs {
+		if _, ok := l.erroredFetchIDs[dependencyID]; ok {
+			l.recordErroredFetchIDLocked(item)
+			return true
+		}
+	}
+	return false
+}
+
+func (l *Loader) recordErroredFetchID(item *FetchItem) {
+	unlock := l.maybeLock()
+	defer unlock()
+
+	l.recordErroredFetchIDLocked(item)
+}
+
+func (l *Loader) recordErroredFetchIDLocked(item *FetchItem) {
+	if item == nil || item.Fetch == nil {
+		return
+	}
+	dependencies := item.Fetch.Dependencies()
+	if dependencies == nil {
+		return
+	}
+	if l.erroredFetchIDs == nil {
+		l.erroredFetchIDs = make(map[int]struct{})
+	}
+	l.erroredFetchIDs[dependencies.FetchID] = struct{}{}
+}
+
+func allChildrenAreSingle(nodes []*FetchTreeNode) bool {
+	for _, node := range nodes {
+		if node == nil || node.Kind != FetchTreeNodeKindSingle {
+			return false
+		}
+	}
+	return true
+}
+
+func fetchTreeHasNestedParallel(node *FetchTreeNode) bool {
+	if node == nil {
+		return false
+	}
+	if node.Kind == FetchTreeNodeKindParallel {
+		for _, child := range node.ChildNodes {
+			if child != nil && child.Kind != FetchTreeNodeKindSingle {
+				return true
+			}
+		}
+	}
+	for _, child := range node.ChildNodes {
+		if fetchTreeHasNestedParallel(child) {
+			return true
+		}
+	}
+	return false
 }
 
 func (l *Loader) callOnFinished(res *result) {
