@@ -795,12 +795,7 @@ func fetchTreeHasNestedParallel(node *FetchTreeNode) bool {
 			}
 		}
 	}
-	for _, child := range node.ChildNodes {
-		if fetchTreeHasNestedParallel(child) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(node.ChildNodes, fetchTreeHasNestedParallel)
 }
 
 func (l *Loader) callOnFinished(res *result) {

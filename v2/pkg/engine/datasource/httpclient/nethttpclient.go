@@ -259,10 +259,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, baseHeaders http.
 	// the compressed size, so this remains a safe lower-bound hint.
 	if cl := response.ContentLength; cl > 0 {
 		const maxPreAlloc = 1 << 21 // 2 MiB
-		want := int(cl)
-		if want > maxPreAlloc {
-			want = maxPreAlloc
-		}
+		want := min(int(cl), maxPreAlloc)
 		if want > out.Cap() {
 			out.Grow(want)
 		}

@@ -7,7 +7,9 @@ import (
 	"slices"
 
 	"github.com/pkg/errors"
+
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
