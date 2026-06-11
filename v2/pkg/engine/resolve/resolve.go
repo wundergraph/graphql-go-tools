@@ -1283,7 +1283,10 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte,
 	hasher, implementsHasher := source.(SubscriptionTriggerHasher)
 	if implementsHasher {
 		err := hasher.ProvideTriggerHashInput(ctx, input, keyGen)
-		if err == nil {
+		if err != nil {
+			// reset hash generator in case it was partially written to
+			keyGen.Reset()
+		} else {
 			usedHasher = true
 		}
 	}
