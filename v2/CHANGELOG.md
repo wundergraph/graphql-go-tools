@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.6](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.5...v2.4.6) (2026-06-12)
+
+
+### Bug Fixes
+
+* **pubsub:** fix inefficient trigger id generation ([#1531](https://github.com/wundergraph/graphql-go-tools/issues/1531)) ([595681c](https://github.com/wundergraph/graphql-go-tools/commit/595681ced0d0adb6422da5bbd54439a18f610cd7))
+
 ## [2.4.5](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.4...v2.4.5) (2026-06-11)
 
 
