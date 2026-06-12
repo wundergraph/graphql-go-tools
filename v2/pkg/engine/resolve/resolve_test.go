@@ -33,14 +33,23 @@ type _fakeDataSource struct {
 	artificialLatency time.Duration
 }
 
+// checkInput reports an input mismatch and returns an error. It must not FailNow:
+// Load is called from loader goroutines, not the test goroutine,
+// so the error is propagated through ResolveGraphQLResponse.
+func (f *_fakeDataSource) checkInput(input []byte) error {
+	if f.input != nil && !bytes.Equal(f.input, input) {
+		assert.Equal(f.t, string(f.input), string(input), "input mismatch")
+		return fmt.Errorf("fake data source: input mismatch: want %q, got %q", f.input, input)
+	}
+	return nil
+}
+
 func (f *_fakeDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
-	if f.input != nil {
-		if !bytes.Equal(f.input, input) {
-			require.Equal(f.t, string(f.input), string(input), "input mismatch")
-		}
+	if err := f.checkInput(input); err != nil {
+		return nil, err
 	}
 	return f.data, nil
 }
@@ -49,10 +58,8 @@ func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, headers http.Header
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
-	if f.input != nil {
-		if !bytes.Equal(f.input, input) {
-			require.Equal(f.t, string(f.input), string(input), "input mismatch")
-		}
+	if err := f.checkInput(input); err != nil {
+		return nil, err
 	}
 	return f.data, nil
 }
