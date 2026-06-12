@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
@@ -1995,6 +1996,11 @@ type RegularExpression struct {
 type SubscriptionSource struct {
 	client                 GraphQLSubscriptionClient
 	subscriptionOnStartFns []SubscriptionOnStartFn
+}
+
+func (s *SubscriptionSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
+	_, err := xxh.Write(input)
+	return err
 }
 
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
