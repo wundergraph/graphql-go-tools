@@ -67,7 +67,7 @@ type FakeSource struct {
 	interval time.Duration
 }
 
-func (f *FakeSource) HashTriggerInput(_ *Context, input []byte, xxh *xxhash.Digest) error {
+func (f *FakeSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	_, err := xxh.Write(input)
 	return err
 }

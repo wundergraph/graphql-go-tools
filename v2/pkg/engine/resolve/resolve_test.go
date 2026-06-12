@@ -5767,7 +5767,7 @@ type _fakeStream struct {
 	subscriptionOnStartFn func(ctx StartupHookContext, input []byte) (err error)
 }
 
-func (f *_fakeStream) HashTriggerInput(_ *Context, input []byte, xxh *xxhash.Digest) error {
+func (f *_fakeStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	_, err := xxh.Write(input)
 	return err
 }
@@ -8026,7 +8026,7 @@ type startFailStream struct {
 	subBReady chan struct{}
 }
 
-func (s *startFailStream) HashTriggerInput(_ *Context, input []byte, xxh *xxhash.Digest) error {
+func (s *startFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	_, err := xxh.Write(input)
 	return err
 }
@@ -8115,7 +8115,7 @@ type hookFailStream struct {
 	sourceStarted  atomic.Bool
 }
 
-func (s *hookFailStream) HashTriggerInput(_ *Context, input []byte, xxh *xxhash.Digest) error {
+func (s *hookFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	_, err := xxh.Write(input)
 	return err
 }

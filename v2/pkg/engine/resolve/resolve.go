@@ -1279,7 +1279,7 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte,
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
 
-	if err = source.HashTriggerInput(ctx, input, keyGen); err != nil {
+	if err = source.HashTriggerInput(input, keyGen); err != nil {
 		return nil, 0, err
 	}
 

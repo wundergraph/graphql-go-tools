@@ -20,7 +20,7 @@ type SubscriptionDataSource interface {
 	Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error
 	// HashTriggerInput writes identity-relevant fields of the subscription into xxh.
 	// The resolver appends the subgraph headers hash afterward to produce the final trigger ID.
-	HashTriggerInput(ctx *Context, input []byte, xxh *xxhash.Digest) error
+	HashTriggerInput(input []byte, xxh *xxhash.Digest) error
 }
 
 // HookableSubscriptionDataSource is a hookable interface for subscription data sources.
