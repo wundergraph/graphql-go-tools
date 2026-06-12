@@ -1278,7 +1278,7 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte,
 	headers http.Header, triggerID uint64) {
 	keyGen := pool.Hash64.Get()
 
-	_ = source.TriggerIDInput(ctx, input, keyGen)
+	_ = source.HashTriggerInput(ctx, input, keyGen)
 
 	if ctx.SubgraphHeadersBuilder != nil {
 		var headersHash uint64

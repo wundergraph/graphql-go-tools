@@ -1998,7 +1998,7 @@ type SubscriptionSource struct {
 	subscriptionOnStartFns []SubscriptionOnStartFn
 }
 
-func (s *SubscriptionSource) TriggerIDInput(_ *resolve.Context, input []byte, xxh *xxhash.Digest) error {
+func (s *SubscriptionSource) HashTriggerInput(_ *resolve.Context, input []byte, xxh *xxhash.Digest) error {
 	_, err := xxh.Write(input)
 	return err
 }
