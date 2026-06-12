@@ -1275,10 +1275,13 @@ func (r *Resolver) UnsubscribeClient(connectionID ConnectionID) error {
 // the generated hash is the unique triggerID
 // the headers must be forwarded to the DataSource to create the trigger
 func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, source SubscriptionDataSource) (
-	headers http.Header, triggerID uint64) {
+	headers http.Header, triggerID uint64, err error) {
 	keyGen := pool.Hash64.Get()
+	defer pool.Hash64.Put(keyGen)
 
-	_ = source.HashTriggerInput(ctx, input, keyGen)
+	if err = source.HashTriggerInput(ctx, input, keyGen); err != nil {
+		return nil, 0, err
+	}
 
 	if ctx.SubgraphHeadersBuilder != nil {
 		var headersHash uint64
@@ -1291,9 +1294,8 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte,
 	}
 
 	triggerID = keyGen.Sum64()
-	pool.Hash64.Put(keyGen)
 
-	return headers, triggerID
+	return headers, triggerID, nil
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
@@ -1333,7 +1335,11 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return nil
 	}
 
-	headers, triggerID := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input, subscription.Trigger.Source)
+	headers, triggerID, err := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input, subscription.Trigger.Source)
+	if err != nil {
+		msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
+		return writeFlushComplete(writer, msg)
+	}
 	id := SubscriptionIdentifier{
 		ConnectionID:   NewConnectionID(),
 		SubscriptionID: 0,
@@ -1427,7 +1433,11 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return err
 	}
 
-	headers, triggerID := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input, subscription.Trigger.Source)
+	headers, triggerID, err := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input, subscription.Trigger.Source)
+	if err != nil {
+		msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
+		return writeFlushComplete(writer, msg)
+	}
 
 	return r.addSubscription(triggerID, &addSubscription{
 		ctx:        ctx,
