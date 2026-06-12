@@ -1277,25 +1277,8 @@ func (r *Resolver) UnsubscribeClient(connectionID ConnectionID) error {
 func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, source SubscriptionDataSource) (
 	headers http.Header, triggerID uint64) {
 	keyGen := pool.Hash64.Get()
-	var usedHasher bool
 
-	// use custom data as hash input, if source provides it
-	hasher, implementsHasher := source.(SubscriptionTriggerHasher)
-	if implementsHasher {
-		err := hasher.ProvideTriggerHashInput(ctx, input, keyGen)
-		if err != nil {
-			// reset hash generator in case it was partially written to
-			keyGen.Reset()
-		} else {
-			usedHasher = true
-		}
-	}
-
-	// Fallback: use input as hash source, if either the source does not provide custom data
-	// or if there was an error with it.
-	if !usedHasher {
-		_, _ = keyGen.Write(input)
-	}
+	_ = source.TriggerIDInput(ctx, input, keyGen)
 
 	if ctx.SubgraphHeadersBuilder != nil {
 		var headersHash uint64

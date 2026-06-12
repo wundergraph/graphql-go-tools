@@ -18,6 +18,9 @@ type SubscriptionDataSource interface {
 	// Start is called when a new subscription is created. It establishes the connection to the data source.
 	// The updater is used to send updates to the client. Deduplication of the request must be done before calling this method.
 	Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error
+	// TriggerIDInput writes identity-relevant fields of the subscription into xxh.
+	// The resolver appends the subgraph headers hash afterward to produce the final trigger ID.
+	TriggerIDInput(ctx *Context, input []byte, xxh *xxhash.Digest) error
 }
 
 // HookableSubscriptionDataSource is a hookable interface for subscription data sources.
@@ -30,15 +33,4 @@ type HookableSubscriptionDataSource interface {
 	// SubscriptionOnStart is called when a new subscription is created
 	// If an error is returned, the error is propagated to the client.
 	SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error)
-}
-
-// SubscriptionTriggerHasher is an optional interface for subscription datasources
-// that need to control which fields contribute to the trigger ID hash.
-// When implemented, it replaces the default behaviour of hashing the full raw input.
-// The datasource writes only its stable, identity-relevant fields into xxh.
-// The resolver still appends the subgraph headers hash afterward.
-type SubscriptionTriggerHasher interface {
-	// ProvideTriggerHashInput generates hash input to be used to create a trigger id
-	// and stores it inside xxh.
-	ProvideTriggerHashInput(ctx *Context, input []byte, xxh *xxhash.Digest) error
 }
