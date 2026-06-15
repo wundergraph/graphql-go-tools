@@ -62,6 +62,8 @@ type EntityCacheInvalidationConfig struct {
 type CacheKey struct {
 	// Item is the input value this key was rendered from.
 	Item *astjson.Value
+	// BatchIndex records the source list position for batch entity-key mappings.
+	BatchIndex int
 	// Keys contains the rendered cache key strings for Item.
 	Keys []string
 	// FromCache is populated with the cached value on a cache hit; nil otherwise.
