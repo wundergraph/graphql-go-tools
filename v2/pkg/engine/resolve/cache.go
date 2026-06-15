@@ -105,9 +105,16 @@ type CacheKeyTemplate interface {
 	EntityMergePath(pp PostProcessingConfiguration) []string
 }
 
+type RequestScopedField struct {
+	FieldName    string
+	FieldPath    []string
+	L1Key        string
+	ProvidesData *Object
+}
+
 // FetchCacheConfiguration describes the per-fetch cache settings attached by planning.
 //
-// Future cache layers extend this shape with request-scoped fields, analytics, and argument metadata.
+// Future cache layers extend this shape with analytics and argument metadata.
 type FetchCacheConfiguration struct {
 	// CacheName selects the named L2 cache backend for this fetch.
 	CacheName string
@@ -123,6 +130,8 @@ type FetchCacheConfiguration struct {
 	KeyTemplate CacheKeyTemplate
 	// ProvidesData describes the per-fetch field shape used for cache payloads.
 	ProvidesData *Object
+	// RequestScopedFields describes request-scoped coordinate L1 fields selected by this fetch.
+	RequestScopedFields []RequestScopedField
 	// UseL1Cache enables per-request L1 cache reads and writes for this fetch.
 	UseL1Cache bool
 	// ShadowMode reads and writes L2 but always serves fresh subgraph data.

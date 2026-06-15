@@ -57,7 +57,8 @@ func hasCachingConfiguration(dataSources []DataSource) bool {
 		if len(federation.EntityCacheConfig) > 0 ||
 			len(federation.RootFieldCacheConfig) > 0 ||
 			len(federation.MutationFieldCacheConfig) > 0 ||
-			len(federation.MutationCacheInvalidationConfig) > 0 {
+			len(federation.MutationCacheInvalidationConfig) > 0 ||
+			len(federation.RequestScopedFields) > 0 {
 			return true
 		}
 	}
@@ -137,10 +138,22 @@ func (s *cachingPlannerState) configureFetchCaching(input fetchCachingInput) *re
 	if input.operationType != ast.OperationTypeQuery {
 		return nil
 	}
+
+	requestScopedFields := s.requestScopedFields(input, providesData)
+	var cache *resolve.FetchCacheConfiguration
 	if len(input.requiredFields) > 0 {
-		return s.configureEntityFetchCaching(input, providesData)
+		cache = s.configureEntityFetchCaching(input, providesData)
+	} else {
+		cache = s.configureRootFetchCaching(input, providesData)
 	}
-	return s.configureRootFetchCaching(input, providesData)
+	if cache == nil {
+		if len(requestScopedFields) == 0 {
+			return nil
+		}
+		cache = &resolve.FetchCacheConfiguration{}
+	}
+	cache.RequestScopedFields = requestScopedFields
+	return cache
 }
 
 func (s *cachingPlannerState) configureMutationEntityImpact(input fetchCachingInput, providesData *resolve.Object) *resolve.FetchCacheConfiguration {
@@ -218,28 +231,7 @@ func (s *cachingPlannerState) configureRootFetchCaching(input fetchCachingInput,
 		return nil
 	}
 
-	rootFields := s.rootFields[input.fetchID]
-	if len(rootFields) == 0 {
-		rootFields = make([]resolve.RootField, 0, len(input.rootFields))
-		for _, coordinate := range input.rootFields {
-			rootFields = append(rootFields, resolve.RootField{
-				TypeName:  coordinate.TypeName,
-				FieldName: coordinate.FieldName,
-			})
-		}
-	} else {
-		for i := range rootFields {
-			if rootFields[i].TypeName != "" {
-				continue
-			}
-			for _, coordinate := range input.rootFields {
-				if coordinate.FieldName == rootFields[i].FieldName {
-					rootFields[i].TypeName = coordinate.TypeName
-					break
-				}
-			}
-		}
-	}
+	rootFields := s.rootFieldsForFetch(input)
 	var sharedCfg RootFieldCacheConfiguration
 	for i, field := range rootFields {
 		cfg, exists := input.federation.RootFieldCacheConfig.FindByTypeAndField(field.TypeName, field.FieldName)
@@ -266,6 +258,149 @@ func (s *cachingPlannerState) configureRootFetchCaching(input fetchCachingInput,
 		ShadowMode:                  sharedCfg.ShadowMode,
 	}
 	return cache
+}
+
+func (s *cachingPlannerState) requestScopedFields(input fetchCachingInput, providesData *resolve.Object) []resolve.RequestScopedField {
+	if len(input.federation.RequestScopedFields) == 0 {
+		return nil
+	}
+	if len(input.requiredFields) > 0 {
+		return s.requestScopedEntityFields(input, providesData)
+	}
+	return s.requestScopedRootFields(input)
+}
+
+func (s *cachingPlannerState) requestScopedRootFields(input fetchCachingInput) []resolve.RequestScopedField {
+	rootFields := s.rootFieldsForFetch(input)
+	if len(rootFields) == 0 {
+		return nil
+	}
+
+	out := make([]resolve.RequestScopedField, 0, len(rootFields))
+	seen := make(map[string]struct{}, len(rootFields))
+	for _, rootField := range rootFields {
+		responseKey := rootField.ResponseKey
+		if responseKey == "" {
+			responseKey = rootField.FieldName
+		}
+		for _, field := range input.federation.RequestScopedExportsForField(rootField.TypeName, rootField.FieldName) {
+			out = appendRequestScopedField(out, seen, responseKey, field.L1Key)
+		}
+	}
+	return out
+}
+
+func (s *cachingPlannerState) requestScopedEntityFields(input fetchCachingInput, providesData *resolve.Object) []resolve.RequestScopedField {
+	entityTypeName := entityTypeNameFromRequiredFields(input.requiredFields)
+	if entityTypeName == "" {
+		return nil
+	}
+
+	typeNames := []string{entityTypeName}
+	for _, interfaceObject := range input.federation.InterfaceObjects {
+		if slices.Contains(interfaceObject.ConcreteTypeNames, entityTypeName) {
+			typeNames = append(typeNames, interfaceObject.InterfaceTypeName)
+		}
+	}
+
+	out := make([]resolve.RequestScopedField, 0, len(typeNames))
+	seen := make(map[string]struct{}, len(typeNames))
+	for _, typeName := range typeNames {
+		for _, field := range input.federation.RequestScopedFieldsForType(typeName) {
+			responseKey, selected := requestScopedResponseKey(providesData, field.FieldName)
+			if !selected {
+				continue
+			}
+			out = appendRequestScopedField(out, seen, responseKey, field.L1Key)
+		}
+	}
+	return out
+}
+
+func appendRequestScopedField(out []resolve.RequestScopedField, seen map[string]struct{}, responseKey, l1Key string) []resolve.RequestScopedField {
+	dedupKey := responseKey + "\x00" + l1Key
+	if _, exists := seen[dedupKey]; exists {
+		return out
+	}
+	seen[dedupKey] = struct{}{}
+	return append(out, resolve.RequestScopedField{
+		FieldName: responseKey,
+		FieldPath: []string{
+			responseKey,
+		},
+		L1Key: l1Key,
+	})
+}
+
+func requestScopedResponseKey(providesData *resolve.Object, fieldName string) (string, bool) {
+	if providesData == nil {
+		return fieldName, true
+	}
+	for _, field := range providesData.Fields {
+		if requestScopedSchemaFieldName(field) == fieldName {
+			return string(field.Name), true
+		}
+		if responseKey, ok := requestScopedResponseKeyInNode(field.Value, fieldName); ok {
+			return responseKey, true
+		}
+	}
+	return "", false
+}
+
+func requestScopedResponseKeyInNode(node resolve.Node, fieldName string) (string, bool) {
+	if node == nil {
+		return "", false
+	}
+	switch n := node.(type) {
+	case *resolve.Object:
+		return requestScopedResponseKey(n, fieldName)
+	case *resolve.Array:
+		return requestScopedResponseKeyInNode(n.Item, fieldName)
+	default:
+		return "", false
+	}
+}
+
+func requestScopedSchemaFieldName(field *resolve.Field) string {
+	if len(field.OriginalName) > 0 {
+		return string(field.OriginalName)
+	}
+	return string(field.Name)
+}
+
+func entityTypeNameFromRequiredFields(requiredFields FederationFieldConfigurations) string {
+	for _, requiredField := range requiredFields {
+		if requiredField.TypeName != "" {
+			return requiredField.TypeName
+		}
+	}
+	return ""
+}
+
+func (s *cachingPlannerState) rootFieldsForFetch(input fetchCachingInput) []resolve.RootField {
+	rootFields := s.rootFields[input.fetchID]
+	if len(rootFields) == 0 {
+		rootFields = make([]resolve.RootField, 0, len(input.rootFields))
+		for _, coordinate := range input.rootFields {
+			rootFields = append(rootFields, resolve.RootField{
+				TypeName:  coordinate.TypeName,
+				FieldName: coordinate.FieldName,
+			})
+		}
+		return rootFields
+	}
+	for i := range rootFields {
+		if rootFields[i].TypeName != "" {
+			continue
+		}
+		for _, coordinate := range input.rootFields {
+			if coordinate.FieldName == rootFields[i].FieldName {
+				rootFields[i].TypeName = coordinate.TypeName
+				break
+			}
+		}
+	}
+	return rootFields
 }
 
 func (s *cachingPlannerState) providesData(fetchID int) *resolve.Object {
