@@ -110,6 +110,32 @@ func (c *Context) HeadersForSubgraphRequest(subgraphName string) (http.Header, u
 	return c.SubgraphHeadersBuilder.HeadersForSubgraph(subgraphName)
 }
 
+// L2CacheKeyInterceptorInfo identifies the subgraph and cache instance for an L2 cache key transform.
+type L2CacheKeyInterceptorInfo struct {
+	// SubgraphName is the subgraph the L2 key belongs to.
+	SubgraphName string
+	// CacheName is the configured L2 cache instance name.
+	CacheName string
+}
+
+// L2CacheKeyInterceptor is the final per-key transform applied to L2 cache keys.
+type L2CacheKeyInterceptor func(info L2CacheKeyInterceptorInfo, key string) string
+
+// CachingOptions contains per-request entity-caching toggles on Context.ExecutionOptions.
+// The zero value leaves all cache behavior disabled.
+type CachingOptions struct {
+	// EnableL1Cache enables the per-request L1 cache and gates request-scoped coordinate L1 caching.
+	EnableL1Cache bool
+	// EnableL2Cache enables the external L2 cache for the request.
+	EnableL2Cache bool
+	// EnableCacheAnalytics enables detailed cache analytics events; disabled keeps the path zero-cost.
+	EnableCacheAnalytics bool
+	// L2CacheKeyInterceptor optionally applies a custom final key transform to L2 keys only.
+	L2CacheKeyInterceptor L2CacheKeyInterceptor
+	// GlobalCacheKeyPrefix is prepended to all L2 keys before later key pipeline stages.
+	GlobalCacheKeyPrefix string
+}
+
 type ExecutionOptions struct {
 	// SkipLoader will, as the name indicates, skip loading data
 	// However, it does indeed resolve a response
@@ -128,6 +154,8 @@ type ExecutionOptions struct {
 	// However, if you're benchmarking internals of the engine, it can be helpful to switch it off
 	// When disabled (set to true) the code becomes a no-op
 	DisableInboundRequestDeduplication bool
+	// Caching contains per-request entity-caching toggles; all defaults are disabled or empty.
+	Caching CachingOptions
 }
 
 type FieldValue struct {
