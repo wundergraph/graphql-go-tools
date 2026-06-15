@@ -133,6 +133,10 @@ type result struct {
 	out               []byte
 	singleFlightStats *singleFlightStats
 	tools             *batchEntityTools
+
+	cacheSkipFetch     bool
+	cacheMustBeUpdated bool
+	cacheKeys          []*CacheKey
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -192,6 +196,10 @@ type Loader struct {
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
 	// It's thread safe and can be used to de-duplicate subgraph requests.
 	singleFlight *SubgraphRequestSingleFlight
+
+	l1Cache            map[string]*astjson.Value
+	caches             map[string]LoaderCache
+	entityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
 }
 
 func (l *Loader) Free() {
@@ -206,6 +214,7 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.ctx = ctx
 	l.info = response.Info
 	l.taintedObjs = make(taintedObjects)
+	l.initRequestCaches()
 	return l.resolveFetchNode(response.Fetches)
 }
 
@@ -486,6 +495,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.fetchSkipped {
 		return nil
 	}
+	if res.cacheSkipFetch {
+		return l.mergeCacheResult(fetchItem, res, items)
+	}
 	if len(res.out) == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
@@ -583,6 +595,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
 		l.resolvable.data = responseData
+		l.populateCacheAfterMerge(fetchItem, res, responseData)
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
@@ -597,6 +610,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, 0) {
 			l.taintedObjs.add(items[0])
 		}
+		l.populateCacheAfterMerge(fetchItem, res, responseData)
 		return nil
 	}
 	batch := responseData.GetArray()
@@ -625,6 +639,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				}
 			}
 		}
+		l.populateCacheAfterMerge(fetchItem, res, responseData)
 		return nil
 	}
 
@@ -645,6 +660,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			l.taintedObjs.add(items[i])
 		}
 	}
+	l.populateCacheAfterMerge(fetchItem, res, responseData)
 	return nil
 }
 
@@ -1332,6 +1348,16 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 	if !allowed {
 		return nil
 	}
+	err = l.prepareCacheKeys(fetch.Cache, items, res)
+	if err != nil {
+		return err
+	}
+	if l.tryL1CacheLoad(fetch.Cache, res) || l.tryL2CacheLoad(ctx, fetch.Cache, res) {
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
+		return nil
+	}
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
@@ -1409,6 +1435,16 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 		return err
 	}
 	if !allowed {
+		return nil
+	}
+	err = l.prepareCacheKeys(fetch.Cache, items, res)
+	if err != nil {
+		return err
+	}
+	if l.tryL1CacheLoad(fetch.Cache, res) || l.tryL2CacheLoad(ctx, fetch.Cache, res) {
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
 		return nil
 	}
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)

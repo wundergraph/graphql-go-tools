@@ -202,6 +202,11 @@ type ResolverOptions struct {
 
 	ValidateRequiredExternalFields bool
 
+	// Caches contains named L2 cache backends used by loader cache integration.
+	Caches map[string]LoaderCache
+	// EntityCacheConfigs contains resolve-side entity invalidation cache targets.
+	EntityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
+
 	// SubgraphRequestDeduplicationShardCount defines the number of shards to use for subgraph request deduplication
 	SubgraphRequestDeduplicationShardCount int
 	// InboundRequestDeduplicationShardCount defines the number of shards to use for inbound request deduplication
@@ -325,6 +330,8 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
 			propagateFetchReasons:                        options.PropagateFetchReasons,
 			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
+			caches:                                       options.Caches,
+			entityCacheConfigs:                           options.EntityCacheConfigs,
 			singleFlight:                                 sf,
 			jsonArena:                                    a,
 		},

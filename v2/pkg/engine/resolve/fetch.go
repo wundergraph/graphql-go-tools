@@ -95,6 +95,7 @@ type SingleFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Cache                *FetchCacheConfiguration
 }
 
 func (s *SingleFetch) Dependencies() *FetchDependencies {
@@ -205,6 +206,7 @@ type EntityFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Cache                *FetchCacheConfiguration
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {

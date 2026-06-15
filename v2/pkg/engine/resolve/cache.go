@@ -93,6 +93,8 @@ type FetchCacheConfiguration struct {
 	CacheName string
 	// EnableL2Cache enables reads and writes against the selected L2 cache backend.
 	EnableL2Cache bool
+	// IncludeSubgraphHeaderPrefix includes the subgraph header hash in L2 cache keys.
+	IncludeSubgraphHeaderPrefix bool
 	// TTL is the per-entry L2 write expiration for this fetch.
 	TTL time.Duration
 	// KeyTemplate renders L1 and L2 keys for this fetch.
