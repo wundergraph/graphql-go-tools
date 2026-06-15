@@ -562,6 +562,13 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// First check if this is actually an entity null fetch, instead of a data null fetch.
 		// In this case we return early to avoid adding subgraph errors or merging this into items.
 		if isEmptyEntityFetch(fetchItem, response) {
+			cache := fetchCacheConfiguration(fetchItem.Fetch)
+			if !hasErrors && negativeCacheEnabled(cache) {
+				for _, item := range items {
+					setValueToNull(item)
+				}
+				l.populateCacheAfterMerge(fetchItem, res, responseData)
+			}
 			return nil
 		}
 
@@ -626,6 +633,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		for batchIndex, targets := range res.batchStats {
 			src := batch[batchIndex]
 			for _, target := range targets {
+				if src != nil && src.Type() == astjson.TypeNull && negativeCacheEnabled(fetchCacheConfiguration(fetchItem.Fetch)) {
+					setValueToNull(target)
+					continue
+				}
 				_, mErr := astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
 				if mErr != nil {
 					return errors.WithStack(ErrMergeResult{
@@ -648,6 +659,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	for i := range items {
+		if batch[i] != nil && batch[i].Type() == astjson.TypeNull && negativeCacheEnabled(fetchCacheConfiguration(fetchItem.Fetch)) {
+			setValueToNull(items[i])
+			continue
+		}
 		items[i], err = astjson.MergeValuesWithPath(l.jsonArena, items[i], batch[i], res.postProcessing.MergePath...)
 		if err != nil {
 			return errors.WithStack(ErrMergeResult{

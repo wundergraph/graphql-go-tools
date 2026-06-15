@@ -80,14 +80,25 @@ func (l *Loader) tryL1CacheLoad(cache *FetchCacheConfiguration, res *result) boo
 	}
 
 	hits := make([]*astjson.Value, len(res.cacheKeys))
+	negativeHits := make([]bool, len(res.cacheKeys))
 	for i, cacheKey := range res.cacheKeys {
 		value := l.lookupL1CacheValue(cacheKey)
+		if isNegativeCacheSentinel(cache, value) {
+			hits[i] = value
+			negativeHits[i] = true
+			continue
+		}
 		if value == nil || !cachedValueContainsProvides(value, cache.ProvidesData) {
 			return false
 		}
 		hits[i] = value
 	}
 	for i, hit := range hits {
+		if negativeHits[i] {
+			res.cacheKeys[i].FromCache = astjson.StructuralCopy(l.jsonArena, hit)
+			res.cacheKeys[i].NegativeCacheHit = true
+			continue
+		}
 		res.cacheKeys[i].FromCache = l.structuralCopyDenormalizedPassthrough(hit, cache.ProvidesData)
 	}
 	res.cacheSkipFetch = true
@@ -121,6 +132,7 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, cache *FetchCacheConfigurat
 	}
 
 	hits := make([]*astjson.Value, len(entries))
+	negativeHits := make([]bool, len(entries))
 	for i, entry := range entries {
 		if entry == nil || len(entry.Value) == 0 {
 			res.cacheMustBeUpdated = true
@@ -131,6 +143,11 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, cache *FetchCacheConfigurat
 			res.cacheMustBeUpdated = true
 			return false
 		}
+		if isNegativeCacheSentinel(cache, value) {
+			hits[i] = value
+			negativeHits[i] = true
+			continue
+		}
 		if cache.KeyTemplate.IsEntityFetch() && !cachedValueContainsProvides(value, cache.ProvidesData) {
 			res.cacheMustBeUpdated = true
 			return false
@@ -139,6 +156,11 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, cache *FetchCacheConfigurat
 	}
 
 	for i, hit := range hits {
+		if negativeHits[i] {
+			res.cacheKeys[i].FromCache = astjson.StructuralCopy(l.jsonArena, hit)
+			res.cacheKeys[i].NegativeCacheHit = true
+			continue
+		}
 		res.cacheKeys[i].FromCache = l.structuralCopyDenormalized(hit, cache.ProvidesData)
 	}
 	res.cacheSkipFetch = true
@@ -179,6 +201,11 @@ func (l *Loader) tryBatchL1CacheKey(cache *FetchCacheConfiguration, cacheKey *Ca
 		return false
 	}
 	value := l.lookupL1CacheValue(cacheKey)
+	if isNegativeCacheSentinel(cache, value) {
+		cacheKey.FromCache = astjson.StructuralCopy(l.jsonArena, value)
+		cacheKey.NegativeCacheHit = true
+		return true
+	}
 	if value == nil || !cachedValueContainsProvides(value, cache.ProvidesData) {
 		return false
 	}
@@ -212,6 +239,11 @@ func (l *Loader) tryBatchL2CacheKey(ctx context.Context, cache *FetchCacheConfig
 		}
 		value, parseErr := astjson.ParseBytesWithArena(l.jsonArena, entry.Value)
 		if parseErr != nil || !cachedValueContainsProvides(value, cache.ProvidesData) {
+			if isNegativeCacheSentinel(cache, value) {
+				cacheKey.FromCache = astjson.StructuralCopy(l.jsonArena, value)
+				cacheKey.NegativeCacheHit = true
+				return true
+			}
 			continue
 		}
 		cacheKey.FromCache = l.structuralCopyDenormalized(value, cache.ProvidesData)
@@ -230,12 +262,19 @@ func (l *Loader) populateL1Cache(cache *FetchCacheConfiguration, res *result, va
 	if len(res.cacheKeys) == 0 || value == nil {
 		return
 	}
+	if value.Type() == astjson.TypeNull && !negativeCacheEnabled(cache) {
+		return
+	}
 	if l.l1Cache == nil {
 		l.l1Cache = make(map[string]*astjson.Value, len(res.cacheKeys))
 	}
 
 	for _, cacheKey := range res.cacheKeys {
 		for _, key := range cacheKey.Keys {
+			if value.Type() == astjson.TypeNull {
+				l.l1Cache[key] = astjson.StructuralCopy(l.jsonArena, value)
+				continue
+			}
 			fresh := l.structuralCopyNormalizedPassthrough(value, cache.ProvidesData)
 			existing := l.l1Cache[key]
 			if existing == nil {
@@ -263,6 +302,9 @@ func (l *Loader) updateL2Cache(ctx context.Context, cache *FetchCacheConfigurati
 	if len(res.cacheKeys) == 0 || value == nil || len(l.caches) == 0 {
 		return
 	}
+	if value.Type() == astjson.TypeNull && !negativeCacheEnabled(cache) {
+		return
+	}
 	backend := l.caches[cache.CacheName]
 	if backend == nil {
 		return
@@ -271,6 +313,15 @@ func (l *Loader) updateL2Cache(ctx context.Context, cache *FetchCacheConfigurati
 	keys := l.transformedL2CacheKeys(cache, res)
 	entries := make([]*CacheEntry, 0, len(keys))
 	for _, key := range keys {
+		if value.Type() == astjson.TypeNull {
+			entries = append(entries, &CacheEntry{
+				Key:         key,
+				Value:       []byte("null"),
+				TTL:         cache.NegativeCacheTTL,
+				WriteReason: CacheWriteReasonRefresh,
+			})
+			continue
+		}
 		copied := l.structuralCopyNormalized(value, cache.ProvidesData)
 		entries = append(entries, &CacheEntry{
 			Key:         key,
@@ -306,6 +357,11 @@ func (l *Loader) mergeCacheResult(fetchItem *FetchItem, res *result, items []*as
 			return nil
 		}
 		value = astjson.StructuralCopy(l.jsonArena, value)
+		if firstCachedValueIsNegative(res) {
+			setValueToNull(items[0])
+			l.populateL1Cache(cache, res, value)
+			return nil
+		}
 		var err error
 		items[0], err = astjson.MergeValuesWithPath(l.jsonArena, items[0], value, res.postProcessing.MergePath...)
 		if err != nil {
@@ -319,6 +375,10 @@ func (l *Loader) mergeCacheResult(fetchItem *FetchItem, res *result, items []*as
 			continue
 		}
 		value := astjson.StructuralCopy(l.jsonArena, res.cacheKeys[i].FromCache)
+		if res.cacheKeys[i].NegativeCacheHit {
+			setValueToNull(item)
+			continue
+		}
 		_, err := astjson.MergeValuesWithPath(l.jsonArena, item, value, res.postProcessing.MergePath...)
 		if err != nil {
 			return err
@@ -345,6 +405,10 @@ func (l *Loader) mergeBatchFetchedValue(fetchItem *FetchItem, res *result, batch
 		return nil
 	}
 	for _, target := range res.batchStats[batchIndex] {
+		if value.Type() == astjson.TypeNull {
+			setValueToNull(target)
+			continue
+		}
 		copied := astjson.StructuralCopy(l.jsonArena, value)
 		_, err := astjson.MergeValuesWithPath(l.jsonArena, target, copied, res.postProcessing.MergePath...)
 		if err != nil {
@@ -485,6 +549,33 @@ func cachedValueContainsProvides(value *astjson.Value, provides *Object) bool {
 		}
 	}
 	return true
+}
+
+func negativeCacheEnabled(cache *FetchCacheConfiguration) bool {
+	return cache != nil &&
+		cache.NegativeCacheTTL > 0 &&
+		cache.KeyTemplate != nil &&
+		cache.KeyTemplate.IsEntityFetch()
+}
+
+func isNegativeCacheSentinel(cache *FetchCacheConfiguration, value *astjson.Value) bool {
+	return negativeCacheEnabled(cache) && value != nil && value.Type() == astjson.TypeNull
+}
+
+func firstCachedValueIsNegative(res *result) bool {
+	for _, cacheKey := range res.cacheKeys {
+		if cacheKey.FromCache != nil {
+			return cacheKey.NegativeCacheHit
+		}
+	}
+	return false
+}
+
+func setValueToNull(value *astjson.Value) {
+	if value == nil {
+		return
+	}
+	*value = *astjson.NullValue
 }
 
 func cachedChildContainsProvides(value *astjson.Value, node Node) bool {

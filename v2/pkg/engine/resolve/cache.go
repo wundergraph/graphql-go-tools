@@ -68,6 +68,8 @@ type CacheKey struct {
 	Keys []string
 	// FromCache is populated with the cached value on a cache hit; nil otherwise.
 	FromCache *astjson.Value
+	// NegativeCacheHit reports that FromCache is a known-absent entity sentinel.
+	NegativeCacheHit bool
 }
 
 // CacheKeyTemplate renders cache keys for a fetch inside the resolve engine.
@@ -97,6 +99,8 @@ type FetchCacheConfiguration struct {
 	IncludeSubgraphHeaderPrefix bool
 	// TTL is the per-entry L2 write expiration for this fetch.
 	TTL time.Duration
+	// NegativeCacheTTL is the per-entry L2 write expiration for known-absent entity sentinels.
+	NegativeCacheTTL time.Duration
 	// KeyTemplate renders L1 and L2 keys for this fetch.
 	KeyTemplate CacheKeyTemplate
 	// ProvidesData describes the per-fetch field shape used for cache payloads.
