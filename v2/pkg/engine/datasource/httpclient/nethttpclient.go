@@ -251,6 +251,19 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, baseHeaders http.
 	// It'll know best the lifecycle of the buffer
 	// Using an arena here just increased overall memory usage
 	out := buffer(ctx)
+	// Pre-size the buffer from the advertised Content-Length to avoid the repeated
+	// grow-and-copy reallocations bytes.Buffer.ReadFrom would otherwise perform while
+	// reading the response body. This reduces total allocation volume and GC pressure.
+	// Capped to avoid over-allocating on a large or forged Content-Length; the buffer
+	// still grows by doubling beyond the cap. For compressed responses Content-Length is
+	// the compressed size, so this remains a safe lower-bound hint.
+	if cl := response.ContentLength; cl > 0 {
+		const maxPreAlloc = 1 << 21 // 2 MiB
+		want := min(int(cl), maxPreAlloc)
+		if want > out.Cap() {
+			out.Grow(want)
+		}
+	}
 	_, err = out.ReadFrom(respReader)
 	if err != nil {
 		return nil, err

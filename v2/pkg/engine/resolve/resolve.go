@@ -180,6 +180,12 @@ type ResolverOptions struct {
 	// This helps keep the Heap size more maintainable if you regularly perform large queries.
 	MaxRecyclableParserSize int
 
+	// EnableDataflowExecution runs query fetch DAGs through the dataflow executor
+	// (per-FetchID dependency gating) instead of the per-wave-barrier executor.
+	// Reduces wall-clock latency under skewed subgraph latency; byte-identical
+	// responses. Off by default.
+	EnableDataflowExecution bool
+
 	// ResolvableOptions are configuration options for the Resolvable struct
 	ResolvableOptions ResolvableOptions
 
@@ -325,6 +331,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
 			propagateFetchReasons:                        options.PropagateFetchReasons,
 			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
+			enableDataflow:                               options.EnableDataflowExecution,
 			singleFlight:                                 sf,
 			jsonArena:                                    a,
 		},

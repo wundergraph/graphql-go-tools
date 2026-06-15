@@ -90,6 +90,25 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 
 	shard := r.shardFor(key)
 
+	// Fast path: a leader is already inflight for this key -> become a follower without
+	// allocating a new InflightRequest. In a deduplication burst most callers are followers,
+	// so this avoids one heap allocation per follower. The LoadOrStore below still resolves
+	// the leader-election race for the case where Load misses but another goroutine stores
+	// concurrently before our LoadOrStore.
+	if existing, ok := shard.m.Load(key); ok {
+		request := existing.(*InflightRequest)
+		request.AddFollower()
+		select {
+		case <-request.Done:
+			if request.Err != nil {
+				return nil, request.Err
+			}
+			return request, nil
+		case <-ctx.ctx.Done():
+			return nil, ctx.ctx.Err()
+		}
+	}
+
 	request := &InflightRequest{
 		Done: make(chan struct{}),
 		ID:   key,
