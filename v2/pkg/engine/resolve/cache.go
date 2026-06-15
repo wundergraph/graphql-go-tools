@@ -58,6 +58,24 @@ type EntityCacheInvalidationConfig struct {
 	IncludeSubgraphHeaderPrefix bool
 }
 
+// MutationEntityImpactConfig describes entity-cache writes and invalidations caused by a mutation field.
+type MutationEntityImpactConfig struct {
+	// EntityTypeName is the entity typename whose key is impacted by the mutation.
+	EntityTypeName string
+	// KeyFields is the entity @key field tree used to render the impacted entity key.
+	KeyFields []KeyField
+	// CacheName selects the named L2 cache backend.
+	CacheName string
+	// IncludeSubgraphHeaderPrefix includes the subgraph header hash in impacted L2 cache keys.
+	IncludeSubgraphHeaderPrefix bool
+	// InvalidateCache deletes the impacted L2 key after a successful mutation.
+	InvalidateCache bool
+	// PopulateCache writes the mutation payload directly to L2 after a successful mutation.
+	PopulateCache bool
+	// PopulateTTL is the TTL for direct mutation population writes.
+	PopulateTTL time.Duration
+}
+
 // CacheKey is the rendered key data for one input item.
 type CacheKey struct {
 	// Item is the input value this key was rendered from.
@@ -109,4 +127,10 @@ type FetchCacheConfiguration struct {
 	UseL1Cache bool
 	// EnablePartialCacheLoad allows batch entity fetches to refetch only cache-missed entities.
 	EnablePartialCacheLoad bool
+	// EnableMutationL2CachePopulation allows mutation-triggered entity fetches to write to L2.
+	EnableMutationL2CachePopulation bool
+	// MutationCacheTTLOverride overrides entity L2 write TTLs for mutation-triggered population.
+	MutationCacheTTLOverride time.Duration
+	// MutationEntityImpactConfig describes direct mutation population and invalidation.
+	MutationEntityImpactConfig *MutationEntityImpactConfig
 }

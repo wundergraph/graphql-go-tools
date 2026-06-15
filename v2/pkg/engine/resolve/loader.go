@@ -115,6 +115,7 @@ type result struct {
 
 	statusCode int
 	err        error
+	hasErrors  bool
 	ds         DataSourceInfo
 
 	authorizationRejected        bool
@@ -200,6 +201,9 @@ type Loader struct {
 	l1Cache            map[string]*astjson.Value
 	caches             map[string]LoaderCache
 	entityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
+
+	enableMutationL2CachePopulation bool
+	mutationCacheTTLOverride        time.Duration
 }
 
 func (l *Loader) Free() {
@@ -214,6 +218,8 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.ctx = ctx
 	l.info = response.Info
 	l.taintedObjs = make(taintedObjects)
+	l.enableMutationL2CachePopulation = false
+	l.mutationCacheTTLOverride = 0
 	l.initRequestCaches()
 	return l.resolveFetchNode(response.Fetches)
 }
@@ -556,6 +562,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			}
 		}
 	}
+	res.hasErrors = hasErrors
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {

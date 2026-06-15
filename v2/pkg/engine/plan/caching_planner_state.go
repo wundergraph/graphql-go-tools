@@ -54,7 +54,10 @@ func newCachingPlannerState(operation, definition *ast.Document, config *Configu
 func hasCachingConfiguration(dataSources []DataSource) bool {
 	for _, dataSource := range dataSources {
 		federation := dataSource.FederationConfiguration()
-		if len(federation.EntityCacheConfig) > 0 || len(federation.RootFieldCacheConfig) > 0 {
+		if len(federation.EntityCacheConfig) > 0 ||
+			len(federation.RootFieldCacheConfig) > 0 ||
+			len(federation.MutationFieldCacheConfig) > 0 ||
+			len(federation.MutationCacheInvalidationConfig) > 0 {
 			return true
 		}
 	}
@@ -123,15 +126,67 @@ func (s *cachingPlannerState) isEntityBoundaryField(fieldRef int) bool {
 }
 
 func (s *cachingPlannerState) configureFetchCaching(input fetchCachingInput) *resolve.FetchCacheConfiguration {
-	if s == nil || s.config == nil || s.config.DisableEntityCaching || input.operationType != ast.OperationTypeQuery {
+	if s == nil || s.config == nil || s.config.DisableEntityCaching {
 		return nil
 	}
 
 	providesData := s.providesData(input.fetchID)
+	if input.operationType == ast.OperationTypeMutation {
+		return s.configureMutationEntityImpact(input, providesData)
+	}
+	if input.operationType != ast.OperationTypeQuery {
+		return nil
+	}
 	if len(input.requiredFields) > 0 {
 		return s.configureEntityFetchCaching(input, providesData)
 	}
 	return s.configureRootFetchCaching(input, providesData)
+}
+
+func (s *cachingPlannerState) configureMutationEntityImpact(input fetchCachingInput, providesData *resolve.Object) *resolve.FetchCacheConfiguration {
+	rootFieldName := s.mutationRootFieldName(input)
+	if rootFieldName == "" {
+		return nil
+	}
+	fieldCfg, hasFieldCfg := input.federation.MutationFieldCacheConfig.FindByFieldName(rootFieldName)
+	invalidationCfg, hasInvalidationCfg := input.federation.MutationCacheInvalidationConfig.FindByFieldName(rootFieldName)
+	if !hasFieldCfg && !hasInvalidationCfg {
+		return nil
+	}
+
+	cache := &resolve.FetchCacheConfiguration{
+		ProvidesData: providesData,
+	}
+	if hasFieldCfg {
+		cache.EnableMutationL2CachePopulation = fieldCfg.EnableEntityL2CachePopulation
+		cache.MutationCacheTTLOverride = fieldCfg.TTL
+	}
+
+	entityTypeName := invalidationCfg.EntityTypeName
+	if entityTypeName == "" && len(input.requiredFields) > 0 {
+		entityTypeName = input.requiredFields[0].TypeName
+	}
+	if entityTypeName == "" {
+		return cache
+	}
+	entityCfg, hasEntityCfg := input.federation.EntityCacheConfig.FindByTypeName(entityTypeName)
+	if !hasEntityCfg {
+		return cache
+	}
+	keyFields := s.mutationKeyFields(input.federation, entityTypeName)
+	if len(keyFields) == 0 {
+		return cache
+	}
+	cache.CacheName = entityCfg.CacheName
+	cache.MutationEntityImpactConfig = &resolve.MutationEntityImpactConfig{
+		EntityTypeName:              entityTypeName,
+		KeyFields:                   keyFields,
+		CacheName:                   entityCfg.CacheName,
+		IncludeSubgraphHeaderPrefix: entityCfg.IncludeSubgraphHeaderPrefix,
+		InvalidateCache:             hasInvalidationCfg,
+		PopulateTTL:                 fieldCfg.TTL,
+	}
+	return cache
 }
 
 func (s *cachingPlannerState) configureEntityFetchCaching(input fetchCachingInput, providesData *resolve.Object) *resolve.FetchCacheConfiguration {
@@ -248,6 +303,25 @@ func (s *cachingPlannerState) rootCacheKeyTemplate(rootFieldCoordinates []resolv
 		})
 	}
 	return resolve.NewRootQueryCacheKeyTemplate(rootFields, mappings)
+}
+
+func (s *cachingPlannerState) mutationRootFieldName(input fetchCachingInput) string {
+	if rootFields := s.rootFields[input.fetchID]; len(rootFields) > 0 {
+		return rootFields[0].FieldName
+	}
+	for _, coordinate := range input.rootFields {
+		if coordinate.FieldName != "" {
+			return coordinate.FieldName
+		}
+	}
+	return ""
+}
+
+func (s *cachingPlannerState) mutationKeyFields(federation FederationMetaData, entityTypeName string) []resolve.KeyField {
+	for _, keyCfg := range federation.Keys.FilterByTypeAndResolvability(entityTypeName, true) {
+		return resolve.ParseKeyFields(keyCfg.SelectionSet)
+	}
+	return nil
 }
 
 func (s *cachingPlannerState) rootFieldCacheKeyField(fieldRef int, responseField *resolve.Field) resolve.RootField {

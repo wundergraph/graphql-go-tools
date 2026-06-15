@@ -148,6 +148,70 @@ func TestConfigureFetchCachingDisableEntityCachingHardGate(t *testing.T) {
 	assert.Nil(t, cache)
 }
 
+func TestConfigureFetchCachingMutationEntityImpact(t *testing.T) {
+	state := testCachingPlannerState()
+	state.rootFields[3] = []resolve.RootField{
+		{
+			TypeName:  "Mutation",
+			FieldName: "updateUsername",
+		},
+	}
+
+	cache := state.configureFetchCaching(fetchCachingInput{
+		fetchID:       3,
+		sourceName:    "users",
+		operationType: ast.OperationTypeMutation,
+		federation: FederationMetaData{
+			Keys: FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+			},
+			EntityCacheConfig: EntityCacheConfigurations{
+				{
+					TypeName:                    "User",
+					CacheName:                   "entities",
+					TTL:                         5 * time.Minute,
+					IncludeSubgraphHeaderPrefix: true,
+				},
+			},
+			MutationFieldCacheConfig: MutationFieldCacheConfigurations{
+				{
+					FieldName:                     "updateUsername",
+					EnableEntityL2CachePopulation: true,
+					TTL:                           time.Minute,
+				},
+			},
+			MutationCacheInvalidationConfig: MutationCacheInvalidationConfigurations{
+				{
+					FieldName:      "updateUsername",
+					EntityTypeName: "User",
+				},
+			},
+		},
+		rootFields: []resolve.GraphCoordinate{
+			{
+				TypeName:  "Mutation",
+				FieldName: "updateUsername",
+			},
+		},
+	})
+
+	require.NotNil(t, cache)
+	assert.True(t, cache.EnableMutationL2CachePopulation)
+	assert.Equal(t, time.Minute, cache.MutationCacheTTLOverride)
+	assert.Equal(t, &resolve.MutationEntityImpactConfig{
+		EntityTypeName:              "User",
+		KeyFields:                   []resolve.KeyField{{Name: "id"}},
+		CacheName:                   "entities",
+		IncludeSubgraphHeaderPrefix: true,
+		InvalidateCache:             true,
+		PopulateCache:               false,
+		PopulateTTL:                 time.Minute,
+	}, cache.MutationEntityImpactConfig)
+}
+
 func testCachingPlannerState() *cachingPlannerState {
 	return &cachingPlannerState{
 		config: &Configuration{},

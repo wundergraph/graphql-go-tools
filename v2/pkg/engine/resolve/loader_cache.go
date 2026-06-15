@@ -7,6 +7,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/wundergraph/astjson"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 func (l *Loader) initRequestCaches() {
@@ -23,8 +25,10 @@ func (l *Loader) initRequestCaches() {
 
 func (l *Loader) prepareCacheKeys(cache *FetchCacheConfiguration, items []*astjson.Value, res *result) error {
 	if cache == nil || cache.KeyTemplate == nil {
+		l.captureMutationL2PopulationConfig(cache)
 		return nil
 	}
+	l.captureMutationL2PopulationConfig(cache)
 	if !l.cacheReadOrWriteEnabled(cache) {
 		return nil
 	}
@@ -42,8 +46,10 @@ func (l *Loader) prepareCacheKeys(cache *FetchCacheConfiguration, items []*astjs
 
 func (l *Loader) prepareBatchCacheKeys(cache *FetchCacheConfiguration, res *result) error {
 	if cache == nil || cache.KeyTemplate == nil || !cache.KeyTemplate.IsEntityFetch() {
+		l.captureMutationL2PopulationConfig(cache)
 		return nil
 	}
+	l.captureMutationL2PopulationConfig(cache)
 	if !l.cacheReadOrWriteEnabled(cache) {
 		return nil
 	}
@@ -117,6 +123,10 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, cache *FetchCacheConfigurat
 		return false
 	}
 	if len(res.cacheKeys) == 0 || len(l.caches) == 0 {
+		return false
+	}
+	if l.isMutationOperation() {
+		res.cacheMustBeUpdated = true
 		return false
 	}
 	backend := l.caches[cache.CacheName]
@@ -325,25 +335,33 @@ func (l *Loader) populateL1Cache(cache *FetchCacheConfiguration, res *result, va
 	}
 }
 
-func (l *Loader) updateL2Cache(ctx context.Context, cache *FetchCacheConfiguration, res *result, value *astjson.Value) {
+func (l *Loader) updateL2Cache(ctx context.Context, cache *FetchCacheConfiguration, res *result, value *astjson.Value) map[string]struct{} {
+	writtenKeys := map[string]struct{}{}
 	if l.ctx == nil || !l.ctx.ExecutionOptions.Caching.EnableL2Cache {
-		return
+		return writtenKeys
 	}
 	if cache == nil || !cache.EnableL2Cache || cache.KeyTemplate == nil || !res.cacheMustBeUpdated {
-		return
+		return writtenKeys
+	}
+	if l.isMutationOperation() && !l.mutationL2PopulationEnabled(cache) {
+		return writtenKeys
 	}
 	if len(res.cacheKeys) == 0 || value == nil || len(l.caches) == 0 {
-		return
+		return writtenKeys
 	}
 	if value.Type() == astjson.TypeNull && !negativeCacheEnabled(cache) {
-		return
+		return writtenKeys
 	}
 	backend := l.caches[cache.CacheName]
 	if backend == nil {
-		return
+		return writtenKeys
 	}
 
 	keys := l.transformedL2CacheKeys(cache, res)
+	ttl := cache.TTL
+	if l.isMutationOperation() && l.mutationTTLOverride(cache) != 0 {
+		ttl = l.mutationTTLOverride(cache)
+	}
 	entries := make([]*CacheEntry, 0, len(keys))
 	for _, key := range keys {
 		if value.Type() == astjson.TypeNull {
@@ -359,20 +377,22 @@ func (l *Loader) updateL2Cache(ctx context.Context, cache *FetchCacheConfigurati
 		entries = append(entries, &CacheEntry{
 			Key:         key,
 			Value:       copied.MarshalTo(nil),
-			TTL:         cache.TTL,
+			TTL:         ttl,
 			WriteReason: CacheWriteReasonRefresh,
 		})
 	}
 	if len(entries) == 0 {
-		return
+		return writtenKeys
 	}
 	err := l.cacheAnalyticsL2Set(ctx, backend, entries, res.ds.Name, cache.CacheName)
 	for _, entry := range entries {
 		l.recordL2Write(cache, entry)
+		writtenKeys[entry.Key] = struct{}{}
 	}
 	if err != nil {
 		l.recordCacheOperationError("l2_set", cache.CacheName, cacheAnalyticsFirstEntryKey(entries), err)
 	}
+	return writtenKeys
 }
 
 func (l *Loader) mergeCacheResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
@@ -468,7 +488,14 @@ func (l *Loader) populateCacheAfterMerge(fetchItem *FetchItem, res *result, valu
 		return
 	}
 	l.populateL1Cache(cache, res, value)
-	l.updateL2Cache(l.ctx.ctx, cache, res, value)
+	writtenKeys := l.updateL2Cache(l.ctx.ctx, cache, res, value)
+	subgraphName := ""
+	if fetchInfo := fetchItem.Fetch.FetchInfo(); fetchInfo != nil {
+		subgraphName = fetchInfo.DataSourceName
+	}
+	if !res.hasErrors {
+		l.detectMutationEntityImpact(cache, value, subgraphName, writtenKeys)
+	}
 }
 
 func (l *Loader) populateBatchCacheAfterMerge(cache *FetchCacheConfiguration, res *result, value *astjson.Value) {
@@ -500,6 +527,31 @@ func (l *Loader) cacheReadOrWriteEnabled(cache *FetchCacheConfiguration) bool {
 		return true
 	}
 	return l.ctx.ExecutionOptions.Caching.EnableL2Cache && cache.EnableL2Cache
+}
+
+func (l *Loader) captureMutationL2PopulationConfig(cache *FetchCacheConfiguration) {
+	if !l.isMutationOperation() || cache == nil || !cache.EnableMutationL2CachePopulation {
+		return
+	}
+	l.enableMutationL2CachePopulation = true
+	if cache.MutationCacheTTLOverride != 0 {
+		l.mutationCacheTTLOverride = cache.MutationCacheTTLOverride
+	}
+}
+
+func (l *Loader) isMutationOperation() bool {
+	return l != nil && l.info != nil && l.info.OperationType == ast.OperationTypeMutation
+}
+
+func (l *Loader) mutationL2PopulationEnabled(cache *FetchCacheConfiguration) bool {
+	return cache != nil && (cache.EnableMutationL2CachePopulation || l.enableMutationL2CachePopulation)
+}
+
+func (l *Loader) mutationTTLOverride(cache *FetchCacheConfiguration) time.Duration {
+	if cache != nil && cache.MutationCacheTTLOverride != 0 {
+		return cache.MutationCacheTTLOverride
+	}
+	return l.mutationCacheTTLOverride
 }
 
 func (l *Loader) cacheAnalytics() *cacheAnalyticsCollector {
