@@ -103,4 +103,6 @@ type FetchCacheConfiguration struct {
 	ProvidesData *Object
 	// UseL1Cache enables per-request L1 cache reads and writes for this fetch.
 	UseL1Cache bool
+	// EnablePartialCacheLoad allows batch entity fetches to refetch only cache-missed entities.
+	EnablePartialCacheLoad bool
 }

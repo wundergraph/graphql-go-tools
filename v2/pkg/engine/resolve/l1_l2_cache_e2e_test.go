@@ -77,9 +77,10 @@ type countingCacheTestDataSource struct {
 	mu        sync.Mutex
 	responses [][]byte
 	calls     int
+	inputs    []string
 }
 
-func (d *countingCacheTestDataSource) Load(context.Context, http.Header, []byte) ([]byte, error) {
+func (d *countingCacheTestDataSource) Load(_ context.Context, _ http.Header, input []byte) ([]byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -88,6 +89,7 @@ func (d *countingCacheTestDataSource) Load(context.Context, http.Header, []byte)
 		index = len(d.responses) - 1
 	}
 	d.calls++
+	d.inputs = append(d.inputs, string(input))
 	return append([]byte(nil), d.responses[index]...), nil
 }
 
@@ -99,6 +101,15 @@ func (d *countingCacheTestDataSource) CallCount() int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.calls
+}
+
+func (d *countingCacheTestDataSource) Inputs() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	inputs := make([]string, len(d.inputs))
+	copy(inputs, d.inputs)
+	return inputs
 }
 
 type memoryLoaderCache struct {

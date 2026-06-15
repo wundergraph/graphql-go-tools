@@ -166,6 +166,7 @@ type BatchEntityFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Cache                *FetchCacheConfiguration
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {

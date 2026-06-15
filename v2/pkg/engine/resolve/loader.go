@@ -1617,9 +1617,95 @@ WithNextItem:
 	if !allowed {
 		return nil
 	}
+	err = l.prepareBatchCacheKeys(fetch.Cache, res)
+	if err != nil {
+		return err
+	}
+	if allHit, partialHit := l.tryBatchCacheLoad(ctx, fetch.Cache, res); allHit {
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
+		return nil
+	} else if partialHit {
+		err = l.mergeBatchCacheHits(fetchItem, res)
+		if err != nil {
+			return err
+		}
+		fetchInput, err = l.reduceBatchEntityFetchInput(fetch, res)
+		if err != nil {
+			return err
+		}
+	}
 
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
+}
+
+func (l *Loader) reduceBatchEntityFetchInput(fetch *BatchEntityFetch, res *result) ([]byte, error) {
+	missedStats := make([][]*astjson.Value, 0, len(res.batchStats))
+	missedKeys := make([]*CacheKey, 0, len(res.cacheKeys))
+	for i, cacheKey := range res.cacheKeys {
+		if cacheKey.FromCache != nil {
+			continue
+		}
+		missedStats = append(missedStats, res.batchStats[i])
+		missedKeys = append(missedKeys, cacheKey)
+	}
+	res.batchStats = missedStats
+	res.cacheKeys = missedKeys
+	return l.renderReducedBatchEntityFetchInput(fetch, res, missedStats)
+}
+
+func (l *Loader) renderReducedBatchEntityFetchInput(fetch *BatchEntityFetch, res *result, batchStats [][]*astjson.Value) ([]byte, error) {
+	preparedInput := arena.NewArenaBuffer(res.tools.a)
+	itemInput := arena.NewArenaBuffer(res.tools.a)
+	var undefinedVariables []string
+
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	addSeparator := false
+	for _, targets := range batchStats {
+		if len(targets) == 0 {
+			continue
+		}
+		item := targets[0]
+		for j := range fetch.Input.Items {
+			itemInput.Reset()
+			err = fetch.Input.Items[j].Render(l.ctx, item, itemInput)
+			if err != nil {
+				if fetch.Input.SkipErrItems {
+					err = nil
+					continue
+				}
+				return nil, errors.WithStack(err)
+			}
+			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
+				continue
+			}
+			if fetch.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
+				continue
+			}
+			if addSeparator {
+				err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
+				if err != nil {
+					return nil, errors.WithStack(err)
+				}
+			}
+			_, _ = itemInput.WriteTo(preparedInput)
+			addSeparator = true
+		}
+	}
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return preparedInput.Bytes(), nil
 }
 
 func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
