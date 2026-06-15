@@ -15,6 +15,7 @@ type FederationMetaData struct {
 	Provides                           FederationFieldConfigurations
 	EntityInterfaces                   []EntityInterfaceConfiguration
 	InterfaceObjects                   []EntityInterfaceConfiguration
+	RequestScopedFields                []RequestScopedField                       `json:"request_scoped_fields,omitempty"`
 	EntityCacheConfig                  EntityCacheConfigurations                  `json:"entity_cache_config,omitempty"`
 	RootFieldCacheConfig               RootFieldCacheConfigurations               `json:"root_field_cache_config,omitempty"`
 	MutationFieldCacheConfig           MutationFieldCacheConfigurations           `json:"mutation_field_cache_config,omitempty"`
@@ -28,6 +29,9 @@ type FederationInfo interface {
 	HasKeyRequirement(typeName, requiresFields string) bool
 	RequiredFieldsByKey(typeName string) []FederationFieldConfiguration
 	RequiredFieldsByRequires(typeName, fieldName string) (cfg FederationFieldConfiguration, exists bool)
+	RequestScopedFieldsForType(typeName string) []RequestScopedField
+	RequestScopedExportsForField(typeName, fieldName string) []RequestScopedField
+	RequestScopedRequiredFieldsByKey() map[string][]RequestScopedField
 	HasEntity(typeName string) bool
 	HasInterfaceObject(typeName string) bool
 	HasEntityInterface(typeName string) bool
@@ -40,6 +44,28 @@ func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) 
 
 func (d *FederationMetaData) RequiredFieldsByKey(typeName string) []FederationFieldConfiguration {
 	return d.Keys.FilterByTypeAndResolvability(typeName, true)
+}
+
+func (d *FederationMetaData) RequestScopedFieldsForType(typeName string) (out []RequestScopedField) {
+	for i := range d.RequestScopedFields {
+		if d.RequestScopedFields[i].TypeName == typeName {
+			out = append(out, d.RequestScopedFields[i])
+		}
+	}
+	return out
+}
+
+func (d *FederationMetaData) RequestScopedExportsForField(typeName, fieldName string) (out []RequestScopedField) {
+	for i := range d.RequestScopedFields {
+		if d.RequestScopedFields[i].TypeName == typeName && d.RequestScopedFields[i].FieldName == fieldName {
+			out = append(out, d.RequestScopedFields[i])
+		}
+	}
+	return out
+}
+
+func (d *FederationMetaData) RequestScopedRequiredFieldsByKey() map[string][]RequestScopedField {
+	return RequestScopedFieldsByL1Key(d.RequestScopedFields)
 }
 
 func (d *FederationMetaData) HasEntity(typeName string) bool {
@@ -78,6 +104,54 @@ func (d *FederationMetaData) EntityInterfaceNames() (out []string) {
 type EntityInterfaceConfiguration struct {
 	InterfaceTypeName string
 	ConcreteTypeNames []string
+}
+
+type RequestScopedField struct {
+	FieldName string `json:"field_name,omitempty"`
+	TypeName  string `json:"type_name,omitempty"`
+	L1Key     string `json:"l1_key,omitempty"`
+}
+
+func RequestScopedFieldsByL1Key(fields []RequestScopedField) map[string][]RequestScopedField {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	out := make(map[string][]RequestScopedField)
+	for i := range fields {
+		out[fields[i].L1Key] = append(out[fields[i].L1Key], fields[i])
+	}
+	return out
+}
+
+func ValidateRequestScopedFields(fields []RequestScopedField) (warnings []string, err error) {
+	keysByFirstOccurrence := make([]string, 0, len(fields))
+	fieldsByKey := make(map[string][]RequestScopedField, len(fields))
+
+	for i := range fields {
+		if fields[i].L1Key == "" {
+			return nil, fmt.Errorf("@requestScoped field %s has empty L1Key", fields[i].coordinate())
+		}
+
+		if _, exists := fieldsByKey[fields[i].L1Key]; !exists {
+			keysByFirstOccurrence = append(keysByFirstOccurrence, fields[i].L1Key)
+		}
+		fieldsByKey[fields[i].L1Key] = append(fieldsByKey[fields[i].L1Key], fields[i])
+	}
+
+	for i := range keysByFirstOccurrence {
+		key := keysByFirstOccurrence[i]
+		group := fieldsByKey[key]
+		if len(group) == 1 {
+			warnings = append(warnings, fmt.Sprintf("@requestScoped key %q appears on only one field: %s", key, group[0].coordinate()))
+		}
+	}
+
+	return warnings, nil
+}
+
+func (f RequestScopedField) coordinate() string {
+	return fmt.Sprintf("%s.%s", f.TypeName, f.FieldName)
 }
 
 type EntityCacheConfiguration struct {
