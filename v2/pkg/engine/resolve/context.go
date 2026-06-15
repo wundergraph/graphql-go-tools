@@ -45,6 +45,8 @@ type Context struct {
 
 	subgraphErrors map[string]error
 
+	cacheAnalyticsCollector *cacheAnalyticsCollector
+
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
 
 	// TypeNameStats is populated by the resolver after resolution completes,
@@ -342,6 +344,9 @@ func (c *Context) Free() {
 	c.TracingOptions.DisableAll()
 	c.Extensions = nil
 	c.subgraphErrors = nil
+	if c.cacheAnalyticsCollector != nil {
+		c.GetCacheStats()
+	}
 	c.authorizer = nil
 	c.LoaderHooks = nil
 	c.GetDeduplicationData = nil
