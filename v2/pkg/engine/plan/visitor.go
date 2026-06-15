@@ -66,6 +66,8 @@ type Visitor struct {
 
 	// fieldEnclosingTypeNames maps fieldRef to the enclosing type name.
 	fieldEnclosingTypeNames map[int]string
+
+	caching *cachingPlannerState
 }
 
 func NewVisitor(w *astvisitor.Walker) *Visitor {
@@ -225,7 +227,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 			}
 		}
 
-		if !v.Config.DisableIncludeFieldDependencies && kind == astvisitor.LeaveField {
+		if (!v.Config.DisableIncludeFieldDependencies || v.caching != nil) && kind == astvisitor.LeaveField {
 			// we don't need to do this twice, so we only do it on leave
 
 			// store which fields are planned on which planners
@@ -419,6 +421,10 @@ func (v *Visitor) EnterField(ref int) {
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 
 	v.mapFieldConfig(ref)
+	if v.caching != nil {
+		v.caching.trackFieldForPlanner(ref, v.currentField)
+		v.caching.captureFieldCacheArgs(ref)
+	}
 }
 
 func (v *Visitor) mapFieldConfig(ref int) {
@@ -637,6 +643,10 @@ func (v *Visitor) LeaveField(fieldRef int) {
 		// cause on nested keys we could mistakenly remove wrong object
 		// from the stack of the current objects
 		return
+	}
+
+	if v.caching != nil {
+		v.caching.finishFieldForPlanner(fieldRef, v.fieldPlanners[fieldRef])
 	}
 
 	if v.currentFields[len(v.currentFields)-1].popOnField == fieldRef {
@@ -1076,6 +1086,9 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
+	if hasCachingConfiguration(v.Config.DataSources) {
+		v.caching = newCachingPlannerState(operation, definition, &v.Config)
+	}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
@@ -1333,6 +1346,17 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 			DependsOnFetchIDs: internal.dependsOnFetchIDs,
 		},
 		DataSourceIdentifier: []byte(dataSourceType),
+	}
+	if v.caching != nil {
+		plannerConfig := v.planners[internal.fetchID]
+		singleFetch.Cache = v.caching.configureFetchCaching(fetchCachingInput{
+			fetchID:        internal.fetchID,
+			sourceName:     internal.sourceName,
+			operationType:  internal.operationType,
+			federation:     plannerConfig.DataSourceConfiguration().FederationConfiguration(),
+			requiredFields: *plannerConfig.RequiredFields(),
+			rootFields:     internal.rootFields,
+		})
 	}
 
 	if v.Config.DisableIncludeInfo {
