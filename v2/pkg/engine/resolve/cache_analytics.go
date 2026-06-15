@@ -22,6 +22,7 @@ type CacheAnalyticsSnapshot struct {
 	FetchTimings       []FetchTimingEvent
 	ShadowComparisons  []ShadowComparisonEvent
 	MutationEvents     []MutationEvent
+	CacheInvalidations []CacheInvalidationEvent
 	EntityTypes        []EntityTypeEvent
 	FieldHashes        []FieldHashEvent
 	HeaderImpactEvents []HeaderImpactEvent
@@ -73,6 +74,15 @@ type MutationEvent struct {
 	Written    bool
 }
 
+type CacheInvalidationEvent struct {
+	EntityType   string
+	SubgraphName string
+	CacheName    string
+	Key          string
+	Source       string
+	Deleted      bool
+}
+
 type EntityTypeEvent struct {
 	EntityType string
 	Count      int
@@ -108,6 +118,7 @@ type cacheAnalyticsCollector struct {
 	fetchTimings       []FetchTimingEvent
 	shadowComparisons  []ShadowComparisonEvent
 	mutationEvents     []MutationEvent
+	cacheInvalidations []CacheInvalidationEvent
 	entityTypes        []EntityTypeEvent
 	fieldHashes        []FieldHashEvent
 	headerImpactEvents []HeaderImpactEvent
@@ -222,6 +233,15 @@ func (c *cacheAnalyticsCollector) recordMutationEvent(event MutationEvent) {
 	c.mu.Unlock()
 }
 
+func (c *cacheAnalyticsCollector) recordCacheInvalidation(event CacheInvalidationEvent) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	c.cacheInvalidations = append(c.cacheInvalidations, event)
+	c.mu.Unlock()
+}
+
 func (c *cacheAnalyticsCollector) recordEntityType(event EntityTypeEvent) {
 	if c == nil {
 		return
@@ -270,6 +290,7 @@ func (c *cacheAnalyticsCollector) snapshot() CacheAnalyticsSnapshot {
 		FetchTimings:       cloneSlice(c.fetchTimings),
 		ShadowComparisons:  cloneSlice(c.shadowComparisons),
 		MutationEvents:     cloneSlice(c.mutationEvents),
+		CacheInvalidations: cloneSlice(c.cacheInvalidations),
 		EntityTypes:        cloneSlice(c.entityTypes),
 		FieldHashes:        cloneSlice(c.fieldHashes),
 		HeaderImpactEvents: cloneSlice(c.headerImpactEvents),
@@ -288,6 +309,7 @@ func (c *cacheAnalyticsCollector) reset() {
 	c.fetchTimings = c.fetchTimings[:0]
 	c.shadowComparisons = c.shadowComparisons[:0]
 	c.mutationEvents = c.mutationEvents[:0]
+	c.cacheInvalidations = c.cacheInvalidations[:0]
 	c.entityTypes = c.entityTypes[:0]
 	c.fieldHashes = c.fieldHashes[:0]
 	c.headerImpactEvents = c.headerImpactEvents[:0]

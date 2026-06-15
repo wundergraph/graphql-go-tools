@@ -481,11 +481,10 @@ func (l *Loader) mergeBatchFetchedValue(fetchItem *FetchItem, res *result, batch
 	return nil
 }
 
-func (l *Loader) populateCacheAfterMerge(fetchItem *FetchItem, res *result, value *astjson.Value) {
+func (l *Loader) populateCacheAfterMerge(fetchItem *FetchItem, res *result, value *astjson.Value) map[string]struct{} {
 	cache := fetchCacheConfiguration(fetchItem.Fetch)
 	if res.batchStats != nil {
-		l.populateBatchCacheAfterMerge(cache, res, value)
-		return
+		return l.populateBatchCacheAfterMerge(cache, res, value)
 	}
 	l.populateL1Cache(cache, res, value)
 	writtenKeys := l.updateL2Cache(l.ctx.ctx, cache, res, value)
@@ -496,15 +495,17 @@ func (l *Loader) populateCacheAfterMerge(fetchItem *FetchItem, res *result, valu
 	if !res.hasErrors {
 		l.detectMutationEntityImpact(cache, value, subgraphName, writtenKeys)
 	}
+	return writtenKeys
 }
 
-func (l *Loader) populateBatchCacheAfterMerge(cache *FetchCacheConfiguration, res *result, value *astjson.Value) {
+func (l *Loader) populateBatchCacheAfterMerge(cache *FetchCacheConfiguration, res *result, value *astjson.Value) map[string]struct{} {
+	writtenKeys := map[string]struct{}{}
 	if cache == nil || len(res.cacheKeys) == 0 || value == nil || value.Type() != astjson.TypeArray {
-		return
+		return writtenKeys
 	}
 	batch := value.GetArray()
 	if len(batch) != len(res.cacheKeys) {
-		return
+		return writtenKeys
 	}
 	for i, item := range batch {
 		itemRes := &result{
@@ -515,8 +516,128 @@ func (l *Loader) populateBatchCacheAfterMerge(cache *FetchCacheConfiguration, re
 			},
 		}
 		l.populateL1Cache(cache, itemRes, item)
-		l.updateL2Cache(l.ctx.ctx, cache, itemRes, item)
+		for key := range l.updateL2Cache(l.ctx.ctx, cache, itemRes, item) {
+			writtenKeys[key] = struct{}{}
+		}
 	}
+	return writtenKeys
+}
+
+type extensionInvalidationDeleteGroup struct {
+	cacheName string
+	backend   LoaderCache
+	keys      []string
+}
+
+func (l *Loader) invalidateL2FromExtensions(response *astjson.Value, subgraphName string, writtenKeys map[string]struct{}) {
+	if l == nil || response == nil {
+		return
+	}
+	extensions := response.Get("extensions")
+	if extensions == nil || extensions.Type() != astjson.TypeObject {
+		return
+	}
+	cacheInvalidation := extensions.Get("cacheInvalidation")
+	if cacheInvalidation == nil || cacheInvalidation.Type() != astjson.TypeObject {
+		return
+	}
+	keysValue := cacheInvalidation.Get("keys")
+	if keysValue == nil || keysValue.Type() != astjson.TypeArray {
+		return
+	}
+	if l.ctx == nil || !l.ctx.ExecutionOptions.Caching.EnableL2Cache || len(l.entityCacheConfigs) == 0 || len(l.caches) == 0 {
+		return
+	}
+	typeConfigs := l.entityCacheConfigs[subgraphName]
+	if len(typeConfigs) == 0 {
+		return
+	}
+
+	groups := make([]extensionInvalidationDeleteGroup, 0)
+	groupIndexByCacheName := map[string]int{}
+	seenByCacheName := map[string]map[string]struct{}{}
+	for _, item := range keysValue.GetArray() {
+		if item == nil || item.Type() != astjson.TypeObject {
+			continue
+		}
+		typenameValue := item.Get("typename")
+		if typenameValue == nil || typenameValue.Type() != astjson.TypeString {
+			continue
+		}
+		typename := string(typenameValue.GetStringBytes())
+		if typename == "" {
+			continue
+		}
+		cfg := typeConfigs[typename]
+		if cfg == nil {
+			continue
+		}
+		backend := l.caches[cfg.CacheName]
+		if backend == nil {
+			continue
+		}
+		keyObject := l.extensionInvalidationKeyObject(item.Get("key"))
+		if keyObject == nil || objectLen(keyObject) == 0 {
+			continue
+		}
+		key := buildEntityKeyString(l.jsonArena, typename, keyObject, "")
+		transformCache := &FetchCacheConfiguration{
+			CacheName:                   cfg.CacheName,
+			IncludeSubgraphHeaderPrefix: cfg.IncludeSubgraphHeaderPrefix,
+		}
+		key = l.transformL2CacheKey(transformCache, subgraphName, key)
+		if _, written := writtenKeys[key]; written {
+			continue
+		}
+		seen := seenByCacheName[cfg.CacheName]
+		if seen == nil {
+			seen = map[string]struct{}{}
+			seenByCacheName[cfg.CacheName] = seen
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		groupIndex, ok := groupIndexByCacheName[cfg.CacheName]
+		if !ok {
+			groupIndex = len(groups)
+			groupIndexByCacheName[cfg.CacheName] = groupIndex
+			groups = append(groups, extensionInvalidationDeleteGroup{
+				cacheName: cfg.CacheName,
+				backend:   backend,
+			})
+		}
+		groups[groupIndex].keys = append(groups[groupIndex].keys, key)
+		l.recordCacheInvalidation(CacheInvalidationEvent{
+			EntityType:   typename,
+			SubgraphName: subgraphName,
+			CacheName:    cfg.CacheName,
+			Key:          key,
+			Source:       "extension",
+			Deleted:      true,
+		})
+	}
+
+	for _, group := range groups {
+		if len(group.keys) == 0 {
+			continue
+		}
+		if err := group.backend.Delete(contextForLoader(l), group.keys); err != nil {
+			l.recordCacheOperationError("l2_delete", group.cacheName, cacheAnalyticsFirstKey(group.keys), err)
+		}
+	}
+}
+
+func (l *Loader) extensionInvalidationKeyObject(value *astjson.Value) *astjson.Value {
+	if value == nil || value.Type() != astjson.TypeObject {
+		return nil
+	}
+	object := astjson.ObjectValue(l.jsonArena)
+	value.GetObject().Visit(func(key []byte, child *astjson.Value) {
+		object.Set(l.jsonArena, string(key), copyEntityKeyValue(l.jsonArena, child))
+	})
+	return object
 }
 
 func (l *Loader) cacheReadOrWriteEnabled(cache *FetchCacheConfiguration) bool {
@@ -644,6 +765,14 @@ func (l *Loader) recordCacheOperationError(operation string, cacheName string, k
 		Key:       key,
 		Error:     err.Error(),
 	})
+}
+
+func (l *Loader) recordCacheInvalidation(event CacheInvalidationEvent) {
+	collector := l.cacheAnalytics()
+	if collector == nil {
+		return
+	}
+	collector.recordCacheInvalidation(event)
 }
 
 func (l *Loader) cacheAnalyticsL2Get(ctx context.Context, backend LoaderCache, keys []string, subgraphName string, cacheName string) ([]*CacheEntry, error) {

@@ -574,7 +574,8 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				for _, item := range items {
 					setValueToNull(item)
 				}
-				l.populateCacheAfterMerge(fetchItem, res, responseData)
+				writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+				l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 			}
 			return nil
 		}
@@ -609,7 +610,8 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
 		l.resolvable.data = responseData
-		l.populateCacheAfterMerge(fetchItem, res, responseData)
+		writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+		l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
@@ -624,7 +626,8 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, 0) {
 			l.taintedObjs.add(items[0])
 		}
-		l.populateCacheAfterMerge(fetchItem, res, responseData)
+		writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+		l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 		return nil
 	}
 	batch := responseData.GetArray()
@@ -657,7 +660,8 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				}
 			}
 		}
-		l.populateCacheAfterMerge(fetchItem, res, responseData)
+		writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+		l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 		return nil
 	}
 
@@ -682,7 +686,8 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			l.taintedObjs.add(items[i])
 		}
 	}
-	l.populateCacheAfterMerge(fetchItem, res, responseData)
+	writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+	l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 	return nil
 }
 
