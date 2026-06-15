@@ -15,10 +15,12 @@ type cachingPlannerState struct {
 	definition *ast.Document
 	config     *Configuration
 
-	plannerObjects map[int]*resolve.Object
-	rootFields     map[int][]resolve.RootField
-	fieldStack     []*cachingPlannerField
-	responsePaths  []string
+	plannerObjects                   map[int]*resolve.Object
+	rootFields                       map[int][]resolve.RootField
+	fieldStack                       []*cachingPlannerField
+	responsePaths                    []string
+	requestScopedVisibleResponseKeys map[int]string
+	requestScopedFetchAliases        map[int]string
 }
 
 type cachingPlannerField struct {
@@ -49,6 +51,19 @@ func newCachingPlannerState(operation, definition *ast.Document, config *Configu
 		responsePaths:  make([]string, 0, 8),
 		fieldStack:     make([]*cachingPlannerField, 0, 8),
 	}
+}
+
+func (s *cachingPlannerState) setRequestScopedMaps(visibleResponseKeys, fetchAliases map[int]string) {
+	s.requestScopedVisibleResponseKeys = visibleResponseKeys
+	s.requestScopedFetchAliases = fetchAliases
+}
+
+func (s *cachingPlannerState) fetchAlias(fieldRef int) (string, bool) {
+	if s == nil || len(s.requestScopedFetchAliases) == 0 {
+		return "", false
+	}
+	alias, ok := s.requestScopedFetchAliases[fieldRef]
+	return alias, ok
 }
 
 func hasCachingConfiguration(dataSources []DataSource) bool {
@@ -140,6 +155,7 @@ func (s *cachingPlannerState) configureFetchCaching(input fetchCachingInput) *re
 	}
 
 	requestScopedFields := s.requestScopedFields(input, providesData)
+	requestScopedFields = s.populateRequestScopedFieldsProvidesData(requestScopedFields, providesData)
 	var cache *resolve.FetchCacheConfiguration
 	if len(input.requiredFields) > 0 {
 		cache = s.configureEntityFetchCaching(input, providesData)
@@ -415,6 +431,51 @@ func (s *cachingPlannerState) providesData(fetchID int) *resolve.Object {
 	return object
 }
 
+func (s *cachingPlannerState) populateRequestScopedFieldsProvidesData(fields []resolve.RequestScopedField, plannerObj *resolve.Object) []resolve.RequestScopedField {
+	if len(fields) == 0 || plannerObj == nil {
+		return fields
+	}
+	out := make([]resolve.RequestScopedField, 0, len(fields))
+	for _, field := range fields {
+		sub := s.findObjectFieldByResponseKey(plannerObj, field.FieldName)
+		if sub == nil {
+			continue
+		}
+		resolve.ComputeHasAliases(sub)
+		field.ProvidesData = sub
+		out = append(out, field)
+	}
+	return out
+}
+
+func (s *cachingPlannerState) findObjectFieldByResponseKey(obj *resolve.Object, responseKey string) *resolve.Object {
+	if obj == nil {
+		return nil
+	}
+	for _, field := range obj.Fields {
+		if string(field.Name) == responseKey {
+			sub, ok := field.Value.(*resolve.Object)
+			if !ok {
+				return nil
+			}
+			return sub
+		}
+		switch value := field.Value.(type) {
+		case *resolve.Object:
+			if sub := s.findObjectFieldByResponseKey(value, responseKey); sub != nil {
+				return sub
+			}
+		case *resolve.Array:
+			if item, ok := value.Item.(*resolve.Object); ok {
+				if sub := s.findObjectFieldByResponseKey(item, responseKey); sub != nil {
+					return sub
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (s *cachingPlannerState) entityCacheKeyTemplate(requiredFields FederationFieldConfigurations, federation FederationMetaData) (string, *resolve.EntityQueryCacheKeyTemplate) {
 	if len(requiredFields) == 0 {
 		return "", nil
@@ -530,10 +591,44 @@ func (s *cachingPlannerState) currentPlannerObject(plannerID int) *resolve.Objec
 
 func (s *cachingPlannerState) copyFieldForPlanner(fieldRef int, field *resolve.Field) *resolve.Field {
 	copied := field.Copy()
+	if alias, ok := s.fetchAlias(fieldRef); ok {
+		copied.Name = []byte(alias)
+		copied.OriginalName = append([]byte(nil), s.operation.FieldNameBytes(fieldRef)...)
+		rewritePlannerNodePath(copied.Value, alias)
+		return copied
+	}
 	if s.operation != nil && fieldRef != ast.InvalidRef && !bytes.Equal(field.Name, s.operation.FieldNameBytes(fieldRef)) {
 		copied.OriginalName = append([]byte(nil), s.operation.FieldNameBytes(fieldRef)...)
 	}
 	return copied
+}
+
+func rewritePlannerNodePath(node resolve.Node, responseKey string) {
+	if node == nil || len(node.NodePath()) == 0 {
+		return
+	}
+	switch typed := node.(type) {
+	case *resolve.Object:
+		typed.Path = []string{responseKey}
+	case *resolve.Array:
+		typed.Path = []string{responseKey}
+	case *resolve.String:
+		typed.Path = []string{responseKey}
+	case *resolve.Boolean:
+		typed.Path = []string{responseKey}
+	case *resolve.Integer:
+		typed.Path = []string{responseKey}
+	case *resolve.Float:
+		typed.Path = []string{responseKey}
+	case *resolve.BigInt:
+		typed.Path = []string{responseKey}
+	case *resolve.Scalar:
+		typed.Path = []string{responseKey}
+	case *resolve.StaticString:
+		typed.Path = []string{responseKey}
+	case *resolve.Enum:
+		typed.Path = []string{responseKey}
+	}
 }
 
 func addPlannerField(object *resolve.Object, field *resolve.Field) {

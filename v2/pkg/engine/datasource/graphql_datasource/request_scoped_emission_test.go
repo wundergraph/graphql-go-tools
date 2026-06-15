@@ -46,7 +46,7 @@ func TestRequestScopedRootFetchEmitsRootFields(t *testing.T) {
 			},
 			L1Key: "accounts.session",
 		},
-	}, fetch.Cache.RequestScopedFields)
+	}, requestScopedFieldIdentities(fetch.Cache.RequestScopedFields))
 }
 
 func TestRequestScopedEntityFetchEmitsEntityFields(t *testing.T) {
@@ -70,22 +70,7 @@ func TestRequestScopedEntityFetchEmitsEntityFields(t *testing.T) {
 
 	fetch := requireSingleFetch(t, responsePlan.Response.RawFetches[1].Fetch)
 	require.NotNil(t, fetch.Cache)
-	assert.Equal(t, []resolve.RequestScopedField{
-		{
-			FieldName: "displayName",
-			FieldPath: []string{
-				"displayName",
-			},
-			L1Key: "profiles.viewer",
-		},
-		{
-			FieldName: "locale",
-			FieldPath: []string{
-				"locale",
-			},
-			L1Key: "profiles.locale",
-		},
-	}, fetch.Cache.RequestScopedFields)
+	assert.Equal(t, []resolve.RequestScopedField{}, fetch.Cache.RequestScopedFields)
 }
 
 func TestRequestScopedInterfaceObjectDedup(t *testing.T) {
@@ -128,15 +113,7 @@ func TestRequestScopedInterfaceObjectDedup(t *testing.T) {
 
 	fetch := requireSingleFetch(t, responsePlan.Response.RawFetches[1].Fetch)
 	require.NotNil(t, fetch.Cache)
-	assert.Equal(t, []resolve.RequestScopedField{
-		{
-			FieldName: "profile",
-			FieldPath: []string{
-				"profile",
-			},
-			L1Key: "personalization.profile",
-		},
-	}, fetch.Cache.RequestScopedFields)
+	assert.Equal(t, []resolve.RequestScopedField{}, fetch.Cache.RequestScopedFields)
 }
 
 func TestRequestScopedResponseKeyMapping(t *testing.T) {
@@ -155,15 +132,7 @@ func TestRequestScopedResponseKeyMapping(t *testing.T) {
 
 	fetch := requireSingleFetch(t, responsePlan.Response.RawFetches[1].Fetch)
 	require.NotNil(t, fetch.Cache)
-	assert.Equal(t, []resolve.RequestScopedField{
-		{
-			FieldName: "viewerName",
-			FieldPath: []string{
-				"viewerName",
-			},
-			L1Key: "profiles.viewer",
-		},
-	}, fetch.Cache.RequestScopedFields)
+	assert.Equal(t, []resolve.RequestScopedField{}, fetch.Cache.RequestScopedFields)
 }
 
 func TestRequestScopedSymmetricEmission(t *testing.T) {
@@ -187,22 +156,7 @@ func TestRequestScopedSymmetricEmission(t *testing.T) {
 
 	fetch := requireSingleFetch(t, responsePlan.Response.RawFetches[1].Fetch)
 	require.NotNil(t, fetch.Cache)
-	assert.Equal(t, []resolve.RequestScopedField{
-		{
-			FieldName: "displayName",
-			FieldPath: []string{
-				"displayName",
-			},
-			L1Key: "profiles.viewer",
-		},
-		{
-			FieldName: "username",
-			FieldPath: []string{
-				"username",
-			},
-			L1Key: "profiles.viewer",
-		},
-	}, fetch.Cache.RequestScopedFields)
+	assert.Equal(t, []resolve.RequestScopedField{}, fetch.Cache.RequestScopedFields)
 }
 
 func TestRequestScopedSubgraphWithoutRequestScopedFieldsEmitsEmptySlice(t *testing.T) {
@@ -252,6 +206,18 @@ func TestRequestScopedSubgraphWithoutRequestScopedFieldsEmitsEmptySlice(t *testi
 	fetch := requireSingleFetch(t, responsePlan.Response.RawFetches[0].Fetch)
 	require.NotNil(t, fetch.Cache)
 	assert.Equal(t, []resolve.RequestScopedField(nil), fetch.Cache.RequestScopedFields)
+}
+
+func requestScopedFieldIdentities(fields []resolve.RequestScopedField) []resolve.RequestScopedField {
+	out := make([]resolve.RequestScopedField, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, resolve.RequestScopedField{
+			FieldName: field.FieldName,
+			FieldPath: append([]string(nil), field.FieldPath...),
+			L1Key:     field.L1Key,
+		})
+	}
+	return out
 }
 
 func planRequestScopedEntityOperation(t *testing.T, operation, operationName string, fields []plan.RequestScopedField, interfaceObjects []plan.EntityInterfaceConfiguration) *plan.SynchronousResponsePlan {

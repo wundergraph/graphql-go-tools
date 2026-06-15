@@ -31,30 +31,31 @@ type QueryPlanProvider interface {
 
 // Visitor creates the shape of resolve.GraphQLResponse.
 type Visitor struct {
-	Operation, Definition        *ast.Document
-	Walker                       *astvisitor.Walker
-	Importer                     astimport.Importer
-	Config                       Configuration
-	plan                         Plan
-	response                     *resolve.GraphQLResponse
-	subscription                 *resolve.GraphQLSubscription
-	OperationName                string
-	operationDefinitionRef       int
-	objects                      []*resolve.Object
-	currentFields                []objectFields
-	currentField                 *resolve.Field
-	planners                     []PlannerConfiguration
-	skipFieldsRefs               []int
-	fieldRefDependsOnFieldRefs   map[int][]int
-	fieldDependencyKind          map[fieldDependencyKey]fieldDependencyKind
-	fieldRefDependants           map[int][]int // inverse of fieldRefDependsOnFieldRefs
-	fieldConfigs                 map[int]*FieldConfiguration
-	exportedVariables            map[string]struct{}
-	skipIncludeOnFragments       map[int]skipIncludeInfo
-	disableResolveFieldPositions bool
-	includeQueryPlans            bool
-	indirectInterfaceFields      map[int]indirectInterfaceField
-	pathCache                    map[astvisitor.VisitorKind]map[int]string
+	Operation, Definition          *ast.Document
+	Walker                         *astvisitor.Walker
+	Importer                       astimport.Importer
+	Config                         Configuration
+	plan                           Plan
+	response                       *resolve.GraphQLResponse
+	subscription                   *resolve.GraphQLSubscription
+	OperationName                  string
+	operationDefinitionRef         int
+	objects                        []*resolve.Object
+	currentFields                  []objectFields
+	currentField                   *resolve.Field
+	planners                       []PlannerConfiguration
+	skipFieldsRefs                 []int
+	fieldRefDependsOnFieldRefs     map[int][]int
+	fieldDependencyKind            map[fieldDependencyKey]fieldDependencyKind
+	fieldRefDependants             map[int][]int // inverse of fieldRefDependsOnFieldRefs
+	fieldConfigs                   map[int]*FieldConfiguration
+	exportedVariables              map[string]struct{}
+	skipIncludeOnFragments         map[int]skipIncludeInfo
+	requestScopedInjectedFieldRefs map[int]struct{}
+	disableResolveFieldPositions   bool
+	includeQueryPlans              bool
+	indirectInterfaceFields        map[int]indirectInterfaceField
+	pathCache                      map[astvisitor.VisitorKind]map[int]string
 
 	// plannerFields maps plannerID to fieldRefs planned on this planner.
 	// Values added in AllowVisitor callback which is fired before calling LeaveField
@@ -367,7 +368,8 @@ func (v *Visitor) EnterField(ref int) {
 	}
 	// check if we have to skip the field in the response
 	// it means it was requested by the planner not the user
-	if v.skipField(ref) {
+	hiddenRequestScopedField := v.isRequestScopedInjectedField(ref)
+	if v.skipField(ref) && !hiddenRequestScopedField {
 		return
 	}
 
@@ -417,8 +419,10 @@ func (v *Visitor) EnterField(ref int) {
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
-	// append the field to the current object
-	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+	if !v.skipField(ref) {
+		// append the field to the current object
+		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+	}
 
 	v.mapFieldConfig(ref)
 	if v.caching != nil {
@@ -638,7 +642,7 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 func (v *Visitor) LeaveField(fieldRef int) {
 	v.debugOnLeaveNode(ast.NodeKindField, fieldRef)
 
-	if v.skipField(fieldRef) {
+	if v.skipField(fieldRef) && !v.isRequestScopedInjectedField(fieldRef) {
 		// we should also check skips on field leave
 		// cause on nested keys we could mistakenly remove wrong object
 		// from the stack of the current objects
@@ -669,6 +673,25 @@ func (v *Visitor) LeaveField(fieldRef int) {
 func (v *Visitor) skipField(ref int) bool {
 	// TODO: If this grows, switch to map[int]struct{} for O(1).
 	return slices.Contains(v.skipFieldsRefs, ref)
+}
+
+func (v *Visitor) isRequestScopedInjectedField(ref int) bool {
+	if len(v.requestScopedInjectedFieldRefs) == 0 {
+		return false
+	}
+	_, ok := v.requestScopedInjectedFieldRefs[ref]
+	return ok
+}
+
+func (v *Visitor) CachingFetchAlias(ref int) string {
+	if v == nil || v.caching == nil {
+		return ""
+	}
+	alias, ok := v.caching.fetchAlias(ref)
+	if !ok {
+		return ""
+	}
+	return alias
 }
 
 func (v *Visitor) introspectionShouldEvaluateIncludeDeprecated(fieldName string, enclosingTypeName string) bool {

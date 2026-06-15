@@ -48,6 +48,10 @@ type NodeSelectionResult struct {
 
 	fieldRefDependsOn   map[int][]int
 	fieldDependencyKind map[fieldDependencyKey]fieldDependencyKind
+
+	requestScopedVisibleResponseKeys map[int]string
+	requestScopedFetchAliases        map[int]string
+	requestScopedInjectedFieldRefs   map[int]struct{}
 }
 
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
@@ -196,13 +200,16 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	return &NodeSelectionResult{
-		dataSources:              p.nodeSelectionsVisitor.dataSources,
-		nodeSuggestions:          p.nodeSelectionsVisitor.nodeSuggestions,
-		fieldDependsOn:           p.nodeSelectionsVisitor.fieldDependsOn,
-		fieldRequirementsConfigs: p.nodeSelectionsVisitor.fieldRequirementsConfigs,
-		skipFieldsRefs:           p.nodeSelectionsVisitor.skipFieldsRefs,
-		fieldRefDependsOn:        p.nodeSelectionsVisitor.fieldRefDependsOn,
-		fieldDependencyKind:      p.nodeSelectionsVisitor.fieldDependencyKind,
+		dataSources:                      p.nodeSelectionsVisitor.dataSources,
+		nodeSuggestions:                  p.nodeSelectionsVisitor.nodeSuggestions,
+		fieldDependsOn:                   p.nodeSelectionsVisitor.fieldDependsOn,
+		fieldRequirementsConfigs:         p.nodeSelectionsVisitor.fieldRequirementsConfigs,
+		skipFieldsRefs:                   p.nodeSelectionsVisitor.skipFieldsRefs,
+		fieldRefDependsOn:                p.nodeSelectionsVisitor.fieldRefDependsOn,
+		fieldDependencyKind:              p.nodeSelectionsVisitor.fieldDependencyKind,
+		requestScopedVisibleResponseKeys: p.nodeSelectionsVisitor.requestScopedVisibleResponseKeys,
+		requestScopedFetchAliases:        p.nodeSelectionsVisitor.requestScopedFetchAliases,
+		requestScopedInjectedFieldRefs:   p.nodeSelectionsVisitor.requestScopedInjectedFieldRefs,
 	}
 }
 

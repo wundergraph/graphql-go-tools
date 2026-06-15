@@ -1631,6 +1631,10 @@ func (p *Planner[T]) handleFieldAlias(ref int) (newFieldName string, alias ast.A
 		aliasBytes := p.visitor.Operation.FieldAliasBytes(ref)
 		alias.Name = p.upstreamOperation.Input.AppendInputBytes(aliasBytes)
 	}
+	if p.visitor.CachingFetchAlias(ref) != "" {
+		alias.IsDefined = true
+		alias.Name = p.upstreamOperation.Input.AppendInputString(p.visitor.CachingFetchAlias(ref))
+	}
 
 	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	for i := range p.visitor.Config.Fields {
