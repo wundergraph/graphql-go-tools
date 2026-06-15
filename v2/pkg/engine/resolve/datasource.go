@@ -34,3 +34,11 @@ type HookableSubscriptionDataSource interface {
 	// If an error is returned, the error is propagated to the client.
 	SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error)
 }
+
+// BeforeTriggerSubscriptionDataSource lets a source rewrite the subscription
+// input before the trigger ID is computed and the trigger is created.
+// The returned input is used for both the trigger hash and Source.Start,
+// keeping them consistent.
+type BeforeTriggerSubscriptionDataSource interface {
+	SubscriptionBeforeTrigger(ctx context.Context, input []byte) (newInput []byte, err error)
+}
