@@ -225,7 +225,7 @@ func (customErrResolve) Resolve(_ *Context, value []byte) ([]byte, error) {
 }
 
 func TestResolver_ConcurrencyGetters(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	r := New(ctx, ResolverOptions{
