@@ -125,6 +125,8 @@ type FetchCacheConfiguration struct {
 	ProvidesData *Object
 	// UseL1Cache enables per-request L1 cache reads and writes for this fetch.
 	UseL1Cache bool
+	// ShadowMode reads and writes L2 but always serves fresh subgraph data.
+	ShadowMode bool
 	// EnablePartialCacheLoad allows batch entity fetches to refetch only cache-missed entities.
 	EnablePartialCacheLoad bool
 	// EnableMutationL2CachePopulation allows mutation-triggered entity fetches to write to L2.

@@ -35,6 +35,7 @@ type CacheKeyEvent struct {
 	Kind       CacheAnalyticsEventKind
 	Hit        bool
 	Negative   bool
+	Shadow     bool
 	Bytes      int
 }
 
@@ -337,6 +338,19 @@ func (s CacheAnalyticsSnapshot) CachedBytesServed() int {
 		}
 	}
 	return bytes
+}
+
+func (s CacheAnalyticsSnapshot) ShadowFreshnessRate() float64 {
+	if len(s.ShadowComparisons) == 0 {
+		return 0
+	}
+	matches := 0
+	for _, event := range s.ShadowComparisons {
+		if event.Matched {
+			matches++
+		}
+	}
+	return float64(matches) / float64(len(s.ShadowComparisons))
 }
 
 func (s CacheAnalyticsSnapshot) EventsByEntityType() map[string]int {

@@ -28,6 +28,7 @@ func TestConfigureFetchCachingEntityConfigPresentEnablesL2(t *testing.T) {
 					TTL:                         time.Minute,
 					IncludeSubgraphHeaderPrefix: true,
 					EnablePartialCacheLoad:      true,
+					ShadowMode:                  true,
 					NegativeCacheTTL:            time.Second,
 				},
 			},
@@ -45,6 +46,7 @@ func TestConfigureFetchCachingEntityConfigPresentEnablesL2(t *testing.T) {
 	assert.Equal(t, time.Second, cache.NegativeCacheTTL)
 	assert.True(t, cache.IncludeSubgraphHeaderPrefix)
 	assert.True(t, cache.EnablePartialCacheLoad)
+	assert.True(t, cache.ShadowMode)
 	require.IsType(t, &resolve.EntityQueryCacheKeyTemplate{}, cache.KeyTemplate)
 	assert.Equal(t, []resolve.KeyField{{Name: "id"}}, cache.KeyTemplate.(*resolve.EntityQueryCacheKeyTemplate).KeyFields())
 	assert.Same(t, state.plannerObjects[1], cache.ProvidesData)
@@ -85,8 +87,8 @@ func TestConfigureFetchCachingRootFieldsSharedConfigEnablesL2(t *testing.T) {
 		operationType: ast.OperationTypeQuery,
 		federation: FederationMetaData{
 			RootFieldCacheConfig: RootFieldCacheConfigurations{
-				{TypeName: "Query", FieldName: "user", CacheName: "roots", TTL: time.Minute},
-				{TypeName: "Query", FieldName: "me", CacheName: "roots", TTL: time.Minute},
+				{TypeName: "Query", FieldName: "user", CacheName: "roots", TTL: time.Minute, ShadowMode: true},
+				{TypeName: "Query", FieldName: "me", CacheName: "roots", TTL: time.Minute, ShadowMode: true},
 			},
 		},
 		rootFields: []resolve.GraphCoordinate{
@@ -99,6 +101,7 @@ func TestConfigureFetchCachingRootFieldsSharedConfigEnablesL2(t *testing.T) {
 	assert.True(t, cache.EnableL2Cache)
 	assert.Equal(t, "roots", cache.CacheName)
 	assert.Equal(t, time.Minute, cache.TTL)
+	assert.True(t, cache.ShadowMode)
 	require.IsType(t, &resolve.RootQueryCacheKeyTemplate{}, cache.KeyTemplate)
 	template := cache.KeyTemplate.(*resolve.RootQueryCacheKeyTemplate)
 	assert.Equal(t, state.rootFields[2], template.RootFields)

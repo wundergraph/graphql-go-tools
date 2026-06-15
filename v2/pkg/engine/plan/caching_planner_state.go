@@ -209,6 +209,7 @@ func (s *cachingPlannerState) configureEntityFetchCaching(input fetchCachingInpu
 	cache.TTL = cfg.TTL
 	cache.NegativeCacheTTL = cfg.NegativeCacheTTL
 	cache.EnablePartialCacheLoad = cfg.EnablePartialCacheLoad
+	cache.ShadowMode = cfg.ShadowMode
 	return cache
 }
 
@@ -262,6 +263,7 @@ func (s *cachingPlannerState) configureRootFetchCaching(input fetchCachingInput,
 		TTL:                         sharedCfg.TTL,
 		KeyTemplate:                 resolve.NewRootQueryCacheKeyTemplate(rootFields, entityKeyMappings(sharedCfg.EntityKeyMappings)),
 		ProvidesData:                providesData,
+		ShadowMode:                  sharedCfg.ShadowMode,
 	}
 	return cache
 }

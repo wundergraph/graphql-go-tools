@@ -115,6 +115,7 @@ func (d *countingCacheTestDataSource) Inputs() []string {
 type memoryLoaderCache struct {
 	mu      sync.Mutex
 	entries map[string][]byte
+	setOps  [][]*CacheEntry
 }
 
 func newMemoryLoaderCache() *memoryLoaderCache {
@@ -145,9 +146,23 @@ func (c *memoryLoaderCache) Set(_ context.Context, entries []*CacheEntry) error 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	copiedEntries := make([]*CacheEntry, len(entries))
 	for _, entry := range entries {
 		c.entries[entry.Key] = append([]byte(nil), entry.Value...)
 	}
+	for i, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		copiedEntries[i] = &CacheEntry{
+			Key:          entry.Key,
+			Value:        append([]byte(nil), entry.Value...),
+			TTL:          entry.TTL,
+			RemainingTTL: entry.RemainingTTL,
+			WriteReason:  entry.WriteReason,
+		}
+	}
+	c.setOps = append(c.setOps, copiedEntries)
 	return nil
 }
 
@@ -170,6 +185,36 @@ func (c *memoryLoaderCache) Snapshot() map[string]string {
 		snapshot[key] = string(value)
 	}
 	return snapshot
+}
+
+func (c *memoryLoaderCache) SetOps() [][]*CacheEntry {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	ops := make([][]*CacheEntry, len(c.setOps))
+	for i, entries := range c.setOps {
+		ops[i] = make([]*CacheEntry, len(entries))
+		for j, entry := range entries {
+			if entry == nil {
+				continue
+			}
+			ops[i][j] = &CacheEntry{
+				Key:          entry.Key,
+				Value:        append([]byte(nil), entry.Value...),
+				TTL:          entry.TTL,
+				RemainingTTL: entry.RemainingTTL,
+				WriteReason:  entry.WriteReason,
+			}
+		}
+	}
+	return ops
+}
+
+func (c *memoryLoaderCache) ClearSetOps() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.setOps = nil
 }
 
 func resolveCacheTestGraphQLResponse(t *testing.T, response *GraphQLResponse, options ResolverOptions, configure func(ctx *Context)) string {

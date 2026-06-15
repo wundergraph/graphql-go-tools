@@ -1,10 +1,12 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
 	"strconv"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/wundergraph/astjson"
 
@@ -77,6 +79,9 @@ func (l *Loader) prepareBatchCacheKeys(cache *FetchCacheConfiguration, res *resu
 
 func (l *Loader) tryL1CacheLoad(cache *FetchCacheConfiguration, res *result) bool {
 	if l.ctx == nil || !l.ctx.ExecutionOptions.Caching.EnableL1Cache {
+		return false
+	}
+	if cache != nil && cache.ShadowMode {
 		return false
 	}
 	if cache == nil || !cache.UseL1Cache || cache.KeyTemplate == nil || !cache.KeyTemplate.IsEntityFetch() {
@@ -187,6 +192,10 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, cache *FetchCacheConfigurat
 		}
 		res.cacheKeys[i].FromCache = l.structuralCopyDenormalized(hit, cache.ProvidesData)
 	}
+	if cache.ShadowMode {
+		res.cacheMustBeUpdated = true
+		return false
+	}
 	res.cacheSkipFetch = true
 	return true
 }
@@ -201,9 +210,17 @@ func (l *Loader) tryBatchCacheLoad(ctx context.Context, cache *FetchCacheConfigu
 
 	hits := 0
 	for _, cacheKey := range res.cacheKeys {
+		if cache.ShadowMode {
+			l.tryBatchL2CacheKey(ctx, cache, res, cacheKey)
+			continue
+		}
 		if l.tryBatchL1CacheKey(cache, cacheKey) || l.tryBatchL2CacheKey(ctx, cache, res, cacheKey) {
 			hits++
 		}
+	}
+	if cache.ShadowMode {
+		res.cacheMustBeUpdated = true
+		return false, false
 	}
 	if hits == len(res.cacheKeys) {
 		res.cacheSkipFetch = true
@@ -218,6 +235,9 @@ func (l *Loader) tryBatchCacheLoad(ctx context.Context, cache *FetchCacheConfigu
 }
 
 func (l *Loader) tryBatchL1CacheKey(cache *FetchCacheConfiguration, cacheKey *CacheKey) bool {
+	if cache != nil && cache.ShadowMode {
+		return false
+	}
 	if l.ctx == nil || !l.ctx.ExecutionOptions.Caching.EnableL1Cache {
 		return false
 	}
@@ -486,6 +506,7 @@ func (l *Loader) populateCacheAfterMerge(fetchItem *FetchItem, res *result, valu
 	if res.batchStats != nil {
 		return l.populateBatchCacheAfterMerge(cache, res, value)
 	}
+	l.recordShadowComparisons(cache, res, value)
 	l.populateL1Cache(cache, res, value)
 	writtenKeys := l.updateL2Cache(l.ctx.ctx, cache, res, value)
 	subgraphName := ""
@@ -508,6 +529,7 @@ func (l *Loader) populateBatchCacheAfterMerge(cache *FetchCacheConfiguration, re
 		return writtenKeys
 	}
 	for i, item := range batch {
+		l.recordShadowComparison(cache, res, res.cacheKeys[i], item)
 		itemRes := &result{
 			ds:                 res.ds,
 			cacheMustBeUpdated: res.cacheMustBeUpdated,
@@ -521,6 +543,65 @@ func (l *Loader) populateBatchCacheAfterMerge(cache *FetchCacheConfiguration, re
 		}
 	}
 	return writtenKeys
+}
+
+func (l *Loader) recordShadowComparisons(cache *FetchCacheConfiguration, res *result, value *astjson.Value) {
+	if cache == nil || !cache.ShadowMode || value == nil {
+		return
+	}
+	if len(res.cacheKeys) == 0 {
+		return
+	}
+	if value.Type() == astjson.TypeArray {
+		batch := value.GetArray()
+		if len(batch) != len(res.cacheKeys) {
+			return
+		}
+		for i, item := range batch {
+			l.recordShadowComparison(cache, res, res.cacheKeys[i], item)
+		}
+		return
+	}
+	for _, cacheKey := range res.cacheKeys {
+		l.recordShadowComparison(cache, res, cacheKey, value)
+	}
+}
+
+func (l *Loader) recordShadowComparison(cache *FetchCacheConfiguration, res *result, cacheKey *CacheKey, fresh *astjson.Value) {
+	if cache == nil || !cache.ShadowMode || cacheKey == nil || cacheKey.FromCache == nil || fresh == nil {
+		return
+	}
+	collector := l.cacheAnalytics()
+	if collector == nil {
+		return
+	}
+
+	cachedBytes := l.shadowComparisonBytes(cache, cacheKey.FromCache)
+	freshBytes := l.shadowComparisonBytes(cache, fresh)
+	collector.recordShadowComparison(ShadowComparisonEvent{
+		Key:        l.shadowComparisonKey(cache, res, cacheKey),
+		EntityType: cacheAnalyticsEntityType(cache),
+		Matched:    bytes.Equal(cachedBytes, freshBytes),
+		CachedHash: xxhash.Sum64(cachedBytes),
+		FreshHash:  xxhash.Sum64(freshBytes),
+		CachedSize: len(cachedBytes),
+		FreshSize:  len(freshBytes),
+	})
+}
+
+func (l *Loader) shadowComparisonBytes(cache *FetchCacheConfiguration, value *astjson.Value) []byte {
+	if value == nil {
+		return nil
+	}
+	return l.structuralCopyNormalized(value, cache.ProvidesData).MarshalTo(nil)
+}
+
+func (l *Loader) shadowComparisonKey(cache *FetchCacheConfiguration, res *result, cacheKey *CacheKey) string {
+	key := cacheAnalyticsPrimaryKey(cacheKey)
+	if res == nil {
+		return key
+	}
+	return l.transformL2CacheKey(cache, res.ds.Name, key)
 }
 
 type extensionInvalidationDeleteGroup struct {
@@ -692,6 +773,7 @@ func (l *Loader) recordL1Read(cache *FetchCacheConfiguration, cacheKey *CacheKey
 		EntityType: cacheAnalyticsEntityType(cache),
 		Hit:        hit,
 		Negative:   negative,
+		Shadow:     cache != nil && cache.ShadowMode,
 	}
 	if hit {
 		event.Bytes = cacheAnalyticsValueBytes(value)
@@ -709,6 +791,7 @@ func (l *Loader) recordL2Read(cache *FetchCacheConfiguration, key string, hit bo
 		EntityType: cacheAnalyticsEntityType(cache),
 		Hit:        hit,
 		Negative:   negative,
+		Shadow:     cache != nil && cache.ShadowMode,
 		Bytes:      bytes,
 	})
 }
