@@ -4,16 +4,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 type FederationMetaData struct {
-	Keys             FederationFieldConfigurations
-	Requires         FederationFieldConfigurations
-	Provides         FederationFieldConfigurations
-	EntityInterfaces []EntityInterfaceConfiguration
-	InterfaceObjects []EntityInterfaceConfiguration
+	Keys                               FederationFieldConfigurations
+	Requires                           FederationFieldConfigurations
+	Provides                           FederationFieldConfigurations
+	EntityInterfaces                   []EntityInterfaceConfiguration
+	InterfaceObjects                   []EntityInterfaceConfiguration
+	EntityCacheConfig                  EntityCacheConfigurations                  `json:"entity_cache_config,omitempty"`
+	RootFieldCacheConfig               RootFieldCacheConfigurations               `json:"root_field_cache_config,omitempty"`
+	MutationFieldCacheConfig           MutationFieldCacheConfigurations           `json:"mutation_field_cache_config,omitempty"`
+	MutationCacheInvalidationConfig    MutationCacheInvalidationConfigurations    `json:"mutation_cache_invalidation_config,omitempty"`
+	SubscriptionEntityPopulationConfig SubscriptionEntityPopulationConfigurations `json:"subscription_entity_population_config,omitempty"`
 
 	entityTypeNames map[string]struct{}
 }
@@ -72,6 +78,118 @@ func (d *FederationMetaData) EntityInterfaceNames() (out []string) {
 type EntityInterfaceConfiguration struct {
 	InterfaceTypeName string
 	ConcreteTypeNames []string
+}
+
+type EntityCacheConfiguration struct {
+	TypeName                    string        `json:"type_name,omitempty"`
+	CacheName                   string        `json:"cache_name,omitempty"`
+	TTL                         time.Duration `json:"ttl,omitempty"`
+	IncludeSubgraphHeaderPrefix bool          `json:"include_subgraph_header_prefix,omitempty"`
+	EnablePartialCacheLoad      bool          `json:"enable_partial_cache_load,omitempty"`
+	HashAnalyticsKeys           bool          `json:"hash_analytics_keys,omitempty"`
+	ShadowMode                  bool          `json:"shadow_mode,omitempty"`
+	NegativeCacheTTL            time.Duration `json:"negative_cache_ttl,omitempty"`
+}
+
+type EntityCacheConfigurations []EntityCacheConfiguration
+
+func (c EntityCacheConfigurations) FindByTypeName(typeName string) (cfg EntityCacheConfiguration, exists bool) {
+	for i := range c {
+		if c[i].TypeName == typeName {
+			return c[i], true
+		}
+	}
+	return EntityCacheConfiguration{}, false
+}
+
+type RootFieldCacheConfiguration struct {
+	TypeName                    string             `json:"type_name,omitempty"`
+	FieldName                   string             `json:"field_name,omitempty"`
+	CacheName                   string             `json:"cache_name,omitempty"`
+	TTL                         time.Duration      `json:"ttl,omitempty"`
+	IncludeSubgraphHeaderPrefix bool               `json:"include_subgraph_header_prefix,omitempty"`
+	EntityKeyMappings           []EntityKeyMapping `json:"entity_key_mappings,omitempty"`
+	ShadowMode                  bool               `json:"shadow_mode,omitempty"`
+	PartialBatchLoad            bool               `json:"partial_batch_load,omitempty"`
+}
+
+type RootFieldCacheConfigurations []RootFieldCacheConfiguration
+
+func (c RootFieldCacheConfigurations) FindByTypeAndField(typeName, fieldName string) (cfg RootFieldCacheConfiguration, exists bool) {
+	for i := range c {
+		if c[i].TypeName == typeName && c[i].FieldName == fieldName {
+			return c[i], true
+		}
+	}
+	return RootFieldCacheConfiguration{}, false
+}
+
+type EntityKeyMapping struct {
+	EntityTypeName string         `json:"entity_type_name,omitempty"`
+	FieldMappings  []FieldMapping `json:"field_mappings,omitempty"`
+}
+
+type FieldMapping struct {
+	EntityKeyField      string   `json:"entity_key_field,omitempty"`
+	ArgumentPath        []string `json:"argument_path,omitempty"`
+	ArgumentIsEntityKey bool     `json:"argument_is_entity_key,omitempty"`
+}
+
+type MutationFieldCacheConfiguration struct {
+	FieldName                     string        `json:"field_name,omitempty"`
+	EnableEntityL2CachePopulation bool          `json:"enable_entity_l2_cache_population,omitempty"`
+	TTL                           time.Duration `json:"ttl,omitempty"`
+}
+
+type MutationFieldCacheConfigurations []MutationFieldCacheConfiguration
+
+func (c MutationFieldCacheConfigurations) FindByFieldName(fieldName string) (cfg MutationFieldCacheConfiguration, exists bool) {
+	for i := range c {
+		if c[i].FieldName == fieldName {
+			return c[i], true
+		}
+	}
+	return MutationFieldCacheConfiguration{}, false
+}
+
+type MutationCacheInvalidationConfiguration struct {
+	FieldName      string `json:"field_name,omitempty"`
+	EntityTypeName string `json:"entity_type_name,omitempty"`
+}
+
+type MutationCacheInvalidationConfigurations []MutationCacheInvalidationConfiguration
+
+func (c MutationCacheInvalidationConfigurations) FindByFieldName(fieldName string) (cfg MutationCacheInvalidationConfiguration, exists bool) {
+	for i := range c {
+		if c[i].FieldName == fieldName {
+			return c[i], true
+		}
+	}
+	return MutationCacheInvalidationConfiguration{}, false
+}
+
+type SubscriptionEntityPopulationConfiguration struct {
+	TypeName                    string        `json:"type_name,omitempty"`
+	FieldName                   string        `json:"field_name,omitempty"`
+	CacheName                   string        `json:"cache_name,omitempty"`
+	TTL                         time.Duration `json:"ttl,omitempty"`
+	IncludeSubgraphHeaderPrefix bool          `json:"include_subgraph_header_prefix,omitempty"`
+	EnableInvalidationOnKeyOnly bool          `json:"enable_invalidation_on_key_only,omitempty"`
+}
+
+type SubscriptionEntityPopulationConfigurations []SubscriptionEntityPopulationConfiguration
+
+func (c SubscriptionEntityPopulationConfigurations) FindByTypeAndFieldName(typeName, fieldName string) (cfg SubscriptionEntityPopulationConfiguration, exists bool) {
+	if typeName == "" || fieldName == "" {
+		return SubscriptionEntityPopulationConfiguration{}, false
+	}
+
+	for i := range c {
+		if c[i].TypeName == typeName && c[i].FieldName == fieldName {
+			return c[i], true
+		}
+	}
+	return SubscriptionEntityPopulationConfiguration{}, false
 }
 
 type FederationFieldConfiguration struct {
