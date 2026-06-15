@@ -6,9 +6,10 @@ import (
 )
 
 type Object struct {
-	Nullable bool
-	Path     []string
-	Fields   []*Field
+	Nullable   bool
+	Path       []string
+	Fields     []*Field
+	HasAliases bool `json:",omitempty"`
 
 	PossibleTypes map[string]struct{} `json:"-"`
 	SourceName    string              `json:"-"`
@@ -21,9 +22,10 @@ func (o *Object) Copy() Node {
 		fields[i] = f.Copy()
 	}
 	return &Object{
-		Nullable: o.Nullable,
-		Path:     o.Path,
-		Fields:   fields,
+		Nullable:   o.Nullable,
+		Path:       o.Path,
+		Fields:     fields,
+		HasAliases: o.HasAliases,
 	}
 }
 
@@ -102,7 +104,9 @@ func (*EmptyObject) Copy() Node {
 
 type Field struct {
 	Name              []byte
+	OriginalName      []byte `json:",omitempty"`
 	Value             Node
+	CacheArgs         []CacheFieldArg `json:",omitempty"`
 	Position          Position
 	Defer             *DeferField
 	Stream            *StreamField
@@ -118,13 +122,15 @@ type ParentOnTypeNames struct {
 
 func (f *Field) Copy() *Field {
 	return &Field{
-		Name:        f.Name,
-		Value:       f.Value.Copy(),
-		Position:    f.Position,
-		Defer:       f.Defer,
-		Stream:      f.Stream,
-		OnTypeNames: f.OnTypeNames,
-		Info:        f.Info,
+		Name:         f.Name,
+		OriginalName: f.OriginalName,
+		Value:        f.Value.Copy(),
+		CacheArgs:    f.CacheArgs,
+		Position:     f.Position,
+		Defer:        f.Defer,
+		Stream:       f.Stream,
+		OnTypeNames:  f.OnTypeNames,
+		Info:         f.Info,
 	}
 }
 
@@ -189,8 +195,50 @@ type Position struct {
 	Column uint32
 }
 
+type CacheFieldArg struct {
+	ArgName      string
+	VariableName string
+}
+
 type StreamField struct {
 	InitialBatchSize int
 }
 
 type DeferField struct{}
+
+func ComputeHasAliases(o *Object) bool {
+	if o == nil {
+		return false
+	}
+
+	for _, field := range o.Fields {
+		if field == nil {
+			continue
+		}
+		if len(field.CacheArgs) > 0 {
+			return true
+		}
+		if len(field.OriginalName) > 0 && !bytes.Equal(field.OriginalName, field.Name) {
+			return true
+		}
+		if nodeHasAliases(field.Value) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func nodeHasAliases(node Node) bool {
+	switch n := node.(type) {
+	case *Object:
+		return ComputeHasAliases(n)
+	case *Array:
+		if n == nil {
+			return false
+		}
+		return nodeHasAliases(n.Item)
+	default:
+		return false
+	}
+}
