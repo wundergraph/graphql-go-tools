@@ -117,6 +117,7 @@ type objectFetchConfiguration struct {
 	fieldDefinitionRef int
 	sourceID           string
 	sourceName         string
+	federation         FederationMetaData
 	fetchID            int
 	fetchItem          *resolve.FetchItem
 	dependsOnFetchIDs  []int
@@ -946,6 +947,7 @@ func (c *pathBuilderVisitor) addNewPlanner(fieldRef int, typeName, fieldName, cu
 		fetchItem:          c.fetchItem(),
 		sourceID:           dsConfig.Id(),
 		sourceName:         dsConfig.Name(),
+		federation:         dsConfig.FederationConfiguration(),
 		operationType:      c.resolveRootFieldOperationType(typeName),
 		filter:             c.resolveSubscriptionFilterCondition(typeName, fieldName),
 	}

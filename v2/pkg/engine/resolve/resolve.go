@@ -206,6 +206,10 @@ type ResolverOptions struct {
 	Caches map[string]LoaderCache
 	// EntityCacheConfigs contains resolve-side entity invalidation cache targets.
 	EntityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
+	// OnSubscriptionCacheWrite is called after a subscription event successfully populates L2.
+	OnSubscriptionCacheWrite func(CacheWriteEvent)
+	// OnSubscriptionCacheInvalidate is called after a subscription event successfully invalidates L2 keys.
+	OnSubscriptionCacheInvalidate func(entityType string, keys []string)
 
 	// SubgraphRequestDeduplicationShardCount defines the number of shards to use for subgraph request deduplication
 	SubgraphRequestDeduplicationShardCount int
@@ -648,6 +652,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 		}
 		return
 	}
+
+	r.processSubscriptionEntityCache(resolveCtx, t, sub.resolve)
 
 	if err := t.loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response, t.resolvable); err != nil {
 		r.resolveArenaPool.Release(resolveArena)

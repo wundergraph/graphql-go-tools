@@ -76,6 +76,25 @@ type MutationEntityImpactConfig struct {
 	PopulateTTL time.Duration
 }
 
+type SubscriptionCacheMode string
+
+const (
+	SubscriptionCacheModePopulate   SubscriptionCacheMode = "populate"
+	SubscriptionCacheModeInvalidate SubscriptionCacheMode = "invalidate"
+)
+
+type SubscriptionEntityCachePopulation struct {
+	Mode                        SubscriptionCacheMode
+	CacheKeyTemplate            *EntityQueryCacheKeyTemplate
+	CacheName                   string
+	TTL                         time.Duration
+	IncludeSubgraphHeaderPrefix bool
+	DataSourceName              string
+	SubscriptionFieldName       string
+	EntityTypeName              string
+	EnableInvalidationOnKeyOnly bool
+}
+
 // CacheKey is the rendered key data for one input item.
 type CacheKey struct {
 	// Item is the input value this key was rendered from.

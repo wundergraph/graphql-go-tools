@@ -14,6 +14,21 @@ const (
 	CacheAnalyticsEventKindL2Write CacheAnalyticsEventKind = "l2_write"
 )
 
+type CacheLevel string
+
+const (
+	CacheLevelL1 CacheLevel = "l1"
+	CacheLevelL2 CacheLevel = "l2"
+)
+
+type CacheSource string
+
+const (
+	CacheSourceQuery        CacheSource = "query"
+	CacheSourceMutation     CacheSource = "mutation"
+	CacheSourceSubscription CacheSource = "subscription"
+)
+
 type CacheAnalyticsSnapshot struct {
 	L1Reads            []CacheKeyEvent
 	L2Reads            []CacheKeyEvent
@@ -41,12 +56,17 @@ type CacheKeyEvent struct {
 
 type CacheWriteEvent struct {
 	Key        string
+	CacheKey   string
 	EntityType string
 	Kind       CacheAnalyticsEventKind
 	Bytes      int
+	ByteSize   int
 	TTL        time.Duration
 	Reason     CacheWriteReason
 	Negative   bool
+	DataSource string
+	CacheLevel CacheLevel
+	Source     CacheSource
 }
 
 type FetchTimingEvent struct {

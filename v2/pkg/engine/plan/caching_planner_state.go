@@ -73,6 +73,7 @@ func hasCachingConfiguration(dataSources []DataSource) bool {
 			len(federation.RootFieldCacheConfig) > 0 ||
 			len(federation.MutationFieldCacheConfig) > 0 ||
 			len(federation.MutationCacheInvalidationConfig) > 0 ||
+			len(federation.SubscriptionEntityPopulationConfig) > 0 ||
 			len(federation.RequestScopedFields) > 0 {
 			return true
 		}
@@ -170,6 +171,42 @@ func (s *cachingPlannerState) configureFetchCaching(input fetchCachingInput) *re
 	}
 	cache.RequestScopedFields = requestScopedFields
 	return cache
+}
+
+func (s *cachingPlannerState) configureSubscriptionEntityCachePopulation(config *objectFetchConfiguration, federation FederationMetaData) *resolve.SubscriptionEntityCachePopulation {
+	if s == nil || s.config == nil || s.config.DisableEntityCaching || config == nil || s.operation == nil || s.definition == nil {
+		return nil
+	}
+	if len(federation.SubscriptionEntityPopulationConfig) == 0 || config.fieldRef == ast.InvalidRef || config.fieldDefinitionRef == ast.InvalidRef {
+		return nil
+	}
+	fieldName := s.operation.FieldNameString(config.fieldRef)
+	if fieldName == "" {
+		return nil
+	}
+	responseFieldName := s.operation.FieldAliasOrNameString(config.fieldRef)
+	for _, typeName := range s.subscriptionEntityPopulationTypeCandidates(config.fieldDefinitionRef, federation) {
+		populationCfg, exists := federation.SubscriptionEntityPopulationConfig.FindByTypeAndFieldName(typeName, fieldName)
+		if !exists {
+			continue
+		}
+		keyTypeName, template := s.subscriptionEntityCacheKeyTemplate(populationCfg.TypeName, federation)
+		if template == nil {
+			return nil
+		}
+		return &resolve.SubscriptionEntityCachePopulation{
+			Mode:                        resolve.SubscriptionCacheModePopulate,
+			CacheKeyTemplate:            template,
+			CacheName:                   populationCfg.CacheName,
+			TTL:                         populationCfg.TTL,
+			IncludeSubgraphHeaderPrefix: populationCfg.IncludeSubgraphHeaderPrefix,
+			DataSourceName:              config.sourceName,
+			SubscriptionFieldName:       responseFieldName,
+			EntityTypeName:              keyTypeName,
+			EnableInvalidationOnKeyOnly: populationCfg.EnableInvalidationOnKeyOnly,
+		}
+	}
+	return nil
 }
 
 func (s *cachingPlannerState) configureMutationEntityImpact(input fetchCachingInput, providesData *resolve.Object) *resolve.FetchCacheConfiguration {
@@ -520,6 +557,47 @@ func (s *cachingPlannerState) mutationKeyFields(federation FederationMetaData, e
 		return resolve.ParseKeyFields(keyCfg.SelectionSet)
 	}
 	return nil
+}
+
+func (s *cachingPlannerState) subscriptionEntityCacheKeyTemplate(entityTypeName string, federation FederationMetaData) (string, *resolve.EntityQueryCacheKeyTemplate) {
+	for _, keyCfg := range federation.Keys.FilterByTypeAndResolvability(entityTypeName, true) {
+		return keyCfg.TypeName, &resolve.EntityQueryCacheKeyTemplate{
+			TypeName: keyCfg.TypeName,
+			Keys:     resolve.NewResolvableObjectVariable(keyFieldsObject(resolve.ParseKeyFields(keyCfg.SelectionSet))),
+		}
+	}
+	return "", nil
+}
+
+func (s *cachingPlannerState) subscriptionEntityPopulationTypeCandidates(fieldDefinitionRef int, federation FederationMetaData) []string {
+	if s == nil || s.definition == nil || fieldDefinitionRef == ast.InvalidRef {
+		return nil
+	}
+	fieldTypeName := s.definition.FieldDefinitionTypeNameString(fieldDefinitionRef)
+	if fieldTypeName == "" {
+		return nil
+	}
+	candidates := []string{fieldTypeName}
+	fieldTypeNode := s.definition.FieldDefinitionTypeNode(fieldDefinitionRef)
+	switch fieldTypeNode.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		typeNames, _ := s.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(fieldTypeNode.Ref)
+		candidates = append(candidates, typeNames...)
+	case ast.NodeKindUnionTypeDefinition:
+		typeNames, _ := s.definition.UnionTypeDefinitionMemberTypeNames(fieldTypeNode.Ref)
+		candidates = append(candidates, typeNames...)
+	}
+	for _, interfaceObject := range federation.InterfaceObjects {
+		if slices.Contains(interfaceObject.ConcreteTypeNames, fieldTypeName) {
+			candidates = append(candidates, interfaceObject.InterfaceTypeName)
+		}
+	}
+	for _, entityInterface := range federation.EntityInterfaces {
+		if slices.Contains(entityInterface.ConcreteTypeNames, fieldTypeName) {
+			candidates = append(candidates, entityInterface.InterfaceTypeName)
+		}
+	}
+	return slices.Compact(candidates)
 }
 
 func (s *cachingPlannerState) rootFieldCacheKeyField(fieldRef int, responseField *resolve.Field) resolve.RootField {

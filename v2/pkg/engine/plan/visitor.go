@@ -1336,6 +1336,9 @@ func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 	v.subscription.Trigger.SourceName = config.sourceName
 	v.subscription.Trigger.SourceID = config.sourceID
 	v.subscription.Filter = config.filter
+	if v.caching != nil {
+		v.subscription.EntityCachePopulation = v.caching.configureSubscriptionEntityCachePopulation(config, config.federation)
+	}
 }
 
 func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {

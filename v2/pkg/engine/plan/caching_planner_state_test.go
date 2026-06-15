@@ -9,6 +9,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
 
 func TestConfigureFetchCachingEntityConfigPresentEnablesL2(t *testing.T) {
@@ -213,6 +214,134 @@ func TestConfigureFetchCachingMutationEntityImpact(t *testing.T) {
 		PopulateCache:               false,
 		PopulateTTL:                 time.Minute,
 	}, cache.MutationEntityImpactConfig)
+}
+
+func TestConfigureSubscriptionEntityCachePopulationAttachesOnlyWithTypeAndFieldName(t *testing.T) {
+	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`
+		type Subscription {
+			updateProductPrice: Product!
+		}
+
+		type Product {
+			upc: String!
+			name: String!
+		}
+	`)
+	operation := unsafeparser.ParseGraphqlDocumentString(`subscription { priceUpdate: updateProductPrice { upc name } }`)
+	state := testCachingPlannerState()
+	state.definition = &definition
+	state.operation = &operation
+	fieldRef := ast.InvalidRef
+	for ref := range operation.Fields {
+		if operation.FieldNameString(ref) == "updateProductPrice" {
+			fieldRef = ref
+			break
+		}
+	}
+	require.NotEqual(t, ast.InvalidRef, fieldRef)
+	subscriptionNode, exists := definition.Index.FirstNodeByNameStr("Subscription")
+	require.True(t, exists)
+	fieldDefinitionRef, exists := definition.NodeFieldDefinitionByName(subscriptionNode, []byte("updateProductPrice"))
+	require.True(t, exists)
+
+	cache := state.configureSubscriptionEntityCachePopulation(&objectFetchConfiguration{
+		fieldRef:           fieldRef,
+		fieldDefinitionRef: fieldDefinitionRef,
+		sourceName:         "products",
+	}, FederationMetaData{
+		Keys: FederationFieldConfigurations{
+			{
+				TypeName:     "Product",
+				SelectionSet: "upc",
+			},
+		},
+		SubscriptionEntityPopulationConfig: SubscriptionEntityPopulationConfigurations{
+			{
+				TypeName:                    "Product",
+				FieldName:                   "",
+				CacheName:                   "invalid",
+				TTL:                         time.Minute,
+				IncludeSubgraphHeaderPrefix: true,
+				EnableInvalidationOnKeyOnly: true,
+			},
+			{
+				TypeName:                    "Product",
+				FieldName:                   "updateProductPrice",
+				CacheName:                   "entities",
+				TTL:                         30 * time.Second,
+				IncludeSubgraphHeaderPrefix: true,
+				EnableInvalidationOnKeyOnly: true,
+			},
+		},
+	})
+
+	require.NotNil(t, cache)
+	assert.Equal(t, &resolve.SubscriptionEntityCachePopulation{
+		Mode:                        resolve.SubscriptionCacheModePopulate,
+		CacheKeyTemplate:            cache.CacheKeyTemplate,
+		CacheName:                   "entities",
+		TTL:                         30 * time.Second,
+		IncludeSubgraphHeaderPrefix: true,
+		DataSourceName:              "products",
+		SubscriptionFieldName:       "priceUpdate",
+		EntityTypeName:              "Product",
+		EnableInvalidationOnKeyOnly: true,
+	}, cache)
+	assert.Equal(t, []resolve.KeyField{{Name: "upc"}}, cache.CacheKeyTemplate.KeyFields())
+}
+
+func TestConfigureSubscriptionEntityCachePopulationEmptyFieldNameNoop(t *testing.T) {
+	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`
+		type Subscription {
+			updateProductPrice: Product!
+		}
+
+		type Product {
+			upc: String!
+			name: String!
+		}
+	`)
+	operation := unsafeparser.ParseGraphqlDocumentString(`subscription { updateProductPrice { upc name } }`)
+	state := testCachingPlannerState()
+	state.definition = &definition
+	state.operation = &operation
+	fieldRef := ast.InvalidRef
+	for ref := range operation.Fields {
+		if operation.FieldNameString(ref) == "updateProductPrice" {
+			fieldRef = ref
+			break
+		}
+	}
+	require.NotEqual(t, ast.InvalidRef, fieldRef)
+	subscriptionNode, exists := definition.Index.FirstNodeByNameStr("Subscription")
+	require.True(t, exists)
+	fieldDefinitionRef, exists := definition.NodeFieldDefinitionByName(subscriptionNode, []byte("updateProductPrice"))
+	require.True(t, exists)
+
+	cache := state.configureSubscriptionEntityCachePopulation(&objectFetchConfiguration{
+		fieldRef:           fieldRef,
+		fieldDefinitionRef: fieldDefinitionRef,
+		sourceName:         "products",
+	}, FederationMetaData{
+		Keys: FederationFieldConfigurations{
+			{
+				TypeName:     "Product",
+				SelectionSet: "upc",
+			},
+		},
+		SubscriptionEntityPopulationConfig: SubscriptionEntityPopulationConfigurations{
+			{
+				TypeName:                    "Product",
+				FieldName:                   "",
+				CacheName:                   "invalid",
+				TTL:                         30 * time.Second,
+				IncludeSubgraphHeaderPrefix: true,
+				EnableInvalidationOnKeyOnly: true,
+			},
+		},
+	})
+
+	assert.Nil(t, cache)
 }
 
 func testCachingPlannerState() *cachingPlannerState {
