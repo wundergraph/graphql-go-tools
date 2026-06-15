@@ -138,6 +138,8 @@ type result struct {
 	cacheSkipFetch     bool
 	cacheMustBeUpdated bool
 	cacheKeys          []*CacheKey
+
+	cacheTraceRequestScopedHits int
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -199,6 +201,7 @@ type Loader struct {
 	singleFlight *SubgraphRequestSingleFlight
 
 	l1Cache            map[string]*astjson.Value
+	requestScopedL1    map[string]*astjson.Value
 	caches             map[string]LoaderCache
 	entityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
 
@@ -260,6 +263,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		item := nodes[i].Item
 		items := itemsItems[i]
 		res := results[i]
+		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
+			continue
+		}
 		g.Go(func() error {
 			return l.loadFetch(ctx, f, item, items, res)
 		})
@@ -269,6 +275,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		return errors.WithStack(err)
 	}
 	for i := range results {
+		if !results[i].fetchSkipped && !results[i].cacheSkipFetch && len(results[i].out) == 0 && results[i].err == nil {
+			l.tryRequestScopedInjectionAndTrace(nodes[i].Item.Fetch, itemsItems[i], results[i])
+		}
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
@@ -307,6 +316,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
 		res := &result{}
+		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
+			return l.mergeResult(item, res, items)
+		}
 		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
 		if err != nil {
 			return err
@@ -317,6 +329,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 	case *BatchEntityFetch:
 		res := &result{}
 		defer batchEntityToolPool.Put(res.tools)
+		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
+			return l.mergeResult(item, res, items)
+		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -326,6 +341,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		return err
 	case *EntityFetch:
 		res := &result{}
+		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
+			return l.mergeResult(item, res, items)
+		}
 		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -610,6 +628,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
 		l.resolvable.data = responseData
+		l.exportRequestScopedFields(fetchCacheConfiguration(fetchItem.Fetch), nil)
 		writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
 		l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 		return nil
@@ -626,6 +645,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, 0) {
 			l.taintedObjs.add(items[0])
 		}
+		l.exportRequestScopedFields(fetchCacheConfiguration(fetchItem.Fetch), items)
 		writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
 		l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 		return nil
@@ -660,6 +680,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				}
 			}
 		}
+		l.exportRequestScopedFields(fetchCacheConfiguration(fetchItem.Fetch), items)
 		writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
 		l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 		return nil
@@ -686,6 +707,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			l.taintedObjs.add(items[i])
 		}
 	}
+	l.exportRequestScopedFields(fetchCacheConfiguration(fetchItem.Fetch), items)
 	writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
 	l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 	return nil

@@ -16,13 +16,19 @@ import (
 func (l *Loader) initRequestCaches() {
 	if l.ctx == nil || !l.ctx.ExecutionOptions.Caching.EnableL1Cache {
 		l.l1Cache = nil
+		l.requestScopedL1 = nil
 		return
 	}
 	if l.l1Cache == nil {
 		l.l1Cache = make(map[string]*astjson.Value)
+	} else {
+		clear(l.l1Cache)
+	}
+	if l.requestScopedL1 == nil {
+		l.requestScopedL1 = make(map[string]*astjson.Value)
 		return
 	}
-	clear(l.l1Cache)
+	clear(l.requestScopedL1)
 }
 
 func (l *Loader) prepareCacheKeys(cache *FetchCacheConfiguration, items []*astjson.Value, res *result) error {
