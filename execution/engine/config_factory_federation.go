@@ -27,6 +27,27 @@ type SubgraphConfiguration struct {
 	SubscriptionProtocol SubscriptionProtocol
 }
 
+type SubgraphCachingConfig struct {
+	SubgraphName                 string
+	EntityCaching                plan.EntityCacheConfigurations
+	RootFieldCaching             plan.RootFieldCacheConfigurations
+	MutationFieldCaching         plan.MutationFieldCacheConfigurations
+	MutationCacheInvalidation    plan.MutationCacheInvalidationConfigurations
+	SubscriptionEntityPopulation plan.SubscriptionEntityPopulationConfigurations
+	RequestScopedFields          []plan.RequestScopedField
+}
+
+type SubgraphCachingConfigs []SubgraphCachingConfig
+
+func (c SubgraphCachingConfigs) FindBySubgraphName(name string) *SubgraphCachingConfig {
+	for i := range c {
+		if c[i].SubgraphName == name {
+			return &c[i]
+		}
+	}
+	return nil
+}
+
 type SubscriptionProtocol string
 
 const (
@@ -41,6 +62,7 @@ type federationEngineConfigFactoryOptions struct {
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
+	subgraphCachingConfigs    SubgraphCachingConfigs
 
 	grpcClient grpc.ClientConnInterface
 }
@@ -77,6 +99,12 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 	}
 }
 
+func WithSubgraphEntityCachingConfigs(configs SubgraphCachingConfigs) FederationEngineConfigFactoryOption {
+	return func(options *federationEngineConfigFactoryOptions) {
+		options.subgraphCachingConfigs = configs
+	}
+}
+
 func NewFederationEngineConfigFactory(engineCtx context.Context, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
@@ -107,6 +135,7 @@ func NewFederationEngineConfigFactory(engineCtx context.Context, opts ...Federat
 		subscriptionClientFactory: options.subscriptionClientFactory,
 		subscriptionType:          options.subscriptionType,
 		customResolveMap:          options.customResolveMap,
+		subgraphCachingConfigs:    append(SubgraphCachingConfigs(nil), options.subgraphCachingConfigs...),
 	}
 }
 
@@ -120,6 +149,7 @@ type FederationEngineConfigFactory struct {
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
 	subgraphsConfigs          []SubgraphConfiguration
+	subgraphCachingConfigs    SubgraphCachingConfigs
 
 	grpcClient grpc.ClientConnInterface
 }
@@ -185,12 +215,17 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 		})
 	}
 
+	subgraphNameByDataSourceID := f.subgraphNameByDataSourceID(routerConfig)
 	for _, ds := range engineConfig.DatasourceConfigurations {
 		if ds.Kind != nodev1.DataSourceKind_GRAPHQL {
 			return nil, fmt.Errorf("invalid datasource kind %q", ds.Kind)
 		}
 
-		dataSource, err := f.subgraphDataSourceConfiguration(engineConfig, ds)
+		subgraphName := subgraphNameByDataSourceID[ds.Id]
+		if subgraphName == "" {
+			subgraphName = ds.Id
+		}
+		dataSource, err := f.subgraphDataSourceConfiguration(engineConfig, ds, subgraphName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create data source configuration for data source %s: %w", ds.Id, err)
 		}
@@ -201,7 +236,25 @@ func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig 
 	return &outConfig, nil
 }
 
-func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineConfig *nodev1.EngineConfiguration, in *nodev1.DataSourceConfiguration) (plan.DataSource, error) {
+func (f *FederationEngineConfigFactory) subgraphNameByDataSourceID(routerConfig *nodev1.RouterConfig) map[string]string {
+	out := make(map[string]string, len(f.subgraphsConfigs)+len(routerConfig.GetSubgraphs()))
+	for i, subgraphConfig := range f.subgraphsConfigs {
+		if subgraphConfig.Name != "" {
+			out[fmt.Sprintf("%d", i)] = subgraphConfig.Name
+		}
+	}
+	for _, subgraph := range routerConfig.GetSubgraphs() {
+		if subgraph.GetId() == "" || subgraph.GetName() == "" {
+			continue
+		}
+		if _, exists := out[subgraph.GetId()]; !exists {
+			out[subgraph.GetId()] = subgraph.GetName()
+		}
+	}
+	return out
+}
+
+func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineConfig *nodev1.EngineConfiguration, in *nodev1.DataSourceConfiguration, subgraphName string) (plan.DataSource, error) {
 	var out plan.DataSource
 
 	factory, err := f.graphqlDataSourceFactory()
@@ -296,7 +349,7 @@ func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineCo
 	out, err = plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		in.Id,
 		factory,
-		f.dataSourceMetaData(in),
+		f.dataSourceMetaData(in, subgraphName),
 		customConfiguration,
 	)
 	if err != nil {
@@ -306,7 +359,7 @@ func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineCo
 	return out, nil
 }
 
-func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSourceConfiguration) *plan.DataSourceMetadata {
+func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSourceConfiguration, subgraphName string) *plan.DataSourceMetadata {
 	var d plan.DirectiveConfigurations = make([]plan.DirectiveConfiguration, 0, len(in.Directives))
 
 	out := &plan.DataSourceMetadata{
@@ -371,6 +424,16 @@ func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSource
 			InterfaceTypeName: interfaceObjectConfiguration.InterfaceTypeName,
 			ConcreteTypeNames: interfaceObjectConfiguration.ConcreteTypeNames,
 		})
+	}
+	if len(f.subgraphCachingConfigs) > 0 {
+		if cfg := f.subgraphCachingConfigs.FindBySubgraphName(subgraphName); cfg != nil {
+			out.FederationMetaData.EntityCacheConfig = append(plan.EntityCacheConfigurations(nil), cfg.EntityCaching...)
+			out.FederationMetaData.RootFieldCacheConfig = append(plan.RootFieldCacheConfigurations(nil), cfg.RootFieldCaching...)
+			out.FederationMetaData.MutationFieldCacheConfig = append(plan.MutationFieldCacheConfigurations(nil), cfg.MutationFieldCaching...)
+			out.FederationMetaData.MutationCacheInvalidationConfig = append(plan.MutationCacheInvalidationConfigurations(nil), cfg.MutationCacheInvalidation...)
+			out.FederationMetaData.SubscriptionEntityPopulationConfig = append(plan.SubscriptionEntityPopulationConfigurations(nil), cfg.SubscriptionEntityPopulation...)
+			out.FederationMetaData.RequestScopedFields = append([]plan.RequestScopedField(nil), cfg.RequestScopedFields...)
+		}
 	}
 
 	return out

@@ -49,6 +49,7 @@ func (l *Loader) prepareCacheKeys(cache *FetchCacheConfiguration, items []*astjs
 		return err
 	}
 	res.cacheKeys = keys
+	res.cacheTraceEntityCount = len(keys)
 	return nil
 }
 
@@ -80,6 +81,7 @@ func (l *Loader) prepareBatchCacheKeys(cache *FetchCacheConfiguration, res *resu
 		return nil
 	}
 	res.cacheKeys = keys
+	res.cacheTraceEntityCount = len(keys)
 	return nil
 }
 
@@ -103,15 +105,18 @@ func (l *Loader) tryL1CacheLoad(cache *FetchCacheConfiguration, res *result) boo
 		value := l.lookupL1CacheValue(cacheKey)
 		if isNegativeCacheSentinel(cache, value) {
 			l.recordL1Read(cache, cacheKey, true, true, value)
+			l.recordCacheTraceL1Read(res, cacheKey, true, true, value)
 			hits[i] = value
 			negativeHits[i] = true
 			continue
 		}
 		if value == nil || !cachedValueContainsProvides(value, cache.ProvidesData) {
 			l.recordL1Read(cache, cacheKey, false, false, nil)
+			l.recordCacheTraceL1Read(res, cacheKey, false, false, nil)
 			return false
 		}
 		l.recordL1Read(cache, cacheKey, true, false, value)
+		l.recordCacheTraceL1Read(res, cacheKey, true, false, value)
 		hits[i] = value
 	}
 	for i, hit := range hits {
@@ -150,8 +155,14 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, cache *FetchCacheConfigurat
 		return false
 	}
 
+	res.cacheTraceL2GetAttempted = true
+	l2GetStart := time.Now()
 	entries, err := l.cacheAnalyticsL2Get(ctx, backend, keys, res.ds.Name, cache.CacheName)
+	res.cacheTraceL2GetDuration += time.Since(l2GetStart)
 	if err != nil || len(entries) != len(keys) {
+		if err != nil {
+			res.cacheTraceL2GetError = err.Error()
+		}
 		l.recordCacheOperationError("l2_get", cache.CacheName, cacheAnalyticsFirstKey(keys), err)
 		if err == nil {
 			l.recordCacheOperationError("l2_get", cache.CacheName, cacheAnalyticsFirstKey(keys), errors.Errorf("expected %d cache entries, got %d", len(keys), len(entries)))
@@ -165,28 +176,33 @@ func (l *Loader) tryL2CacheLoad(ctx context.Context, cache *FetchCacheConfigurat
 	for i, entry := range entries {
 		if entry == nil || len(entry.Value) == 0 {
 			l.recordL2Read(cache, keys[i], false, false, 0)
+			l.recordCacheTraceL2Read(res, keys[i], false, false, 0, 0)
 			res.cacheMustBeUpdated = true
 			return false
 		}
 		value, parseErr := astjson.ParseBytesWithArena(l.jsonArena, entry.Value)
 		if parseErr != nil {
 			l.recordL2Read(cache, keys[i], false, false, 0)
+			l.recordCacheTraceL2Read(res, keys[i], false, false, 0, 0)
 			l.recordCacheOperationError("l2_parse", cache.CacheName, keys[i], parseErr)
 			res.cacheMustBeUpdated = true
 			return false
 		}
 		if isNegativeCacheSentinel(cache, value) {
 			l.recordL2Read(cache, keys[i], true, true, len(entry.Value))
+			l.recordCacheTraceL2Read(res, keys[i], true, true, len(entry.Value), entry.RemainingTTL)
 			hits[i] = value
 			negativeHits[i] = true
 			continue
 		}
 		if cache.KeyTemplate.IsEntityFetch() && !cachedValueContainsProvides(value, cache.ProvidesData) {
 			l.recordL2Read(cache, keys[i], false, false, len(entry.Value))
+			l.recordCacheTraceL2Read(res, keys[i], false, false, len(entry.Value), 0)
 			res.cacheMustBeUpdated = true
 			return false
 		}
 		l.recordL2Read(cache, keys[i], true, false, len(entry.Value))
+		l.recordCacheTraceL2Read(res, keys[i], true, false, len(entry.Value), entry.RemainingTTL)
 		hits[i] = value
 	}
 
@@ -220,7 +236,7 @@ func (l *Loader) tryBatchCacheLoad(ctx context.Context, cache *FetchCacheConfigu
 			l.tryBatchL2CacheKey(ctx, cache, res, cacheKey)
 			continue
 		}
-		if l.tryBatchL1CacheKey(cache, cacheKey) || l.tryBatchL2CacheKey(ctx, cache, res, cacheKey) {
+		if l.tryBatchL1CacheKey(cache, res, cacheKey) || l.tryBatchL2CacheKey(ctx, cache, res, cacheKey) {
 			hits++
 		}
 	}
@@ -240,7 +256,7 @@ func (l *Loader) tryBatchCacheLoad(ctx context.Context, cache *FetchCacheConfigu
 	return false, cache.EnablePartialCacheLoad
 }
 
-func (l *Loader) tryBatchL1CacheKey(cache *FetchCacheConfiguration, cacheKey *CacheKey) bool {
+func (l *Loader) tryBatchL1CacheKey(cache *FetchCacheConfiguration, res *result, cacheKey *CacheKey) bool {
 	if cache != nil && cache.ShadowMode {
 		return false
 	}
@@ -253,15 +269,18 @@ func (l *Loader) tryBatchL1CacheKey(cache *FetchCacheConfiguration, cacheKey *Ca
 	value := l.lookupL1CacheValue(cacheKey)
 	if isNegativeCacheSentinel(cache, value) {
 		l.recordL1Read(cache, cacheKey, true, true, value)
+		l.recordCacheTraceL1Read(res, cacheKey, true, true, value)
 		cacheKey.FromCache = astjson.StructuralCopy(l.jsonArena, value)
 		cacheKey.NegativeCacheHit = true
 		return true
 	}
 	if value == nil || !cachedValueContainsProvides(value, cache.ProvidesData) {
 		l.recordL1Read(cache, cacheKey, false, false, nil)
+		l.recordCacheTraceL1Read(res, cacheKey, false, false, nil)
 		return false
 	}
 	l.recordL1Read(cache, cacheKey, true, false, value)
+	l.recordCacheTraceL1Read(res, cacheKey, true, false, value)
 	cacheKey.FromCache = l.structuralCopyDenormalizedPassthrough(value, cache.ProvidesData)
 	return true
 }
@@ -282,8 +301,14 @@ func (l *Loader) tryBatchL2CacheKey(ctx context.Context, cache *FetchCacheConfig
 	for _, key := range cacheKey.Keys {
 		keys = append(keys, l.transformL2CacheKey(cache, res.ds.Name, key))
 	}
+	res.cacheTraceL2GetAttempted = true
+	l2GetStart := time.Now()
 	entries, err := l.cacheAnalyticsL2Get(ctx, backend, keys, res.ds.Name, cache.CacheName)
+	res.cacheTraceL2GetDuration += time.Since(l2GetStart)
 	if err != nil || len(entries) != len(keys) {
+		if err != nil {
+			res.cacheTraceL2GetError = err.Error()
+		}
 		l.recordCacheOperationError("l2_get", cache.CacheName, cacheAnalyticsFirstKey(keys), err)
 		if err == nil {
 			l.recordCacheOperationError("l2_get", cache.CacheName, cacheAnalyticsFirstKey(keys), errors.Errorf("expected %d cache entries, got %d", len(keys), len(entries)))
@@ -293,23 +318,27 @@ func (l *Loader) tryBatchL2CacheKey(ctx context.Context, cache *FetchCacheConfig
 	for i, entry := range entries {
 		if entry == nil || len(entry.Value) == 0 {
 			l.recordL2Read(cache, keys[i], false, false, 0)
+			l.recordCacheTraceL2Read(res, keys[i], false, false, 0, 0)
 			continue
 		}
 		value, parseErr := astjson.ParseBytesWithArena(l.jsonArena, entry.Value)
 		if parseErr != nil || !cachedValueContainsProvides(value, cache.ProvidesData) {
 			if isNegativeCacheSentinel(cache, value) {
 				l.recordL2Read(cache, keys[i], true, true, len(entry.Value))
+				l.recordCacheTraceL2Read(res, keys[i], true, true, len(entry.Value), entry.RemainingTTL)
 				cacheKey.FromCache = astjson.StructuralCopy(l.jsonArena, value)
 				cacheKey.NegativeCacheHit = true
 				return true
 			}
 			l.recordL2Read(cache, keys[i], false, false, len(entry.Value))
+			l.recordCacheTraceL2Read(res, keys[i], false, false, len(entry.Value), 0)
 			if parseErr != nil {
 				l.recordCacheOperationError("l2_parse", cache.CacheName, keys[i], parseErr)
 			}
 			continue
 		}
 		l.recordL2Read(cache, keys[i], true, false, len(entry.Value))
+		l.recordCacheTraceL2Read(res, keys[i], true, false, len(entry.Value), entry.RemainingTTL)
 		cacheKey.FromCache = l.structuralCopyDenormalized(value, cache.ProvidesData)
 		return true
 	}
@@ -410,12 +439,16 @@ func (l *Loader) updateL2Cache(ctx context.Context, cache *FetchCacheConfigurati
 	if len(entries) == 0 {
 		return writtenKeys
 	}
+	res.cacheTraceL2SetAttempted = true
+	l2SetStart := time.Now()
 	err := l.cacheAnalyticsL2Set(ctx, backend, entries, res.ds.Name, cache.CacheName)
+	res.cacheTraceL2SetDuration += time.Since(l2SetStart)
 	for _, entry := range entries {
 		l.recordL2Write(cache, entry)
 		writtenKeys[entry.Key] = struct{}{}
 	}
 	if err != nil {
+		res.cacheTraceL2SetError = err.Error()
 		l.recordCacheOperationError("l2_set", cache.CacheName, cacheAnalyticsFirstEntryKey(entries), err)
 	}
 	return writtenKeys
@@ -512,6 +545,7 @@ func (l *Loader) populateCacheAfterMerge(fetchItem *FetchItem, res *result, valu
 	if res.batchStats != nil {
 		return l.populateBatchCacheAfterMerge(cache, res, value)
 	}
+	l.recordCacheTraceSubgraphSource(res, value)
 	l.recordShadowComparisons(cache, res, value)
 	l.populateL1Cache(cache, res, value)
 	writtenKeys := l.updateL2Cache(l.ctx.ctx, cache, res, value)
@@ -535,7 +569,6 @@ func (l *Loader) populateBatchCacheAfterMerge(cache *FetchCacheConfiguration, re
 		return writtenKeys
 	}
 	for i, item := range batch {
-		l.recordShadowComparison(cache, res, res.cacheKeys[i], item)
 		itemRes := &result{
 			ds:                 res.ds,
 			cacheMustBeUpdated: res.cacheMustBeUpdated,
@@ -543,10 +576,18 @@ func (l *Loader) populateBatchCacheAfterMerge(cache *FetchCacheConfiguration, re
 				res.cacheKeys[i],
 			},
 		}
+		l.recordCacheTraceSubgraphSource(itemRes, item)
+		l.recordShadowComparison(cache, res, res.cacheKeys[i], item)
 		l.populateL1Cache(cache, itemRes, item)
 		for key := range l.updateL2Cache(l.ctx.ctx, cache, itemRes, item) {
 			writtenKeys[key] = struct{}{}
 		}
+		res.cacheTraceL2SetAttempted = res.cacheTraceL2SetAttempted || itemRes.cacheTraceL2SetAttempted
+		res.cacheTraceL2SetDuration += itemRes.cacheTraceL2SetDuration
+		if itemRes.cacheTraceL2SetError != "" {
+			res.cacheTraceL2SetError = itemRes.cacheTraceL2SetError
+		}
+		res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, itemRes.cacheTraceEntityDetails...)
 	}
 	return writtenKeys
 }
@@ -1019,6 +1060,85 @@ func cacheAnalyticsEntriesBytes(entries []*CacheEntry) int {
 		}
 	}
 	return bytes
+}
+
+func (l *Loader) beginCacheTrace(res *result) func() {
+	if l == nil || l.ctx == nil || res == nil || !l.ctx.TracingOptions.Enable || l.ctx.TracingOptions.ExcludeCacheStats {
+		return func() {}
+	}
+	if res.cacheTraceDurationSinceStartNano == 0 {
+		res.cacheTraceDurationSinceStartNano = GetDurationNanoSinceTraceStart(l.ctx.Context())
+	}
+	start := time.Now()
+	return func() {
+		res.cacheTraceDurationNano += time.Since(start).Nanoseconds()
+	}
+}
+
+func (l *Loader) recordCacheTraceL1Read(res *result, cacheKey *CacheKey, hit bool, negative bool, value *astjson.Value) {
+	if res == nil {
+		return
+	}
+	if hit {
+		res.cacheTraceL1Hits++
+		if negative {
+			res.cacheTraceNegativeHits++
+			res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+				Key:      cacheAnalyticsPrimaryKey(cacheKey),
+				Source:   "negative_cache",
+				ByteSize: cacheAnalyticsValueBytes(value),
+			})
+			return
+		}
+		res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+			Key:      cacheAnalyticsPrimaryKey(cacheKey),
+			Source:   "l1",
+			ByteSize: cacheAnalyticsValueBytes(value),
+		})
+		return
+	}
+	res.cacheTraceL1Misses++
+}
+
+func (l *Loader) recordCacheTraceL2Read(res *result, key string, hit bool, negative bool, bytes int, remainingTTL time.Duration) {
+	if res == nil {
+		return
+	}
+	if hit {
+		res.cacheTraceL2Hits++
+		source := "l2"
+		if negative {
+			source = "negative_cache"
+			res.cacheTraceNegativeHits++
+		}
+		entity := CacheTraceEntity{
+			Key:      key,
+			Source:   source,
+			ByteSize: bytes,
+		}
+		if remainingTTL > 0 {
+			entity.RemainingTTLSeconds = remainingTTL.Seconds()
+		}
+		res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, entity)
+		return
+	}
+	res.cacheTraceL2Misses++
+}
+
+func (l *Loader) recordCacheTraceSubgraphSource(res *result, value *astjson.Value) {
+	if res == nil || value == nil || len(res.cacheKeys) == 0 {
+		return
+	}
+	for _, cacheKey := range res.cacheKeys {
+		if cacheKey == nil || cacheKey.FromCache != nil {
+			continue
+		}
+		res.cacheTraceEntityDetails = append(res.cacheTraceEntityDetails, CacheTraceEntity{
+			Key:      cacheAnalyticsPrimaryKey(cacheKey),
+			Source:   "subgraph",
+			ByteSize: cacheAnalyticsValueBytes(value),
+		})
+	}
 }
 
 func cachedValueContainsProvides(value *astjson.Value, provides *Object) bool {

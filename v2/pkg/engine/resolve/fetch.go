@@ -387,6 +387,7 @@ type DataSourceLoadTrace struct {
 	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
 	LoadSkipped                bool            `json:"load_skipped"`
 	LoadStats                  *LoadStats      `json:"load_stats,omitempty"`
+	CacheTrace                 *CacheTrace     `json:"cache_trace,omitempty"`
 	Path                       string          `json:"-"`
 }
 

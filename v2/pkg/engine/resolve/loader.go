@@ -139,7 +139,22 @@ type result struct {
 	cacheMustBeUpdated bool
 	cacheKeys          []*CacheKey
 
-	cacheTraceRequestScopedHits int
+	cacheTraceDurationSinceStartNano int64
+	cacheTraceDurationNano           int64
+	cacheTraceEntityCount            int
+	cacheTraceL2GetAttempted         bool
+	cacheTraceL2SetAttempted         bool
+	cacheTraceL2GetDuration          time.Duration
+	cacheTraceL2SetDuration          time.Duration
+	cacheTraceL2GetError             string
+	cacheTraceL2SetError             string
+	cacheTraceL1Hits                 int
+	cacheTraceL1Misses               int
+	cacheTraceRequestScopedHits      int
+	cacheTraceL2Hits                 int
+	cacheTraceL2Misses               int
+	cacheTraceNegativeHits           int
+	cacheTraceEntityDetails          []CacheTraceEntity
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -281,6 +296,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
+				l.attachCacheTrace(nodes[i].Item.Fetch, results[i].nestedMergeItems[j], fetchCacheConfiguration(nodes[i].Item.Fetch))
 				l.callOnFinished(results[i].nestedMergeItems[j])
 				if err != nil {
 					return errors.WithStack(err)
@@ -288,6 +304,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			}
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
+			l.attachCacheTrace(nodes[i].Item.Fetch, results[i], fetchCacheConfiguration(nodes[i].Item.Fetch))
 			l.callOnFinished(results[i])
 			if err != nil {
 				return errors.WithStack(err)
@@ -317,38 +334,47 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 	case *SingleFetch:
 		res := &result{}
 		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
-			return l.mergeResult(item, res, items)
+			err := l.mergeResult(item, res, items)
+			l.attachCacheTrace(f, res, f.Cache)
+			return err
 		}
 		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
 		if err != nil {
 			return err
 		}
 		err = l.mergeResult(item, res, items)
+		l.attachCacheTrace(f, res, f.Cache)
 		l.callOnFinished(res)
 		return err
 	case *BatchEntityFetch:
 		res := &result{}
 		defer batchEntityToolPool.Put(res.tools)
 		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
-			return l.mergeResult(item, res, items)
+			err := l.mergeResult(item, res, items)
+			l.attachCacheTrace(f, res, f.Cache)
+			return err
 		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
+		l.attachCacheTrace(f, res, f.Cache)
 		l.callOnFinished(res)
 		return err
 	case *EntityFetch:
 		res := &result{}
 		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
-			return l.mergeResult(item, res, items)
+			err := l.mergeResult(item, res, items)
+			l.attachCacheTrace(f, res, f.Cache)
+			return err
 		}
 		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
+		l.attachCacheTrace(f, res, f.Cache)
 		l.callOnFinished(res)
 		return err
 	default:
@@ -1397,16 +1423,20 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 	if !allowed {
 		return nil
 	}
+	finishCacheTrace := l.beginCacheTrace(res)
 	err = l.prepareCacheKeys(fetch.Cache, items, res)
 	if err != nil {
+		finishCacheTrace()
 		return err
 	}
 	if l.tryL1CacheLoad(fetch.Cache, res) || l.tryL2CacheLoad(ctx, fetch.Cache, res) {
+		finishCacheTrace()
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
 		return nil
 	}
+	finishCacheTrace()
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
@@ -1486,16 +1516,20 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 	if !allowed {
 		return nil
 	}
+	finishCacheTrace := l.beginCacheTrace(res)
 	err = l.prepareCacheKeys(fetch.Cache, items, res)
 	if err != nil {
+		finishCacheTrace()
 		return err
 	}
 	if l.tryL1CacheLoad(fetch.Cache, res) || l.tryL2CacheLoad(ctx, fetch.Cache, res) {
+		finishCacheTrace()
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
 		return nil
 	}
+	finishCacheTrace()
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
@@ -1666,11 +1700,14 @@ WithNextItem:
 	if !allowed {
 		return nil
 	}
+	finishCacheTrace := l.beginCacheTrace(res)
 	err = l.prepareBatchCacheKeys(fetch.Cache, res)
 	if err != nil {
+		finishCacheTrace()
 		return err
 	}
 	if allHit, partialHit := l.tryBatchCacheLoad(ctx, fetch.Cache, res); allHit {
+		finishCacheTrace()
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
@@ -1678,14 +1715,17 @@ WithNextItem:
 	} else if partialHit {
 		err = l.mergeBatchCacheHits(fetchItem, res)
 		if err != nil {
+			finishCacheTrace()
 			return err
 		}
 		fetchInput, err = l.reduceBatchEntityFetchInput(fetch, res)
 		if err != nil {
+			finishCacheTrace()
 			return err
 		}
 	}
 
+	finishCacheTrace()
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }

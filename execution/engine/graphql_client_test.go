@@ -87,6 +87,32 @@ func (g *GraphqlClient) QueryStatusCode(ctx context.Context, addr, queryFilePath
 	return responseBodyBytes
 }
 
+func (g *GraphqlClient) QueryStringWithHeaders(ctx context.Context, addr, query string, variables queryVariables, headers http.Header, t *testing.T) ([]byte, http.Header) {
+	reqBody := requestBody(t, query, variables)
+	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
+	require.NoError(t, err)
+	req = req.WithContext(ctx)
+	for key, values := range headers {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+	resp, err := g.httpClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	responseBodyBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+
+	return responseBodyBytes, resp.Header.Clone()
+}
+
+func (g *GraphqlClient) QueryString(ctx context.Context, addr, query string, variables queryVariables, t *testing.T) []byte {
+	resp, _ := g.QueryStringWithHeaders(ctx, addr, query, variables, nil, t)
+	return resp
+}
+
 func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) chan []byte {
 	messageCh := make(chan []byte)
 
