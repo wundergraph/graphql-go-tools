@@ -17,6 +17,7 @@ func coerceNullVariablesWithDefaults(walker *astvisitor.Walker) {
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterOperationVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterLeaveOperationVisitor(visitor)
 }
 
 // nullVariableCoercionWithDefaultsVisitor handles the case where a nullable variable
@@ -33,6 +34,7 @@ func coerceNullVariablesWithDefaults(walker *astvisitor.Walker) {
 // is preserved for other usages where null may be a valid value.
 type nullVariableCoercionWithDefaultsVisitor struct {
 	*astvisitor.Walker
+
 	operation    *ast.Document
 	definition   *ast.Document
 	operationRef int
@@ -124,8 +126,9 @@ func (v *nullVariableCoercionWithDefaultsVisitor) EnterField(ref int) {
 		v.operation.AddVariableDefinitionToOperationDefinition(v.operationRef, newVarValueRefForDef, typeRef)
 	}
 
-	// After processing all arguments for this field, check if the original null
-	// variables are still referenced anywhere. If not, clean them up from the JSON.
+}
+
+func (v *nullVariableCoercionWithDefaultsVisitor) LeaveOperationDefinition(ref int) {
 	v.cleanupUnreferencedNullVariables()
 }
 
@@ -152,7 +155,12 @@ func (v *nullVariableCoercionWithDefaultsVisitor) cleanupUnreferencedNullVariabl
 		}
 
 		// Variable is null and no longer referenced — remove from JSON and AST
-		v.operation.Input.Variables, _ = sjson.DeleteBytes(v.operation.Input.Variables, varName)
+		var deleteErr error
+		v.operation.Input.Variables, deleteErr = sjson.DeleteBytes(v.operation.Input.Variables, varName)
+		if deleteErr != nil {
+			v.StopWithInternalErr(fmt.Errorf("nullVariableCoercionWithDefaultsVisitor: unable to delete variable %s: %w", varName, deleteErr))
+			return
+		}
 	}
 	v.operation.OperationDefinitions[v.operationRef].VariableDefinitions.Refs = cleaned
 	if len(cleaned) == 0 {

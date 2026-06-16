@@ -70,6 +70,7 @@ package astnormalization
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/mondaytweaks"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -287,7 +288,9 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		inputCoercionForList(&variablesProcessing)
 		extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)
-		coerceNullVariablesWithDefaults(&variablesProcessing)
+		if mondaytweaks.CoerceNullVariablesWithDefaults {
+			coerceNullVariablesWithDefaults(&variablesProcessing)
+		}
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "variablesProcessing",
@@ -375,15 +378,19 @@ func NewVariablesNormalizer() *VariablesNormalizer {
 	fourthCoerce := astvisitor.NewWalkerWithID(0, "VariablesCoercion")
 	inputCoercionForList(&fourthCoerce)
 
-	fifthNullCoerce := astvisitor.NewWalkerWithID(8, "NullVariableCoercion")
-	coerceNullVariablesWithDefaults(&fifthNullCoerce)
+	var fifthNullCoercePtr *astvisitor.Walker
+	if mondaytweaks.CoerceNullVariablesWithDefaults {
+		fifthNullCoerce := astvisitor.NewWalkerWithID(8, "NullVariableCoercion")
+		coerceNullVariablesWithDefaults(&fifthNullCoerce)
+		fifthNullCoercePtr = &fifthNullCoerce
+	}
 
 	return &VariablesNormalizer{
 		firstDetectUnused:          &firstDetectUnused,
 		secondExtract:              &secondExtract,
 		thirdDeleteUnused:          &thirdDeleteUnused,
 		fourthCoerce:               &fourthCoerce,
-		fifthNullCoerce:            &fifthNullCoerce,
+		fifthNullCoerce:            fifthNullCoercePtr,
 		variablesExtractionVisitor: variablesExtractionVisitor,
 	}
 }
@@ -405,7 +412,9 @@ func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Docu
 	if report.HasErrors() {
 		return nil
 	}
-	v.fifthNullCoerce.Walk(operation, definition, report)
+	if v.fifthNullCoerce != nil {
+		v.fifthNullCoerce.Walk(operation, definition, report)
+	}
 
 	return v.variablesExtractionVisitor.uploadsPath
 }
