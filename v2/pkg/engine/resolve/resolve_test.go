@@ -7768,7 +7768,7 @@ func Benchmark_NestedBatchingArena(b *testing.B) {
 // hiding them from the GC.
 func TestNestedBatching_GCPressure(t *testing.T) {
 	prevGC := debug.SetGCPercent(1)
-	defer debug.SetGCPercent(prevGC)
+	t.Cleanup(func() { debug.SetGCPercent(prevGC) })
 
 	resolver := newResolver(t.Context())
 	plan, expected := nestedBatchingFixture(t)
