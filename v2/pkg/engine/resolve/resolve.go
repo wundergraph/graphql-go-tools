@@ -1335,8 +1335,8 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return nil
 	}
 
-	if hook, ok := subscription.Trigger.Source.(BeforeTriggerSubscriptionDataSource); ok {
-		input, err = hook.SubscriptionBeforeTrigger(ctx.Context(), input)
+	if hook, ok := subscription.Trigger.Source.(OnCreateSubscriptionDataSource); ok {
+		input, err = hook.SubscriptionOnCreate(ctx.Context(), input)
 		if err != nil {
 			msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
 			return writeFlushComplete(writer, msg)
@@ -1441,8 +1441,8 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return err
 	}
 
-	if hook, ok := subscription.Trigger.Source.(BeforeTriggerSubscriptionDataSource); ok {
-		input, err = hook.SubscriptionBeforeTrigger(ctx.Context(), input)
+	if hook, ok := subscription.Trigger.Source.(OnCreateSubscriptionDataSource); ok {
+		input, err = hook.SubscriptionOnCreate(ctx.Context(), input)
 		if err != nil {
 			msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
 			return writeFlushComplete(writer, msg)
