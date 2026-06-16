@@ -72,6 +72,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/mondaytweaks"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -287,6 +288,9 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		inputCoercionForList(&variablesProcessing)
 		extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)
+		if mondaytweaks.CoerceNullVariablesWithDefaults {
+			coerceNullVariablesWithDefaults(&variablesProcessing)
+		}
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "variablesProcessing",
@@ -396,6 +400,16 @@ func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Docu
 		return nil
 	}
 	v.fourthCoerce.Walk(operation, definition, report)
+
+	if mondaytweaks.CoerceNullVariablesWithDefaults {
+		if report.HasErrors() {
+			return nil
+		}
+
+		nullCoerce := astvisitor.NewWalkerWithID(8, "NullVariableCoercion")
+		coerceNullVariablesWithDefaults(&nullCoerce)
+		nullCoerce.Walk(operation, definition, report)
+	}
 
 	return v.variablesExtractionVisitor.uploadsPath
 }
