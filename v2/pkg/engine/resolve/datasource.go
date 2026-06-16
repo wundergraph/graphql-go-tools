@@ -35,10 +35,12 @@ type HookableSubscriptionDataSource interface {
 	SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error)
 }
 
-// OnCreateSubscriptionDataSource lets a source rewrite the subscription
-// input before the trigger ID is computed and the trigger is created.
-// The returned input is used for both the trigger hash and Source.Start,
-// keeping them consistent.
-type OnCreateSubscriptionDataSource interface {
+// HookablePubsubDatasource is an extension of HookableSubscriptionDataSource for pubsub datasources.
+// They contain additional hooks which make sense for pubsub based datasources but not for normal
+// subscription based datasources.
+type HookablePubsubDatasource interface {
+	HookableSubscriptionDataSource
+	// SubscriptionOnCreate is called right before the trigger gets generated.
+	// It lets a source rewrite the subscription event configuration.
 	SubscriptionOnCreate(ctx context.Context, input []byte) (newInput []byte, err error)
 }
