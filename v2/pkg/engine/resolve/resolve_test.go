@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -5774,6 +5775,11 @@ type _fakeStream struct {
 	subscriptionOnStartFn func(ctx StartupHookContext, input []byte) (err error)
 }
 
+func (f *_fakeStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
+	_, err := xxh.Write(input)
+	return err
+}
+
 func (f *_fakeStream) SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error) {
 	if f.subscriptionOnStartFn == nil {
 		return nil
@@ -7797,6 +7803,11 @@ type startFailStream struct {
 	subBReady chan struct{}
 }
 
+func (s *startFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
+	_, err := xxh.Write(input)
+	return err
+}
+
 func (s *startFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
 	<-s.subBReady
 	return errors.New("connection refused")
@@ -7879,6 +7890,11 @@ type hookFailStream struct {
 	subBRegistered chan struct{}
 	failCtx        context.Context
 	sourceStarted  atomic.Bool
+}
+
+func (s *hookFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
+	_, err := xxh.Write(input)
+	return err
 }
 
 func (s *hookFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
