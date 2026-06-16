@@ -30,12 +30,15 @@ type SubscriptionDataSource interface {
 // The function is called with the context and the input of the subscription.
 // The function is called before the subscription is started and can be used to emit updates to the client.
 type HookableSubscriptionDataSource interface {
-	// SubscriptionOnCreate  is called shortly before the trigger is created / deduplicated.
-	// It is meant to manipulate subscription event configurations.
-	// If an error is returned, the subscription is not created
-	// and a generic error is returned to the client.
-	SubscriptionOnCreate(ctx context.Context, input []byte) (newInput []byte, err error)
 	// SubscriptionOnStart is called when a new subscription is created
 	// If an error is returned, the error is propagated to the client.
 	SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error)
+}
+
+// OnCreateSubscriptionDataSource lets a source rewrite the subscription
+// input before the trigger ID is computed and the trigger is created.
+// The returned input is used for both the trigger hash and Source.Start,
+// keeping them consistent.
+type OnCreateSubscriptionDataSource interface {
+	SubscriptionOnCreate(ctx context.Context, input []byte) (newInput []byte, err error)
 }
