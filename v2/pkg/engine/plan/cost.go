@@ -33,6 +33,7 @@ import (
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/mondaytweaks"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -578,7 +579,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		// the enclosing type is concrete.
 		// Commented condition is a good check for that. Might be needed later:
 		// fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType
-		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
+		if node.isEnclosingTypeAbstract && parent.returnsAbstractType && !mondaytweaks.UseInterfaceDefaultCostForAbstractTypes {
 			// This field is part of the enclosing interface/union.
 			// We look into implementing types and find the max-weighted field.
 			// Found fieldWeight can be used for all the calculations.
@@ -659,7 +660,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 
 		// Directive weights: sum from the field's own DirectiveArgumentWeights,
 		// or from implementing types when the enclosing type is abstract.
-		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
+		if node.isEnclosingTypeAbstract && parent.returnsAbstractType && !mondaytweaks.UseInterfaceDefaultCostForAbstractTypes {
 			for _, weight := range parent.maxDirectiveArgumentWeightsImplementingFields(dsCostConfig, node.fieldCoords.FieldName) {
 				nodeCost.directives += weight
 			}
