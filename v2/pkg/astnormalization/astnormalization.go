@@ -287,6 +287,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		inputCoercionForList(&variablesProcessing)
 		extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)
+		coerceNullVariablesWithDefaults(&variablesProcessing)
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "variablesProcessing",
@@ -350,6 +351,7 @@ type VariablesNormalizer struct {
 	secondExtract              *astvisitor.Walker
 	thirdDeleteUnused          *astvisitor.Walker
 	fourthCoerce               *astvisitor.Walker
+	fifthNullCoerce            *astvisitor.Walker
 	variablesExtractionVisitor *variablesExtractionVisitor
 }
 
@@ -373,11 +375,15 @@ func NewVariablesNormalizer() *VariablesNormalizer {
 	fourthCoerce := astvisitor.NewWalkerWithID(0, "VariablesCoercion")
 	inputCoercionForList(&fourthCoerce)
 
+	fifthNullCoerce := astvisitor.NewWalkerWithID(8, "NullVariableCoercion")
+	coerceNullVariablesWithDefaults(&fifthNullCoerce)
+
 	return &VariablesNormalizer{
 		firstDetectUnused:          &firstDetectUnused,
 		secondExtract:              &secondExtract,
 		thirdDeleteUnused:          &thirdDeleteUnused,
 		fourthCoerce:               &fourthCoerce,
+		fifthNullCoerce:            &fifthNullCoerce,
 		variablesExtractionVisitor: variablesExtractionVisitor,
 	}
 }
@@ -396,6 +402,10 @@ func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Docu
 		return nil
 	}
 	v.fourthCoerce.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return nil
+	}
+	v.fifthNullCoerce.Walk(operation, definition, report)
 
 	return v.variablesExtractionVisitor.uploadsPath
 }
