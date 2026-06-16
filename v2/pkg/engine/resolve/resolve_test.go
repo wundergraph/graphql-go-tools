@@ -6879,9 +6879,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := &Context{
-			ctx: context.Background(),
-		}
+		ctx := NewContext(context.Background())
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -6912,9 +6910,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := &Context{
-			ctx: context.Background(),
-		}
+		ctx := NewContext(context.Background())
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -6940,9 +6936,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
-		ctx := &Context{
-			ctx: context.Background(),
-		}
+		ctx := NewContext(context.Background())
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
@@ -7052,8 +7046,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		id2.ConnectionID = id1.ConnectionID + 1
 		id2.SubscriptionID = id1.SubscriptionID + 1
 
-		ctx1 := &Context{ctx: context.Background()}
-		ctx2 := &Context{ctx: context.Background()}
+		ctx1 := NewContext(context.Background())
+		ctx2 := NewContext(context.Background())
 
 		err1 := resolver1.AsyncResolveGraphQLSubscription(ctx1, plan1, recorder1, id1)
 		assert.NoError(t, err1)
@@ -7111,8 +7105,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		plan2.Trigger.InputTemplate.Segments[0].Data =
 			[]byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { variant_b }"}}`)
 
-		ctx1 := &Context{ctx: context.Background()}
-		ctx2 := &Context{ctx: context.Background()}
+		ctx1 := NewContext(context.Background())
+		ctx2 := NewContext(context.Background())
 
 		err1 := resolver1.AsyncResolveGraphQLSubscription(ctx1, plan1, recorder1, id1)
 		assert.NoError(t, err1)
@@ -7156,8 +7150,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		id2.ConnectionID = id1.ConnectionID + 1
 		id2.SubscriptionID = id1.SubscriptionID + 1
 
-		ctx1 := &Context{ctx: context.Background()}
-		ctx2 := &Context{ctx: context.Background()}
+		ctx1 := NewContext(context.Background())
+		ctx2 := NewContext(context.Background())
 
 		err1 := resolver1.AsyncResolveGraphQLSubscription(ctx1, plan1, recorder1, id1)
 		assert.NoError(t, err1)
