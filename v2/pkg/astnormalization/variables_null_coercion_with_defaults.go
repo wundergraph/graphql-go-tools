@@ -111,9 +111,16 @@ func (v *nullVariableCoercionWithDefaultsVisitor) EnterField(ref int) {
 			continue
 		}
 
-		// Add a new variable definition with the same type (nullable)
+		// Add a new variable definition with a NULLABLE type.
+		// The split variable is intentionally "not provided" so the subgraph uses the
+		// argument's schema default. A non-null variable that is not provided would fail
+		// validation, so we must strip any NonNull wrapper (which may have been added by
+		// extractVariablesDefaultValue when the original variable had a default value).
 		newVarValueRefForDef := v.operation.ImportVariableValue([]byte(newVarName))
 		typeRef := v.operation.VariableDefinitions[varDefRef].Type
+		if v.operation.TypeIsNonNull(typeRef) {
+			typeRef = v.operation.Types[typeRef].OfType
+		}
 		v.operation.AddVariableDefinitionToOperationDefinition(v.operationRef, newVarValueRefForDef, typeRef)
 	}
 

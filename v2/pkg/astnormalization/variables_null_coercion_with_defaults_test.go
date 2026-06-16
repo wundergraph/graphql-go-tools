@@ -134,4 +134,55 @@ func TestNullVariableCoercionWithDefaults(t *testing.T) {
 			`{}`,
 		)
 	})
+
+	t.Run("variable type already non-null - split uses nullable type", func(t *testing.T) {
+		// Simulates what happens after extractVariablesDefaultValue makes
+		// the variable type non-null (because it had a default value).
+		// The split variable must still be nullable to allow "not provided".
+		runNullCoercionTest(t, nullCoercionTestSchema,
+			`query ($limit: Int!) { items_page(limit: $limit) { items { id } } }`,
+			`{"limit":null}`,
+			`query ($limit_ndf_0: Int) { items_page(limit: $limit_ndf_0) { items { id } } }`,
+			`{}`,
+		)
+	})
+
+	t.Run("full VariablesNormalizer flow - variable with default and null value", func(t *testing.T) {
+		// This reproduces the exact user scenario:
+		// query ($itemsLimit: Int = 5) { items_page(limit: $itemsLimit) { ... } }
+		// with variables {"itemsLimit": null}
+		//
+		// extractVariablesDefaultValue runs first and:
+		// 1. Removes the default from AST
+		// 2. Skips injecting default into JSON (because null IS provided)
+		// 3. Makes variable type Int! (because it had a default and is used in non-null pos)
+		//
+		// Then our visitor runs and splits the variable with a nullable type.
+		definitionDocument := unsafeparser.ParseGraphqlDocumentString(nullCoercionTestSchema)
+		err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		operationDocument := unsafeparser.ParseGraphqlDocumentString(
+			`query GetItems($itemsLimit: Int = 5) { items_page(limit: $itemsLimit) { items { id } } }`)
+		operationDocument.Input.Variables = []byte(`{"itemsLimit":null}`)
+
+		report := &operationreport.Report{}
+		normalizer := NewVariablesNormalizer()
+		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, report)
+		if report.HasErrors() {
+			t.Fatal(report.Error())
+		}
+
+		actualOperation := mustString(astprinter.PrintString(&operationDocument))
+		// After normalization: the original variable gets type Int! (from extractVariablesDefaultValue)
+		// and is unreferenced (cleaned up), and the split variable is Int (nullable, not provided)
+		assert.Contains(t, actualOperation, "$itemsLimit_ndf_0: Int")
+		assert.Contains(t, actualOperation, "limit: $itemsLimit_ndf_0")
+		assert.NotContains(t, actualOperation, "$itemsLimit_ndf_0: Int!")
+
+		// The null value should be removed from variables
+		assert.Equal(t, "{}", string(operationDocument.Input.Variables))
+	})
 }
