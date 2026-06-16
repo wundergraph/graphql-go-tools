@@ -130,7 +130,11 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	)
 
 	// Create connection
-	conn := newSSEConnection(resp, handler)
+	var conn *sseConnection
+	// Connections receiving a terminal message will be closed but the connection itself will
+	// not be removed from the transport's connection map until the transport is closed.
+	// This ensures to properly clean up stale connections even when the transport is still active.
+	conn = newSSEConnection(resp, handler, func() { t.removeConn(conn) })
 
 	t.mu.Lock()
 	t.conns[conn] = struct{}{}
