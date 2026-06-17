@@ -53,6 +53,8 @@ type Configuration struct {
 	// When the list size is unknown from directives, this value is used as a default for static cost.
 	StaticCostDefaultListSize int
 
+	SkipImplementingTypesOnAbstract bool
+
 	// RelaxSubgraphOperationFieldSelectionMergingNullability relaxes the nullability validation
 	// for field selection merging in upstream (subgraph) operations when enclosing types are
 	// non-overlapping concrete object types. This is a deliberate spec deviation.

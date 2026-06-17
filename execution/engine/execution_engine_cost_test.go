@@ -1064,6 +1064,315 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			))
 		})
 
+		t.Run("skipImplementingTypesOnAbstract", func(t *testing.T) {
+			t.Run("returned abstract field should return 0 cost", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+									hero { name }
+								}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 7},
+									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
+								},
+								Types: map[string]int{
+									"Human": 13,
+									"Droid": 11,
+								},
+							}},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+					expectedEstimatedCost: intPtr(13), // Query.Human (13)
+					expectedActualCost:    intPtr(13),
+				},
+				computeCosts(),
+				costsWithoutImplementingTypes(),
+			))
+			t.Run("hero field returning interface with concrete fragment", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+								hero { 
+									name 
+									... on Human { height }
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker","height":"12"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Query", FieldName: "hero"}:   {HasWeight: true, Weight: 2},
+									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 3},
+									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 7},
+									{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 17},
+								},
+								Types: map[string]int{
+									"Human": 13,
+								},
+							}},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
+					expectedEstimatedCost: intPtr(5), // Query.hero (2) + Human.height (3)
+					expectedActualCost:    intPtr(5),
+				},
+				computeCosts(),
+				costsWithoutImplementingTypes(),
+			))
+			t.Run("query hero with assumedSize on friends", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+								hero {
+									friends {
+										...on Droid { name primaryFunction }
+										...on Human { name height }
+									}
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
+									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
+									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
+								]}}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 1},
+										{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 2},
+										{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 2},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 5},
+										{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 20},
+									},
+									Types: map[string]int{
+										"Human": 7,
+										"Droid": 5,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+					expectedEstimatedCost: intPtr(107), // max(7,5)+ 10 * (7 + max(2,2+1))
+					expectedActualCost:    intPtr(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
+				},
+				computeCosts(),
+				costsWithoutImplementingTypes(),
+			))
+			t.Run("query hero with assumedSize on friends and weight defined", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+							hero {
+								friends {
+									...on Droid { name primaryFunction }
+									...on Human { name height }
+								}
+							}
+						}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
+									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
+									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
+								]}}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Human", FieldName: "friends"}: {HasWeight: true, Weight: 3},
+										{TypeName: "Droid", FieldName: "friends"}: {HasWeight: true, Weight: 4},
+										{TypeName: "Human", FieldName: "height"}:  {HasWeight: true, Weight: 1},
+										{TypeName: "Human", FieldName: "name"}:    {HasWeight: true, Weight: 2},
+										{TypeName: "Droid", FieldName: "name"}:    {HasWeight: true, Weight: 2},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 5},
+										{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 20},
+									},
+									Types: map[string]int{
+										"Human": 7,
+										"Droid": 5,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+					expectedEstimatedCost: intPtr(107), // hero(max(7,5))+ 10 * (7+max(2, 2+1))
+					expectedActualCost:    intPtr(24),  // hero(7)       +  2 * (6+0.5*(2+2+1))
+				},
+				computeCosts(),
+				costsWithoutImplementingTypes(),
+			))
+			t.Run("named fragment on interface without typenames on friends", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `
+								fragment CharacterFields on Character {
+									name
+									friends { name }
+								}
+								{ hero { ...CharacterFields } }
+								`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									// Is it possible that friends items would be returned without __typename?
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke","friends":[{"name":"Leia"}]}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Query", FieldName: "hero"}: {HasWeight: true, Weight: 2},
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 3},
+										{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 5},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 4},
+										{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 6},
+									},
+									Types: map[string]int{
+										"Human": 2,
+										"Droid": 3,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
+					expectedEstimatedCost: intPtr(32), // 2 + 1*(0 + 10*(3 + 1*0))
+					expectedActualCost:    intPtr(5),  // 2 + 1*(0 +  1*(3 + 1*0))
+				},
+				computeCosts(),
+				costsWithoutImplementingTypes(),
+			))
+
+			t.Run("named fragment on interface with typename on friends", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `
+								fragment CharacterFields on Character {
+									name
+									friends { name }
+								}
+								{ hero { ...CharacterFields } }
+								`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke","friends":[{"__typename":"Human","name":"Leia"}]}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Query", FieldName: "hero"}: {HasWeight: true, Weight: 2},
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 3},
+										{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 5},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 4},
+										{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 6},
+									},
+									Types: map[string]int{
+										"Human": 2,
+										"Droid": 3,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
+					expectedEstimatedCost: intPtr(32), // 2 + 1*(0 + 10*(3 + 1*0))
+					expectedActualCost:    intPtr(4),  // 2 + 1*(0 +  1*(2 + 1*0))
+				},
+				computeCosts(),
+				costsWithoutImplementingTypes(),
+			))
+		})
+
 	})
 
 	t.Run("union types", func(t *testing.T) {

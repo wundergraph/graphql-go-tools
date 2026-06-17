@@ -414,19 +414,27 @@ type costInput struct {
 
 	// isEstimation is true for estimated calculation and false for actual.
 	isEstimation bool
+
+	skipImplementingTypesOnAbstract bool
 }
 
 // newCostInput bundles the cost-calculation inputs.
 // defaultListSize designates the mode of operation.
 // When it is non-negative, then its value is used as a fallback value for list sizes in estimations.
 // Otherwise, it computes the actual cost and uses the typeStats map for list sizes.
-func newCostInput(configs map[DSHash]*DataSourceCostConfig, vars resolve.VariablesView, defaultListSize int, typeStats map[string]resolve.TypeNameStats) *costInput {
+func newCostInput(isEstimation bool, c *CostCalculator, vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats) *costInput {
+	defaultLS := c.defaultListSize
+	if !isEstimation {
+		defaultLS = actualCostMode
+	}
 	return &costInput{
-		configs:         configs,
+		configs:         c.costConfigs,
 		vars:            vars,
-		defaultListSize: defaultListSize,
+		defaultListSize: defaultLS,
 		typeStats:       typeStats,
-		isEstimation:    defaultListSize >= 0,
+		isEstimation:    isEstimation,
+
+		skipImplementingTypesOnAbstract: c.skipImplementingTypesOnAbstract,
 	}
 }
 
@@ -578,7 +586,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		// the enclosing type is concrete.
 		// Commented condition is a good check for that. Might be needed later:
 		// fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType
-		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
+		if node.isEnclosingTypeAbstract && parent.returnsAbstractType && !input.skipImplementingTypesOnAbstract {
 			// This field is part of the enclosing interface/union.
 			// We look into implementing types and find the max-weighted field.
 			// Found fieldWeight can be used for all the calculations.
@@ -659,7 +667,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 
 		// Directive weights: sum from the field's own DirectiveArgumentWeights,
 		// or from implementing types when the enclosing type is abstract.
-		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
+		if node.isEnclosingTypeAbstract && parent.returnsAbstractType && !input.skipImplementingTypesOnAbstract {
 			for _, weight := range parent.maxDirectiveArgumentWeightsImplementingFields(dsCostConfig, node.fieldCoords.FieldName) {
 				nodeCost.directives += weight
 			}
@@ -859,6 +867,8 @@ type CostCalculator struct {
 
 	// defaultListSize is used as a fallback for list sizes when no specific size is provided.
 	defaultListSize int
+
+	skipImplementingTypesOnAbstract bool
 }
 
 // NewCostCalculator creates a new cost calculator. The defaultListSize is floored to 1.
@@ -874,22 +884,24 @@ func NewCostCalculator(config Configuration) *CostCalculator {
 		}
 		c.costConfigs[ds.Hash()] = dsCostConfig
 	}
-	c.defaultListSize = max(config.StaticCostDefaultListSize,
-		// Zero would estimate all lists as zero.
-		1)
+	// Zero would estimate all lists as zero.
+	c.defaultListSize = max(config.StaticCostDefaultListSize, 1)
+	c.skipImplementingTypesOnAbstract = config.SkipImplementingTypesOnAbstract
 	return &c
 }
 
 // EstimateCost returns the calculated total static cost.
 // config should be static per process or instance. vars could change between requests.
 func (c *CostCalculator) EstimateCost(vars resolve.VariablesView) int {
-	input := newCostInput(c.costConfigs, vars, c.defaultListSize, nil)
+	input := newCostInput(true, c, vars, nil)
+	// fmt.Println(c.DebugPrint(vars, nil))
 	return int(math.RoundToEven(c.tree.cost(input)))
 }
 
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
 func (c *CostCalculator) ActualCost(vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats) int {
-	input := newCostInput(c.costConfigs, vars, actualCostMode, typeStats)
+	input := newCostInput(false, c, vars, typeStats)
+	// fmt.Println(c.DebugPrint(vars, typeStats))
 	return int(math.RoundToEven(c.tree.cost(input)))
 }
 
@@ -980,11 +992,11 @@ func (c *CostCalculator) DebugPrint(vars resolve.VariablesView, typeStats map[st
 	var sb strings.Builder
 	var input *costInput
 	if typeStats != nil {
-		input = newCostInput(c.costConfigs, vars, actualCostMode, typeStats)
+		input = newCostInput(false, c, vars, typeStats)
 		sb.WriteString("Actual Cost Tree Debug\n")
 		sb.WriteString("======================\n")
 	} else {
-		input = newCostInput(c.costConfigs, vars, c.defaultListSize, typeStats)
+		input = newCostInput(true, c, vars, typeStats)
 		sb.WriteString("Estimated Cost Tree Debug\n")
 		sb.WriteString("=========================\n")
 	}
