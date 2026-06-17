@@ -215,23 +215,6 @@ func (v *requiredFieldsVisitor) fieldHasDeferInternal(fieldRef int) bool {
 	return exists
 }
 
-// fieldDeferID returns the "id" argument value of the @__defer_internal directive
-// on fieldRef, or "" if the directive is not present.
-func (v *requiredFieldsVisitor) fieldDeferID(fieldRef int) int {
-	for _, dirRef := range v.config.operation.Fields[fieldRef].Directives.Refs {
-		if !bytes.Equal(v.config.operation.DirectiveNameBytes(dirRef), literal.DEFER_INTERNAL) {
-			continue // not the right directive
-		}
-		// found @__defer_internal — extract the "id" argument
-		val, ok := v.config.operation.DirectiveArgumentValueByName(dirRef, []byte("id"))
-		if !ok || val.Kind != ast.ValueKindInteger {
-			continue
-		}
-		return int(v.config.operation.IntValueAsInt(val.Ref))
-	}
-	return 0
-}
-
 type deferAliasResult struct {
 	addAlias       bool
 	includeDeferID bool
@@ -273,7 +256,7 @@ func (v *requiredFieldsVisitor) resolveDeferredAlias(fieldName ast.ByteSlice, se
 		// no alias yet — create the simple one
 		return deferAliasResult{addAlias: true, reuseFieldRef: ast.InvalidRef}
 	}
-	if v.fieldDeferID(existingRef) == effectiveID {
+	if existingDeferID, _ := v.config.operation.FieldInternalDeferID(existingRef); existingDeferID == effectiveID {
 		// simple alias already belongs to this defer scope — reuse it
 		return deferAliasResult{reuseFieldRef: existingRef}
 	}
