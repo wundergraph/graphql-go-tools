@@ -46,6 +46,12 @@ func FetchItemWithPath(fetch Fetch, responsePath string, path ...FetchItemPathEl
 
 // EqualSingleFetch compares two FetchItem for equality, both items should be of kind FetchKindSingle
 func (f *FetchItem) EqualSingleFetch(other *FetchItem) bool {
+	// A fetch and a deferred fetch with otherwise-identical config belong to
+	// different defer scopes and must not be deduplicated/merged together.
+	if f.Fetch.Dependencies().DeferID != other.Fetch.Dependencies().DeferID {
+		return false
+	}
+
 	if len(f.FetchPath) != len(other.FetchPath) {
 		return false
 	}
