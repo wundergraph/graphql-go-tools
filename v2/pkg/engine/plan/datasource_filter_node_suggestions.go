@@ -195,7 +195,7 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 		}
 	}
 
-	if f.items[i].IsRootNode && hasRequiresKey || hasKeyDependency {
+	if (f.items[i].IsRootNode && hasRequiresKey) || hasKeyDependency {
 		return
 	}
 
