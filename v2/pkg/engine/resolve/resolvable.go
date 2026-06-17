@@ -871,7 +871,7 @@ func (r *Resolvable) collectDeferFields(obj *Object) (renderFields map[int]struc
 	passThroughFields = make(map[int]struct{})
 
 	for i := range obj.Fields {
-		if r.shoulSkipObjectFieldByTypenames(obj.Fields[i]) {
+		if r.shouldSkipFieldByTypeCondition(obj.Fields[i]) {
 			continue
 		}
 
@@ -971,7 +971,7 @@ func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjs
 				}
 			}
 		} else {
-			if r.shoulSkipObjectFieldByTypenames(obj.Fields[i]) {
+			if r.shouldSkipFieldByTypeCondition(obj.Fields[i]) {
 				continue
 			}
 		}
@@ -1038,7 +1038,7 @@ func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjs
 	return false
 }
 
-func (r *Resolvable) shoulSkipObjectFieldByTypenames(field *Field) bool {
+func (r *Resolvable) shouldSkipFieldByTypeCondition(field *Field) bool {
 	if field.ParentOnTypeNames != nil && r.skipFieldOnParentTypeNames(field) {
 		return true
 	}
