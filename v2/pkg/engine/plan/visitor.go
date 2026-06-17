@@ -847,7 +847,7 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			// However, we can do that only after the field, which we are currently creating, will be added to the parent object fields.
 			// So we defer this action to be executed right after the current field is added to the parent object fields slice.
 			// This is more simple than analyzing resolve.Node, because this object could be nested in a list.
-			v.Walker.DefferOnEnterField(func() {
+			v.Walker.RunAfterEnterField(func() {
 				v.objectFieldsStack = append(v.objectFieldsStack, objectFields{
 					popOnField: fieldRef,
 					fields:     &object.Fields,
