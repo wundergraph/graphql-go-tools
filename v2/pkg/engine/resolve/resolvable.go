@@ -801,9 +801,9 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 	}()
 
 	if r.deferMode {
-		deferFields, seekFiels := r.collectDeferFields(obj)
+		renderFields, passThroughFields := r.collectDeferFields(obj)
 
-		if len(deferFields) > 0 {
+		if len(renderFields) > 0 {
 			startedRender := false
 
 			if !r.enableDeferRender {
@@ -828,7 +828,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			}
 
 			// render initial batch of fields
-			hasErrors := r.walkFields(obj, value, parent, walkFieldsFilter{deferFields: deferFields, seek: false, enabled: true})
+			hasErrors := r.walkFields(obj, value, parent, walkFieldsFilter{renderFields: renderFields, passThrough: false, enabled: true})
 
 			if startedRender {
 				if r.deferID != 0 {
@@ -847,9 +847,9 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			}
 		}
 
-		if r.deferID != 0 && len(seekFiels) > 0 {
-			// seek for additional nested defer fields
-			if r.walkFields(obj, value, parent, walkFieldsFilter{seekFields: seekFiels, seek: true, enabled: true}) {
+		if r.deferID != 0 && len(passThroughFields) > 0 {
+			// passThrough for additional nested defer fields
+			if r.walkFields(obj, value, parent, walkFieldsFilter{passThroughFields: passThroughFields, passThrough: true, enabled: true}) {
 				return true
 			}
 		}
@@ -866,9 +866,9 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct{}, seekFields map[int]struct{}) {
-	deferFields = make(map[int]struct{})
-	seekFields = make(map[int]struct{})
+func (r *Resolvable) collectDeferFields(obj *Object) (renderFields map[int]struct{}, passThroughFields map[int]struct{}) {
+	renderFields = make(map[int]struct{})
+	passThroughFields = make(map[int]struct{})
 
 	for i := range obj.Fields {
 		if r.shoulSkipObjectFieldByTypenames(obj.Fields[i]) {
@@ -884,22 +884,22 @@ func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct
 			}
 
 			// collect object fields without defer
-			deferFields[i] = struct{}{}
+			renderFields[i] = struct{}{}
 		}
 
 		// we are rendering defer response
 
-		// collect fields without defer into seek fields
+		// collect fields without defer into passThrough fields
 		if obj.Fields[i].Defer == nil {
 			if !r.fieldNodeKindAllowsSeek(obj.Fields[i]) {
 				continue
 			}
 
-			seekFields[i] = struct{}{}
+			passThroughFields[i] = struct{}{}
 			continue
 		}
 
-		// allow to seek fields with other defer ids
+		// allow to passThrough fields with other defer ids
 		if obj.Fields[i].Defer.DeferID != r.deferID {
 			// but only if their id is smaller than current,
 			// which means this nodes already was fetched,
@@ -915,12 +915,12 @@ func (r *Resolvable) collectDeferFields(obj *Object) (deferFields map[int]struct
 				continue
 			}
 
-			seekFields[i] = struct{}{}
+			passThroughFields[i] = struct{}{}
 			continue
 		}
 
 		// store fields with matching defer id
-		deferFields[i] = struct{}{}
+		renderFields[i] = struct{}{}
 	}
 
 	return
@@ -946,10 +946,10 @@ func (r *Resolvable) fieldNodeKindAllowsSeek(field *Field) bool {
 }
 
 type walkFieldsFilter struct {
-	deferFields map[int]struct{}
-	seekFields  map[int]struct{}
-	seek        bool
-	enabled     bool
+	renderFields      map[int]struct{}
+	passThroughFields map[int]struct{}
+	passThrough       bool
+	enabled           bool
 }
 
 func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjson.Value, filter walkFieldsFilter) (hasErrors bool) {
@@ -957,16 +957,16 @@ func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjs
 
 	for i := range obj.Fields {
 		if filter.enabled {
-			// if mode is seek
-			if filter.seek {
+			// if mode is passThrough
+			if filter.passThrough {
 				// skip all fields to which we should not go into
-				if _, ok := filter.seekFields[i]; !ok {
+				if _, ok := filter.passThroughFields[i]; !ok {
 					continue
 				}
 			} else {
 				// if mode is render
 				// skip all fields that we should not render
-				if _, ok := filter.deferFields[i]; !ok {
+				if _, ok := filter.renderFields[i]; !ok {
 					continue
 				}
 			}
