@@ -82,6 +82,40 @@ func TestResolvable_Resolve(t *testing.T) {
 	assert.Equal(t, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`, out.String())
 }
 
+func TestResolvable_printDeferTraceExtension(t *testing.T) {
+	t.Run("emits trace extension when tracing enabled", func(t *testing.T) {
+		res := NewResolvable(nil, ResolvableOptions{})
+		ctx := &Context{}
+		ctx.TracingOptions.Enable = true
+		ctx.TracingOptions.IncludeTraceOutputInResponseExtensions = true
+		assert.NoError(t, res.Init(ctx, []byte(`{}`), ast.OperationTypeQuery))
+
+		out := &bytes.Buffer{}
+		res.out = out
+		res.traceCtx = context.Background()
+		res.currentDeferFetches = Sequence()
+
+		res.printDeferTraceExtension()
+		assert.NoError(t, res.printErr)
+		assert.Contains(t, out.String(), `"extensions"`)
+		assert.Contains(t, out.String(), `"trace"`)
+	})
+
+	t.Run("emits nothing when tracing disabled", func(t *testing.T) {
+		res := NewResolvable(nil, ResolvableOptions{})
+		assert.NoError(t, res.Init(&Context{}, []byte(`{}`), ast.OperationTypeQuery))
+
+		out := &bytes.Buffer{}
+		res.out = out
+		res.traceCtx = context.Background()
+		res.currentDeferFetches = Sequence()
+
+		res.printDeferTraceExtension()
+		assert.NoError(t, res.printErr)
+		assert.Empty(t, out.String())
+	})
+}
+
 func TestResolvable_ResolveWithTypeMismatch(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":true}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(nil, ResolvableOptions{})

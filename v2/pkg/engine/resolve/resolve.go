@@ -492,7 +492,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 
 			t.resolvable.deferID = deferGroup.DeferID
 
-			err = t.resolvable.ResolveDefer(response.Response.Data, writer, i < len(response.Defers)-1)
+			err = t.resolvable.ResolveDefer(ctx.ctx, deferGroup.Fetches, response.Response.Data, writer, i < len(response.Defers)-1)
 			if err != nil {
 				return nil, err
 			}

@@ -56,6 +56,11 @@ type Resolvable struct {
 	skipValueCompletion bool
 	deferMode           bool
 	deferID             int
+	// currentDeferFetches and traceCtx carry the fetch tree and context of the
+	// defer group currently being rendered, so each incremental chunk can emit
+	// its own trace extension. Set by ResolveDefer.
+	currentDeferFetches *FetchTreeNode
+	traceCtx            context.Context
 
 	typeNames [][]byte
 
@@ -263,10 +268,12 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	return r.printErr
 }
 
-func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool) error {
+func (r *Resolvable) ResolveDefer(ctx context.Context, fetchTree *FetchTreeNode, rootData *Object, out io.Writer, hasNext bool) error {
 	r.out = out
 	r.printErr = nil
 	r.authorizationError = nil
+	r.traceCtx = ctx
+	r.currentDeferFetches = fetchTree
 
 	// This method acts as a generator for the incremental response
 	// It will print the incremental response envelope and then use walkObject to find and render the deferred fields
@@ -377,6 +384,33 @@ func (r *Resolvable) printDeferEnvelopeClose() {
 	r.printBytes(rBrace)
 	r.printBytes(comma)
 	r.printDeferPathAndErrors()
+	r.printDeferTraceExtension()
+	r.printBytes(rBrace)
+}
+
+// printDeferTraceExtension appends an "extensions":{"trace":{...}} object to the
+// current incremental item when tracing is enabled, scoped to the fetch tree of
+// the defer group being rendered (set by ResolveDefer). Each chunk thus carries
+// the trace of its own defer group.
+func (r *Resolvable) printDeferTraceExtension() {
+	if r.printErr != nil {
+		return
+	}
+	if !(r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions) {
+		return
+	}
+	if r.currentDeferFetches == nil {
+		return
+	}
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalExtensions)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+	if err := r.printTraceExtension(r.traceCtx, r.currentDeferFetches); err != nil {
+		r.printErr = err
+	}
 	r.printBytes(rBrace)
 }
 
@@ -392,6 +426,7 @@ func (r *Resolvable) printDeferEnvelopeNullData() {
 	r.printBytes(null)
 	r.printBytes(comma)
 	r.printDeferPathAndErrors()
+	r.printDeferTraceExtension()
 	r.printBytes(rBrace)
 }
 
