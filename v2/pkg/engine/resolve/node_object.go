@@ -103,11 +103,16 @@ type ParentOnTypeNames struct {
 }
 
 func (f *Field) Copy() *Field {
+	var deferField *DeferField
+	if f.Defer != nil {
+		cp := *f.Defer
+		deferField = &cp
+	}
 	return &Field{
 		Name:        f.Name,
 		Value:       f.Value.Copy(),
 		Position:    f.Position,
-		Defer:       f.Defer,
+		Defer:       deferField,
 		Stream:      f.Stream,
 		OnTypeNames: f.OnTypeNames,
 		Info:        f.Info,
