@@ -41,8 +41,8 @@ func (d *extractDeferFetches) Process(deferPlan *plan.DeferResponsePlan) {
 	}
 }
 
-func (d *extractDeferFetches) fetchGroups(deferPlan *plan.DeferResponsePlan) (root []*resolve.FetchTreeNode, deffered map[int][]*resolve.FetchTreeNode) {
-	fetchGroups := make(map[int][]*resolve.FetchTreeNode)
+func (d *extractDeferFetches) fetchGroups(deferPlan *plan.DeferResponsePlan) (root []*resolve.FetchTreeNode, fetchGroups map[int][]*resolve.FetchTreeNode) {
+	fetchGroups = make(map[int][]*resolve.FetchTreeNode)
 
 	for _, fetch := range deferPlan.Response.Response.Fetches.ChildNodes {
 		deferID := fetch.Item.Fetch.Dependencies().DeferID
