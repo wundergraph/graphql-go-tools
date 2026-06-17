@@ -586,20 +586,21 @@ func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.
 }
 
 func (v *requiredFieldsVisitor) applyDeferInternalDirective(fieldRef int) {
-	if v.config.deferInfo == nil {
-		return
-	}
-
 	// when we are adding required fields from the requires directive
 	if !v.config.isKey {
+		if v.config.deferInfo == nil {
+			return
+		}
 		// required fields should land in the same scope as the current field
 		// to be fetched in the same defer group, but not in the parent scope
 		v.config.operation.AddDeferInternalDirectiveToField(fieldRef, v.config.deferInfo.ID, v.config.deferInfo.Label, v.config.deferInfo.ParentID)
 		return
 	}
 
-	// when we are adding key fields
-	// and the parent field has the defer id
+	// when we are adding key fields and the parent field has a defer id.
+	// This can happen even when the key field itself is not deferred (deferInfo == nil):
+	// a key field nested under a deferred parent must still be scoped to the parent's
+	// defer id, otherwise it would be planned in the initial (unscoped) group.
 	if v.config.parentFieldDeferID != 0 {
 		// for key fields: use parentFieldDeferID as the id
 		// key should be in scope of the parent defer id, not be the deferred inside the same fragment,
