@@ -476,6 +476,9 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		}
 
 		if t.resolvable.hasErrors() {
+			// errors are already written into the initial payload;
+			// terminate the incremental stream
+			writer.Complete()
 			return resolveInfo, nil
 		}
 
