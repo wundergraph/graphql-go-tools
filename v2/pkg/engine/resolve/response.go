@@ -1,9 +1,7 @@
 package resolve
 
 import (
-	"fmt"
 	"io"
-	"strings"
 
 	"github.com/gobwas/ws"
 
@@ -64,27 +62,15 @@ type GraphQLDeferResponse struct {
 }
 
 func (r *GraphQLDeferResponse) QueryPlanString() string {
-	indent := func(s string) string {
-		return strings.ReplaceAll(s, "\n", "\n    ")
-	}
-
-	primary := indent(r.Response.Fetches.QueryPlan().PrettyPrint())
-	var secondary []string
-
+	printer := PlanPrinter{}
+	parts := make([]DeferPart, 0, len(r.Defers))
 	for _, g := range r.Defers {
-		secondary = append(secondary, strings.ReplaceAll(g.Fetches.QueryPlan().PrettyPrint(), "\n", "\n    "))
+		parts = append(parts, DeferPart{
+			DeferID: g.DeferID,
+			Node:    g.Fetches.QueryPlan(),
+		})
 	}
-
-	return fmt.Sprintf(`
-QueryPlan {
-  Primary {
-	%s
-  }
-  Deferred [
-    %s
-  ]
-}
-`, primary, strings.Join(secondary, "\n"))
+	return printer.PrintDefer(r.Response.Fetches.QueryPlan(), parts)
 }
 
 type DeferFetchGroup struct {

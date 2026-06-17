@@ -9,6 +9,50 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
+func TestGraphQLDeferResponse_QueryPlanString(t *testing.T) {
+	singleFetch := func(fetchID, deferID int, name, path, query string) *FetchTreeNode {
+		seq := Sequence()
+		seq.ChildNodes = []*FetchTreeNode{{
+			Kind: FetchTreeNodeKindSingle,
+			Item: &FetchItem{
+				Fetch: &SingleFetch{
+					FetchDependencies: FetchDependencies{FetchID: fetchID, DeferID: deferID},
+					Info: &FetchInfo{
+						DataSourceID:   name,
+						DataSourceName: name,
+						OperationType:  ast.OperationTypeQuery,
+						QueryPlan:      &QueryPlan{Query: query},
+					},
+				},
+				ResponsePath: path,
+			},
+		}}
+		return seq
+	}
+
+	resp := &GraphQLDeferResponse{
+		Response: &GraphQLResponse{
+			Fetches: singleFetch(0, 0, "users", "", "query {\n    me {\n        name\n    }\n}"),
+		},
+		Defers: []*DeferFetchGroup{
+			{DeferID: 1, Fetches: singleFetch(1, 1, "reviews", "me", "query {\n    me {\n        reviews\n    }\n}")},
+		},
+	}
+
+	actual := resp.QueryPlanString()
+
+	// Structural assertions (indentation-independent): a Defer wrapper with a
+	// Primary block and one Deferred(deferID:) block, each carrying its fetch.
+	assert.Contains(t, actual, "QueryPlan {")
+	assert.Contains(t, actual, "Defer {")
+	assert.Contains(t, actual, "Primary {")
+	assert.Contains(t, actual, `Fetch(service: "users")`)
+	assert.Contains(t, actual, "Deferred(deferID: 1) {")
+	assert.Contains(t, actual, `Fetch(service: "reviews")`)
+	// Primary must come before the deferred group.
+	assert.Less(t, strings.Index(actual, "Primary {"), strings.Index(actual, "Deferred(deferID: 1)"))
+}
+
 func TestFetchTreeQueryPlanNode_PrettyPrint_Trigger(t *testing.T) {
 	t.Run("just a trigger", func(t *testing.T) {
 		fetches := Sequence()

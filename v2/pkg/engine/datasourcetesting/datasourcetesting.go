@@ -253,6 +253,8 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			switch p := actualPlan.(type) {
 			case *plan.SynchronousResponsePlan:
 				t.Log("\n", p.Response.Fetches.QueryPlan().PrettyPrint())
+			case *plan.DeferResponsePlan:
+				t.Log("\n", p.Response.QueryPlanString())
 			default:
 			}
 		}

@@ -273,6 +273,45 @@ func (p *PlanPrinter) Print(plan *FetchTreeQueryPlanNode) string {
 	return p.buf.String()
 }
 
+// DeferPart is the printer-facing view of one deferred fetch group.
+type DeferPart struct {
+	DeferID int
+	Node    *FetchTreeQueryPlanNode
+}
+
+// PrintDefer renders a deferred query plan as a
+// QueryPlan { Defer { Primary { ... }, [ Deferred(...) { ... } ] } } tree,
+// mirroring Apollo's Defer/Primary/Deferred shape. The primary node is the
+// initial (non-deferred) fetch tree; each part is one deferred group.
+func (p *PlanPrinter) PrintDefer(primary *FetchTreeQueryPlanNode, parts []DeferPart) string {
+	p.buf.Reset()
+
+	p.print("QueryPlan {")
+	p.depth++
+	p.print("Defer {")
+	p.depth++
+
+	p.print("Primary {")
+	p.printPlanNode(primary, true)
+	p.print("}, [")
+
+	p.depth++
+	for _, part := range parts {
+		p.print(fmt.Sprintf("Deferred(deferID: %d) {", part.DeferID))
+		p.printPlanNode(part.Node, true)
+		p.print("},")
+	}
+	p.depth--
+	p.print("]")
+
+	p.depth--
+	p.print("},") // Defer
+	p.depth--
+	p.print("}") // QueryPlan
+
+	return p.buf.String()
+}
+
 func (p *PlanPrinter) printPlanNode(plan *FetchTreeQueryPlanNode, increaseDepth bool) {
 	if increaseDepth {
 		p.depth++
