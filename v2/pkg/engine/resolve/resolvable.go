@@ -934,7 +934,7 @@ func (r *Resolvable) fieldNodeKindAllowsSeek(field *Field) bool {
 			return false
 		}
 
-		// skip array if it's item do not have an object kind
+		// Skip array if its item type is not an object kind.
 		if field.Value.(*Array).Item.NodeKind() != NodeKindObject {
 			// we could have a nested array,
 			// but we do not care for now

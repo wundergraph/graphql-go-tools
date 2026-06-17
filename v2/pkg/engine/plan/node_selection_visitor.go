@@ -289,8 +289,16 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 	}
 }
 
-// wrappingFieldDeferID walks the walker ancestors in reverse to find the nearest wrapping field
-// that has a @__defer_internal directive and returns its "id" argument value.
+// wrappingFieldDeferID returns the defer id of the nearest wrapping field, or 0
+// if the current field is not inside a defer scope.
+//
+// It is enough to inspect the nearest field ancestor: the defer normalization
+// (astnormalization.deferExpandIntoInternal) stamps @__defer_internal onto every
+// field in every selection set inside a deferred fragment. So if the nearest
+// field ancestor carries the directive, this field is deferred under it; if it
+// does not, this field is outside any defer scope. That is why we return 0
+// immediately when the nearest field ancestor lacks the directive instead of
+// continuing to climb.
 func (c *nodeSelectionVisitor) wrappingFieldDeferID() int {
 	for i := len(c.walker.Ancestors) - 1; i >= 0; i-- {
 		ancestor := c.walker.Ancestors[i]
@@ -299,6 +307,7 @@ func (c *nodeSelectionVisitor) wrappingFieldDeferID() int {
 		}
 		id, exists := c.operation.FieldInternalDeferID(ancestor.Ref)
 		if !exists {
+			// nearest field ancestor is not deferred -> not in a defer scope
 			return 0
 		}
 		return id

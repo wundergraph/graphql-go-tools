@@ -46,6 +46,8 @@ func (d *extractDeferFetches) fetchGroups(deferPlan *plan.DeferResponsePlan) (ro
 
 	for _, fetch := range deferPlan.Response.Response.Fetches.ChildNodes {
 		deferID := fetch.Item.Fetch.Dependencies().DeferID
+		// DeferID 0 means the fetch is not deferred: it belongs to the initial
+		// (non-deferred) response, so it goes into the root group.
 		if deferID == 0 {
 			root = append(root, fetch)
 			continue

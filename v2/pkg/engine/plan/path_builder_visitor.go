@@ -745,10 +745,11 @@ func (c *pathBuilderVisitor) hasFieldsWaitingForDependency() bool {
 	return len(c.fieldDependsOn) > 0
 }
 
-// addFieldDependencies adds dependencies between planners based on @requires directive
-// in case current field has @requires directive, and we were able to plan it - it means that all fields from requires selection set was planned before that.
-// So we need to notify planner of current fieldRef about dependencies on those other fields
-// we know where fields were planned, because we record planner id of each planned field
+// addFieldDependencies adds dependencies between planners based on the @requires directive.
+// If the current field has a @requires directive and we were able to plan it, it means that all fields
+// from the requires selection set were planned before it.
+// Hence, we need to notify the planner of the current fieldRef about dependencies on those other fields.
+// We know where fields were planned because we record the planner ID of each planned field.
 func (c *pathBuilderVisitor) addFieldDependencies(field *currentFieldInfo, currentPlannerIdx int) {
 	dsHash := c.planners[currentPlannerIdx].DataSourceConfiguration().Hash()
 	fieldKey := fieldIndexKey{field.fieldRef, dsHash}
