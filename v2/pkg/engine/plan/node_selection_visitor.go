@@ -86,8 +86,8 @@ type pendingKeyRequirementExistsKey struct {
 }
 
 type pendingKeyRequirements struct {
-	existsTracker      map[pendingKeyRequirementExistsKey]struct{} // existsTracker allows us to not add duplicated keyRequirements
-	requirementConfigs []keyRequirements                           // requirementConfigs is a list of keyRequirements which should be added to the selection set
+	existsTracker      map[pendingKeyRequirementExistsKey]int // maps an exists key to the index of its keyRequirements config (dedupe + direct lookup)
+	requirementConfigs []keyRequirements                      // requirementConfigs is a list of keyRequirements which should be added to the selection set
 }
 
 // keyRequirements is a mapping between requestedByPlannerID or requestedByFieldRef, which requested required fields,
@@ -114,8 +114,8 @@ type fieldRequirements struct {
 }
 
 type pendingFieldRequirements struct {
-	existsTracker      map[pendingFieldRequirementExistsKey]struct{} // existsTracker allows us to not add duplicated fieldRequirements
-	requirementConfigs []fieldRequirements                           // requirementConfigs is a list of fieldRequirements which should be added to the selection set
+	existsTracker      map[pendingFieldRequirementExistsKey]int // maps an exists key to the index of its fieldRequirements config (dedupe + direct lookup)
+	requirementConfigs []fieldRequirements                      // requirementConfigs is a list of fieldRequirements which should be added to the selection set
 }
 
 type pendingFieldRequirementExistsKey struct {
@@ -503,7 +503,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 	requirements, hasRequirements := c.pendingFieldRequirements[currentSelectionSet]
 	if !hasRequirements {
 		requirements = pendingFieldRequirements{
-			existsTracker: make(map[pendingFieldRequirementExistsKey]struct{}),
+			existsTracker: make(map[pendingFieldRequirementExistsKey]int),
 		}
 	}
 
@@ -512,7 +512,13 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 		deferID = fieldCtx.deferInfo.ID
 	}
 	existsKey := pendingFieldRequirementExistsKey{fieldCtx.dsConfig.Hash(), fieldConfiguration.SelectionSet, isTypenameForEntityInterface, deferID}
-	if _, exists := requirements.existsTracker[existsKey]; !exists {
+	if idx, exists := requirements.existsTracker[existsKey]; exists {
+		// already tracked for this scope (including deferID) - just record the requesting field ref
+		cfg := &requirements.requirementConfigs[idx]
+		if !slices.Contains(cfg.requestedByFieldRefs, fieldCtx.fieldRef) {
+			cfg.requestedByFieldRefs = append(cfg.requestedByFieldRefs, fieldCtx.fieldRef)
+		}
+	} else {
 		config := fieldRequirements{
 			dsHash:                       fieldCtx.dsConfig.Hash(),
 			path:                         fieldCtx.currentPath,
@@ -523,21 +529,8 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 			parentFieldDeferID:           fieldCtx.parentFieldDeferID,
 		}
 
-		requirements.existsTracker[existsKey] = struct{}{}
+		requirements.existsTracker[existsKey] = len(requirements.requirementConfigs)
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
-	} else {
-		for i := range requirements.requirementConfigs {
-			cfg := &requirements.requirementConfigs[i]
-			sameSelectionSet := cfg.selectionSet == fieldConfiguration.SelectionSet
-			sameDS := cfg.dsHash == fieldCtx.dsConfig.Hash()
-			sameTypenameForEntityInterface := cfg.isTypenameForEntityInterface == isTypenameForEntityInterface
-			if sameSelectionSet && sameDS && sameTypenameForEntityInterface {
-				if !slices.Contains(cfg.requestedByFieldRefs, fieldCtx.fieldRef) {
-					cfg.requestedByFieldRefs = append(cfg.requestedByFieldRefs, fieldCtx.fieldRef)
-				}
-				break
-			}
-		}
 	}
 
 	c.pendingFieldRequirements[currentSelectionSet] = requirements
@@ -550,7 +543,7 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 
 	if !hasRequirements {
 		requirements = pendingKeyRequirements{
-			existsTracker: make(map[pendingKeyRequirementExistsKey]struct{}),
+			existsTracker: make(map[pendingKeyRequirementExistsKey]int),
 		}
 	}
 
@@ -559,7 +552,13 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 		deferID = fieldCtx.deferInfo.ID
 	}
 	existsKey := pendingKeyRequirementExistsKey{dsHash: fieldCtx.dsConfig.Hash(), deferID: deferID}
-	if _, exists := requirements.existsTracker[existsKey]; !exists {
+	if idx, exists := requirements.existsTracker[existsKey]; exists {
+		// already tracked for this (dsHash, deferID) scope - just record the requesting field ref
+		cfg := &requirements.requirementConfigs[idx]
+		if !slices.Contains(cfg.requestedByFieldRefs, fieldCtx.fieldRef) {
+			cfg.requestedByFieldRefs = append(cfg.requestedByFieldRefs, fieldCtx.fieldRef)
+		}
+	} else {
 		config := keyRequirements{
 			targetDSHash:         fieldCtx.dsConfig.Hash(),
 			path:                 fieldCtx.parentPath,
@@ -571,17 +570,8 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 			parentFieldDeferID:   fieldCtx.parentFieldDeferID,
 		}
 
-		requirements.existsTracker[existsKey] = struct{}{}
+		requirements.existsTracker[existsKey] = len(requirements.requirementConfigs)
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
-	} else {
-		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].targetDSHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].deferInfo.Equals(fieldCtx.deferInfo) {
-				if !slices.Contains(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef) {
-					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef)
-				}
-				break
-			}
-		}
 	}
 
 	c.pendingKeyRequirements[currentSelectionSet] = requirements
