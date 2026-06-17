@@ -476,6 +476,10 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		}
 
 		if t.resolvable.hasErrors() {
+			// errors are already written into the initial payload (so this is not a
+			// transport error); terminate the incremental stream before bailing so
+			// the client receives a final hasNext:false.
+			writer.Complete()
 			return resolveInfo, nil
 		}
 
@@ -501,6 +505,9 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 			}
 
 			if t.resolvable.hasErrors() {
+				// a deferred chunk produced errors; terminate the stream so the
+				// client receives a final hasNext:false instead of a dangling stream.
+				writer.Complete()
 				return resolveInfo, nil
 			}
 		}
