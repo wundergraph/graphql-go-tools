@@ -786,17 +786,15 @@ func (c *pathBuilderVisitor) addFieldDependencies(field *currentFieldInfo, curre
 				continue
 			}
 
-			notified := slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
-			if !notified {
-
+			if !slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannerIdx) {
 				fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
-				// sort
-				slices.Sort(fetchConfiguration.dependsOnFetchIDs)
-				// remove consecutive duplicates
-				fetchConfiguration.dependsOnFetchIDs = slices.Compact(fetchConfiguration.dependsOnFetchIDs)
 			}
 		}
 	}
+
+	// The slices.Contains check above already guarantees uniqueness, so sort once
+	// here for a deterministic order instead of re-sorting on every insertion.
+	slices.Sort(fetchConfiguration.dependsOnFetchIDs)
 }
 
 func (c *pathBuilderVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef int, currentPlannerIdx int) bool {
