@@ -242,10 +242,10 @@ func (v *requiredFieldsVisitor) effectiveDeferID() int {
 // Precondition: v.config.deferInfo != nil && v.isRootLevel().
 //
 // Decision table (using effectiveDeferID as the scope identifier):
-//   - __internal_{fieldName} absent              → addAlias=true, includeDeferID=false
-//   - __internal_{fieldName} present, same scope → reuseFieldRef set
-//   - __internal_{fieldName} present, diff scope, __internal_{effectiveID}_{fieldName} absent  → addAlias=true, includeDeferID=true
-//   - __internal_{fieldName} present, diff scope, __internal_{effectiveID}_{fieldName} present → reuseFieldRef set
+//   - __internal_{fieldName} absent                                                        → addAlias, includeDeferID=false
+//   - __internal_{fieldName} present, same scope                                           → reuseFieldRef
+//   - __internal_{fieldName} present, diff scope, __internal_{effectiveID}_{fieldName} absent  → addAlias, includeDeferID=true
+//   - __internal_{fieldName} present, diff scope, __internal_{effectiveID}_{fieldName} present → reuseFieldRef
 func (v *requiredFieldsVisitor) resolveDeferredAlias(fieldName ast.ByteSlice, selectionSetRef int) deferAliasResult {
 	effectiveID := v.effectiveDeferID()
 
@@ -321,6 +321,13 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 	v.handleRequiredField(fi)
 }
 
+// isRootLevel reports whether we are at the top of the required-fields selection
+// set (only the root operation node is on the stack). Defer-scope aliasing is
+// applied only at the root level: once a root required field is added or reused,
+// its node is pushed onto OperationNodes, so its nested children are visited with
+// isRootLevel()==false and inherit the already-deferred parent's scope via the
+// non-deferred path rather than being re-aliased. Deeply nested @requires fields
+// are therefore handled — they ride along inside the root field's deferred scope.
 func (v *requiredFieldsVisitor) isRootLevel() bool {
 	return len(v.OperationNodes) == 1
 }
@@ -569,7 +576,7 @@ func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.
 
 	// we are skipping adding __typename field to the required fields,
 	// because we want to depend only on the regular key fields, not the __typename field
-	if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.config.isTypeNameForEntityInterface) {
+	if !bytes.Equal(fieldName, typeNameFieldBytes) || v.config.isTypeNameForEntityInterface {
 		v.storeRequiredFieldRef(addedFieldNode.Ref)
 	}
 
