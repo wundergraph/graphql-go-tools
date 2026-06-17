@@ -551,11 +551,11 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		// the field was deffered, but it also could be a parent path for some other defer
 		hasDeferInfo := suggestion.deferInfo != nil
 		// the field may be not deferred, but it is a parent for the child node which was deferred
-		isDeferParent := len(suggestion.deferIDs) > 0
+		isDeferParent := len(suggestion.descendantDeferIDs) > 0
 
 		// plan defer parent paths
 		if isDeferParent {
-			for _, deferID := range suggestion.deferIDs {
+			for _, deferID := range suggestion.descendantDeferIDs {
 				field.deferID = deferID
 				field.deferField = false
 				// defer parent path planning - should be planned as a deferred path
@@ -633,7 +633,7 @@ func (c *pathBuilderVisitor) haveChildFieldsToPlan(field *currentFieldInfo) bool
 			return childNode.deferInfo == nil
 		}
 
-		isDeferParentPath := slices.Contains(childNode.deferIDs, field.deferID)
+		isDeferParentPath := slices.Contains(childNode.descendantDeferIDs, field.deferID)
 		return isDeferParentPath || (childNode.deferInfo != nil && childNode.deferInfo.ID == field.deferID)
 	})
 }
