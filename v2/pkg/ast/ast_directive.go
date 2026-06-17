@@ -131,81 +131,51 @@ func (d *Document) DirectivesAreEqual(left, right int) bool {
 		d.ArgumentSetsAreEquals(d.DirectiveArgumentSet(left), d.DirectiveArgumentSet(right))
 }
 
+// DirectiveSetsAreEqual reports whether two directive sets are equal as
+// multisets, ignoring @__defer_internal directives (an internal planning
+// concern). Directives may be repeatable, so each directive in one set must
+// have a distinct matching directive in the other set: [@cache, @cache] and
+// [@cache] are NOT equal.
 func (d *Document) DirectiveSetsAreEqual(left, right []int) bool {
-	if len(left) == 0 && len(right) == 0 {
-		return true
+	leftDirectives := d.directivesWithoutDeferInternal(left)
+	rightDirectives := d.directivesWithoutDeferInternal(right)
+
+	if len(leftDirectives) != len(rightDirectives) {
+		return false
 	}
 
-	// if left has no directives and right has only the defer directives, we consider them equal
-	if len(left) == 0 && len(right) > 0 {
-		for i := 0; i < len(right); i++ {
-			if !bytes.Equal(d.DirectiveNameBytes(right[i]), literal.DEFER_INTERNAL) {
-				return false
-			}
-		}
-		return true
-	}
-
-	// if right has no directives and left has only the defer directives, we consider them equal
-	if len(left) > 0 && len(right) == 0 {
-		for i := 0; i < len(left); i++ {
-			if !bytes.Equal(d.DirectiveNameBytes(left[i]), literal.DEFER_INTERNAL) {
-				return false
-			}
-		}
-		return true
-	}
-
-	// check that every non-defer directive in the left has an equal in the right
-	for i := 0; i < len(left); i++ {
-		leftDirective := left[i]
-
-		if bytes.Equal(d.DirectiveNameBytes(leftDirective), literal.DEFER_INTERNAL) {
-			continue
-		}
-
-		hasRightEqual := false
-		for j := 0; j < len(right); j++ {
-			rightDirective := right[j]
-
-			if bytes.Equal(d.DirectiveNameBytes(rightDirective), literal.DEFER_INTERNAL) {
-				continue
-			}
-
-			if d.DirectivesAreEqual(leftDirective, rightDirective) {
-				hasRightEqual = true
-				break
-			}
-		}
-		if !hasRightEqual {
-			return false
-		}
-	}
-
-	// check that every non-defer directive in the right has an equal in the left
-	for i := 0; i < len(right); i++ {
-		rightDirective := right[i]
-		if bytes.Equal(d.DirectiveNameBytes(rightDirective), literal.DEFER_INTERNAL) {
-			continue
-		}
-
-		hasLeftEqual := false
-		for j := 0; j < len(left); j++ {
-			leftDirective := left[j]
-			if bytes.Equal(d.DirectiveNameBytes(leftDirective), literal.DEFER_INTERNAL) {
+	matched := make([]bool, len(rightDirectives))
+	for _, leftDirective := range leftDirectives {
+		found := false
+		for j, rightDirective := range rightDirectives {
+			if matched[j] {
 				continue
 			}
 			if d.DirectivesAreEqual(leftDirective, rightDirective) {
-				hasLeftEqual = true
+				matched[j] = true
+				found = true
 				break
 			}
 		}
-		if !hasLeftEqual {
+		if !found {
 			return false
 		}
 	}
 
 	return true
+}
+
+// directivesWithoutDeferInternal returns the directive refs with any
+// @__defer_internal directives filtered out.
+func (d *Document) directivesWithoutDeferInternal(refs []int) []int {
+	filtered := make([]int, 0, len(refs))
+	for _, ref := range refs {
+		if bytes.Equal(d.DirectiveNameBytes(ref), literal.DEFER_INTERNAL) {
+			continue
+		}
+		filtered = append(filtered, ref)
+	}
+	return filtered
 }
 
 // DirectiveSetsHasCompatibleStreamDirective checks if directives sets contains stream directive with same arguments
