@@ -43,8 +43,7 @@ type pathBuilderVisitor struct {
 	addedPathTracker              []pathConfiguration    // addedPathTracker is a list of paths which were added
 	addedPathTrackerIndex         map[string][]int       // addedPathTrackerIndex is a map of path to index in addedPathTracker
 
-	fieldDependenciesForPlanners map[int][]int // fieldDependenciesForPlanners is a map[fieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
-	fieldsPlannedOn              map[int][]int // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
+	fieldsPlannedOn map[int][]int // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the pathBuilderVisitor not the first time
 	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
@@ -343,7 +342,6 @@ func (c *pathBuilderVisitor) EnterDocument(operation, definition *ast.Document) 
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 	c.addedPathTrackerIndex = make(map[string][]int)
 
-	c.fieldDependenciesForPlanners = make(map[int][]int)
 	c.fieldsPlannedOn = make(map[int][]int)
 	c.processedFieldDeps = make(map[fieldIndexKey][]int)
 }

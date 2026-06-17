@@ -357,10 +357,7 @@ func (v *Visitor) EnterField(ref int) {
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
-	// append the field to the current object
 	*v.currentObjectFields[len(v.currentObjectFields)-1].fields = append(*v.currentObjectFields[len(v.currentObjectFields)-1].fields, v.currentField)
-
-	// append the current field to the list of current fields
 	v.currentFields = append(v.currentFields, v.currentField)
 
 	v.mapFieldConfig(ref)
