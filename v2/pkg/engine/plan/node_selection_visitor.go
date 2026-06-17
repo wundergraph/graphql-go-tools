@@ -527,11 +527,13 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
 	} else {
 		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].selectionSet == fieldConfiguration.SelectionSet && requirements.requirementConfigs[i].dsHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].isTypenameForEntityInterface == isTypenameForEntityInterface {
-				if slices.IndexFunc(requirements.requirementConfigs[i].requestedByFieldRefs, func(fieldRef int) bool {
-					return fieldRef == fieldCtx.fieldRef
-				}) == -1 {
-					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef)
+			cfg := &requirements.requirementConfigs[i]
+			sameSelectionSet := cfg.selectionSet == fieldConfiguration.SelectionSet
+			sameDS := cfg.dsHash == fieldCtx.dsConfig.Hash()
+			sameTypenameForEntityInterface := cfg.isTypenameForEntityInterface == isTypenameForEntityInterface
+			if sameSelectionSet && sameDS && sameTypenameForEntityInterface {
+				if !slices.Contains(cfg.requestedByFieldRefs, fieldCtx.fieldRef) {
+					cfg.requestedByFieldRefs = append(cfg.requestedByFieldRefs, fieldCtx.fieldRef)
 				}
 				break
 			}
