@@ -41,9 +41,9 @@ type Visitor struct {
 	OperationName                string
 	operationDefinitionRef       int
 	objects                      []*resolve.Object
-	currentObjectFields          []objectFields
+	objectFieldsStack            []objectFields
 	currentField                 *resolve.Field
-	currentFields                []*resolve.Field
+	fieldStack                   []*resolve.Field
 	planners                     []PlannerConfiguration
 	skipFieldsRefs               []int
 	fieldRefDependsOnFieldRefs   map[int][]int
@@ -357,8 +357,8 @@ func (v *Visitor) EnterField(ref int) {
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
-	*v.currentObjectFields[len(v.currentObjectFields)-1].fields = append(*v.currentObjectFields[len(v.currentObjectFields)-1].fields, v.currentField)
-	v.currentFields = append(v.currentFields, v.currentField)
+	*v.objectFieldsStack[len(v.objectFieldsStack)-1].fields = append(*v.objectFieldsStack[len(v.objectFieldsStack)-1].fields, v.currentField)
+	v.fieldStack = append(v.fieldStack, v.currentField)
 
 	v.mapFieldConfig(ref)
 }
@@ -573,11 +573,11 @@ func (v *Visitor) LeaveField(fieldRef int) {
 	v.assignDefer(fieldRef)
 
 	// remove the current field from the current fields stack
-	v.currentFields = v.currentFields[:len(v.currentFields)-1]
+	v.fieldStack = v.fieldStack[:len(v.fieldStack)-1]
 
 	// remove the current field from the list of current object fields if they belong to this field
-	if v.currentObjectFields[len(v.currentObjectFields)-1].popOnField == fieldRef {
-		v.currentObjectFields = v.currentObjectFields[:len(v.currentObjectFields)-1]
+	if v.objectFieldsStack[len(v.objectFieldsStack)-1].popOnField == fieldRef {
+		v.objectFieldsStack = v.objectFieldsStack[:len(v.objectFieldsStack)-1]
 	}
 	fieldDefinitionRef, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
@@ -591,7 +591,7 @@ func (v *Visitor) LeaveField(fieldRef int) {
 }
 
 func (v *Visitor) assignDefer(fieldRef int) {
-	currentField := v.currentFields[len(v.currentFields)-1]
+	currentField := v.fieldStack[len(v.fieldStack)-1]
 
 	// ignore existence check - we should always have planners for the field
 	plannerIds := v.fieldPlanners[fieldRef]
@@ -848,7 +848,7 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			// So we defer this action to be executed right after the current field is added to the parent object fields slice.
 			// This is more simple than analyzing resolve.Node, because this object could be nested in a list.
 			v.Walker.DefferOnEnterField(func() {
-				v.currentObjectFields = append(v.currentObjectFields, objectFields{
+				v.objectFieldsStack = append(v.objectFieldsStack, objectFields{
 					popOnField: fieldRef,
 					fields:     &object.Fields,
 				})
@@ -969,7 +969,7 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 	}
 
 	v.objects = append(v.objects, rootObject)
-	v.currentObjectFields = append(v.currentObjectFields, objectFields{
+	v.objectFieldsStack = append(v.objectFieldsStack, objectFields{
 		fields:     &rootObject.Fields,
 		popOnField: -1,
 	})
