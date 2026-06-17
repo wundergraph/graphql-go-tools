@@ -995,9 +995,8 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 	}
 
 	if !v.Config.DisableIncludeInfo {
-		operationType := v.Operation.OperationDefinitions[0].OperationType
 		v.response.Info = &resolve.GraphQLResponseInfo{
-			OperationType: operationType,
+			OperationType: v.Operation.OperationDefinitions[opRef].OperationType,
 		}
 	}
 
@@ -1011,28 +1010,15 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 			Response:      v.subscription,
 		}
 	case isDefer:
-		if !v.Config.DisableIncludeInfo {
-			v.response.Info = &resolve.GraphQLResponseInfo{
-				OperationType: ast.OperationTypeQuery,
-			}
-		}
-
 		v.plan = &DeferResponsePlan{
 			Response: &resolve.GraphQLDeferResponse{
 				Response: v.response,
 			},
 		}
 	default:
-		if !v.Config.DisableIncludeInfo {
-			v.response.Info = &resolve.GraphQLResponseInfo{
-				OperationType: ast.OperationTypeQuery,
-			}
-		}
-
 		v.plan = &SynchronousResponsePlan{
 			Response: v.response,
 		}
-
 	}
 }
 
