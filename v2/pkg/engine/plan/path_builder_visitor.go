@@ -633,7 +633,7 @@ func (c *pathBuilderVisitor) haveChildFieldsToPlan(field *currentFieldInfo) bool
 			return childNode.deferInfo == nil
 		}
 
-		isDeferParentPath := childNode.deferParentPath && slices.Contains(childNode.deferIDs, field.deferID)
+		isDeferParentPath := slices.Contains(childNode.deferIDs, field.deferID)
 		return isDeferParentPath || (childNode.deferInfo != nil && childNode.deferInfo.ID == field.deferID)
 	})
 }

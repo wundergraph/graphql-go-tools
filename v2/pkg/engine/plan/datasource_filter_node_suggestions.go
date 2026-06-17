@@ -38,9 +38,8 @@ type NodeSuggestion struct {
 	treeNodeId                uint
 	possibleTypeNames         []string
 
-	deferInfo       *DeferInfo // this node's own defer directive, if the field itself is deferred
-	deferParentPath bool
-	deferIDs        []int
+	deferInfo *DeferInfo // this node's own defer directive, if the field itself is deferred
+	deferIDs  []int
 
 	requiresKey *SourceConnection
 }
@@ -250,8 +249,6 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 	// in-progress walk observe a defer id it just wrote and stop early, so the
 	// mutation is deferred until the parent path is fully resolved.
 	for _, parentIdx := range parentIndexesToAddDeferID {
-		f.items[parentIdx].deferParentPath = true
-
 		if !slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
 			f.items[parentIdx].deferIDs = append(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID)
 		}
