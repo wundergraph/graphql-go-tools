@@ -864,6 +864,49 @@ func TestWSTransport_LegacyProtocol(t *testing.T) {
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 	})
 
+	t.Run("auto prefers modern when server supports both", func(t *testing.T) {
+		t.Parallel()
+
+		// Server supports both protocols. The client offers them in preference
+		// order (graphql-transport-ws first); coder/websocket selects the first
+		// client-offered subprotocol the server also accepts, so the modern
+		// protocol must win even though the server would happily speak legacy.
+		var negotiated atomic.Value
+		server := newDualProtocolWSServer(t, &negotiated, func(ctx context.Context, conn *websocket.Conn) {
+			var msg map[string]any
+			require.NoError(t, wsjson.Read(ctx, conn, &msg))
+			// Modern protocol uses "subscribe"; legacy would use "start".
+			assert.Equal(t, "subscribe", msg["type"])
+
+			_ = wsjson.Write(ctx, conn, map[string]any{
+				"id":      msg["id"],
+				"type":    "next",
+				"payload": map[string]any{"data": map[string]any{"value": 7}},
+			})
+			_ = wsjson.Write(ctx, conn, map[string]any{
+				"id":   msg["id"],
+				"type": "complete",
+			})
+		})
+
+		tr := newTestWSTransport(t, WSTransportOptions{})
+
+		handler, receive := collectingHandler()
+		cancel, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:      server.URL,
+			Transport:     common.TransportWS,
+			WSSubprotocol: common.SubprotocolAuto, // Auto-negotiate
+		}, handler)
+		require.NoError(t, err)
+		defer cancel()
+
+		msg := receive(t, time.Second)
+		assert.Contains(t, string(msg.Payload.Data), "7")
+		assert.Equal(t, "graphql-transport-ws", negotiated.Load())
+	})
+
 	t.Run("auto-negotiates to legacy when modern unavailable", func(t *testing.T) {
 		t.Parallel()
 
@@ -1223,67 +1266,89 @@ func newLegacyGraphQLWSServer(t *testing.T, handler func(ctx context.Context, co
 	return server
 }
 
+// newDualProtocolWSServer accepts both subprotocols, letting the handshake
+// resolve the choice from the client's offered preference order. The
+// negotiated subprotocol is recorded into negotiated so tests can assert which
+// one won.
+func newDualProtocolWSServer(t *testing.T, negotiated *atomic.Value, handler func(ctx context.Context, conn *websocket.Conn)) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{"graphql-transport-ws", "graphql-ws"},
+		})
+		if err != nil {
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		negotiated.Store(conn.Subprotocol())
+
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+
+		// Handle connection_init
+		var initMsg map[string]any
+		if err := wsjson.Read(ctx, conn, &initMsg); err != nil {
+			return
+		}
+		if initMsg["type"] != "connection_init" {
+			return
+		}
+		_ = wsjson.Write(ctx, conn, map[string]string{"type": "connection_ack"})
+
+		handler(ctx, conn)
+	}))
+
+	t.Cleanup(server.Close)
+	return server
+}
+
+// TestWSTransport_negotiateSubprotocol covers mapping a single server-accepted
+// subprotocol to a protocol implementation. Selection among multiple offered
+// subprotocols is not done here: the client offers an ordered preference list
+// (common.WSSubprotocol.Subprotocols, exercised by TestWSSubprotocol_Subprotocols)
+// and the server collapses it to exactly one value during the handshake per
+// RFC 6455, so negotiateSubprotocol only ever sees that single accepted value.
+// The end-to-end "client preference wins when the server supports both" path is
+// covered by the "auto prefers modern when server supports both" subtest.
 func TestWSTransport_negotiateSubprotocol(t *testing.T) {
 	t.Parallel()
 
 	tr := &WSTransport{}
 
-	graphQLWSProto := protocol.NewGraphQLWS()
-	graphQLTransportWSProto := protocol.NewGraphQLTransportWS()
+	t.Run("auto + graphql-transport-ws accepted picks transport-ws", func(t *testing.T) {
+		t.Parallel()
+		proto, err := tr.negotiateSubprotocol(common.SubprotocolAuto, common.SubprotocolGraphQLTransportWS)
+		require.NoError(t, err)
+		assert.IsType(t, protocol.NewGraphQLTransportWS(), proto)
+	})
 
-	cases := []struct {
-		name      string
-		requested common.WSSubprotocol
-		accepted  common.WSSubprotocol
-		wantErr   bool
-		// wantSameTypeAs is the reference instance whose dynamic type the
-		// returned protocol must match.
-		wantSameTypeAs protocol.Protocol
-	}{
-		{
-			name:      "auto + empty accepted fails",
-			requested: common.SubprotocolAuto,
-			accepted:  "",
-			wantErr:   true,
-		},
-		{
-			name:           "auto + graphql-transport-ws accepted picks transport-ws",
-			requested:      common.SubprotocolAuto,
-			accepted:       common.SubprotocolGraphQLTransportWS,
-			wantSameTypeAs: graphQLTransportWSProto,
-		},
-		{
-			name:           "auto + graphql-ws accepted picks graphql-ws",
-			requested:      common.SubprotocolAuto,
-			accepted:       common.SubprotocolGraphQLWS,
-			wantSameTypeAs: graphQLWSProto,
-		},
-		{
-			name:      "explicit graphql-ws but server echoes nothing fails",
-			requested: common.SubprotocolGraphQLWS,
-			accepted:  "",
-			wantErr:   true,
-		},
-		{
-			name:      "explicit graphql-transport-ws but server echoes graphql-ws fails",
-			requested: common.SubprotocolGraphQLTransportWS,
-			accepted:  common.SubprotocolGraphQLWS,
-			wantErr:   true,
-		},
-	}
+	t.Run("auto + graphql-ws accepted picks graphql-ws", func(t *testing.T) {
+		t.Parallel()
+		proto, err := tr.negotiateSubprotocol(common.SubprotocolAuto, common.SubprotocolGraphQLWS)
+		require.NoError(t, err)
+		assert.IsType(t, protocol.NewGraphQLWS(), proto)
+	})
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			proto, err := tr.negotiateSubprotocol(tc.requested, tc.accepted)
-			if tc.wantErr {
-				require.Error(t, err)
-				assert.Nil(t, proto)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, proto)
-			assert.IsType(t, tc.wantSameTypeAs, proto)
-		})
-	}
+	t.Run("auto + empty accepted fails: server echoed no subprotocol", func(t *testing.T) {
+		t.Parallel()
+		proto, err := tr.negotiateSubprotocol(common.SubprotocolAuto, "")
+		require.ErrorIs(t, err, ErrInvalidSubprotocol(""))
+		assert.Nil(t, proto)
+	})
+
+	t.Run("explicit graphql-ws + empty accepted fails: server echoed no subprotocol", func(t *testing.T) {
+		t.Parallel()
+		proto, err := tr.negotiateSubprotocol(common.SubprotocolGraphQLWS, "")
+		require.ErrorIs(t, err, ErrInvalidSubprotocol(""))
+		assert.Nil(t, proto)
+	})
+
+	t.Run("explicit graphql-transport-ws + graphql-ws accepted fails: server echoed a different subprotocol than requested", func(t *testing.T) {
+		t.Parallel()
+		proto, err := tr.negotiateSubprotocol(common.SubprotocolGraphQLTransportWS, common.SubprotocolGraphQLWS)
+		require.ErrorIs(t, err, ErrInvalidSubprotocol(common.SubprotocolGraphQLWS))
+		assert.Nil(t, proto)
+	})
 }
