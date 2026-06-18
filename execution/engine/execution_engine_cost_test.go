@@ -2514,26 +2514,26 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		t.Parallel()
 		nestedSchema := `
 			type Query {
-			   users(first: Int): [User!]
+				users(first: Int): [User!]
 			}
 			type User @key(fields: "id") {
-			  id: ID!
-			  posts(first: Int): [Post!]
+				id: ID!
+				posts(first: Int): [Post!]
 			}
 			type Post @key(fields: "id") {
-			  id: ID!
-			  comments(first: Int): [Comment!]
+				id: ID!
+				comments(first: Int): [Comment!]
 			}
 			type Comment @key(fields: "id") {
-			  id: ID!
-			  text: String!
-              texts: [[String!]!]!
-              enums: [CommentType]
+				id: ID!
+				text: String!
+				texts: [[String!]!]!
+				enums: [CommentType]
 			}
 			enum CommentType {
 				FLAME
-                SPAM
-            }
+				SPAM
+			}
 			`
 		schemaNested, err := graphql.NewSchemaFromString(nestedSchema)
 		require.NoError(t, err)
