@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"runtime/debug"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -33,14 +34,23 @@ type _fakeDataSource struct {
 	artificialLatency time.Duration
 }
 
+// checkInput reports an input mismatch and returns an error. It must not FailNow:
+// Load is called from loader goroutines, not the test goroutine,
+// so the error is propagated through ResolveGraphQLResponse.
+func (f *_fakeDataSource) checkInput(input []byte) error {
+	if f.input != nil && !bytes.Equal(f.input, input) {
+		assert.Equal(f.t, string(f.input), string(input), "input mismatch")
+		return fmt.Errorf("fake data source: input mismatch: want %q, got %q", f.input, input)
+	}
+	return nil
+}
+
 func (f *_fakeDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
-	if f.input != nil {
-		if !bytes.Equal(f.input, input) {
-			require.Equal(f.t, string(f.input), string(input), "input mismatch")
-		}
+	if err := f.checkInput(input); err != nil {
+		return nil, err
 	}
 	return f.data, nil
 }
@@ -49,10 +59,8 @@ func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, headers http.Header
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
-	if f.input != nil {
-		if !bytes.Equal(f.input, input) {
-			require.Equal(f.t, string(f.input), string(input), "input mismatch")
-		}
+	if err := f.checkInput(input); err != nil {
+		return nil, err
 	}
 	return f.data, nil
 }
@@ -7393,21 +7401,18 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 	})
 }
 
-func Benchmark_NestedBatching(b *testing.B) {
-	rCtx := b.Context()
-
-	resolver := newResolver(rCtx)
-
-	productsService := fakeDataSourceWithInputCheck(b,
+// nestedBatchingFixture returns the shared federation plan and the expected response.
+func nestedBatchingFixture(tb TestingTB) (*GraphQLResponse, []byte) {
+	productsService := fakeDataSourceWithInputCheck(tb,
 		[]byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
 		[]byte(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`))
-	stockService := fakeDataSourceWithInputCheck(b,
+	stockService := fakeDataSourceWithInputCheck(tb,
 		[]byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`),
 		[]byte(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`))
-	reviewsService := fakeDataSourceWithInputCheck(b,
+	reviewsService := fakeDataSourceWithInputCheck(tb,
 		[]byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`),
 		[]byte(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`))
-	usersService := fakeDataSourceWithInputCheck(b,
+	usersService := fakeDataSourceWithInputCheck(tb,
 		[]byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"2"}]}}}`),
 		[]byte(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`))
 
@@ -7669,12 +7674,20 @@ func Benchmark_NestedBatching(b *testing.B) {
 
 	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
 
+	return plan, expected
+}
+
+func Benchmark_NestedBatching(b *testing.B) {
+	rCtx := b.Context()
+
+	resolver := newResolver(rCtx)
+	plan, expected := nestedBatchingFixture(b)
+
 	pool := sync.Pool{
 		New: func() any {
 			return bytes.NewBuffer(make([]byte, 0, 1024))
 		},
 	}
-
 	ctxPool := sync.Pool{
 		New: func() any {
 			return NewContext(context.Background())
@@ -7711,284 +7724,13 @@ func Benchmark_NestedBatchingArena(b *testing.B) {
 	rCtx := b.Context()
 
 	resolver := newResolver(rCtx)
-
-	productsService := fakeDataSourceWithInputCheck(b,
-		[]byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
-		[]byte(`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`))
-	stockService := fakeDataSourceWithInputCheck(b,
-		[]byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`),
-		[]byte(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`))
-	reviewsService := fakeDataSourceWithInputCheck(b,
-		[]byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`),
-		[]byte(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`))
-	usersService := fakeDataSourceWithInputCheck(b,
-		[]byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"2"}]}}}`),
-		[]byte(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`))
-
-	plan := &GraphQLResponse{
-		Fetches: Sequence(
-			SingleWithPath(&SingleFetch{
-				InputTemplate: InputTemplate{
-					Segments: []TemplateSegment{
-						{
-							Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
-							SegmentType: StaticSegmentType,
-						},
-					},
-				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
-				},
-			}, ""),
-			Parallel(
-				SingleWithPath(&BatchEntityFetch{
-					Input: BatchInput{
-						Header: InputTemplate{
-							Segments: []TemplateSegment{
-								{
-									Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
-									SegmentType: StaticSegmentType,
-								},
-							},
-						},
-						Items: []InputTemplate{
-							{
-								Segments: []TemplateSegment{
-									{
-										SegmentType:  VariableSegmentType,
-										VariableKind: ResolvableObjectVariableKind,
-										Renderer: NewGraphQLVariableResolveRenderer(&Object{
-											Fields: []*Field{
-												{
-													Name: []byte("__typename"),
-													Value: &String{
-														Path: []string{"__typename"},
-													},
-												},
-												{
-													Name: []byte("upc"),
-													Value: &String{
-														Path: []string{"upc"},
-													},
-												},
-											},
-										}),
-									},
-								},
-							},
-						},
-						Separator: InputTemplate{
-							Segments: []TemplateSegment{
-								{
-									Data:        []byte(`,`),
-									SegmentType: StaticSegmentType,
-								},
-							},
-						},
-						Footer: InputTemplate{
-							Segments: []TemplateSegment{
-								{
-									Data:        []byte(`]}}}`),
-									SegmentType: StaticSegmentType,
-								},
-							},
-						},
-					},
-					DataSource: reviewsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data", "_entities"},
-					},
-				}, "topProducts", ArrayPath("topProducts")),
-				SingleWithPath(&BatchEntityFetch{
-					Input: BatchInput{
-						Header: InputTemplate{
-							Segments: []TemplateSegment{
-								{
-									Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
-									SegmentType: StaticSegmentType,
-								},
-							},
-						},
-						Items: []InputTemplate{
-							{
-								Segments: []TemplateSegment{
-									{
-										SegmentType:  VariableSegmentType,
-										VariableKind: ResolvableObjectVariableKind,
-										Renderer: NewGraphQLVariableResolveRenderer(&Object{
-											Fields: []*Field{
-												{
-													Name: []byte("__typename"),
-													Value: &String{
-														Path: []string{"__typename"},
-													},
-												},
-												{
-													Name: []byte("upc"),
-													Value: &String{
-														Path: []string{"upc"},
-													},
-												},
-											},
-										}),
-									},
-								},
-							},
-						},
-						Separator: InputTemplate{
-							Segments: []TemplateSegment{
-								{
-									Data:        []byte(`,`),
-									SegmentType: StaticSegmentType,
-								},
-							},
-						},
-						Footer: InputTemplate{
-							Segments: []TemplateSegment{
-								{
-									Data:        []byte(`]}}}`),
-									SegmentType: StaticSegmentType,
-								},
-							},
-						},
-					},
-					DataSource: stockService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data", "_entities"},
-					},
-				}, "topProducts", ArrayPath("topProducts")),
-			),
-			SingleWithPath(&BatchEntityFetch{
-				Input: BatchInput{
-					Header: InputTemplate{
-						Segments: []TemplateSegment{
-							{
-								Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
-								SegmentType: StaticSegmentType,
-							},
-						},
-					},
-					Items: []InputTemplate{
-						{
-							Segments: []TemplateSegment{
-								{
-									SegmentType:  VariableSegmentType,
-									VariableKind: ResolvableObjectVariableKind,
-									Renderer: NewGraphQLVariableResolveRenderer(&Object{
-										Fields: []*Field{
-											{
-												Name: []byte("__typename"),
-												Value: &String{
-													Path: []string{"__typename"},
-												},
-											},
-											{
-												Name: []byte("id"),
-												Value: &String{
-													Path: []string{"id"},
-												},
-											},
-										},
-									}),
-								},
-							},
-						},
-					},
-					Separator: InputTemplate{
-						Segments: []TemplateSegment{
-							{
-								Data:        []byte(`,`),
-								SegmentType: StaticSegmentType,
-							},
-						},
-					},
-					Footer: InputTemplate{
-						Segments: []TemplateSegment{
-							{
-								Data:        []byte(`]}}}`),
-								SegmentType: StaticSegmentType,
-							},
-						},
-					},
-				},
-				DataSource: usersService,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath: []string{"data", "_entities"},
-				},
-			}, "topProducts.@.reviews.@.author", ArrayPath("topProducts"), ArrayPath("reviews"), ObjectPath("author")),
-		),
-		Data: &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("topProducts"),
-					Value: &Array{
-						Path: []string{"topProducts"},
-						Item: &Object{
-							Fields: []*Field{
-								{
-									Name: []byte("name"),
-									Value: &String{
-										Path: []string{"name"},
-									},
-								},
-								{
-									Name: []byte("stock"),
-									Value: &Integer{
-										Path: []string{"stock"},
-									},
-								},
-								{
-									Name: []byte("reviews"),
-									Value: &Array{
-										Path: []string{"reviews"},
-										Item: &Object{
-											Fields: []*Field{
-												{
-													Name: []byte("body"),
-													Value: &String{
-														Path: []string{"body"},
-													},
-												},
-												{
-													Name: []byte("author"),
-													Value: &Object{
-														Path: []string{"author"},
-														Fields: []*Field{
-															{
-																Name: []byte("name"),
-																Value: &String{
-																	Path: []string{"name"},
-																},
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Info: &GraphQLResponseInfo{
-			OperationType: ast.OperationTypeQuery,
-		},
-	}
-
-	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
+	plan, expected := nestedBatchingFixture(b)
 
 	pool := sync.Pool{
 		New: func() any {
 			return bytes.NewBuffer(make([]byte, 0, 1024))
 		},
 	}
-
 	ctxPool := sync.Pool{
 		New: func() any {
 			return NewContext(context.Background())
@@ -8019,6 +7761,41 @@ func Benchmark_NestedBatchingArena(b *testing.B) {
 			ctxPool.Put(ctx)
 		}
 	})
+}
+
+// TestNestedBatching_GCPressure is a regression test for ENG-9717.
+// The batch entity fetch used to store heap-allocated target buckets into arena memory,
+// hiding them from the GC.
+func TestNestedBatching_GCPressure(t *testing.T) {
+	prevGC := debug.SetGCPercent(1)
+	t.Cleanup(func() { debug.SetGCPercent(prevGC) })
+
+	resolver := newResolver(t.Context())
+	plan, expected := nestedBatchingFixture(t)
+
+	const goroutines = 14
+	const iterations = 5000
+
+	var wg sync.WaitGroup
+	for range goroutines {
+		wg.Go(func() {
+			buf := &bytes.Buffer{}
+			for range iterations {
+				ctx := NewContext(context.Background())
+				buf.Reset()
+				_, err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+				if err != nil {
+					t.Errorf("ResolveGraphQLResponse: %v", err)
+					return
+				}
+				if !bytes.Equal(expected, buf.Bytes()) {
+					t.Errorf("unexpected response\nwant: %s\ngot:  %s", expected, buf.Bytes())
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
 }
 
 // startFailStream blocks until subBReady is closed, then returns an error from Start.
