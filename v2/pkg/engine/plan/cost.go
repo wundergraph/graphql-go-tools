@@ -1055,7 +1055,9 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, input *costInput, dept
 	nodeCost := node.costsAndMultiplier(input)
 	nodeCost.setDefaultMultiplier(node)
 
-	fmt.Fprintf(sb, "%s  fieldCost = %.2f", indent, nodeCost.field)
+	fmt.Fprintf(sb, "%s  multiplier = %.2f", indent, nodeCost.multiplier)
+
+	fmt.Fprintf(sb, ", fieldCost = %.2f", nodeCost.field)
 
 	if nodeCost.args > 0 {
 		fmt.Fprintf(sb, ", argsCost = %d", nodeCost.args)
@@ -1063,7 +1065,6 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, input *costInput, dept
 	if nodeCost.directives > 0 {
 		fmt.Fprintf(sb, ", directivesCost = %d", nodeCost.directives)
 	}
-	fmt.Fprintf(sb, ", multiplier = %.2f", nodeCost.multiplier)
 
 	sb.WriteString("\n")
 
