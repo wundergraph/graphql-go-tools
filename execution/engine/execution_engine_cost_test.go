@@ -2514,19 +2514,25 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		t.Parallel()
 		nestedSchema := `
 			type Query {
-			   users(first: Int): [User!]
+				users(first: Int): [User!]
 			}
 			type User @key(fields: "id") {
-			  id: ID!
-			  posts(first: Int): [Post!]
+				id: ID!
+				posts(first: Int): [Post!]
 			}
 			type Post @key(fields: "id") {
-			  id: ID!
-			  comments(first: Int): [Comment!]
+				id: ID!
+				comments(first: Int): [Comment!]
 			}
 			type Comment @key(fields: "id") {
-			  id: ID!
-			  text: String!
+				id: ID!
+				text: String!
+				texts: [[String!]!]!
+				enums: [CommentType]
+			}
+			enum CommentType {
+				FLAME
+				SPAM
 			}
 			`
 		schemaNested, err := graphql.NewSchemaFromString(nestedSchema)
@@ -2536,7 +2542,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			{TypeName: "Query", FieldNames: []string{"users"}},
 			{TypeName: "User", FieldNames: []string{"id", "posts"}},
 			{TypeName: "Post", FieldNames: []string{"id", "comments"}},
-			{TypeName: "Comment", FieldNames: []string{"id", "text"}},
+			{TypeName: "Comment", FieldNames: []string{"id", "text", "texts", "enums"}},
 		}
 		childNodes := []plan.TypeField{}
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -2633,9 +2639,96 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//     comments(first:3): multiplier 3
 				//       Comment type weight: 2
 				//       text weight: 1
-				// Total: 10 * (4 + 5 * (3 + 3 * (2 + 1)))
-				expectedEstimatedCost: intPtr(640),
+				expectedEstimatedCost: intPtr(640), // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
 				expectedActualCost:    intPtr(10),
+			},
+			computeCosts(),
+		))
+
+		t.Run("a scalar nested inside lists with slicing arguments should not cost anything", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaNested,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{
+							  users(first: 10) {
+							    posts(first: 5) {
+							      comments(first: 3) { texts }
+							  } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"users":[{"posts":[{"comments":[{"texts":[["hello"]]}]}]}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}:   {SlicingArguments: []string{"first"}},
+									{TypeName: "User", FieldName: "posts"}:    {SlicingArguments: []string{"first"}},
+									{TypeName: "Post", FieldName: "comments"}: {SlicingArguments: []string{"first"}},
+								},
+								Types: map[string]int{"User": 4, "Post": 3, "Comment": 2},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"texts":[["hello"]]}]}]}]}}`,
+				expectedEstimatedCost: intPtr(490), // 10 * (4 + 5 * (3 + 3 * (2 + 10 * 0)))
+				expectedActualCost:    intPtr(9),   //  1 * (4 + 1 * (3 + 1 * (2 +  1 * 0)))
+			},
+			computeCosts(),
+		))
+
+		t.Run("an enum nested inside lists with slicing arguments should not cost anything", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaNested,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{
+							  users(first: 10) {
+							    posts(first: 5) {
+							      comments(first: 3) { enums }
+							  } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"users":[{"posts":[{"comments":[{"enums":["SPAM"]}]}]}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}:   {SlicingArguments: []string{"first"}},
+									{TypeName: "User", FieldName: "posts"}:    {SlicingArguments: []string{"first"}},
+									{TypeName: "Post", FieldName: "comments"}: {SlicingArguments: []string{"first"}},
+								},
+								Types: map[string]int{"User": 4, "Post": 3, "Comment": 2},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"enums":["SPAM"]}]}]}]}}`,
+				expectedEstimatedCost: intPtr(490), // 10 * (4 + 5 * (3 + 3 * (2 + 10 * 0)))
+				expectedActualCost:    intPtr(9),   //  1 * (4 + 1 * (3 + 1 * (2 +  1 * 0)))
 			},
 			computeCosts(),
 		))
@@ -2695,18 +2788,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						customConfig,
 					),
 				},
-				fields:           fieldConfig,
-				expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"hi"}]}]}]}}`,
-				// Cost calculation:
-				// users(first:2): multiplier 2
-				//   User type weight: 4
-				//   posts (no arg): assumedSize 50
-				//     Post type weight: 3
-				//     comments(first:4): multiplier 4
-				//       Comment type weight: 2
-				//       text weight: 1
-				// Total: 2 * (4 + 50 * (3 + 4 * (2 + 1)))
-				expectedEstimatedCost: intPtr(1508),
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"hi"}]}]}]}}`,
+				expectedEstimatedCost: intPtr(1508), // 2 * (4 + 50 * (3 + 4 * (2 + 1)))
 				expectedActualCost:    intPtr(10),
 			},
 			computeCosts(),
