@@ -14,7 +14,7 @@ require (
 	github.com/sebdah/goldie/v2 v2.7.1
 	github.com/stretchr/testify v1.11.1
 	github.com/vektah/gqlparser/v2 v2.5.30
-	github.com/wundergraph/astjson v1.1.0
+	github.com/wundergraph/astjson v1.1.1-0.20260612092327-0d295948520f
 	github.com/wundergraph/cosmo/router v0.0.0-20260611115430-e8a965a40952
 	github.com/wundergraph/graphql-go-tools/v2 v2.4.4
 	go.uber.org/atomic v1.11.0
