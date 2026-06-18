@@ -434,7 +434,7 @@ func newCostInput(isEstimation bool, c *CostCalculator, vars resolve.VariablesVi
 		typeStats:       typeStats,
 		isEstimation:    isEstimation,
 
-		skipImplementingTypesOnAbstract: c.skipImplementingTypesOnAbstract,
+		skipImplementingTypesOnAbstract: c.ignoreImplementingTypeWeights,
 	}
 }
 
@@ -868,7 +868,10 @@ type CostCalculator struct {
 	// defaultListSize is used as a fallback for list sizes when no specific size is provided.
 	defaultListSize int
 
-	skipImplementingTypesOnAbstract bool
+	// ignoreImplementingTypeWeights, when true, ignores @cost weights contributed by
+	// implementing types on abstract (interface/union) fields that have no weight of their own.
+	// Emulates Apollo's cost behavior.
+	ignoreImplementingTypeWeights bool
 }
 
 // NewCostCalculator creates a new cost calculator. The defaultListSize is floored to 1.
@@ -886,7 +889,7 @@ func NewCostCalculator(config Configuration) *CostCalculator {
 	}
 	// Zero would estimate all lists as zero.
 	c.defaultListSize = max(config.StaticCostDefaultListSize, 1)
-	c.skipImplementingTypesOnAbstract = config.SkipImplementingTypesOnAbstract
+	c.ignoreImplementingTypeWeights = config.IgnoreImplementingTypeWeights
 	return &c
 }
 

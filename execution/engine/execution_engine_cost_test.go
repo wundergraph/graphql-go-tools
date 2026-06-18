@@ -1102,7 +1102,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					expectedActualCost:    intPtr(13),
 				},
 				computeCosts(),
-				costsWithoutImplementingTypes(),
+				costsIgnoreImplementingTypeWeights(),
 			))
 			t.Run("hero field returning interface with concrete fragment", runWithoutError(
 				ExecutionEngineTestCase{
@@ -1145,7 +1145,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					expectedActualCost:    intPtr(5),
 				},
 				computeCosts(),
-				costsWithoutImplementingTypes(),
+				costsIgnoreImplementingTypeWeights(),
 			))
 			t.Run("query hero with assumedSize on friends", runWithoutError(
 				ExecutionEngineTestCase{
@@ -1201,7 +1201,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					expectedActualCost:    intPtr(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
 				},
 				computeCosts(),
-				costsWithoutImplementingTypes(),
+				costsIgnoreImplementingTypeWeights(),
 			))
 			t.Run("query hero with assumedSize on friends and weight defined", runWithoutError(
 				ExecutionEngineTestCase{
@@ -1259,7 +1259,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					expectedActualCost:    intPtr(24),  // hero(7)       +  2 * (6+0.5*(2+2+1))
 				},
 				computeCosts(),
-				costsWithoutImplementingTypes(),
+				costsIgnoreImplementingTypeWeights(),
 			))
 			t.Run("named fragment on interface without typenames on friends", runWithoutError(
 				ExecutionEngineTestCase{
@@ -1314,7 +1314,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					expectedActualCost:    intPtr(5),  // 2 + 1*(0 +  1*(3 + 1*0))
 				},
 				computeCosts(),
-				costsWithoutImplementingTypes(),
+				costsIgnoreImplementingTypeWeights(),
 			))
 
 			t.Run("named fragment on interface with typename on friends", runWithoutError(
@@ -1369,7 +1369,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					expectedActualCost:    intPtr(4),  // 2 + 1*(0 +  1*(2 + 1*0))
 				},
 				computeCosts(),
-				costsWithoutImplementingTypes(),
+				costsIgnoreImplementingTypeWeights(),
 			))
 		})
 

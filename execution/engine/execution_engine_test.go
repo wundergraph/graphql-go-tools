@@ -95,7 +95,7 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
 		engineConf.plannerConfig.ComputeCosts = opts.computeCosts
 		engineConf.plannerConfig.StaticCostDefaultListSize = 10
-		engineConf.plannerConfig.SkipImplementingTypesOnAbstract = opts.skipImplementingTypesOnAbstract
+		engineConf.plannerConfig.IgnoreImplementingTypeWeights = opts.ignoreImplementingTypeWeights
 		engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
 		resolveOpts := resolve.ResolverOptions{
 			MaxConcurrency:    1024,
@@ -348,7 +348,7 @@ type _executionTestOptions struct {
 	propagateFetchReasons                        bool
 	validateRequiredExternalFields               bool
 	computeCosts                                 bool
-	skipImplementingTypesOnAbstract              bool
+	ignoreImplementingTypeWeights                bool
 	relaxFieldSelectionMergingNullability        bool
 }
 
@@ -380,9 +380,9 @@ func computeCosts() executionTestOptions {
 	}
 }
 
-func costsWithoutImplementingTypes() executionTestOptions {
+func costsIgnoreImplementingTypeWeights() executionTestOptions {
 	return func(options *_executionTestOptions) {
-		options.skipImplementingTypesOnAbstract = true
+		options.ignoreImplementingTypeWeights = true
 	}
 }
 
