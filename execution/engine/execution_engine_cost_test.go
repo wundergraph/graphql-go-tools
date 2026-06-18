@@ -1197,7 +1197,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						),
 					},
 					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-					expectedEstimatedCost: intPtr(107), // max(7,5)+ 10 * (7 + max(2,2+1))
+					expectedEstimatedCost: intPtr(207), // max(7,5)+ 20 * (7 + max(2,2+1))
 					expectedActualCost:    intPtr(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
 				},
 				computeCosts(),
@@ -1255,7 +1255,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						),
 					},
 					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-					expectedEstimatedCost: intPtr(107), // hero(max(7,5))+ 10 * (7+max(2, 2+1))
+					expectedEstimatedCost: intPtr(207), // hero(max(7,5))+ 20 * (7+max(2, 2+1))
 					expectedActualCost:    intPtr(24),  // hero(7)       +  2 * (6+0.5*(2+2+1))
 				},
 				computeCosts(),
@@ -1310,8 +1310,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						),
 					},
 					expectedResponse:      `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
-					expectedEstimatedCost: intPtr(32), // 2 + 1*(0 + 10*(3 + 1*0))
-					expectedActualCost:    intPtr(5),  // 2 + 1*(0 +  1*(3 + 1*0))
+					expectedEstimatedCost: intPtr(20), // 2 + 1*(0 + 6*(3 + 1*0))
+					expectedActualCost:    intPtr(5),  // 2 + 1*(0 + 1*(3 + 1*0))
 				},
 				computeCosts(),
 				costsIgnoreImplementingTypeWeights(),
@@ -1365,8 +1365,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						),
 					},
 					expectedResponse:      `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
-					expectedEstimatedCost: intPtr(32), // 2 + 1*(0 + 10*(3 + 1*0))
-					expectedActualCost:    intPtr(4),  // 2 + 1*(0 +  1*(2 + 1*0))
+					expectedEstimatedCost: intPtr(20), // 2 + 1*(0 + 6*(3 + 1*0))
+					expectedActualCost:    intPtr(4),  // 2 + 1*(0 + 1*(2 + 1*0))
 				},
 				computeCosts(),
 				costsIgnoreImplementingTypeWeights(),
@@ -3620,6 +3620,51 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedActualCost: intPtr(55),
 			},
 			computeCosts(),
+		))
+
+		t.Run("IgnoreImplementingTypeWeights: a field selected directly on the interface should not be charged", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{
+						boards(ids: ["b1"], limit: 1) {
+							items_page(limit: 1) {
+								items {
+									column_values {
+										text
+									}
+								}
+							}
+						}}`}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"PeopleValue","text":"p1"},` +
+									`{"__typename":"PeopleValue","text":"p2"},` +
+									`{"__typename":"StatusValue","text":"s1"},` +
+									`{"__typename":"StatusValue","text":"s2"},` +
+									`{"__typename":"StatusValue","text":"s3"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*0))))
+				expectedEstimatedCost: intPtr(40),
+				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*0))))
+				expectedActualCost: intPtr(35),
+			},
+			computeCosts(),
+			costsIgnoreImplementingTypeWeights(),
 		))
 
 		t.Run("a field selected on the interface and fragments should be charged once", runWithoutError(

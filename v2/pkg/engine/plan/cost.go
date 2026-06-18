@@ -415,7 +415,7 @@ type costInput struct {
 	// isEstimation is true for estimated calculation and false for actual.
 	isEstimation bool
 
-	skipImplementingTypesOnAbstract bool
+	ignoreImplementingTypeWeights bool
 }
 
 // newCostInput bundles the cost-calculation inputs.
@@ -434,7 +434,7 @@ func newCostInput(isEstimation bool, c *CostCalculator, vars resolve.VariablesVi
 		typeStats:       typeStats,
 		isEstimation:    isEstimation,
 
-		skipImplementingTypesOnAbstract: c.ignoreImplementingTypeWeights,
+		ignoreImplementingTypeWeights: c.ignoreImplementingTypeWeights,
 	}
 }
 
@@ -586,11 +586,13 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		// the enclosing type is concrete.
 		// Commented condition is a good check for that. Might be needed later:
 		// fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType
-		if node.isEnclosingTypeAbstract && parent.returnsAbstractType && !input.skipImplementingTypesOnAbstract {
+		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// This field is part of the enclosing interface/union.
 			// We look into implementing types and find the max-weighted field.
 			// Found fieldWeight can be used for all the calculations.
-			fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoords.FieldName)
+			if !input.ignoreImplementingTypeWeights {
+				fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoords.FieldName)
+			}
 			// If this field has listSize defined, then do not look into implementing types.
 			if input.isEstimation && listSize == nil && node.returnsListType {
 				listSize = parent.maxMultiplierImplementingField(dsCostConfig, node.fieldCoords.FieldName, node.arguments, input.vars, input.defaultListSize)
@@ -667,7 +669,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 
 		// Directive weights: sum from the field's own DirectiveArgumentWeights,
 		// or from implementing types when the enclosing type is abstract.
-		if node.isEnclosingTypeAbstract && parent.returnsAbstractType && !input.skipImplementingTypesOnAbstract {
+		if node.isEnclosingTypeAbstract && parent.returnsAbstractType && !input.ignoreImplementingTypeWeights {
 			for _, weight := range parent.maxDirectiveArgumentWeightsImplementingFields(dsCostConfig, node.fieldCoords.FieldName) {
 				nodeCost.directives += weight
 			}
@@ -772,7 +774,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 	if ancestorNode == nil || node.parent != ancestorNode || !ancestorNode.returnsAbstractType || ancestorStats.Size == 0 {
 		return
 	}
-	if node.isEnclosingTypeAbstract && nodeCost.field > 0 {
+	if node.isEnclosingTypeAbstract && nodeCost.field > 0 && !input.ignoreImplementingTypeWeights {
 		var weightedSum float64
 		found := false
 		for _, implTypeName := range parent.implementingTypeNames {
