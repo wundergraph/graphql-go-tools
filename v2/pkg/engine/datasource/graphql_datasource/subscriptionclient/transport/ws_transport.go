@@ -266,7 +266,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 
 	wsConn.SetReadLimit(t.opts.ReadLimit)
 
-	proto, err := t.negotiateSubprotocol(opts.WSSubprotocol, wsConn.Subprotocol())
+	proto, err := t.negotiateSubprotocol(opts.WSSubprotocol, common.WSSubprotocol(wsConn.Subprotocol()))
 	if err != nil {
 		t.opts.Logger.Error("wsTransport.dial",
 			abstractlogger.String("endpoint", opts.Endpoint),
@@ -308,8 +308,8 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 	return conn, nil
 }
 
-func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accepted string) (protocol.Protocol, error) {
-	if requested != common.SubprotocolAuto && accepted != string(requested) {
+func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accepted common.WSSubprotocol) (protocol.Protocol, error) {
+	if requested != common.SubprotocolAuto && accepted != requested {
 		return nil, ErrInvalidSubprotocol(accepted)
 	}
 

@@ -1234,7 +1234,7 @@ func TestWSTransport_negotiateSubprotocol(t *testing.T) {
 	cases := []struct {
 		name      string
 		requested common.WSSubprotocol
-		accepted  string
+		accepted  common.WSSubprotocol
 		wantErr   bool
 		// wantSameTypeAs is the reference instance whose dynamic type the
 		// returned protocol must match.
@@ -1249,13 +1249,13 @@ func TestWSTransport_negotiateSubprotocol(t *testing.T) {
 		{
 			name:           "auto + graphql-transport-ws accepted picks transport-ws",
 			requested:      common.SubprotocolAuto,
-			accepted:       string(common.SubprotocolGraphQLTransportWS),
+			accepted:       common.SubprotocolGraphQLTransportWS,
 			wantSameTypeAs: graphQLTransportWSProto,
 		},
 		{
 			name:           "auto + graphql-ws accepted picks graphql-ws",
 			requested:      common.SubprotocolAuto,
-			accepted:       string(common.SubprotocolGraphQLWS),
+			accepted:       common.SubprotocolGraphQLWS,
 			wantSameTypeAs: graphQLWSProto,
 		},
 		{
@@ -1267,7 +1267,7 @@ func TestWSTransport_negotiateSubprotocol(t *testing.T) {
 		{
 			name:      "explicit graphql-transport-ws but server echoes graphql-ws fails",
 			requested: common.SubprotocolGraphQLTransportWS,
-			accepted:  string(common.SubprotocolGraphQLWS),
+			accepted:  common.SubprotocolGraphQLWS,
 			wantErr:   true,
 		},
 	}
