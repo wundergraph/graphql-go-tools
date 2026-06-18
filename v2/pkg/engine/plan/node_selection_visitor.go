@@ -40,6 +40,10 @@ type nodeSelectionVisitor struct {
 	fieldLandedTo               map[int]DSHash                                   // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
 	fieldDependencyKind         map[fieldDependencyKey]fieldDependencyKind
 
+	requestScopedVisibleResponseKeys map[int]string
+	requestScopedFetchAliases        map[int]string
+	requestScopedInjectedFieldRefs   map[int]struct{}
+
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 
@@ -94,6 +98,7 @@ type keyRequirements struct {
 type fieldRequirements struct {
 	dsHash                       DSHash
 	path                         string
+	typeName                     string
 	selectionSet                 string
 	requestedByFieldRefs         []int
 	isTypenameForEntityInterface bool
@@ -160,10 +165,13 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 	c.fieldRefDependsOn = make(map[int][]int)
 	c.fieldRequirementsConfigs = make(map[fieldIndexKey][]FederationFieldConfiguration)
 	c.fieldLandedTo = make(map[int]DSHash)
+	c.requestScopedVisibleResponseKeys = make(map[int]string)
+	c.requestScopedFetchAliases = make(map[int]string)
+	c.requestScopedInjectedFieldRefs = make(map[int]struct{})
 }
 
 func (c *nodeSelectionVisitor) LeaveDocument(operation, definition *ast.Document) {
-
+	c.propagateRequestScopedWidening()
 }
 
 func (c *nodeSelectionVisitor) EnterOperationDefinition(ref int) {
@@ -520,6 +528,9 @@ func (c *nodeSelectionVisitor) processPendingFieldRequirements(selectionSetRef i
 
 func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef int, requirements fieldRequirements) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+	if requirements.typeName != "" {
+		typeName = requirements.typeName
+	}
 
 	input := &addRequiredFieldsConfiguration{
 		operation:                     c.operation,
@@ -541,6 +552,11 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
 
 	c.addSkipFieldRefs(addFieldsResult.skipFieldRefs...)
+	if len(requirements.requestedByFieldRefs) == 0 {
+		for _, fieldRef := range addFieldsResult.skipFieldRefs {
+			c.requestScopedInjectedFieldRefs[fieldRef] = struct{}{}
+		}
+	}
 	// add mapping for the field dependencies
 	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
 		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}

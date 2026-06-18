@@ -30,6 +30,12 @@ type Configuration struct {
 	// DisableIncludeInfo controls whether the planner generates resolve.FieldInfo (useful in tests).
 	DisableIncludeInfo bool
 
+	// DisableEntityCaching disables planner-side entity and root-field cache annotations.
+	DisableEntityCaching bool
+
+	// DisableFetchProvidesData disables attaching per-fetch cache projection shapes.
+	DisableFetchProvidesData bool
+
 	// DisableIncludeFieldDependencies controls whether the planner generates
 	// field dependency structures.
 	// It requires DisableIncludeInfo set to false.

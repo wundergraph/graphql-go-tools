@@ -115,6 +115,7 @@ type result struct {
 
 	statusCode int
 	err        error
+	hasErrors  bool
 	ds         DataSourceInfo
 
 	authorizationRejected        bool
@@ -133,6 +134,27 @@ type result struct {
 	out               []byte
 	singleFlightStats *singleFlightStats
 	tools             *batchEntityTools
+
+	cacheSkipFetch     bool
+	cacheMustBeUpdated bool
+	cacheKeys          []*CacheKey
+
+	cacheTraceDurationSinceStartNano int64
+	cacheTraceDurationNano           int64
+	cacheTraceEntityCount            int
+	cacheTraceL2GetAttempted         bool
+	cacheTraceL2SetAttempted         bool
+	cacheTraceL2GetDuration          time.Duration
+	cacheTraceL2SetDuration          time.Duration
+	cacheTraceL2GetError             string
+	cacheTraceL2SetError             string
+	cacheTraceL1Hits                 int
+	cacheTraceL1Misses               int
+	cacheTraceRequestScopedHits      int
+	cacheTraceL2Hits                 int
+	cacheTraceL2Misses               int
+	cacheTraceNegativeHits           int
+	cacheTraceEntityDetails          []CacheTraceEntity
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -192,6 +214,14 @@ type Loader struct {
 	// singleFlight is the SubgraphRequestSingleFlight object shared across all client requests.
 	// It's thread safe and can be used to de-duplicate subgraph requests.
 	singleFlight *SubgraphRequestSingleFlight
+
+	l1Cache            map[string]*astjson.Value
+	requestScopedL1    map[string]*astjson.Value
+	caches             map[string]LoaderCache
+	entityCacheConfigs map[string]map[string]*EntityCacheInvalidationConfig
+
+	enableMutationL2CachePopulation bool
+	mutationCacheTTLOverride        time.Duration
 }
 
 func (l *Loader) Free() {
@@ -206,6 +236,9 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 	l.ctx = ctx
 	l.info = response.Info
 	l.taintedObjs = make(taintedObjects)
+	l.enableMutationL2CachePopulation = false
+	l.mutationCacheTTLOverride = 0
+	l.initRequestCaches()
 	return l.resolveFetchNode(response.Fetches)
 }
 
@@ -245,6 +278,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		item := nodes[i].Item
 		items := itemsItems[i]
 		res := results[i]
+		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
+			continue
+		}
 		g.Go(func() error {
 			return l.loadFetch(ctx, f, item, items, res)
 		})
@@ -254,9 +290,13 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		return errors.WithStack(err)
 	}
 	for i := range results {
+		if !results[i].fetchSkipped && !results[i].cacheSkipFetch && len(results[i].out) == 0 && results[i].err == nil {
+			l.tryRequestScopedInjectionAndTrace(nodes[i].Item.Fetch, itemsItems[i], results[i])
+		}
 		if results[i].nestedMergeItems != nil {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
+				l.attachCacheTrace(nodes[i].Item.Fetch, results[i].nestedMergeItems[j], fetchCacheConfiguration(nodes[i].Item.Fetch))
 				l.callOnFinished(results[i].nestedMergeItems[j])
 				if err != nil {
 					return errors.WithStack(err)
@@ -264,6 +304,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			}
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
+			l.attachCacheTrace(nodes[i].Item.Fetch, results[i], fetchCacheConfiguration(nodes[i].Item.Fetch))
 			l.callOnFinished(results[i])
 			if err != nil {
 				return errors.WithStack(err)
@@ -292,30 +333,48 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
 		res := &result{}
+		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
+			err := l.mergeResult(item, res, items)
+			l.attachCacheTrace(f, res, f.Cache)
+			return err
+		}
 		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
 		if err != nil {
 			return err
 		}
 		err = l.mergeResult(item, res, items)
+		l.attachCacheTrace(f, res, f.Cache)
 		l.callOnFinished(res)
 		return err
 	case *BatchEntityFetch:
 		res := &result{}
 		defer batchEntityToolPool.Put(res.tools)
+		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
+			err := l.mergeResult(item, res, items)
+			l.attachCacheTrace(f, res, f.Cache)
+			return err
+		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
+		l.attachCacheTrace(f, res, f.Cache)
 		l.callOnFinished(res)
 		return err
 	case *EntityFetch:
 		res := &result{}
+		if l.tryRequestScopedInjectionAndTrace(f, items, res) {
+			err := l.mergeResult(item, res, items)
+			l.attachCacheTrace(f, res, f.Cache)
+			return err
+		}
 		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
+		l.attachCacheTrace(f, res, f.Cache)
 		l.callOnFinished(res)
 		return err
 	default:
@@ -486,6 +545,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.fetchSkipped {
 		return nil
 	}
+	if res.cacheSkipFetch {
+		return l.mergeCacheResult(fetchItem, res, items)
+	}
 	if len(res.out) == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
@@ -544,12 +606,21 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			}
 		}
 	}
+	res.hasErrors = hasErrors
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
 		// First check if this is actually an entity null fetch, instead of a data null fetch.
 		// In this case we return early to avoid adding subgraph errors or merging this into items.
 		if isEmptyEntityFetch(fetchItem, response) {
+			cache := fetchCacheConfiguration(fetchItem.Fetch)
+			if !hasErrors && negativeCacheEnabled(cache) {
+				for _, item := range items {
+					setValueToNull(item)
+				}
+				writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+				l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
+			}
 			return nil
 		}
 
@@ -583,10 +654,13 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
 		l.resolvable.data = responseData
+		l.exportRequestScopedFields(fetchCacheConfiguration(fetchItem.Fetch), nil)
+		writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+		l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
-		items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.postProcessing.MergePath...)
+		items[0], err = astjson.MergeValuesWithPath(l.jsonArena, items[0], responseData, res.postProcessing.MergePath...)
 		if err != nil {
 			return errors.WithStack(ErrMergeResult{
 				Subgraph: res.ds.Name,
@@ -597,6 +671,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, 0) {
 			l.taintedObjs.add(items[0])
 		}
+		l.exportRequestScopedFields(fetchCacheConfiguration(fetchItem.Fetch), items)
+		writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+		l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 		return nil
 	}
 	batch := responseData.GetArray()
@@ -612,7 +689,11 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		for batchIndex, targets := range res.batchStats {
 			src := batch[batchIndex]
 			for _, target := range targets {
-				_, _, mErr := astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
+				if src != nil && src.Type() == astjson.TypeNull && negativeCacheEnabled(fetchCacheConfiguration(fetchItem.Fetch)) {
+					setValueToNull(target)
+					continue
+				}
+				_, mErr := astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
 				if mErr != nil {
 					return errors.WithStack(ErrMergeResult{
 						Subgraph: res.ds.Name,
@@ -625,6 +706,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				}
 			}
 		}
+		l.exportRequestScopedFields(fetchCacheConfiguration(fetchItem.Fetch), items)
+		writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+		l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 		return nil
 	}
 
@@ -633,7 +717,11 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	for i := range items {
-		items[i], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[i], batch[i], res.postProcessing.MergePath...)
+		if batch[i] != nil && batch[i].Type() == astjson.TypeNull && negativeCacheEnabled(fetchCacheConfiguration(fetchItem.Fetch)) {
+			setValueToNull(items[i])
+			continue
+		}
+		items[i], err = astjson.MergeValuesWithPath(l.jsonArena, items[i], batch[i], res.postProcessing.MergePath...)
 		if err != nil {
 			return errors.WithStack(ErrMergeResult{
 				Subgraph: res.ds.Name,
@@ -645,6 +733,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			l.taintedObjs.add(items[i])
 		}
 	}
+	l.exportRequestScopedFields(fetchCacheConfiguration(fetchItem.Fetch), items)
+	writtenKeys := l.populateCacheAfterMerge(fetchItem, res, responseData)
+	l.invalidateL2FromExtensions(response, res.ds.Name, writtenKeys)
 	return nil
 }
 
@@ -1218,7 +1309,7 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 		if err != nil {
 			return err
 		}
-		errorObject, _, err = astjson.MergeValuesWithPath(l.jsonArena, errorObject, extension, "extensions")
+		errorObject, err = astjson.MergeValuesWithPath(l.jsonArena, errorObject, extension, "extensions")
 		if err != nil {
 			return err
 		}
@@ -1332,6 +1423,20 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 	if !allowed {
 		return nil
 	}
+	finishCacheTrace := l.beginCacheTrace(res)
+	err = l.prepareCacheKeys(fetch.Cache, items, res)
+	if err != nil {
+		finishCacheTrace()
+		return err
+	}
+	if l.tryL1CacheLoad(fetch.Cache, res) || l.tryL2CacheLoad(ctx, fetch.Cache, res) {
+		finishCacheTrace()
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
+		return nil
+	}
+	finishCacheTrace()
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
@@ -1411,6 +1516,20 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 	if !allowed {
 		return nil
 	}
+	finishCacheTrace := l.beginCacheTrace(res)
+	err = l.prepareCacheKeys(fetch.Cache, items, res)
+	if err != nil {
+		finishCacheTrace()
+		return err
+	}
+	if l.tryL1CacheLoad(fetch.Cache, res) || l.tryL2CacheLoad(ctx, fetch.Cache, res) {
+		finishCacheTrace()
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
+		return nil
+	}
+	finishCacheTrace()
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
@@ -1581,9 +1700,101 @@ WithNextItem:
 	if !allowed {
 		return nil
 	}
+	finishCacheTrace := l.beginCacheTrace(res)
+	err = l.prepareBatchCacheKeys(fetch.Cache, res)
+	if err != nil {
+		finishCacheTrace()
+		return err
+	}
+	if allHit, partialHit := l.tryBatchCacheLoad(ctx, fetch.Cache, res); allHit {
+		finishCacheTrace()
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
+		return nil
+	} else if partialHit {
+		err = l.mergeBatchCacheHits(fetchItem, res)
+		if err != nil {
+			finishCacheTrace()
+			return err
+		}
+		fetchInput, err = l.reduceBatchEntityFetchInput(fetch, res)
+		if err != nil {
+			finishCacheTrace()
+			return err
+		}
+	}
 
+	finishCacheTrace()
 	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
+}
+
+func (l *Loader) reduceBatchEntityFetchInput(fetch *BatchEntityFetch, res *result) ([]byte, error) {
+	missedStats := make([][]*astjson.Value, 0, len(res.batchStats))
+	missedKeys := make([]*CacheKey, 0, len(res.cacheKeys))
+	for i, cacheKey := range res.cacheKeys {
+		if cacheKey.FromCache != nil {
+			continue
+		}
+		missedStats = append(missedStats, res.batchStats[i])
+		missedKeys = append(missedKeys, cacheKey)
+	}
+	res.batchStats = missedStats
+	res.cacheKeys = missedKeys
+	return l.renderReducedBatchEntityFetchInput(fetch, res, missedStats)
+}
+
+func (l *Loader) renderReducedBatchEntityFetchInput(fetch *BatchEntityFetch, res *result, batchStats [][]*astjson.Value) ([]byte, error) {
+	preparedInput := arena.NewArenaBuffer(res.tools.a)
+	itemInput := arena.NewArenaBuffer(res.tools.a)
+	var undefinedVariables []string
+
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	addSeparator := false
+	for _, targets := range batchStats {
+		if len(targets) == 0 {
+			continue
+		}
+		item := targets[0]
+		for j := range fetch.Input.Items {
+			itemInput.Reset()
+			err = fetch.Input.Items[j].Render(l.ctx, item, itemInput)
+			if err != nil {
+				if fetch.Input.SkipErrItems {
+					err = nil
+					continue
+				}
+				return nil, errors.WithStack(err)
+			}
+			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
+				continue
+			}
+			if fetch.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
+				continue
+			}
+			if addSeparator {
+				err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
+				if err != nil {
+					return nil, errors.WithStack(err)
+				}
+			}
+			_, _ = itemInput.WriteTo(preparedInput)
+			addSeparator = true
+		}
+	}
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return preparedInput.Bytes(), nil
 }
 
 func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {

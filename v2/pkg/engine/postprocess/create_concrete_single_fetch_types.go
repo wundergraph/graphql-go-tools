@@ -98,6 +98,7 @@ func (d *createConcreteSingleFetchTypes) createEntityBatchFetch(fetch *resolve.S
 		},
 		DataSource:     fetch.DataSource,
 		PostProcessing: fetch.PostProcessing,
+		Cache:          fetch.Cache,
 	}
 }
 
@@ -131,5 +132,6 @@ func (d *createConcreteSingleFetchTypes) createEntityFetch(fetch *resolve.Single
 		},
 		DataSource:     fetch.DataSource,
 		PostProcessing: fetch.PostProcessing,
+		Cache:          fetch.Cache,
 	}
 }

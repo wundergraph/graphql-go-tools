@@ -31,30 +31,31 @@ type QueryPlanProvider interface {
 
 // Visitor creates the shape of resolve.GraphQLResponse.
 type Visitor struct {
-	Operation, Definition        *ast.Document
-	Walker                       *astvisitor.Walker
-	Importer                     astimport.Importer
-	Config                       Configuration
-	plan                         Plan
-	response                     *resolve.GraphQLResponse
-	subscription                 *resolve.GraphQLSubscription
-	OperationName                string
-	operationDefinitionRef       int
-	objects                      []*resolve.Object
-	currentFields                []objectFields
-	currentField                 *resolve.Field
-	planners                     []PlannerConfiguration
-	skipFieldsRefs               []int
-	fieldRefDependsOnFieldRefs   map[int][]int
-	fieldDependencyKind          map[fieldDependencyKey]fieldDependencyKind
-	fieldRefDependants           map[int][]int // inverse of fieldRefDependsOnFieldRefs
-	fieldConfigs                 map[int]*FieldConfiguration
-	exportedVariables            map[string]struct{}
-	skipIncludeOnFragments       map[int]skipIncludeInfo
-	disableResolveFieldPositions bool
-	includeQueryPlans            bool
-	indirectInterfaceFields      map[int]indirectInterfaceField
-	pathCache                    map[astvisitor.VisitorKind]map[int]string
+	Operation, Definition          *ast.Document
+	Walker                         *astvisitor.Walker
+	Importer                       astimport.Importer
+	Config                         Configuration
+	plan                           Plan
+	response                       *resolve.GraphQLResponse
+	subscription                   *resolve.GraphQLSubscription
+	OperationName                  string
+	operationDefinitionRef         int
+	objects                        []*resolve.Object
+	currentFields                  []objectFields
+	currentField                   *resolve.Field
+	planners                       []PlannerConfiguration
+	skipFieldsRefs                 []int
+	fieldRefDependsOnFieldRefs     map[int][]int
+	fieldDependencyKind            map[fieldDependencyKey]fieldDependencyKind
+	fieldRefDependants             map[int][]int // inverse of fieldRefDependsOnFieldRefs
+	fieldConfigs                   map[int]*FieldConfiguration
+	exportedVariables              map[string]struct{}
+	skipIncludeOnFragments         map[int]skipIncludeInfo
+	requestScopedInjectedFieldRefs map[int]struct{}
+	disableResolveFieldPositions   bool
+	includeQueryPlans              bool
+	indirectInterfaceFields        map[int]indirectInterfaceField
+	pathCache                      map[astvisitor.VisitorKind]map[int]string
 
 	// plannerFields maps plannerID to fieldRefs planned on this planner.
 	// Values added in AllowVisitor callback which is fired before calling LeaveField
@@ -66,6 +67,8 @@ type Visitor struct {
 
 	// fieldEnclosingTypeNames maps fieldRef to the enclosing type name.
 	fieldEnclosingTypeNames map[int]string
+
+	caching *cachingPlannerState
 }
 
 func NewVisitor(w *astvisitor.Walker) *Visitor {
@@ -225,7 +228,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 			}
 		}
 
-		if !v.Config.DisableIncludeFieldDependencies && kind == astvisitor.LeaveField {
+		if (!v.Config.DisableIncludeFieldDependencies || v.caching != nil) && kind == astvisitor.LeaveField {
 			// we don't need to do this twice, so we only do it on leave
 
 			// store which fields are planned on which planners
@@ -365,7 +368,8 @@ func (v *Visitor) EnterField(ref int) {
 	}
 	// check if we have to skip the field in the response
 	// it means it was requested by the planner not the user
-	if v.skipField(ref) {
+	hiddenRequestScopedField := v.isRequestScopedInjectedField(ref)
+	if v.skipField(ref) && !hiddenRequestScopedField {
 		return
 	}
 
@@ -415,10 +419,16 @@ func (v *Visitor) EnterField(ref int) {
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
-	// append the field to the current object
-	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+	if !v.skipField(ref) {
+		// append the field to the current object
+		*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
+	}
 
 	v.mapFieldConfig(ref)
+	if v.caching != nil {
+		v.caching.trackFieldForPlanner(ref, v.currentField)
+		v.caching.captureFieldCacheArgs(ref)
+	}
 }
 
 func (v *Visitor) mapFieldConfig(ref int) {
@@ -632,11 +642,15 @@ func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byt
 func (v *Visitor) LeaveField(fieldRef int) {
 	v.debugOnLeaveNode(ast.NodeKindField, fieldRef)
 
-	if v.skipField(fieldRef) {
+	if v.skipField(fieldRef) && !v.isRequestScopedInjectedField(fieldRef) {
 		// we should also check skips on field leave
 		// cause on nested keys we could mistakenly remove wrong object
 		// from the stack of the current objects
 		return
+	}
+
+	if v.caching != nil {
+		v.caching.finishFieldForPlanner(fieldRef, v.fieldPlanners[fieldRef])
 	}
 
 	if v.currentFields[len(v.currentFields)-1].popOnField == fieldRef {
@@ -659,6 +673,25 @@ func (v *Visitor) LeaveField(fieldRef int) {
 func (v *Visitor) skipField(ref int) bool {
 	// TODO: If this grows, switch to map[int]struct{} for O(1).
 	return slices.Contains(v.skipFieldsRefs, ref)
+}
+
+func (v *Visitor) isRequestScopedInjectedField(ref int) bool {
+	if len(v.requestScopedInjectedFieldRefs) == 0 {
+		return false
+	}
+	_, ok := v.requestScopedInjectedFieldRefs[ref]
+	return ok
+}
+
+func (v *Visitor) CachingFetchAlias(ref int) string {
+	if v == nil || v.caching == nil {
+		return ""
+	}
+	alias, ok := v.caching.fetchAlias(ref)
+	if !ok {
+		return ""
+	}
+	return alias
 }
 
 func (v *Visitor) introspectionShouldEvaluateIncludeDeprecated(fieldName string, enclosingTypeName string) bool {
@@ -1076,6 +1109,9 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
+	if hasCachingConfiguration(v.Config.DataSources) {
+		v.caching = newCachingPlannerState(operation, definition, &v.Config)
+	}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
@@ -1300,6 +1336,9 @@ func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 	v.subscription.Trigger.SourceName = config.sourceName
 	v.subscription.Trigger.SourceID = config.sourceID
 	v.subscription.Filter = config.filter
+	if v.caching != nil {
+		v.subscription.EntityCachePopulation = v.caching.configureSubscriptionEntityCachePopulation(config, config.federation)
+	}
 }
 
 func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
@@ -1333,6 +1372,17 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 			DependsOnFetchIDs: internal.dependsOnFetchIDs,
 		},
 		DataSourceIdentifier: []byte(dataSourceType),
+	}
+	if v.caching != nil {
+		plannerConfig := v.planners[internal.fetchID]
+		singleFetch.Cache = v.caching.configureFetchCaching(fetchCachingInput{
+			fetchID:        internal.fetchID,
+			sourceName:     internal.sourceName,
+			operationType:  internal.operationType,
+			federation:     plannerConfig.DataSourceConfiguration().FederationConfiguration(),
+			requiredFields: *plannerConfig.RequiredFields(),
+			rootFields:     internal.rootFields,
+		})
 	}
 
 	if v.Config.DisableIncludeInfo {

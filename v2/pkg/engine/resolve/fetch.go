@@ -95,6 +95,7 @@ type SingleFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Cache                *FetchCacheConfiguration
 }
 
 func (s *SingleFetch) Dependencies() *FetchDependencies {
@@ -165,6 +166,7 @@ type BatchEntityFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Cache                *FetchCacheConfiguration
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -205,6 +207,7 @@ type EntityFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	Cache                *FetchCacheConfiguration
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
@@ -384,6 +387,7 @@ type DataSourceLoadTrace struct {
 	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
 	LoadSkipped                bool            `json:"load_skipped"`
 	LoadStats                  *LoadStats      `json:"load_stats,omitempty"`
+	CacheTrace                 *CacheTrace     `json:"cache_trace,omitempty"`
 	Path                       string          `json:"-"`
 }
 

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -230,6 +231,163 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 			return conf
 		})
 	})
+}
+
+func TestEngineConfigFactory_SubgraphCachingConfigs(t *testing.T) {
+	engineCtx := t.Context()
+	data, err := os.ReadFile("testdata/config_factory_federation/config.json")
+	require.NoError(t, err)
+
+	var routerConfig nodev1.RouterConfig
+	require.NoError(t, protojson.Unmarshal(data, &routerConfig))
+
+	config, err := NewFederationEngineConfigFactory(
+		engineCtx,
+		WithFederationHttpClient(&http.Client{}),
+		WithFederationStreamingClient(&http.Client{}),
+		WithFederationSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+		WithSubgraphEntityCachingConfigs(SubgraphCachingConfigs{
+			{
+				SubgraphName: "products",
+				EntityCaching: plan.EntityCacheConfigurations{
+					{
+						TypeName:                    "Product",
+						CacheName:                   "default",
+						TTL:                         30 * time.Second,
+						IncludeSubgraphHeaderPrefix: true,
+						EnablePartialCacheLoad:      true,
+						HashAnalyticsKeys:           true,
+						ShadowMode:                  true,
+						NegativeCacheTTL:            5 * time.Second,
+					},
+				},
+				RootFieldCaching: plan.RootFieldCacheConfigurations{
+					{
+						TypeName:                    "Query",
+						FieldName:                   "topProducts",
+						CacheName:                   "default",
+						TTL:                         45 * time.Second,
+						IncludeSubgraphHeaderPrefix: true,
+						EntityKeyMappings: []plan.EntityKeyMapping{
+							{
+								EntityTypeName: "Product",
+								FieldMappings: []plan.FieldMapping{
+									{
+										EntityKeyField:      "upc",
+										ArgumentPath:        []string{"upc"},
+										ArgumentIsEntityKey: true,
+									},
+								},
+							},
+						},
+						ShadowMode:       true,
+						PartialBatchLoad: true,
+					},
+				},
+				MutationFieldCaching: plan.MutationFieldCacheConfigurations{
+					{
+						FieldName:                     "setPrice",
+						EnableEntityL2CachePopulation: true,
+						TTL:                           15 * time.Second,
+					},
+				},
+				MutationCacheInvalidation: plan.MutationCacheInvalidationConfigurations{
+					{
+						FieldName:      "setPrice",
+						EntityTypeName: "Product",
+					},
+				},
+				SubscriptionEntityPopulation: plan.SubscriptionEntityPopulationConfigurations{
+					{
+						TypeName:                    "Product",
+						FieldName:                   "updatedPrice",
+						CacheName:                   "default",
+						TTL:                         20 * time.Second,
+						IncludeSubgraphHeaderPrefix: true,
+						EnableInvalidationOnKeyOnly: true,
+					},
+				},
+				RequestScopedFields: []plan.RequestScopedField{
+					{
+						TypeName:  "Product",
+						FieldName: "price",
+						L1Key:     "products.price",
+					},
+				},
+			},
+		}),
+	).BuildEngineConfiguration(&routerConfig)
+	require.NoError(t, err)
+
+	require.Len(t, config.plannerConfig.DataSources, 3)
+	federationConfig := config.plannerConfig.DataSources[1].FederationConfiguration()
+	assert.Equal(t, plan.EntityCacheConfigurations{
+		{
+			TypeName:                    "Product",
+			CacheName:                   "default",
+			TTL:                         30 * time.Second,
+			IncludeSubgraphHeaderPrefix: true,
+			EnablePartialCacheLoad:      true,
+			HashAnalyticsKeys:           true,
+			ShadowMode:                  true,
+			NegativeCacheTTL:            5 * time.Second,
+		},
+	}, federationConfig.EntityCacheConfig)
+	assert.Equal(t, plan.RootFieldCacheConfigurations{
+		{
+			TypeName:                    "Query",
+			FieldName:                   "topProducts",
+			CacheName:                   "default",
+			TTL:                         45 * time.Second,
+			IncludeSubgraphHeaderPrefix: true,
+			EntityKeyMappings: []plan.EntityKeyMapping{
+				{
+					EntityTypeName: "Product",
+					FieldMappings: []plan.FieldMapping{
+						{
+							EntityKeyField:      "upc",
+							ArgumentPath:        []string{"upc"},
+							ArgumentIsEntityKey: true,
+						},
+					},
+				},
+			},
+			ShadowMode:       true,
+			PartialBatchLoad: true,
+		},
+	}, federationConfig.RootFieldCacheConfig)
+	assert.Equal(t, plan.MutationFieldCacheConfigurations{
+		{
+			FieldName:                     "setPrice",
+			EnableEntityL2CachePopulation: true,
+			TTL:                           15 * time.Second,
+		},
+	}, federationConfig.MutationFieldCacheConfig)
+	assert.Equal(t, plan.MutationCacheInvalidationConfigurations{
+		{
+			FieldName:      "setPrice",
+			EntityTypeName: "Product",
+		},
+	}, federationConfig.MutationCacheInvalidationConfig)
+	assert.Equal(t, plan.SubscriptionEntityPopulationConfigurations{
+		{
+			TypeName:                    "Product",
+			FieldName:                   "updatedPrice",
+			CacheName:                   "default",
+			TTL:                         20 * time.Second,
+			IncludeSubgraphHeaderPrefix: true,
+			EnableInvalidationOnKeyOnly: true,
+		},
+	}, federationConfig.SubscriptionEntityPopulationConfig)
+	assert.Equal(t, []plan.RequestScopedField{
+		{
+			TypeName:  "Product",
+			FieldName: "price",
+			L1Key:     "products.price",
+		},
+	}, federationConfig.RequestScopedFields)
+	assert.Equal(t, plan.EntityCacheConfigurations(nil), config.plannerConfig.DataSources[0].FederationConfiguration().EntityCacheConfig)
+	assert.Equal(t, plan.RootFieldCacheConfigurations(nil), config.plannerConfig.DataSources[2].FederationConfiguration().RootFieldCacheConfig)
 }
 
 const (

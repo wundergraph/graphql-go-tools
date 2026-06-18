@@ -8,9 +8,10 @@ import (
 )
 
 type GraphQLSubscription struct {
-	Trigger  GraphQLSubscriptionTrigger
-	Response *GraphQLResponse
-	Filter   *SubscriptionFilter
+	Trigger               GraphQLSubscriptionTrigger
+	Response              *GraphQLResponse
+	Filter                *SubscriptionFilter
+	EntityCachePopulation *SubscriptionEntityCachePopulation
 }
 
 type GraphQLSubscriptionTrigger struct {
