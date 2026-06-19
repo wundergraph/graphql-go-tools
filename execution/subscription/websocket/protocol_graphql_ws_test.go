@@ -17,6 +17,7 @@ import (
 )
 
 func TestGraphQLWSMessageReader_Read(t *testing.T) {
+	t.Parallel()
 	data := []byte(`{ "id": "1", "type": "connection_init", "payload": { "headers": { "key": "value" } } }`)
 	expectedMessage := &GraphQLWSMessage{
 		Id:      "1",
@@ -33,7 +34,9 @@ func TestGraphQLWSMessageReader_Read(t *testing.T) {
 }
 
 func TestGraphQLWSMessageWriter_WriteData(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when error occurs on underlying call", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(true)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -44,6 +47,7 @@ func TestGraphQLWSMessageWriter_WriteData(t *testing.T) {
 		assert.Error(t, err)
 	})
 	t.Run("should successfully write message data to client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -58,7 +62,9 @@ func TestGraphQLWSMessageWriter_WriteData(t *testing.T) {
 }
 
 func TestGraphQLWSMessageWriter_WriteComplete(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when error occurs on underlying call", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(true)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -69,6 +75,7 @@ func TestGraphQLWSMessageWriter_WriteComplete(t *testing.T) {
 		assert.Error(t, err)
 	})
 	t.Run("should successfully write complete message to client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -83,7 +90,9 @@ func TestGraphQLWSMessageWriter_WriteComplete(t *testing.T) {
 }
 
 func TestGraphQLWSMessageWriter_WriteKeepAlive(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when error occurs on underlying call", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(true)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -94,6 +103,7 @@ func TestGraphQLWSMessageWriter_WriteKeepAlive(t *testing.T) {
 		assert.Error(t, err)
 	})
 	t.Run("should successfully write keep-alive (ka) message to client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -108,7 +118,9 @@ func TestGraphQLWSMessageWriter_WriteKeepAlive(t *testing.T) {
 }
 
 func TestGraphQLWSMessageWriter_WriteTerminate(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when error occurs on underlying call", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(true)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -119,6 +131,7 @@ func TestGraphQLWSMessageWriter_WriteTerminate(t *testing.T) {
 		assert.Error(t, err)
 	})
 	t.Run("should successfully write terminate message to client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -133,7 +146,9 @@ func TestGraphQLWSMessageWriter_WriteTerminate(t *testing.T) {
 }
 
 func TestGraphQLWSMessageWriter_WriteConnectionError(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when error occurs on underlying call", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(true)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -144,6 +159,7 @@ func TestGraphQLWSMessageWriter_WriteConnectionError(t *testing.T) {
 		assert.Error(t, err)
 	})
 	t.Run("should successfully write connection error message to client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -158,7 +174,9 @@ func TestGraphQLWSMessageWriter_WriteConnectionError(t *testing.T) {
 }
 
 func TestGraphQLWSMessageWriter_WriteError(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when error occurs on underlying call", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(true)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -170,6 +188,7 @@ func TestGraphQLWSMessageWriter_WriteError(t *testing.T) {
 		assert.Error(t, err)
 	})
 	t.Run("should successfully write error message to client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -185,7 +204,9 @@ func TestGraphQLWSMessageWriter_WriteError(t *testing.T) {
 }
 
 func TestGraphQLWSMessageWriter_WriteAck(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when error occurs on underlying call", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(true)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -196,6 +217,7 @@ func TestGraphQLWSMessageWriter_WriteAck(t *testing.T) {
 		assert.Error(t, err)
 	})
 	t.Run("should successfully write ack message to client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writer := GraphQLWSMessageWriter{
 			logger: abstractlogger.Noop{},
@@ -210,7 +232,9 @@ func TestGraphQLWSMessageWriter_WriteAck(t *testing.T) {
 }
 
 func TestGraphQLWSWriteEventHandler_Emit(t *testing.T) {
+	t.Parallel()
 	t.Run("should write on completed", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writeEventHandler := NewTestGraphQLWSWriteEventHandler(testClient)
 		writeEventHandler.Emit(subscription.EventTypeOnSubscriptionCompleted, "1", nil, nil)
@@ -218,6 +242,7 @@ func TestGraphQLWSWriteEventHandler_Emit(t *testing.T) {
 		assert.Equal(t, expectedMessage, testClient.readMessageToClient())
 	})
 	t.Run("should write on data", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writeEventHandler := NewTestGraphQLWSWriteEventHandler(testClient)
 		writeEventHandler.Emit(subscription.EventTypeOnSubscriptionData, "1", []byte(`{ "data": { "hello": "world" } }`), nil)
@@ -225,6 +250,7 @@ func TestGraphQLWSWriteEventHandler_Emit(t *testing.T) {
 		assert.Equal(t, expectedMessage, testClient.readMessageToClient())
 	})
 	t.Run("should write on error", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writeEventHandler := NewTestGraphQLWSWriteEventHandler(testClient)
 		writeEventHandler.Emit(subscription.EventTypeOnError, "1", nil, errors.New("error occurred"))
@@ -232,6 +258,7 @@ func TestGraphQLWSWriteEventHandler_Emit(t *testing.T) {
 		assert.Equal(t, expectedMessage, testClient.readMessageToClient())
 	})
 	t.Run("should write on duplicated subscriber id", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writeEventHandler := NewTestGraphQLWSWriteEventHandler(testClient)
 		writeEventHandler.Emit(subscription.EventTypeOnDuplicatedSubscriberID, "1", nil, subscription.ErrSubscriberIDAlreadyExists)
@@ -239,6 +266,7 @@ func TestGraphQLWSWriteEventHandler_Emit(t *testing.T) {
 		assert.Equal(t, expectedMessage, testClient.readMessageToClient())
 	})
 	t.Run("should write on connection_error", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writeEventHandler := NewTestGraphQLWSWriteEventHandler(testClient)
 		writeEventHandler.Emit(subscription.EventTypeOnConnectionError, "", nil, errors.New("connection error occurred"))
@@ -246,6 +274,7 @@ func TestGraphQLWSWriteEventHandler_Emit(t *testing.T) {
 		assert.Equal(t, expectedMessage, testClient.readMessageToClient())
 	})
 	t.Run("should write on non-subscription execution result", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writeEventHandler := NewTestGraphQLWSWriteEventHandler(testClient)
 		go func() {
@@ -265,7 +294,9 @@ func TestGraphQLWSWriteEventHandler_Emit(t *testing.T) {
 }
 
 func TestGraphQLWSWriteEventHandler_HandleWriteEvent(t *testing.T) {
+	t.Parallel()
 	t.Run("should write keep_alive", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writeEventHandler := NewTestGraphQLWSWriteEventHandler(testClient)
 		writeEventHandler.HandleWriteEvent(GraphQLWSMessageTypeConnectionKeepAlive, "", nil, nil)
@@ -273,6 +304,7 @@ func TestGraphQLWSWriteEventHandler_HandleWriteEvent(t *testing.T) {
 		assert.Equal(t, expectedMessage, testClient.readMessageToClient())
 	})
 	t.Run("should write ack", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		writeEventHandler := NewTestGraphQLWSWriteEventHandler(testClient)
 		writeEventHandler.HandleWriteEvent(GraphQLWSMessageTypeConnectionAck, "", nil, nil)
@@ -282,15 +314,16 @@ func TestGraphQLWSWriteEventHandler_HandleWriteEvent(t *testing.T) {
 }
 
 func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
+	t.Parallel()
 	t.Run("should return connection_error when an unexpected message type is used", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLWSHandler(testClient)
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		expectedMessage := []byte(`{"type":"connection_error","payload":"unexpected message type: something"}`)
 		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"something"}`))
@@ -299,6 +332,7 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("should terminate connections on connection_terminate from client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLWSHandler(testClient)
 
@@ -306,14 +340,14 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 		mockEngine := NewMockEngine(ctrl)
 		mockEngine.EXPECT().TerminateAllSubscriptions(gomock.Eq(protocol.EventHandler()))
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"connection_terminate"}`))
 		assert.NoError(t, err)
 	})
 
 	t.Run("should init connection and respond with ack and ka", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLWSHandler(testClient)
 		protocol.keepAliveInterval = 5 * time.Millisecond
@@ -340,11 +374,11 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("should start an operation on start from client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
@@ -355,11 +389,11 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("should stop a subscription on stop from client", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
@@ -370,11 +404,11 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("should not panic on broken input", func(t *testing.T) {
+		t.Parallel()
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)

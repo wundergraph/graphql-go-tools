@@ -8,9 +8,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/wundergraph/cosmo/composition-go"
 	"github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/common"
 	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
 
@@ -79,7 +77,7 @@ func WithFederationSubscriptionType(subscriptionType SubscriptionType) Federatio
 	}
 }
 
-func NewFederationEngineConfigFactory(engineCtx context.Context, subgraphsConfigs []SubgraphConfiguration, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
+func NewFederationEngineConfigFactory(engineCtx context.Context, opts ...FederationEngineConfigFactoryOption) *FederationEngineConfigFactory {
 	options := federationEngineConfigFactoryOptions{
 		httpClient: &http.Client{
 			Timeout: time.Second * 10,
@@ -109,7 +107,6 @@ func NewFederationEngineConfigFactory(engineCtx context.Context, subgraphsConfig
 		subscriptionClientFactory: options.subscriptionClientFactory,
 		subscriptionType:          options.subscriptionType,
 		customResolveMap:          options.customResolveMap,
-		subgraphsConfigs:          subgraphsConfigs,
 	}
 }
 
@@ -127,19 +124,7 @@ type FederationEngineConfigFactory struct {
 	grpcClient grpc.ClientConnInterface
 }
 
-func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (Configuration, error) {
-	rc, err := f.Compose()
-	if err != nil {
-		return Configuration{}, err
-	}
-	return f.buildEngineConfiguration(rc)
-}
-
-func (f *FederationEngineConfigFactory) BuildEngineConfigurationWithRouterConfig(c *nodev1.RouterConfig) (Configuration, error) {
-	return f.buildEngineConfiguration(c)
-}
-
-func (f *FederationEngineConfigFactory) buildEngineConfiguration(routerConfig *nodev1.RouterConfig) (Configuration, error) {
+func (f *FederationEngineConfigFactory) BuildEngineConfiguration(routerConfig *nodev1.RouterConfig) (Configuration, error) {
 	plannerConfiguration, err := f.createPlannerConfiguration(routerConfig)
 	if err != nil {
 		return Configuration{}, err
@@ -162,41 +147,6 @@ func (f *FederationEngineConfigFactory) buildEngineConfiguration(routerConfig *n
 	}
 
 	return conf, nil
-}
-
-// Compose produces a federated router configuration.
-func (f *FederationEngineConfigFactory) Compose() (*nodev1.RouterConfig, error) {
-	subgraphs := make([]*composition.Subgraph, len(f.subgraphsConfigs))
-
-	for i, subgraphConfig := range f.subgraphsConfigs {
-		subgraphs[i] = &composition.Subgraph{
-			Name:   subgraphConfig.Name,
-			URL:    subgraphConfig.URL,
-			Schema: subgraphConfig.SDL,
-		}
-
-		if subgraphConfig.SubscriptionUrl != "" {
-			subgraphs[i].SubscriptionURL = subgraphConfig.SubscriptionUrl
-		}
-
-		if subgraphConfig.SubscriptionProtocol == "" {
-			subgraphs[i].SubscriptionProtocol = string(SubscriptionProtocolWS)
-		} else {
-			subgraphs[i].SubscriptionProtocol = string(subgraphConfig.SubscriptionProtocol)
-		}
-	}
-
-	resultJSON, err := composition.BuildRouterConfiguration(subgraphs...)
-	if err != nil {
-		return nil, err
-	}
-
-	var routerConfig nodev1.RouterConfig
-	if err := protojson.Unmarshal([]byte(resultJSON), &routerConfig); err != nil {
-		return nil, err
-	}
-
-	return &routerConfig, nil
 }
 
 func (f *FederationEngineConfigFactory) createPlannerConfiguration(routerConfig *nodev1.RouterConfig) (*plan.Configuration, error) {
@@ -451,25 +401,14 @@ func (f *FederationEngineConfigFactory) graphqlDataSourceFactory() (plan.Planner
 func (f *FederationEngineConfigFactory) subscriptionClient(
 	httpClient *http.Client,
 	streamingClient *http.Client,
-	subscriptionType SubscriptionType,
+	_ SubscriptionType,
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory,
 ) (graphql_datasource.GraphQLSubscriptionClient, error) {
-	var graphqlSubscriptionClient graphql_datasource.GraphQLSubscriptionClient
-	switch subscriptionType {
-	case SubscriptionTypeGraphQLTransportWS:
-		graphqlSubscriptionClient = subscriptionClientFactory.NewSubscriptionClient(
-			httpClient,
-			streamingClient,
-			f.engineCtx,
-		)
-	default:
-		// for compatibility reasons we fall back to graphql-ws protocol
-		graphqlSubscriptionClient = subscriptionClientFactory.NewSubscriptionClient(
-			httpClient,
-			streamingClient,
-			f.engineCtx,
-		)
-	}
+	graphqlSubscriptionClient := subscriptionClientFactory.NewSubscriptionClient(
+		f.engineCtx,
+		graphql_datasource.WithUpgradeClient(httpClient),
+		graphql_datasource.WithStreamingClient(streamingClient),
+	)
 
 	ok := graphql_datasource.IsDefaultGraphQLSubscriptionClient(graphqlSubscriptionClient)
 	if !ok {

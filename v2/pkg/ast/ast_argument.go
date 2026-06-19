@@ -121,7 +121,7 @@ func (d *Document) ArgumentSetsAreEquals(left, right []int) bool {
 	if len(left) != len(right) {
 		return false
 	}
-	for i := 0; i < len(left); i++ {
+	for i := range left {
 		leftArgument, rightArgument := left[i], right[i]
 		if !d.ArgumentsAreEqual(leftArgument, rightArgument) {
 			return false

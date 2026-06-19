@@ -10,13 +10,7 @@ import (
 )
 
 func (r *fieldSelectionRewriter) datasourceHasEntitiesWithName(typeNames []string) (entityNames []string, ok bool) {
-	hasEntities := false
-	for _, typeName := range typeNames {
-		if r.dsConfiguration.HasEntity(typeName) {
-			hasEntities = true
-			break
-		}
-	}
+	hasEntities := slices.ContainsFunc(typeNames, r.dsConfiguration.HasEntity)
 
 	if !hasEntities {
 		return nil, false

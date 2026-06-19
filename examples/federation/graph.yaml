@@ -1,0 +1,14 @@
+version: 1
+subgraphs:
+  - name: accounts
+    routing_url: http://localhost:4001/query
+    schema:
+      file: accounts/graph/schema.graphqls
+  - name: products
+    routing_url: http://localhost:4002/query
+    schema:
+      file: products/graph/schema.graphqls
+  - name: reviews
+    routing_url: http://localhost:4003/query
+    schema:
+      file: reviews/graph/schema.graphqls

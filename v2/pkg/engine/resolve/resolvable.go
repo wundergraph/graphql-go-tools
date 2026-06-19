@@ -65,12 +65,21 @@ type Resolvable struct {
 
 	currentFieldInfo *FieldInfo
 
-	// actualListSizes maps the JSON path to the list size in the final response.
+	// typeNameStats maps the JSON path to its accumulated array/object stats in the final response.
 	// Used to compute the actual cost of the operation.
-	actualListSizes map[string]int
+	typeNameStats map[string]TypeNameStats
+
+	subgraphExtensions []*astjson.Object
+	allowedExtensions  map[string]*astjson.Value
 
 	incrementalItemWritten bool
 	deferItemDataNull      bool
+}
+
+type TypeNameStats struct {
+	Size      int            // the Size of the resolved array/list. It is 1 for non-list objects.
+	TypeNames map[string]int // distribution of TypeNames in the array
+	actualListSizes map[string]int
 }
 
 type ResolvableOptions struct {
@@ -78,6 +87,33 @@ type ResolvableOptions struct {
 	ApolloCompatibilityTruncateFloatValues         bool
 	ApolloCompatibilitySuppressFetchErrors         bool
 	ApolloCompatibilityReplaceInvalidVarError      bool
+	AllowedSubgraphExtensions                      map[string]struct{}
+	ExtensionForwardingAlgorithm                   ExtensionForwardingAlgorithm
+}
+
+type ExtensionForwardingAlgorithm string
+
+const (
+	ExtensionForwardingAlgorithmFirstWrite ExtensionForwardingAlgorithm = "first_write"
+	ExtensionForwardingAlgorithmLastWrite  ExtensionForwardingAlgorithm = "last_write"
+)
+
+func (a ExtensionForwardingAlgorithm) isValid() bool {
+	switch a {
+	case ExtensionForwardingAlgorithmFirstWrite, ExtensionForwardingAlgorithmLastWrite:
+		return true
+	default:
+		return false
+	}
+}
+
+func MapExtensionForwardingAlgorithm(algorithm string) ExtensionForwardingAlgorithm {
+	switch ExtensionForwardingAlgorithm(algorithm) {
+	case ExtensionForwardingAlgorithmFirstWrite, ExtensionForwardingAlgorithmLastWrite:
+		return ExtensionForwardingAlgorithm(algorithm)
+	default:
+		return ExtensionForwardingAlgorithmFirstWrite
+	}
 }
 
 func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
@@ -87,7 +123,7 @@ func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
 		astjsonArena:       a,
-		actualListSizes:    make(map[string]int),
+		typeNameStats:      make(map[string]TypeNameStats),
 	}
 }
 
@@ -111,15 +147,12 @@ func (r *Resolvable) Reset() {
 	r.authorizationError = nil
 	r.astjsonArena = nil
 	r.xxh.Reset()
-	for k := range r.authorizationAllow {
-		delete(r.authorizationAllow, k)
-	}
-	for k := range r.authorizationDeny {
-		delete(r.authorizationDeny, k)
-	}
-	for k := range r.actualListSizes {
-		delete(r.actualListSizes, k)
-	}
+	r.allowedExtensions = nil
+	clear(r.subgraphExtensions)
+	clear(r.authorizationAllow)
+	clear(r.authorizationDeny)
+	clear(r.typeNameStats)
+
 	r.deferMode = false
 	r.deferID = 0
 	r.enableDeferRender = false
@@ -498,10 +531,31 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		if writeComma {
 			r.printBytes(comma)
 		}
-		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
+		writeComma = true
 		err := r.printValueCompletionExtension()
 		if err != nil {
 			return err
+		}
+	}
+
+	if len(r.allowedExtensions) > 0 {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
+
+		counter := 0
+		for key, value := range r.allowedExtensions {
+			if counter > 0 {
+				r.printBytes(comma)
+			}
+			counter++
+			r.printBytes(quote)
+			r.printBytes([]byte(key))
+			r.printBytes(quote)
+			r.printBytes(colon)
+			r.printNode(value)
+
 		}
 	}
 
@@ -562,7 +616,21 @@ func (r *Resolvable) printValueCompletionExtension() error {
 	return nil
 }
 
+func getDefaultReservedExtensions() map[string]struct{} {
+	return map[string]struct{}{
+		string(literalAuthorization):   {},
+		string(literalRateLimit):       {},
+		string(literalQueryPlan):       {},
+		string(literalTrace):           {},
+		string(literalValueCompletion): {},
+	}
+}
+
 func (r *Resolvable) hasExtensions() bool {
+	// Apply the filter first to avoid missing extensions or applying empty extensions.
+	if r.filterAllowedSubgraphExtensions(getDefaultReservedExtensions()) {
+		return true
+	}
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		return true
 	}
@@ -579,6 +647,45 @@ func (r *Resolvable) hasExtensions() bool {
 		return true
 	}
 	return false
+}
+
+func (r *Resolvable) filterAllowedSubgraphExtensions(writtenExtensions map[string]struct{}) bool {
+	if len(r.subgraphExtensions) == 0 {
+		return false
+	}
+
+	r.allowedExtensions = make(map[string]*astjson.Value)
+	algorithm := r.options.ExtensionForwardingAlgorithm
+
+	if !algorithm.isValid() {
+		algorithm = ExtensionForwardingAlgorithmFirstWrite
+	}
+
+	override := algorithm == ExtensionForwardingAlgorithmLastWrite
+
+	// filter only allowed extensions. If the allowed extensions are empty, all extensions are allowed
+	for _, extension := range r.subgraphExtensions {
+		extension.Visit(func(key []byte, v *astjson.Value) {
+			keyString := string(key)
+			if len(r.options.AllowedSubgraphExtensions) > 0 {
+				if _, ok := r.options.AllowedSubgraphExtensions[keyString]; !ok {
+					return
+				}
+			}
+
+			// don't print the same extension twice
+			if _, exists := writtenExtensions[keyString]; exists {
+				return
+			}
+
+			// We either add the extension to the valid extension map or we override it when we're in last write mode
+			if _, exists := r.allowedExtensions[keyString]; !exists || (exists && override) {
+				r.allowedExtensions[string(key)] = v
+			}
+		})
+	}
+
+	return len(r.allowedExtensions) > 0
 }
 
 func (r *Resolvable) WroteErrorsWithoutData() bool {
@@ -791,6 +898,10 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 		}
 	}
 
+	if !r.render() {
+		r.recordObjectTypeStats(obj, typeName) // For Cost Control
+	}
+	
 	// render opening object brace for defer and non defer situation
 	if r.render() && !isRoot {
 		r.printBytes(lBrace)
@@ -1204,8 +1315,25 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	values := value.GetArray()
 
 	if !r.render() {
+		// Record arrays stats for Cost Control.
 		pathKey := r.currentFieldPath()
-		r.actualListSizes[pathKey] += len(values)
+		stats := r.typeNameStats[pathKey]
+		stats.Size += len(values)
+		if stats.TypeNames == nil && len(values) > 0 {
+			stats.TypeNames = make(map[string]int)
+		}
+		for _, arrayValue := range values {
+			var typeName string
+			if b := arrayValue.GetStringBytes("__typename"); b != nil {
+				typeName = string(b)
+			} else if obj, ok := arr.Item.(*Object); ok {
+				typeName = obj.TypeName
+			}
+			if typeName != "" {
+				stats.TypeNames[typeName]++
+			}
+		}
+		r.typeNameStats[pathKey] = stats
 	}
 
 	hasPrintedValue := false
@@ -1244,6 +1372,28 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.printBytes(rBrack)
 	}
 	return false
+}
+
+// recordObjectTypeStats records the runtime __typename of a single (non-array) object
+// that resolves an abstract (interface/union) field.
+func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
+	// An array item Object has an empty Path
+	if len(obj.Path) == 0 || !obj.isAbstract() {
+		return
+	}
+	pathKey := r.currentFieldPath()
+	stats := r.typeNameStats[pathKey]
+	stats.Size++
+	if stats.TypeNames == nil {
+		stats.TypeNames = make(map[string]int, 1)
+	}
+	// Fall back to the declared abstract type name when the subgraph did not return __typename.
+	name := obj.TypeName
+	if typeName != nil {
+		name = string(typeName)
+	}
+	stats.TypeNames[name]++
+	r.typeNameStats[pathKey] = stats
 }
 
 // Helper to build JSON path (field names only, no array indices)

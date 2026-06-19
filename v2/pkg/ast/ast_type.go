@@ -268,16 +268,20 @@ func (d *Document) typesAreCompatible(left int, right int, ignoreNullability boo
 	}
 }
 
+// ResolveTypeNameBytes unwraps the ref type until it finds an underlying base type name.
+// Example: [[String!]] -> String
 func (d *Document) ResolveTypeNameBytes(ref int) ByteSlice {
 	resolvedTypeRef := d.ResolveUnderlyingType(ref)
 	return d.TypeNameBytes(resolvedTypeRef)
 }
 
+// ResolveTypeNameString unwraps the ref type until it finds an underlying base type name.
+// Example: [[String!]] -> String
 func (d *Document) ResolveTypeNameString(ref int) string {
 	return unsafebytes.BytesToString(d.ResolveTypeNameBytes(ref))
 }
 
-// ResolveUnderlyingType unwraps the ref type until it finds the named type.
+// ResolveUnderlyingType unwraps the ref type until it finds an underlying base type.
 func (d *Document) ResolveUnderlyingType(ref int) (typeRef int) {
 	typeRef = ref
 	graphqlType := d.Types[ref]
@@ -289,7 +293,10 @@ func (d *Document) ResolveUnderlyingType(ref int) (typeRef int) {
 	return
 }
 
-// ResolveListOrNameType unwraps the ref type until it finds the named or list type.
+// ResolveListOrNameType unwraps the ref type until it finds an underlying base type or a list type.
+// Examples:
+//   - [[String]!]! -> [[String]!]
+//   - String! -> String
 func (d *Document) ResolveListOrNameType(ref int) (typeRef int) {
 	typeRef = ref
 	graphqlType := d.Types[ref]
@@ -300,13 +307,12 @@ func (d *Document) ResolveListOrNameType(ref int) (typeRef int) {
 	return
 }
 
-// ResolveNestedListOrListType returns the underlying type of a list.
-// In contrast to ResolveListOrNameType, this function does not unwrap a non-null type.
-// e.g.:
-// * [[String]] -> [String]
-// * [[String]!] -> [String]!
-// * [String!]! -> String!
-// * [String]! -> String
+// ResolveNestedListOrListType unwraps the ref type from a nullable or non-nullable list.
+// Examples:
+//   - [[String]] -> [String]
+//   - [[String]!] -> [String]!
+//   - [String!]! -> String!
+//   - [String]! -> String
 func (d *Document) ResolveNestedListOrListType(ref int) int {
 	if !d.TypeIsList(ref) {
 		return InvalidRef

@@ -130,6 +130,7 @@ func (l *Lexer) readDotOrSpread(tok *token.Token) {
 func (l *Lexer) readComment(tok *token.Token) {
 
 	tok.Keyword = keyword.COMMENT
+	tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 
 	for {
 		next := l.readRune()
@@ -157,7 +158,7 @@ func (l *Lexer) readString(tok *token.Token) {
 }
 
 func (l *Lexer) swallowAmount(amount int) {
-	for i := 0; i < amount; i++ {
+	for range amount {
 		l.readRune()
 	}
 }
@@ -176,7 +177,7 @@ func (l *Lexer) peekEquals(ignoreWhitespace bool, equals ...byte) bool {
 		return false
 	}
 
-	for i := 0; i < len(equals); i++ {
+	for i := range equals {
 		if l.input.RawBytes[start+i] != equals[i] {
 			return false
 		}

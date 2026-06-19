@@ -303,8 +303,7 @@ func Benchmark_ArenaGCSafety(b *testing.B) {
 
 	for _, tc := range cases {
 		b.Run(tc.name, func(b *testing.B) {
-			rCtx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			rCtx := b.Context()
 			resolver := New(rCtx, tc.resolverOpts())
 			buf := &bytes.Buffer{}
 

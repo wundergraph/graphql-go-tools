@@ -26,7 +26,7 @@ func TestChatSubscriptions(t *testing.T) {
 	}()
 
 	go func() {
-		var resp interface{}
+		var resp any
 		time.Sleep(10 * time.Millisecond)
 		err := c.Post(`mutation { 
 				a:post(text:"Hello!", roomName:"#gophers", username:"vektah") { id } 

@@ -727,6 +727,28 @@
         },
         {
           "__typename": "__Directive",
+          "name": "approx",
+          "description": "",
+          "locations": [
+            "FIELD_DEFINITION"
+          ],
+          "args": [
+            {
+              "__typename": "__InputValue",
+              "name": "tolerance",
+              "description": "",
+              "type": {
+                "__typename": "__Type",
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": "1"
+            }
+          ]
+        },
+        {
+          "__typename": "__Directive",
           "name": "include",
           "description": "Directs the executor to include this field or fragment only when the argument is true.",
           "locations": [

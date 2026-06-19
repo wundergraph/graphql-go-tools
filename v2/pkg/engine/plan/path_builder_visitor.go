@@ -148,8 +148,8 @@ func (c *pathBuilderVisitor) currentSelectionSetInfo() (info selectionSetTypeInf
 }
 
 func (c *pathBuilderVisitor) plannerPathType(path string) PlannerPathType {
-	for i := len(c.arrayFields) - 1; i >= 0; i-- {
-		arrayPath := c.arrayFields[i].fieldPath
+	for _, v := range slices.Backward(c.arrayFields) {
+		arrayPath := v.fieldPath
 		switch {
 		case path == arrayPath:
 			return PlannerPathArrayItem

@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -41,17 +42,17 @@ func (p Path) Equals(another Path) bool {
 	if len(p) != len(another) {
 		return false
 	}
-	for i := len(p) - 1; i >= 0; i-- {
-		if p[i].Kind != another[i].Kind {
+	for i, v := range slices.Backward(p) {
+		if v.Kind != another[i].Kind {
 			return false
 		}
-		if p[i].Kind == ArrayIndex && p[i].ArrayIndex != another[i].ArrayIndex {
+		if v.Kind == ArrayIndex && v.ArrayIndex != another[i].ArrayIndex {
 			return false
 		}
-		if !bytes.Equal(p[i].FieldName, another[i].FieldName) {
+		if !bytes.Equal(v.FieldName, another[i].FieldName) {
 			return false
 		}
-		if p[i].FragmentRef != another[i].FragmentRef {
+		if v.FragmentRef != another[i].FragmentRef {
 			return false
 		}
 	}
@@ -104,28 +105,29 @@ func (p Path) RemoveLastItem() Path {
 }
 
 func (p Path) String() string {
-	out := "["
+	var out strings.Builder
+	out.WriteString("[")
 	for i := range p {
 		if i != 0 {
-			out += ","
+			out.WriteString(",")
 		}
 		switch p[i].Kind {
 		case ArrayIndex:
-			out += strconv.Itoa(p[i].ArrayIndex)
+			out.WriteString(strconv.Itoa(p[i].ArrayIndex))
 		case FieldName:
 			if len(p[i].FieldName) == 0 {
-				out += "query"
+				out.WriteString("query")
 			} else {
-				out += unsafebytes.BytesToString(p[i].FieldName)
+				out.WriteString(unsafebytes.BytesToString(p[i].FieldName))
 			}
 		case InlineFragmentName:
-			out += InlineFragmentPathPrefix
-			out += strconv.Itoa(p[i].FragmentRef)
-			out += unsafebytes.BytesToString(p[i].FieldName)
+			out.WriteString(InlineFragmentPathPrefix)
+			out.WriteString(strconv.Itoa(p[i].FragmentRef))
+			out.WriteString(unsafebytes.BytesToString(p[i].FieldName))
 		}
 	}
-	out += "]"
-	return out
+	out.WriteString("]")
+	return out.String()
 }
 
 func (p Path) DotDelimitedString() string {

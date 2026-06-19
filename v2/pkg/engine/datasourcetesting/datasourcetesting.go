@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/astjson"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -257,9 +255,9 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			}
 		}
 
-		formatterConfig := map[reflect.Type]interface{}{
+		formatterConfig := map[reflect.Type]any{
 			// normalize byte slices to strings
-			reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+			reflect.TypeFor[[]byte](): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
 			// normalize map[string]struct{} to json array of keys
 			reflect.TypeOf(map[string]struct{}{}): func(m map[string]struct{}) string {
 				var keys []string
@@ -271,7 +269,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 				keysPrinted, _ := json.Marshal(keys)
 				return string(keysPrinted)
 			},
-			reflect.TypeOf(resolve.SkipArrayItem(func(ctx *resolve.Context, arrayItem *astjson.Value) bool { return false })): func(resolve.SkipArrayItem) string { return "skip_function" },
+			reflect.TypeFor[resolve.SkipArrayItem](): func(resolve.SkipArrayItem) string { return "skip_function" },
 		}
 
 		prettyCfg := &pretty.Config{

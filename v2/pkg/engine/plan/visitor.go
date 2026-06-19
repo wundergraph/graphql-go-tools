@@ -20,7 +20,7 @@ import (
 
 type DataSourceDebugger interface {
 	astvisitor.VisitorIdentifier
-	DebugPrint(args ...interface{})
+	DebugPrint(args ...any)
 	EnableDebug()
 	EnableDebugQueryPlanLogging()
 }
@@ -122,12 +122,12 @@ func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
 	}
 }
 
-func (v *Visitor) debugPrint(args ...interface{}) {
+func (v *Visitor) debugPrint(args ...any) {
 	if !v.Config.Debug.PlanningVisitor {
 		return
 	}
 
-	allArgs := []interface{}{"[Visitor]: "}
+	allArgs := []any{"[Visitor]: "}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
@@ -620,12 +620,7 @@ func (v *Visitor) assignDefer(fieldRef int) {
 // If it returns false, the user requests the field.
 func (v *Visitor) skipField(ref int) bool {
 	// TODO: If this grows, switch to map[int]struct{} for O(1).
-	for _, skipRef := range v.skipFieldsRefs {
-		if skipRef == ref {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(v.skipFieldsRefs, ref)
 }
 
 func (v *Visitor) introspectionShouldEvaluateIncludeDeprecated(fieldName string, enclosingTypeName string) bool {

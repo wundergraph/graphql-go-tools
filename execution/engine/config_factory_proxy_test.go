@@ -15,6 +15,7 @@ import (
 )
 
 func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
+	t.Parallel()
 	engineCtx := context.Background()
 
 	schema, err := graphql.NewSchemaFromString(graphqlGeneratorSchema)
@@ -57,6 +58,7 @@ func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
 	}
 
 	t.Run("engine config with unknown subscription type", func(t *testing.T) {
+		t.Parallel()
 		upstreamConfig := ProxyUpstreamConfig{
 			URL:    "http://localhost:8080",
 			Method: http.MethodGet,
@@ -137,6 +139,7 @@ func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
 	})
 
 	t.Run("engine config with specific WS subscription type", func(t *testing.T) {
+		t.Parallel()
 		upstreamConfig := ProxyUpstreamConfig{
 			URL:    "http://localhost:8080",
 			Method: http.MethodGet,
@@ -217,6 +220,7 @@ func TestProxyEngineConfigFactory_EngineConfiguration(t *testing.T) {
 	})
 
 	t.Run("engine config with SSE subscription type", func(t *testing.T) {
+		t.Parallel()
 		upstreamConfig := ProxyUpstreamConfig{
 			URL:    "http://localhost:8080",
 			Method: http.MethodGet,

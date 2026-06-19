@@ -201,14 +201,14 @@
                     "duration_since_start_pretty": ""
                   },
                   "connect_start": {
-                    "duration_since_start_nanoseconds": 0,
-                    "duration_since_start_pretty": "",
+                    "duration_since_start_nanoseconds": 1,
+                    "duration_since_start_pretty": "1ns",
                     "network": "",
                     "addr": ""
                   },
                   "connect_done": {
-                    "duration_since_start_nanoseconds": 0,
-                    "duration_since_start_pretty": "",
+                    "duration_since_start_nanoseconds": 1,
+                    "duration_since_start_pretty": "1ns",
                     "network": "",
                     "addr": ""
                   },
@@ -341,14 +341,14 @@
                         "duration_since_start_pretty": ""
                       },
                       "connect_start": {
-                        "duration_since_start_nanoseconds": 0,
-                        "duration_since_start_pretty": "",
+                        "duration_since_start_nanoseconds": 1,
+                        "duration_since_start_pretty": "1ns",
                         "network": "",
                         "addr": ""
                       },
                       "connect_done": {
-                        "duration_since_start_nanoseconds": 0,
-                        "duration_since_start_pretty": "",
+                        "duration_since_start_nanoseconds": 1,
+                        "duration_since_start_pretty": "1ns",
                         "network": "",
                         "addr": ""
                       },
@@ -527,14 +527,14 @@
                         "duration_since_start_pretty": ""
                       },
                       "connect_start": {
-                        "duration_since_start_nanoseconds": 0,
-                        "duration_since_start_pretty": "",
+                        "duration_since_start_nanoseconds": 1,
+                        "duration_since_start_pretty": "1ns",
                         "network": "",
                         "addr": ""
                       },
                       "connect_done": {
-                        "duration_since_start_nanoseconds": 0,
-                        "duration_since_start_pretty": "",
+                        "duration_since_start_nanoseconds": 1,
+                        "duration_since_start_pretty": "1ns",
                         "network": "",
                         "addr": ""
                       },

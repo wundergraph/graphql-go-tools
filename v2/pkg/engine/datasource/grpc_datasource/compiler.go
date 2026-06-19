@@ -708,6 +708,26 @@ func (p *RPCCompiler) buildRequiredFieldsMessage(inputMessage Message, rpcMessag
 		contextList.Append(element)
 	}
 
+	argsRPCField := rpcMessage.Fields.ByName("field_args")
+
+	if argsRPCField == nil {
+		return rootMessage, nil
+	}
+
+	argsSchemaField := inputMessage.GetField("field_args")
+	if argsSchemaField == nil {
+		return nil, fmt.Errorf("field_args field not found in message %s", inputMessage.Name)
+	}
+
+	argsMessage := p.doc.Messages[argsSchemaField.MessageRef]
+	args, err := p.buildProtoMessage(argsMessage, argsRPCField.Message, data)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args)); err != nil {
+		return nil, err
+	}
+
 	return rootMessage, nil
 }
 
@@ -910,7 +930,7 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 
 	if nestingLevel > 1 {
 		items := make([]protoref.Value, 0, itemsListLen)
-		for i := 0; i < itemsListLen; i++ {
+		for i := range itemsListLen {
 			items = append(items, p.resolveUnderlyingListItems(itemsList.Get(i), nestingLevel-1)...)
 		}
 
@@ -918,7 +938,7 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 	}
 
 	result := make([]protoref.Value, itemsListLen)
-	for i := 0; i < itemsListLen; i++ {
+	for i := range itemsListLen {
 		result[i] = itemsList.Get(i)
 	}
 

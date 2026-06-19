@@ -128,7 +128,7 @@ func (c *Client) Disconnect() error {
 
 // DisconnectWithReason will close the websocket and provide the close code and reason.
 // It can only consume CloseReason or CompiledCloseReason.
-func (c *Client) DisconnectWithReason(reason interface{}) error {
+func (c *Client) DisconnectWithReason(reason any) error {
 	var err error
 	switch reason := reason.(type) {
 	case CloseReason:

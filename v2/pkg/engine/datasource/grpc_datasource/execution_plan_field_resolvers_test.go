@@ -4286,9 +4286,10 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupProductById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupProductById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Product",
 						Request: RPCMessage{
 							Name: "LookupProductByIdRequest",
 							Fields: []RPCField{
@@ -4464,9 +4465,10 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupStorageById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
 						Request: RPCMessage{
 							Name: "LookupStorageByIdRequest",
 							Fields: []RPCField{
@@ -4528,10 +4530,11 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 						},
 					},
 					{
-						ID:          1,
-						ServiceName: "Products",
-						MethodName:  "LookupProductById",
-						Kind:        CallKindEntity,
+						ID:                  1,
+						ServiceName:         "Products",
+						MethodName:          "LookupProductById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Product",
 						Request: RPCMessage{
 							Name: "LookupProductByIdRequest",
 							Fields: []RPCField{
@@ -4742,9 +4745,10 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupProductById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupProductById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Product",
 						Request: RPCMessage{
 							Name: "LookupProductByIdRequest",
 							Fields: []RPCField{
@@ -4920,9 +4924,10 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupProductById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupProductById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Product",
 						Request: RPCMessage{
 							Name: "LookupProductByIdRequest",
 							Fields: []RPCField{
@@ -5103,9 +5108,10 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "Products",
-						MethodName:  "LookupProductById",
-						Kind:        CallKindEntity,
+						ServiceName:         "Products",
+						MethodName:          "LookupProductById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Product",
 						Request: RPCMessage{
 							Name: "LookupProductByIdRequest",
 							Fields: []RPCField{

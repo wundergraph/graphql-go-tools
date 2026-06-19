@@ -5,7 +5,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -824,7 +827,7 @@ func BenchmarkResolvable_Resolve(b *testing.B) {
 	b.SetBytes(int64(len(expected)))
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		out.Reset()
 		err = res.Resolve(context.Background(), object, nil, out)
 		if err != nil {
@@ -910,7 +913,7 @@ func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 	b.SetBytes(int64(len(expected)))
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		out.Reset()
 		err = res.Resolve(context.Background(), object, nil, out)
 		if err != nil {
@@ -1419,4 +1422,206 @@ func TestResolvable_WithTracing(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]},"extensions":{"trace":{"version":"1","info":{"trace_start_time":"","trace_start_unix":0,"parse_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":5,"duration_since_start_pretty":"5ns"},"normalize_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":10,"duration_since_start_pretty":"10ns"},"validate_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":15,"duration_since_start_pretty":"15ns"},"planner_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":20,"duration_since_start_pretty":"20ns"}},"fetches":{"kind":"Sequence"}}}}`, out.String())
+}
+
+func TestResolvable_SubgraphExtensions(t *testing.T) {
+	helloObject := &Object{
+		Fields: []*Field{
+			{Name: []byte("hello"), Value: &String{Path: []string{"hello"}}},
+		},
+	}
+
+	runResolve := func(t *testing.T, opts ResolvableOptions, extensions ...string) string {
+		t.Helper()
+		res := NewResolvable(nil, opts)
+		ctx := &Context{}
+		err := res.Init(ctx, []byte(`{"hello":"world"}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+
+		for _, ext := range extensions {
+			res.subgraphExtensions = append(res.subgraphExtensions,
+				astjson.MustParse(ext).GetObject())
+		}
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), helloObject, nil, out)
+		assert.NoError(t, err)
+		return out.String()
+	}
+
+	// runResolveWithSubgraphResponse drives the full loader → resolvable path so
+	// the test exercises the same code that runs in production when a subgraph
+	// returns an error response.
+	runResolveWithSubgraphResponse := func(t *testing.T, opts ResolvableOptions, response string) string {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		ds := mockedDS(t, ctrl, "{}", response)
+
+		fetchTree := Single(&SingleFetch{
+			InputTemplate: InputTemplate{
+				Segments: []TemplateSegment{
+					{Data: []byte(`{}`), SegmentType: StaticSegmentType},
+				},
+			},
+			FetchConfiguration: FetchConfiguration{
+				DataSource: ds,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+		})
+
+		ctx := NewContext(context.Background())
+		resolvable := NewResolvable(nil, opts)
+		loader := &Loader{
+			allowCustomExtensionProperties: true,
+			subgraphErrorPropagationMode:   SubgraphErrorPropagationModePassThrough,
+			allowedSubgraphErrorFields:     map[string]struct{}{"message": {}},
+		}
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		assert.NoError(t, err)
+
+		err = loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{
+			Fetches: fetchTree,
+			Data:    helloObject,
+		}, resolvable)
+		assert.NoError(t, err)
+
+		out := &bytes.Buffer{}
+		err = resolvable.Resolve(ctx.ctx, helloObject, fetchTree, out)
+		assert.NoError(t, err)
+		return out.String()
+	}
+
+	t.Run("no subgraph extensions - extensions field omitted", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{})
+		assert.Equal(t, `{"data":{"hello":"world"}}`, out)
+	})
+
+	t.Run("forwards subgraph extension when no allow-list configured", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{}, `{"myExtension":"myValue"}`)
+		assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"myExtension":"myValue"}}`, out)
+	})
+
+	t.Run("forwards nested extension values verbatim", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{},
+			`{"myOtherExtension":{"nested":[{"value":"nestedValue"},{"value":"nestedValue2"}]}}`)
+		assert.Equal(t,
+			`{"data":{"hello":"world"},"extensions":{"myOtherExtension":{"nested":[{"value":"nestedValue"},{"value":"nestedValue2"}]}}}`,
+			out)
+	})
+
+	t.Run("filters out keys not in AllowedSubgraphExtensions", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{
+			AllowedSubgraphExtensions: map[string]struct{}{"allowed": {}},
+		}, `{"allowed":"yes","blocked":"no"}`)
+		assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"allowed":"yes"}}`, out)
+	})
+
+	t.Run("nil AllowedSubgraphExtensions allows everything", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{}, `{"a":"1","b":"2"}`)
+		// the iteration order over the validated extensions map is non-deterministic,
+		// so compare the JSON shape rather than the byte string
+		assert.JSONEq(t, `{"data":{"hello":"world"},"extensions":{"a":"1","b":"2"}}`, out)
+	})
+
+	t.Run("empty AllowedSubgraphExtensions allows everything", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{
+			AllowedSubgraphExtensions: map[string]struct{}{},
+		}, `{"foo":"bar"}`)
+
+		assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"foo":"bar"}}`, out)
+	})
+
+	t.Run("first-write algorithm: first subgraph wins on duplicate keys", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{
+			ExtensionForwardingAlgorithm: ExtensionForwardingAlgorithmFirstWrite,
+		}, `{"shared":"first"}`, `{"shared":"second"}`)
+		assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"shared":"first"}}`, out)
+	})
+
+	t.Run("last-write algorithm: last subgraph wins on duplicate keys", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{
+			ExtensionForwardingAlgorithm: ExtensionForwardingAlgorithmLastWrite,
+		}, `{"shared":"first"}`, `{"shared":"second"}`)
+		assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"shared":"second"}}`, out)
+	})
+
+	t.Run("invalid algorithm value defaults to first-write", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{
+			ExtensionForwardingAlgorithm: ExtensionForwardingAlgorithm("nonsense"),
+		}, `{"shared":"first"}`, `{"shared":"second"}`)
+		assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"shared":"first"}}`, out)
+	})
+
+	t.Run("default algorithm (empty string) is first-write", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{},
+			`{"shared":"first"}`, `{"shared":"second"}`)
+		assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"shared":"first"}}`, out)
+	})
+
+	t.Run("No extensions written when no allowed extensions match", func(t *testing.T) {
+		out := runResolve(t, ResolvableOptions{
+			AllowedSubgraphExtensions: map[string]struct{}{"not-included": {}},
+		}, `{"allowed":"yes","blocked":"no"}`)
+		assert.Equal(t, `{"data":{"hello":"world"}}`, out)
+	})
+
+	t.Run("preserves extensions already written by other producers", func(t *testing.T) {
+		// Tracing extension is written first; a subgraph that tries to write the
+		// "trace" key must be filtered out so the real trace isn't replaced.
+		res := NewResolvable(nil, ResolvableOptions{})
+		background := SetTraceStart(context.Background(), true)
+		ctx := NewContext(background)
+		ctx.TracingOptions.Enable = true
+		ctx.TracingOptions.EnablePredictableDebugTimings = true
+		ctx.TracingOptions.IncludeTraceOutputInResponseExtensions = true
+		err := res.Init(ctx, []byte(`{"hello":"world"}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+
+		res.subgraphExtensions = append(res.subgraphExtensions,
+			astjson.MustParse(`{"trace":"replacement","other":"value"}`).GetObject())
+
+		SetParseStats(ctx.ctx, PhaseStats{})
+		SetNormalizeStats(ctx.ctx, PhaseStats{})
+		SetValidateStats(ctx.ctx, PhaseStats{})
+		SetPlannerStats(ctx.ctx, PhaseStats{})
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(ctx.ctx, helloObject, Sequence(), out)
+		assert.NoError(t, err)
+		s := out.String()
+		// tracing extension is preserved as a structured object
+		assert.Contains(t, s, `"trace":{"version":"1"`)
+		// subgraph string did not override the tracing extension
+		assert.NotContains(t, s, `"trace":"replacement"`)
+		// non-conflicting subgraph key is forwarded
+		assert.Contains(t, s, `"other":"value"`)
+	})
+
+	t.Run("captures extensions when subgraph response carries errors and null data", func(t *testing.T) {
+		out := runResolveWithSubgraphResponse(t, ResolvableOptions{},
+			`{"data":null,"errors":[{"message":"boom"}],"extensions":{"foo":"bar"}}`)
+		assert.Equal(t,
+			`{"errors":[{"message":"boom"}],"data":null,"extensions":{"foo":"bar"}}`,
+			out)
+	})
+}
+
+func TestExtensionForwardingAlgorithm_isValid(t *testing.T) {
+	assert.True(t, ExtensionForwardingAlgorithmFirstWrite.isValid())
+	assert.True(t, ExtensionForwardingAlgorithmLastWrite.isValid())
+	assert.False(t, ExtensionForwardingAlgorithm("").isValid())
+	assert.False(t, ExtensionForwardingAlgorithm("nonsense").isValid())
+}
+
+func TestMapExtensionForwardingAlgorithm(t *testing.T) {
+	assert.Equal(t, ExtensionForwardingAlgorithmFirstWrite, MapExtensionForwardingAlgorithm("first_write"))
+	assert.Equal(t, ExtensionForwardingAlgorithmLastWrite, MapExtensionForwardingAlgorithm("last_write"))
+	// unknown values fall back to first_write
+	assert.Equal(t, ExtensionForwardingAlgorithmFirstWrite, MapExtensionForwardingAlgorithm(""))
+	assert.Equal(t, ExtensionForwardingAlgorithmFirstWrite, MapExtensionForwardingAlgorithm("nonsense"))
 }
