@@ -740,7 +740,7 @@ func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 	}
 }
 
-func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
+func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bool) {
 	r.enclosingTypeNames = append(r.enclosingTypeNames, obj.TypeName)
 	defer func() {
 		r.enclosingTypeNames = r.enclosingTypeNames[:len(r.enclosingTypeNames)-1]
@@ -791,6 +791,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 	}
 
+	// render opening object brace for defer and non defer situation
 	if r.render() && !isRoot {
 		r.printBytes(lBrace)
 	}
@@ -800,66 +801,73 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
 	}()
 
-	if r.deferMode {
-		renderFields, passThroughFields := r.collectDeferFields(obj)
-
-		if len(renderFields) > 0 {
-			startedRender := false
-
-			if !r.enableDeferRender {
-				r.enableDeferRender = true
-				startedRender = true
-
-				if r.enableRender && r.incrementalItemWritten {
-					r.printBytes(comma)
-				}
-
-				if r.deferID != 0 {
-					if r.deferItemDataNull {
-						// Pre-walk detected null propagating through non-nullable chain;
-						// render {"data":null,"path":[...],"errors":[...]} without walking fields.
-						r.printDeferEnvelopeNullData()
-						r.incrementalItemWritten = true
-						r.enableDeferRender = false
-						return true
-					}
-					r.printDeferEnvelopeOpen()
-				}
-			}
-
-			// render initial batch of fields
-			hasErrors := r.walkFields(obj, value, parent, walkFieldsFilter{renderFields: renderFields, passThrough: false, enabled: true})
-
-			if startedRender {
-				if r.deferID != 0 {
-					if !r.enableRender && hasErrors {
-						// Pre-walk: null propagated through non-nullable chain; signal render pass.
-						r.deferItemDataNull = true
-					}
-					r.printDeferEnvelopeClose()
-					r.incrementalItemWritten = true
-				}
-				r.enableDeferRender = false
-			}
-
-			if hasErrors {
-				return true
-			}
-		}
-
-		if r.deferID != 0 && len(passThroughFields) > 0 {
-			// passThrough for additional nested defer fields
-			if r.walkFields(obj, value, parent, walkFieldsFilter{passThroughFields: passThroughFields, passThrough: true, enabled: true}) {
-				return true
-			}
-		}
-
-	} else {
+	if !r.deferMode {
 		if r.walkFields(obj, value, parent, walkFieldsFilter{}) {
+			return true
+		}
+
+		// close the object brace for non defer mode
+		if r.render() && !isRoot {
+			r.printBytes(rBrace)
+		}
+		return false
+	}
+
+	renderFields, passThroughFields := r.collectDeferFields(obj)
+
+	if len(renderFields) > 0 {
+		startedRender := false
+
+		if !r.enableDeferRender {
+			r.enableDeferRender = true
+			startedRender = true
+
+			if r.enableRender && r.incrementalItemWritten {
+				r.printBytes(comma)
+			}
+
+			if r.deferID != 0 {
+				if r.deferItemDataNull {
+					// Pre-walk detected null propagating through non-nullable chain;
+					// render {"data":null,"path":[...],"errors":[...]} without walking fields.
+					r.printDeferEnvelopeNullData()
+					r.incrementalItemWritten = true
+					r.enableDeferRender = false
+					return true
+				}
+				r.printDeferEnvelopeOpen()
+			}
+		}
+
+		// render the initial batch of fields
+		hasErrors := r.walkFields(obj, value, parent, walkFieldsFilter{renderFields: renderFields, passThrough: false, enabled: true})
+
+		if startedRender {
+			if r.deferID != 0 {
+				if !r.enableRender && hasErrors {
+					// Pre-walk: null propagated through a non-nullable chain; signal render pass.
+					r.deferItemDataNull = true
+				}
+				r.printDeferEnvelopeClose()
+				r.incrementalItemWritten = true
+			}
+			r.enableDeferRender = false
+		}
+
+		if hasErrors {
 			return true
 		}
 	}
 
+	// we do not search for the other fields when defer is 0 because it is impossible to have non-deferred fields under the deferred parent
+	if r.deferID != 0 && len(passThroughFields) > 0 {
+		// passThrough for additional nested defer fields
+		if r.walkFields(obj, value, parent, walkFieldsFilter{passThroughFields: passThroughFields, passThrough: true, enabled: true}) {
+			return true
+		}
+	}
+
+	// close the object brace in the defer mode
 	if r.render() && !isRoot {
 		r.printBytes(rBrace)
 	}
