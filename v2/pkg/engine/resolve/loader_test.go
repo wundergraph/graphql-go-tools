@@ -2136,15 +2136,15 @@ func TestLoader_AllowCustomExtensionProperties(t *testing.T) {
 		t.Helper()
 		ctx := NewContext(context.Background())
 		resolvable := NewResolvable(nil, ResolvableOptions{})
-		loader := &Loader{allowCustomExtensionProperties: allow}
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}, allowCustomExtensionProperties: allow}
 		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 		assert.NoError(t, err)
 		err = loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{
 			Fetches: fetches,
 			Data:    dataObject,
-		}, resolvable)
+		})
 		assert.NoError(t, err)
-		return resolvable.subgraphExtensions
+		return loader.subgraphExtensions
 	}
 
 	singleNameDataObject := &Object{

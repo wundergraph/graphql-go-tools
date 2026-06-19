@@ -366,6 +366,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		// Inject loader output into Resolvable before rendering.
 		resolvable.data = loader.dataBuffer.Get()
 		resolvable.errors = loader.errors
+		resolvable.subgraphExtensions = loader.subgraphExtensions
 		resolvable.skipValueCompletion = loader.skipValueCompletion
 	}
 
@@ -429,6 +430,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		}
 		resolvable.data = loader.dataBuffer.Get()
 		resolvable.errors = loader.errors
+		resolvable.subgraphExtensions = loader.subgraphExtensions
 		resolvable.skipValueCompletion = loader.skipValueCompletion
 	}
 
@@ -503,6 +505,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		// Inject loader output before the initial defer render.
 		resolvable.data = loader.dataBuffer.Get()
 		resolvable.errors = loader.errors
+		resolvable.subgraphExtensions = loader.subgraphExtensions
 		resolvable.skipValueCompletion = loader.skipValueCompletion
 
 		resolvable.deferMode = true
@@ -611,6 +614,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	// Inject group-local state into Resolvable for this render.
 	dc.resolvable.data = dc.db.Get()
 	dc.resolvable.errors = groupLoader.errors
+	dc.resolvable.subgraphExtensions = groupLoader.subgraphExtensions
 	groupLoader.appendSubgraphErrorsToContext()
 
 	// TODO: skipValueCompletion is set inside mergeResult when a fetch response
@@ -893,6 +897,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	// have already set resolvable.errors from the event payload, so append the
 	// loader's fetch errors rather than overwrite them.
 	resolvable.data = loader.dataBuffer.Get()
+	resolvable.subgraphExtensions = loader.subgraphExtensions
 	if loader.errors != nil {
 		if resolvable.errors == nil {
 			resolvable.errors = loader.errors

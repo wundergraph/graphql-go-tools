@@ -171,6 +171,9 @@ type Loader struct {
 	// the shared Context map.
 	subgraphErrors map[string]error
 
+	// subgraphExtensions - accumulates extensions returned from each subgraph call
+	subgraphExtensions []*astjson.Object
+
 	// skipValueCompletion is set when a response has errors but no data
 	// and apolloCompatibilityValueCompletionInExtensions is enabled.
 	// Read back by the caller after ResolveFetchNode.
@@ -590,7 +593,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		extensions := response.Get("extensions")
 
 		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
-			l.resolvable.subgraphExtensions = append(l.resolvable.subgraphExtensions, extensions.GetObject())
+			l.subgraphExtensions = append(l.subgraphExtensions, extensions.GetObject())
 		}
 	}
 
