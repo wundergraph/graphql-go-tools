@@ -41,11 +41,13 @@ func (d *extractDeferFetches) Process(deferPlan *plan.DeferResponsePlan) {
 	}
 }
 
-func (d *extractDeferFetches) fetchGroups(deferPlan *plan.DeferResponsePlan) (root []*resolve.FetchTreeNode, deffered map[int][]*resolve.FetchTreeNode) {
-	fetchGroups := make(map[int][]*resolve.FetchTreeNode)
+func (d *extractDeferFetches) fetchGroups(deferPlan *plan.DeferResponsePlan) (root []*resolve.FetchTreeNode, fetchGroups map[int][]*resolve.FetchTreeNode) {
+	fetchGroups = make(map[int][]*resolve.FetchTreeNode)
 
 	for _, fetch := range deferPlan.Response.Response.Fetches.ChildNodes {
 		deferID := fetch.Item.Fetch.Dependencies().DeferID
+		// DeferID 0 means the fetch is not deferred: it belongs to the initial
+		// (non-deferred) response, so it goes into the root group.
 		if deferID == 0 {
 			root = append(root, fetch)
 			continue

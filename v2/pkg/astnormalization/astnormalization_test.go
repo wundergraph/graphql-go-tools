@@ -41,7 +41,7 @@ func TestNormalizeOperation(t *testing.T) {
 			WithRemoveFragmentDefinitions(),
 			WithRemoveUnusedVariables(),
 			WithNormalizeDefinition(),
-			WithInlineDefer(),
+			WithEnableDefer(),
 		)
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
@@ -512,7 +512,8 @@ func TestNormalizeOperation(t *testing.T) {
 	})
 
 	t.Run("defer", func(t *testing.T) {
-		run(t, testDefinition, `
+		t.Run("defer - no conditions, typename placeholder needed", func(t *testing.T) {
+			run(t, testDefinition, `
 			query pet {
 				pet {
 					... on Dog @defer {
@@ -565,7 +566,7 @@ func TestNormalizeOperation(t *testing.T) {
 							noString @__defer_internal(id: 3)
 							string @__defer_internal(id: 4, parentDeferId: 3)
 						}
-						___typename: __typename
+						__internal_typename: __typename
 					}
 					... on Cat {
 						name
@@ -577,7 +578,75 @@ func TestNormalizeOperation(t *testing.T) {
 					}
 				}
 			}`, ``, ``)
+		})
+
+		t.Run("defer - with conditions", func(t *testing.T) {
+			run(t, testDefinition, `
+			query pet($dogExtraString: Boolean!, $catExtra: Boolean!, $catNoExtra: Boolean!) {
+				pet {
+					... on Dog @defer(if: true) {
+						name
+						nickname
+						... @defer {
+							barkVolume
+						}
+					}
+					... on Dog {
+						... @defer(if: false) {
+							extra {
+								noString
+							}
+						}
+						... @defer(if: $dogExtraString) {
+							extra {
+								string
+								noString
+							}
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer(if: $catExtra) {
+						name
+						meowVolume
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer(if: $catNoExtra) {
+						name
+						nickname
+					}
+				}
+			}`, `
+			query pet {
+				pet {
+					... on Dog {
+						name @__defer_internal(id: 1)
+						nickname @__defer_internal(id: 1)
+						barkVolume @__defer_internal(id: 2, parentDeferId: 1)
+						extra {
+							noString
+							string
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+						meowVolume @__defer_internal(id: 3)
+						nickname
+					}
+				}
+			}`, `{"dogExtraString": false, "catExtra": true, "catNoExtra": false}`, `{}`)
+		})
 	})
+
 }
 
 func TestOperationNormalizer_NormalizeOperation(t *testing.T) {
@@ -1312,22 +1381,22 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, d
 }
 
 type runOptions struct {
-	indent            bool
-	withInternalDefer bool
+	indent bool
 }
 
-var runWithOptions = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options runOptions) {
-	t.Helper()
-	run(t, normalizeFunc, definition, operation, expectedOutput, options)
+func withIndent() func(options *runOptions) {
+	return func(options *runOptions) {
+		options.indent = true
+	}
 }
 
-var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options ...runOptions) {
+var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options ...func(options *runOptions)) {
 	t.Helper()
 
 	var opts runOptions
 
-	if len(options) > 0 {
-		opts = options[0]
+	for _, opt := range options {
+		opt(&opts)
 	}
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)

@@ -36,7 +36,7 @@ type CostVisitor struct {
 func NewCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Document) *CostVisitor {
 	stack := make([]*CostTreeNode, 0, 16)
 	rootNode := CostTreeNode{
-		fieldCoords: FieldCoordinate{"_none", "_root"},
+		fieldCoords: costTreeRootNodeCoords,
 	}
 	stack = append(stack, &rootNode)
 	return &CostVisitor{
@@ -47,6 +47,8 @@ func NewCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Docume
 		tree:       &rootNode,
 	}
 }
+
+var costTreeRootNodeCoords = FieldCoordinate{"_none", "_root"}
 
 // EnterField creates a partial cost node when entering a field.
 // The node is filled in full in the LeaveField when fieldPlanners data is available.
@@ -62,7 +64,6 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinitionRef)
 	isListType := v.Definition.TypeIsList(fieldDefinitionTypeRef)
-	isSimpleType := v.Definition.TypeIsEnum(fieldDefinitionTypeRef, v.Definition) || v.Definition.TypeIsScalar(fieldDefinitionTypeRef, v.Definition)
 	unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
 
 	arguments := v.extractFieldArguments(fieldRef)
@@ -70,21 +71,25 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	// Check and push through if the unwrapped type of this field is interface or union.
 	unwrappedTypeNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
 	var implementingTypeNames []string
-	var isAbstractType bool
+	var isAbstractType, isSimpleType bool
 	if exists {
-		if unwrappedTypeNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+		kind := unwrappedTypeNode.Kind
+		if kind == ast.NodeKindInterfaceTypeDefinition {
 			impl, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(unwrappedTypeNode.Ref)
 			if ok {
 				implementingTypeNames = append(implementingTypeNames, impl...)
 				isAbstractType = true
 			}
 		}
-		if unwrappedTypeNode.Kind == ast.NodeKindUnionTypeDefinition {
+		if kind == ast.NodeKindUnionTypeDefinition {
 			impl, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(unwrappedTypeNode.Ref)
 			if ok {
 				implementingTypeNames = append(implementingTypeNames, impl...)
 				isAbstractType = true
 			}
+		}
+		if kind == ast.NodeKindScalarTypeDefinition || kind == ast.NodeKindEnumTypeDefinition {
+			isSimpleType = true
 		}
 	}
 
@@ -101,7 +106,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	}
 
 	isEnclosingTypeAbstract := v.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
-	// Create a skeleton node. dataSourceHashes will be filled in leaveFieldCost
+	// Partially filled node. dataSourceHashes will be filled in leaveFieldCost
 	node := CostTreeNode{
 		fieldRef:                fieldRef,
 		fieldCoords:             FieldCoordinate{typeName, fieldName},
@@ -115,7 +120,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 		jsonPath:                jsonPath,
 	}
 
-	// Attach to parent
+	// Attach to the parent
 	if len(v.stack) > 0 {
 		parent := v.stack[len(v.stack)-1]
 		parent.children = append(parent.children, &node)
@@ -163,9 +168,7 @@ func (v *CostVisitor) getFieldDataSourceHashes(fieldRef int) []DSHash {
 	return dsHashes
 }
 
-// extractFieldArguments extracts arguments from a field for cost calculation
-// This implementation does not go deep for input objects yet.
-// It should return unwrapped type names for arguments and that is it for now.
+// extractFieldArguments extracts arguments from a field for cost calculation.
 func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInfo {
 	argRefs := v.Operation.FieldArguments(fieldRef)
 	if len(argRefs) == 0 {
@@ -209,18 +212,62 @@ func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInf
 				argInfo.isSimple = true
 			case ast.NodeKindInputObjectTypeDefinition:
 				argInfo.isInputObject = true
-
+				argInfo.inputObjectFieldTypes = make(map[FieldCoordinate]inputObjectField)
+				visited := make(map[string]struct{})
+				v.buildInputObjectFieldTypes(argInfo.typeName, node, visited, argInfo.inputObjectFieldTypes)
 			}
 
-			// TODO: we need to analyze variables that contains input object fields.
-			// If these fields has weight attached, use them for calculation.
-			// Inline values extracted into variables here, so we need to inspect them via AST.
 		}
 
 		arguments[argName] = argInfo
 	}
 
 	return arguments
+}
+
+// buildInputObjectFieldTypes recursively resolves and caches the field types of an input object,
+// handling nested input objects by traversing their fields depth-first.
+func (v *CostVisitor) buildInputObjectFieldTypes(typeName string, node ast.Node,
+	visited map[string]struct{}, types map[FieldCoordinate]inputObjectField) {
+	// Visit every input object type only once:
+	if _, ok := visited[typeName]; ok {
+		return
+	}
+	visited[typeName] = struct{}{}
+
+	// For every field of the InputObject map fieldCoordinates to TypeName.
+	inputFieldRefs := v.Definition.NodeInputFieldDefinitions(node)
+
+	for _, inputFieldRef := range inputFieldRefs {
+		fieldName := v.Definition.InputValueDefinitionNameString(inputFieldRef)
+		fieldTypeRef := v.Definition.InputValueDefinitionType(inputFieldRef)
+		unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldTypeRef)
+
+		fieldNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
+		if !exists {
+			continue
+		}
+
+		isListType := v.Definition.TypeIsList(fieldTypeRef)
+		var isInputObject bool
+
+		// If it is an input object type, recursively visit it.
+		if fieldNode.Kind == ast.NodeKindInputObjectTypeDefinition {
+			if !isListType {
+				// listType has a priority over inputObject type in processing.
+				// These flags are set for the calculation of cost to process the values JSON.
+				isInputObject = true
+			}
+			v.buildInputObjectFieldTypes(unwrappedTypeName, fieldNode, visited, types)
+		}
+
+		coords := FieldCoordinate{typeName, fieldName}
+		types[coords] = inputObjectField{
+			unwrappedTypeName: unwrappedTypeName,
+			isList:            isListType,
+			isInputObject:     isInputObject,
+		}
+	}
 }
 
 func (v *CostVisitor) finalCostTree() *CostTreeNode {

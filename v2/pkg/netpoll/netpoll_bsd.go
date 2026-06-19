@@ -1,5 +1,4 @@
 //go:build darwin || netbsd || freebsd || openbsd || dragonfly
-// +build darwin netbsd freebsd openbsd dragonfly
 
 package netpoll
 
@@ -150,7 +149,7 @@ retry:
 	}
 
 	e.mu.RLock()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		conn := e.conns[int(e.events[i].Ident)]
 		if conn != nil {
 			conns = append(conns, conn)

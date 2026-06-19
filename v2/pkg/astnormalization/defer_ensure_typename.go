@@ -83,7 +83,7 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 		}
 	}
 
-	// if at least one field is not deffered we do not need to add the typename placeholder
+	// If at least one field is not deferred, do not add the typename placeholder.
 	if !allDeferred {
 		return
 	}

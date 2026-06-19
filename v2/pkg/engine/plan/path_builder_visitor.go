@@ -43,8 +43,7 @@ type pathBuilderVisitor struct {
 	addedPathTracker              []pathConfiguration    // addedPathTracker is a list of paths which were added
 	addedPathTrackerIndex         map[string][]int       // addedPathTrackerIndex is a map of path to index in addedPathTracker
 
-	fieldDependenciesForPlanners map[int][]int // fieldDependenciesForPlanners is a map[fieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
-	fieldsPlannedOn              map[int][]int // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
+	fieldsPlannedOn map[int][]int // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the pathBuilderVisitor not the first time
 	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
@@ -149,8 +148,8 @@ func (c *pathBuilderVisitor) currentSelectionSetInfo() (info selectionSetTypeInf
 }
 
 func (c *pathBuilderVisitor) plannerPathType(path string) PlannerPathType {
-	for i := len(c.arrayFields) - 1; i >= 0; i-- {
-		arrayPath := c.arrayFields[i].fieldPath
+	for _, v := range slices.Backward(c.arrayFields) {
+		arrayPath := v.fieldPath
 		switch {
 		case path == arrayPath:
 			return PlannerPathArrayItem
@@ -343,7 +342,6 @@ func (c *pathBuilderVisitor) EnterDocument(operation, definition *ast.Document) 
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 	c.addedPathTrackerIndex = make(map[string][]int)
 
-	c.fieldDependenciesForPlanners = make(map[int][]int)
 	c.fieldsPlannedOn = make(map[int][]int)
 	c.processedFieldDeps = make(map[fieldIndexKey][]int)
 }
@@ -553,11 +551,11 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		// the field was deffered, but it also could be a parent path for some other defer
 		hasDeferInfo := suggestion.deferInfo != nil
 		// the field may be not deferred, but it is a parent for the child node which was deferred
-		isDeferParent := len(suggestion.deferIDs) > 0
+		isDeferParent := len(suggestion.descendantDeferIDs) > 0
 
 		// plan defer parent paths
 		if isDeferParent {
-			for _, deferID := range suggestion.deferIDs {
+			for _, deferID := range suggestion.descendantDeferIDs {
 				field.deferID = deferID
 				field.deferField = false
 				// defer parent path planning - should be planned as a deferred path
@@ -635,7 +633,7 @@ func (c *pathBuilderVisitor) haveChildFieldsToPlan(field *currentFieldInfo) bool
 			return childNode.deferInfo == nil
 		}
 
-		isDeferParentPath := childNode.deferParentPath && slices.Contains(childNode.deferIDs, field.deferID)
+		isDeferParentPath := slices.Contains(childNode.descendantDeferIDs, field.deferID)
 		return isDeferParentPath || (childNode.deferInfo != nil && childNode.deferInfo.ID == field.deferID)
 	})
 }
@@ -745,10 +743,11 @@ func (c *pathBuilderVisitor) hasFieldsWaitingForDependency() bool {
 	return len(c.fieldDependsOn) > 0
 }
 
-// addFieldDependencies adds dependencies between planners based on @requires directive
-// in case current field has @requires directive, and we were able to plan it - it means that all fields from requires selection set was planned before that.
-// So we need to notify planner of current fieldRef about dependencies on those other fields
-// we know where fields were planned, because we record planner id of each planned field
+// addFieldDependencies adds dependencies between planners based on the @requires directive.
+// If the current field has a @requires directive and we were able to plan it, it means that all fields
+// from the requires selection set were planned before it.
+// Hence, we need to notify the planner of the current fieldRef about dependencies on those other fields.
+// We know where fields were planned because we record the planner ID of each planned field.
 func (c *pathBuilderVisitor) addFieldDependencies(field *currentFieldInfo, currentPlannerIdx int) {
 	dsHash := c.planners[currentPlannerIdx].DataSourceConfiguration().Hash()
 	fieldKey := fieldIndexKey{field.fieldRef, dsHash}
@@ -787,17 +786,15 @@ func (c *pathBuilderVisitor) addFieldDependencies(field *currentFieldInfo, curre
 				continue
 			}
 
-			notified := slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
-			if !notified {
-
+			if !slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannerIdx) {
 				fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
-				// sort
-				slices.Sort(fetchConfiguration.dependsOnFetchIDs)
-				// remove consecutive duplicates
-				fetchConfiguration.dependsOnFetchIDs = slices.Compact(fetchConfiguration.dependsOnFetchIDs)
 			}
 		}
 	}
+
+	// The slices.Contains check above already guarantees uniqueness, so sort once
+	// here for a deterministic order instead of re-sorting on every insertion.
+	slices.Sort(fetchConfiguration.dependsOnFetchIDs)
 }
 
 func (c *pathBuilderVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef int, currentPlannerIdx int) bool {

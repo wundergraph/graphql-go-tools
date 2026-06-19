@@ -170,6 +170,11 @@ func testMapping() *GRPCMapping {
 				Request:  "QueryTestContainersRequest",
 				Response: "QueryTestContainersResponse",
 			},
+			"conditionalSearch": {
+				RPC:      "QueryConditionalSearch",
+				Request:  "QueryConditionalSearchRequest",
+				Response: "QueryConditionalSearchResponse",
+			},
 		},
 		MutationRPCs: RPCConfigMap[RPCConfig]{
 			"createUser": {
@@ -669,6 +674,30 @@ func testMapping() *GRPCMapping {
 								Response: "RequireStorageDeepItemInfoByIdResponse",
 							},
 						},
+						"filteredTagSummary": {
+							TargetName: "filtered_tag_summary",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageFilteredTagSummaryById",
+								Request:  "RequireStorageFilteredTagSummaryByIdRequest",
+								Response: "RequireStorageFilteredTagSummaryByIdResponse",
+							},
+						},
+						"multiFilteredTagSummary": {
+							TargetName: "multi_filtered_tag_summary",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageMultiFilteredTagSummaryById",
+								Request:  "RequireStorageMultiFilteredTagSummaryByIdRequest",
+								Response: "RequireStorageMultiFilteredTagSummaryByIdResponse",
+							},
+						},
+						"nullableFilteredTagSummary": {
+							TargetName: "nullable_filtered_tag_summary",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageNullableFilteredTagSummaryById",
+								Request:  "RequireStorageNullableFilteredTagSummaryByIdRequest",
+								Response: "RequireStorageNullableFilteredTagSummaryByIdResponse",
+							},
+						},
 					},
 				},
 			},
@@ -864,6 +893,12 @@ func testMapping() *GRPCMapping {
 				},
 				"testContainers": {
 					TargetName: "test_containers",
+				},
+				"conditionalSearch": {
+					TargetName: "conditional_search",
+					ArgumentMappings: FieldArgumentMap{
+						"conditions": "conditions",
+					},
 				},
 			},
 			"Mutation": {
@@ -1108,6 +1143,25 @@ func testMapping() *GRPCMapping {
 					TargetName: "nearby_storages",
 					ArgumentMappings: FieldArgumentMap{
 						"radius": "radius",
+					},
+				},
+				"filteredTagSummary": {
+					TargetName: "filtered_tag_summary",
+					ArgumentMappings: FieldArgumentMap{
+						"prefix": "prefix",
+					},
+				},
+				"multiFilteredTagSummary": {
+					TargetName: "multi_filtered_tag_summary",
+					ArgumentMappings: FieldArgumentMap{
+						"prefixes":   "prefixes",
+						"maxResults": "max_results",
+					},
+				},
+				"nullableFilteredTagSummary": {
+					TargetName: "nullable_filtered_tag_summary",
+					ArgumentMappings: FieldArgumentMap{
+						"prefix": "prefix",
 					},
 				},
 			},
@@ -2060,6 +2114,31 @@ func testMapping() *GRPCMapping {
 			"UserInput": {
 				"name": {
 					TargetName: "name",
+				},
+			},
+			"ConditionsInput": {
+				"and": {
+					TargetName: "and",
+				},
+				"or": {
+					TargetName: "or",
+				},
+				"key": {
+					TargetName: "key",
+				},
+				"value": {
+					TargetName: "value",
+				},
+			},
+			"ConditionalSearchResult": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"matchedConditions": {
+					TargetName: "matched_conditions",
 				},
 			},
 		},

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -98,12 +99,7 @@ var (
 
 // skipRule - determine do we have to convert particular rule e.g. test file from reference tests
 func skipRule(name string) bool {
-	for _, rule := range convertRules {
-		if rule == name {
-			return false
-		}
-	}
-	return true
+	return !slices.Contains(convertRules, name)
 }
 
 // processFile - convert and save reference test file
@@ -326,7 +322,7 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 			return "", true
 		}
 		var ruleName string
-		for _, s := range strings.Split(line, ",") {
+		for s := range strings.SplitSeq(line, ",") {
 			if strings.Contains(s, "Rule") {
 				ruleName = strings.TrimSpace(s)
 				break

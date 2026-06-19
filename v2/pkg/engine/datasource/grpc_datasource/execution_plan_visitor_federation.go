@@ -132,9 +132,10 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 	}
 
 	r.currentCall = &RPCCall{
-		ID:          r.callIndex,
-		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
-		Kind:        CallKindEntity,
+		ID:                  r.callIndex,
+		ServiceName:         r.planCtx.resolveServiceName(r.subgraphName),
+		Kind:                CallKindEntity,
+		RequestedEntityType: fragmentName,
 	}
 
 	r.callIndex++
@@ -439,6 +440,17 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 	requiredField.ref = ref
 	requiredField.fieldDefRef = fieldDefRef
 	requiredField.resultField = field
+
+	fieldArgs := r.operation.FieldArguments(ref)
+	if len(fieldArgs) > 0 {
+		fieldArguments, err := r.planCtx.parseFieldArguments(r.walker, fieldDefRef, fieldArgs)
+		if err != nil {
+			r.walker.StopWithInternalErr(err)
+			return
+		}
+		requiredField.fieldArguments = fieldArguments
+	}
+
 	config.requiredFields[index] = requiredField
 }
 
@@ -497,9 +509,8 @@ func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef in
 		return errors.New("definition node not found for inline fragment: " + fragmentName)
 	}
 
-	// Only process object type definitions
-	// TODO: handle interfaces
-	if node.Kind != ast.NodeKindObjectTypeDefinition {
+	// Only process object type definitions and interface type definitions
+	if node.Kind != ast.NodeKindObjectTypeDefinition && node.Kind != ast.NodeKindInterfaceTypeDefinition {
 		return nil
 	}
 
@@ -557,6 +568,16 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 		},
 	}
 
+	// Check if the entity type is an interface and set oneof type and member types.
+	if node, found := r.definition.NodeByNameStr(typeName); found {
+		if node.Kind == ast.NodeKindInterfaceTypeDefinition {
+			entityMessage.OneOfType = OneOfTypeInterface
+			if memberTypes, ok := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref); ok {
+				entityMessage.MemberTypes = memberTypes
+			}
+		}
+	}
+
 	// The proto response message has a field `result` which is a list of entities.
 	// As this is a special case we directly map it to _entities.
 	r.planInfo.currentResponseMessage.Fields = []RPCField{
@@ -594,11 +615,12 @@ type entityInfo struct {
 type entityConfig map[string]entityConfigData
 
 type requiredField struct {
-	fieldName    string
-	ref          int
-	fieldDefRef  int
-	selectionSet string
-	resultField  RPCField
+	fieldName      string
+	ref            int
+	fieldDefRef    int
+	selectionSet   string
+	resultField    RPCField
+	fieldArguments []fieldArgument
 }
 type entityConfigData struct {
 	keyFields       string

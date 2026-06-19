@@ -20,7 +20,7 @@ import (
 
 type DataSourceDebugger interface {
 	astvisitor.VisitorIdentifier
-	DebugPrint(args ...interface{})
+	DebugPrint(args ...any)
 	EnableDebug()
 	EnableDebugQueryPlanLogging()
 }
@@ -41,9 +41,9 @@ type Visitor struct {
 	OperationName                string
 	operationDefinitionRef       int
 	objects                      []*resolve.Object
-	currentObjectFields          []objectFields
+	objectFieldsStack            []objectFields
 	currentField                 *resolve.Field
-	currentFields                []*resolve.Field
+	fieldStack                   []*resolve.Field
 	planners                     []PlannerConfiguration
 	skipFieldsRefs               []int
 	fieldRefDependsOnFieldRefs   map[int][]int
@@ -123,12 +123,12 @@ func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
 	}
 }
 
-func (v *Visitor) debugPrint(args ...interface{}) {
+func (v *Visitor) debugPrint(args ...any) {
 	if !v.Config.Debug.PlanningVisitor {
 		return
 	}
 
-	allArgs := []interface{}{"[Visitor]: "}
+	allArgs := []any{"[Visitor]: "}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
@@ -358,11 +358,8 @@ func (v *Visitor) EnterField(ref int) {
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
-	// append the field to the current object
-	*v.currentObjectFields[len(v.currentObjectFields)-1].fields = append(*v.currentObjectFields[len(v.currentObjectFields)-1].fields, v.currentField)
-
-	// append the current field to the list of current fields
-	v.currentFields = append(v.currentFields, v.currentField)
+	*v.objectFieldsStack[len(v.objectFieldsStack)-1].fields = append(*v.objectFieldsStack[len(v.objectFieldsStack)-1].fields, v.currentField)
+	v.fieldStack = append(v.fieldStack, v.currentField)
 
 	v.mapFieldConfig(ref)
 }
@@ -577,11 +574,11 @@ func (v *Visitor) LeaveField(fieldRef int) {
 	v.assignDefer(fieldRef)
 
 	// remove the current field from the current fields stack
-	v.currentFields = v.currentFields[:len(v.currentFields)-1]
+	v.fieldStack = v.fieldStack[:len(v.fieldStack)-1]
 
 	// remove the current field from the list of current object fields if they belong to this field
-	if v.currentObjectFields[len(v.currentObjectFields)-1].popOnField == fieldRef {
-		v.currentObjectFields = v.currentObjectFields[:len(v.currentObjectFields)-1]
+	if v.objectFieldsStack[len(v.objectFieldsStack)-1].popOnField == fieldRef {
+		v.objectFieldsStack = v.objectFieldsStack[:len(v.objectFieldsStack)-1]
 	}
 	fieldDefinitionRef, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
@@ -595,7 +592,7 @@ func (v *Visitor) LeaveField(fieldRef int) {
 }
 
 func (v *Visitor) assignDefer(fieldRef int) {
-	currentField := v.currentFields[len(v.currentFields)-1]
+	currentField := v.fieldStack[len(v.fieldStack)-1]
 
 	// ignore existence check - we should always have planners for the field
 	plannerIds := v.fieldPlanners[fieldRef]
@@ -624,12 +621,7 @@ func (v *Visitor) assignDefer(fieldRef int) {
 // If it returns false, the user requests the field.
 func (v *Visitor) skipField(ref int) bool {
 	// TODO: If this grows, switch to map[int]struct{} for O(1).
-	for _, skipRef := range v.skipFieldsRefs {
-		if skipRef == ref {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(v.skipFieldsRefs, ref)
 }
 
 func (v *Visitor) introspectionShouldEvaluateIncludeDeprecated(fieldName string, enclosingTypeName string) bool {
@@ -851,8 +843,8 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			// However, we can do that only after the field, which we are currently creating, will be added to the parent object fields.
 			// So we defer this action to be executed right after the current field is added to the parent object fields slice.
 			// This is more simple than analyzing resolve.Node, because this object could be nested in a list.
-			v.Walker.DefferOnEnterField(func() {
-				v.currentObjectFields = append(v.currentObjectFields, objectFields{
+			v.Walker.RunAfterEnterField(func() {
+				v.objectFieldsStack = append(v.objectFieldsStack, objectFields{
 					popOnField: fieldRef,
 					fields:     &object.Fields,
 				})
@@ -973,7 +965,7 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 	}
 
 	v.objects = append(v.objects, rootObject)
-	v.currentObjectFields = append(v.currentObjectFields, objectFields{
+	v.objectFieldsStack = append(v.objectFieldsStack, objectFields{
 		fields:     &rootObject.Fields,
 		popOnField: -1,
 	})
@@ -999,9 +991,8 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 	}
 
 	if !v.Config.DisableIncludeInfo {
-		operationType := v.Operation.OperationDefinitions[0].OperationType
 		v.response.Info = &resolve.GraphQLResponseInfo{
-			OperationType: operationType,
+			OperationType: v.Operation.OperationDefinitions[opRef].OperationType,
 		}
 	}
 
@@ -1015,12 +1006,6 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 			Response:      v.subscription,
 		}
 	case isDefer:
-		if !v.Config.DisableIncludeInfo {
-			v.response.Info = &resolve.GraphQLResponseInfo{
-				OperationType: ast.OperationTypeQuery,
-			}
-		}
-
 		v.plan = &DeferResponsePlan{
 			Response: &resolve.GraphQLDeferResponse{
 				Response:         v.response,
@@ -1028,16 +1013,9 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 			},
 		}
 	default:
-		if !v.Config.DisableIncludeInfo {
-			v.response.Info = &resolve.GraphQLResponseInfo{
-				OperationType: ast.OperationTypeQuery,
-			}
-		}
-
 		v.plan = &SynchronousResponsePlan{
 			Response: v.response,
 		}
-
 	}
 }
 

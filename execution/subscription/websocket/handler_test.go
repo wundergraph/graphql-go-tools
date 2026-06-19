@@ -26,16 +26,17 @@ import (
 )
 
 func TestHandleWithOptions(t *testing.T) {
+	t.Parallel()
 	t.Skip("timing not compatible with async rewrite of resolver")
 	t.Run("should handle protocol graphql-ws", func(t *testing.T) {
+		t.Parallel()
 		if runtime.GOOS == "windows" {
 			t.Skip("this test fails on Windows due to different timings than unix, consider fixing it at some point")
 		}
 		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL, nil)
 		serverConn, _ := net.Pipe()
@@ -106,11 +107,11 @@ func TestHandleWithOptions(t *testing.T) {
 	})
 
 	t.Run("should handle protocol graphql-transport-ws", func(t *testing.T) {
+		t.Parallel()
 		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL, nil)
 		serverConn, _ := net.Pipe()
@@ -181,11 +182,11 @@ func TestHandleWithOptions(t *testing.T) {
 	})
 
 	t.Run("should handle on before start error", func(t *testing.T) {
+		t.Parallel()
 		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL, &FailingOnBeforeStartHook{})
 		serverConn, _ := net.Pipe()
@@ -228,8 +229,10 @@ func TestHandleWithOptions(t *testing.T) {
 }
 
 func TestWithProtocolFromRequestHeaders(t *testing.T) {
+	t.Parallel()
 	runTest := func(headerKey string, headerValue string, expectedProtocol Protocol) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			request, err := http.NewRequest("", "", nil)
 			require.NoError(t, err)
 			request.Header.Set(headerKey, headerValue)
@@ -247,6 +250,7 @@ func TestWithProtocolFromRequestHeaders(t *testing.T) {
 	t.Run("should fallback to default protocol", runTest(HeaderSecWebSocketProtocol, "something-else", DefaultProtocol))
 	t.Run("should fallback to default protocol when header is missing", runTest("Different-Header-Key", "missing-header", DefaultProtocol))
 	t.Run("should fallback to default protocol when request is nil", func(t *testing.T) {
+		t.Parallel()
 		options := &HandleOptions{}
 		optionFunc := WithProtocolFromRequestHeaders(nil)
 		optionFunc(options)
@@ -279,10 +283,9 @@ func setupExecutorPoolV2(t *testing.T, ctx context.Context, chatServerURL string
 	engineConf := engine.NewConfiguration(chatSchema)
 	engineConf.SetWebsocketBeforeStartHook(onBeforeStartHook)
 
-	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(
-		httpclient.DefaultNetHttpClient,
-		httpclient.DefaultNetHttpClient,
-		ctx,
+	subscriptionClient := graphql_datasource.NewGraphQLSubscriptionClient(ctx,
+		graphql_datasource.WithUpgradeClient(httpclient.DefaultNetHttpClient),
+		graphql_datasource.WithStreamingClient(httpclient.DefaultNetHttpClient),
 	)
 
 	factory, err := graphql_datasource.NewFactory(ctx, httpclient.DefaultNetHttpClient, subscriptionClient)

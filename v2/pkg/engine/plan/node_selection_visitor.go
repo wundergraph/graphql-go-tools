@@ -7,6 +7,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 // nodeSelectionVisitor walks through the operation multiple times to rewrite it
@@ -85,8 +86,8 @@ type pendingKeyRequirementExistsKey struct {
 }
 
 type pendingKeyRequirements struct {
-	existsTracker      map[pendingKeyRequirementExistsKey]struct{} // existsTracker allows us to not add duplicated keyRequirements
-	requirementConfigs []keyRequirements                           // requirementConfigs is a list of keyRequirements which should be added to the selection set
+	existsTracker      map[pendingKeyRequirementExistsKey]int // maps an exists key to the index of its keyRequirements config (dedupe + direct lookup)
+	requirementConfigs []keyRequirements                      // requirementConfigs is a list of keyRequirements which should be added to the selection set
 }
 
 // keyRequirements is a mapping between requestedByPlannerID or requestedByFieldRef, which requested required fields,
@@ -113,8 +114,8 @@ type fieldRequirements struct {
 }
 
 type pendingFieldRequirements struct {
-	existsTracker      map[pendingFieldRequirementExistsKey]struct{} // existsTracker allows us to not add duplicated fieldRequirements
-	requirementConfigs []fieldRequirements                           // requirementConfigs is a list of fieldRequirements which should be added to the selection set
+	existsTracker      map[pendingFieldRequirementExistsKey]int // maps an exists key to the index of its fieldRequirements config (dedupe + direct lookup)
+	requirementConfigs []fieldRequirements                      // requirementConfigs is a list of fieldRequirements which should be added to the selection set
 }
 
 type pendingFieldRequirementExistsKey struct {
@@ -288,8 +289,16 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 	}
 }
 
-// wrappingFieldDeferID walks the walker ancestors in reverse to find the nearest wrapping field
-// that has a @__defer_internal directive and returns its "id" argument value.
+// wrappingFieldDeferID returns the defer id of the nearest wrapping field, or 0
+// if the current field is not inside a defer scope.
+//
+// It is enough to inspect the nearest field ancestor: the defer normalization
+// (astnormalization.deferExpandIntoInternal) stamps @__defer_internal onto every
+// field in every selection set inside a deferred fragment. So if the nearest
+// field ancestor carries the directive, this field is deferred under it; if it
+// does not, this field is outside any defer scope. That is why we return 0
+// immediately when the nearest field ancestor lacks the directive instead of
+// continuing to climb.
 func (c *nodeSelectionVisitor) wrappingFieldDeferID() int {
 	for i := len(c.walker.Ancestors) - 1; i >= 0; i-- {
 		ancestor := c.walker.Ancestors[i]
@@ -298,6 +307,7 @@ func (c *nodeSelectionVisitor) wrappingFieldDeferID() int {
 		}
 		id, exists := c.operation.FieldInternalDeferID(ancestor.Ref)
 		if !exists {
+			// nearest field ancestor is not deferred -> not in a defer scope
 			return 0
 		}
 		return id
@@ -306,9 +316,9 @@ func (c *nodeSelectionVisitor) wrappingFieldDeferID() int {
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
-	// "___typename" is an internal typename placeholder
+	// "__internal_typename" is an internal typename placeholder
 	// added by astnormalization.directiveIncludeSkip or astnormalization.deferEnsureTypename normalization rule
-	if bytes.Equal(c.operation.FieldAliasOrNameBytes(ref), []byte("___typename")) {
+	if bytes.Equal(c.operation.FieldAliasOrNameBytes(ref), literal.INTERNAL_TYPENAME) {
 		// we should skip such typename as it was added as a placeholder to keep query valid
 		// when normalizaion removed all other selections from the selection set
 		c.addSkipFieldRefs(ref)
@@ -493,7 +503,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 	requirements, hasRequirements := c.pendingFieldRequirements[currentSelectionSet]
 	if !hasRequirements {
 		requirements = pendingFieldRequirements{
-			existsTracker: make(map[pendingFieldRequirementExistsKey]struct{}),
+			existsTracker: make(map[pendingFieldRequirementExistsKey]int),
 		}
 	}
 
@@ -502,7 +512,13 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 		deferID = fieldCtx.deferInfo.ID
 	}
 	existsKey := pendingFieldRequirementExistsKey{fieldCtx.dsConfig.Hash(), fieldConfiguration.SelectionSet, isTypenameForEntityInterface, deferID}
-	if _, exists := requirements.existsTracker[existsKey]; !exists {
+	if idx, exists := requirements.existsTracker[existsKey]; exists {
+		// already tracked for this scope (including deferID) - just record the requesting field ref
+		cfg := &requirements.requirementConfigs[idx]
+		if !slices.Contains(cfg.requestedByFieldRefs, fieldCtx.fieldRef) {
+			cfg.requestedByFieldRefs = append(cfg.requestedByFieldRefs, fieldCtx.fieldRef)
+		}
+	} else {
 		config := fieldRequirements{
 			dsHash:                       fieldCtx.dsConfig.Hash(),
 			path:                         fieldCtx.currentPath,
@@ -513,19 +529,8 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(fieldCtx fieldRequire
 			parentFieldDeferID:           fieldCtx.parentFieldDeferID,
 		}
 
-		requirements.existsTracker[existsKey] = struct{}{}
+		requirements.existsTracker[existsKey] = len(requirements.requirementConfigs)
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
-	} else {
-		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].selectionSet == fieldConfiguration.SelectionSet && requirements.requirementConfigs[i].dsHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].isTypenameForEntityInterface == isTypenameForEntityInterface {
-				if slices.IndexFunc(requirements.requirementConfigs[i].requestedByFieldRefs, func(fieldRef int) bool {
-					return fieldRef == fieldCtx.fieldRef
-				}) == -1 {
-					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef)
-				}
-				break
-			}
-		}
 	}
 
 	c.pendingFieldRequirements[currentSelectionSet] = requirements
@@ -538,7 +543,7 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 
 	if !hasRequirements {
 		requirements = pendingKeyRequirements{
-			existsTracker: make(map[pendingKeyRequirementExistsKey]struct{}),
+			existsTracker: make(map[pendingKeyRequirementExistsKey]int),
 		}
 	}
 
@@ -547,7 +552,13 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 		deferID = fieldCtx.deferInfo.ID
 	}
 	existsKey := pendingKeyRequirementExistsKey{dsHash: fieldCtx.dsConfig.Hash(), deferID: deferID}
-	if _, exists := requirements.existsTracker[existsKey]; !exists {
+	if idx, exists := requirements.existsTracker[existsKey]; exists {
+		// already tracked for this (dsHash, deferID) scope - just record the requesting field ref
+		cfg := &requirements.requirementConfigs[idx]
+		if !slices.Contains(cfg.requestedByFieldRefs, fieldCtx.fieldRef) {
+			cfg.requestedByFieldRefs = append(cfg.requestedByFieldRefs, fieldCtx.fieldRef)
+		}
+	} else {
 		config := keyRequirements{
 			targetDSHash:         fieldCtx.dsConfig.Hash(),
 			path:                 fieldCtx.parentPath,
@@ -559,17 +570,8 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(fieldCtx fieldRequireme
 			parentFieldDeferID:   fieldCtx.parentFieldDeferID,
 		}
 
-		requirements.existsTracker[existsKey] = struct{}{}
+		requirements.existsTracker[existsKey] = len(requirements.requirementConfigs)
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
-	} else {
-		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].targetDSHash == fieldCtx.dsConfig.Hash() && requirements.requirementConfigs[i].deferInfo.Equals(fieldCtx.deferInfo) {
-				if !slices.Contains(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef) {
-					requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, fieldCtx.fieldRef)
-				}
-				break
-			}
-		}
 	}
 
 	c.pendingKeyRequirements[currentSelectionSet] = requirements

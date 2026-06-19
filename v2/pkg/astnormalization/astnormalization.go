@@ -108,7 +108,7 @@ type OperationNormalizer struct {
 	operationWalkers []walkerStage
 
 	removeOperationDefinitionsVisitor *removeOperationDefinitionsVisitor
-	inlineDeferVisitor                *inlineFragmentExpandDeferVisitor // non-nil when WithInlineDefer() is set
+	inlineDeferVisitor                *deferExpandIntoInternalVisitor
 
 	options              options
 	definitionNormalizer *DefinitionNormalizer
@@ -153,7 +153,7 @@ type options struct {
 	removeNotMatchingOperationDefinitions bool
 	normalizeDefinition                   bool
 	ignoreSkipInclude                     bool
-	inlineDefer                           bool
+	enableDefer                           bool
 }
 
 type Option func(options *options)
@@ -164,9 +164,9 @@ func WithExtractVariables() Option {
 	}
 }
 
-func WithInlineDefer() Option {
+func WithEnableDefer() Option {
 	return func(options *options) {
-		options.inlineDefer = true
+		options.enableDefer = true
 	}
 }
 
@@ -229,8 +229,10 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	cleanup := astvisitor.NewWalkerWithID(8, "Cleanup")
 	deduplicateFields(&cleanup)
-	// should happen after inlining defer fragments, to not produce unnecessary typename placeholders
-	deferEnsureTypename(&cleanup)
+	if o.options.enableDefer {
+		// should happen after inlining defer fragments, to not produce unnecessary typename placeholders
+		deferEnsureTypename(&cleanup)
+	}
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
 		// register variable usage detection on the first stage
@@ -254,14 +256,12 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		})
 	}
 
-	if o.options.inlineDefer {
-		inlineDefer := astvisitor.NewWalkerWithID(8, "Inline defer")
-		o.inlineDeferVisitor = inlineFragmentExpandDefer(&inlineDefer)
-		o.operationWalkers = append(o.operationWalkers, walkerStage{
-			name:   "inlineDefer",
-			walker: &inlineDefer,
-		})
-	}
+	inlineDefer := astvisitor.NewWalkerWithID(8, "Inline defer")
+	o.inlineDeferVisitor = deferExpandIntoInternalWithDisabled(&inlineDefer, !o.options.enableDefer)
+	o.operationWalkers = append(o.operationWalkers, walkerStage{
+		name:   "inlineDefer",
+		walker: &inlineDefer,
+	})
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalkerWithID(8, "ExtractVariables")
@@ -302,7 +302,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &cleanup,
 	})
 
-	if o.options.inlineDefer {
+	if o.options.enableDefer {
 		populateParentIds := astvisitor.NewWalkerWithID(8, "PopulateDeferParentIds")
 		deferPopulateParentIds(&populateParentIds)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{

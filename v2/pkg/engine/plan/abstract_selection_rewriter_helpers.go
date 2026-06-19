@@ -10,13 +10,7 @@ import (
 )
 
 func (r *fieldSelectionRewriter) datasourceHasEntitiesWithName(typeNames []string) (entityNames []string, ok bool) {
-	hasEntities := false
-	for _, typeName := range typeNames {
-		if r.dsConfiguration.HasEntity(typeName) {
-			hasEntities = true
-			break
-		}
-	}
+	hasEntities := slices.ContainsFunc(typeNames, r.dsConfiguration.HasEntity)
 
 	if !hasEntities {
 		return nil, false
@@ -443,6 +437,9 @@ func (r *fieldSelectionRewriter) typeNameSelection(deferID int) (selectionRef in
 	})
 
 	if deferID != 0 {
+		// label="" and parentDeferId=0: the synthesized __typename carries only the
+		// defer id. AddDeferInternalDirectiveToField omits an empty label / zero
+		// parentDeferId from the @__defer_internal directive.
 		r.operation.AddDeferInternalDirectiveToField(field.Ref, deferID, "", 0)
 	}
 

@@ -14,7 +14,9 @@ import (
 )
 
 func TestUniversalProtocolHandler_Handle(t *testing.T) {
+	t.Parallel()
 	t.Run("should terminate when client is disconnected", func(t *testing.T) {
+		t.Parallel()
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 
@@ -62,6 +64,7 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("should terminate when reading on closed connection", func(t *testing.T) {
+		t.Parallel()
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 
@@ -112,6 +115,7 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("should sent event on client read error", func(t *testing.T) {
+		t.Parallel()
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 
@@ -164,6 +168,7 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("should handover message to protocol handler", func(t *testing.T) {
+		t.Parallel()
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 
@@ -217,7 +222,9 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("read error time out", func(t *testing.T) {
+		t.Parallel()
 		t.Run("should stop handler when read error timer runs out", func(t *testing.T) {
+			t.Parallel()
 			wg := &sync.WaitGroup{}
 			wg.Add(1)
 
@@ -249,8 +256,7 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 				}).
 				Times(1)
 
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
+			ctx := t.Context()
 
 			options := UniversalProtocolHandlerOptions{
 				Logger:                           abstractlogger.Noop{},
@@ -270,6 +276,7 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 		})
 
 		t.Run("should continue running handler after intermittent read error", func(t *testing.T) {
+			t.Parallel()
 			wg := &sync.WaitGroup{}
 			wg.Add(1)
 

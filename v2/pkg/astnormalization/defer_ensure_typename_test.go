@@ -33,7 +33,7 @@ func TestDeferEnsureTypename(t *testing.T) {
 					user {
 						name @__defer_internal(id: 1)
 						age @__defer_internal(id: 1)
-						___typename: __typename
+						__internal_typename: __typename
 					}
 				}`)
 	})
@@ -50,7 +50,7 @@ func TestDeferEnsureTypename(t *testing.T) {
 					user {
 						name @__defer_internal(id: 1)
 						age @__defer_internal(id: 2)
-						___typename: __typename
+						__internal_typename: __typename
 					}
 				}`)
 	})
@@ -83,7 +83,7 @@ func TestDeferEnsureTypename(t *testing.T) {
 					user @__defer_internal(id: 1) {
 						name @__defer_internal(id: 2)
 						age @__defer_internal(id: 3)
-						___typename: __typename @__defer_internal(id: 1)
+						__internal_typename: __typename @__defer_internal(id: 1)
 					}
 				}`)
 	})

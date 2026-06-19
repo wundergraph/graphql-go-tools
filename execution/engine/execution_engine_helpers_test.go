@@ -135,7 +135,7 @@ func createConditionalTestRoundTripper(t *testing.T, testCase conditionalTestCas
 	}
 }
 
-func stringify(any interface{}) []byte {
+func stringify(any any) []byte {
 	out, _ := json.Marshal(any)
 	return out
 }

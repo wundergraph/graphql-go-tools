@@ -5,8 +5,6 @@ import (
 	"io"
 	"strings"
 
-	"github.com/gobwas/ws"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
@@ -130,23 +128,12 @@ type DeferResponseWriter interface {
 	Complete()
 }
 
-type SubscriptionCloseKind struct {
-	WSCode ws.StatusCode
-	Reason string
-}
-
-var (
-	SubscriptionCloseKindNormal                 SubscriptionCloseKind = SubscriptionCloseKind{ws.StatusNormalClosure, "Normal closure"}
-	SubscriptionCloseKindDownstreamServiceError SubscriptionCloseKind = SubscriptionCloseKind{ws.StatusGoingAway, "Downstream service error"}
-	SubscriptionCloseKindGoingAway              SubscriptionCloseKind = SubscriptionCloseKind{ws.StatusGoingAway, "Going away"}
-)
-
 type SubscriptionResponseWriter interface {
 	ResponseWriter
 	Flush() error
 	Complete()
 	Heartbeat() error
-	Close(kind SubscriptionCloseKind)
+	Error(data []byte)
 }
 
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {

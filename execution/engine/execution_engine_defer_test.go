@@ -51,9 +51,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								body:       `{"data":{"user":{"name":"Black"}}}`,
 								latency:    40 * time.Millisecond,
 							},
-							`{"query":"{user {___typename: __typename}}"}`: {
+							`{"query":"{user {__internal_typename: __typename}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User"}}}`,
+								body:       `{"data":{"user":{"__internal_typename":"User"}}}`,
 							},
 							`{"query":"{user {title}}"}`: {
 								statusCode: 200,
@@ -85,13 +85,13 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								statusCode: 200,
 								body:       `{"data":{"user":{"name":"Black","info":{"email":"black@sabbat"}}}}`,
 							},
-							`{"query":"{user {name info {___typename: __typename}}}"}`: {
+							`{"query":"{user {name info {__internal_typename: __typename}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"name":"Black","info":{"___typename":"Info"}}}}`,
+								body:       `{"data":{"user":{"name":"Black","info":{"__internal_typename":"Info"}}}}`,
 							},
-							`{"query":"{user {info {___typename: __typename}}}"}`: {
+							`{"query":"{user {info {__internal_typename: __typename}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"___typename":"Info"}}}}`,
+								body:       `{"data":{"user":{"info":{"__internal_typename":"Info"}}}}`,
 								latency:    80 * time.Millisecond,
 							},
 							`{"query":"{user {info {email}}}"}`: {
@@ -210,31 +210,31 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								statusCode: 200,
 								body:       `{"data":{"user":{"id":"1"}}}`,
 							},
-							`{"query":"{user {___typename: __typename __typename id}}"}`: {
+							`{"query":"{user {__internal_typename: __typename __typename id}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","id":"1"}}}`,
+								body:       `{"data":{"user":{"__internal_typename":"User","__typename":"User","id":1}}}`,
 							},
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
 								latency:    20 * time.Millisecond,
 							},
-							`{"query":"{user {info {___typename: __typename}}}"}`: {
+							`{"query":"{user {info {__internal_typename: __typename}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"___typename":"Info"}}}}`,
+								body:       `{"data":{"user":{"info":{"__internal_typename":"Info"}}}}`,
 								latency:    60 * time.Millisecond,
 							},
 							`{"query":"{user {__typename __internal_id: id __internal_1_id: id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"__typename":"User","__internal_id":"1","__internal_1_id":"1"}}}`,
 							},
-							`{"query":"{user {info {___typename: __typename} __typename id}}"}`: {
+							`{"query":"{user {info {__internal_typename: __typename} __typename id}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"___typename":"Info"},"__typename":"User","id":"1"}}}`,
+								body:       `{"data":{"user":{"info":{"__internal_typename":"Info"},"__typename":"User","id":"1"}}}`,
 							},
-							`{"query":"{user {___typename: __typename __typename __internal_id: id}}"}`: {
+							`{"query":"{user {__internal_typename: __typename __typename __internal_id: id}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"___typename":"User","__typename":"User","__internal_id":"1"}}}`,
+								body:       `{"data":{"user":{"__internal_typename":"User","__typename":"User","__internal_id":"1"}}}`,
 							},
 							`{"query":"{user {__typename id}}"}`: {
 								statusCode: 200,
@@ -919,9 +919,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"user":{"__typename":"User","id":"1"}}}`,
 					},
-					`{"query":"{user {___typename: __typename}}"}`: {
+					`{"query":"{user {__internal_typename: __typename}}"}`: {
 						statusCode: 200,
-						body:       `{"data":{"user":{"___typename":"User"}}}`,
+						body:       `{"data":{"user":{"__internal_typename":"User"}}}`,
 					},
 					`{"query":"{user {name __typename id}}"}`: {
 						statusCode: 200,
@@ -940,9 +940,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"user":{"name":"Alice","account":{"type":"premium"},"__internal_name":"Alice"}}}`,
 					},
-					`{"query":"{user {___typename: __typename __typename id}}"}`: {
+					`{"query":"{user {__internal_typename: __typename __typename id}}"}`: {
 						statusCode: 200,
-						body:       `{"data":{"user":{"___typename":"User","__typename":"User","id":"1"}}}`,
+						body:       `{"data":{"user":{"__internal_typename":"User","__typename":"User","id":"1"}}}`,
 					},
 					`{"query":"{user {account {type} __internal_name: name}}"}`: {
 						statusCode: 200,
@@ -1677,13 +1677,13 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							expectedHost: "first",
 							expectedPath: "/",
 							responses: map[string]sendResponse{
-								`{"query":"{product {___typename: __typename}}"}`: {
+								`{"query":"{product {__internal_typename: __typename}}"}`: {
 									statusCode: 200,
-									body:       `{"data":{"product":{"___typename":"Product"}}}`,
+									body:       `{"data":{"product":{"__internal_typename":"Product"}}}`,
 								},
-								`{"query":"{product {___typename: __typename __typename id}}"}`: {
+								`{"query":"{product {__internal_typename: __typename __typename id}}"}`: {
 									statusCode: 200,
-									body:       `{"data":{"product":{"___typename":"Product","__typename":"Product","id":"1"}}}`,
+									body:       `{"data":{"product":{"__internal_typename":"Product","__typename":"Product","id":"1"}}}`,
 									latency:    keyLatency,
 								},
 								`{"query":"{product {name}}"}`: {
@@ -1873,21 +1873,21 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				expectedHost: "first",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
-					`{"query":"{items {___typename: __typename __typename id}}"}`: {
+					`{"query":"{items {__internal_typename: __typename __typename id}}"}`: {
 						statusCode: 200,
-						body:       `{"data":{"items":[{"___typename":"Item","__typename":"Item","id":"1"},{"___typename":"Item","__typename":"Item","id":"2"}]}}`,
+						body:       `{"data":{"items":[{"__internal_typename":"Item","__typename":"Item","id":"1"},{"__internal_typename":"Item","__typename":"Item","id":"2"}]}}`,
 					},
 					`{"query":"{items {name}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"items":[{"name":"ItemOne"},{"name":"ItemTwo"}]}}`,
 					},
-					`{"query":"{items {___typename: __typename}}"}`: {
+					`{"query":"{items {__internal_typename: __typename}}"}`: {
 						statusCode: 200,
-						body:       `{"data":{"items":[{"___typename":"Item"},{"___typename":"Item"}]}}`,
+						body:       `{"data":{"items":[{"__internal_typename":"Item"},{"__internal_typename":"Item"}]}}`,
 					},
-					`{"query":"{items {subItems {___typename: __typename __typename id}}}"}`: {
+					`{"query":"{items {subItems {__internal_typename: __typename __typename id}}}"}`: {
 						statusCode: 200,
-						body:       `{"data":{"items":[{"subItems":[{"___typename":"SubItem","__typename":"SubItem","id":"s1"},{"___typename":"SubItem","__typename":"SubItem","id":"s2"}]},{"subItems":[{"___typename":"SubItem","__typename":"SubItem","id":"s3"}]}]}}`,
+						body:       `{"data":{"items":[{"subItems":[{"__internal_typename":"SubItem","__typename":"SubItem","id":"s1"},{"__internal_typename":"SubItem","__typename":"SubItem","id":"s2"}]},{"subItems":[{"__internal_typename":"SubItem","__typename":"SubItem","id":"s3"}]}]}}`,
 					},
 					`{"query":"{items {id}}"}`: {
 						statusCode: 200,
@@ -1901,9 +1901,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"items":[{"subItems":[{"id":"s1","__typename":"SubItem","__internal_id":"s1"},{"id":"s2","__typename":"SubItem","__internal_id":"s2"}]},{"subItems":[{"id":"s3","__typename":"SubItem","__internal_id":"s3"}]}]}}`,
 					},
-					`{"query":"{items {___typename: __typename __typename __internal_id: id}}"}`: {
+					`{"query":"{items {__internal_typename: __typename __typename __internal_id: id}}"}`: {
 						statusCode: 200,
-						body:       `{"data":{"items":[{"___typename":"Item","__typename":"Item","__internal_id":"1"},{"___typename":"Item","__typename":"Item","__internal_id":"2"}]}}`,
+						body:       `{"data":{"items":[{"__internal_typename":"Item","__typename":"Item","__internal_id":"1"},{"__internal_typename":"Item","__typename":"Item","__internal_id":"2"}]}}`,
 					},
 					`{"query":"{items {id __typename __internal_id: id}}"}`: {
 						statusCode: 200,
@@ -2246,13 +2246,13 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				expectedHost: "first",
 				expectedPath: "/",
 				responses: map[string]sendResponse{
-					`{"query":"{products {___typename: __typename __typename id}}"}`: {
+					`{"query":"{products {__internal_typename: __typename __typename id}}"}`: {
 						statusCode: 200,
-						body:       `{"data":{"products":[{"___typename":"Product","__typename":"Product","id":"1"},{"___typename":"Product","__typename":"Product","id":"2"}]}}`,
+						body:       `{"data":{"products":[{"__internal_typename":"Product","__typename":"Product","id":"1"},{"__internal_typename":"Product","__typename":"Product","id":"2"}]}}`,
 					},
-					`{"query":"{products {___typename: __typename}}"}`: {
+					`{"query":"{products {__internal_typename: __typename}}"}`: {
 						statusCode: 200,
-						body:       `{"data":{"products":[{"___typename":"Product"},{"___typename":"Product"}]}}`,
+						body:       `{"data":{"products":[{"__internal_typename":"Product"},{"__internal_typename":"Product"}]}}`,
 					},
 					`{"query":"{products {id}}"}`: {
 						statusCode: 200,

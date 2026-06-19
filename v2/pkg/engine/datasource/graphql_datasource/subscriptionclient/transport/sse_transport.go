@@ -1,0 +1,273 @@
+package transport
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"maps"
+	"mime"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
+
+	"github.com/jensneuse/abstractlogger"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
+)
+
+const maxErrorBodySize = 4096
+
+// SSETransport implements the Transport interface using Server-Sent Events.
+// Unlike WebSocket, each subscription creates a separate HTTP request.
+// TCP connection reuse is handled by http.Client's connection pool.
+//
+// Supports both POST (graphql-sse spec) and GET (traditional SSE) methods.
+type SSETransport struct {
+	ctx    context.Context
+	client *http.Client
+	log    abstractlogger.Logger
+
+	mu    sync.Mutex
+	conns map[*sseConnection]struct{}
+}
+
+// NewSSETransport creates a new SSETransport with the provided http.Client.
+// The transport will automatically close all connections when ctx is cancelled.
+func NewSSETransport(ctx context.Context, client *http.Client, log abstractlogger.Logger) *SSETransport {
+	if log == nil {
+		log = abstractlogger.NoopLogger
+	}
+
+	t := &SSETransport{
+		ctx:    ctx,
+		client: client,
+		log:    log,
+		conns:  make(map[*sseConnection]struct{}),
+	}
+
+	context.AfterFunc(ctx, t.closeAll)
+
+	return t
+}
+
+// Subscribe initiates a GraphQL subscription over SSE.
+// Each call creates a new HTTP request (no multiplexing).
+//
+// The HTTP method is determined by opts.SSEMethod:
+//   - SSEMethodPOST: POST with JSON body (graphql-sse spec)
+//   - SSEMethodGET: GET with query parameters (traditional SSE)
+func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options, handler common.Handler) (func(), error) {
+	var httpReq *http.Request
+	var err error
+
+	t.log.Debug("sseTransport.Subscribe",
+		abstractlogger.String("endpoint", opts.Endpoint),
+		abstractlogger.String("method", string(opts.SSEMethod)),
+	)
+
+	switch opts.SSEMethod {
+	case common.SSEMethodPOST:
+		httpReq, err = buildPOSTRequest(req, opts)
+	case common.SSEMethodGET:
+		httpReq, err = buildGETRequest(req, opts)
+	default:
+		return nil, fmt.Errorf("unsupported SSE method: %s", opts.SSEMethod)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Derive a request context that outlives ctx (via WithoutCancel) so we can
+	// control its lifetime independently. Two AfterFunc registrations tie the
+	// request to both shutdown paths:
+	//   - t.ctx cancel: transport-wide shutdown, tears down all in-flight requests.
+	//   - ctx cancel: individual subscription cancelled by the caller.
+	requestCtx, requestCancel := context.WithCancel(context.WithoutCancel(ctx))
+	context.AfterFunc(t.ctx, requestCancel)
+	context.AfterFunc(ctx, requestCancel)
+
+	httpReq = httpReq.WithContext(requestCtx)
+
+	// Execute request
+	resp, err := t.client.Do(httpReq)
+	if err != nil {
+		requestCancel()
+		t.log.Error("sseTransport.Subscribe",
+			abstractlogger.String("endpoint", opts.Endpoint),
+			abstractlogger.Error(err),
+		)
+		return nil, fmt.Errorf("execute request: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		requestCancel()
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodySize))
+		resp.Body.Close()
+		t.log.Error("sseTransport.Subscribe",
+			abstractlogger.String("endpoint", opts.Endpoint),
+			abstractlogger.Int("status", resp.StatusCode),
+		)
+		if len(body) > 0 {
+			return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		}
+		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	}
+
+	// Verify content type (should be text/event-stream)
+	if err := t.validateContentType(resp); err != nil {
+		requestCancel()
+		resp.Body.Close()
+		return nil, err
+	}
+
+	t.log.Debug("sseTransport.Subscribe",
+		abstractlogger.String("endpoint", opts.Endpoint),
+		abstractlogger.String("status", "connected"),
+	)
+
+	// Create connection
+	var conn *sseConnection
+	// When a connection's read loop terminates (terminal message, EOF, or read error),
+	// the onClose callback immediately removes it from the transport's connection map.
+	// This prevents naturally-completed streams from leaking until the transport is closed.
+	conn = newSSEConnection(resp, handler, func() { t.removeConn(conn) })
+
+	t.mu.Lock()
+	t.conns[conn] = struct{}{}
+	t.mu.Unlock()
+
+	go conn.readLoop()
+
+	cancelFn := func() {
+		requestCancel()
+		conn.closeConn()
+		t.removeConn(conn)
+	}
+
+	return cancelFn, nil
+}
+
+// buildPOSTRequest creates a POST request with JSON body (graphql-sse spec).
+func buildPOSTRequest(req *common.Request, opts common.Options) (*http.Request, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequest(http.MethodPost, opts.Endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	// Add custom headers first, then set SSE-required headers so they cannot be overwritten
+	maps.Copy(httpReq.Header, opts.Headers)
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "text/event-stream")
+	httpReq.Header.Set("Cache-Control", "no-cache")
+
+	return httpReq, nil
+}
+
+// buildGETRequest creates a GET request with query parameters (traditional SSE).
+func buildGETRequest(req *common.Request, opts common.Options) (*http.Request, error) {
+	// Parse the endpoint URL
+	u, err := url.Parse(opts.Endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("parse endpoint: %w", err)
+	}
+
+	// Build query parameters
+	q := u.Query()
+	q.Set("query", req.Query)
+
+	if len(req.Variables) > 0 {
+		varsJSON, err := json.Marshal(req.Variables)
+		if err != nil {
+			return nil, fmt.Errorf("marshal variables: %w", err)
+		}
+		q.Set("variables", string(varsJSON))
+	}
+
+	if req.OperationName != "" {
+		q.Set("operationName", req.OperationName)
+	}
+
+	if len(req.Extensions) > 0 {
+		extJSON, err := json.Marshal(req.Extensions)
+		if err != nil {
+			return nil, fmt.Errorf("marshal extensions: %w", err)
+		}
+		q.Set("extensions", string(extJSON))
+	}
+
+	u.RawQuery = q.Encode()
+
+	httpReq, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	// Add custom headers first, then set SSE-required headers so they cannot be overwritten
+	maps.Copy(httpReq.Header, opts.Headers)
+
+	httpReq.Header.Set("Accept", "text/event-stream")
+	httpReq.Header.Set("Cache-Control", "no-cache")
+
+	return httpReq, nil
+}
+
+// validateContentType checks that the response has the correct content type.
+func (t *SSETransport) validateContentType(resp *http.Response) error {
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		return nil // Allow missing content-type
+	}
+
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return fmt.Errorf("invalid content-type %q: %w", contentType, err)
+	}
+
+	if !strings.EqualFold(mediaType, "text/event-stream") {
+		return fmt.Errorf("unexpected content-type: %s", contentType)
+	}
+
+	return nil
+}
+
+func (t *SSETransport) removeConn(conn *sseConnection) {
+	t.mu.Lock()
+	delete(t.conns, conn)
+	t.mu.Unlock()
+}
+
+// closeAll terminates all active SSE connections. Called automatically when context is cancelled.
+func (t *SSETransport) closeAll() {
+	t.mu.Lock()
+	conns := make([]*sseConnection, 0, len(t.conns))
+	for conn := range t.conns {
+		conns = append(conns, conn)
+	}
+	t.conns = make(map[*sseConnection]struct{})
+	t.mu.Unlock()
+
+	t.log.Debug("sseTransport.closeAll",
+		abstractlogger.Int("connections", len(conns)),
+	)
+
+	for _, conn := range conns {
+		conn.closeConn()
+	}
+}
+
+// ConnCount returns the number of active SSE connections.
+func (t *SSETransport) ConnCount() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return len(t.conns)
+}

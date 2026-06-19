@@ -38,9 +38,8 @@ type NodeSuggestion struct {
 	treeNodeId                uint
 	possibleTypeNames         []string
 
-	deferInfo       *DeferInfo
-	deferParentPath bool
-	deferIDs        []int
+	deferInfo          *DeferInfo // this node's own defer directive, if the field itself is deferred
+	descendantDeferIDs []int      // defer ids of deferred descendant fields that route through this node (this node is on their parent path to the root)
 
 	requiresKey *SourceConnection
 }
@@ -181,10 +180,9 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 	hasKeyDependency := false
 	hasRequiresKey := f.items[i].requiresKey != nil
 
-	// when the deffered field is on the entity and the parent field is on the same datasource
-	// we won't have hasRequiresKey set.
-	// but in case this field has requires directive it will be resolved by entity call,
-	// and it will have requires key configuration
+	// When the deferred field is on the entity, and the parent field is on the same datasource, hasRequiresKey will be false.
+	// But if this field has the "requires" directive, it will be resolved by entity call,
+	// and it will have the "requires" key configuration.
 	if !hasRequiresKey && fieldRequirementsConfigs != nil {
 		requirements, ok := fieldRequirementsConfigs[fieldIndexKey{fieldRef: f.items[i].FieldRef, dsHash: f.items[i].DataSourceHash}]
 		if ok {
@@ -196,7 +194,7 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 		}
 	}
 
-	if f.items[i].IsRootNode && hasRequiresKey || hasKeyDependency {
+	if (f.items[i].IsRootNode && hasRequiresKey) || hasKeyDependency {
 		return
 	}
 
@@ -213,13 +211,13 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 			}
 
 			if f.items[parentIdx].deferInfo != nil && f.items[parentIdx].deferInfo.ID == f.items[i].deferInfo.ID {
-				// if parent item is in the same defer -
-				// we should not mark it as a defer parent,
-				// because defer parents are planned twice - in a deffered planner and regular
+				// If the parent item is in the same defer scope, we should not mark it as a
+				// defer parent, because defer parents are planned twice - in a deferred planner
+				// and in the regular planner.
 				break
 			}
 
-			if slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
+			if slices.Contains(f.items[parentIdx].descendantDeferIDs, f.items[i].deferInfo.ID) {
 				// no need to update already contains this defer id
 				break
 			} else {
@@ -245,11 +243,14 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 		current = parentIdToUpdate
 	}
 
+	// Collect the parent indexes during the walk, then mark them in a second pass.
+	// The walk above reads descendantDeferIDs to decide when to stop climbing
+	// (the "already contains this defer id" break). Appending inline would let the
+	// in-progress walk observe a defer id it just wrote and stop early, so the
+	// mutation is deferred until the parent path is fully resolved.
 	for _, parentIdx := range parentIndexesToAddDeferID {
-		f.items[parentIdx].deferParentPath = true
-
-		if !slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
-			f.items[parentIdx].deferIDs = append(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID)
+		if !slices.Contains(f.items[parentIdx].descendantDeferIDs, f.items[i].deferInfo.ID) {
+			f.items[parentIdx].descendantDeferIDs = append(f.items[parentIdx].descendantDeferIDs, f.items[i].deferInfo.ID)
 		}
 	}
 }

@@ -204,6 +204,8 @@ type Loader struct {
 
 	propagateFetchReasons bool
 
+	allowCustomExtensionProperties bool
+
 	validateRequiredExternalFields bool
 
 	taintedObjs taintedObjects
@@ -284,7 +286,6 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 	g, ctx := errgroup.WithContext(l.ctx.ctx)
 	l.dataBuffer.Lock()
 	for i := range nodes {
-		i := i
 		results[i] = &result{}
 		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
 		f := nodes[i].Item.Fetch
@@ -356,7 +357,11 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		return err
 	case *BatchEntityFetch:
 		res := &result{}
-		defer batchEntityToolPool.Put(res.tools)
+		// res.tools is assigned inside loadBatchEntityFetch.
+		// Evaluate when the deferred function runs, not at defer registration:
+		defer func() {
+			batchEntityToolPool.Put(res.tools)
+		}()
 		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -581,6 +586,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
+	if l.allowCustomExtensionProperties {
+		extensions := response.Get("extensions")
+
+		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
+			l.resolvable.subgraphExtensions = append(l.resolvable.subgraphExtensions, extensions.GetObject())
+		}
+	}
+
 	var responseData *astjson.Value
 	if res.postProcessing.SelectResponseDataPath != nil {
 		responseData = response.Get(res.postProcessing.SelectResponseDataPath...)
@@ -620,6 +633,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
+		// First check if this is actually an entity null fetch, instead of a data null fetch.
+		// In this case we return early to avoid adding subgraph errors or merging this into items.
+		if isEmptyEntityFetch(fetchItem, response) {
+			return nil
+		}
+
 		// When:
 		// - No errors or data are present
 		// - Status code is not within the 2XX range
@@ -714,6 +733,21 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 	}
 	return nil
+}
+
+// isEmptyEntityFetch returns true if fetchItem resembles an sucessful entity fetch
+// where no entity has been returned, else false.
+func isEmptyEntityFetch(fetchItem *FetchItem, response *astjson.Value) bool {
+	kind := fetchItem.Fetch.FetchKind()
+
+	if kind == FetchKindEntity || kind == FetchKindEntityBatch {
+		entitiesData := response.Get("data", "_entities")
+		if astjson.ValueIsNonNull(entitiesData) && entitiesData.Type() == astjson.TypeArray {
+			return true
+		}
+	}
+
+	return false
 }
 
 var (
@@ -1586,8 +1620,12 @@ WithNextItem:
 				_, _ = itemInput.WriteTo(preparedInput)
 				// new unique representation
 				res.tools.batchHashToIndex[itemHash] = batchItemIndex
-				// create a new targets bucket for this unique index
-				batchStats = arena.SliceAppend(res.tools.a, batchStats, []*astjson.Value{items[i]})
+				// A new targets bucket for the unique index must be allocated on the arena:
+				// a heap-allocated bucket would only be referenced from arena memory,
+				// so the GC could collect its backing array while it is still in use.
+				bucket := arena.AllocateSlice[*astjson.Value](res.tools.a, 1, 1)
+				bucket[0] = items[i]
+				batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
 				batchItemIndex++
 				addSeparator = true
 			}
@@ -1640,7 +1678,7 @@ WithNextItem:
 }
 
 func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
-	var obj map[string]interface{}
+	var obj map[string]any
 
 	sensitiveHeaders := []string{
 		"authorization",
@@ -1657,7 +1695,7 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	}
 
 	if headers, ok := obj["header"]; ok {
-		if headerMap, isMap := headers.(map[string]interface{}); isMap {
+		if headerMap, isMap := headers.(map[string]any); isMap {
 			for key, values := range headerMap {
 				if slices.Contains(sensitiveHeaders, strings.ToLower(key)) {
 					headerMap[key] = []string{"****"}

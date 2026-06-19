@@ -3,8 +3,6 @@ package astnormalization
 import (
 	"bytes"
 
-	"github.com/buger/jsonparser"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -60,20 +58,11 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 		return
 	}
 	value := d.operation.ArgumentValue(arg)
-	var skip ast.BooleanValue
-	switch value.Kind {
-	case ast.ValueKindBoolean:
-		skip = d.operation.BooleanValue(value.Ref)
-	case ast.ValueKindVariable:
-		val, valid := d.getVariableValue(d.operation.VariableValueNameString(value.Ref))
-		if !valid {
-			return
-		}
-		skip = ast.BooleanValue(val)
-	default:
+	skip, valid := d.operation.GetBooleanValue(value)
+	if !valid {
 		return
 	}
-	if !d.keepNodes && bool(skip) {
+	if !d.keepNodes && skip {
 		d.removeParentNode()
 	} else {
 		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
@@ -89,40 +78,15 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 		return
 	}
 	value := d.operation.ArgumentValue(arg)
-	var include ast.BooleanValue
-	switch value.Kind {
-	case ast.ValueKindBoolean:
-		include = d.operation.BooleanValue(value.Ref)
-	case ast.ValueKindVariable:
-		val, valid := d.getVariableValue(d.operation.VariableValueNameString(value.Ref))
-		if !valid {
-			return
-		}
-		include = ast.BooleanValue(val)
-	default:
+	include, valid := d.operation.GetBooleanValue(value)
+	if !valid {
 		return
 	}
-	if d.keepNodes || bool(include) {
+	if d.keepNodes || include {
 		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
 	} else {
 		d.removeParentNode()
 	}
-}
-
-func (d *directiveIncludeSkipVisitor) getVariableValue(name string) (value, valid bool) {
-	val, err := jsonparser.GetBoolean(d.operation.Input.Variables, name)
-	if err == nil {
-		return val, true
-	}
-	for i := range d.operation.VariableDefinitions {
-		definitionName := d.operation.VariableDefinitionNameString(i)
-		if definitionName == name {
-			if d.operation.VariableDefinitions[i].DefaultValue.IsDefined {
-				return bool(d.operation.BooleanValue(d.operation.VariableDefinitions[i].DefaultValue.Value.Ref)), true
-			}
-		}
-	}
-	return false, false
 }
 
 func (d *directiveIncludeSkipVisitor) removeParentNode() {
@@ -155,12 +119,12 @@ func (d *directiveIncludeSkipVisitor) removeParentNode() {
 
 func addInternalTypeNamePlaceholder(operation *ast.Document, selectionSetRef int) int {
 	field := operation.AddField(ast.Field{
-		Name: operation.Input.AppendInputString("__typename"),
+		Name: operation.Input.AppendInputBytes(literal.TYPENAME),
 		// We are adding an alias to the __typename field to mark it as internally added
 		// So planner could ignore this field during creation of the response shape
 		Alias: ast.Alias{
 			IsDefined: true,
-			Name:      operation.Input.AppendInputString("___typename"),
+			Name:      operation.Input.AppendInputBytes(literal.INTERNAL_TYPENAME),
 		},
 	})
 	selectionRef := operation.AddSelectionToDocument(ast.Selection{

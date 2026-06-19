@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"sort"
 	"time"
@@ -20,6 +21,7 @@ type Context struct {
 
 	// Variables contains the variables to be used to render values of variables for the subgraph.
 	// Resolver takes into account RemapVariables for variable names.
+	// Recommented read-only use via variables.VariablesView returned by VariablesView().
 	Variables *astjson.Value
 
 	// RemapVariables contains a map from new names to old names. When variables are renamed,
@@ -45,10 +47,10 @@ type Context struct {
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
 
-	// ActualListSizes is populated by the resolver after resolution completes,
-	// before the response body is written. Maps JSON path to actual list size.
+	// TypeNameStats is populated by the resolver after resolution completes,
+	// before the response body is written. Maps JSON path to array stats.
 	// Used to compute the actual cost.
-	ActualListSizes map[string]int
+	TypeNameStats map[string]TypeNameStats
 
 	// GetDeduplicationData is called after the leader of an inbound singleflight request
 	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
@@ -291,16 +293,12 @@ func (c *Context) clone(ctx context.Context) *Context {
 
 	if c.RemapVariables != nil {
 		cpy.RemapVariables = make(map[string]string, len(c.RemapVariables))
-		for k, v := range c.RemapVariables {
-			cpy.RemapVariables[k] = v
-		}
+		maps.Copy(cpy.RemapVariables, c.RemapVariables)
 	}
 
 	if c.subgraphErrors != nil {
 		cpy.subgraphErrors = make(map[string]error, len(c.subgraphErrors))
-		for k, v := range c.subgraphErrors {
-			cpy.subgraphErrors[k] = v
-		}
+		maps.Copy(cpy.subgraphErrors, c.subgraphErrors)
 	}
 
 	return &cpy
@@ -320,7 +318,11 @@ func (c *Context) Free() {
 	c.LoaderHooks = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
-	c.ActualListSizes = nil
+	c.TypeNameStats = nil
+}
+
+func (c *Context) VariablesView() VariablesView {
+	return NewVariablesView(c.Variables, c.RemapVariables)
 }
 
 type traceStartKey struct{}

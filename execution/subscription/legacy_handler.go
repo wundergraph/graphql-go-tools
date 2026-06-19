@@ -93,7 +93,7 @@ func NewHandlerWithInitFunc(
 		subCancellations:           subscriptionCancellations{},
 		executorPool:               executorPool,
 		bufferPool: &sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 				return &writer
 			},
@@ -406,7 +406,7 @@ func (h *Handler) sendKeepAlive() {
 	}
 }
 
-func (h *Handler) terminateConnection(reason interface{}) {
+func (h *Handler) terminateConnection(reason any) {
 	payloadBytes, err := json.Marshal(reason)
 	if err != nil {
 		h.logger.Error("subscription.Handler.terminateConnection()",
@@ -436,7 +436,7 @@ func (h *Handler) terminateConnection(reason interface{}) {
 }
 
 // handleConnectionError will handle a connection error message.
-func (h *Handler) handleConnectionError(errorPayload interface{}) {
+func (h *Handler) handleConnectionError(errorPayload any) {
 	payloadBytes, err := json.Marshal(errorPayload)
 	if err != nil {
 		h.logger.Error("subscription.Handler.handleConnectionError()",

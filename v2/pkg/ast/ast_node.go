@@ -440,11 +440,11 @@ func (d *Document) NodeIsLastRootNode(node Node) bool {
 	if len(d.RootNodes) == 0 {
 		return false
 	}
-	for i := len(d.RootNodes) - 1; i >= 0; i-- {
-		if d.RootNodes[i].Kind == NodeKindUnknown {
+	for _, v := range slices.Backward(d.RootNodes) {
+		if v.Kind == NodeKindUnknown {
 			continue
 		}
-		return d.RootNodes[i] == node
+		return v == node
 	}
 	return false
 }

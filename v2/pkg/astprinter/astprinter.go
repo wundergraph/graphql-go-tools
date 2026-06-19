@@ -144,11 +144,14 @@ func (p *printVisitor) indentationDepth() (depth int) {
 }
 
 func (p *printVisitor) writeIndented(data []byte) {
+	p.writeIndentedWithDepth(data, p.indentationDepth())
+}
+
+func (p *printVisitor) writeIndentedWithDepth(data []byte, depth int) {
 	if p.err != nil {
 		return
 	}
-	depth := p.indentationDepth()
-	for i := 0; i < depth; i++ {
+	for range depth {
 		_, p.err = p.out.Write(p.indent)
 	}
 	_, p.err = p.out.Write(data)
@@ -229,6 +232,11 @@ func (p *printVisitor) LeaveDirective(ref int) {
 func (p *printVisitor) EnterVariableDefinition(ref int) {
 	if !p.document.VariableDefinitionsBefore(ref) {
 		p.write(literal.LPAREN)
+	}
+
+	if p.document.VariableDefinitions[ref].Description.IsDefined {
+		p.must(p.document.PrintDescription(p.document.VariableDefinitions[ref].Description, nil, 0, p.out))
+		p.write(literal.SPACE)
 	}
 
 	p.must(p.document.PrintValue(p.document.VariableDefinitions[ref].VariableValue, p.out))
@@ -582,22 +590,42 @@ func (p *printVisitor) LeaveFieldDefinition(ref int) {
 }
 
 func (p *printVisitor) EnterInputValueDefinition(ref int) {
-	if p.document.InputValueDefinitionIsFirst(ref, p.Ancestors[len(p.Ancestors)-1]) {
+	parent := p.Ancestors[len(p.Ancestors)-1]
+	multilineField := p.fieldArgsAreMultiline(parent)
+	// Field arg lists in multiline mode sit one level deeper than the field
+	// itself; indentationDepth() returns the field's depth in SDL contexts,
+	// so the args and their descriptions need an extra step of indent.
+	argDepth := p.indentationDepth()
+	if multilineField {
+		argDepth++
+	}
+
+	if p.document.InputValueDefinitionIsFirst(ref, parent) {
 		p.write(p.inputValueDefinitionOpener)
 	}
 	if p.indent != nil {
-		switch p.Ancestors[len(p.Ancestors)-1].Kind {
+		switch parent.Kind {
 		case ast.NodeKindDirectiveDefinition, ast.NodeKindInputObjectTypeDefinition, ast.NodeKindInputObjectTypeExtension:
 			p.write(literal.LINETERMINATOR)
+		case ast.NodeKindFieldDefinition:
+			if multilineField {
+				p.write(literal.LINETERMINATOR)
+			}
 		}
 	}
 	if p.document.InputValueDefinitions[ref].Description.IsDefined {
-		p.must(p.document.PrintDescription(p.document.InputValueDefinitions[ref].Description, p.indent, p.indentationDepth(), p.out))
+		p.must(p.document.PrintDescription(p.document.InputValueDefinitions[ref].Description, p.indent, argDepth, p.out))
 		p.write(literal.LINETERMINATOR)
 	}
-	switch p.Ancestors[len(p.Ancestors)-1].Kind {
+	switch parent.Kind {
 	case ast.NodeKindDirectiveDefinition, ast.NodeKindInputObjectTypeDefinition, ast.NodeKindInputObjectTypeExtension:
 		p.writeIndented(p.document.InputValueDefinitionNameBytes(ref))
+	case ast.NodeKindFieldDefinition:
+		if multilineField {
+			p.writeIndentedWithDepth(p.document.InputValueDefinitionNameBytes(ref), argDepth)
+		} else {
+			p.write(p.document.InputValueDefinitionNameBytes(ref))
+		}
 	default:
 		p.write(p.document.InputValueDefinitionNameBytes(ref))
 	}
@@ -613,18 +641,34 @@ func (p *printVisitor) EnterInputValueDefinition(ref int) {
 }
 
 func (p *printVisitor) LeaveInputValueDefinition(ref int) {
-	if p.document.InputValueDefinitionIsLast(ref, p.Ancestors[len(p.Ancestors)-1]) {
+	parent := p.Ancestors[len(p.Ancestors)-1]
+	multilineField := p.fieldArgsAreMultiline(parent)
+
+	if p.document.InputValueDefinitionIsLast(ref, parent) {
+		// Closing token aligns with the parent declaration; the field-arg
+		// case is one level shallower than its argument list.
+		closerDepth := 0
 		if p.indent != nil {
-			switch p.Ancestors[len(p.Ancestors)-1].Kind {
+			switch parent.Kind {
 			case ast.NodeKindDirectiveDefinition, ast.NodeKindInputObjectTypeDefinition, ast.NodeKindInputObjectTypeExtension:
 				p.write(literal.LINETERMINATOR)
+			case ast.NodeKindFieldDefinition:
+				if multilineField {
+					p.write(literal.LINETERMINATOR)
+					closerDepth = p.indentationDepth()
+				}
 			}
 		}
-		p.write(p.inputValueDefinitionCloser)
+		p.writeIndentedWithDepth(p.inputValueDefinitionCloser, closerDepth)
 	} else {
 		if len(p.Ancestors) > 0 {
 			// check enclosing type kind
-			if p.Ancestors[len(p.Ancestors)-1].Kind == ast.NodeKindFieldDefinition {
+			if parent.Kind == ast.NodeKindFieldDefinition {
+				if multilineField {
+					// Args are separated by line terminators emitted on
+					// Enter of the next arg, not by ", ".
+					return
+				}
 				p.write(literal.COMMA)
 				p.write(literal.SPACE)
 			} else if len(p.indent) == 0 {
@@ -633,6 +677,22 @@ func (p *printVisitor) LeaveInputValueDefinition(ref int) {
 			}
 		}
 	}
+}
+
+// fieldArgsAreMultiline reports whether the current field's argument list
+// should print one-per-line. Triggered by indented mode and any arg having a
+// description, so prose-bearing field args get the same layout as directive
+// args or input fields.
+func (p *printVisitor) fieldArgsAreMultiline(parent ast.Node) bool {
+	if parent.Kind != ast.NodeKindFieldDefinition || p.indent == nil {
+		return false
+	}
+	for _, argRef := range p.document.FieldDefinitions[parent.Ref].ArgumentsDefinition.Refs {
+		if p.document.InputValueDefinitions[argRef].Description.IsDefined {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *printVisitor) EnterInterfaceTypeDefinition(ref int) {

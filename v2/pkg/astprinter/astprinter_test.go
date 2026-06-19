@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/goldie"
@@ -787,6 +788,150 @@ User fields fragment
 """
 fragment UserFields on User {id name}`)
 	})
+	t.Run("variable descriptions", func(t *testing.T) {
+		t.Run("single-line description", func(t *testing.T) {
+			run(t, `query GetUser("The user ID" $id: ID!) {
+	user(id: $id) {
+		id
+	}
+}`, `query GetUser("The user ID" $id: ID!){user(id: $id){id}}`)
+		})
+		t.Run("block string description", func(t *testing.T) {
+			run(t, `query GetUser("""The unique identifier""" $id: ID!) {
+	user(id: $id) {
+		id
+	}
+}`, `query GetUser("""
+The unique identifier
+""" $id: ID!){user(id: $id){id}}`)
+		})
+		t.Run("multiple variables with mixed descriptions", func(t *testing.T) {
+			run(t, `query Search("The search query" $query: String!, $limit: Int) {
+	search(query: $query, limit: $limit) {
+		id
+	}
+}`, `query Search("The search query" $query: String!, $limit: Int){search(query: $query, limit: $limit){id}}`)
+		})
+		t.Run("without description unchanged", func(t *testing.T) {
+			run(t, `query GetUser($id: ID!) {
+	user(id: $id) {
+		id
+	}
+}`, `query GetUser($id: ID!){user(id: $id){id}}`)
+		})
+		t.Run("single-line operation with variable description", func(t *testing.T) {
+			run(t, `query GetUser("The user ID" $id: ID!) { user(id: $id) { id } }`,
+				`query GetUser("The user ID" $id: ID!){user(id: $id){id}}`)
+		})
+	})
+}
+
+func TestPrintDescriptionRoundTrip(t *testing.T) {
+	t.Run("preserves inner indentation of multi-line field descriptions", func(t *testing.T) {
+		runIndent(t, `type Query {
+  """
+  An example query:
+
+      query {
+        users {
+          id
+          name
+        }
+      }
+  """
+  example: String
+}`, `type Query {
+    """
+    An example query:
+
+    query {
+      users {
+        id
+        name
+      }
+    }
+    """
+    example: String
+}`)
+	})
+
+	t.Run("strips only common indent in multi-line description", func(t *testing.T) {
+		runIndent(t, `type Query {
+  """
+  Outer.
+      Deep.
+  Outer again.
+  """
+  example: String
+}`, `type Query {
+    """
+    Outer.
+        Deep.
+    Outer again.
+    """
+    example: String
+}`)
+	})
+}
+
+func TestPrintFieldArgsWithDescriptions(t *testing.T) {
+	t.Run("inline when no arg has a description", func(t *testing.T) {
+		runIndent(t, `type Query { foo(a: Int, b: String): Int }`,
+			`type Query {
+    foo(a: Int, b: String): Int
+}`)
+	})
+
+	t.Run("breaks across lines when any arg has a description", func(t *testing.T) {
+		runIndent(t, `type Query {
+  foo(
+    "Limit on results."
+    limit: Int = 25
+
+    "Page number."
+    page: Int = 1
+  ): String
+}`, `type Query {
+    foo(
+        "Limit on results."
+        limit: Int = 25
+        "Page number."
+        page: Int = 1
+    ): String
+}`)
+	})
+
+	t.Run("round-trips byte-identically across two parse-print cycles", func(t *testing.T) {
+		raw := `type Query {
+  foo(
+    "Limit on results."
+    limit: Int = 25
+    "Page number."
+    page: Int = 1
+  ): String
+}`
+		first, err := PrintStringIndent(parseDoc(t, raw), "    ")
+		require.NoError(t, err)
+		second, err := PrintStringIndent(parseDoc(t, first), "    ")
+		require.NoError(t, err)
+		assert.Equal(t, first, second)
+	})
+
+	t.Run("stays inline in compact mode even with descriptions", func(t *testing.T) {
+		run(t, `type Query {
+  foo(
+    "Limit"
+    limit: Int = 25
+  ): String
+}`, `type Query {foo("Limit"
+limit: Int = 25): String}`)
+	})
+}
+
+func parseDoc(t *testing.T, raw string) *ast.Document {
+	t.Helper()
+	doc := unsafeparser.ParseGraphqlDocumentString(raw)
+	return &doc
 }
 
 func TestPrintArgumentWithBeforeAfterValue(t *testing.T) {

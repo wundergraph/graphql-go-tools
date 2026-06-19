@@ -22,8 +22,8 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 		Message string `json:"message"`
 	}
 	type graphqlResponse struct {
-		Data   map[string]interface{} `json:"data"`
-		Errors []graphqlError         `json:"errors,omitempty"`
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
 	}
 
 	testCases := []struct {
@@ -31,7 +31,7 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 		query             string
 		vars              string
 		federationConfigs plan.FederationFieldConfigurations
-		validate          func(t *testing.T, data map[string]interface{})
+		validate          func(t *testing.T, data map[string]any)
 		validateError     func(t *testing.T, errData []graphqlError)
 	}{
 		{
@@ -53,8 +53,8 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 					SelectionSet: "id",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.NotEmpty(t, entities, "_entities should not be empty")
 
@@ -66,22 +66,22 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 
 				require.Len(t, entities, 4, "Should return 4 entities")
 
-				product, ok := entities[0].(map[string]interface{})
+				product, ok := entities[0].(map[string]any)
 				require.True(t, ok, "product should be an object")
 				require.Equal(t, "1", product["id"])
 				require.Equal(t, "Product 1", product["name"])
 
-				storage, ok := entities[1].(map[string]interface{})
+				storage, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage should be an object")
 				require.Equal(t, "3", storage["id"])
 				require.Equal(t, "Storage 3", storage["name"])
 
-				product2, ok := entities[2].(map[string]interface{})
+				product2, ok := entities[2].(map[string]any)
 				require.True(t, ok, "product2 should be an object")
 				require.Equal(t, "2", product2["id"])
 				require.Equal(t, "Product 2", product2["name"])
 
-				storage2, ok := entities[3].(map[string]interface{})
+				storage2, ok := entities[3].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "4", storage2["id"])
 				require.Equal(t, "Storage 4", storage2["name"])
@@ -105,7 +105,7 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 					SelectionSet: "id",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.Empty(t, data)
 			},
 			validateError: func(t *testing.T, errorData []graphqlError) {
@@ -134,15 +134,15 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 					SelectionSet: "id",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				entities, ok := data["_entities"].([]interface{})
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.NotEmpty(t, entities, "_entities should not be empty")
 				require.Len(t, entities, 3, "Should return 3 entities")
 				for index, entity := range entities {
-					entity, ok := entity.(map[string]interface{})
+					entity, ok := entity.(map[string]any)
 					require.True(t, ok, "entity should be an object")
 					productID := index + 1
 
@@ -152,6 +152,145 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 					require.InDelta(t, float64(77.49), entity["shippingEstimate"], 0.01)
 				}
 
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with filteredTagSummary (@requires + field argument)",
+			query: `query($representations: [_Any!]!, $prefix: String!) { _entities(representations: $representations) { ...on Storage { __typename name filteredTagSummary(prefix: $prefix) } } }`,
+			vars: `{"variables":{
+				"prefix": "e",
+				"representations":[
+					{"__typename":"Storage","id":"1","tags":["electronics","hot-deals","books"]},
+					{"__typename":"Storage","id":"2","tags":["new-arrivals","premium"]}
+				]
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "filteredTagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "should return 2 entities")
+
+				// Storage 1: tags contain "electronics" which starts with "e"
+				entity1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "entity 1 should be an object")
+				require.Equal(t, "Storage", entity1["__typename"])
+				require.Equal(t, "Storage 1", entity1["name"])
+				require.Equal(t, "electronics", entity1["filteredTagSummary"])
+
+				// Storage 2: no tags start with "e" → filteredTagSummary is null
+				entity2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "entity 2 should be an object")
+				require.Equal(t, "Storage", entity2["__typename"])
+				require.Equal(t, "Storage 2", entity2["name"])
+				require.Nil(t, entity2["filteredTagSummary"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with multiFilteredTagSummary (@requires + two field arguments, one repeated)",
+			query: `query($representations: [_Any!]!, $prefixes: [String!]!, $maxResults: Int!) { _entities(representations: $representations) { ...on Storage { __typename name multiFilteredTagSummary(prefixes: $prefixes, maxResults: $maxResults) } } }`,
+			vars: `{"variables":{
+				"prefixes": ["e", "h"],
+				"maxResults": 2,
+				"representations":[
+					{"__typename":"Storage","id":"1","tags":["electronics","hot-deals","books","extra"]},
+					{"__typename":"Storage","id":"2","tags":["new-arrivals","premium"]}
+				]
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "multiFilteredTagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "should return 2 entities")
+
+				// Storage 1: tags "electronics" (prefix "e") and "hot-deals" (prefix "h") match; capped at maxResults=2
+				entity1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "entity 1 should be an object")
+				require.Equal(t, "Storage", entity1["__typename"])
+				require.Equal(t, "Storage 1", entity1["name"])
+				require.Equal(t, "electronics, hot-deals", entity1["multiFilteredTagSummary"])
+
+				// Storage 2: no tags match any prefix → multiFilteredTagSummary is null
+				entity2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "entity 2 should be an object")
+				require.Equal(t, "Storage", entity2["__typename"])
+				require.Equal(t, "Storage 2", entity2["name"])
+				require.Nil(t, entity2["multiFilteredTagSummary"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with nullableFilteredTagSummary (@requires + nullable field argument)",
+			query: `query($representations: [_Any!]!, $prefix: String) { _entities(representations: $representations) { ...on Storage { __typename name nullableFilteredTagSummary(prefix: $prefix) } } }`,
+			vars: `{"variables":{
+				"prefix": null,
+				"representations":[
+					{"__typename":"Storage","id":"1","tags":["electronics","hot-deals","books"]},
+					{"__typename":"Storage","id":"2","tags":[]}
+				]
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "nullableFilteredTagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "should return 2 entities")
+
+				// Storage 1: prefix is null → all tags returned
+				entity1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "entity 1 should be an object")
+				require.Equal(t, "Storage", entity1["__typename"])
+				require.Equal(t, "Storage 1", entity1["name"])
+				require.Equal(t, "electronics, hot-deals, books", entity1["nullableFilteredTagSummary"])
+
+				// Storage 2: no tags → nullableFilteredTagSummary is null
+				entity2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "entity 2 should be an object")
+				require.Equal(t, "Storage", entity2["__typename"])
+				require.Equal(t, "Storage 2", entity2["name"])
+				require.Nil(t, entity2["nullableFilteredTagSummary"])
 			},
 			validateError: func(t *testing.T, errorData []graphqlError) {
 				require.Empty(t, errorData)
@@ -178,7 +317,7 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
@@ -213,8 +352,8 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 		Message string `json:"message"`
 	}
 	type graphqlResponse struct {
-		Data   map[string]interface{} `json:"data"`
-		Errors []graphqlError         `json:"errors,omitempty"`
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
 	}
 
 	testCases := []struct {
@@ -222,7 +361,7 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 		query             string
 		vars              string
 		federationConfigs plan.FederationFieldConfigurations
-		validate          func(t *testing.T, data map[string]interface{})
+		validate          func(t *testing.T, data map[string]any)
 		validateError     func(t *testing.T, errData []graphqlError)
 	}{
 		{
@@ -244,23 +383,23 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 					SelectionSet: "id",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				entities, ok := data["_entities"].([]interface{})
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.NotEmpty(t, entities, "_entities should not be empty")
 				require.Len(t, entities, 3, "Should return 3 entities")
 
 				for index, entity := range entities {
-					entity, ok := entity.(map[string]interface{})
+					entity, ok := entity.(map[string]any)
 					require.True(t, ok, "entity should be an object")
 					productID := index + 1
 
 					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
 					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
 
-					mascot, ok := entity["mascotRecommendation"].(map[string]interface{})
+					mascot, ok := entity["mascotRecommendation"].(map[string]any)
 					require.True(t, ok, "mascotRecommendation should be an object")
 
 					// Alternates between Cat and Dog based on index
@@ -318,23 +457,23 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 					SelectionSet: "id",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				entities, ok := data["_entities"].([]interface{})
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.NotEmpty(t, entities, "_entities should not be empty")
 				require.Len(t, entities, 3, "Should return 3 entities")
 
 				for index, entity := range entities {
-					entity, ok := entity.(map[string]interface{})
+					entity, ok := entity.(map[string]any)
 					require.True(t, ok, "entity should be an object")
 					productID := index + 1
 
 					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
 					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
 
-					stockStatus, ok := entity["stockStatus"].(map[string]interface{})
+					stockStatus, ok := entity["stockStatus"].(map[string]any)
 					require.True(t, ok, "stockStatus should be an object")
 
 					// With checkAvailability: false, all should be success
@@ -376,23 +515,23 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 					SelectionSet: "id",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
+			validate: func(t *testing.T, data map[string]any) {
 				require.NotEmpty(t, data)
 
-				entities, ok := data["_entities"].([]interface{})
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.NotEmpty(t, entities, "_entities should not be empty")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				for index, entity := range entities {
-					entity, ok := entity.(map[string]interface{})
+					entity, ok := entity.(map[string]any)
 					require.True(t, ok, "entity should be an object")
 					productID := index + 1
 
 					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
 					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
 
-					details, ok := entity["productDetails"].(map[string]interface{})
+					details, ok := entity["productDetails"].(map[string]any)
 					require.True(t, ok, "productDetails should be an object")
 
 					require.Contains(t, details, "id")
@@ -400,7 +539,7 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 					require.Contains(t, details["description"], "Standard details")
 
 					// Check recommendedPet (interface)
-					pet, ok := details["recommendedPet"].(map[string]interface{})
+					pet, ok := details["recommendedPet"].(map[string]any)
 					require.True(t, ok, "recommendedPet should be an object")
 
 					// Alternates between Cat and Dog
@@ -435,7 +574,7 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 					}
 
 					// Check reviewSummary (union)
-					reviewSummary, ok := details["reviewSummary"].(map[string]interface{})
+					reviewSummary, ok := details["reviewSummary"].(map[string]any)
 					require.True(t, ok, "reviewSummary should be an object")
 
 					// With includeExtended: false and low prices, should be success
@@ -478,7 +617,7 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
@@ -513,8 +652,8 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 		Message string `json:"message"`
 	}
 	type graphqlResponse struct {
-		Data   map[string]interface{} `json:"data"`
-		Errors []graphqlError         `json:"errors,omitempty"`
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
 	}
 
 	testCases := []struct {
@@ -522,7 +661,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 		query             string
 		vars              string
 		federationConfigs plan.FederationFieldConfigurations
-		validate          func(t *testing.T, data map[string]interface{})
+		validate          func(t *testing.T, data map[string]any)
 		validateError     func(t *testing.T, errData []graphqlError)
 	}{
 		{
@@ -555,34 +694,34 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "itemCount restockData { lastRestockDate }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 4, "Should return 4 entities")
 
 				// Storage 1: itemCount=100, restockData provided -> score = 100*0.1 + 10 = 20.0
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
 				require.Equal(t, 20.0, storage1["stockHealthScore"])
 
 				// Storage 2: itemCount=200, restockData provided -> score = 200*0.1 + 10 = 30.0
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
 				require.Equal(t, 30.0, storage2["stockHealthScore"])
 
 				// Storage 3: itemCount=300, restockData provided -> score = 300*0.1 + 10 = 40.0
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
 				require.Equal(t, "Storage 3", storage3["name"])
 				require.Equal(t, 40.0, storage3["stockHealthScore"])
 
 				// Storage 4: itemCount=400, restockData provided -> score = 400*0.1 + 10 = 50.0
-				storage4, ok := entities[3].(map[string]interface{})
+				storage4, ok := entities[3].(map[string]any)
 				require.True(t, ok, "storage4 should be an object")
 				require.Equal(t, "4", storage4["id"])
 				require.Equal(t, "Storage 4", storage4["name"])
@@ -610,20 +749,20 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "itemCount restockData { lastRestockDate }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Storage 1: itemCount=100, no restockData -> score = 100*0.1 = 10.0
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
 				require.Equal(t, 10.0, storage1["stockHealthScore"])
 
 				// Storage 2: itemCount=500, no restockData -> score = 500*0.1 = 50.0
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
@@ -650,13 +789,13 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "itemCount restockData { lastRestockDate }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 1, "Should return 1 entity")
 
 				// Storage 42: itemCount=1000, restockData provided -> score = 1000*0.1 + 10 = 110.0
-				storage, ok := entities[0].(map[string]interface{})
+				storage, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage should be an object")
 				require.Equal(t, "42", storage["id"])
 				require.Equal(t, "Storage 42", storage["name"])
@@ -679,19 +818,19 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "id",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Just id and name, no stockHealthScore
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
 				require.NotContains(t, storage1, "stockHealthScore")
 
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
@@ -720,27 +859,27 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "tags",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 3, "Should return 3 entities")
 
 				// Storage 1: tags = ["electronics", "gadgets", "sale"] -> "electronics, gadgets, sale"
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
 				require.Equal(t, "electronics, gadgets, sale", storage1["tagSummary"])
 
 				// Storage 2: tags = ["books", "fiction"] -> "books, fiction"
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
 				require.Equal(t, "books, fiction", storage2["tagSummary"])
 
 				// Storage 3: tags = [] -> ""
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
 				require.Equal(t, "Storage 3", storage3["name"])
@@ -769,25 +908,25 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "optionalTags",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 3, "Should return 3 entities")
 
 				// Storage 1: optionalTags = ["premium", "featured"] -> "premium, featured"
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "premium, featured", storage1["optionalTagSummary"])
 
 				// Storage 2: optionalTags = [] -> null (empty list returns nil)
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Nil(t, storage2["optionalTagSummary"])
 
 				// Storage 3: optionalTags = null -> null
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
 				require.Nil(t, storage3["optionalTagSummary"])
@@ -816,31 +955,31 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "metadata { capacity zone }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 4, "Should return 4 entities")
 
 				// Storage 1: capacity=100, zone="A" (weight=1.0) -> 100*1.0 = 100.0
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, 100.0, storage1["metadataScore"])
 
 				// Storage 2: capacity=200, zone="B" (weight=0.8) -> 200*0.8 = 160.0
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, 160.0, storage2["metadataScore"])
 
 				// Storage 3: capacity=300, zone="C" (weight=0.6) -> 300*0.6 = 180.0
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
 				require.Equal(t, 180.0, storage3["metadataScore"])
 
 				// Storage 4: capacity=400, zone="D" (weight=0.5) -> 400*0.5 = 200.0
-				storage4, ok := entities[3].(map[string]interface{})
+				storage4, ok := entities[3].(map[string]any)
 				require.True(t, ok, "storage4 should be an object")
 				require.Equal(t, "4", storage4["id"])
 				require.Equal(t, 200.0, storage4["metadataScore"])
@@ -867,26 +1006,26 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "metadata { capacity zone priority }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Storage 1: capacity=50*2=100, zone="A" (uppercase), priority=5+10=15
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
-				metadata1, ok := storage1["processedMetadata"].(map[string]interface{})
+				metadata1, ok := storage1["processedMetadata"].(map[string]any)
 				require.True(t, ok, "processedMetadata should be an object")
 				require.Equal(t, float64(100), metadata1["capacity"])
 				require.Equal(t, "A", metadata1["zone"])
 				require.Equal(t, float64(15), metadata1["priority"])
 
 				// Storage 2: capacity=100*2=200, zone="B" (uppercase), priority=10+10=20
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
-				metadata2, ok := storage2["processedMetadata"].(map[string]interface{})
+				metadata2, ok := storage2["processedMetadata"].(map[string]any)
 				require.True(t, ok, "processedMetadata should be an object")
 				require.Equal(t, float64(200), metadata2["capacity"])
 				require.Equal(t, "B", metadata2["zone"])
@@ -915,33 +1054,33 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "metadata { capacity zone }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 3, "Should return 3 entities")
 
 				// Storage 1 (index 0, even): returns processed metadata
 				// capacity=100*3=300, zone="x" (lowercase), priority=1
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
-				metadata1, ok := storage1["optionalProcessedMetadata"].(map[string]interface{})
+				metadata1, ok := storage1["optionalProcessedMetadata"].(map[string]any)
 				require.True(t, ok, "optionalProcessedMetadata should be an object for index 0")
 				require.Equal(t, float64(300), metadata1["capacity"])
 				require.Equal(t, "x", metadata1["zone"])
 
 				// Storage 2 (index 1, odd): returns null
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Nil(t, storage2["optionalProcessedMetadata"])
 
 				// Storage 3 (index 2, even): returns processed metadata
 				// capacity=300*3=900, zone="z" (lowercase), priority=1
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
-				metadata3, ok := storage3["optionalProcessedMetadata"].(map[string]interface{})
+				metadata3, ok := storage3["optionalProcessedMetadata"].(map[string]any)
 				require.True(t, ok, "optionalProcessedMetadata should be an object for index 2")
 				require.Equal(t, float64(900), metadata3["capacity"])
 				require.Equal(t, "z", metadata3["zone"])
@@ -968,26 +1107,26 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "tags",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Storage 1: tags = ["foo", "bar"] -> ["PROCESSED_FOO", "PROCESSED_BAR"]
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
-				tags1, ok := storage1["processedTags"].([]interface{})
+				tags1, ok := storage1["processedTags"].([]any)
 				require.True(t, ok, "processedTags should be an array")
 				require.Len(t, tags1, 2)
 				require.Equal(t, "PROCESSED_FOO", tags1[0])
 				require.Equal(t, "PROCESSED_BAR", tags1[1])
 
 				// Storage 2: tags = ["hello"] -> ["PROCESSED_HELLO"]
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
-				tags2, ok := storage2["processedTags"].([]interface{})
+				tags2, ok := storage2["processedTags"].([]any)
 				require.True(t, ok, "processedTags should be an array")
 				require.Len(t, tags2, 1)
 				require.Equal(t, "PROCESSED_HELLO", tags2[0])
@@ -1015,29 +1154,29 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "optionalTags",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 3, "Should return 3 entities")
 
 				// Storage 1 (index 0, even with data): returns ["opt_alpha", "opt_beta"]
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
-				tags1, ok := storage1["optionalProcessedTags"].([]interface{})
+				tags1, ok := storage1["optionalProcessedTags"].([]any)
 				require.True(t, ok, "optionalProcessedTags should be an array for index 0")
 				require.Len(t, tags1, 2)
 				require.Equal(t, "OPT_alpha", tags1[0])
 				require.Equal(t, "OPT_beta", tags1[1])
 
 				// Storage 2 (index 1, odd): returns null
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Nil(t, storage2["optionalProcessedTags"])
 
 				// Storage 3 (index 2, even but empty): returns null (empty list returns nil)
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
 				require.Nil(t, storage3["optionalProcessedTags"])
@@ -1064,28 +1203,28 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "metadataHistory { capacity zone }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Storage 1: history with 2 items
 				// Item 0: capacity=10*1=10, zone="HIST_A", priority=1
 				// Item 1: capacity=20*2=40, zone="HIST_B", priority=2
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
-				history1, ok := storage1["processedMetadataHistory"].([]interface{})
+				history1, ok := storage1["processedMetadataHistory"].([]any)
 				require.True(t, ok, "processedMetadataHistory should be an array")
 				require.Len(t, history1, 2)
 
-				item0, ok := history1[0].(map[string]interface{})
+				item0, ok := history1[0].(map[string]any)
 				require.True(t, ok, "history item should be an object")
 				require.Equal(t, float64(10), item0["capacity"])
 				require.Equal(t, "HIST_A", item0["zone"])
 				require.Equal(t, float64(1), item0["priority"])
 
-				item1, ok := history1[1].(map[string]interface{})
+				item1, ok := history1[1].(map[string]any)
 				require.True(t, ok, "history item should be an object")
 				require.Equal(t, float64(40), item1["capacity"])
 				require.Equal(t, "HIST_B", item1["zone"])
@@ -1093,14 +1232,14 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 
 				// Storage 2: history with 1 item
 				// Item 0: capacity=100*1=100, zone="HIST_X", priority=1
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
-				history2, ok := storage2["processedMetadataHistory"].([]interface{})
+				history2, ok := storage2["processedMetadataHistory"].([]any)
 				require.True(t, ok, "processedMetadataHistory should be an array")
 				require.Len(t, history2, 1)
 
-				item2, ok := history2[0].(map[string]interface{})
+				item2, ok := history2[0].(map[string]any)
 				require.True(t, ok, "history item should be an object")
 				require.Equal(t, float64(100), item2["capacity"])
 				require.Equal(t, "HIST_X", item2["zone"])
@@ -1133,13 +1272,13 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "metadata { capacity zone }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Storage 1: tagSummary = "tech, sale", metadataScore = 100*1.0 = 100.0
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
@@ -1147,7 +1286,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 				require.Equal(t, 100.0, storage1["metadataScore"])
 
 				// Storage 2: tagSummary = "books", metadataScore = 200*0.8 = 160.0
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
@@ -1177,27 +1316,27 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "storageKind",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 3, "Should return 3 entities")
 
 				// Storage 1: storageKind=BOOK -> "Kind: CATEGORY_KIND_BOOK"
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
 				require.Equal(t, "Kind: CATEGORY_KIND_BOOK", storage1["kindSummary"])
 
 				// Storage 2: storageKind=ELECTRONICS -> "Kind: CATEGORY_KIND_ELECTRONICS"
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
 				require.Equal(t, "Kind: CATEGORY_KIND_ELECTRONICS", storage2["kindSummary"])
 
 				// Storage 3: storageKind=FURNITURE -> "Kind: CATEGORY_KIND_FURNITURE"
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
 				require.Equal(t, "Storage 3", storage3["name"])
@@ -1225,20 +1364,20 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 					SelectionSet: "categoryInfo { kind name }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Storage 1: categoryInfo={kind:BOOK, name:"Fiction"} -> "Fiction (CATEGORY_KIND_BOOK)"
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
 				require.Equal(t, "Fiction (CATEGORY_KIND_BOOK)", storage1["categoryInfoSummary"])
 
 				// Storage 2: categoryInfo={kind:ELECTRONICS, name:"Gadgets"} -> "Gadgets (CATEGORY_KIND_ELECTRONICS)"
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
@@ -1267,7 +1406,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
@@ -1302,8 +1441,8 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 		Message string `json:"message"`
 	}
 	type graphqlResponse struct {
-		Data   map[string]interface{} `json:"data"`
-		Errors []graphqlError         `json:"errors,omitempty"`
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
 	}
 
 	testCases := []struct {
@@ -1311,7 +1450,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 		query             string
 		vars              string
 		federationConfigs plan.FederationFieldConfigurations
-		validate          func(t *testing.T, data map[string]interface{})
+		validate          func(t *testing.T, data map[string]any)
 		validateError     func(t *testing.T, errData []graphqlError)
 	}{
 		{
@@ -1333,38 +1472,38 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 					SelectionSet: "tags",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 3, "Should return 3 entities")
 
 				// Storage 1: tags = ["electronics", "gadgets", "sale"] -> "electronics, gadgets, sale"
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "Storage", storage1["__typename"])
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "electronics, gadgets, sale", storage1["tagSummary"])
 				// Check storageStatus field resolver result
-				status1, ok := storage1["storageStatus"].(map[string]interface{})
+				status1, ok := storage1["storageStatus"].(map[string]any)
 				require.True(t, ok, "storageStatus should be an object")
 				require.Contains(t, status1, "message")
 				require.Contains(t, status1["message"], "is healthy")
 
 				// Storage 2: tags = ["books", "fiction"] -> "books, fiction"
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "books, fiction", storage2["tagSummary"])
-				status2, ok := storage2["storageStatus"].(map[string]interface{})
+				status2, ok := storage2["storageStatus"].(map[string]any)
 				require.True(t, ok, "storageStatus should be an object")
 				require.Contains(t, status2, "message")
 
 				// Storage 3: tags = [] -> ""
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
 				require.Equal(t, "", storage3["tagSummary"])
-				status3, ok := storage3["storageStatus"].(map[string]interface{})
+				status3, ok := storage3["storageStatus"].(map[string]any)
 				require.True(t, ok, "storageStatus should be an object")
 				require.Contains(t, status3, "message")
 			},
@@ -1390,34 +1529,34 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 					SelectionSet: "metadata { capacity zone }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Storage 1: capacity=100, zone="A" (weight=1.0) -> 100*1.0 = 100.0
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "Storage", storage1["__typename"])
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, 100.0, storage1["metadataScore"])
 				// Check linkedStorages field resolver result
-				linked1, ok := storage1["linkedStorages"].([]interface{})
+				linked1, ok := storage1["linkedStorages"].([]any)
 				require.True(t, ok, "linkedStorages should be an array")
 				require.Len(t, linked1, 2, "Should return 2 linked storages (depth=2)")
 				for i, linked := range linked1 {
-					linkedStorage, ok := linked.(map[string]interface{})
+					linkedStorage, ok := linked.(map[string]any)
 					require.True(t, ok, "linked storage should be an object")
 					require.Contains(t, linkedStorage["id"], fmt.Sprintf("linked-storage-1-%d", i))
 					require.Contains(t, linkedStorage, "name")
 				}
 
 				// Storage 2: capacity=200, zone="B" (weight=0.8) -> 200*0.8 = 160.0
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, 160.0, storage2["metadataScore"])
-				linked2, ok := storage2["linkedStorages"].([]interface{})
+				linked2, ok := storage2["linkedStorages"].([]any)
 				require.True(t, ok, "linkedStorages should be an array")
 				require.Len(t, linked2, 2, "Should return 2 linked storages (depth=2)")
 			},
@@ -1444,37 +1583,37 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 					SelectionSet: "optionalTags",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 3, "Should return 3 entities")
 
 				// Storage 1: optionalTags = ["premium", "featured"] -> "premium, featured"
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "Storage", storage1["__typename"])
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "premium, featured", storage1["optionalTagSummary"])
 				// Check nearbyStorages field resolver result with radius=3
-				nearby1, ok := storage1["nearbyStorages"].([]interface{})
+				nearby1, ok := storage1["nearbyStorages"].([]any)
 				require.True(t, ok, "nearbyStorages should be an array")
 				require.Len(t, nearby1, 3, "Should return 3 nearby storages (radius=3)")
 
 				// Storage 2: optionalTags = [] -> null (empty list returns nil)
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Nil(t, storage2["optionalTagSummary"])
-				nearby2, ok := storage2["nearbyStorages"].([]interface{})
+				nearby2, ok := storage2["nearbyStorages"].([]any)
 				require.True(t, ok, "nearbyStorages should be an array")
 				require.Len(t, nearby2, 3, "Should return 3 nearby storages (radius=3)")
 
 				// Storage 3: optionalTags = null -> null
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
 				require.Nil(t, storage3["optionalTagSummary"])
-				nearby3, ok := storage3["nearbyStorages"].([]interface{})
+				nearby3, ok := storage3["nearbyStorages"].([]any)
 				require.True(t, ok, "nearbyStorages should be an array")
 				require.Len(t, nearby3, 3, "Should return 3 nearby storages (radius=3)")
 			},
@@ -1502,8 +1641,8 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 					SelectionSet: "optionalTags",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 4, "Should return 4 entities")
 
@@ -1512,33 +1651,33 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 				// - Odd indices (1, 3): return null
 
 				// Storage 1 (index 0, even): nearbyStorages should be empty list
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "Storage", storage1["__typename"])
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "premium", storage1["optionalTagSummary"])
-				nearby1, ok := storage1["nearbyStorages"].([]interface{})
+				nearby1, ok := storage1["nearbyStorages"].([]any)
 				require.True(t, ok, "nearbyStorages should be an empty array for even index")
 				require.Len(t, nearby1, 0, "Should return empty list for index 0 when radius is null")
 
 				// Storage 2 (index 1, odd): nearbyStorages should be null
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "featured", storage2["optionalTagSummary"])
 				require.Nil(t, storage2["nearbyStorages"], "nearbyStorages should be null for odd index")
 
 				// Storage 3 (index 2, even): nearbyStorages should be empty list
-				storage3, ok := entities[2].(map[string]interface{})
+				storage3, ok := entities[2].(map[string]any)
 				require.True(t, ok, "storage3 should be an object")
 				require.Equal(t, "3", storage3["id"])
 				require.Equal(t, "sale", storage3["optionalTagSummary"])
-				nearby3, ok := storage3["nearbyStorages"].([]interface{})
+				nearby3, ok := storage3["nearbyStorages"].([]any)
 				require.True(t, ok, "nearbyStorages should be an empty array for even index")
 				require.Len(t, nearby3, 0, "Should return empty list for index 2 when radius is null")
 
 				// Storage 4 (index 3, odd): nearbyStorages should be null
-				storage4, ok := entities[3].(map[string]interface{})
+				storage4, ok := entities[3].(map[string]any)
 				require.True(t, ok, "storage4 should be an object")
 				require.Equal(t, "4", storage4["id"])
 				require.Equal(t, "discount", storage4["optionalTagSummary"])
@@ -1571,32 +1710,32 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 					SelectionSet: "metadata { capacity zone }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Storage 1: tagSummary = "tech, sale", metadataScore = 100*1.0 = 100.0
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "Storage", storage1["__typename"])
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "tech, sale", storage1["tagSummary"])
 				require.Equal(t, 100.0, storage1["metadataScore"])
 				// Check storageStatus field resolver result
-				status1, ok := storage1["storageStatus"].(map[string]interface{})
+				status1, ok := storage1["storageStatus"].(map[string]any)
 				require.True(t, ok, "storageStatus should be an object")
 				require.Contains(t, status1, "message")
 				require.Contains(t, status1["message"], "is healthy")
 				require.Contains(t, status1, "timestamp")
 
 				// Storage 2: tagSummary = "books", metadataScore = 200*0.8 = 160.0
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "books", storage2["tagSummary"])
 				require.Equal(t, 160.0, storage2["metadataScore"])
-				status2, ok := storage2["storageStatus"].(map[string]interface{})
+				status2, ok := storage2["storageStatus"].(map[string]any)
 				require.True(t, ok, "storageStatus should be an object")
 				require.Contains(t, status2, "message")
 			},
@@ -1622,40 +1761,40 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 					SelectionSet: "metadata { capacity zone priority }",
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2, "Should return 2 entities")
 
 				// Storage 1: capacity=50*2=100, zone="A" (uppercase), priority=5+10=15
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "Storage", storage1["__typename"])
 				require.Equal(t, "1", storage1["id"])
-				metadata1, ok := storage1["processedMetadata"].(map[string]interface{})
+				metadata1, ok := storage1["processedMetadata"].(map[string]any)
 				require.True(t, ok, "processedMetadata should be an object")
 				require.Equal(t, float64(100), metadata1["capacity"])
 				require.Equal(t, "A", metadata1["zone"])
 				require.Equal(t, float64(15), metadata1["priority"])
 				// Check linkedStorages field resolver result
-				linked1, ok := storage1["linkedStorages"].([]interface{})
+				linked1, ok := storage1["linkedStorages"].([]any)
 				require.True(t, ok, "linkedStorages should be an array")
 				require.Len(t, linked1, 1, "Should return 1 linked storage (depth=1)")
-				linkedStorage1, ok := linked1[0].(map[string]interface{})
+				linkedStorage1, ok := linked1[0].(map[string]any)
 				require.True(t, ok, "linked storage should be an object")
 				require.Contains(t, linkedStorage1["id"], "linked-storage-1-0")
 				require.Contains(t, linkedStorage1, "name")
 
 				// Storage 2: capacity=100*2=200, zone="B" (uppercase), priority=10+10=20
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
-				metadata2, ok := storage2["processedMetadata"].(map[string]interface{})
+				metadata2, ok := storage2["processedMetadata"].(map[string]any)
 				require.True(t, ok, "processedMetadata should be an object")
 				require.Equal(t, float64(200), metadata2["capacity"])
 				require.Equal(t, "B", metadata2["zone"])
 				require.Equal(t, float64(20), metadata2["priority"])
-				linked2, ok := storage2["linkedStorages"].([]interface{})
+				linked2, ok := storage2["linkedStorages"].([]any)
 				require.True(t, ok, "linkedStorages should be an array")
 				require.Len(t, linked2, 1, "Should return 1 linked storage (depth=1)")
 			},
@@ -1682,7 +1821,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",
@@ -1717,8 +1856,8 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 		Message string `json:"message"`
 	}
 	type graphqlResponse struct {
-		Data   map[string]interface{} `json:"data"`
-		Errors []graphqlError         `json:"errors,omitempty"`
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
 	}
 
 	testCases := []struct {
@@ -1726,7 +1865,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 		query             string
 		vars              string
 		federationConfigs plan.FederationFieldConfigurations
-		validate          func(t *testing.T, data map[string]interface{})
+		validate          func(t *testing.T, data map[string]any)
 		validateError     func(t *testing.T, errData []graphqlError)
 	}{
 		{
@@ -1747,18 +1886,18 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 					SelectionSet: `primaryItem { ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } }`,
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2)
 
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
 				require.Equal(t, "Pallet: Heavy Pallet (count: 10)", storage1["itemInfo"])
 
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
@@ -1786,18 +1925,18 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 					SelectionSet: `lastStorageOperation { ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } }`,
 				},
 			},
-			validate: func(t *testing.T, data map[string]interface{}) {
-				entities, ok := data["_entities"].([]interface{})
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
 				require.True(t, ok, "_entities should be an array")
 				require.Len(t, entities, 2)
 
-				storage1, ok := entities[0].(map[string]interface{})
+				storage1, ok := entities[0].(map[string]any)
 				require.True(t, ok, "storage1 should be an object")
 				require.Equal(t, "1", storage1["id"])
 				require.Equal(t, "Storage 1", storage1["name"])
 				require.Equal(t, "Success: Item stored at 2024-01-15T10:30:00Z", storage1["operationReport"])
 
-				storage2, ok := entities[1].(map[string]interface{})
+				storage2, ok := entities[1].(map[string]any)
 				require.True(t, ok, "storage2 should be an object")
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
@@ -1826,7 +1965,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 			}
 
 			// Create the datasource
-			ds, err := NewDataSource(conn, DataSourceConfig{
+			ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
 				Operation:         &queryDoc,
 				Definition:        &schemaDoc,
 				SubgraphName:      "Products",

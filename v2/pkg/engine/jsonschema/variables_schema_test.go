@@ -82,39 +82,42 @@ func TestBuildJsonSchema(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "object",
+  "additionalProperties": false,
   "properties": {
     "criteria": {
-      "type": "object",
+      "additionalProperties": false,
+      "description": "Input criteria used to search for employees",
       "properties": {
-        "name": {
-          "type": "string"
-        },
         "department": {
-          "type": "string",
-          "nullable": true
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "employmentStatus": {
-          "type": "string",
           "enum": [
             "FULL_TIME",
             "PART_TIME",
             "CONTRACTOR",
-            "INTERN"
+            "INTERN",
+            null
           ],
-          "nullable": true
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
         }
       },
       "required": [
         "name"
       ],
-      "additionalProperties": false,
-      "description": "Input criteria used to search for employees",
-      "nullable": false
+      "type": "object"
     }
   },
-  "additionalProperties": false,
-  "nullable": true
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -190,32 +193,38 @@ func TestBuildJsonSchema(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "object",
+  "additionalProperties": false,
   "properties": {
     "criteria": {
-      "type": "object",
+      "additionalProperties": false,
       "properties": {
         "name": {
-          "type": "string",
-          "nullable": true
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "nested": {
-          "type": "object",
+          "additionalProperties": false,
           "properties": {
             "hasChildren": {
-              "type": "boolean",
-              "nullable": true
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "maritalStatus": {
-              "type": "string",
               "enum": [
                 "MARRIED",
-                "ENGAGED"
+                "ENGAGED",
+                null
               ],
-              "nullable": true
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "nationality": {
-              "type": "string",
               "enum": [
                 "AMERICAN",
                 "DUTCH",
@@ -224,28 +233,26 @@ func TestBuildJsonSchema(t *testing.T) {
                 "INDIAN",
                 "SPANISH",
                 "UKRAINIAN"
-              ]
+              ],
+              "type": "string"
             }
           },
           "required": [
             "nationality"
           ],
-          "additionalProperties": false,
-          "nullable": false
+          "type": "object"
         }
       },
       "required": [
         "nested"
       ],
-      "additionalProperties": false,
-      "nullable": false
+      "type": "object"
     }
   },
   "required": [
     "criteria"
   ],
-  "additionalProperties": false,
-  "nullable": false
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -306,28 +313,28 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify schema structure
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
 		// Verify filter property with default values
-		properties := parsed["properties"].(map[string]interface{})
-		filter := properties["filter"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
+		filter := properties["filter"].(map[string]any)
 
 		// Verify top-level default value
-		assert.Equal(t, map[string]interface{}{"limit": float64(5)}, filter["default"])
+		assert.Equal(t, map[string]any{"limit": float64(5)}, filter["default"])
 
 		// Verify filter properties
-		filterProps := filter["properties"].(map[string]interface{})
+		filterProps := filter["properties"].(map[string]any)
 
 		// Verify input object default values
-		limit := filterProps["limit"].(map[string]interface{})
+		limit := filterProps["limit"].(map[string]any)
 		assert.Equal(t, float64(10), limit["default"])
 
-		includeDeleted := filterProps["includeDeleted"].(map[string]interface{})
+		includeDeleted := filterProps["includeDeleted"].(map[string]any)
 		assert.Equal(t, false, includeDeleted["default"])
 
-		status := filterProps["status"].(map[string]interface{})
+		status := filterProps["status"].(map[string]any)
 		assert.Equal(t, "ACTIVE", status["default"])
 	})
 
@@ -378,43 +385,46 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify schema structure
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
 		// Verify top-level structure
 		assert.Equal(t, "object", parsed["type"])
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
 		// Verify required fields
-		required := parsed["required"].([]interface{})
+		required := parsed["required"].([]any)
 		assert.Contains(t, required, "id")
 
 		// Verify ID property
-		id, ok := properties["id"].(map[string]interface{})
+		id, ok := properties["id"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "string", id["type"])
 
+		// Nullable scalars serialize "type" as the JSON Schema 2020-12 two-element
+		// array [<primary>, "null"].
+
 		// Verify includeProfile property
-		includeProfile, ok := properties["includeProfile"].(map[string]interface{})
+		includeProfile, ok := properties["includeProfile"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, "boolean", includeProfile["type"])
+		assert.Equal(t, []any{"boolean", "null"}, includeProfile["type"])
 		assert.Equal(t, true, includeProfile["default"])
 
 		// Verify age property
-		age, ok := properties["age"].(map[string]interface{})
+		age, ok := properties["age"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, "integer", age["type"])
+		assert.Equal(t, []any{"integer", "null"}, age["type"])
 
 		// Verify rating property
-		rating, ok := properties["rating"].(map[string]interface{})
+		rating, ok := properties["rating"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, "number", rating["type"])
+		assert.Equal(t, []any{"number", "null"}, rating["type"])
 
 		// Verify name property
-		name, ok := properties["name"].(map[string]interface{})
+		name, ok := properties["name"].(map[string]any)
 		require.True(t, ok)
-		assert.Equal(t, "string", name["type"])
+		assert.Equal(t, []any{"string", "null"}, name["type"])
 	})
 
 	t.Run("operation with field descriptions", func(t *testing.T) {
@@ -566,12 +576,12 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify schema structure
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
 		// Verify top-level required fields
-		required, ok := parsed["required"].([]interface{})
+		required, ok := parsed["required"].([]any)
 		require.True(t, ok)
 		assert.Contains(t, required, "requiredArg")
 		assert.Contains(t, required, "requiredInput")
@@ -579,26 +589,26 @@ func TestBuildJsonSchema(t *testing.T) {
 		assert.NotContains(t, required, "optionalInput")
 
 		// Verify properties
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
 		// Check required input structure
-		requiredInput := properties["requiredInput"].(map[string]interface{})
+		requiredInput := properties["requiredInput"].(map[string]any)
 		assert.Equal(t, "object", requiredInput["type"])
 
 		// Check required fields within input
-		inputRequired := requiredInput["required"].([]interface{})
+		inputRequired := requiredInput["required"].([]any)
 		assert.Contains(t, inputRequired, "requiredField")
 		assert.Contains(t, inputRequired, "requiredNestedInput")
 		assert.NotContains(t, inputRequired, "optionalField")
 		assert.NotContains(t, inputRequired, "optionalNestedInput")
 
 		// Check nested input structure
-		inputProperties := requiredInput["properties"].(map[string]interface{})
-		requiredNestedInput := inputProperties["requiredNestedInput"].(map[string]interface{})
+		inputProperties := requiredInput["properties"].(map[string]any)
+		requiredNestedInput := inputProperties["requiredNestedInput"].(map[string]any)
 		assert.Equal(t, "object", requiredNestedInput["type"])
 
 		// Check required fields within nested input
-		nestedRequired := requiredNestedInput["required"].([]interface{})
+		nestedRequired := requiredNestedInput["required"].([]any)
 		assert.Contains(t, nestedRequired, "requiredInnerField")
 		assert.NotContains(t, nestedRequired, "optionalInnerField")
 	})
@@ -671,130 +681,148 @@ func TestBuildJsonSchema(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "object",
+  "additionalProperties": false,
   "properties": {
     "input": {
-      "type": "object",
+      "additionalProperties": false,
+      "description": "Level 1 input description",
       "properties": {
         "field1": {
-          "type": "string",
-          "nullable": true
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "nested": {
-          "type": "object",
+          "additionalProperties": false,
+          "description": "Level 2 input description",
           "properties": {
-            "field2": {
-              "type": "boolean",
-              "nullable": true
-            },
-            "deeper": {
-              "type": "object",
-              "properties": {
-                "field3": {
-                  "type": "number",
-                  "nullable": true
-                },
-                "enumField": {
-                  "type": "string",
-                  "enum": [
-                    "OPTION_1",
-                    "OPTION_2",
-                    "OPTION_3"
-                  ]
-                },
-                "arrayOfArrays": {
-                  "type": "array",
-                  "items": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "nullable": true
-                }
-              },
-              "required": [
-                "enumField"
-              ],
-              "additionalProperties": false,
-              "description": "Level 3 input description",
-              "nullable": false
-            },
             "arrayOfObjects": {
-              "type": "array",
               "items": {
-                "type": "object",
+                "additionalProperties": false,
+                "description": "Level 3 input description",
                 "properties": {
-                  "field3": {
-                    "type": "number",
-                    "nullable": true
+                  "arrayOfArrays": {
+                    "items": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "type": [
+                      "array",
+                      "null"
+                    ]
                   },
                   "enumField": {
-                    "type": "string",
                     "enum": [
                       "OPTION_1",
                       "OPTION_2",
                       "OPTION_3"
-                    ]
+                    ],
+                    "type": "string"
                   },
-                  "arrayOfArrays": {
-                    "type": "array",
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "nullable": true
+                  "field3": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
                   "enumField"
                 ],
-                "additionalProperties": false,
-                "description": "Level 3 input description",
-                "nullable": true
+                "type": [
+                  "object",
+                  "null"
+                ]
               },
-              "nullable": true
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "deeper": {
+              "additionalProperties": false,
+              "description": "Level 3 input description",
+              "properties": {
+                "arrayOfArrays": {
+                  "items": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "enumField": {
+                  "enum": [
+                    "OPTION_1",
+                    "OPTION_2",
+                    "OPTION_3"
+                  ],
+                  "type": "string"
+                },
+                "field3": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "enumField"
+              ],
+              "type": "object"
+            },
+            "field2": {
+              "type": [
+                "boolean",
+                "null"
+              ]
             }
           },
           "required": [
             "deeper"
           ],
-          "additionalProperties": false,
-          "description": "Level 2 input description",
-          "nullable": false
+          "type": "object"
         },
         "optionalArray": {
-          "type": "array",
           "items": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
-          "nullable": true
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "requiredArray": {
-          "type": "array",
           "items": {
-            "type": "integer",
-            "nullable": true
-          }
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "type": "array"
         }
       },
       "required": [
         "nested",
         "requiredArray"
       ],
-      "additionalProperties": false,
-      "description": "Level 1 input description",
-      "nullable": false
+      "type": "object"
     }
   },
   "required": [
     "input"
   ],
-  "additionalProperties": false,
-  "nullable": false
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -849,12 +877,12 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NotEmpty(t, data, "JSON serialization should not be empty")
 
 		// Parse the JSON to verify it's valid
-		var result interface{}
+		var result any
 		err = json.Unmarshal(data, &result)
 		require.NoError(t, err, "Schema should be valid JSON")
 
 		// Basic structure checks
-		jsonMap, ok := result.(map[string]interface{})
+		jsonMap, ok := result.(map[string]any)
 		require.True(t, ok, "Schema should be a JSON object")
 
 		// Check top-level fields
@@ -865,17 +893,17 @@ func TestBuildJsonSchema(t *testing.T) {
 		t.Logf("Default recursion depth schema: %v", string(data))
 	})
 
-	t.Run("recursive types with custom recursion depth", func(t *testing.T) {
+	t.Run("recursive types are emitted via $ref and $defs", func(t *testing.T) {
 		// Define schema with recursive input type
 		schemaSDL := scalarDefinitions + `
 			schema {
 				query: Query
 			}
-			
+
 			type Query {
 				processNode(node: RecursiveNode): Boolean
 			}
-			
+
 			"""A node that can contain child nodes of the same type"""
 			input RecursiveNode {
 				id: ID!
@@ -899,36 +927,17 @@ func TestBuildJsonSchema(t *testing.T) {
 		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
 		require.False(t, report.HasErrors(), "operation parsing failed")
 
-		// Build JSON schema with custom recursion depth (3)
-		customDepth := 3
-		customSchema, err := BuildJsonSchemaWithOptions(&operationDoc, &definitionDoc, customDepth)
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
 		require.NoError(t, err)
 
-		// Build JSON schema with default recursion depth (1) for comparison
-		defaultSchema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		// Convert both to JSON for analysis
-		customData, err := json.Marshal(customSchema)
-		require.NoError(t, err)
-		defaultData, err := json.Marshal(defaultSchema)
-		require.NoError(t, err)
-
-		// Verify both are valid schemas
-		require.NotEmpty(t, customData, "Custom schema JSON should not be empty")
-		require.NotEmpty(t, defaultData, "Default schema JSON should not be empty")
-
-		// Verify the custom schema is different (likely larger) than the default
-		assert.NotEqual(t, string(customData), string(defaultData),
-			"Custom recursion depth schema should differ from default schema")
-
-		// Simple size check - custom schema should be larger due to more recursion
-		assert.Greater(t, len(customData), len(defaultData),
-			"Custom schema should be larger than default due to deeper recursion")
-
-		// Log the schemas for debugging
-		t.Logf("Custom recursion depth schema size: %d bytes", len(customData))
-		t.Logf("Default recursion depth schema size: %d bytes", len(defaultData))
+		// The recursive type is defined once under "$defs" and referenced via "$ref".
+		require.Contains(t, schema.Defs, "RecursiveNode",
+			"recursive input type should be defined under $defs")
+		assert.Contains(t, string(data), `"$ref":"#/$defs/RecursiveNode"`,
+			"recursive input type should be referenced via $ref")
 	})
 
 	t.Run("query with two nested arguments", func(t *testing.T) {
@@ -1020,7 +1029,7 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify schema structure
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -1028,37 +1037,37 @@ func TestBuildJsonSchema(t *testing.T) {
 		assert.Equal(t, "object", parsed["type"])
 
 		// Verify both inputs are required
-		required, ok := parsed["required"].([]interface{})
+		required, ok := parsed["required"].([]any)
 		require.True(t, ok)
 		assert.Contains(t, required, "filter")
 		assert.Contains(t, required, "order")
 
 		// Verify properties exist
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 		assert.Contains(t, properties, "filter")
 		assert.Contains(t, properties, "order")
 
 		// Verify filter structure
-		filter := properties["filter"].(map[string]interface{})
+		filter := properties["filter"].(map[string]any)
 		assert.Equal(t, "object", filter["type"])
 		assert.Equal(t, "Input for filtering users", filter["description"])
 		assert.Contains(t, filter["properties"], "metadata")
 
 		// Verify order structure
-		order := properties["order"].(map[string]interface{})
+		order := properties["order"].(map[string]any)
 		assert.Equal(t, "object", order["type"])
 		assert.Equal(t, "Input for ordering results", order["description"])
 
 		// Verify order required fields
-		orderRequired := order["required"].([]interface{})
+		orderRequired := order["required"].([]any)
 		assert.Contains(t, orderRequired, "field")
 		assert.Contains(t, orderRequired, "direction")
 
 		// Verify enum values
-		orderProps := order["properties"].(map[string]interface{})
-		direction := orderProps["direction"].(map[string]interface{})
-		directionEnum := direction["enum"].([]interface{})
-		assert.ElementsMatch(t, []interface{}{"ASC", "DESC"}, directionEnum)
+		orderProps := order["properties"].(map[string]any)
+		direction := orderProps["direction"].(map[string]any)
+		directionEnum := direction["enum"].([]any)
+		assert.ElementsMatch(t, []any{"ASC", "DESC"}, directionEnum)
 	})
 
 	t.Run("mutually recursive types", func(t *testing.T) {
@@ -1107,50 +1116,77 @@ func TestBuildJsonSchema(t *testing.T) {
 		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		// Define expected JSON schema - this may vary based on recursion depth setting
+		// Mutually recursive input types (TypeA <-> TypeB) are emitted once each
+		// under "$defs" and referenced via "$ref", so nesting is permitted to any depth.
 		expectedJSON := `{
-  "type": "object",
-  "properties": {
-    "a": {
-      "type": "object",
+  "$defs": {
+    "TypeA": {
+      "additionalProperties": false,
       "properties": {
+        "b": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TypeB"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "id": {
           "type": "string"
         },
         "name": {
-          "type": "string",
-          "nullable": true
-        },
-        "b": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "description": {
-              "type": "string",
-              "nullable": true
-            }
-          },
-          "required": [
-            "id"
-          ],
-          "additionalProperties": false,
-          "nullable": true
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
         "id"
       ],
+      "type": "object"
+    },
+    "TypeB": {
       "additionalProperties": false,
-      "nullable": false
+      "properties": {
+        "a": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TypeA"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "a": {
+      "$ref": "#/$defs/TypeA"
     }
   },
   "required": [
     "a"
   ],
-  "additionalProperties": false,
-  "nullable": false
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -1218,73 +1254,64 @@ func TestBuildJsonSchema(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "object",
+  "additionalProperties": false,
   "properties": {
     "input": {
-      "type": "object",
+      "additionalProperties": false,
       "properties": {
+        "age": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "id": {
-          "type": "string",
-          "nullable": true
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "name": {
           "type": "string"
         },
-        "age": {
-          "type": "integer",
-          "nullable": true
-        },
-        "tags": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "nullable": true
+        "nested": {
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requiredField": {
+              "type": "string"
+            }
           },
-          "nullable": true
-        },
-        "requiredTags": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "nullable": true
-          }
+          "required": [
+            "requiredField"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "nonNullTags": {
-          "type": "array",
           "items": {
             "type": "string"
           },
-          "nullable": true
-        },
-        "requiredNonNullTags": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "nested": {
-          "type": "object",
-          "properties": {
-            "field": {
-              "type": "string",
-              "nullable": true
-            },
-            "requiredField": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "requiredField"
-          ],
-          "additionalProperties": false,
-          "nullable": true
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "requiredNested": {
-          "type": "object",
+          "additionalProperties": false,
           "properties": {
             "field": {
-              "type": "string",
-              "nullable": true
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "requiredField": {
               "type": "string"
@@ -1293,8 +1320,34 @@ func TestBuildJsonSchema(t *testing.T) {
           "required": [
             "requiredField"
           ],
-          "additionalProperties": false,
-          "nullable": false
+          "type": "object"
+        },
+        "requiredNonNullTags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requiredTags": {
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": [
+            "array",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1303,19 +1356,17 @@ func TestBuildJsonSchema(t *testing.T) {
         "requiredNonNullTags",
         "requiredNested"
       ],
-      "additionalProperties": false,
-      "nullable": false
+      "type": "object"
     }
   },
-  "additionalProperties": false,
-  "nullable": true
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
 		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
-	t.Run("root schema nullable based on required arguments", func(t *testing.T) {
+	t.Run("root schema is always a non-nullable object", func(t *testing.T) {
 		// Define schema with required and optional arguments
 		schemaSDL := scalarDefinitions + `
 			schema {
@@ -1369,7 +1420,7 @@ func TestBuildJsonSchema(t *testing.T) {
 
 		// Define expected JSON schema for required argument case
 		expectedJSON1 := `{
-  "type": "object",
+  "additionalProperties": false,
   "properties": {
     "id": {
       "type": "string"
@@ -1378,8 +1429,7 @@ func TestBuildJsonSchema(t *testing.T) {
   "required": [
     "id"
   ],
-  "additionalProperties": false,
-  "nullable": false
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -1396,17 +1446,21 @@ func TestBuildJsonSchema(t *testing.T) {
 		data2, err := json.MarshalIndent(schema2, "", "  ")
 		require.NoError(t, err)
 
-		// Define expected JSON schema for optional argument case
+		// Define expected JSON schema for optional argument case.
+		// Even when every variable is optional, the root variables object stays a
+		// non-nullable "object": the container is omitted or present, never the
+		// JSON literal null. Only the individual optional fields are nullable.
 		expectedJSON2 := `{
-  "type": "object",
+  "additionalProperties": false,
   "properties": {
     "name": {
-      "type": "string",
-      "nullable": true
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
-  "additionalProperties": false,
-  "nullable": true
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -1472,26 +1526,28 @@ func TestBuildJsonSchema(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "object",
+  "additionalProperties": false,
   "properties": {
     "criteria": {
-      "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "name": {
-          "type": "string",
-          "nullable": true
-        },
         "department": {
-          "type": "string",
-          "nullable": true
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
-      "additionalProperties": false,
-      "nullable": false
+      "type": "object"
     }
   },
-  "additionalProperties": false,
-  "nullable": true
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
@@ -1550,22 +1606,79 @@ func TestBuildJsonSchema(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "object",
+  "additionalProperties": false,
   "properties": {
-    "from": {
-      "nullable": true,
-      "description": "ISO-8601 date time format"
-    },
     "filter": {
-      "nullable": true,
       "description": "JSON object represented as string"
+    },
+    "from": {
+      "description": "ISO-8601 date time format"
     }
   },
-  "additionalProperties": false,
-  "nullable": true
+  "type": "object"
 }`
 
 		// Compare actual JSON with expected JSON
 		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
+	})
+
+	t.Run("variable with description propagated to JSON schema", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+
+			type Query {
+				employee(id: ID!): Employee
+			}
+
+			type Employee {
+				id: ID!
+				name: String
+			}
+		`
+
+		operationSDL := `
+			"""
+			Get an employee by their ID
+			"""
+			query FindEmployee(
+				"The unique employee identifier"
+				$id: ID!
+			) {
+				employee(id: $id) {
+					id
+					name
+				}
+			}
+		`
+
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
+
+		expectedJSON := `{
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "description": "The unique employee identifier",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "type": "object"
+}`
+
+		assert.JSONEq(t, expectedJSON, string(data))
 	})
 }
