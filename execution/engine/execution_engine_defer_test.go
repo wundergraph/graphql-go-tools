@@ -212,7 +212,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							},
 							`{"query":"{user {__internal_typename: __typename __typename id}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"__internal_typename":"User","__typename":"User","id":1}}}`,
+								body:       `{"data":{"user":{"__internal_typename":"User","__typename":"User","id":"1"}}}`,
 							},
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,

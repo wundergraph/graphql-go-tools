@@ -4,7 +4,7 @@ import "testing"
 
 func TestDeferPopulateParentIds(t *testing.T) {
 	t.Run("no deferred fields - no change", func(t *testing.T) {
-		runWithOptions(t, deferPopulateParentIds, testDefinition, `
+		run(t, deferPopulateParentIds, testDefinition, `
 			query dog {
 				dog {
 					name
@@ -15,11 +15,11 @@ func TestDeferPopulateParentIds(t *testing.T) {
 				dog {
 					name
 				}
-			}`, runOptions{indent: true})
+			}`, withIndent())
 	})
 
 	t.Run("single top-level defer - no parent to assign", func(t *testing.T) {
-		runWithOptions(t, deferPopulateParentIds, testDefinition, `
+		run(t, deferPopulateParentIds, testDefinition, `
 			query dog {
 				dog @__defer_internal(id: 1) {
 					name @__defer_internal(id: 1)
@@ -30,11 +30,11 @@ func TestDeferPopulateParentIds(t *testing.T) {
 				dog @__defer_internal(id: 1) {
 					name @__defer_internal(id: 1)
 				}
-			}`, runOptions{indent: true})
+			}`, withIndent())
 	})
 
 	t.Run("genuinely nested defers - inner gets parentDeferId from outer", func(t *testing.T) {
-		runWithOptions(t, deferPopulateParentIds, testDefinition, `
+		run(t, deferPopulateParentIds, testDefinition, `
 			query dog {
 				dog @__defer_internal(id: 1) {
 					name @__defer_internal(id: 2)
@@ -45,11 +45,11 @@ func TestDeferPopulateParentIds(t *testing.T) {
 				dog @__defer_internal(id: 1) {
 					name @__defer_internal(id: 2, parentDeferId: 1)
 				}
-			}`, runOptions{indent: true})
+			}`, withIndent())
 	})
 
 	t.Run("parallel defers merged into one tree - sibling gets parentDeferId from winning group", func(t *testing.T) {
-		runWithOptions(t, deferPopulateParentIds, testDefinition, `
+		run(t, deferPopulateParentIds, testDefinition, `
 			query dog {
 				dog @__defer_internal(id: 1) {
 					name @__defer_internal(id: 1)
@@ -62,11 +62,11 @@ func TestDeferPopulateParentIds(t *testing.T) {
 					name @__defer_internal(id: 1)
 					nickname @__defer_internal(id: 2, parentDeferId: 1)
 				}
-			}`, runOptions{indent: true})
+			}`, withIndent())
 	})
 
 	t.Run("parallel defers at depth - nested sibling gets correct parentDeferId", func(t *testing.T) {
-		runWithOptions(t, deferPopulateParentIds, testDefinition, `
+		run(t, deferPopulateParentIds, testDefinition, `
 			query dog {
 				dog @__defer_internal(id: 1) {
 					extra @__defer_internal(id: 1) {
@@ -83,6 +83,6 @@ func TestDeferPopulateParentIds(t *testing.T) {
 						string @__defer_internal(id: 2, parentDeferId: 1)
 					}
 				}
-			}`, runOptions{indent: true})
+			}`, withIndent())
 	})
 }
