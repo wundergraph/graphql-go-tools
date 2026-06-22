@@ -596,6 +596,5 @@ enum __TypeKind {
 directive @__defer_internal(
     id: Int!
     parentDeferId: Int
-    "A unique identifier for the results."
     label: String
 ) repeatable on FIELD`
