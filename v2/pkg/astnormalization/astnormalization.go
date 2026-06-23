@@ -154,6 +154,7 @@ type options struct {
 	normalizeDefinition                   bool
 	ignoreSkipInclude                     bool
 	enableDefer                           bool
+	prevalidationRules                    []func(walker *astvisitor.Walker)
 }
 
 type Option func(options *options)
@@ -206,6 +207,12 @@ func WithIgnoreSkipInclude() Option {
 	}
 }
 
+func WithPrevalidationRules(rules ...func(walker *astvisitor.Walker)) Option {
+	return func(options *options) {
+		options.prevalidationRules = rules
+	}
+}
+
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 9)
 
@@ -226,6 +233,12 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	directivesIncludeSkip := astvisitor.NewWalkerWithID(8, "DirectivesIncludeSkip")
 	preventFragmentCycles(&directivesIncludeSkip)
 	directiveIncludeSkipKeepNodes(&directivesIncludeSkip, o.options.ignoreSkipInclude)
+
+	if len(o.options.prevalidationRules) > 0 {
+		for _, rule := range o.options.prevalidationRules {
+			rule(&directivesIncludeSkip)
+		}
+	}
 
 	cleanup := astvisitor.NewWalkerWithID(8, "Cleanup")
 	deduplicateFields(&cleanup)

@@ -111,22 +111,6 @@ func TestExecutionValidation(t *testing.T) {
 		require.Equal(t, expectation, result, "wrong validation result expected: %v got: %v\nreason: %v\noperation:\n%s\n", expectation, result, report.Error(), printedOperation)
 	}
 
-	runManyRulesWithDefinition := func(t *testing.T, definitionInput, operationInput string, expectation ValidationState, rules ...Rule) {
-		t.Helper()
-		for _, rule := range rules {
-			runWithDefinition(t, definitionInput, operationInput, rule, expectation)
-		}
-	}
-	_ = runManyRulesWithDefinition
-
-	runManyRules := func(t *testing.T, operationInput string, expectation ValidationState, rules ...Rule) {
-		t.Helper()
-		for _, rule := range rules {
-			runWithDefinition(t, testDefinition, operationInput, rule, expectation)
-		}
-	}
-	_ = runManyRules
-
 	run := func(t *testing.T, operationInput string, rule Rule, expectation ValidationState, opts ...option) {
 		t.Helper()
 		runWithDefinition(t, testDefinition, operationInput, rule, expectation, opts...)
@@ -4502,16 +4486,46 @@ type Query {
 	})
 
 	t.Run("defer/stream directive", func(t *testing.T) {
-		allRules := []Rule{
+		allRules := []func(walker *astvisitor.Walker){
 			DeferStreamOnValidOperations(),
 			DeferStreamHaveUniqueLabels(),
 			DirectivesAreInValidLocations(),
 			StreamAppliedToListFieldsOnly(),
 		}
 
+		runNormalizationPrevalidation := func(t *testing.T, operationInput string, expectedErrors ...string) {
+			t.Helper()
+
+			definition := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
+			operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
+			report := operationreport.Report{}
+
+			normalizer := astnormalization.NewWithOpts(
+				astnormalization.WithInlineFragmentSpreads(),
+				astnormalization.WithPrevalidationRules(allRules...),
+			)
+			normalizer.NormalizeOperation(&operation, &definition, &report)
+
+			if len(expectedErrors) > 0 {
+				if !report.HasErrors() {
+					t.Fatalf("expected a normalization error but got none")
+				}
+
+				for _, msg := range expectedErrors {
+					assert.Contains(t, report.Error(), msg)
+				}
+
+				return
+			}
+
+			if report.HasErrors() {
+				t.Fatalf("unexpected error %s", report.Error())
+			}
+		}
+
 		t.Run("labels", func(t *testing.T) {
 			t.Run("defer directive with unique labels", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							...dogFragment @defer(label: "dogLabel")
@@ -4520,22 +4534,22 @@ type Query {
 					}
 					fragment dogFragment on Dog { name }
 					fragment otherFragment on Dog { nickname }
-					`, DeferStreamHaveUniqueLabels(), Valid)
+					`)
 			})
 
 			t.Run("stream directive with unique labels", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							extras @stream(label: "extrasStream") { string }
 							mustExtras @stream(label: "mustExtrasStream") { string }
 						}
 					}
-					`, DeferStreamHaveUniqueLabels(), Valid)
+					`)
 			})
 
 			t.Run("defer and stream with same label", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							...dogFragment @defer(label: "sameLabel")
@@ -4543,13 +4557,11 @@ type Query {
 						}
 					}
 					fragment dogFragment on Dog { name }
-					`, DeferStreamHaveUniqueLabels(),
-					Invalid,
-					withValidationErrors(`directive "@stream" label "sameLabel" must be unique, but was already used on "@defer" directive`),
+					`, `directive "@stream" label "sameLabel" must be unique, but was already used on "@defer" directive`,
 				)
 			})
 			t.Run("defer directives with same label", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							...dogFragment @defer(label: "duplicateLabel")
@@ -4558,24 +4570,19 @@ type Query {
 					}
 					fragment dogFragment on Dog { name }
 					fragment otherFragment on Dog { nickname }
-					`, DeferStreamHaveUniqueLabels(),
-					Invalid,
-					withDisableNormalization(),
-					withValidationErrors(`directive "@defer" label "duplicateLabel" must be unique`))
+					`, `directive "@defer" label "duplicateLabel" must be unique`)
 			})
 			t.Run("multiple stream directives with same label", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							extras @stream(label: "duplicateLabel") { string }
 							mustExtras @stream(label: "duplicateLabel") { string }
 						}
-					}`, DeferStreamHaveUniqueLabels(),
-					Invalid,
-					withValidationErrors(`directive "@stream" label "duplicateLabel" must be unique`))
+					}`, `directive "@stream" label "duplicateLabel" must be unique`)
 			})
 			t.Run("defer without label", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							...dogFragmentA @defer(label: "fragA")
@@ -4584,41 +4591,37 @@ type Query {
 					}
 					fragment dogFragmentA on Dog { name }
 					fragment dogFragmentB on Dog { nickname }
-					`, DeferStreamHaveUniqueLabels(), Valid)
+					`)
 			})
 			t.Run("stream without label", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							extras @stream { string }
 						}
-					}`, DeferStreamHaveUniqueLabels(), Valid)
+					}`)
 			})
 			t.Run("defer directive with variable label", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query($label: String) {
 						dog {
 							...dogFragment @defer(label: $label)
 						}
 					}
 					fragment dogFragment on Dog { name }
-					`, DeferStreamHaveUniqueLabels(),
-					Invalid,
-					withValidationErrors(`directive "@defer" label argument must be a static string value, not a variable`))
+					`, `directive "@defer" label argument must be a static string value, not a variable`)
 			})
 			t.Run("stream directive with variable label", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query($label: String) {
 						dog {
 							extras @stream(label: $label) { string }
 						}
 					}
-					`, DeferStreamHaveUniqueLabels(),
-					Invalid,
-					withValidationErrors(`directive "@stream" label argument must be a static string value, not a variable`))
+					`, `directive "@stream" label argument must be a static string value, not a variable`)
 			})
 			t.Run("duplicate labels with one disabled defer", func(t *testing.T) {
-				runManyRules(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							...fragment1 @defer(label: "a", if: false)
@@ -4627,10 +4630,10 @@ type Query {
 					}
 					fragment fragment1 on Dog { name }
 					fragment fragment2 on Dog { nickname }
-					`, Valid, allRules...)
+					`)
 			})
 			t.Run("duplicate labels with one optional defer", func(t *testing.T) {
-				runManyRules(t, `
+				runNormalizationPrevalidation(t, `
 					query q($b: Boolean) {
 						dog {
 							...fragment1 @defer(label: "a", if: $b)
@@ -4639,23 +4642,23 @@ type Query {
 					}
 					fragment fragment1 on Dog { name }
 					fragment fragment2 on Dog { nickname }
-					`, Valid, allRules...)
+					`)
 			})
 		})
 
 		t.Run("on operations", func(t *testing.T) {
 			// on queries
 			t.Run("defer inline fragment spread on root query field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 				query {
 					... @defer {
 						dog { name }
 					}
 				}
-			`, DeferStreamOnValidOperations(), Valid)
+			`)
 			})
 			t.Run("defer inline fragment spread on nested query field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 				query {
 					dog {
 						... @defer {
@@ -4663,105 +4666,104 @@ type Query {
 						}
 					}
 				}
-			`, DeferStreamOnValidOperations(), Valid)
+			`)
 			})
 			t.Run("defer fragment spread on root query field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						...rootFragment @defer
 					}
 					fragment rootFragment on Query {
 						extras { string }
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`)
 			})
 			t.Run("stream on root query field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						extras @stream { string }
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`)
 			})
 			t.Run("stream field on fragment on root query field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						...rootFragment
 					}
 					fragment rootFragment on Query {
 						extras @stream { string }
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`)
 			})
 
 			// on mutations
 			t.Run("defer inline fragment spread on root mutation field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					mutation {
 						... @defer {
 							mutateDog { name }
 						}
-					}`, DeferStreamOnValidOperations(), Invalid)
+					}`, `directive "@defer" is not allowed on root fields of mutation operations`)
 			})
 			t.Run("defer fragment spread on nested mutation field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					mutation {
 						mutateDog {
 							... @defer {
 								extra { string }
 							}
 						}
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`)
 			})
 			t.Run("defer fragment spread on root mutation field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					mutation {
 						...rootFragment @defer
 					}
 					fragment rootFragment on Mutation {
 						extras { string }
-					}`, DeferStreamOnValidOperations(), Invalid,
-					withValidationErrors(`directive "@defer" is not allowed on root fields of mutation operations`))
+					}`)
 			})
 
 			t.Run("non-defer inline fragment spread on root mutation field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					mutation {
 						... @defer (if: false) {
 							mutateDog { name }
 						}
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`)
 			})
 			t.Run("stream field on root mutation field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					mutation {
 						mutateDogs @stream { name }
-					}`, DeferStreamOnValidOperations(), Invalid)
+					}`, `directive "@stream" is not allowed on root fields of mutation operations`)
 			})
 			t.Run("disabled stream on root mutation field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					mutation {
 						mutateDogs @stream (if: false) { name }
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`)
 			})
 
 			// on subscriptions
 			t.Run("defer inline fragment spread on root subscription field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					subscription {
 						... @defer {
 							subscribeDog { name }
 						}
-					}`, DeferStreamOnValidOperations(), Invalid)
+					}`, `directive "@defer" is not allowed on subscription operations`)
 			})
 			t.Run("defer inline fragment spread on nested subscription field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					subscription {
 					  newMessage {
 						... @defer {
 						  body
 						}
 					  }
-					}`, DeferStreamOnValidOperations(), Invalid)
+					}`, `directive "@defer" is not allowed on subscription operations`)
 			})
 			t.Run("defer inline nested fragment spreads on subscription field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					subscription {
 						newMessage {
 							... frag1
@@ -4771,133 +4773,127 @@ type Query {
 					fragment frag2 on Message { ...frag3 }
 					fragment frag3 on Message {
 						... @defer { body }
-					}`,
-					DeferStreamOnValidOperations(),
-					Invalid,
-					withValidationErrors(`directive "@defer" is not allowed on subscription operations`))
+					}`, `directive "@defer" is not allowed on subscription operations`)
 			})
 			t.Run("non-defer inline fragment spread on root subscription field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					subscription {
 						... @defer (if: false) {
 							subscribeDog { name }
 						}
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`)
 			})
 			t.Run("stream field on root subscription field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					subscription {
 						subscribeDog @stream { name }
-					}`, DeferStreamOnValidOperations(), Invalid)
+					}`, `directive "@stream" is not allowed on subscription operations`)
 			})
 			t.Run("stream on nested subscription field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					subscription {
 						subscribeDogs {
 							extras @stream { string }
 						}
-					}`, DeferStreamOnValidOperations(), Invalid)
+					}`, `directive "@stream" is not allowed on subscription operations`)
 			})
 			t.Run("disabled stream on root subscription field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					subscription {
 						subscribeDog @stream (if: false) { name }
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`, `directive "@stream" can only be used on list fields, but field "subscribeDog" is not a list`)
 			})
 
 			t.Run("defer with variable if argument on query", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query($shouldDefer: Boolean!) {
 						... @defer(if: $shouldDefer) {
 							dog { name }
 						}
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`)
 			})
 			t.Run("defer with variable if argument on subscription", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					subscription($shouldDefer: Boolean!) {
 						... @defer(if: $shouldDefer) {
 							dog { name }
 						}
-					}`, DeferStreamOnValidOperations(), Valid)
+					}`)
 			})
 		})
 
 		t.Run("stream with lists only", func(t *testing.T) {
 			t.Run("stream with positive initialCount argument", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							extras @stream(initialCount: 5) { string }
 						}
-					}`, StreamAppliedToListFieldsOnly(), Valid)
+					}`)
 			})
 			t.Run("stream with negative initialCount argument", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							extras @stream(initialCount: -1) { string }
 						}
-					}`, StreamAppliedToListFieldsOnly(), Invalid)
+					}`, `directive "@stream" has invalid initialCount argument: must be non-negative`)
 			})
 			t.Run("stream on list field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							extras @stream { string }
 						}
-					}`, StreamAppliedToListFieldsOnly(), Valid)
+					}`)
 			})
 			t.Run("stream on root list field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						extras @stream { name } 
-					}`, StreamAppliedToListFieldsOnly(), Valid)
+					}`)
 			})
 			t.Run("stream on non-list field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog @stream { name }
-					}`, StreamAppliedToListFieldsOnly(), Invalid)
+					}`, `directive "@stream" can only be used on list fields, but field "dog" is not a list`)
 			})
 			t.Run("stream on scalar field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog { name @stream }
-					}`, StreamAppliedToListFieldsOnly(), Invalid)
+					}`, `directive "@stream" can only be used on list fields, but field "name" is not a list`)
 			})
 		})
 
 		t.Run("valid location", func(t *testing.T) {
 			t.Run("defer on inline fragment", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						pet {
 							... on Dog @defer { name }
 						}
-					}`, DirectivesAreInValidLocations(), Valid)
+					}`)
 			})
 			t.Run("defer on fragment spread", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							...dogFragment @defer
 						}
 					}
-					fragment dogFragment on Dog { name }`,
-					DirectivesAreInValidLocations(), Valid)
+					fragment dogFragment on Dog { name }`)
 			})
 			t.Run("defer on field", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog @defer { name }
 					}`,
-					DirectivesAreInValidLocations(),
-					Invalid,
-					withValidationErrors("defer not allowed on node of kind: FIELD"))
+					"defer not allowed on node of kind: FIELD")
 			})
 			t.Run("stream on fragment spread", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						...extrasFrag @stream
 					}
@@ -4907,15 +4903,13 @@ type Query {
 							... on CatExtra { string2 }
 						}
 					}`,
-					DirectivesAreInValidLocations(),
-					Invalid,
-					withValidationErrors("stream not allowed on node of kind: INLINE_FRAGMENT"))
+					"stream not allowed on node of kind: FRAGMENT_SPREAD")
 			})
 		})
 
 		t.Run("complex", func(t *testing.T) {
 			t.Run("nested defer directives", func(t *testing.T) {
-				runManyRules(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							... @defer {
@@ -4925,19 +4919,19 @@ type Query {
 								}
 							}
 						}
-					}`, Valid, allRules...)
+					}`)
 			})
 			t.Run("defer and stream in same query", func(t *testing.T) {
-				runManyRules(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							... @defer { name }
 							extras @stream { string }
 						}
-					}`, Valid, allRules...)
+					}`)
 			})
 			t.Run("stream on multiple fields with unique labels", func(t *testing.T) {
-				runManyRules(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							extra {
@@ -4955,11 +4949,11 @@ type Query {
 						extras @stream(label: "rootExtras") {
 							strings @stream(label: "extrasStrings")
 						}
-					}`, Valid, allRules...)
+					}`)
 			})
 
 			t.Run("deeply nested defer with unique labels", func(t *testing.T) {
-				runManyRules(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							... @defer(label: "level1") {
@@ -4978,10 +4972,10 @@ type Query {
 						... @defer(label: "level4") {
 							mustExtras
 						}
-					}`, Valid, allRules...)
+					}`)
 			})
 			t.Run("deeply nested defer with duplicate labels", func(t *testing.T) {
-				run(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						dog {
 							... @defer(label: "level1") {
@@ -5000,10 +4994,10 @@ type Query {
 						... @defer(label: "level1") {
 							mustExtras
 						}
-					}`, DeferStreamHaveUniqueLabels(), Invalid)
+					}`, `directive "@defer" label "level1" must be unique, but was already used on "@defer" directive`)
 			})
 			t.Run("defer on typed inline fragment", func(t *testing.T) {
-				runManyRules(t, `
+				runNormalizationPrevalidation(t, `
 					query {
 						extras {
 							... on CatExtra @defer {
@@ -5013,7 +5007,7 @@ type Query {
 								string2 
 							}
 						}
-					}`, Valid, allRules...)
+					}`)
 			})
 
 		})
@@ -5156,46 +5150,48 @@ type Query {
 					withValidationErrors(`found conflicting stream directives on the same field`))
 			})
 
-			// conditionals in streams are not implemented yet, some tests are disabled for now.
-			//
-			// Streams with "if:false" should be just ignored.
-			// t.Run("with different if conditions", func(t *testing.T) {
-			// 	run(t, `
-			// 		query { dog { ...dogFragment } }
-			// 		fragment dogFragment on Dog {
-			// 			extras @stream(label: "same", initialCount: 1, if: true)
-			// 			extras @stream(label: "same", initialCount: 1, if: false)
-			// 		}`, FieldSelectionMerging(), Valid)
-			// })
-			//
-			// Streams with "if" set to variables, should have matching other fields.
-			// t.Run("with variable if conditions", func(t *testing.T) {
-			// 	run(t, `
-			// 		query($cond1: Boolean!, $cond2: Boolean!) {
-			// 			dog {
-			// 				extras @stream(label: "same", initialCount: 1, if: $cond1)
-			// 				extras @stream(label: "same", initialCount: 1, if: $cond2)
-			// 			}
-			// 		}`, FieldSelectionMerging(), Valid)
-			// })
-			//
-			// "if: true" in streams can be omitted and merged without it
-			// t.Run("with if true vs no if argument", func(t *testing.T) {
-			// 	run(t, `
-			// 		query { dog {
-			// 			extras @stream(label: "same", initialCount: 1, if: true)
-			// 			extras @stream(label: "same", initialCount: 1)
-			// 		} }`, FieldSelectionMerging(), Valid)
-			// })
-			//
-			// streams with "if: false" should be ignored
-			// t.Run("with if false vs no stream", func(t *testing.T) {
-			// 	run(t, `
-			// 		query { dog {
-			// 			extras
-			// 			extras @stream(label: "one", if: false)
-			// 		} }`, FieldSelectionMerging(), Valid)
-			// })
+			t.Run("stream conditionals", func(t *testing.T) {
+				t.Skip("conditionals in streams are not implemented yet")
+
+				// Streams with "if:false" should be just ignored.
+				t.Run("with different if conditions", func(t *testing.T) {
+					run(t, `
+					query { dog { ...dogFragment } }
+					fragment dogFragment on Dog {
+						extras @stream(label: "same", initialCount: 1, if: true)
+						extras @stream(label: "same", initialCount: 1, if: false)
+					}`, FieldSelectionMerging(), Valid)
+				})
+
+				// Streams with "if" set to variables, should have matching other fields.
+				t.Run("with variable if conditions", func(t *testing.T) {
+					run(t, `
+					query($cond1: Boolean!, $cond2: Boolean!) {
+						dog {
+							extras @stream(label: "same", initialCount: 1, if: $cond1)
+							extras @stream(label: "same", initialCount: 1, if: $cond2)
+						}
+					}`, FieldSelectionMerging(), Valid)
+				})
+
+				// "if: true" in streams can be omitted and merged without it
+				t.Run("with if true vs no if argument", func(t *testing.T) {
+					run(t, `
+					query { dog {
+						extras @stream(label: "same", initialCount: 1, if: true)
+						extras @stream(label: "same", initialCount: 1)
+					} }`, FieldSelectionMerging(), Valid)
+				})
+
+				// streams with "if: false" should be ignored
+				t.Run("with if false vs no stream", func(t *testing.T) {
+					run(t, `
+					query { dog {
+						extras
+						extras @stream(label: "one", if: false)
+					} }`, FieldSelectionMerging(), Valid)
+				})
+			})
 		})
 	})
 }

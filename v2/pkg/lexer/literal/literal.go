@@ -70,7 +70,6 @@ var (
 	DEFER_INTERNAL                = []byte("__defer_internal")
 	LABEL                         = []byte("label")
 	STREAM                        = []byte("stream")
-	LABEL                         = []byte("label")
 	INITIAL_COUNT                 = []byte("initialCount")
 	SCHEMA                        = []byte("schema")
 	EXTEND                        = []byte("extend")

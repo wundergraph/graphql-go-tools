@@ -154,6 +154,11 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			astnormalization.WithRemoveUnusedVariables(),
 			astnormalization.WithInlineFragmentSpreads(),
 			astnormalization.WithEnableDefer(),
+			astnormalization.WithPrevalidationRules(
+				astvalidation.DeferStreamOnValidOperations(),
+				astvalidation.DeferStreamHaveUniqueLabels(),
+				astvalidation.DirectivesAreInValidLocations(),
+				astvalidation.StreamAppliedToListFieldsOnly()),
 		)
 		if err != nil {
 			return err
