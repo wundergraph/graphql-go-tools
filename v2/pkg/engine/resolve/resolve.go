@@ -512,6 +512,10 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		resolvable.currentDefer = nil
 		resolvable.deferDescriptors = response.DeferDescriptors
 
+		defer func() {
+			writer.Complete()
+		}()
+
 		// render initial response
 		err = resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
 		if err != nil {
@@ -522,10 +526,6 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		if err != nil {
 			return nil, err
 		}
-
-		defer func() {
-			writer.Complete()
-		}()
 
 		if resolvable.hasErrors() {
 			return resolveInfo, nil
@@ -624,7 +624,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 
 	descriptor := dc.resolvable.deferDescriptors[group.DeferID]
 	dc.resolvable.currentDefer = &descriptor
-	if err := dc.resolvable.ResolveDefer(dc.response.Response.Data, dc.writer, !isLast); err != nil {
+	if err := dc.resolvable.ResolveDeferBatch(dc.response.Response.Data, dc.writer, !isLast); err != nil {
 		return err
 	}
 	return dc.writer.Flush()

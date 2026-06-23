@@ -290,9 +290,12 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 		r.printErr = r.printExtensions(ctx, fetchTree)
 	}
 
-	if r.deferMode && !r.hasErrors() {
-		r.printPendingEntries(r.deferDescriptors)
-		r.printHasNext(true)
+	if r.deferMode {
+		if !r.hasErrors() {
+			r.printPendingEntries(r.deferDescriptors)
+		}
+
+		r.printHasNext(!r.hasErrors())
 	}
 
 	r.printBytes(rBrace)
@@ -300,7 +303,8 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	return r.printErr
 }
 
-func (r *Resolvable) ResolveDefer(rootData *Object, out io.Writer, hasNext bool) error {
+// ResolveDeferBatch - renders defer incremental chunk corresponding to defer id
+func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext bool) error {
 	r.out = out
 	r.printErr = nil
 	r.authorizationError = nil
