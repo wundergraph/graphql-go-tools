@@ -14,7 +14,7 @@ func TestDataBuffer_LockEnabled(t *testing.T) {
 	// Two goroutines each write a distinct field on the shared object under the lock;
 	// afterwards the object must contain both fields.
 	obj := astjson.ObjectValue(nil)
-	d := &DataBuffer{enableLock: true, data: obj}
+	d := &DataBuffer{data: obj}
 
 	var wg sync.WaitGroup
 	wg.Add(2)

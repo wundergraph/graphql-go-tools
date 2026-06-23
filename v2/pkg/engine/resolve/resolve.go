@@ -534,9 +534,6 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		// fetch deferred responses using the parallel execution tree
 
 		if response.DeferTree != nil {
-			// Arm the DataBuffer lock so that concurrent defer-group goroutines
-			// serialise their data merges and render phases.
-			db.enableLock = true
 			dc := &deferContext{
 				response:   response,
 				info:       response.Response.Info,

@@ -213,6 +213,8 @@ type Loader struct {
 
 	taintedObjs taintedObjects
 
+	erroredFetchIDs map[int]struct{}
+
 	// jsonArena is the arena for JSON allocation, supplied by the Resolver.
 	// Not thread safe — only use from the main goroutine.
 	// Don't Reset or Release; the Resolver handles this.
@@ -233,6 +235,7 @@ func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
 	l.taintedObjs = nil
+	l.erroredFetchIDs = nil
 	l.subgraphErrors = nil
 }
 
@@ -250,6 +253,7 @@ func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
 	l.ctx = ctx
 	l.info = responseInfo
 	l.taintedObjs = make(taintedObjects)
+	l.erroredFetchIDs = nil
 }
 
 func (l *Loader) ensureErrorsInitialized() {
@@ -259,135 +263,189 @@ func (l *Loader) ensureErrorsInitialized() {
 }
 
 func (l *Loader) ResolveFetchNode(node *FetchTreeNode) error {
+	return l.resolveFetchNodeWithCtx(l.ctx.ctx, node)
+}
+
+func (l *Loader) resolveFetchNodeWithCtx(ctx context.Context, node *FetchTreeNode) error {
 	if node == nil {
 		return nil
 	}
 	switch node.Kind {
 	case FetchTreeNodeKindSingle:
-		return l.resolveSingle(node.Item)
+		return l.resolveSingle(ctx, node.Item)
 	case FetchTreeNodeKindSequence:
-		return l.resolveSerial(node.ChildNodes)
+		return l.resolveSerial(ctx, node.ChildNodes)
 	case FetchTreeNodeKindParallel:
-		return l.resolveParallel(node.ChildNodes)
+		return l.resolveParallel(ctx, node.ChildNodes)
 	default:
 		return nil
 	}
 }
 
-func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
-	if len(nodes) == 0 {
-		return nil
-	}
-	results := make([]*result, len(nodes))
-	defer func() {
-		for i := range results {
-			// no-op if tools == nil
-			batchEntityToolPool.Put(results[i].tools)
-		}
-	}()
-	itemsItems := make([][]*astjson.Value, len(nodes))
-	g, ctx := errgroup.WithContext(l.ctx.ctx)
-	l.dataBuffer.Lock()
+func (l *Loader) resolveParallel(ctx context.Context, nodes []*FetchTreeNode) error {
+	// Plain errgroup.Group (NOT errgroup.WithContext)
+	// as parallel fetches runs independently
+	var g errgroup.Group
 	for i := range nodes {
-		results[i] = &result{}
-		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
-		f := nodes[i].Item.Fetch
-		item := nodes[i].Item
-		items := itemsItems[i]
-		res := results[i]
+		node := nodes[i]
 		g.Go(func() error {
-			return l.loadFetch(ctx, f, item, items, res)
+			// do not return error from parallel siblings
+			// to not interrupt a whole parallel group
+			err := l.resolveFetchNodeWithCtx(ctx, node)
+			if err != nil && ctx.Err() != nil {
+				return err
+			}
+			return nil
 		})
 	}
-	l.dataBuffer.Unlock()
-	err := g.Wait()
-	if err != nil {
+	if err := g.Wait(); err != nil {
 		return errors.WithStack(err)
 	}
+	return nil
+}
+
+func (l *Loader) resolveSerial(ctx context.Context, nodes []*FetchTreeNode) error {
+	for i := range nodes {
+		err := l.resolveFetchNodeWithCtx(ctx, nodes[i])
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	return nil
+}
+
+func (l *Loader) preparePhase(item *FetchItem) (*preparedFetch, error) {
 	l.dataBuffer.Lock()
-	for i := range results {
-		if results[i].nestedMergeItems != nil {
-			for j := range results[i].nestedMergeItems {
-				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
-				l.callOnFinished(results[i].nestedMergeItems[j])
-				if err != nil {
-					l.dataBuffer.Unlock()
-					return errors.WithStack(err)
-				}
-			}
-		} else {
-			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
-			l.callOnFinished(results[i])
+	defer l.dataBuffer.Unlock()
+
+	if l.shouldSkipErroredDependencyLocked(item) {
+		return nil, nil
+	}
+
+	items := l.selectItemsForPath(item.FetchPath)
+	res := &result{}
+	prepared := &preparedFetch{
+		item:  item,
+		items: items,
+		res:   res,
+	}
+	switch fetch := item.Fetch.(type) {
+	case *SingleFetch:
+		err := l.prepareSingleFetch(item, fetch, items, res, prepared)
+		return prepared, err
+	case *EntityFetch:
+		err := l.prepareEntityFetch(item, fetch, items, res, prepared)
+		return prepared, err
+	case *BatchEntityFetch:
+		prepared.batchFetch = true
+		err := l.prepareBatchEntityFetch(item, fetch, items, res, prepared)
+		return prepared, err
+	default:
+		return nil, nil
+	}
+}
+
+func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
+	if prepared.skipLoad {
+		return nil
+	}
+	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
+	if prepared.res.err != nil {
+		l.recordErroredFetchID(prepared.item)
+	}
+	return nil
+}
+
+func (l *Loader) mergePhase(prepared *preparedFetch) error {
+	l.dataBuffer.Lock()
+	defer l.dataBuffer.Unlock()
+
+	res := prepared.res
+	var err error
+	if res.nestedMergeItems != nil {
+		for j := range res.nestedMergeItems {
+			err = l.mergeResult(prepared.item, res.nestedMergeItems[j], prepared.items[j:j+1])
+			l.callOnFinished(res.nestedMergeItems[j])
 			if err != nil {
-				l.dataBuffer.Unlock()
 				return errors.WithStack(err)
 			}
 		}
+		return nil
 	}
-	l.dataBuffer.Unlock()
-	return nil
+	err = l.mergeResult(prepared.item, res, prepared.items)
+	l.callOnFinished(res)
+	return err
 }
 
-func (l *Loader) resolveSerial(nodes []*FetchTreeNode) error {
-	for i := range nodes {
-		err := l.ResolveFetchNode(nodes[i])
-		if err != nil {
-			return errors.WithStack(err)
-		}
-	}
-	return nil
-}
-
-func (l *Loader) resolveSingle(item *FetchItem) error {
+func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	if item == nil {
 		return nil
 	}
-	l.dataBuffer.Lock()
-	items := l.selectItemsForPath(item.FetchPath)
-	l.dataBuffer.Unlock()
-
-	switch f := item.Fetch.(type) {
-	case *SingleFetch:
-		res := &result{}
-		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
-		if err != nil {
-			return err
-		}
-		l.dataBuffer.Lock()
-		err = l.mergeResult(item, res, items)
-		l.dataBuffer.Unlock()
-		l.callOnFinished(res)
-		return err
-	case *BatchEntityFetch:
-		res := &result{}
-		// res.tools is assigned inside loadBatchEntityFetch.
-		// Evaluate when the deferred function runs, not at defer registration:
+	prepared, err := l.preparePhase(item)
+	if prepared != nil {
 		defer func() {
-			batchEntityToolPool.Put(res.tools)
+			batchEntityToolPool.Put(prepared.res.tools)
 		}()
-		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		l.dataBuffer.Lock()
-		err = l.mergeResult(item, res, items)
-		l.dataBuffer.Unlock()
-		l.callOnFinished(res)
-		return err
-	case *EntityFetch:
-		res := &result{}
-		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		l.dataBuffer.Lock()
-		err = l.mergeResult(item, res, items)
-		l.dataBuffer.Unlock()
-		l.callOnFinished(res)
-		return err
-	default:
+	}
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if prepared == nil {
 		return nil
 	}
+	if err := l.loadPhase(ctx, prepared); err != nil {
+		return errors.WithStack(err)
+	}
+	return l.mergePhase(prepared)
+}
+
+type preparedFetch struct {
+	item       *FetchItem
+	items      []*astjson.Value
+	res        *result
+	source     DataSource
+	input      []byte
+	trace      *DataSourceLoadTrace
+	skipLoad   bool
+	batchFetch bool
+}
+
+func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
+	if item == nil || item.Fetch == nil || len(l.erroredFetchIDs) == 0 {
+		return false
+	}
+	dependencies := item.Fetch.Dependencies()
+	if dependencies == nil {
+		return false
+	}
+	for _, dependencyID := range dependencies.DependsOnFetchIDs {
+		if _, ok := l.erroredFetchIDs[dependencyID]; ok {
+			l.recordErroredFetchIDLocked(item)
+			return true
+		}
+	}
+	return false
+}
+
+func (l *Loader) recordErroredFetchID(item *FetchItem) {
+	l.dataBuffer.Lock()
+	defer l.dataBuffer.Unlock()
+
+	l.recordErroredFetchIDLocked(item)
+}
+
+func (l *Loader) recordErroredFetchIDLocked(item *FetchItem) {
+	if item == nil || item.Fetch == nil {
+		return
+	}
+	dependencies := item.Fetch.Dependencies()
+	if dependencies == nil {
+		return
+	}
+	if l.erroredFetchIDs == nil {
+		l.erroredFetchIDs = make(map[int]struct{})
+	}
+	l.erroredFetchIDs[dependencies.FetchID] = struct{}{}
 }
 
 func (l *Loader) callOnFinished(res *result) {
@@ -506,18 +564,6 @@ func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
 	return arr
 }
 
-func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
-	switch f := fetch.(type) {
-	case *SingleFetch:
-		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
-	case *EntityFetch:
-		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
-	case *BatchEntityFetch:
-		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
-	}
-	return nil
-}
-
 type ErrMergeResult struct {
 	Subgraph string
 	Reason   error
@@ -540,6 +586,16 @@ func (e ErrMergeResult) Error() string {
 	return fmt.Sprintf("unable to merge results from subgraph %s", e.Subgraph)
 }
 
+func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
+	trueValue := astjson.TrueValue(l.jsonArena)
+	skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
+	copy(skipErrorsPath, res.postProcessing.MergePath)
+	skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
+	for _, item := range items {
+		astjson.SetValue(l.jsonArena, item, trueValue, skipErrorsPath...)
+	}
+}
+
 func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
@@ -549,13 +605,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if err != nil {
 			return err
 		}
-		trueValue := astjson.TrueValue(l.jsonArena)
-		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
-		copy(skipErrorsPath, res.postProcessing.MergePath)
-		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
-		for _, item := range items {
-			astjson.SetValue(l.jsonArena, item, trueValue, skipErrorsPath...)
-		}
+		l.setSkipErrors(res, items)
 		return nil
 	}
 	if res.rateLimitRejected {
@@ -563,13 +613,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if err != nil {
 			return err
 		}
-		trueValue := astjson.TrueValue(l.jsonArena)
-		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
-		copy(skipErrorsPath, res.postProcessing.MergePath)
-		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
-		for _, item := range items {
-			astjson.SetValue(l.jsonArena, item, trueValue, skipErrorsPath...)
-		}
+		l.setSkipErrors(res, items)
 		return nil
 	}
 	if res.fetchSkipped {
@@ -1385,7 +1429,7 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 	return l.rateLimitFetch(input, info, res)
 }
 
-func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
+func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 	buf := bytes.NewBuffer(nil)
 
@@ -1403,6 +1447,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 	// Having null means that the previous fetch returned null as data
 	if len(items) == 1 && items[0].Type() == astjson.TypeNull {
 		res.fetchSkipped = true
+		prepared.skipLoad = true
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		}
@@ -1412,6 +1457,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 	err := fetch.InputTemplate.Render(l.ctx, inputData, buf)
 	if err != nil {
 		res.out = l.renderErrorsInvalidInput(fetchItem)
+		prepared.skipLoad = true
 		return nil
 	}
 	fetchInput := buf.Bytes()
@@ -1420,13 +1466,16 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 		return err
 	}
 	if !allowed {
+		prepared.skipLoad = true
 		return nil
 	}
-	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
+	prepared.source = fetch.DataSource
+	prepared.input = fetchInput
+	prepared.trace = fetch.Trace
 	return nil
 }
 
-func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *EntityFetch, items []*astjson.Value, res *result) error {
+func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 	input := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
@@ -1454,6 +1503,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 				fetch.Trace.LoadSkipped = true
 			}
 			res.fetchSkipped = true
+			prepared.skipLoad = true
 			return nil
 		}
 		return errors.WithStack(err)
@@ -1465,6 +1515,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		} else {
+			prepared.skipLoad = true
 			return nil
 		}
 	}
@@ -1474,6 +1525,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		} else {
+			prepared.skipLoad = true
 			return nil
 		}
 	}
@@ -1491,6 +1543,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
+		prepared.skipLoad = true
 		return nil
 	}
 
@@ -1499,9 +1552,12 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 		return err
 	}
 	if !allowed {
+		prepared.skipLoad = true
 		return nil
 	}
-	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
+	prepared.source = fetch.DataSource
+	prepared.input = fetchInput
+	prepared.trace = fetch.Trace
 	return nil
 }
 
@@ -1547,7 +1603,7 @@ var (
 	batchEntityToolPool = _batchEntityToolPool{}
 )
 
-func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result) error {
+func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 
 	if l.ctx.TracingOptions.Enable {
@@ -1641,6 +1697,7 @@ WithNextItem:
 		if l.ctx.TracingOptions.Enable {
 			fetch.Trace.LoadSkipped = true
 		} else {
+			prepared.skipLoad = true
 			return nil
 		}
 	}
@@ -1665,6 +1722,7 @@ WithNextItem:
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
+		prepared.skipLoad = true
 		return nil
 	}
 
@@ -1673,10 +1731,13 @@ WithNextItem:
 		return err
 	}
 	if !allowed {
+		prepared.skipLoad = true
 		return nil
 	}
 
-	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
+	prepared.source = fetch.DataSource
+	prepared.input = fetchInput
+	prepared.trace = fetch.Trace
 	return nil
 }
 

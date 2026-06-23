@@ -296,8 +296,11 @@ func TestLoader_LoadGraphQLResponseData(t *testing.T) {
 	ctrl.Finish()
 	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 	assert.NoError(t, err)
-	expected := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
-	assert.Equal(t, expected, out)
+
+	expected1 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
+	expected2 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","stock":8,"reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}]},{"name":"Couch","__typename":"Product","upc":"2","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}]},{"name":"Chair","__typename":"Product","upc":"3","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}]}]}}`
+
+	assert.Contains(t, []string{expected1, expected2}, out)
 }
 
 func TestLoader_MergeErrorDifferingTypes(t *testing.T) {
@@ -758,8 +761,11 @@ func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
 	ctrl.Finish()
 	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 	assert.NoError(t, err)
-	expected := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
-	assert.Equal(t, expected, out)
+
+	expected1 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
+	expected2 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","stock":8,"reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}]},{"name":"Couch","__typename":"Product","upc":"2","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}]},{"name":"Chair","__typename":"Product","upc":"3","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}]}]}}`
+
+	assert.Contains(t, []string{expected1, expected2}, out)
 }
 
 func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
@@ -1024,8 +1030,9 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 	ctx := NewContext(context.Background())
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-	expected := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
-	b.SetBytes(int64(len(expected)))
+	expected1 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
+	expected2 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","stock":8,"reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}]},{"name":"Couch","__typename":"Product","upc":"2","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}]},{"name":"Chair","__typename":"Product","upc":"3","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}]}]}}`
+	b.SetBytes(int64(2 * len(expected1)))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
@@ -1033,17 +1040,18 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 		resolvable.Reset()
 		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 		if err != nil {
-			b.Fatal(err)
+			b.Fatalf("failed to init resolvable %v", err)
 		}
 		err = loader.LoadGraphQLResponseData(ctx, response)
 		resolvable.data = loader.dataBuffer.Get()
 		resolvable.errors = loader.errors
 		if err != nil {
-			b.Fatal(err)
+			b.Fatalf("failed to load data %v", err)
 		}
 		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
-		if expected != out {
-			b.Fatalf("expected %s, got %s", expected, out)
+
+		if out != expected1 && out != expected2 {
+			b.Fatalf("unexpected output %s", out)
 		}
 	}
 }
@@ -2300,12 +2308,19 @@ func TestLoader_AllowCustomExtensionProperties(t *testing.T) {
 
 		if assert.Len(t, ext, 4) {
 			// Order in the slice tracks the merge order of mergeResult calls.
-			// Parallel children's HTTP fetches run concurrently, but mergeResult
-			// runs sequentially in child-index order once g.Wait returns, so the
-			// capture order is fully deterministic: A → B → C → D.
+			// Parallel children's HTTP fetches run concurrently, as well as mergeResult
+			// capture order is partially deterministic: A → [B or C] → D.
 			assert.JSONEq(t, `{"shared":"fromA","keyA":"vA"}`, string(ext[0].MarshalTo(nil)))
-			assert.JSONEq(t, `{"shared":"fromB","keyB":"vB"}`, string(ext[1].MarshalTo(nil)))
-			assert.JSONEq(t, `{"shared":"fromC","keyC":"vC"}`, string(ext[2].MarshalTo(nil)))
+			assert.ElementsMatch(t,
+				[]string{
+					`{"shared":"fromB","keyB":"vB"}`,
+					`{"shared":"fromC","keyC":"vC"}`,
+				},
+				[]string{
+					string(ext[1].MarshalTo(nil)),
+					string(ext[2].MarshalTo(nil)),
+				},
+			)
 			assert.JSONEq(t, `{"shared":"fromD","keyD":"vD"}`, string(ext[3].MarshalTo(nil)))
 		}
 	})

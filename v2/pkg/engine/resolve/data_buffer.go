@@ -15,23 +15,18 @@ import (
 // the fetch phase; resolve.go reads via Get and injects the value into
 // Resolvable.data before each render. Resolvable never references the DataBuffer.
 type DataBuffer struct {
-	mu         sync.Mutex
-	enableLock bool
-	data       *astjson.Value
+	mu   sync.Mutex
+	data *astjson.Value
 }
 
 // Lock acquires the mutex when parallel execution is active.
 func (d *DataBuffer) Lock() {
-	if d.enableLock {
-		d.mu.Lock()
-	}
+	d.mu.Lock()
 }
 
 // Unlock releases the mutex when parallel execution is active.
 func (d *DataBuffer) Unlock() {
-	if d.enableLock {
-		d.mu.Unlock()
-	}
+	d.mu.Unlock()
 }
 
 // Get returns the current data value.
