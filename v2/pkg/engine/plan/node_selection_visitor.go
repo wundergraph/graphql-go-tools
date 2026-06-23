@@ -300,8 +300,8 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 // immediately when the nearest field ancestor lacks the directive instead of
 // continuing to climb.
 func (c *nodeSelectionVisitor) wrappingFieldDeferID() int {
-	for i := len(c.walker.Ancestors) - 1; i >= 0; i-- {
-		ancestor := c.walker.Ancestors[i]
+	for _, v := range slices.Backward(c.walker.Ancestors) {
+		ancestor := v
 		if ancestor.Kind != ast.NodeKindField {
 			continue
 		}

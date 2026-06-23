@@ -48,7 +48,7 @@ func minimalDeferResponse(groups []*DeferFetchGroup, descriptors map[int]DeferDe
 	fields := make([]*Field, len(groups))
 	for i, g := range groups {
 		fields[i] = &Field{
-			Name:  []byte(fmt.Sprintf("f%d", g.DeferID)),
+			Name:  fmt.Appendf(nil, "f%d", g.DeferID),
 			Defer: &DeferField{DeferID: g.DeferID},
 			Value: &String{
 				Path:     []string{fmt.Sprintf("f%d", g.DeferID)},
@@ -74,8 +74,7 @@ func minimalDeferResponse(groups []*DeferFetchGroup, descriptors map[int]DeferDe
 func TestResolveDeferTree_TwoParallelSiblings(t *testing.T) {
 	t.Parallel()
 
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := t.Context()
 	r := newResolver(rCtx)
 
 	groupA := &DeferFetchGroup{
@@ -112,8 +111,7 @@ func TestResolveDeferTree_TwoParallelSiblings(t *testing.T) {
 func TestResolveDeferTree_SequenceOrdering(t *testing.T) {
 	t.Parallel()
 
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := t.Context()
 	r := newResolver(rCtx)
 
 	groupA := &DeferFetchGroup{
@@ -151,8 +149,7 @@ func TestResolveDeferTree_SequenceOrdering(t *testing.T) {
 func TestResolveDeferTree_SiblingFailureIsIndependent(t *testing.T) {
 	t.Parallel()
 
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := t.Context()
 	r := newResolver(rCtx)
 
 	groupA := &DeferFetchGroup{
@@ -186,8 +183,7 @@ func TestResolveDeferTree_SiblingFailureIsIndependent(t *testing.T) {
 func TestResolveDeferTree_ParallelSiblings_ErrorsAreIsolated(t *testing.T) {
 	t.Parallel()
 
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := t.Context()
 
 	// Pass-through mode so raw subgraph error messages appear verbatim in the
 	// incremental frames, making them easy to assert on.
@@ -265,8 +261,7 @@ func TestResolveDeferTree_ParallelSiblings_ErrorsAreIsolated(t *testing.T) {
 func TestResolveDeferTree_ParallelSiblings_SubgraphErrorsAggregateIntoContext(t *testing.T) {
 	t.Parallel()
 
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := t.Context()
 	r := newResolver(rCtx)
 
 	groupA := &DeferFetchGroup{

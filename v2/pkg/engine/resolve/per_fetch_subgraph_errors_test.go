@@ -101,8 +101,7 @@ func (h *orderedLoaderHooks) OnFinished(ctx context.Context, ds DataSourceInfo, 
 func TestOnFinished_SameSubgraphName_NoErrorInheritance(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	rCtx := t.Context()
 	r := New(rCtx, ResolverOptions{MaxConcurrency: 1024})
 
 	// Fetch #1: returns subgraph errors.

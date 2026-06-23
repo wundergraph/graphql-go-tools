@@ -656,7 +656,6 @@ func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferT
 		// on disconnect.
 		var g errgroup.Group
 		for _, child := range node.ChildNodes {
-			child := child
 			g.Go(func() error {
 				// Groups share the request *Context. Its only mutation during defer
 				// resolution is ctx.subgraphErrors, written exclusively under

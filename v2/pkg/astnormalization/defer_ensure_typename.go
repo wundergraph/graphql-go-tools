@@ -1,6 +1,8 @@
 package astnormalization
 
 import (
+	"slices"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -46,8 +48,8 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 	hasFieldAncestor := false
-	for i := len(f.Ancestors) - 1; i >= 0; i-- {
-		if f.Ancestors[i].Kind == ast.NodeKindField {
+	for _, v := range slices.Backward(f.Ancestors) {
+		if v.Kind == ast.NodeKindField {
 			hasFieldAncestor = true
 			break
 		}
@@ -110,8 +112,8 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 // parentFieldDeferID returns the defer id of the nearest enclosing field that
 // carries a @__defer_internal directive, or an empty string if there is none.
 func (f *deferEnsureTypenameVisitor) parentFieldDeferID() int {
-	for i := len(f.Ancestors) - 1; i >= 0; i-- {
-		ancestor := f.Ancestors[i]
+	for _, v := range slices.Backward(f.Ancestors) {
+		ancestor := v
 		if ancestor.Kind != ast.NodeKindField {
 			continue
 		}
