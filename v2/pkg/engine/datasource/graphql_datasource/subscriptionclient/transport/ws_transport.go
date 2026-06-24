@@ -15,6 +15,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/protocol"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/mondaytweaks"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -99,9 +100,11 @@ type dialResult struct {
 	err  error
 }
 
-// NewWSTransport creates a new WSTransport. Connections are not closed when ctx
-// is cancelled; instead they close themselves when their last subscriber is
-// removed via the resolver's drain chain. The ping loop exits on ctx cancellation.
+// NewWSTransport creates a new WSTransport. When CloseWSConnectionsOnContextCancel
+// is enabled (default), all active connections are forcibly closed when ctx is
+// cancelled, unblocking readLoop goroutines and releasing the object graph.
+// Otherwise connections close themselves when their last subscriber is removed
+// via the resolver's drain chain.
 //
 // If PingInterval is set, a single goroutine sends protocol-level pings to all
 // connections at that cadence. If PingTimeout is also set, connections that fail
@@ -126,6 +129,10 @@ func NewWSTransport(ctx context.Context, opts WSTransportOptions) *WSTransport {
 		go t.pingLoop()
 	}
 
+	if mondaytweaks.CloseWSConnectionsOnContextCancel {
+		context.AfterFunc(ctx, t.closeAllConns)
+	}
+
 	return t
 }
 
@@ -140,6 +147,23 @@ func (t *WSTransport) Subscribe(ctx context.Context, req *common.Request, opts c
 
 	id := xid.New().String()
 	return conn.subscribe(ctx, id, req, handler)
+}
+
+// closeAllConns shuts down every active connection tracked by this transport.
+// It is registered via context.AfterFunc so that when the transport's parent
+// context is cancelled, all connections are forcibly closed — unblocking any
+// readLoop goroutines that would otherwise pin the object graph in memory.
+func (t *WSTransport) closeAllConns() {
+	t.mu.Lock()
+	conns := make([]*wsConnection, 0, len(t.conns))
+	for _, conn := range t.conns {
+		conns = append(conns, conn)
+	}
+	t.mu.Unlock()
+
+	for _, conn := range conns {
+		conn.closeConn()
+	}
 }
 
 // pingLoop sends periodic pings to all active connections and shuts down

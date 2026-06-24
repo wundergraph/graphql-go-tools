@@ -1200,6 +1200,101 @@ func TestWSTransport_Heartbeat(t *testing.T) {
 	})
 }
 
+func TestWSTransport_ContextCancel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("closes all connections when context is cancelled", func(t *testing.T) {
+		t.Parallel()
+
+		server := newGraphQLWSServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			for {
+				var msg map[string]any
+				if err := wsjson.Read(ctx, conn, &msg); err != nil {
+					return
+				}
+				if msg["type"] == "subscribe" {
+					_ = wsjson.Write(ctx, conn, map[string]any{
+						"id":      msg["id"],
+						"type":    "next",
+						"payload": map[string]any{"data": map[string]any{"value": 1}},
+					})
+				}
+			}
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		tr := NewWSTransport(ctx, WSTransportOptions{
+			UpgradeClient: http.DefaultClient,
+			ReadLimit:     1 << 20,
+			AckTimeout:    30 * time.Second,
+			WriteTimeout:  5 * time.Second,
+		})
+
+		// Create multiple connections using different headers
+		for i := range 3 {
+			headers := http.Header{"X-Conn": []string{string(rune('A' + i))}}
+			handler, receive := collectingHandler()
+			_, err := tr.Subscribe(context.Background(), &common.Request{
+				Query: "subscription { test }",
+			}, common.Options{
+				Endpoint:  server.URL,
+				Transport: common.TransportWS,
+				Headers:   headers,
+			}, handler)
+			require.NoError(t, err)
+			receive(t, time.Second)
+		}
+
+		assert.Equal(t, 3, tr.ConnCount())
+
+		// Cancel the transport context — all connections should close
+		cancel()
+
+		assert.Eventually(t, func() bool {
+			return tr.ConnCount() == 0
+		}, time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("subscribers receive error when context is cancelled", func(t *testing.T) {
+		t.Parallel()
+
+		server := newGraphQLWSServer(t, func(ctx context.Context, conn *websocket.Conn) {
+			for {
+				var msg map[string]any
+				if err := wsjson.Read(ctx, conn, &msg); err != nil {
+					return
+				}
+			}
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		tr := NewWSTransport(ctx, WSTransportOptions{
+			UpgradeClient: http.DefaultClient,
+			ReadLimit:     1 << 20,
+			AckTimeout:    30 * time.Second,
+			WriteTimeout:  5 * time.Second,
+		})
+
+		handler, receive := collectingHandler()
+		_, err := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{
+			Endpoint:  server.URL,
+			Transport: common.TransportWS,
+		}, handler)
+		require.NoError(t, err)
+
+		// Cancel the transport context
+		cancel()
+
+		// Subscriber should get a connection error
+		msg := receive(t, time.Second)
+		assert.Equal(t, common.MessageTypeConnectionError, msg.Type)
+	})
+}
+
 // Test helpers
 
 func newGraphQLWSServer(t *testing.T, handler func(ctx context.Context, conn *websocket.Conn)) *httptest.Server {

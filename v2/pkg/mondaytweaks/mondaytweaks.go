@@ -24,4 +24,12 @@ const (
 	// via a PathTypeField entry (HasPathWithFieldRef), i.e. planners that merely traverse
 	// through the field to reach a child.
 	SkipEntityResolutionPlannerCostForParentField = true
+
+	// CloseWSConnectionsOnContextCancel makes the WSTransport forcibly close all active
+	// WebSocket connections when its parent context is cancelled. Without this, the pingLoop
+	// exits on context cancellation but individual connections — whose readLoop blocks on
+	// protocol.Read(context.Background()) — stay alive indefinitely, pinning the entire
+	// object chain (WSTransport → SubscriptionClient → Factory → DataSources → PlanConfig →
+	// Executor → RouterSchema *ast.Document ~200MB) until the remote end closes the socket.
+	CloseWSConnectionsOnContextCancel = true
 )
