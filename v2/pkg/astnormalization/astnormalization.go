@@ -315,6 +315,26 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &cleanup,
 	})
 
+	// deferAlignTypenameScope and deferPopulateParentIds MUST be two separate
+	// walker stages, in this order — they cannot be merged onto one walker.
+	// deferAlignTypenameScope rewrites __typename defer ids during EnterField,
+	// while deferPopulateParentIds builds a whole-tree set of live defer ids in
+	// EnterDocument (collectExistingDeferIds) to detect stale parentDeferIds. On a
+	// shared walker every EnterDocument runs once, up front — before any field
+	// rewrite — so the liveness pre-scan would observe the pre-alignment tree and
+	// keep parents pointing at defer ids that alignment is about to remove (e.g. a
+	// defer whose only field was a now-stripped __typename). Running them as
+	// sequential stages guarantees the pre-scan sees the aligned tree.
+	if o.options.enableDefer {
+		alignTypename := astvisitor.NewWalkerWithID(8, "AlignDeferTypenameScope")
+		deferAlignTypenameScope(&alignTypename)
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:          "alignDeferTypenameScope",
+			walker:        &alignTypename,
+			skipCondition: func() bool { return !o.inlineDeferVisitor.hasDefers() },
+		})
+	}
+
 	if o.options.enableDefer {
 		populateParentIds := astvisitor.NewWalkerWithID(8, "PopulateDeferParentIds")
 		deferPopulateParentIds(&populateParentIds)

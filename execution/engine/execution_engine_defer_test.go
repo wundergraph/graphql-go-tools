@@ -1046,6 +1046,194 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		}, withStreamingResponse()))
 	})
 
+	t.Run("defer across three federated subgraphs - article reviews authors", func(t *testing.T) {
+		// Client-facing supergraph.
+		definition := `
+			type Query { article: Article }
+			type Article { id: ID! title: String! reviews: [Review!]! }
+			type Review { id: ID! author: Author! }
+			type Author { id: ID! displayName: String! }
+		`
+
+		schema, err := graphql.NewSchemaFromString(definition)
+		require.NoError(t, err)
+
+		// Subgraph 1: owns Query.article and Article.{id,title}.
+		articleSDL := `
+			type Query { article: Article }
+			type Article @key(fields: "id") { id: ID! title: String! }
+		`
+		articleDS := mustGraphqlDataSourceConfiguration(t,
+			"id-1",
+			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: false,
+				expectedHost: "first",
+				expectedPath: "/",
+				responses: map[string]sendResponse{
+					`{"query":"{article {id __typename}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"article":{"id":"a1","__typename":"Article"}}}`,
+					},
+					`{"query":"{article {title}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"article":{"title":"GraphQL Federation"}}}`,
+					},
+				},
+			})),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"article"}},
+					{TypeName: "Article", FieldNames: []string{"id", "title"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{TypeName: "Article", SelectionSet: "id"},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{URL: "https://first/", Method: "POST"},
+				SchemaConfiguration: mustSchemaConfig(t,
+					&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: articleSDL},
+					articleSDL,
+				),
+			}),
+		)
+
+		// Subgraph 2: extends Article with reviews, owns Review.{id,author}, Author stub.
+		reviewsSDL := `
+			type Article @key(fields: "id") { id: ID! reviews: [Review!]! }
+			type Review @key(fields: "id") { id: ID! author: Author! }
+			type Author @key(fields: "id") { id: ID! }
+		`
+		reviewsDS := mustGraphqlDataSourceConfiguration(t,
+			"id-2",
+			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: false,
+				expectedHost: "second",
+				expectedPath: "/",
+				responses: map[string]sendResponse{
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Article {__typename reviews {id __typename}}}}","variables":{"representations":[{"__typename":"Article","id":"a1"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"Article","reviews":[{"id":"r1","__typename":"Review"},{"id":"r2","__typename":"Review"}]}]}}`,
+					},
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Article {__typename reviews {author {__typename id __internal_id: id}}}}}","variables":{"representations":[{"__typename":"Article","id":"a1"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"Article","reviews":[{"author":{"__typename":"Author","id":"u1","__internal_id":"u1"}},{"author":{"__typename":"Author","id":"u2","__internal_id":"u2"}}]}]}}`,
+						// delay the author defer chain so the title defer (id 1)
+						// always completes first, giving deterministic frame order.
+						latency: 60 * time.Millisecond,
+					},
+					// nested case: the whole reviews subtree is deferred, so reviews
+					// (and the nested author key) are fetched in the defer.
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Article {__typename reviews {id author {__typename id __internal_id: id}}}}}","variables":{"representations":[{"__typename":"Article","id":"a1"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"Article","reviews":[{"id":"r1","author":{"__typename":"Author","id":"u1","__internal_id":"u1"}},{"id":"r2","author":{"__typename":"Author","id":"u2","__internal_id":"u2"}}]}]}}`,
+					},
+				},
+			})),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Article", FieldNames: []string{"id", "reviews"}},
+					{TypeName: "Review", FieldNames: []string{"id", "author"}},
+					{TypeName: "Author", FieldNames: []string{"id"}},
+				},
+				ChildNodes: []plan.TypeField{
+					{TypeName: "Review", FieldNames: []string{"id", "author"}},
+					{TypeName: "Author", FieldNames: []string{"id"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{TypeName: "Article", SelectionSet: "id"},
+						{TypeName: "Review", SelectionSet: "id"},
+						{TypeName: "Author", SelectionSet: "id"},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{URL: "https://second/", Method: "POST"},
+				SchemaConfiguration: mustSchemaConfig(t,
+					&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: reviewsSDL},
+					reviewsSDL,
+				),
+			}),
+		)
+
+		// Subgraph 3: extends Author with displayName.
+		authorsSDL := `
+			type Author @key(fields: "id") { id: ID! displayName: String! }
+		`
+		authorsDS := mustGraphqlDataSourceConfiguration(t,
+			"id-3",
+			mustFactory(t, testConditionalNetHttpClient(t, conditionalTestCase{
+				reportUnused: false,
+				expectedHost: "third",
+				expectedPath: "/",
+				responses: map[string]sendResponse{
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Author {__typename displayName}}}","variables":{"representations":[{"__typename":"Author","id":"u1"},{"__typename":"Author","id":"u2"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"Author","displayName":"Alice"},{"__typename":"Author","displayName":"Bob"}]}}`,
+					},
+				},
+			})),
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Author", FieldNames: []string{"id", "displayName"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{TypeName: "Author", SelectionSet: "id"},
+					},
+				},
+			},
+			mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{URL: "https://third/", Method: "POST"},
+				SchemaConfiguration: mustSchemaConfig(t,
+					&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: authorsSDL},
+					authorsSDL,
+				),
+			}),
+		)
+
+		dataSources := []plan.DataSource{articleDS, reviewsDS, authorsDS}
+
+		t.Run("defer title and nested author across subgraphs", runWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					Query: `{ article { id ... @defer { __typename title} reviews{ id ... @defer { __typename author{ __typename id displayName } } } } }`,
+				}
+			},
+			dataSources: dataSources,
+			// article.__typename and each review's __typename are eager (their
+			// objects are materialized in the initial response), so they appear in
+			// the initial data and a literal __typename is available for the entity
+			// jumps. title (defer 1) and author (defer 2, where author.__typename is
+			// legitimately deferred because author is materialized in the defer) are
+			// delivered incrementally.
+			expectedResponse: `{"data":{"article":{"id":"a1","__typename":"Article","reviews":[{"id":"r1","__typename":"Review"},{"id":"r2","__typename":"Review"}]}},"pending":[{"id":"1","path":["article"]},{"id":"2","path":["article","reviews"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"GraphQL Federation"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"author":{"__typename":"Author","id":"u1","displayName":"Alice"}},"id":"2","subPath":[0]},{"data":{"author":{"__typename":"Author","id":"u2","displayName":"Bob"}},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+
+		t.Run("typename inside a deferred entity subtree stays deferred", runWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					Query: `{ article { id ... @defer { reviews { id author { __typename id displayName } } } } }`,
+				}
+			},
+			dataSources: dataSources,
+			// reviews (and the nested author) are materialized inside the defer,
+			// so author.__typename legitimately stays in the defer scope and is
+			// delivered in the incremental frame, never eagerly.
+			expectedResponse: `{"data":{"article":{"id":"a1"}},"pending":[{"id":"1","path":["article"]}],"hasNext":true}
+{"incremental":[{"data":{"reviews":[{"id":"r1","author":{"__typename":"Author","id":"u1","displayName":"Alice"}},{"id":"r2","author":{"__typename":"Author","id":"u2","displayName":"Bob"}}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+	})
+
 	t.Run("cross subgraph requires", func(t *testing.T) {
 		// Merged schema visible to clients.
 		definition := `

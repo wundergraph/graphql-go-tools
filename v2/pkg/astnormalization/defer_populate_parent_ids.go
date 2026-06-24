@@ -50,6 +50,11 @@ func (v *deferPopulateParentIdsVisitor) EnterDocument(operation, _ *ast.Document
 // operation tree. It traverses selection sets rather than scanning d.Fields,
 // because field merging leaves orphaned Field entries that still carry a
 // now-removed defer directive and would otherwise look "alive".
+//
+// This runs in EnterDocument as a one-shot pre-scan, so it observes the tree as
+// it is when this stage starts. Any rule that rewrites defer ids (e.g.
+// deferAlignTypenameScope) must therefore run as an earlier, separate walker
+// stage — not on this walker — so its rewrites are visible here.
 func (v *deferPopulateParentIdsVisitor) collectExistingDeferIds() {
 	for i := range v.operation.RootNodes {
 		node := v.operation.RootNodes[i]

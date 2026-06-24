@@ -171,6 +171,34 @@ func TestNormalizeOperation(t *testing.T) {
 				}
 			}`, "", "")
 	})
+	t.Run("deferred __typename on initial entity becomes non-deferred", func(t *testing.T) {
+		// __typename is selected inside @defer on `article`, but `article` is
+		// materialized in the initial response. __typename must align to its
+		// object's (initial) scope so it stays a literal, non-deferred __typename
+		// (needed for type discrimination / entity representations). `title` keeps
+		// its defer.
+		run(t, `
+			type Query { article: Article }
+			type Article { id: ID! title: String! reviews: [Review!]! }
+			type Review { id: ID! }`, `
+			query Q {
+				article {
+					id
+					... @defer { __typename title }
+					reviews { id }
+				}
+			}`, `
+			query Q {
+				article {
+					id
+					__typename
+					title @__defer_internal(id: 1)
+					reviews {
+						id
+					}
+				}
+			}`, "", "")
+	})
 	t.Run("inject default", func(t *testing.T) {
 		run(t,
 			injectDefaultValueDefinition, `
