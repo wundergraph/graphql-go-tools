@@ -103,6 +103,74 @@ func TestNormalizeOperation(t *testing.T) {
 					disallowedSecondRootField
 				}`, "", "")
 	})
+
+	t.Run("defer parent ids preserved across merged and discarded scopes", func(t *testing.T) {
+		// A non-deferred user.info.address sits next to a top-level @defer wrapping
+		// the same user, which itself nests sibling and deeper defers. Field merging
+		// collapses the duplicated user/info/nestedInfo containers, relocating the
+		// deferred leaves under a single nestedInfo. Every defer id survives via its
+		// own uniquely-named leaf (a..d, phone, email), so every stamped parentDeferId
+		// still references a live defer and must be preserved unchanged.
+		run(t, `
+			type Query { user: User }
+			type User { info: Info }
+			type Info { address: String email: String phone: String nestedInfo: NestedInfo }
+			type NestedInfo { a: String b: String c: String d: String }`, `
+			query DeferUserTitle {
+				user {
+					info {
+						address
+					}
+				}
+				... @defer {
+					user {
+						info {
+							nestedInfo {
+								a
+							}
+						}
+						... @defer {
+							info {
+								nestedInfo {
+									b
+								}
+								... @defer {
+									nestedInfo {
+										c
+									}
+									phone
+								}
+							}
+						}
+						... @defer {
+							info {
+								email
+								... @defer {
+									nestedInfo {
+										d
+									}
+								}
+							}
+						}
+					}
+				}
+			}`, `
+			query DeferUserTitle {
+				user {
+					info {
+						address
+						nestedInfo @__defer_internal(id: 1) {
+							a @__defer_internal(id: 1)
+							b @__defer_internal(id: 2, parentDeferId: 1)
+							c @__defer_internal(id: 3, parentDeferId: 2)
+							d @__defer_internal(id: 5, parentDeferId: 4)
+						}
+						phone @__defer_internal(id: 3, parentDeferId: 2)
+						email @__defer_internal(id: 4, parentDeferId: 1)
+					}
+				}
+			}`, "", "")
+	})
 	t.Run("inject default", func(t *testing.T) {
 		run(t,
 			injectDefaultValueDefinition, `

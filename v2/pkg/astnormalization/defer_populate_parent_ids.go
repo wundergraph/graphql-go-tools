@@ -5,14 +5,21 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
-// deferPopulateParentIds derives the missing parentDeferId for every
-// @__defer_internal-stamped field after field merging. It must run after
-// deduplicateFields, because field merging can relocate a field from one
-// defer group's subtree into another selection set, so field parent may be lost
+var parentDeferIDArgName = []byte("parentDeferId")
+
+// deferPopulateParentIds finalizes the parentDeferId of every
+// @__defer_internal-stamped field after field merging.
 //
-// If parentDeferId is already set (written by the flatten step for genuinely
-// nested @defer fragments), it is left as-is: defers could be nested on the same object level
-// and we need to maintain order of rendering
+// parentDeferId is physical tree-ancestry: a deferred field must be parented to
+// the nearest enclosing deferred object so the resolver can traverse into it
+// (see resolve.isDeferAncestor). Field merging (deduplicateFields) can invalidate
+// the value stamped at expand time by removing the defer directive of an
+// ancestor, so this rule:
+//   - adds a missing parent from the nearest enclosing deferred ancestor,
+//   - keeps an existing parent that still references a live defer (this also
+//     preserves the delivery ordering of genuinely-nested defers),
+//   - repairs a stale parent (its defer id no longer exists in the document) to
+//     the nearest enclosing deferred ancestor, or removes it when there is none.
 func deferPopulateParentIds(walker *astvisitor.Walker) {
 	visitor := &deferPopulateParentIdsVisitor{Walker: walker}
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -27,13 +34,53 @@ type deferStackEntry struct {
 type deferPopulateParentIdsVisitor struct {
 	*astvisitor.Walker
 
-	operation  *ast.Document
-	deferStack []deferStackEntry
+	operation        *ast.Document
+	deferStack       []deferStackEntry
+	existingDeferIds map[int]struct{}
 }
 
 func (v *deferPopulateParentIdsVisitor) EnterDocument(operation, _ *ast.Document) {
 	v.operation = operation
 	v.deferStack = v.deferStack[:0]
+	v.existingDeferIds = make(map[int]struct{})
+	v.collectExistingDeferIds()
+}
+
+// collectExistingDeferIds records every defer id still reachable in the live
+// operation tree. It traverses selection sets rather than scanning d.Fields,
+// because field merging leaves orphaned Field entries that still carry a
+// now-removed defer directive and would otherwise look "alive".
+func (v *deferPopulateParentIdsVisitor) collectExistingDeferIds() {
+	for i := range v.operation.RootNodes {
+		node := v.operation.RootNodes[i]
+		if node.Kind != ast.NodeKindOperationDefinition {
+			continue
+		}
+		def := v.operation.OperationDefinitions[node.Ref]
+		if !def.HasSelections {
+			continue
+		}
+		v.collectFromSelectionSet(def.SelectionSet)
+	}
+}
+
+func (v *deferPopulateParentIdsVisitor) collectFromSelectionSet(setRef int) {
+	for _, selectionRef := range v.operation.SelectionSets[setRef].SelectionRefs {
+		selection := v.operation.Selections[selectionRef]
+		switch selection.Kind {
+		case ast.SelectionKindField:
+			if id, exists := v.operation.FieldInternalDeferID(selection.Ref); exists {
+				v.existingDeferIds[id] = struct{}{}
+			}
+			if ssRef, ok := v.operation.FieldSelectionSet(selection.Ref); ok {
+				v.collectFromSelectionSet(ssRef)
+			}
+		case ast.SelectionKindInlineFragment:
+			if ssRef, ok := v.operation.InlineFragmentSelectionSet(selection.Ref); ok {
+				v.collectFromSelectionSet(ssRef)
+			}
+		}
+	}
 }
 
 func (v *deferPopulateParentIdsVisitor) EnterField(ref int) {
@@ -42,14 +89,26 @@ func (v *deferPopulateParentIdsVisitor) EnterField(ref int) {
 		return
 	}
 
-	if len(v.deferStack) > 0 {
-		if enclosing := v.deferStack[len(v.deferStack)-1].id; enclosing != id {
-			// Skip if parentDeferId is already set
-			if _, alreadySet := v.operation.DirectiveArgumentValueByName(directiveRef, []byte("parentDeferId")); !alreadySet {
-				argRef := v.operation.AddIntArgument("parentDeferId", enclosing)
-				v.operation.Directives[directiveRef].Arguments.Refs = append(v.operation.Directives[directiveRef].Arguments.Refs, argRef)
-				v.operation.Directives[directiveRef].HasArguments = true
+	parentValue, parentSet := v.operation.DirectiveArgumentValueByName(directiveRef, parentDeferIDArgName)
+
+	switch {
+	case !parentSet:
+		// derive a missing parent from the nearest enclosing deferred ancestor
+		if len(v.deferStack) > 0 {
+			if enclosing := v.deferStack[len(v.deferStack)-1].id; enclosing != id {
+				v.setParentDeferID(directiveRef, enclosing)
 			}
+		}
+	case parentValue.Kind == ast.ValueKindInteger:
+		parentID := int(v.operation.IntValueAsInt(parentValue.Ref))
+		if _, live := v.existingDeferIds[parentID]; live {
+			break // still valid; keep as-is
+		}
+		// stale: parent defer was merged away or discarded during field merging
+		if enclosing, ok := v.nearestEnclosingDeferID(id); ok {
+			v.setParentDeferID(directiveRef, enclosing)
+		} else {
+			v.removeParentDeferID(directiveRef)
 		}
 	}
 
@@ -60,4 +119,29 @@ func (v *deferPopulateParentIdsVisitor) LeaveField(ref int) {
 	if len(v.deferStack) > 0 && v.deferStack[len(v.deferStack)-1].fieldRef == ref {
 		v.deferStack = v.deferStack[:len(v.deferStack)-1]
 	}
+}
+
+// nearestEnclosingDeferID returns the closest ancestor on the defer stack whose
+// id differs from currentID.
+func (v *deferPopulateParentIdsVisitor) nearestEnclosingDeferID(currentID int) (int, bool) {
+	for i := len(v.deferStack) - 1; i >= 0; i-- {
+		if v.deferStack[i].id != currentID {
+			return v.deferStack[i].id, true
+		}
+	}
+	return 0, false
+}
+
+// setParentDeferID sets parentDeferId to parentID, replacing any existing value.
+func (v *deferPopulateParentIdsVisitor) setParentDeferID(directiveRef, parentID int) {
+	v.removeParentDeferID(directiveRef)
+	argRef := v.operation.AddIntArgument("parentDeferId", parentID)
+	v.operation.Directives[directiveRef].Arguments.AddArgumentRef(argRef)
+	v.operation.Directives[directiveRef].HasArguments = true
+}
+
+// removeParentDeferID drops the parentDeferId argument from the directive if present.
+func (v *deferPopulateParentIdsVisitor) removeParentDeferID(directiveRef int) {
+	v.operation.Directives[directiveRef].Arguments.RemoveArgumentByName(v.operation, "parentDeferId")
+	v.operation.Directives[directiveRef].HasArguments = len(v.operation.Directives[directiveRef].Arguments.Refs) > 0
 }

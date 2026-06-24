@@ -726,6 +726,67 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
+			t.Run("merged/discarded defer parent", func(t *testing.T) {
+				t.Run("defer nested object fields inside discarded parent defer", runWithoutError(ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							OperationName: "DeferUserTitle",
+							Query: `
+							query DeferUserTitle {
+								user {
+									info {
+										email
+									}
+									... @defer {
+										info {
+											... @defer {
+												phone
+											}
+										}
+									}
+								}
+							}`,
+						}
+					},
+					dataSources: tc.dataSources,
+					expectedResponse: `{"data":{"user":{"info":{"email":"black@sabbat"}}},"pending":[{"id":"2","path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"phone":"123"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
+`,
+				}, withStreamingResponse()))
+
+				t.Run("defer nested object fields inside merged parent defer", runWithoutError(ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							OperationName: "DeferUserTitle",
+							Query: `
+							query DeferUserTitle {
+								user {
+									... @defer {
+										info {
+											email
+										}
+									}
+									... @defer {
+										info {
+											... @defer {
+												phone
+											}
+										}
+									}
+								}
+							}`,
+						}
+					},
+					dataSources: tc.dataSources,
+					expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]},{"id":"3","path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"info":{"email":"black@sabbat"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"phone":"123"},"id":"3"}],"completed":[{"id":"3"}],"hasNext":false}
+`,
+				}, withStreamingResponse()))
+			})
+
 			t.Run("extensive parallel defers across all possible fields", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -809,6 +870,181 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			}, withStreamingResponse()))
 		})
 	}
+
+	t.Run("defer parent ids across merged and discarded scopes", func(t *testing.T) {
+		definition := `
+			type Query {
+				user: User!
+			}
+			type User {
+				info: Info!
+			}
+			type Info {
+				address: String!
+				email: String!
+				phone: String!
+				nestedInfo: NestedInfo!
+			}
+			type NestedInfo {
+				a: String!
+				b: String!
+				c: String!
+				d: String!
+			}
+		`
+
+		schema, err := graphql.NewSchemaFromString(definition)
+		require.NoError(t, err)
+
+		dataSources := []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id-1",
+				mustFactory(t,
+					testConditionalNetHttpClient(t, conditionalTestCase{
+						reportUnused: false,
+						expectedHost: "first",
+						expectedPath: "/",
+						responses: map[string]sendResponse{
+							// initial response (non-deferred address)
+							`{"query":"{user {info {address}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"address":"Berlin"}}}}`,
+							},
+							// defer id 1 (root): nestedInfo { a }
+							`{"query":"{user {info {nestedInfo {a}}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"nestedInfo":{"a":"A"}}}}}`,
+								latency:    10 * time.Millisecond,
+							},
+							// defer id 2 (parent 1): nestedInfo { b }
+							`{"query":"{user {info {nestedInfo {b}}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"nestedInfo":{"b":"B"}}}}}`,
+								latency:    20 * time.Millisecond,
+							},
+							// defer id 3 (parent 2): nestedInfo { c } and phone
+							`{"query":"{user {info {nestedInfo {c} phone}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"nestedInfo":{"c":"C"},"phone":"123"}}}}`,
+								latency:    30 * time.Millisecond,
+							},
+							// defer id 4 (parent 1): email
+							`{"query":"{user {info {email}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
+								latency:    80 * time.Millisecond,
+							},
+							// defer id 5 (parent 4): nestedInfo { d }
+							`{"query":"{user {info {nestedInfo {d}}}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"user":{"info":{"nestedInfo":{"d":"D"}}}}}`,
+								latency:    90 * time.Millisecond,
+							},
+						},
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"user"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"info"},
+						},
+						{
+							TypeName:   "Info",
+							FieldNames: []string{"address", "email", "phone", "nestedInfo"},
+						},
+						{
+							TypeName:   "NestedInfo",
+							FieldNames: []string{"a", "b", "c", "d"},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://first/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: definition,
+						},
+						definition,
+					),
+				}),
+			),
+		}
+
+		t.Run("complex nested and sibling defers", runWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					OperationName: "DeferUserTitle",
+					Query: `
+					query DeferUserTitle {
+						user {
+							info {
+								address
+							}
+						}
+						... @defer {
+							user {
+								info {
+									nestedInfo {
+										a
+									}
+								}
+								... @defer {
+									info {
+										nestedInfo {
+											b
+										}
+										... @defer {
+											nestedInfo {
+												c
+											}
+											phone
+										}
+									}
+								}
+								... @defer {
+									info {
+										email
+										... @defer {
+											nestedInfo {
+												d
+											}
+										}
+									}
+								}
+							}
+						}
+					}`,
+				}
+			},
+			dataSources: dataSources,
+			// address is non-deferred (initial). The duplicated user/info/nestedInfo
+			// containers merge, relocating every deferred leaf under one nestedInfo,
+			// yet each defer id survives via its own leaf with a correct parent chain:
+			// 1(root) -> 2 -> 3 and 1 -> 4 -> 5. The parent chains let the resolver
+			// reach the deeply-merged fields (e.g. defer 2/3/5 traverse into the
+			// defer-1 nestedInfo object).
+			expectedResponse: `{"data":{"user":{"info":{"address":"Berlin"}}},"pending":[{"id":"1","path":["user","info"]},{"id":"2","path":["user","info","nestedInfo"]},{"id":"3","path":["user","info"]},{"id":"4","path":["user","info"]},{"id":"5","path":["user","info","nestedInfo"]}],"hasNext":true}
+{"incremental":[{"data":{"nestedInfo":{"a":"A"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+{"incremental":[{"data":{"b":"B"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
+{"incremental":[{"data":{"phone":"123"},"id":"3"},{"data":{"c":"C"},"id":"3","subPath":["nestedInfo"]}],"completed":[{"id":"3"}],"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat"},"id":"4"}],"completed":[{"id":"4"}],"hasNext":true}
+{"incremental":[{"data":{"d":"D"},"id":"5"}],"completed":[{"id":"5"}],"hasNext":false}
+`,
+		}, withStreamingResponse()))
+	})
 
 	t.Run("cross subgraph requires", func(t *testing.T) {
 		// Merged schema visible to clients.

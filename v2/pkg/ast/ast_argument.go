@@ -43,6 +43,23 @@ func (d *Document) CopyArgumentList(list ArgumentList) ArgumentList {
 	return ArgumentList{Refs: refs}
 }
 
+// AddArgumentRef appends an existing argument ref to the list. The caller is
+// responsible for updating the owner's HasArguments flag.
+func (l *ArgumentList) AddArgumentRef(argRef int) {
+	l.Refs = append(l.Refs, argRef)
+}
+
+// RemoveArgumentByName removes the first argument with the given name from the
+// list. The caller is responsible for updating the owner's HasArguments flag,
+func (l *ArgumentList) RemoveArgumentByName(document *Document, name string) {
+	for i := range l.Refs {
+		if document.ArgumentNameString(l.Refs[i]) == name {
+			l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
+			return
+		}
+	}
+}
+
 func (d *Document) PrintArgument(ref int, w io.Writer) error {
 	_, err := w.Write(d.Input.ByteSlice(d.Arguments[ref].Name))
 	if err != nil {
