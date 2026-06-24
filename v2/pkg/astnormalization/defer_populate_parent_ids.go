@@ -1,6 +1,8 @@
 package astnormalization
 
 import (
+	"slices"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
@@ -129,9 +131,9 @@ func (v *deferPopulateParentIdsVisitor) LeaveField(ref int) {
 // nearestEnclosingDeferID returns the closest ancestor on the defer stack whose
 // id differs from currentID.
 func (v *deferPopulateParentIdsVisitor) nearestEnclosingDeferID(currentID int) (int, bool) {
-	for i := len(v.deferStack) - 1; i >= 0; i-- {
-		if v.deferStack[i].id != currentID {
-			return v.deferStack[i].id, true
+	for _, v0 := range slices.Backward(v.deferStack) {
+		if v0.id != currentID {
+			return v0.id, true
 		}
 	}
 	return 0, false
