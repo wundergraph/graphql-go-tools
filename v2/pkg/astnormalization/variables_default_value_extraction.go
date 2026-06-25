@@ -155,11 +155,23 @@ func (v *variablesDefaultValueExtractionVisitor) LeaveOperationDefinition(ref in
 	}
 }
 
+func (v *variablesDefaultValueExtractionVisitor) isValidTypeRef(ref int) bool {
+	return ref >= 0 && ref < len(v.definition.Types)
+}
+
 func (v *variablesDefaultValueExtractionVisitor) traverseValue(value ast.Value, defTypeRef int) {
+	if !v.isValidTypeRef(defTypeRef) {
+		return
+	}
+
 	switch value.Kind {
 	case ast.ValueKindVariable:
 		v.saveArgumentsWithTypeNotNull(value.Ref, defTypeRef)
 	case ast.ValueKindList:
+		if !v.definition.TypeIsList(defTypeRef) {
+			return
+		}
+
 		for _, ref := range v.operation.ListValues[value.Ref].Refs {
 			listValue := v.operation.Value(ref)
 			if !v.operation.ValueContainsVariable(listValue) {
@@ -172,7 +184,15 @@ func (v *variablesDefaultValueExtractionVisitor) traverseValue(value ast.Value, 
 				listTypeRef = v.definition.Types[listTypeRef].OfType
 			}
 
+			if !v.isValidTypeRef(listTypeRef) || !v.definition.TypeIsList(listTypeRef) {
+				continue
+			}
+
 			listItemType := v.definition.Types[listTypeRef].OfType
+			if !v.isValidTypeRef(listItemType) {
+				continue
+			}
+
 			v.traverseValue(listValue, listItemType)
 		}
 	case ast.ValueKindObject:
@@ -198,6 +218,10 @@ func (v *variablesDefaultValueExtractionVisitor) traverseValue(value ast.Value, 
 }
 
 func (v *variablesDefaultValueExtractionVisitor) saveArgumentsWithTypeNotNull(operationVariableValueRef, defTypeRef int) {
+	if !v.isValidTypeRef(defTypeRef) {
+		return
+	}
+
 	if v.definition.Types[defTypeRef].TypeKind != ast.TypeKindNonNull {
 		return
 	}
