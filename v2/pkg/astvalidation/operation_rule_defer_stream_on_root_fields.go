@@ -90,7 +90,7 @@ func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 	isRootLevel := false
 
 	switch ancestor.Kind {
-	case ast.NodeKindInlineFragment:
+	case ast.NodeKindInlineFragment, ast.NodeKindFragmentSpread:
 		// For inline fragments with @defer, check if it's directly in the operation's selection set
 		// At root level, ancestors should be: [OperationDefinition, SelectionSet, InlineFragment]
 		// For nested: [OperationDefinition, SelectionSet, Field, ..., SelectionSet, InlineFragment]
@@ -98,7 +98,7 @@ func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 			// Check if pattern is [OperationDefinition, SelectionSet, InlineFragment]
 			if d.Ancestors[0].Kind == ast.NodeKindOperationDefinition &&
 				d.Ancestors[1].Kind == ast.NodeKindSelectionSet &&
-				d.Ancestors[2].Kind == ast.NodeKindInlineFragment {
+				(d.Ancestors[2].Kind == ast.NodeKindInlineFragment || d.Ancestors[2].Kind == ast.NodeKindFragmentSpread) {
 				isRootLevel = true
 			}
 		}

@@ -4719,7 +4719,7 @@ type Query {
 					}
 					fragment rootFragment on Mutation {
 						extras { string }
-					}`)
+					}`, `directive "@defer" is not allowed on root fields of mutation operations`)
 			})
 
 			t.Run("non-defer inline fragment spread on root mutation field", func(t *testing.T) {
