@@ -190,7 +190,7 @@ func TestOrderSquenceByDependencies_ProcessFetchTree(t *testing.T) {
 		processor.ProcessFetchTree(seq)
 		got := sequenceToDeps(seq)
 		require.Len(t, got, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			require.Equal(t, i, got[i].FetchID, "node at position %d should be fetchID %d", i, i)
 		}
 	})

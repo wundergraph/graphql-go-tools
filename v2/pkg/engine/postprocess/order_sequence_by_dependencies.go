@@ -16,15 +16,15 @@ func (o *orderSequenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNo
 		return
 	}
 	// Precompute, once per call, a fetchID->node index so dependency resolution
-	// no longer needs an O(N) linear scan of root.ChildNodes per lookup.
+	// looks up nodes in O(1) instead of scanning root.ChildNodes per lookup.
 	nodeByID := make(map[int]*resolve.FetchTreeNode, len(root.ChildNodes))
 	for _, node := range root.ChildNodes {
 		nodeByID[o.nodeFetchID(node)] = node
 	}
 	// deps caches, per fetch ID, the recursively-resolved transitive dependency
-	// set (sorted, deduped, excluding the node's own ID). Computing this once with
-	// a memoized DFS turns what used to be an O(2^N) recursion (re-derived twice
-	// per comparison inside SortFunc) into O(N+E).
+	// set (sorted, deduped, excluding the node's own ID). A memoized DFS computes
+	// each set once and the SortFunc comparator reads the cache, so transitive sets
+	// are never re-derived per comparison.
 	deps := make(map[int][]int, len(root.ChildNodes))
 	inProgress := make(map[int]bool, len(root.ChildNodes))
 	var resolveDeps func(id int) []int
@@ -37,9 +37,8 @@ func (o *orderSequenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNo
 			return nil
 		}
 		inProgress[id] = true
-		// matches the old nodeDependsOn: each direct dep is included even when the
-		// dependency node is absent from the tree (the dep was appended before the
-		// nil-check), and its transitive deps are unioned in when it is present.
+		// each direct dep is included even when the dependency node is absent from
+		// the tree; its transitive deps are unioned in only when the node is present.
 		var direct []int
 		if node := nodeByID[id]; node != nil {
 			direct = node.Item.Fetch.Dependencies().DependsOnFetchIDs
