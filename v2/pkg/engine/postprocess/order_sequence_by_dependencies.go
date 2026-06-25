@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/mondaytweaks"
 )
 
 // orderSequenceByDependencies is a postprocessor that orders the fetch tree nodes by their dependencies.
@@ -15,6 +16,98 @@ func (o *orderSequenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNo
 	if o.disable {
 		return
 	}
+	if mondaytweaks.MemoizeFetchDependencyOrdering {
+		o.processFetchTreeMemoized(root)
+		return
+	}
+	o.processFetchTreeRecursive(root)
+}
+
+// processFetchTreeMemoized orders the fetch tree using a precomputed, memoized transitive
+// dependency map. It is the monday.com fast path gated by
+// mondaytweaks.MemoizeFetchDependencyOrdering.
+func (o *orderSequenceByDependencies) processFetchTreeMemoized(root *resolve.FetchTreeNode) {
+	// Precompute, once per call, a fetchID->node index so dependency resolution
+	// looks up nodes in O(1) instead of scanning root.ChildNodes per lookup.
+	nodeByID := make(map[int]*resolve.FetchTreeNode, len(root.ChildNodes))
+	for _, node := range root.ChildNodes {
+		nodeByID[o.nodeFetchID(node)] = node
+	}
+	// deps caches, per fetch ID, the recursively-resolved transitive dependency
+	// set (sorted, deduped, excluding the node's own ID). A memoized DFS computes
+	// each set once and the SortFunc comparator reads the cache, so transitive sets
+	// are never re-derived per comparison.
+	deps := make(map[int][]int, len(root.ChildNodes))
+	inProgress := make(map[int]bool, len(root.ChildNodes))
+	var resolveDeps func(id int) []int
+	resolveDeps = func(id int) []int {
+		if cached, ok := deps[id]; ok {
+			return cached
+		}
+		if inProgress[id] {
+			// cycle guard; fetch trees are expected to be DAGs
+			return nil
+		}
+		inProgress[id] = true
+		// each direct dep is included even when the dependency node is absent from
+		// the tree; its transitive deps are unioned in only when the node is present.
+		// This mirrors the recursive path's nodeDependsOn, which appends the dep
+		// before its nil-check.
+		var direct []int
+		if node := nodeByID[id]; node != nil {
+			direct = node.Item.Fetch.Dependencies().DependsOnFetchIDs
+		}
+		seen := make(map[int]struct{}, len(direct))
+		for _, dep := range direct {
+			seen[dep] = struct{}{}
+			for _, t := range resolveDeps(dep) {
+				seen[t] = struct{}{}
+			}
+		}
+		result := make([]int, 0, len(seen))
+		for d := range seen {
+			result = append(result, d)
+		}
+		slices.Sort(result)
+		inProgress[id] = false
+		deps[id] = result
+		return result
+	}
+	for id := range nodeByID {
+		resolveDeps(id)
+	}
+	slices.SortFunc(root.ChildNodes, func(_a, _b *resolve.FetchTreeNode) int {
+		// get the fetch IDs of both nodes
+		a, b := o.nodeFetchID(_a), o.nodeFetchID(_b)
+		// for each node, the precomputed transitive dependency set
+		// this means that if a node depends on ID 1 and 2, and 2 depends on 3, the result will be [1, 2, 3]
+		aDeps, bDeps := deps[a], deps[b]
+		// if both nodes have the exact same dependencies, the node with the lower fetch ID should come first
+		if slices.Equal(aDeps, bDeps) {
+			return a - b
+		}
+		// if b's dependencies contain a, or in other words, b depends on a, a should come first
+		if slices.Contains(bDeps, a) {
+			return -1
+		}
+		// if a's dependencies contain b, or in other words, a depends on b, b should come first
+		if slices.Contains(aDeps, b) {
+			return 1
+		}
+		// both nodes have different dependencies, which might overlap, but they don't depend on each other
+		// if both nodes have the same number of dependencies, the node with the lower fetch ID should come first
+		if len(aDeps) == len(bDeps) {
+			return a - b
+		}
+		// the node with fewer dependencies should come first
+		return len(aDeps) - len(bDeps)
+	})
+}
+
+// processFetchTreeRecursive is the original upstream implementation, kept as the fallback
+// when mondaytweaks.MemoizeFetchDependencyOrdering is disabled. It recomputes a node's
+// transitive dependencies on every comparison and is O(2^N) on densely-connected trees.
+func (o *orderSequenceByDependencies) processFetchTreeRecursive(root *resolve.FetchTreeNode) {
 	slices.SortFunc(root.ChildNodes, func(_a, _b *resolve.FetchTreeNode) int {
 		// get the fetch IDs of both nodes
 		a, b := o.nodeFetchID(_a), o.nodeFetchID(_b)

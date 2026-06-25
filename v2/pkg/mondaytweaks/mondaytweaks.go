@@ -32,4 +32,20 @@ const (
 	// object chain (WSTransport → SubscriptionClient → Factory → DataSources → PlanConfig →
 	// Executor → RouterSchema *ast.Document ~200MB) until the remote end closes the socket.
 	CloseWSConnectionsOnContextCancel = true
+
+	// MemoizeFetchDependencyOrdering switches orderSequenceByDependencies.ProcessFetchTree
+	// to a memoized fetch-ordering algorithm. The upstream implementation sorts fetch-tree
+	// nodes with slices.SortFunc and calls nodeDependsOn twice per comparison; nodeDependsOn
+	// recurses with no memoization and looks up nodes via an O(N) linear scan of
+	// root.ChildNodes. For densely-connected fetch trees — the aliased-mutation shape where
+	// fetch i depends on [0..i-1] — this is O(2^N) and dominates planning CPU (prod
+	// ap-southeast-2 saw 28-31 aliased delete_webhook mutations at 200-993ms of pure
+	// planning each).
+	//
+	// With this fix, ProcessFetchTree precomputes once per call a fetchID->node index and a
+	// memoized transitive-dependency map (memoized DFS, in-progress set guards cycles); the
+	// comparator reads the precomputed sets. The comparator logic is byte-identical to the
+	// upstream path, so output ordering is unchanged. When this flag is false the original
+	// recursive path runs unchanged.
+	MemoizeFetchDependencyOrdering = true
 )
