@@ -571,6 +571,20 @@ func (v *Visitor) LeaveField(fieldRef int) {
 		return
 	}
 
+	// Currently, it should happen only for a Subscription.__typename
+	// because there is no definition of __typename for a Subscription type,
+	// as it is prohibited by spec
+	fieldDefinitionRef, ok := v.Walker.FieldDefinition(fieldRef)
+	if !ok {
+		return
+	}
+
+	if len(v.fieldStack) == 0 {
+		// if enter field returned earlier due to problem
+		// there will be no stacks populated
+		return
+	}
+
 	v.assignDefer(fieldRef)
 
 	// remove the current field from the current fields stack
@@ -580,10 +594,7 @@ func (v *Visitor) LeaveField(fieldRef int) {
 	if v.objectFieldsStack[len(v.objectFieldsStack)-1].popOnField == fieldRef {
 		v.objectFieldsStack = v.objectFieldsStack[:len(v.objectFieldsStack)-1]
 	}
-	fieldDefinitionRef, ok := v.Walker.FieldDefinition(fieldRef)
-	if !ok {
-		return
-	}
+
 	fieldDefinitionTypeNode := v.Definition.FieldDefinitionTypeNode(fieldDefinitionRef)
 	switch fieldDefinitionTypeNode.Kind {
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
