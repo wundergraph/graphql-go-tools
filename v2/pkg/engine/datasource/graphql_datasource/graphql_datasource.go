@@ -753,6 +753,58 @@ func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, field
 	for _, arg := range importedArgs {
 		p.upstreamOperation.AddArgumentToField(upstreamFieldRef, arg)
 	}
+	for _, arg := range p.visitor.Operation.FieldArguments(fieldRef) {
+		p.addVariableDefinitionsForRawArgumentValue(p.visitor.Operation.Arguments[arg].Value)
+	}
+}
+
+func (p *Planner[T]) addVariableDefinitionsForRawArgumentValue(value ast.Value) {
+	switch value.Kind {
+	case ast.ValueKindObject:
+		for _, objectFieldRef := range p.visitor.Operation.ObjectValues[value.Ref].Refs {
+			p.addVariableDefinitionsForRawArgumentValue(p.visitor.Operation.ObjectFields[objectFieldRef].Value)
+		}
+		return
+	case ast.ValueKindList:
+		for _, valueRef := range p.visitor.Operation.ListValues[value.Ref].Refs {
+			p.addVariableDefinitionsForRawArgumentValue(p.visitor.Operation.Values[valueRef])
+		}
+		return
+	case ast.ValueKindVariable:
+	default:
+		return
+	}
+
+	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
+	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
+	variableDefinition, exists := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
+	if !exists {
+		return
+	}
+
+	variableDefinitionTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
+	variableDefinitionTypeName := p.visitor.Operation.ResolveTypeNameString(variableDefinitionTypeRef)
+	variableDefinitionTypeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(variableDefinitionTypeName)
+
+	contextVariable := &resolve.ContextVariable{
+		Path:     []string{variableNameStr},
+		Renderer: resolve.NewJSONVariableRenderer(),
+	}
+	contextVariableName, variableExists := p.variables.AddVariable(contextVariable)
+	if variableExists {
+		return
+	}
+
+	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation, variableDefinitionTypeName)
+	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
+
+	if add, ok := p.addDirectivesToVariableDefinitions[variableDefinition]; ok {
+		for _, directive := range add {
+			p.addDirectiveToNode(directive, ast.Node{Kind: ast.NodeKindVariableDefinition, Ref: variableDefinition})
+		}
+	}
+
+	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
 func (p *Planner[T]) addCustomField(ref int) (upstreamFieldRef int) {
