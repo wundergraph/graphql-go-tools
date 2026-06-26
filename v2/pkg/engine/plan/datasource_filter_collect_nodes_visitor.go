@@ -577,6 +577,12 @@ func (f *collectNodesDSVisitor) isProvidedField(info fieldInfo) bool {
 		return ok
 	}
 
+	if info.onInterfaceFragment {
+		if _, ok := f.providesEntries[providedFieldKey(info.typeName, info.fieldName, info.currentPathWithoutFragments)]; ok {
+			return true
+		}
+	}
+
 	if info.enclosingTypeDefinition.Kind != ast.NodeKindObjectTypeDefinition {
 		return false
 	}

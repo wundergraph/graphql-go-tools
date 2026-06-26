@@ -221,15 +221,41 @@ func (f *DataSourceFilter) fullRequestedUnionMemberTypeNames(itemID int, unionDe
 	}
 
 	existingMembers := f.abstractFieldRequestedMembers[item.Path]
-	if len(existingMembers) > len(requestedMembers) {
+	if containsAllUnionMembers(existingMembers, requestedMembers) {
 		return existingMembers
 	}
 
-	if len(requestedMembers) > len(existingMembers) {
+	if containsAllUnionMembers(requestedMembers, existingMembers) {
 		f.abstractFieldRequestedMembers[item.Path] = requestedMembers
+		return requestedMembers
 	}
 
-	return requestedMembers
+	mergedMembers := mergeUnionMembers(existingMembers, requestedMembers)
+	f.abstractFieldRequestedMembers[item.Path] = mergedMembers
+	return mergedMembers
+}
+
+func containsAllUnionMembers(haystack, needles []string) bool {
+	if len(needles) == 0 {
+		return true
+	}
+	for _, needle := range needles {
+		if !slices.Contains(haystack, needle) {
+			return false
+		}
+	}
+	return true
+}
+
+func mergeUnionMembers(existing, requested []string) []string {
+	merged := make([]string, 0, len(existing)+len(requested))
+	merged = append(merged, existing...)
+	for _, typeName := range requested {
+		if !slices.Contains(merged, typeName) {
+			merged = append(merged, typeName)
+		}
+	}
+	return merged
 }
 
 func (f *DataSourceFilter) fieldReturnsUnionType(itemID int) (unionDefRef int, ok bool) {
