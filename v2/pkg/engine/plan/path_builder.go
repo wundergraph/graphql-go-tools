@@ -216,7 +216,7 @@ func (p *PathBuilder) fieldReturnsAbstractType(path *pathConfiguration) bool {
 
 func (p *PathBuilder) hasProvidedSuggestionForPath(path *pathConfiguration) bool {
 	for _, suggestion := range p.visitor.nodeSuggestions.items {
-		if suggestion.Path == path.path && suggestion.FieldRef == path.fieldRef && suggestion.IsProvided {
+		if suggestion.Path == path.path && suggestion.FieldRef == path.fieldRef && suggestion.IsProvided && !suggestion.IsOrphan {
 			return true
 		}
 	}
