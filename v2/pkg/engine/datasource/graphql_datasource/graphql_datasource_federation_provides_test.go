@@ -3,6 +3,8 @@ package graphql_datasource
 import (
 	"testing"
 
+	"github.com/wundergraph/astjson"
+
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -442,4 +444,213 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 		})
 
 	})
+}
+
+func TestGraphQLDataSourceFederation_ProvidesFieldSetOverUnionTypedField(t *testing.T) {
+	definition := `
+		type Query {
+			media: [Media]
+		}
+
+		union Media = Book | Movie
+
+		type Book {
+			id: ID!
+			title: String!
+		}
+
+		type Movie {
+			id: ID!
+		}
+	`
+
+	service1SDL := `
+		type Query {
+			media: [Media] @shareable @provides(fields: "... on Book { title }")
+		}
+
+		union Media = Book | Movie
+
+		type Book @key(fields: "id") {
+			id: ID!
+			title: String! @external
+		}
+
+		type Movie @key(fields: "id") {
+			id: ID!
+		}
+	`
+
+	service1DataSourceConfig := mustDataSourceConfiguration(
+		t,
+		"service1",
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"media"}},
+				{TypeName: "Book", FieldNames: []string{"id"}, ExternalFieldNames: []string{"title"}},
+				{TypeName: "Movie", FieldNames: []string{"id"}},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Book", SelectionSet: "id"},
+					{TypeName: "Movie", SelectionSet: "id"},
+				},
+				Provides: plan.FederationFieldConfigurations{
+					{TypeName: "Query", FieldName: "media", SelectionSet: "... on Book { title }"},
+				},
+			},
+		},
+		mustCustomConfiguration(t,
+			ConfigurationInput{
+				Fetch: &FetchConfiguration{
+					URL: "http://service1",
+				},
+				SchemaConfiguration: mustSchema(t,
+					&FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: service1SDL,
+					},
+					service1SDL,
+				),
+			},
+		),
+	)
+
+	service2SDL := `
+		type Query {
+			_empty: String
+		}
+
+		type Book @key(fields: "id") {
+			id: ID!
+			title: String!
+		}
+
+		type Movie @key(fields: "id") {
+			id: ID!
+		}
+	`
+
+	service2DataSourceConfig := mustDataSourceConfiguration(
+		t,
+		"service2",
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"_empty"}},
+				{TypeName: "Book", FieldNames: []string{"id", "title"}},
+				{TypeName: "Movie", FieldNames: []string{"id"}},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Book", SelectionSet: "id"},
+					{TypeName: "Movie", SelectionSet: "id"},
+				},
+			},
+		},
+		mustCustomConfiguration(t,
+			ConfigurationInput{
+				Fetch: &FetchConfiguration{
+					URL: "http://service2",
+				},
+				SchemaConfiguration: mustSchema(t,
+					&FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: service2SDL,
+					},
+					service2SDL,
+				),
+			},
+		),
+	)
+
+	planConfiguration := plan.Configuration{
+		DisableResolveFieldPositions: true,
+		DataSources: []plan.DataSource{
+			service1DataSourceConfig,
+			service2DataSourceConfig,
+		},
+	}
+
+	t.Run("query provided union member field inline", RunTest(
+		definition,
+		`
+			query ProvidesUnion {
+				media {
+					... on Book {
+						id
+						title
+					}
+					... on Movie {
+						id
+					}
+				}
+			}
+		`,
+		"ProvidesUnion",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Fetches: resolve.Sequence(resolve.Single(&resolve.SingleFetch{
+					FetchConfiguration: resolve.FetchConfiguration{
+						Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {id title} ... on Movie {id}}}"}}`,
+						DataSource: &Source{},
+						PostProcessing: resolve.PostProcessingConfiguration{
+							SelectResponseDataPath:   []string{"data"},
+							SelectResponseErrorsPath: []string{"errors"},
+						},
+					},
+					FetchDependencies: resolve.FetchDependencies{
+						FetchID: 0,
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+				})),
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("media"),
+							Value: &resolve.Array{
+								Path:     []string{"media"},
+								Nullable: true,
+								Item: &resolve.Object{
+									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"Book":  {},
+										"Movie": {},
+									},
+									TypeName: "Media",
+									Fields: []*resolve.Field{
+										{
+											Name:        []byte("id"),
+											OnTypeNames: [][]byte{[]byte("Book")},
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name:        []byte("title"),
+											OnTypeNames: [][]byte{[]byte("Book")},
+											Value: &resolve.String{
+												Path: []string{"title"},
+											},
+										},
+										{
+											Name:        []byte("id"),
+											OnTypeNames: [][]byte{[]byte("Movie")},
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+										},
+									},
+								},
+								SkipItem: func(ctx *resolve.Context, arrayItem *astjson.Value) bool {
+									return false
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		planConfiguration,
+		WithDefaultPostProcessor(),
+	))
 }

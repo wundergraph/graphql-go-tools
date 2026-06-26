@@ -460,7 +460,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return nil
 	}
 
-	_, isProvided := f.providesEntries[providedFieldKey(info.typeName, info.fieldName, info.currentPath)]
+	isProvided := f.isProvidedField(info)
 
 	if info.isTypeName && f.isInterfaceObject(info.typeName) {
 		// we should not add a typename on the interface object
@@ -530,6 +530,19 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 	return nil
 }
 
+func (f *collectNodesDSVisitor) isProvidedField(info fieldInfo) bool {
+	if _, ok := f.providesEntries[providedFieldKey(info.typeName, info.fieldName, info.currentPath)]; ok {
+		return true
+	}
+
+	if !info.onUnionFragment || info.currentPath == info.currentPathWithoutFragments {
+		return false
+	}
+
+	_, ok := f.providesEntries[providedFieldKey(info.typeName, info.fieldName, info.currentPathWithoutFragments)]
+	return ok
+}
+
 func (f *collectNodesDSVisitor) applySuggestions() {
 	// copy local suggestions to the global nodes suggestions
 	for _, suggestion := range f.localSuggestions {
@@ -570,7 +583,7 @@ func IsMutationOrQueryRootType(typeName string) bool {
 
 type fieldInfo struct {
 	typeName, fieldName, fieldAliasOrName, parentPath, currentPath string
-	onFragment, isTypeName                                         bool
+	onFragment, onUnionFragment, isTypeName                        bool
 	parentPathWithoutFragment                                      string
 	possibleTypeNames                                              []string
 	currentPathWithoutFragments                                    string
@@ -594,6 +607,7 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
 	onFragment := f.walker.Path.EndsWithFragment()
+	onUnionFragment := f.isOnUnionFragment()
 	parentPathWithoutFragment := f.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
 
 	currentPath := fmt.Sprintf("%s.%s", parentPath, fieldAliasOrName)
@@ -607,9 +621,23 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 		parentPath:                  parentPath,
 		currentPath:                 currentPath,
 		onFragment:                  onFragment,
+		onUnionFragment:             onUnionFragment,
 		parentPathWithoutFragment:   parentPathWithoutFragment,
 		currentPathWithoutFragments: currentPathWithoutFragments,
 		isTypeName:                  isTypeName,
 		enclosingTypeDefinition:     f.walker.EnclosingTypeDefinition,
 	}
+}
+
+func (f *treeBuilderVisitor) isOnUnionFragment() bool {
+	if f.walker.ResolveInlineFragment() == ast.InvalidRef {
+		return false
+	}
+
+	if len(f.walker.TypeDefinitions) < 2 {
+		return false
+	}
+
+	parentTypeDefinition := f.walker.TypeDefinitions[len(f.walker.TypeDefinitions)-2]
+	return parentTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
 }
