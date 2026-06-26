@@ -4646,8 +4646,7 @@ type Query {
 			})
 		})
 
-		t.Run("on operations", func(t *testing.T) {
-			// on queries
+		t.Run("on queries", func(t *testing.T) {
 			t.Run("defer inline fragment spread on root query field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 				query {
@@ -4692,9 +4691,10 @@ type Query {
 						extras @stream { string }
 					}`)
 			})
+		})
 
-			// on mutations
-			t.Run("defer inline fragment spread on root mutation field", func(t *testing.T) {
+		t.Run("on mutations", func(t *testing.T) {
+			t.Run("invalid defer inline fragment spread on root mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						... @defer {
@@ -4702,7 +4702,7 @@ type Query {
 						}
 					}`, `directive "@defer" is not allowed on root fields of mutation operations`)
 			})
-			t.Run("defer fragment spread on nested mutation field", func(t *testing.T) {
+			t.Run("valid defer fragment spread on nested mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						mutateDog {
@@ -4712,7 +4712,7 @@ type Query {
 						}
 					}`)
 			})
-			t.Run("defer fragment spread on root mutation field", func(t *testing.T) {
+			t.Run("invalid defer fragment spread on root mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						...rootFragment @defer
@@ -4722,7 +4722,7 @@ type Query {
 					}`, `directive "@defer" is not allowed on root fields of mutation operations`)
 			})
 
-			t.Run("non-defer inline fragment spread on root mutation field", func(t *testing.T) {
+			t.Run("valid disabled defer inline fragment spread on root mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						... @defer (if: false) {
@@ -4730,20 +4730,95 @@ type Query {
 						}
 					}`)
 			})
-			t.Run("stream field on root mutation field", func(t *testing.T) {
+			t.Run("invalid stream field on root mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						mutateDogs @stream { name }
 					}`, `directive "@stream" is not allowed on root fields of mutation operations`)
 			})
-			t.Run("disabled stream on root mutation field", func(t *testing.T) {
+			t.Run("valid disabled stream on root mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						mutateDogs @stream (if: false) { name }
 					}`)
 			})
 
-			// on subscriptions
+			// extra cases with fragments
+
+			t.Run("valid stream on field nested via fragment spread", func(t *testing.T) {
+				// equivalent after inlining to `mutation { mutateDog { extras @stream {...} } }`
+				runNormalizationPrevalidation(t, `
+					mutation {
+						mutateDog {
+							...frag
+						}
+					}
+					fragment frag on Dog { extras @stream { string } }`)
+			})
+			t.Run("valid defer on inline fragment nested via fragment spread", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						mutateDog {
+							...frag
+						}
+					}
+					fragment frag on Dog { ... @defer { extras { string } } }`)
+			})
+			t.Run("valid defer on a fragment spread that is itself nested under a field", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						mutateDog {
+							...frag @defer
+						}
+					}
+					fragment frag on Dog { name }`)
+			})
+
+			t.Run("invalid stream on field at top of root fragment spread", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						...rootFrag
+					}
+					fragment rootFrag on Mutation { mutateDogs @stream { name } }`,
+					`directive "@stream" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("invalid defer on inline fragment at top of root fragment spread", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						...rootFrag
+					}
+					fragment rootFrag on Mutation { ... @defer { mutateDog { name } } }`,
+					`directive "@defer" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("invalid stream on field via transitive root fragment spreads", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						...a
+					}
+					fragment a on Mutation { ...b }
+					fragment b on Mutation { mutateDogs @stream { name } }`,
+					`directive "@stream" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("invalid defer on inline fragment via transitive root fragment spreads", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						...a
+					}
+					fragment a on Mutation { ...b }
+					fragment b on Mutation { ... @defer { mutateDog { name } } }`,
+					`directive "@defer" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("valid defer on deep inline fragment via transitive root fragment spreads", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						...a
+					}
+					fragment a on Mutation { ...b }
+					fragment b on Mutation { mutateDog { ... @defer { name } } }`)
+			})
+		})
+
+		t.Run("on subscriptions", func(t *testing.T) {
 			t.Run("defer inline fragment spread on root subscription field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					subscription {

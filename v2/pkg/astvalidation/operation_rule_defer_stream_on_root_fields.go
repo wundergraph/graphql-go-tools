@@ -83,37 +83,29 @@ func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 	if len(d.Ancestors) == 0 {
 		return
 	}
-	// The directive's immediate parent (the node it's attached to)
-	ancestor := d.Ancestors[len(d.Ancestors)-1]
 
-	// Determine if this is a root level directive
+	// For mutations, @defer/@stream are only disallowed on root fields.
+	selectionSetCount := 0
+	for _, a := range d.Ancestors {
+		if a.Kind == ast.NodeKindSelectionSet {
+			selectionSetCount++
+		}
+	}
+	// More than one selection set means the directive is nested below a field.
+	if selectionSetCount != 1 {
+		return
+	}
+
 	isRootLevel := false
-
-	switch ancestor.Kind {
-	case ast.NodeKindInlineFragment, ast.NodeKindFragmentSpread:
-		// For inline fragments with @defer, check if it's directly in the operation's selection set
-		// At root level, ancestors should be: [OperationDefinition, SelectionSet, InlineFragment]
-		// For nested: [OperationDefinition, SelectionSet, Field, ..., SelectionSet, InlineFragment]
-		if len(d.Ancestors) == 3 {
-			// Check if pattern is [OperationDefinition, SelectionSet, InlineFragment]
-			if d.Ancestors[0].Kind == ast.NodeKindOperationDefinition &&
-				d.Ancestors[1].Kind == ast.NodeKindSelectionSet &&
-				(d.Ancestors[2].Kind == ast.NodeKindInlineFragment || d.Ancestors[2].Kind == ast.NodeKindFragmentSpread) {
-				isRootLevel = true
-			}
-		}
-	case ast.NodeKindField:
-		// For fields with @stream, check if we're directly in the operation's selection set
-		// Count how many SelectionSets we've traversed (depth of nesting)
-		// A root-level field has only one SelectionSet ancestor (the operation's selection set)
-		selectionSetCount := 0
-		for _, a := range d.Ancestors {
-			if a.Kind == ast.NodeKindSelectionSet {
-				selectionSetCount++
-			}
-		}
-		// If there's only one SelectionSet in the ancestor chain, we're at root level
-		isRootLevel = selectionSetCount == 1
+	switch root := d.Ancestors[0]; root.Kind {
+	case ast.NodeKindOperationDefinition:
+		// Directly inside the (mutation) operation's selection set.
+		isRootLevel = true
+	case ast.NodeKindFragmentDefinition:
+		// A fragment defined on the mutation root type contributes the
+		// operation's root fields when spread at the operation root.
+		typeName := d.operation.FragmentDefinitionTypeName(root.Ref)
+		isRootLevel = bytes.Equal(typeName, d.definition.Index.MutationTypeName)
 	}
 
 	// For mutations, @defer and @stream are not allowed on root fields
