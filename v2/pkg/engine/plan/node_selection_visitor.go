@@ -66,6 +66,36 @@ func (c *nodeSelectionVisitor) addNewFieldRefs(fieldRefs ...int) {
 	}
 }
 
+func (c *nodeSelectionVisitor) pruneStaleFieldRequirements() {
+	if len(c.fieldDependsOn) == 0 {
+		return
+	}
+
+	for fieldKey, deps := range c.fieldDependsOn {
+		if c.nodeSuggestions.hasSelectedSuggestionForFieldRefOnDataSource(fieldKey.fieldRef, fieldKey.dsHash) {
+			continue
+		}
+
+		delete(c.fieldDependsOn, fieldKey)
+		delete(c.fieldRequirementsConfigs, fieldKey)
+		delete(c.visitedFieldsKeyChecks, fieldKey)
+		delete(c.visitedFieldsRequiresChecks, fieldKey)
+		for _, dep := range deps {
+			delete(c.fieldDependencyKind, fieldDependencyKey{field: fieldKey.fieldRef, dependsOn: dep})
+		}
+	}
+
+	c.fieldRefDependsOn = make(map[int][]int, len(c.fieldDependsOn))
+	for fieldKey, deps := range c.fieldDependsOn {
+		for _, dep := range deps {
+			if slices.Contains(c.fieldRefDependsOn[fieldKey.fieldRef], dep) {
+				continue
+			}
+			c.fieldRefDependsOn[fieldKey.fieldRef] = append(c.fieldRefDependsOn[fieldKey.fieldRef], dep)
+		}
+	}
+}
+
 type fieldDependencyKey struct {
 	field, dependsOn int
 }
@@ -685,7 +715,21 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 			}
 		}
 
-		for _, requiredFieldRef := range currentFieldRefs {
+		sourcePathSet := keyJumpSourcePathSet(jump)
+		for i, requiredFieldRef := range currentFieldRefs {
+			if len(sourcePathSet) != 0 {
+				if i >= len(jump.FieldPaths) {
+					continue
+				}
+				if _, ok := sourcePathSet[jump.FieldPaths[i].Path]; ok {
+					c.fieldLandedTo[requiredFieldRef] = jump.From
+					continue
+				}
+				if dsHash, ok := c.nodeSuggestions.firstNonTargetSuggestionForFieldRef(requiredFieldRef, jump.To); ok {
+					c.fieldLandedTo[requiredFieldRef] = dsHash
+				}
+				continue
+			}
 			c.fieldLandedTo[requiredFieldRef] = jump.From
 		}
 
@@ -693,6 +737,18 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 	}
 
 	c.hasNewFields = true
+}
+
+func keyJumpSourcePathSet(jump KeyJump) map[string]struct{} {
+	if len(jump.SourcePaths) == 0 {
+		return nil
+	}
+
+	out := make(map[string]struct{}, len(jump.SourcePaths))
+	for _, path := range jump.SourcePaths {
+		out[path.Path] = struct{}{}
+	}
+	return out
 }
 
 func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldRef int, ds DataSource) {

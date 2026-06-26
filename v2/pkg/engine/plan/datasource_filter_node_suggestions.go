@@ -38,6 +38,8 @@ type NodeSuggestion struct {
 	possibleTypeNames         []string
 
 	requiresKey *SourceConnection
+
+	requiresFallbackKey bool
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
@@ -214,9 +216,18 @@ func (f *NodeSuggestions) addProvidedField(key string, dsHash DSHash) {
 }
 
 func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
-	items, ok := f.pathSuggestions[path]
+	suggestion, ok := f.SelectedSuggestionForPath(typeName, fieldName, path)
 	if !ok {
 		return 0, false
+	}
+
+	return suggestion.DataSourceHash, true
+}
+
+func (f *NodeSuggestions) SelectedSuggestionForPath(typeName, fieldName, path string) (suggestion *NodeSuggestion, ok bool) {
+	items, ok := f.pathSuggestions[path]
+	if !ok {
+		return nil, false
 	}
 
 	for i := range items {
@@ -225,8 +236,68 @@ func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string)
 		}
 
 		if typeName == items[i].TypeName && fieldName == items[i].FieldName && items[i].Selected {
-			return items[i].DataSourceHash, true
+			return items[i], true
 		}
+	}
+
+	return nil, false
+}
+
+func (f *NodeSuggestions) hasSelectedSuggestionForFieldRefOnDataSource(fieldRef int, dsHash DSHash) bool {
+	for _, item := range f.items {
+		if item.IsOrphan {
+			continue
+		}
+		if !item.Selected {
+			continue
+		}
+		if item.FieldRef == fieldRef && item.DataSourceHash == dsHash {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *NodeSuggestions) firstNonTargetSuggestionForFieldRef(fieldRef int, target DSHash) (DSHash, bool) {
+	for _, item := range f.items {
+		if item.IsOrphan {
+			continue
+		}
+		if item.FieldRef != fieldRef {
+			continue
+		}
+		if item.DataSourceHash == target {
+			continue
+		}
+		if item.IsExternal && !item.IsProvided {
+			continue
+		}
+		if sourceConnectionRequiresMissingFallbackKeyField(item.requiresKey, item) {
+			continue
+		}
+		if item.Selected {
+			return item.DataSourceHash, true
+		}
+	}
+
+	for _, item := range f.items {
+		if item.IsOrphan {
+			continue
+		}
+		if item.FieldRef != fieldRef {
+			continue
+		}
+		if item.DataSourceHash == target {
+			continue
+		}
+		if item.IsExternal && !item.IsProvided {
+			continue
+		}
+		if sourceConnectionRequiresMissingFallbackKeyField(item.requiresKey, item) {
+			continue
+		}
+		return item.DataSourceHash, true
 	}
 
 	return 0, false

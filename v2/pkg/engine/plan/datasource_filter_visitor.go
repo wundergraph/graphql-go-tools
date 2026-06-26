@@ -26,6 +26,7 @@ type DataSourceFilter struct {
 	skipUnionRewriteFieldRefs map[int]struct{}
 	dataSources               []DataSource
 
+	allowFallbackKeyJumps   bool
 	jumpsForPathForTypename map[KeyIndex]*DataSourceJumpsGraph
 	dsHashesHavingKeys      map[DSHash]struct{}
 
@@ -54,6 +55,10 @@ func NewDataSourceFilter(operation, definition *ast.Document, report *operationr
 
 func (f *DataSourceFilter) EnableSelectionReasons() {
 	f.enableSelectionReasons = true
+}
+
+func (f *DataSourceFilter) EnableFallbackKeyJumps() {
+	f.allowFallbackKeyJumps = true
 }
 
 // WithMaxDataSourceCollectorsConcurrency sets the maximum number of concurrent data source collectors
@@ -689,16 +694,27 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 	}
 }
 
-func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash) (bestPath *SourceConnection, exists bool) {
-	possiblePaths, exists := jumps.GetPaths(from, to)
+func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash, includeFallback bool) (bestPath *SourceConnection, exists bool) {
+	possiblePaths, exists := jumps.getPaths(from, to, includeFallback)
 	if !exists {
 		return nil, false
 	}
 
 	var directs []SourceConnection
 	var indirects []SourceConnection
+	var fallbackDirects []SourceConnection
+	var fallbackIndirects []SourceConnection
 
 	for _, path := range possiblePaths {
+		if sourceConnectionUsesFallback(path) {
+			if path.Type == SourceConnectionTypeDirect {
+				fallbackDirects = append(fallbackDirects, path)
+				continue
+			}
+			fallbackIndirects = append(fallbackIndirects, path)
+			continue
+		}
+
 		if path.Type == SourceConnectionTypeDirect {
 			directs = append(directs, path)
 			continue
@@ -712,7 +728,25 @@ func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash) (bestPath *S
 
 	// TODO: indirect path should take into consideration existing nodes?
 
-	for _, path := range indirects {
+	if bestPath := shortestConnection(indirects); bestPath != nil {
+		return bestPath, true
+	}
+
+	if len(fallbackDirects) > 0 {
+		return &fallbackDirects[0], true
+	}
+
+	if bestPath := shortestConnection(fallbackIndirects); bestPath != nil {
+		return bestPath, true
+	}
+
+	return nil, false
+}
+
+func shortestConnection(paths []SourceConnection) *SourceConnection {
+	var bestPath *SourceConnection
+
+	for _, path := range paths {
 		if bestPath == nil {
 			bestPath = &path
 			continue
@@ -723,7 +757,17 @@ func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash) (bestPath *S
 		}
 	}
 
-	return bestPath, bestPath != nil
+	return bestPath
+}
+
+func sourceConnectionUsesFallback(path SourceConnection) bool {
+	for _, jump := range path.Jumps {
+		if jump.Fallback {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (f *DataSourceFilter) jumpsForPathAndTypeName(path string, typeName string) (*DataSourceJumpsGraph, bool) {
@@ -777,11 +821,27 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 	}
 
 	for _, selectedParentHash := range selectedParentHashes {
-		path, exists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash)
+		path, exists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash, f.allowFallbackKeyJumps)
 		if exists {
 			currentNode.requiresKey = path
+			currentNode.requiresFallbackKey = false
 			break
 		}
+
+		if f.allowFallbackKeyJumps {
+			continue
+		}
+		fallbackPath, fallbackExists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash, true)
+		if !fallbackExists {
+			continue
+		}
+		if !sourceConnectionUsesFallback(*fallbackPath) {
+			continue
+		}
+		if sourceConnectionRequiresMissingFallbackKeyField(fallbackPath, currentNode) {
+			continue
+		}
+		currentNode.requiresFallbackKey = true
 	}
 }
 
@@ -1234,7 +1294,7 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(
 		return false
 	}
 
-	path, exists := hasPathBetweenDs(jumpsForTypename, f.nodes.items[parentIdx].DataSourceHash, f.nodes.items[idx].DataSourceHash)
+	path, exists := hasPathBetweenDs(jumpsForTypename, f.nodes.items[parentIdx].DataSourceHash, f.nodes.items[idx].DataSourceHash, f.allowFallbackKeyJumps)
 	if !exists {
 		return false
 	}
@@ -1244,6 +1304,41 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(
 	}
 
 	return true
+}
+
+func sourceConnectionRequiresMissingFallbackKeyField(path *SourceConnection, node *NodeSuggestion) bool {
+	if path == nil || node == nil {
+		return false
+	}
+
+	fieldPath := node.Path
+
+	for _, jump := range path.Jumps {
+		if !jump.Fallback {
+			continue
+		}
+
+		targetContainsField := false
+		for _, keyPath := range jump.FieldPaths {
+			if keyPath.Path == fieldPath {
+				targetContainsField = true
+				break
+			}
+		}
+		if !targetContainsField {
+			continue
+		}
+
+		for _, keyPath := range jump.SourcePaths {
+			if keyPath.Path == fieldPath {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	return false
 }
 
 type nodeJump struct {

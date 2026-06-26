@@ -7,6 +7,8 @@ type KeyJump struct {
 	SelectionSet string
 	FieldPaths   []KeyInfoFieldPath
 	TypeName     string
+	Fallback     bool
+	SourcePaths  []KeyInfoFieldPath
 }
 
 type SourceConnectionType int
@@ -25,8 +27,9 @@ type SourceConnection struct {
 
 // JumpCacheKey represents a key for the cache map
 type JumpCacheKey struct {
-	Source DSHash
-	Target DSHash
+	Source          DSHash
+	Target          DSHash
+	IncludeFallback bool
 }
 
 // DataSourceJumpsGraph represents a graph of possible jumps between each data sources
@@ -37,8 +40,16 @@ type DataSourceJumpsGraph struct {
 }
 
 func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceConnection, bool) {
+	return g.getPaths(source, target, false)
+}
+
+func (g *DataSourceJumpsGraph) GetPathsWithFallback(source DSHash, target DSHash) ([]SourceConnection, bool) {
+	return g.getPaths(source, target, true)
+}
+
+func (g *DataSourceJumpsGraph) getPaths(source DSHash, target DSHash, includeFallback bool) ([]SourceConnection, bool) {
 	// Create a cache key
-	key := JumpCacheKey{Source: source, Target: target}
+	key := JumpCacheKey{Source: source, Target: target, IncludeFallback: includeFallback}
 
 	// Check if the path is already in the cache
 	if path, found := g.Cache[key]; found {
@@ -71,6 +82,10 @@ func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceC
 		found := false
 
 		for _, jump := range g.Jumps[current] {
+			if jump.Fallback && !includeFallback {
+				continue
+			}
+
 			if depth > 0 && jump.SelectionSet == path[len(path)-1].SelectionSet {
 				continue // Skip jumps with the same selection set
 			}
@@ -131,16 +146,28 @@ func NewDataSourceJumpsGraph(dataSources []DSHash, keysPerPath map[DSHash][]KeyI
 				}
 
 				for _, keyInfo := range sourceKeyInfos {
-					if !keyInfo.Source || keyInfo.SelectionSet != targetKeyInfo.SelectionSet {
+					if !keyInfo.Source {
 						continue
+					}
+
+					fallback := false
+					if keyInfo.SelectionSet != targetKeyInfo.SelectionSet {
+						if !keyInfoFieldsCoverTargetKey(keyInfo, targetKeyInfo) {
+							continue
+						}
+						fallback = true
 					}
 
 					jump := KeyJump{
 						From:         sourceDsHash,
 						To:           targetDSHash,
-						SelectionSet: keyInfo.SelectionSet,
-						FieldPaths:   keyInfo.FieldPaths,
+						SelectionSet: targetKeyInfo.SelectionSet,
+						FieldPaths:   targetKeyInfo.FieldPaths,
 						TypeName:     typeName,
+						Fallback:     fallback,
+					}
+					if fallback {
+						jump.SourcePaths = keyInfo.FieldPaths
 					}
 					graph.Jumps[sourceDsHash] = append(graph.Jumps[sourceDsHash], jump)
 				}
@@ -149,4 +176,27 @@ func NewDataSourceJumpsGraph(dataSources []DSHash, keysPerPath map[DSHash][]KeyI
 	}
 
 	return graph
+}
+
+func keyInfoFieldsCoverTargetKey(sourceKey, targetKey KeyInfo) bool {
+	if sourceKey.SelectionSet == targetKey.SelectionSet {
+		return true
+	}
+
+	if len(sourceKey.FieldPaths) == 0 || len(targetKey.FieldPaths) == 0 {
+		return false
+	}
+
+	targetPaths := make(map[string]struct{}, len(targetKey.FieldPaths))
+	for _, path := range targetKey.FieldPaths {
+		targetPaths[path.Path] = struct{}{}
+	}
+
+	for _, path := range sourceKey.FieldPaths {
+		if _, ok := targetPaths[path.Path]; !ok {
+			return false
+		}
+	}
+
+	return true
 }

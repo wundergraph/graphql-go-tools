@@ -133,6 +133,18 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 	i := 1
 	hasUnresolvedFields := false
+	fallbackKeyJumpsEnabled := false
+	refilterWithFallbackKeyJumps := false
+	if !p.nodeSelectionsVisitor.hasNewFields {
+		resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions)
+		if resolvableReport.HasErrors() {
+			dsFilter.EnableFallbackKeyJumps()
+			fallbackKeyJumpsEnabled = true
+			refilterWithFallbackKeyJumps = true
+			hasUnresolvedFields = true
+		}
+	}
+
 	// Additional runs to add paths for the new required fields
 	for p.nodeSelectionsVisitor.hasNewFields || hasUnresolvedFields {
 		// When we have rewritten a field, the old node suggestion does not make sense anymore:
@@ -143,12 +155,16 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 		p.nodeSelectionsVisitor.secondaryRun = true
 
-		if p.nodeSelectionsVisitor.hasNewFields {
+		if p.nodeSelectionsVisitor.hasNewFields || refilterWithFallbackKeyJumps {
 			// Repeat Step 1. Update suggestions for the new required fields.
 			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
 			if report.HasErrors() {
 				return
 			}
+			if fallbackKeyJumpsEnabled {
+				p.nodeSelectionsVisitor.pruneStaleFieldRequirements()
+			}
+			refilterWithFallbackKeyJumps = false
 		}
 
 		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
@@ -175,6 +191,12 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions)
 		hasUnresolvedFields = resolvableReport.HasErrors()
 		if hasUnresolvedFields {
+			if !fallbackKeyJumpsEnabled {
+				dsFilter.EnableFallbackKeyJumps()
+				fallbackKeyJumpsEnabled = true
+				refilterWithFallbackKeyJumps = true
+			}
+
 			if i > 100 {
 				report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
 				return
@@ -185,14 +207,6 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		// if we have revisited operation more than 100 times, we have a bug
 		if i > 100 {
 			report.AddInternalError(fmt.Errorf("something went wrong"))
-			return
-		}
-	}
-
-	if i == 1 {
-		// if we have not revisited the operation, we need to check if it is resolvable
-		if resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
-			report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
 			return
 		}
 	}
