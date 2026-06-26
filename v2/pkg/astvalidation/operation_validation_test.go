@@ -4523,6 +4523,127 @@ type Query {
 			}
 		}
 
+		runNormalizationPrevalidationWithVariables := func(t *testing.T, operationInput, variables string, expectedErrors ...string) {
+			t.Helper()
+
+			definition := mustDocument(astparser.ParseGraphqlDocumentString(testDefinition))
+			operation := mustDocument(astparser.ParseGraphqlDocumentString(operationInput))
+			operation.Input.Variables = []byte(variables)
+			report := operationreport.Report{}
+
+			normalizer := astnormalization.NewWithOpts(
+				astnormalization.WithInlineFragmentSpreads(),
+				astnormalization.WithPrevalidationRules(allRules...),
+			)
+			normalizer.NormalizeOperation(&operation, &definition, &report)
+
+			if len(expectedErrors) > 0 {
+				if !report.HasErrors() {
+					t.Fatalf("expected a normalization error but got none")
+				}
+				for _, msg := range expectedErrors {
+					assert.Contains(t, report.Error(), msg)
+				}
+				return
+			}
+
+			if report.HasErrors() {
+				t.Fatalf("unexpected error %s", report.Error())
+			}
+		}
+
+		t.Run("variable if argument", func(t *testing.T) {
+			t.Run("stream on root mutation field with if variable true", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					mutation($s: Boolean!) {
+						mutateDogs @stream(if: $s) { name }
+					}`,
+					`{"s":true}`,
+					`directive "@stream" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("stream on root mutation field with if variable false", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					mutation($s: Boolean!) {
+						mutateDogs @stream(if: $s) { name }
+					}`,
+					`{"s":false}`)
+			})
+			t.Run("defer inline fragment on root mutation field with if variable true", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					mutation($d: Boolean!) {
+						... @defer(if: $d) { mutateDog { name } }
+					}`,
+					`{"d":true}`,
+					`directive "@defer" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("stream nested mutation field with if variable true is allowed", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					mutation($s: Boolean!) {
+						mutateDog { extras @stream(if: $s) { string } }
+					}`,
+					`{"s":true}`)
+			})
+			t.Run("stream on subscription field with if variable true", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					subscription($s: Boolean!) {
+						subscribeDog @stream(if: $s) { name }
+					}`,
+					`{"s":true}`,
+					`directive "@stream" is not allowed on subscription operations`)
+			})
+			t.Run("defer on query root with if variable true is allowed", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					query($d: Boolean!) {
+						... @defer(if: $d) { dog { name } }
+					}`,
+					`{"d":true}`)
+			})
+			t.Run("stream on root mutation field with if variable defaulting to true", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					mutation($s: Boolean = true) {
+						mutateDogs @stream(if: $s) { name }
+					}`,
+					`{}`,
+					`directive "@stream" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("stream on root mutation field with if variable absent and no default", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					mutation($s: Boolean) {
+						mutateDogs @stream(if: $s) { name }
+					}`,
+					`{}`)
+			})
+			t.Run("stream on root mutation field via fragment with if variable true", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					mutation($s: Boolean!) {
+						...rootFrag
+					}
+					fragment rootFrag on Mutation { mutateDogs @stream(if: $s) { name } }`,
+					`{"s":true}`,
+					`directive "@stream" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("stream on root mutation field with literal if null is allowed", func(t *testing.T) {
+				// if: null leaves the directive disabled (matches inlineDefer), so it is allowed
+				runNormalizationPrevalidation(t, `
+					mutation {
+						mutateDogs @stream(if: null) { name }
+					}`)
+			})
+			t.Run("defer inline fragment on root mutation field with literal if null is allowed", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						... @defer(if: null) { mutateDog { name } }
+					}`)
+			})
+			t.Run("stream on root mutation field with if variable resolving to null is allowed", func(t *testing.T) {
+				runNormalizationPrevalidationWithVariables(t, `
+					mutation($s: Boolean) {
+						mutateDogs @stream(if: $s) { name }
+					}`,
+					`{"s":null}`)
+			})
+		})
+
 		t.Run("labels", func(t *testing.T) {
 			t.Run("defer directive with unique labels", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `

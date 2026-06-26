@@ -51,15 +51,9 @@ func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 	}
 
 	if ifValue, hasIf := d.operation.DirectiveArgumentValueByName(ref, literal.IF); hasIf {
-		switch ifValue.Kind {
-		case ast.ValueKindBoolean:
-			// If "if: false", the directive is disabled, so it's allowed
-			if !d.operation.BooleanValue(ifValue.Ref) {
-				return
-			}
-		case ast.ValueKindVariable:
-			// If if: $variable, we can't statically determine if it's enabled,
-			// so we allow it (it might be false at runtime)
+		// The directive is only enabled and checked when the value resolves to true.
+		// This mirrors how inlineDefer works.
+		if enabled, ok := d.operation.GetBooleanValue(ifValue); !ok || !enabled {
 			return
 		}
 	}
