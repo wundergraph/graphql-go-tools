@@ -779,6 +779,10 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(fieldRef int, typeName, fi
 		})
 
 		if fieldHasRequiresDirective {
+			if plannerConfig.RequiredFields().HasArgumentConflictWith(requiresConfigurations) {
+				continue
+			}
+
 			// we should not plan fields with requires on the same planner as its dependencies,
 			// because field with requires always will need an additional fetch before could be planned.
 			// or the current planner provides dependencies for one of the requires dependency

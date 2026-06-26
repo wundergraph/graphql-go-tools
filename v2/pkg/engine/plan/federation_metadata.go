@@ -1,9 +1,11 @@
 package plan
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -180,4 +182,91 @@ func (f *FederationFieldConfigurations) AppendIfNotPresent(config FederationFiel
 	*f = append(*f, config)
 
 	return true
+}
+
+func (f *FederationFieldConfigurations) HasArgumentConflictWith(configs []FederationFieldConfiguration) bool {
+	for i := range *f {
+		for j := range configs {
+			if requiredFieldArgumentConflict((*f)[i], configs[j]) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func requiredFieldArgumentConflict(left, right FederationFieldConfiguration) bool {
+	if left.TypeName != right.TypeName {
+		return false
+	}
+
+	leftFields, ok := requiredFieldArgumentsByPath(left)
+	if !ok {
+		return false
+	}
+	rightFields, ok := requiredFieldArgumentsByPath(right)
+	if !ok {
+		return false
+	}
+
+	for path, leftArguments := range leftFields {
+		rightArguments, exists := rightFields[path]
+		if exists && leftArguments != rightArguments {
+			return true
+		}
+	}
+
+	return false
+}
+
+func requiredFieldArgumentsByPath(config FederationFieldConfiguration) (map[string]string, bool) {
+	if err := config.parseSelectionSet(); err != nil {
+		return nil, false
+	}
+	if len(config.parsedSelectionSet.FragmentDefinitions) == 0 {
+		return nil, false
+	}
+
+	out := make(map[string]string)
+	collectRequiredFieldArguments(config.parsedSelectionSet, config.parsedSelectionSet.FragmentDefinitions[0].SelectionSet, nil, out)
+
+	return out, true
+}
+
+func collectRequiredFieldArguments(doc *ast.Document, selectionSetRef int, path []string, out map[string]string) {
+	for _, selectionRef := range doc.SelectionSets[selectionSetRef].SelectionRefs {
+		selection := doc.Selections[selectionRef]
+		switch selection.Kind {
+		case ast.SelectionKindField:
+			fieldRef := selection.Ref
+			fieldPath := append(path, doc.FieldNameString(fieldRef))
+			out[strings.Join(fieldPath, ".")] = requiredFieldArgumentSignature(doc, fieldRef)
+			if doc.FieldHasSelections(fieldRef) {
+				collectRequiredFieldArguments(doc, doc.Fields[fieldRef].SelectionSet, fieldPath, out)
+			}
+		case ast.SelectionKindInlineFragment:
+			inlineFragmentRef := selection.Ref
+			fragmentPath := append(path, "... on "+doc.InlineFragmentTypeConditionNameString(inlineFragmentRef))
+			if doc.InlineFragments[inlineFragmentRef].HasSelections {
+				collectRequiredFieldArguments(doc, doc.InlineFragments[inlineFragmentRef].SelectionSet, fragmentPath, out)
+			}
+		}
+	}
+}
+
+func requiredFieldArgumentSignature(doc *ast.Document, fieldRef int) string {
+	if !doc.FieldHasArguments(fieldRef) {
+		return ""
+	}
+
+	args := make([]string, 0, len(doc.FieldArguments(fieldRef)))
+	for _, argRef := range doc.FieldArguments(fieldRef) {
+		var buf bytes.Buffer
+		_ = doc.PrintArgument(argRef, &buf)
+		args = append(args, buf.String())
+	}
+	slices.Sort(args)
+
+	return strings.Join(args, ",")
 }

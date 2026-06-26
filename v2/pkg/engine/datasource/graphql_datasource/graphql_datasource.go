@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astminify"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -735,11 +736,22 @@ func (p *Planner[T]) EnterField(ref int) {
 }
 
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
+	configuredArguments := 0
 	if fieldConfiguration != nil {
 		for i := range fieldConfiguration.Arguments {
+			configuredArguments++
 			argumentConfiguration := fieldConfiguration.Arguments[i]
 			p.configureArgument(upstreamFieldRef, fieldRef, *fieldConfiguration, argumentConfiguration)
 		}
+	}
+	if configuredArguments > 0 || !p.visitor.Operation.FieldHasArguments(fieldRef) {
+		return
+	}
+
+	importer := astimport.Importer{}
+	importedArgs := importer.ImportArguments(p.visitor.Operation.FieldArguments(fieldRef), p.visitor.Operation, p.upstreamOperation)
+	for _, arg := range importedArgs {
+		p.upstreamOperation.AddArgumentToField(upstreamFieldRef, arg)
 	}
 }
 
