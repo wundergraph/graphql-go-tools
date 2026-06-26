@@ -108,7 +108,6 @@ func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 		isRootLevel = bytes.Equal(typeName, d.definition.Index.MutationTypeName)
 	}
 
-	// For mutations, @defer and @stream are not allowed on root fields
 	if isRootLevel {
 		operationTypeName := d.currentOperationType.Name()
 		d.StopWithExternalErr(operationreport.ErrDeferStreamDirectiveNotAllowedOnRootField(

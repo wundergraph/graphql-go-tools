@@ -4721,7 +4721,6 @@ type Query {
 						extras { string }
 					}`, `directive "@defer" is not allowed on root fields of mutation operations`)
 			})
-
 			t.Run("valid disabled defer inline fragment spread on root mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
@@ -4773,7 +4772,6 @@ type Query {
 					}
 					fragment frag on Dog { name }`)
 			})
-
 			t.Run("invalid stream on field at top of root fragment spread", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
