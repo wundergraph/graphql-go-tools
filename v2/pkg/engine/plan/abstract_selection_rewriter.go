@@ -66,8 +66,9 @@ type fieldSelectionRewriter struct {
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
 
-	skipFieldRefs []int
-	alwaysRewrite bool
+	skipFieldRefs    []int
+	alwaysRewrite    bool
+	skipUnionRewrite bool
 }
 
 type RewriteResult struct {
@@ -80,12 +81,19 @@ var resultNotRewritten = RewriteResult{}
 type rewriterOption func(*rewriterOptions)
 
 type rewriterOptions struct {
-	forceRewrite bool
+	forceRewrite     bool
+	skipUnionRewrite bool
 }
 
 func withForceRewrite() rewriterOption {
 	return func(o *rewriterOptions) {
 		o.forceRewrite = true
+	}
+}
+
+func withSkipUnionRewrite() rewriterOption {
+	return func(o *rewriterOptions) {
+		o.skipUnionRewrite = true
 	}
 }
 
@@ -106,6 +114,7 @@ func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document
 		upstreamDefinition: upstreamDefinition,
 		dsConfiguration:    dsConfiguration,
 		alwaysRewrite:      dsConfiguration.PlanningBehavior().AlwaysFlattenFragments || opts.forceRewrite,
+		skipUnionRewrite:   opts.skipUnionRewrite,
 	}, nil
 }
 
@@ -160,6 +169,9 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
 	if err != nil {
 		return resultNotRewritten, err
+	}
+	if r.skipUnionRewrite {
+		return resultNotRewritten, nil
 	}
 
 	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, unionTypeNames, entityNames)

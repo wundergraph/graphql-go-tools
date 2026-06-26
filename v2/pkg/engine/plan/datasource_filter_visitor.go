@@ -21,25 +21,34 @@ type DataSourceFilter struct {
 	enableSelectionReasons bool
 	secondaryRun           bool
 
-	fieldDependsOn map[int][]int
-	newFieldRefs   map[int]struct{}
-	dataSources    []DataSource
+	fieldDependsOn            map[int][]int
+	newFieldRefs              map[int]struct{}
+	skipUnionRewriteFieldRefs map[int]struct{}
+	dataSources               []DataSource
 
 	jumpsForPathForTypename map[KeyIndex]*DataSourceJumpsGraph
 	dsHashesHavingKeys      map[DSHash]struct{}
 
 	maxDataSourceCollectorsConcurrency uint
 	nodesCollector                     *nodesCollector
+
+	abstractFieldRequestedMembers map[string][]string
 }
 
-func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSource, newFieldRefs map[int]struct{}) *DataSourceFilter {
+func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSource, newFieldRefs map[int]struct{}, skipUnionRewriteFieldRefs ...map[int]struct{}) *DataSourceFilter {
+	var skipUnionRewrite map[int]struct{}
+	if len(skipUnionRewriteFieldRefs) > 0 {
+		skipUnionRewrite = skipUnionRewriteFieldRefs[0]
+	}
+
 	return &DataSourceFilter{
-		operation:    operation,
-		definition:   definition,
-		report:       report,
-		dataSources:  dataSources,
-		nodes:        NewNodeSuggestions(),
-		newFieldRefs: newFieldRefs,
+		operation:                 operation,
+		definition:                definition,
+		report:                    report,
+		dataSources:               dataSources,
+		nodes:                     NewNodeSuggestions(),
+		newFieldRefs:              newFieldRefs,
+		skipUnionRewriteFieldRefs: skipUnionRewrite,
 	}
 }
 
@@ -87,6 +96,7 @@ func (f *DataSourceFilter) findBestDataSourceSet(landedTo map[int]DSHash) (*Node
 	f.selectUniqueNodes()
 	f.selectDuplicateNodes(false)
 	f.selectDuplicateNodes(true)
+	f.selectClosestDatasourceForAbstractFields()
 
 	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
 
@@ -96,6 +106,397 @@ func (f *DataSourceFilter) findBestDataSourceSet(landedTo map[int]DSHash) (*Node
 	}
 
 	return f.nodes, uniqueDataSourceHashes
+}
+
+func (f *DataSourceFilter) selectClosestDatasourceForAbstractFields() {
+	for _, treeNode := range TraverseBFS(f.nodes.responseTree) {
+		itemIDs := treeNode.GetData()
+		if len(itemIDs) < 2 {
+			continue
+		}
+
+		selectedItems := make([]int, 0, len(itemIDs))
+		for _, itemID := range itemIDs {
+			if f.nodes.items[itemID].Selected {
+				selectedItems = append(selectedItems, itemID)
+			}
+		}
+
+		if len(selectedItems) < 2 {
+			continue
+		}
+
+		unionDefRef, ok := f.fieldReturnsUnionType(selectedItems[0])
+		if !ok {
+			continue
+		}
+
+		requestedMembers := f.fullRequestedUnionMemberTypeNames(selectedItems[0], unionDefRef)
+		if len(requestedMembers) == 0 {
+			continue
+		}
+
+		closestItem := selectedItems[0]
+		closestScore := f.datasourceJumpScore(closestItem)
+		for _, itemID := range selectedItems[1:] {
+			score := f.datasourceJumpScore(itemID)
+			if score < closestScore {
+				closestItem = itemID
+				closestScore = score
+			}
+		}
+
+		closestMembers, ok := f.localUnionMemberTypeNames(closestItem, unionDefRef)
+		if !ok {
+			continue
+		}
+
+		missingMembers := f.missingUnionMembers(requestedMembers, closestMembers)
+		if len(missingMembers) == 0 {
+			for _, itemID := range selectedItems {
+				if itemID == closestItem {
+					continue
+				}
+				f.unselectAbstractFieldBranch(itemID)
+			}
+			continue
+		}
+
+		f.restrictChildrenToUnionMembers(closestItem, f.intersectUnionMembers(requestedMembers, closestMembers))
+
+		fallbackCandidates := make([]nodeJump, 0, len(selectedItems)-1)
+		for _, itemID := range selectedItems {
+			if itemID == closestItem {
+				continue
+			}
+			fallbackCandidates = append(fallbackCandidates, nodeJump{
+				nodeIdx:   itemID,
+				jumpCount: f.datasourceJumpScore(itemID),
+			})
+		}
+
+		slices.SortFunc(fallbackCandidates, func(a, b nodeJump) int {
+			return a.jumpCount - b.jumpCount
+		})
+
+		for _, candidate := range fallbackCandidates {
+			itemID := candidate.nodeIdx
+			if !f.withinSingleKeyJump(itemID) {
+				f.unselectAbstractFieldBranch(itemID)
+				continue
+			}
+
+			localMembers, ok := f.localUnionMemberTypeNames(itemID, unionDefRef)
+			if !ok {
+				f.unselectAbstractFieldBranch(itemID)
+				continue
+			}
+
+			contributedMembers := f.intersectUnionMembers(missingMembers, localMembers)
+			if len(contributedMembers) == 0 {
+				f.unselectAbstractFieldBranch(itemID)
+				continue
+			}
+
+			f.restrictChildrenToUnionMembers(itemID, contributedMembers)
+			if f.skipUnionRewriteFieldRefs != nil {
+				f.skipUnionRewriteFieldRefs[f.nodes.items[itemID].FieldRef] = struct{}{}
+			}
+			missingMembers = f.missingUnionMembers(missingMembers, contributedMembers)
+		}
+	}
+}
+
+func (f *DataSourceFilter) fullRequestedUnionMemberTypeNames(itemID int, unionDefRef int) []string {
+	item := f.nodes.items[itemID]
+	requestedMembers := f.requestedUnionMemberTypeNames(item.FieldRef, unionDefRef)
+
+	if f.abstractFieldRequestedMembers == nil {
+		f.abstractFieldRequestedMembers = make(map[string][]string)
+	}
+
+	existingMembers := f.abstractFieldRequestedMembers[item.Path]
+	if len(existingMembers) > len(requestedMembers) {
+		return existingMembers
+	}
+
+	if len(requestedMembers) > len(existingMembers) {
+		f.abstractFieldRequestedMembers[item.Path] = requestedMembers
+	}
+
+	return requestedMembers
+}
+
+func (f *DataSourceFilter) fieldReturnsUnionType(itemID int) (unionDefRef int, ok bool) {
+	item := f.nodes.items[itemID]
+	if item.FieldName == typeNameField {
+		return -1, false
+	}
+
+	enclosingNode, ok := f.definition.NodeByNameStr(item.TypeName)
+	if !ok {
+		return -1, false
+	}
+
+	fieldTypeNode, ok := f.definition.FieldTypeNode([]byte(item.FieldName), enclosingNode)
+	if !ok || fieldTypeNode.Kind != ast.NodeKindUnionTypeDefinition {
+		return -1, false
+	}
+
+	return fieldTypeNode.Ref, true
+}
+
+func (f *DataSourceFilter) requestedUnionMemberTypeNames(fieldRef int, unionDefRef int) []string {
+	selectionSetRef, ok := f.operation.FieldSelectionSet(fieldRef)
+	if !ok {
+		return nil
+	}
+
+	unionMemberTypeNames, ok := f.definition.UnionTypeDefinitionMemberTypeNames(unionDefRef)
+	if !ok {
+		return nil
+	}
+
+	allowedMembers := make(map[string]struct{}, len(unionMemberTypeNames))
+	for _, typeName := range unionMemberTypeNames {
+		allowedMembers[typeName] = struct{}{}
+	}
+
+	out := make([]string, 0, len(unionMemberTypeNames))
+	f.collectRequestedUnionMemberTypeNames(selectionSetRef, allowedMembers, &out)
+	return out
+}
+
+func (f *DataSourceFilter) collectRequestedUnionMemberTypeNames(selectionSetRef int, allowedMembers map[string]struct{}, out *[]string) {
+	inlineFragmentSelectionRefs := f.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
+	for _, inlineFragmentSelectionRef := range inlineFragmentSelectionRefs {
+		inlineFragmentRef := f.operation.Selections[inlineFragmentSelectionRef].Ref
+		typeCondition := f.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
+		definitionNode, ok := f.definition.NodeByNameStr(typeCondition)
+		if !ok {
+			continue
+		}
+
+		switch definitionNode.Kind {
+		case ast.NodeKindObjectTypeDefinition:
+			if _, ok := allowedMembers[typeCondition]; ok && !slices.Contains(*out, typeCondition) {
+				*out = append(*out, typeCondition)
+			}
+		case ast.NodeKindInterfaceTypeDefinition:
+			implementingTypeNames, _ := f.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(definitionNode.Ref)
+			for _, typeName := range implementingTypeNames {
+				if _, ok := allowedMembers[typeName]; ok && !slices.Contains(*out, typeName) {
+					*out = append(*out, typeName)
+				}
+			}
+		case ast.NodeKindUnionTypeDefinition:
+			memberTypeNames, _ := f.definition.UnionTypeDefinitionMemberTypeNames(definitionNode.Ref)
+			for _, typeName := range memberTypeNames {
+				if _, ok := allowedMembers[typeName]; ok && !slices.Contains(*out, typeName) {
+					*out = append(*out, typeName)
+				}
+			}
+		}
+
+		nestedSelectionSetRef, ok := f.operation.InlineFragmentSelectionSet(inlineFragmentRef)
+		if ok {
+			f.collectRequestedUnionMemberTypeNames(nestedSelectionSetRef, allowedMembers, out)
+		}
+	}
+}
+
+func (f *DataSourceFilter) localUnionMemberTypeNames(itemID int, unionDefRef int) ([]string, bool) {
+	item := f.nodes.items[itemID]
+	ds, ok := f.dataSourceByHash(item.DataSourceHash)
+	if !ok {
+		return nil, false
+	}
+
+	upstreamDefinition, ok := ds.UpstreamSchema()
+	if !ok {
+		return nil, false
+	}
+
+	enclosingNode, ok := upstreamDefinition.NodeByNameStr(item.TypeName)
+	if !ok {
+		return nil, false
+	}
+
+	fieldTypeNode, ok := upstreamDefinition.FieldTypeNode([]byte(item.FieldName), enclosingNode)
+	if !ok {
+		return nil, false
+	}
+
+	unionTypeName := f.definition.UnionTypeDefinitionNameString(unionDefRef)
+	unionTypeNamesFromDefinition, _ := f.definition.UnionTypeDefinitionMemberTypeNames(unionDefRef)
+	fieldTypeName := upstreamDefinition.NodeNameString(fieldTypeNode)
+	if unionTypeName != fieldTypeName {
+		if slices.Contains(unionTypeNamesFromDefinition, fieldTypeName) {
+			return []string{fieldTypeName}, true
+		}
+		return nil, false
+	}
+
+	unionNode, ok := upstreamDefinition.NodeByNameStr(unionTypeName)
+	if !ok || unionNode.Kind != ast.NodeKindUnionTypeDefinition {
+		return nil, false
+	}
+
+	unionMemberTypeNames, ok := upstreamDefinition.UnionTypeDefinitionMemberTypeNames(unionNode.Ref)
+	if !ok {
+		return nil, false
+	}
+
+	return unionMemberTypeNames, true
+}
+
+func (f *DataSourceFilter) dataSourceByHash(hash DSHash) (DataSource, bool) {
+	for _, ds := range f.dataSources {
+		if ds.Hash() == hash {
+			return ds, true
+		}
+	}
+	return nil, false
+}
+
+func (f *DataSourceFilter) datasourceJumpScore(itemID int) int {
+	score := 0
+	current := itemID
+
+	for {
+		if f.nodes.items[current].requiresKey != nil {
+			score += len(f.nodes.items[current].requiresKey.Jumps) + 1
+		}
+		if f.nodes.items[current].IsRootNode && !IsMutationOrQueryRootType(f.nodes.items[current].TypeName) {
+			score++
+		}
+
+		parentIdx, ok := f.nodes.parentNodeOnSameSource(current)
+		if !ok {
+			return score
+		}
+
+		current = parentIdx
+	}
+}
+
+func (f *DataSourceFilter) withinSingleKeyJump(itemID int) bool {
+	current := itemID
+	for {
+		if f.nodes.items[current].requiresKey != nil && len(f.nodes.items[current].requiresKey.Jumps) > 1 {
+			return false
+		}
+
+		parentIdx, ok := f.nodes.parentNodeOnSameSource(current)
+		if !ok {
+			return true
+		}
+		current = parentIdx
+	}
+}
+
+func (f *DataSourceFilter) intersectUnionMembers(a, b []string) []string {
+	out := make([]string, 0, len(a))
+	for _, typeName := range a {
+		if slices.Contains(b, typeName) && !slices.Contains(out, typeName) {
+			out = append(out, typeName)
+		}
+	}
+	return out
+}
+
+func (f *DataSourceFilter) missingUnionMembers(requested, covered []string) []string {
+	out := make([]string, 0, len(requested))
+	for _, typeName := range requested {
+		if !slices.Contains(covered, typeName) {
+			out = append(out, typeName)
+		}
+	}
+	return out
+}
+
+func (f *DataSourceFilter) unselectAbstractFieldBranch(itemID int) {
+	f.nodes.items[itemID].unselect()
+	f.unselectChildrenOnDatasource(itemID)
+	f.unselectEmptyAncestorsOnDatasource(itemID)
+}
+
+func (f *DataSourceFilter) restrictChildrenToUnionMembers(itemID int, allowedMembers []string) {
+	allowed := make(map[string]struct{}, len(allowedMembers))
+	for _, typeName := range allowedMembers {
+		allowed[typeName] = struct{}{}
+	}
+	f.restrictChildTreeToUnionMembers(itemID, allowed)
+}
+
+func (f *DataSourceFilter) restrictChildTreeToUnionMembers(itemID int, allowedMembers map[string]struct{}) {
+	item := f.nodes.items[itemID]
+	treeNode := f.nodes.treeNode(itemID)
+
+	for _, child := range treeNode.GetChildren() {
+		for _, childID := range child.GetData() {
+			childItem := f.nodes.items[childID]
+			if childItem.DataSourceHash != item.DataSourceHash {
+				continue
+			}
+
+			_, allowedMember := allowedMembers[childItem.TypeName]
+			if childItem.TypeName != item.TypeName && !allowedMember && !childItem.isTypeName && !childItem.IsRequiredKeyField {
+				childItem.unselect()
+				f.unselectChildrenOnDatasource(childID)
+				continue
+			}
+
+			if !childItem.IsExternal || childItem.IsProvided {
+				childItem.selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent, f.enableSelectionReasons)
+			}
+
+			f.restrictChildTreeToUnionMembers(childID, allowedMembers)
+		}
+	}
+}
+
+func (f *DataSourceFilter) unselectChildrenOnDatasource(itemID int) {
+	item := f.nodes.items[itemID]
+	treeNode := f.nodes.treeNode(itemID)
+
+	for _, child := range treeNode.GetChildren() {
+		for _, childID := range child.GetData() {
+			if f.nodes.items[childID].DataSourceHash != item.DataSourceHash {
+				continue
+			}
+
+			f.nodes.items[childID].unselect()
+			f.unselectChildrenOnDatasource(childID)
+		}
+	}
+}
+
+func (f *DataSourceFilter) unselectEmptyAncestorsOnDatasource(itemID int) {
+	parentIdx, ok := f.nodes.parentNodeOnSameSource(itemID)
+	for ok {
+		if !f.shouldUnselectEmptyAncestor(parentIdx) {
+			return
+		}
+
+		f.nodes.items[parentIdx].unselect()
+		parentIdx, ok = f.nodes.parentNodeOnSameSource(parentIdx)
+	}
+}
+
+func (f *DataSourceFilter) shouldUnselectEmptyAncestor(i int) bool {
+	item := f.nodes.items[i]
+	if item.IsOrphan || !item.Selected || item.IsLeaf || item.isTypeName || item.IsRequiredKeyField {
+		return false
+	}
+
+	for _, child := range f.nodes.childNodesOnSameSource(i) {
+		if f.nodes.items[child].Selected {
+			return false
+		}
+	}
+
+	return !f.nodeCouldProvideKeysToChildNodes(i)
 }
 
 func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {

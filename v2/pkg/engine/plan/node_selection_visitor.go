@@ -45,6 +45,7 @@ type nodeSelectionVisitor struct {
 
 	rewrittenFieldRefs          []int            // rewrittenFieldRefs holds field refs which had their selection sets rewritten during the current walk
 	persistedRewrittenFieldRefs map[int]struct{} // persistedRewrittenFieldRefs holds field refs which had their selection sets rewritten during any of the walks
+	skipUnionRewriteFieldRefs   map[int]struct{} // fields where datasource selection split union members across datasources
 
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
 	// used by "requires" keys, not only when fragments are present.
@@ -712,6 +713,9 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		// So we have to force rewriting it again, because without force we could end up with duplicated fields outside of fragments.
 		// When newly added fields are local - rewriter will consider that rewrite is not necessary.
 		options = append(options, withForceRewrite())
+	}
+	if _, skipUnionRewrite := c.skipUnionRewriteFieldRefs[fieldRef]; skipUnionRewrite {
+		options = append(options, withSkipUnionRewrite())
 	}
 
 	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds, options...)
