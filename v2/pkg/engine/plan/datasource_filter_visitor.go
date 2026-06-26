@@ -577,7 +577,7 @@ func (f *DataSourceFilter) collectNodes() {
 			keysPerDS = make(map[DSHash][]KeyInfo)
 		}
 
-		keysPerDS[keyInfo.DSHash] = keyInfo.Keys
+		keysPerDS[keyInfo.DSHash] = append(keysPerDS[keyInfo.DSHash], keyInfo.Keys...)
 		keysForPathForTypename[keyIndex] = keysPerDS
 
 		f.dsHashesHavingKeys[keyInfo.DSHash] = struct{}{}
@@ -764,6 +764,12 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 	if hasSelectedParentOnSameDataSource {
 		return
 	}
+	if len(selectedParentHashes) == 0 && currentNode.onFragment {
+		selectedParentHashes, hasSelectedParentOnSameDataSource = f.selectedAncestorHashes(itemIdx, currentNodeDsHash)
+		if hasSelectedParentOnSameDataSource {
+			return
+		}
+	}
 
 	jumpsForTypename, exists := f.jumpsForPathAndTypeName(currentNode.ParentPath, currentNodeTypeName)
 	if !exists {
@@ -777,6 +783,25 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 			break
 		}
 	}
+}
+
+func (f *DataSourceFilter) selectedAncestorHashes(itemIdx int, currentNodeDsHash DSHash) (selectedParentHashes []DSHash, hasSelectedParentOnSameDataSource bool) {
+	node := f.nodes.treeNode(itemIdx)
+	for parent := node.GetParent(); parent != nil && parent.GetID() != treeRootID; parent = parent.GetParent() {
+		for _, parentIdx := range parent.GetData() {
+			if !f.nodes.items[parentIdx].Selected {
+				continue
+			}
+			if f.nodes.items[parentIdx].DataSourceHash == currentNodeDsHash {
+				return nil, true
+			}
+			selectedParentHashes = append(selectedParentHashes, f.nodes.items[parentIdx].DataSourceHash)
+		}
+		if len(selectedParentHashes) > 0 {
+			return selectedParentHashes, false
+		}
+	}
+	return nil, false
 }
 
 // selectDuplicateNodes - selects nodes (e.g. fields) which are not unique to a single datasource,
@@ -886,6 +911,27 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 		// if after all checks node was not selected,
 		// we need a couple more checks
+
+		// Prefer a datasource that explicitly provides fields below an abstract root field.
+		// This keeps interface-typed @provides selections together before falling back to root order.
+		if f.checkNodes(itemIDs,
+			func(i int) bool {
+				return f.selectWithExternalCheck(i, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
+			},
+			func(i int) (skip bool) {
+				if !f.nodes.items[i].IsRootNode {
+					return true
+				}
+				if treeNode.GetParentID() != treeRootID {
+					return true
+				}
+				if !f.fieldReturnsAbstractType(f.nodes.items[i].TypeName, f.nodes.items[i].FieldName) {
+					return true
+				}
+				return !f.hasProvidedChildOnSameSource(i)
+			}) {
+			continue
+		}
 
 		// 1. Lookup in duplicates for root nodes with enabled reference resolver
 		// in case current node suggestion is an entity root node, and it contains a key with disabled resolver
@@ -1047,6 +1093,44 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 	}
+}
+
+func (f *DataSourceFilter) fieldReturnsAbstractType(typeName, fieldName string) bool {
+	node, exists := f.definition.NodeByNameStr(typeName)
+	if !exists {
+		return false
+	}
+
+	var fieldDefinitionRef int
+	var ok bool
+	switch node.Kind {
+	case ast.NodeKindObjectTypeDefinition:
+		fieldDefinitionRef, ok = f.definition.ObjectTypeDefinitionFieldWithName(node.Ref, []byte(fieldName))
+	case ast.NodeKindInterfaceTypeDefinition:
+		fieldDefinitionRef, ok = f.definition.InterfaceTypeDefinitionFieldWithName(node.Ref, []byte(fieldName))
+	default:
+		return false
+	}
+	if !ok {
+		return false
+	}
+
+	fieldTypeName := f.definition.FieldDefinitionTypeNameBytes(fieldDefinitionRef)
+	fieldTypeNode, exists := f.definition.NodeByName(fieldTypeName)
+	if !exists {
+		return false
+	}
+
+	return fieldTypeNode.Kind == ast.NodeKindInterfaceTypeDefinition || fieldTypeNode.Kind == ast.NodeKindUnionTypeDefinition
+}
+
+func (f *DataSourceFilter) hasProvidedChildOnSameSource(idx int) bool {
+	for _, childIdx := range f.nodes.childNodesOnSameSource(idx) {
+		if f.nodes.items[childIdx].IsProvided {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *DataSourceFilter) findPossibleParents(i int) (parentIds []int) {
