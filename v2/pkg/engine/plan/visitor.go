@@ -385,8 +385,16 @@ func (v *Visitor) EnterField(ref int) {
 
 	onTypeNames := v.resolveOnTypeNames(ref, fieldName)
 
+	// A planner-generated alias (see abstract_selection_field_alias.go) keeps the upstream
+	// operation valid, but the client response name must remain the original field name. The
+	// upstream JSON path still follows the alias (see resolveFieldValue below).
+	responseName := fieldAliasOrName
+	if v.Operation.FieldAliasIsDefined(ref) && bytes.HasPrefix(v.Operation.FieldAliasBytes(ref), []byte(upstreamFieldMergingAliasPrefix)) {
+		responseName = fieldName
+	}
+
 	v.currentField = &resolve.Field{
-		Name:        fieldAliasOrName,
+		Name:        responseName,
 		OnTypeNames: onTypeNames,
 		Position:    v.resolveFieldPosition(ref),
 		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
