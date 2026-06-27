@@ -534,23 +534,25 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 			writer.Complete()
 		}()
 
-		if resolvable.hasErrors() {
-			return resolveInfo, nil
-		}
-
-		// fetch deferred responses using the parallel execution tree
-
+		// Fetch deferred responses using the parallel execution tree. Each defer
+		// was gated on its anchor surviving the initial render (see
+		// liveDeferDescriptors), so a recoverable initial error no longer drops
+		// defers on surviving paths; only those whose own anchor null-propagated
+		// are pruned away here.
 		if response.DeferTree != nil {
-			dc := &deferContext{
-				response:   response,
-				info:       response.Response.Info,
-				db:         db,
-				resolvable: resolvable,
-				writer:     writer,
-			}
-			remaining := int64(countDeferLeaves(response.DeferTree))
-			if err := r.resolveDeferTree(dc, ctx, response.DeferTree, &remaining); err != nil {
-				return nil, err
+			liveTree := pruneDeadDefers(response.DeferTree, resolvable.liveTopLevelDefers())
+			if liveTree != nil {
+				dc := &deferContext{
+					response:   response,
+					info:       response.Response.Info,
+					db:         db,
+					resolvable: resolvable,
+					writer:     writer,
+				}
+				remaining := int64(countDeferLeaves(liveTree))
+				if err := r.resolveDeferTree(dc, ctx, liveTree, &remaining); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}

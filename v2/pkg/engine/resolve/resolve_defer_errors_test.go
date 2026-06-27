@@ -19,17 +19,17 @@ import (
 // analog it is derived from, and asserts the FULL multipart payload sequence
 // (one string per flushed frame) so the exact wire shape is visible.
 //
-// Tests asserting CORRECT behavior the engine does NOT yet implement are marked
-// t.Skip("KNOWN BUG: …") so the package suite stays green; their expected payloads
-// encode the target wire shape. Removing the Skip turns each into the failing TDD
-// driver for the fix.
+// All of these behaviors are now implemented by the engine; the full-payload
+// assertions double as documentation of the exact wire shape for each case.
 
 // ---- test doubles ---------------------------------------------------------
 
-// deferTestAuthorizer returns a hard error from AuthorizeObjectField for a chosen
-// field, simulating an authorizer failure during the deferred render walk (F04).
+// deferTestAuthorizer simulates the authorizer during the deferred render walk:
+// errOnField yields a hard Go error (F04), denyOnField yields an AuthorizationDeny
+// (the common production path — rendered as a rejected-field error).
 type deferTestAuthorizer struct {
-	errOnField string
+	errOnField  string
+	denyOnField string
 }
 
 func (a *deferTestAuthorizer) AuthorizePreFetch(_ *Context, _ string, _ json.RawMessage, _ GraphCoordinate) (*AuthorizationDeny, error) {
@@ -39,6 +39,9 @@ func (a *deferTestAuthorizer) AuthorizePreFetch(_ *Context, _ string, _ json.Raw
 func (a *deferTestAuthorizer) AuthorizeObjectField(_ *Context, _ string, _ json.RawMessage, coordinate GraphCoordinate) (*AuthorizationDeny, error) {
 	if coordinate.FieldName == a.errOnField {
 		return nil, errors.New("authorizer hard error on " + coordinate.FieldName)
+	}
+	if coordinate.FieldName == a.denyOnField {
+		return &AuthorizationDeny{Reason: "missing scope"}, nil
 	}
 	return nil, nil
 }
@@ -306,6 +309,75 @@ func TestDefer_InitialErrorNullsAnchor_DeferCancelled(t *testing.T) {
 	require.True(t, w.complete)
 }
 
+// TestDefer_NestedChildCancelledWithDeadParent: a nested @defer rides with its
+// top-level ancestor — when the ancestor's anchor null-propagates, both the
+// parent and the nested child are cancelled (neither announced nor delivered) and
+// the stream terminates cleanly in the initial frame.
+//
+// Operation:
+//
+//	{
+//	  user {                       # user: User (nullable)
+//	    boom                       # String! -> null -> nulls `user`
+//	    ... @defer {               # defer 1 (parent), anchor ["user"]
+//	      p { ... @defer { c } }   # defer 2 (nested child), ParentID 1
+//	    }
+//	  }
+//	}
+func TestDefer_NestedChildCancelledWithDeadParent(t *testing.T) {
+	t.Parallel()
+	r := newResolver(t.Context())
+
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: map[int]DeferDescriptor{
+			1: {ID: 1, Path: []string{"user"}},
+			2: {ID: 2, Path: []string{"user", "p"}, ParentID: 1},
+		},
+		DeferTree: DeferSequence(
+			DeferSingle(simpleGroup(1, `{}`)),
+			DeferSingle(simpleGroup(2, `{}`)),
+		),
+		Response: &GraphQLResponse{
+			Info:    deferQueryInfo(),
+			Fetches: simpleFetch(`{"user":{"boom":null}}`),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Nullable: true,
+							Path:     []string{"user"},
+							Fields: []*Field{
+								{Name: []byte("boom"), Value: &String{Path: []string{"boom"}, Nullable: false}},
+								{
+									Name:  []byte("p"),
+									Defer: &DeferField{DeferID: 1},
+									Value: &Object{
+										Nullable: true,
+										Path:     []string{"p"},
+										Fields: []*Field{
+											{Name: []byte("c"), Defer: &DeferField{DeferID: 2}, Value: &String{Path: []string{"c"}, Nullable: true}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.boom'.","path":["user","boom"]}],"data":{"user":null},"hasNext":false}`,
+	}, w.payloads)
+	require.True(t, w.complete)
+}
+
 // ---- error on a different root path: anchor survives ----------------------
 
 // TestDefer_ErrorOnDifferentRootPath_DeferStillDelivered: a recoverable error on
@@ -328,7 +400,6 @@ func TestDefer_InitialErrorNullsAnchor_DeferCancelled(t *testing.T) {
 // emits only the initial frame below with hasNext:false and no pending.
 func TestDefer_ErrorOnDifferentRootPath_DeferStillDelivered(t *testing.T) {
 	t.Parallel()
-	t.Skip("KNOWN BUG: a recoverable error on an unrelated path drops a surviving-anchor defer; should deliver per graphql-js 'Keeps deferred work outside nulled error paths'")
 	r := newResolver(t.Context())
 
 	group := simpleGroup(1, `{"f1":"deferred"}`)
@@ -366,6 +437,115 @@ func TestDefer_ErrorOnDifferentRootPath_DeferStillDelivered(t *testing.T) {
 	require.Equal(t, []string{
 		`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.erroring.name'.","path":["erroring","name"]}],"data":{"erroring":null,"safe":"ok"},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"f1":"deferred"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}`,
+	}, w.payloads)
+	require.True(t, w.complete)
+}
+
+// ---- independent top-level defers: per-anchor gating ----------------------
+
+// TestDefer_TwoRootDefers_IndependentGating: two independent top-level defers on
+// separate root fields are gated independently. When one field's anchor
+// null-propagates, only that defer is cancelled; the sibling defer on a surviving
+// field is still announced and delivered.
+//
+// Operation:
+//
+//	{
+//	  a { boom ... @defer { x } }   # boom: String! -> null -> nulls `a`, cancels defer 1
+//	  b { id   ... @defer { y } }   # `b` survives -> defer 2 delivered
+//	}
+//
+// (The deferred values ride in the initial fetch; each group fetch is a no-op, so
+// the defer just renders the already-present fields.)
+func TestDefer_TwoRootDefers_IndependentGating(t *testing.T) {
+	t.Parallel()
+	r := newResolver(t.Context())
+
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: map[int]DeferDescriptor{
+			1: {ID: 1, Path: []string{"a"}},
+			2: {ID: 2, Path: []string{"b"}},
+		},
+		DeferTree: DeferParallel(
+			DeferSingle(simpleGroup(1, `{}`)),
+			DeferSingle(simpleGroup(2, `{}`)),
+		),
+		Response: &GraphQLResponse{
+			Info:    deferQueryInfo(),
+			Fetches: simpleFetch(`{"a":{"boom":null,"x":"xval"},"b":{"id":"b1","y":"yval"}}`),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{
+						Name: []byte("a"),
+						Value: &Object{
+							Nullable: true,
+							Path:     []string{"a"},
+							Fields: []*Field{
+								// non-null boom comes back null -> nulls anchor `a`.
+								{Name: []byte("boom"), Value: &String{Path: []string{"boom"}, Nullable: false}},
+								deferredField("x", 1, &String{Path: []string{"x"}, Nullable: true}, nil),
+							},
+						},
+					},
+					{
+						Name: []byte("b"),
+						Value: &Object{
+							Nullable: true,
+							Path:     []string{"b"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}, Nullable: true}},
+								deferredField("y", 2, &String{Path: []string{"y"}, Nullable: true}, nil),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.a.boom'.","path":["a","boom"]}],"data":{"a":null,"b":{"id":"b1"}},"pending":[{"id":"2","path":["b"]}],"hasNext":true}`,
+		`{"incremental":[{"data":{"y":"yval"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}`,
+	}, w.payloads)
+	require.True(t, w.complete)
+}
+
+// ---- defer whose content is an empty list ---------------------------------
+
+// TestDefer_EmptyListInDeferredFragment: a defer whose content resolves to an
+// empty list is alive (its anchor is present) and is delivered as an empty array.
+// Only null/absent anchors are cancelled — an empty result is real data.
+//
+// Operation:
+//
+//	{ ... @defer { f1 } }   # f1: [Item!]! resolves to []
+func TestDefer_EmptyListInDeferredFragment(t *testing.T) {
+	t.Parallel()
+	r := newResolver(t.Context())
+
+	group := simpleGroup(1, `{"f1":[]}`)
+	response := rootDeferResponse(
+		&Array{
+			Path:     []string{"f1"},
+			Nullable: false,
+			Item: &Object{
+				Fields: []*Field{
+					{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+				},
+			},
+		},
+		nil, group)
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
+		`{"incremental":[{"data":{"f1":[]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}`,
 	}, w.payloads)
 	require.True(t, w.complete)
 }
@@ -473,6 +653,38 @@ func TestDefer_AuthErrorDuringDeferredRender_MustComplete(t *testing.T) {
 	require.Equal(t, []string{
 		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"completed":[{"id":"1","errors":[{"message":"authorizer hard error on f1"}]}],"hasNext":false}`,
+	}, w.payloads)
+	require.True(t, w.complete)
+}
+
+// TestDefer_AuthDenyDuringDeferredRender: an authorization DENY (the common
+// production path, distinct from a hard error) on a deferred field renders as a
+// rejected-field error inside the incremental item; the field is nulled and the
+// pending still completes.
+//
+// Operation:
+//
+//	{ ... @defer { f1 } }   # f1 has an authorization rule; the authorizer denies it
+func TestDefer_AuthDenyDuringDeferredRender(t *testing.T) {
+	t.Parallel()
+	r := newResolver(t.Context())
+
+	info := &FieldInfo{
+		Name:                 "f1",
+		HasAuthorizationRule: true,
+		Source:               TypeFieldSource{IDs: []string{"ds"}, Names: []string{"ds"}},
+	}
+	response := rootDeferResponse(&String{Path: []string{"f1"}, Nullable: true}, info, simpleGroup(1, `{"f1":"secret"}`))
+
+	ctx := NewContext(context.Background())
+	ctx.SetAuthorizer(&deferTestAuthorizer{denyOnField: "f1"})
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(ctx, response, w)
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
+		`{"incremental":[{"data":{"f1":null},"id":"1","errors":[{"message":"Unauthorized to load field 'Query.f1', Reason: missing scope.","path":["f1"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]}],"completed":[{"id":"1"}],"hasNext":false}`,
 	}, w.payloads)
 	require.True(t, w.complete)
 }

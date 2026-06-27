@@ -291,11 +291,14 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 
 	if r.deferMode {
-		if !r.hasErrors() {
-			r.printPendingEntries(r.deferDescriptors)
+		// Announce only the defers whose anchor survived the initial render. A
+		// recoverable error elsewhere no longer suppresses every defer; one that
+		// null-propagated onto a defer's own anchor cancels just that defer.
+		live := r.liveDeferDescriptors()
+		if len(live) > 0 {
+			r.printPendingEntries(live)
 		}
-
-		r.printHasNext(!r.hasErrors())
+		r.printHasNext(len(live) > 0)
 	}
 
 	r.printBytes(rBrace)
@@ -456,6 +459,64 @@ func (r *Resolvable) renderPath() {
 		}
 	}
 	r.printBytes(rBrack)
+}
+
+// deferAnchorAlive reports whether the object a @defer fragment is mounted on
+// survived the initial render. The initial validation walk sets nullable objects
+// to null in r.data when a non-null child null-propagated, so a dead anchor reads
+// back as null/absent here. An empty path refers to the root data object.
+func (r *Resolvable) deferAnchorAlive(path []string) bool {
+	if r.data == nil {
+		return false
+	}
+	v := r.data.Get(path...)
+	return v != nil && v.Type() != astjson.TypeNull
+}
+
+// deferTopAncestorAlive walks a descriptor up to its top-level ancestor
+// (ParentID 0) and reports whether that ancestor's anchor survived. Nested
+// defers ride with their top-level ancestor: if the ancestor was cancelled, so
+// are they.
+func (r *Resolvable) deferTopAncestorAlive(d DeferDescriptor) bool {
+	for d.ParentID != 0 {
+		parent, ok := r.deferDescriptors[d.ParentID]
+		if !ok {
+			break
+		}
+		d = parent
+	}
+	return r.deferAnchorAlive(d.Path)
+}
+
+// liveDeferDescriptors returns the descriptors that should be announced: every
+// defer whose top-level ancestor's anchor survived the initial render.
+func (r *Resolvable) liveDeferDescriptors() map[int]DeferDescriptor {
+	if len(r.deferDescriptors) == 0 {
+		return nil
+	}
+	live := make(map[int]DeferDescriptor, len(r.deferDescriptors))
+	for id, d := range r.deferDescriptors {
+		if r.deferTopAncestorAlive(d) {
+			live[id] = d
+		}
+	}
+	return live
+}
+
+// liveTopLevelDefers returns the set of top-level (ParentID 0) defer ids whose
+// anchor survived the initial render. Used to prune the execution tree so dead
+// defers are never fetched or rendered.
+func (r *Resolvable) liveTopLevelDefers() map[int]struct{} {
+	if len(r.deferDescriptors) == 0 {
+		return nil
+	}
+	live := make(map[int]struct{})
+	for id, d := range r.deferDescriptors {
+		if d.ParentID == 0 && r.deferAnchorAlive(d.Path) {
+			live[id] = struct{}{}
+		}
+	}
+	return live
 }
 
 // printPendingEntries writes `,"pending":[...]` listing every descriptor in
