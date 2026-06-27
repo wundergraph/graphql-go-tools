@@ -512,13 +512,12 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		resolvable.currentDefer = nil
 		resolvable.deferDescriptors = response.DeferDescriptors
 
-		defer func() {
-			writer.Complete()
-		}()
-
 		// render initial response
 		err = resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
 		if err != nil {
+			// Nothing has been committed to the wire yet (the writer only buffers
+			// until Flush), so return the error for the router to format as a
+			// top-level error response.
 			return nil, err
 		}
 
@@ -526,6 +525,14 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		if err != nil {
 			return nil, err
 		}
+
+		// The initial frame is now on the wire — the multipart response is
+		// committed. From here every exit must terminate the stream, so register
+		// Complete() only now: a pre-flush error above returns cleanly to the
+		// router instead of the terminator racing onto the socket first.
+		defer func() {
+			writer.Complete()
+		}()
 
 		if resolvable.hasErrors() {
 			return resolveInfo, nil
@@ -595,11 +602,20 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	groupLoader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, dc.db)
 	groupLoader.Init(ctx, dc.info) // fresh taintedObjs; errors=nil
 
-	if err := groupLoader.ResolveFetchNode(group.Fetches); err != nil {
+	if fetchErr := groupLoader.ResolveFetchNode(group.Fetches); fetchErr != nil {
+		// A hard fetch-phase error (e.g. pre-fetch authorizer/rate-limiter error)
+		// must not abort the whole response and orphan this defer's announced
+		// pending. Scope the error to this defer's completed entry and terminate.
 		dc.db.Lock()
+		defer dc.db.Unlock()
 		groupLoader.appendSubgraphErrorsToContext()
-		dc.db.Unlock()
-		return err
+		isLast := atomic.AddInt64(remaining, -1) == 0
+		descriptor := dc.resolvable.deferDescriptors[group.DeferID]
+		dc.resolvable.currentDefer = &descriptor
+		if err := dc.resolvable.ResolveDeferError(dc.writer, fetchErr.Error(), !isLast); err != nil {
+			return err
+		}
+		return dc.writer.Flush()
 	}
 
 	// RENDER PHASE — serialised by the DataBuffer lock.

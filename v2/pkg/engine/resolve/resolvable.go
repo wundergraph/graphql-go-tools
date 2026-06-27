@@ -320,21 +320,29 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext 
 
 	_ = r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
-		return r.authorizationError
+		// Scope the authorizer error to THIS defer: record it as the fragment's
+		// error and route to the completed-with-errors form, instead of aborting
+		// the whole response and orphaning the announced pending.
+		r.addError(r.authorizationError.Error(), nil)
+		r.authorizationError = nil
+		r.deferItemDataNull = true
 	}
 
 	shouldSkipIncremental := r.deferItemDataNull
 
-	// Open the per-defer envelope.
-	r.printBytes(lBrace)
-
+	// Second pass: render incremental data into a scratch buffer FIRST. A
+	// render-phase error (e.g. a custom field-value renderer failing) must not
+	// leave a partial frame on the wire — so on error we discard the buffer and
+	// scope the error to this defer's completed entry instead of aborting.
+	var incrementalItems []byte
 	if !shouldSkipIncremental {
-		// Second pass: render incremental data.
-		r.printBytes(quote)
-		r.printBytes(literalIncremental)
-		r.printBytes(quote)
-		r.printBytes(colon)
-		r.printBytes(lBrack)
+		savedOut := r.out
+		// The scratch buffer is allocated through the same arena as the rest of
+		// the render (heap-backed when no arena is set), so the intermediate
+		// bytes follow the engine's memory model rather than escaping to a fresh
+		// heap buffer per defer frame.
+		scratch := arena.NewArenaBuffer(r.astjsonArena)
+		r.out = scratch
 
 		r.enableRender = true
 		r.incrementalItemWritten = false
@@ -342,11 +350,49 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext 
 
 		_ = r.walkObject(rootData, r.data)
 
+		r.out = savedOut
+		if r.printErr != nil {
+			r.addError(r.printErr.Error(), nil)
+			r.printErr = nil
+			shouldSkipIncremental = true
+		} else {
+			incrementalItems = scratch.Bytes()
+		}
+	}
+
+	// Open the per-defer envelope.
+	r.printBytes(lBrace)
+
+	if !shouldSkipIncremental {
+		r.printBytes(quote)
+		r.printBytes(literalIncremental)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(lBrack)
+		r.printBytes(incrementalItems)
 		r.printBytes(rBrack)
 		r.printBytes(comma)
 	}
 
-	// Always emit completed for this defer id.
+	// Always emit completed for this defer id. Errors are attached only when the
+	// fragment had no deliverable incremental data (they ride in incremental[]
+	// otherwise).
+	r.renderCompleted(shouldSkipIncremental && r.hasErrors())
+
+	// hasNext is independent of internal defer errors — they're scoped
+	// to this defer's `completed.errors` and do not terminate the response.
+	r.printHasNext(hasNext)
+
+	r.printBytes(rBrace)
+
+	return r.printErr
+}
+
+// renderCompleted writes `"completed":[{"id":"<n>"[,"errors":[...]]}]` for the
+// current defer. When withErrors is true the accumulated r.errors are attached
+// to the completed entry (used when the fragment had no deliverable incremental
+// data, e.g. it null-bubbled or failed before/around its render).
+func (r *Resolvable) renderCompleted(withErrors bool) {
 	r.printBytes(quote)
 	r.printBytes(literalCompleted)
 	r.printBytes(quote)
@@ -361,7 +407,7 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext 
 	r.printBytes(quote)
 	r.printBytes([]byte(strconv.Itoa(r.currentDefer.ID)))
 	r.printBytes(quote)
-	if shouldSkipIncremental && r.hasErrors() {
+	if withErrors {
 		r.printBytes(comma)
 		r.printBytes(quote)
 		r.printBytes(literalErrors)
@@ -371,11 +417,25 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext 
 	}
 	r.printBytes(rBrace)
 	r.printBytes(rBrack)
+}
 
-	// hasNext is independent of internal defer errors — they're scoped
-	// to this defer's `completed.errors` and do not terminate the response.
+// ResolveDeferError writes a terminal defer envelope that reports a
+// fragment-scoped error on the completed entry (no incremental data) and
+// terminates with hasNext. It is used when a deferred group fails in its fetch
+// phase (e.g. a hard pre-fetch authorizer/rate-limiter error) so the announced
+// pending is still completed and the multipart stream still terminates, instead
+// of the error aborting the whole response and orphaning the pending.
+func (r *Resolvable) ResolveDeferError(out io.Writer, message string, hasNext bool) error {
+	r.out = out
+	r.printErr = nil
+	r.path = r.path[:0]
+	r.errors = nil
+	r.addError(message, nil)
+
+	// {"completed":[{"id":"<n>","errors":[...]}],"hasNext":<bool>}
+	r.printBytes(lBrace)
+	r.renderCompleted(true)
 	r.printHasNext(hasNext)
-
 	r.printBytes(rBrace)
 
 	return r.printErr

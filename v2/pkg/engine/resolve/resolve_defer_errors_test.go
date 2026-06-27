@@ -370,6 +370,70 @@ func TestDefer_ErrorOnDifferentRootPath_DeferStillDelivered(t *testing.T) {
 	require.True(t, w.complete)
 }
 
+// ---- initial-response render error: returned to the router ----------------
+
+// TestDefer_InitialRenderError_ReturnsToRouter: a hard error during the INITIAL
+// (non-deferred) render — before the first frame is flushed — must be returned to
+// the caller (router) so it can format a top-level error response, and must NOT
+// commit or terminate the multipart stream. Contrast with deferred-fragment
+// errors, which happen after the initial frame is on the wire and are scoped
+// inline into completed.errors.
+//
+// Operation:
+//
+//	{
+//	  f0                  # initial, non-deferred; the authorizer hard-errors here
+//	  ... @defer { f1 }
+//	}
+//
+// This locks in the Complete() ordering: writer.Complete() must not fire on a
+// pre-flush error, otherwise the multipart terminator races onto the socket
+// before the router can write its top-level error.
+func TestDefer_InitialRenderError_ReturnsToRouter(t *testing.T) {
+	t.Parallel()
+	r := newResolver(t.Context())
+
+	group := simpleGroup(1, `{"f1":"deferred"}`)
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: map[int]DeferDescriptor{
+			1: {ID: 1},
+		},
+		DeferTree: DeferSingle(group),
+		Response: &GraphQLResponse{
+			Info:    deferQueryInfo(),
+			Fetches: simpleFetch(`{"f0":"v"}`),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{
+						Name:  []byte("f0"),
+						Value: &String{Path: []string{"f0"}, Nullable: true},
+						Info: &FieldInfo{
+							Name:                 "f0",
+							HasAuthorizationRule: true,
+							Source:               TypeFieldSource{IDs: []string{"ds"}, Names: []string{"ds"}},
+						},
+					},
+					deferredField("f1", 1, &String{Path: []string{"f1"}, Nullable: true}, nil),
+				},
+			},
+		},
+	}
+
+	ctx := NewContext(context.Background())
+	ctx.SetAuthorizer(&deferTestAuthorizer{errOnField: "f0"})
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(ctx, response, w)
+
+	// The error is returned for the router to format as a top-level response...
+	require.Error(t, err)
+	// ...and nothing was committed to the wire: no frame flushed and the stream
+	// was not terminated, so the router can still write a clean error response.
+	require.Empty(t, w.payloads)
+	require.False(t, w.complete)
+}
+
 // ---- authorizer error during deferred render ------------------------------
 
 // TestDefer_AuthErrorDuringDeferredRender_MustComplete: a hard authorizer error
@@ -390,7 +454,6 @@ func TestDefer_ErrorOnDifferentRootPath_DeferStillDelivered(t *testing.T) {
 // minimum: the pending is completed and the stream terminates.
 func TestDefer_AuthErrorDuringDeferredRender_MustComplete(t *testing.T) {
 	t.Parallel()
-	t.Skip("KNOWN BUG (F04): authorizer error during deferred render orphans the pending; must complete it and terminate")
 	r := newResolver(t.Context())
 
 	group := simpleGroup(1, `{"f1":"secret"}`)
@@ -431,7 +494,6 @@ func TestDefer_AuthErrorDuringDeferredRender_MustComplete(t *testing.T) {
 // NOTE: exact error rendering is the open design point of the fix.
 func TestDefer_RenderErrorDuringDeferredRender_MustComplete(t *testing.T) {
 	t.Parallel()
-	t.Skip("KNOWN BUG (F05): field-renderer error during deferred render orphans the pending; must complete it and terminate")
 	r := newResolver(t.Context())
 
 	group := simpleGroup(1, `{"f1":"value"}`)
@@ -467,7 +529,6 @@ func TestDefer_RenderErrorDuringDeferredRender_MustComplete(t *testing.T) {
 // NOTE: exact error rendering is the open design point of the fix.
 func TestDefer_RateLimitErrorDuringDeferredFetch_MustComplete(t *testing.T) {
 	t.Parallel()
-	t.Skip("KNOWN BUG: hard pre-fetch error on a deferred group orphans the pending; must complete it and terminate")
 	r := newResolver(t.Context())
 
 	group := &DeferFetchGroup{
