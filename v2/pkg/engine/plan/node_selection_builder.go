@@ -18,6 +18,9 @@ type NodeSelectionBuilder struct {
 	nodeResolvableVisitor *nodesResolvableVisitor
 	nodeSelectionsWalker  *astvisitor.Walker
 	nodeSelectionsVisitor *nodeSelectionVisitor
+
+	fieldMergingAliasWalker  *astvisitor.Walker
+	fieldMergingAliasVisitor *fieldMergingAliasVisitor
 }
 
 type fieldDependencyKind int
@@ -75,12 +78,22 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeResolvableWalker.RegisterEnterDocumentVisitor(nodeResolvableVisitor)
 	nodeResolvableWalker.RegisterEnterFieldVisitor(nodeResolvableVisitor)
 
+	fieldMergingAliasWalker := astvisitor.NewWalkerWithID(24, "FieldMergingAliasWalker")
+	fieldMergingAliasVisitor := &fieldMergingAliasVisitor{
+		walker:      &fieldMergingAliasWalker,
+		dataSources: config.DataSources,
+	}
+	fieldMergingAliasWalker.RegisterEnterDocumentVisitor(fieldMergingAliasVisitor)
+	fieldMergingAliasWalker.RegisterEnterFieldVisitor(fieldMergingAliasVisitor)
+
 	return &NodeSelectionBuilder{
-		config:                config,
-		nodeSelectionsWalker:  &nodeSelectionsWalker,
-		nodeSelectionsVisitor: nodeSelectionVisitor,
-		nodeResolvableWalker:  &nodeResolvableWalker,
-		nodeResolvableVisitor: nodeResolvableVisitor,
+		config:                   config,
+		nodeSelectionsWalker:     &nodeSelectionsWalker,
+		nodeSelectionsVisitor:    nodeSelectionVisitor,
+		nodeResolvableWalker:     &nodeResolvableWalker,
+		nodeResolvableVisitor:    nodeResolvableVisitor,
+		fieldMergingAliasWalker:  &fieldMergingAliasWalker,
+		fieldMergingAliasVisitor: fieldMergingAliasVisitor,
 	}
 }
 
@@ -109,6 +122,14 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	p.nodeSelectionsVisitor.debug = p.config.Debug
+
+	// Step 0. Alias fields that share a response name across concrete union/interface members but
+	// differ only in nullability in some subgraph schema. This must run before suggestions are
+	// produced so the response-name based paths stay consistent across all later phases.
+	p.fieldMergingAliasWalker.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return
+	}
 
 	// Step 1. Produce initial suggestions of which datasource owns which fields.
 	// We collect info from all subgraphs with the field, plus available keys per path.
