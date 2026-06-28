@@ -495,8 +495,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -566,8 +566,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"],"label":"outer"},{"id":"2","path":["user"],"label":"inner"}],"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"],"label":"outer"}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["user"],"label":"inner"}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -616,8 +616,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -780,8 +780,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						}
 					},
 					dataSources: tc.dataSources,
-					expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]},{"id":"3","path":["user","info"]}],"hasNext":true}
-{"incremental":[{"data":{"info":{"email":"black@sabbat"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+					expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"info":{"email":"black@sabbat"}},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"3","path":["user","info"]}],"hasNext":true}
 {"incremental":[{"data":{"phone":"123"},"id":"3"}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 				}, withStreamingResponse()))
@@ -813,12 +813,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				dataSources: tc.dataSources,
 				// This test incremental order depends on latency of responses,
 				// which gives us predictable order for the parallel fetches
-				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["user"]},{"id":"3","path":["user"]},{"id":"4","path":["user"]},{"id":"5","path":["user"]},{"id":"6","path":["user","info"]},{"id":"7","path":["user","info"]}],"hasNext":true}
-{"incremental":[{"data":{"user":{}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
+{"incremental":[{"data":{"user":{}},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["user"]},{"id":"3","path":["user"]},{"id":"4","path":["user"]},{"id":"5","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
 {"incremental":[{"data":{"name":"Black"},"id":"3"}],"completed":[{"id":"3"}],"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"id":"4"}],"completed":[{"id":"4"}],"hasNext":true}
-{"incremental":[{"data":{"info":{}},"id":"5"}],"completed":[{"id":"5"}],"hasNext":true}
+{"incremental":[{"data":{"info":{}},"id":"5"}],"completed":[{"id":"5"}],"pending":[{"id":"6","path":["user","info"]},{"id":"7","path":["user","info"]}],"hasNext":true}
 {"incremental":[{"data":{"email":"black@sabbat"},"id":"6"}],"completed":[{"id":"6"}],"hasNext":true}
 {"incremental":[{"data":{"phone":"123"},"id":"7"}],"completed":[{"id":"7"}],"hasNext":false}
 `,
@@ -858,13 +858,13 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["user"]},{"id":"3","path":["user"]},{"id":"4","path":["user"]},{"id":"5","path":["user"]},{"id":"6","path":["user","info"]},{"id":"7","path":["user","info"]}],"hasNext":true}
-{"incremental":[{"data":{"user":{}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
-{"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
-{"incremental":[{"data":{"name":"Black"},"id":"3"}],"completed":[{"id":"3"}],"hasNext":true}
-{"incremental":[{"data":{"title":"Sabbat"},"id":"4"}],"completed":[{"id":"4"}],"hasNext":true}
-{"incremental":[{"data":{"info":{}},"id":"5"}],"completed":[{"id":"5"}],"hasNext":true}
-{"incremental":[{"data":{"email":"black@sabbat"},"id":"6"}],"completed":[{"id":"6"}],"hasNext":true}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
+{"incremental":[{"data":{"user":{}},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"pending":[{"id":"3","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Black"},"id":"3"}],"completed":[{"id":"3"}],"pending":[{"id":"4","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"Sabbat"},"id":"4"}],"completed":[{"id":"4"}],"pending":[{"id":"5","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"info":{}},"id":"5"}],"completed":[{"id":"5"}],"pending":[{"id":"6","path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat"},"id":"6"}],"completed":[{"id":"6"}],"pending":[{"id":"7","path":["user","info"]}],"hasNext":true}
 {"incremental":[{"data":{"phone":"123"},"id":"7"}],"completed":[{"id":"7"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -1036,11 +1036,11 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			// 1(root) -> 2 -> 3 and 1 -> 4 -> 5. The parent chains let the resolver
 			// reach the deeply-merged fields (e.g. defer 2/3/5 traverse into the
 			// defer-1 nestedInfo object).
-			expectedResponse: `{"data":{"user":{"info":{"address":"Berlin"}}},"pending":[{"id":"1","path":["user","info"]},{"id":"2","path":["user","info","nestedInfo"]},{"id":"3","path":["user","info"]},{"id":"4","path":["user","info"]},{"id":"5","path":["user","info","nestedInfo"]}],"hasNext":true}
-{"incremental":[{"data":{"nestedInfo":{"a":"A"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
-{"incremental":[{"data":{"b":"B"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
+			expectedResponse: `{"data":{"user":{"info":{"address":"Berlin"}}},"pending":[{"id":"1","path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"nestedInfo":{"a":"A"}},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["user","info","nestedInfo"]},{"id":"4","path":["user","info"]}],"hasNext":true}
+{"incremental":[{"data":{"b":"B"},"id":"2"}],"completed":[{"id":"2"}],"pending":[{"id":"3","path":["user","info"]}],"hasNext":true}
 {"incremental":[{"data":{"phone":"123"},"id":"3"},{"data":{"c":"C"},"id":"3","subPath":["nestedInfo"]}],"completed":[{"id":"3"}],"hasNext":true}
-{"incremental":[{"data":{"email":"black@sabbat"},"id":"4"}],"completed":[{"id":"4"}],"hasNext":true}
+{"incremental":[{"data":{"email":"black@sabbat"},"id":"4"}],"completed":[{"id":"4"}],"pending":[{"id":"5","path":["user","info","nestedInfo"]}],"hasNext":true}
 {"incremental":[{"data":{"d":"D"},"id":"5"}],"completed":[{"id":"5"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
@@ -1766,8 +1766,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
@@ -1822,9 +1822,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
-			expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]},{"id":"3","path":["user"]}],"hasNext":true}
-{"incremental":[{"data":{"name":"Alice","billing":{"plan":"pro"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
-{"incremental":[{"data":{"account":{"type":"premium"}},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
+			expectedResponse: `{"data":{"user":{}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"name":"Alice","billing":{"plan":"pro"}},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["user"]}],"hasNext":true}
+{"incremental":[{"data":{"account":{"type":"premium"}},"id":"2"}],"completed":[{"id":"2"}],"pending":[{"id":"3","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"3"}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 		}, withStreamingResponse()))
@@ -2484,9 +2484,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { subItems { id ... @defer { description } } } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]},{"id":"3","path":["items"]}],"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
-{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"id":"2","subPath":[0]},{"data":{"subItems":[{"id":"s3"}]},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":true}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"id":"2","subPath":[0]},{"data":{"subItems":[{"id":"s3"}]},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"pending":[{"id":"3","path":["items"]}],"hasNext":true}
 {"incremental":[{"data":{"description":"Desc1"},"id":"3","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"3","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"3","subPath":[1,"subItems",0]}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -2557,8 +2557,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ items { id ... @defer { subItems { id } } ... @defer { subItems { description } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"items":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["items"]},{"id":"2","path":["items"]}],"hasNext":true}
-{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"id":"1","subPath":[0]},{"data":{"subItems":[{"id":"s3"}]},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{"items":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"id":"1","subPath":[0]},{"data":{"subItems":[{"id":"s3"}]},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["items"]}],"hasNext":true}
 {"incremental":[{"data":{"description":"Desc1"},"id":"2","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"2","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"2","subPath":[1,"subItems",0]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -2571,8 +2571,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { subItems { id } } } ... @defer { items { subItems { description } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]}],"hasNext":true}
-{"incremental":[{"data":{"items":[{"subItems":[{"id":"s1"},{"id":"s2"}]},{"subItems":[{"id":"s3"}]}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"subItems":[{"id":"s1"},{"id":"s2"}]},{"subItems":[{"id":"s3"}]}]},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["items"]}],"hasNext":true}
 {"incremental":[{"data":{"description":"Desc1"},"id":"2","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"2","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"2","subPath":[1,"subItems",0]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -2585,8 +2585,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { name } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]}],"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["items"]}],"hasNext":true}
 {"incremental":[{"data":{"name":"ItemOne"},"id":"2","subPath":[0]},{"data":{"name":"ItemTwo"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -2597,8 +2597,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { title } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]}],"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["items"]}],"hasNext":true}
 {"incremental":[{"data":{"title":"TitleOne"},"id":"2","subPath":[0]},{"data":{"title":"TitleTwo"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -2609,8 +2609,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id subItems { id ... @defer { description } } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]}],"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1","subItems":[{"id":"s1"},{"id":"s2"}]},{"id":"2","subItems":[{"id":"s3"}]}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1","subItems":[{"id":"s1"},{"id":"s2"}]},{"id":"2","subItems":[{"id":"s3"}]}]},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["items"]}],"hasNext":true}
 {"incremental":[{"data":{"description":"Desc1"},"id":"2","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"2","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"2","subPath":[1,"subItems",0]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -2621,9 +2621,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { subItems { id ... @defer { description } } } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]},{"id":"3","path":["items"]}],"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
-{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"id":"2","subPath":[0]},{"data":{"subItems":[{"id":"s3"}]},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":true}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"subItems":[{"id":"s1"},{"id":"s2"}]},"id":"2","subPath":[0]},{"data":{"subItems":[{"id":"s3"}]},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"pending":[{"id":"3","path":["items"]}],"hasNext":true}
 {"incremental":[{"data":{"description":"Desc1"},"id":"3","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"3","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"3","subPath":[1,"subItems",0]}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -2634,9 +2634,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `{ ... @defer { items { id ... @defer { title subItems { id ... @defer { description } } } } } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":["items"]},{"id":"3","path":["items"]}],"hasNext":true}
-{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
-{"incremental":[{"data":{"title":"TitleOne","subItems":[{"id":"s1"},{"id":"s2"}]},"id":"2","subPath":[0]},{"data":{"title":"TitleTwo","subItems":[{"id":"s3"}]},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":true}
+				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
+{"incremental":[{"data":{"items":[{"id":"1"},{"id":"2"}]},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["items"]}],"hasNext":true}
+{"incremental":[{"data":{"title":"TitleOne","subItems":[{"id":"s1"},{"id":"s2"}]},"id":"2","subPath":[0]},{"data":{"title":"TitleTwo","subItems":[{"id":"s3"}]},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"pending":[{"id":"3","path":["items"]}],"hasNext":true}
 {"incremental":[{"data":{"description":"Desc1"},"id":"3","subPath":[0,"subItems",0]},{"data":{"description":"Desc2"},"id":"3","subPath":[0,"subItems",1]},{"data":{"description":"Desc3"},"id":"3","subPath":[1,"subItems",0]}],"completed":[{"id":"3"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
@@ -2844,8 +2844,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				},
 				dataSources: dataSources,
 				expectedResponses: []string{
-					`{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]},{"id":"2","path":["products"]}],"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":true}
+					`{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["products"]}],"hasNext":true}
 {"incremental":[{"data":{"name":"Product One"},"id":"2","subPath":[0]},{"data":{"name":"Product Two"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 					`{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]},{"id":"2","path":["products"]}],"hasNext":true}
@@ -2874,8 +2874,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					return graphql.Request{Query: `fragment SkuWithName on Product { sku ... @defer { name } } { products { id ...SkuWithName @defer } }`}
 				},
 				dataSources: dataSources,
-				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]},{"id":"2","path":["products"]}],"hasNext":true}
-{"incremental":[{"data":{"sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"hasNext":true}
+				expectedResponse: `{"data":{"products":[{"id":"1"},{"id":"2"}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}
+{"incremental":[{"data":{"sku":"sku-1"},"id":"1","subPath":[0]},{"data":{"sku":"sku-2"},"id":"1","subPath":[1]}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["products"]}],"hasNext":true}
 {"incremental":[{"data":{"name":"Product One"},"id":"2","subPath":[0]},{"data":{"name":"Product Two"},"id":"2","subPath":[1]}],"completed":[{"id":"2"}],"hasNext":false}
 `,
 			}, withStreamingResponse()))
