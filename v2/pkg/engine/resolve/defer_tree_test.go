@@ -64,6 +64,7 @@ func TestPruneDeadDefers(t *testing.T) {
 	t.Parallel()
 
 	t.Run("parallel root prunes children independently", func(t *testing.T) {
+		t.Parallel()
 		tree := DeferParallel(deferLeaf(1), deferLeaf(2), deferLeaf(3))
 		pruned := pruneDeadDefers(tree, liveSet(1, 3))
 		require.NotNil(t, pruned)
@@ -71,11 +72,13 @@ func TestPruneDeadDefers(t *testing.T) {
 	})
 
 	t.Run("parallel root all dead returns nil", func(t *testing.T) {
+		t.Parallel()
 		tree := DeferParallel(deferLeaf(1), deferLeaf(2))
 		assert.Nil(t, pruneDeadDefers(tree, liveSet()))
 	})
 
 	t.Run("sequence dead parent prunes the whole chain", func(t *testing.T) {
+		t.Parallel()
 		// parent 1 -> child 2. Parent dead drops the child too, even though it
 		// would be "live" on its own.
 		seq := DeferSequence(deferLeaf(1), deferLeaf(2))
@@ -83,6 +86,7 @@ func TestPruneDeadDefers(t *testing.T) {
 	})
 
 	t.Run("sequence live parent keeps the whole chain", func(t *testing.T) {
+		t.Parallel()
 		seq := DeferSequence(deferLeaf(1), deferLeaf(2))
 		pruned := pruneDeadDefers(seq, liveSet(1))
 		require.NotNil(t, pruned)
@@ -90,6 +94,7 @@ func TestPruneDeadDefers(t *testing.T) {
 	})
 
 	t.Run("sequence with parallel children is keyed on the parent", func(t *testing.T) {
+		t.Parallel()
 		// parent 1 -> independent children 2,3.
 		seq := DeferSequence(deferLeaf(1), DeferParallel(deferLeaf(2), deferLeaf(3)))
 		assert.Nil(t, pruneDeadDefers(seq, liveSet(2, 3)), "parent dead -> whole subtree pruned")
@@ -100,6 +105,7 @@ func TestPruneDeadDefers(t *testing.T) {
 	})
 
 	t.Run("mixed parallel root with a dead sequence", func(t *testing.T) {
+		t.Parallel()
 		// Parallel of: a (dead) parent-child sequence, and an independent live leaf.
 		tree := DeferParallel(DeferSequence(deferLeaf(1), deferLeaf(2)), deferLeaf(3))
 		pruned := pruneDeadDefers(tree, liveSet(3))
@@ -108,6 +114,7 @@ func TestPruneDeadDefers(t *testing.T) {
 	})
 
 	t.Run("does not mutate the input tree", func(t *testing.T) {
+		t.Parallel()
 		// The plan (response.DeferTree) is shared across requests, so pruning must
 		// not modify it in place — it returns kept subtrees by reference and only
 		// allocates new Parallel wrapper nodes where children were filtered out.
