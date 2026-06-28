@@ -479,7 +479,19 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		r.maxConcurrency <- struct{}{}
 	}()
 
-	resolvable := NewResolvable(nil, r.options.ResolvableOptions)
+	// One arena backs the whole deferred response: the resolvable, the initial
+	// loader, and every defer group's loader allocate from it. This is safe
+	// despite groups running concurrently because every arena allocation happens
+	// under db's lock — the loader allocates only in its prepare/merge phases
+	// (both hold db.Lock()), the off-lock network phase touches no arena, and the
+	// resolvable's defer-batch renders also run under the lock. The arena retains
+	// the entire response tree until every frame is flushed, so it is released
+	// only when this function returns (after resolveDeferTree has joined all
+	// groups), matching the lifetime the heap gave it before.
+	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
+	defer r.resolveArenaPool.Release(resolveArena)
+
+	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
 
 	err := resolvable.Init(ctx, nil, response.Response.Info.OperationType)
 	if err != nil {
@@ -489,7 +501,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 	// The DataBuffer wraps the base tree produced by Init. The loader and every
 	// defer group merge into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, db)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db)
 
 	if !ctx.ExecutionOptions.SkipLoader {
 		loader.Init(ctx, response.Response.Info)
@@ -553,6 +565,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 					db:         db,
 					resolvable: resolvable,
 					writer:     writer,
+					arena:      resolveArena.Arena,
 				}
 				if err := r.resolveDeferTree(dc, ctx, liveTree, &outstanding); err != nil {
 					return nil, err
@@ -573,6 +586,9 @@ type deferContext struct {
 	db         *DataBuffer
 	resolvable *Resolvable
 	writer     DeferResponseWriter
+	// arena backs every defer group's loader. It is shared across groups; every
+	// allocation from it is serialised by db's lock (see resolveDeferSingle).
+	arena arena.Arena
 }
 
 // resolveDeferSingle fetches and renders a single deferred fragment, announcing
@@ -588,11 +604,12 @@ type deferContext struct {
 // ResolveFetchNode runs before the lock, allowing sibling defer fetches to overlap.
 func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *DeferFetchGroup, outstanding *int64) (map[int]DeferDescriptor, error) {
 	// FETCH PHASE — runs outside the DataBuffer lock.
-	// Each goroutine gets its OWN Loader with a NIL arena. Defer groups run
-	// concurrently and the arena is not thread-safe, so this group's errors and
-	// merge allocations go on the heap (concurrency-safe). The shared response
-	// tree (dc.db) is mutated only under dc.db.Lock() inside the merge phase.
-	groupLoader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, dc.db)
+	// Each goroutine gets its OWN Loader but they all share one arena (dc.arena).
+	// That is safe even though groups run concurrently: a Loader allocates from
+	// the arena only in its prepare and merge phases, both of which hold
+	// dc.db.Lock(), and the off-lock network phase allocates nothing from it. The
+	// lock therefore serialises every arena allocation across all groups.
+	groupLoader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, dc.arena, dc.db)
 	groupLoader.Init(ctx, dc.info) // fresh taintedObjs; errors=nil
 
 	if fetchErr := groupLoader.ResolveFetchNode(group.Fetches); fetchErr != nil {
