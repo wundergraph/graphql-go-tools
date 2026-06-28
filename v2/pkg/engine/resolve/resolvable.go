@@ -27,64 +27,142 @@ import (
 const invalidPath = "invalid path"
 
 type Resolvable struct {
+	// options holds the resolver-level toggles (Apollo compatibility, allowed
+	// subgraph extensions, extension-forwarding algorithm) consulted while rendering.
 	options ResolvableOptions
 
-	data                 *astjson.Value
-	errors               *astjson.Value
-	valueCompletion      *astjson.Value
+	// data is the response tree being walked and rendered.
+	// In the case of defer it is injected before each render; during deferred delivery it points at the shared DataBuffer tree.
+	data *astjson.Value
+
+	// errors is the accumulated GraphQL `errors` array (arena-allocated) written
+	// into the response envelope.
+	errors *astjson.Value
+
+	// valueCompletion collects Apollo "value completion" extension entries for
+	// non-nullable fields that resolved to null; emitted under extensions when the
+	// ApolloCompatibilityValueCompletionInExtensions option is set.
+	valueCompletion *astjson.Value
+
+	// skipAddingNullErrors suppresses further "cannot return null" errors when the
+	// response already carries errors but no data (set per render in Resolve).
 	skipAddingNullErrors bool
+
 	// astjsonArena is the arena to handle json, supplied by Resolver
 	// not thread safe, but Resolvable is single threaded anyways
 	astjsonArena arena.Arena
-	parsers      []*astjson.Parser
 
-	enableRender       bool
-	enableDeferRender  bool
-	out                io.Writer
-	printErr           error
-	path               []fastjsonext.PathElement
-	depth              int
-	operationType      ast.OperationType
-	renameTypeNames    []RenameTypeName
-	ctx                *Context
+	// parsers are pooled astjson parsers reused across walks to avoid per-call allocation.
+	parsers []*astjson.Parser
+
+	// enableRender - controls whether we are doing the validation pre-walk (collect errors, detect null-bubbling)
+	// or we are doing the render pass that actually writes output.
+	enableRender bool
+
+	// enableDeferRender gates the defer-envelope output (open/close, deferred-field
+	// emission, item separation) so it happens only within a single deferred
+	// item's render.
+	enableDeferRender bool
+
+	// out is the destination writer for the rendered response
+	out io.Writer
+
+	// printErr is the first error hit while writing output; once set, rendering short-circuits.
+	printErr error
+
+	// path is the current JSON path during the walk, used for error `path` and
+	// defer subPath computation.
+	path []fastjsonext.PathElement
+
+	// depth is the current object-nesting depth of the walk (e.g. root is depth < 2).
+	depth int
+
+	// operationType is the operation kind (query/mutation/subscription). It only
+	// supplies the root type name prefix (Query/Mutation/Subscription) when
+	// rendering error paths and field coordinates.
+	operationType ast.OperationType
+
+	// renameTypeNames holds the __typename rewrite rules, applied while rendering.
+	renameTypeNames []RenameTypeName
+
+	// ctx is the request Context (authorizer, rate limiter, field renderer, options).
+	ctx *Context
+
+	// authorizationError holds an auth error raised mid-walk;
+	// in case of defer it is scoped to the current field/defer and converted into a defer local error.
 	authorizationError error
-	xxh                *xxhash.Digest
+
+	// xxh is a reused xxhash digest for computing authorization decision cache keys.
+	xxh *xxhash.Digest
+
+	// authorizationAllow caches allowed authorization decision ids (keyed by the
+	// xxh of dataSource id + graph coordinate).
 	authorizationAllow map[uint64]struct{}
-	authorizationDeny  map[uint64]string
 
-	wroteErrors         bool
-	wroteData           bool
+	// authorizationDeny caches denied authorization decision ids mapped to their deny reason.
+	authorizationDeny map[uint64]string
+
+	// wroteErrors records whether the `errors` array has been written to the response
+	wroteErrors bool
+
+	// wroteData records whether the `data` section has been written; together with
+	// wroteErrors it detects the errors-without-data case.
+	wroteData bool
+
+	// skipValueCompletion suppresses value-completion extension output for this
+	// render (set from the loader when a fetch had errors but no data).
 	skipValueCompletion bool
-	deferMode           bool
-	currentDefer        *DeferDescriptor
-	deferDescriptors    map[int]DeferDescriptor
 
+	// deferMode switches rendering between a single complete response and
+	// incremental (@defer) delivery.
+	// when enabled, we walk object fields in a different way
+	deferMode bool
+
+	// currentDefer is the defer descriptor currently being rendered (nil for the
+	// initial response frame).
+	currentDefer *DeferDescriptor
+
+	// deferDescriptors holds every defer descriptor for the operation, keyed by defer id.
+	deferDescriptors map[int]DeferDescriptor
+
+	// typeNames is a stack of the runtime `__typename` at each object layer; it is
+	// indexed by depth to evaluate `... on Type` fragment type conditions.
 	typeNames [][]byte
 
+	// marshalBuf is a reusable scratch buffer for marshaling scalar values before
+	// writing them out.
 	marshalBuf []byte
 
+	// enclosingTypeNames is a stack of the schema type name (Object.TypeName) per
+	// object layer; enclosingTypeName() returns the current one for error messages.
 	enclosingTypeNames []string
 
+	// currentFieldInfo is the FieldInfo of the field currently being rendered,
+	// passed to a custom field-value renderer.
 	currentFieldInfo *FieldInfo
 
 	// typeNameStats maps the JSON path to its accumulated array/object stats in the final response.
 	// Used to compute the actual cost of the operation.
 	typeNameStats map[string]TypeNameStats
 
+	// subgraphExtensions holds the `extensions` objects collected from subgraph
+	// fetches, merged into the response extensions during rendering.
 	subgraphExtensions []*astjson.Object
-	allowedExtensions  map[string]*astjson.Value
 
-	// incrementalItemWritten records whether an incremental item has already been
+	// allowedExtensions filters which subgraph extension keys are forwarded into
+	// the response.
+	allowedExtensions map[string]*astjson.Value
+
+	// deferIncrementalItemWritten records whether an incremental item has already been
 	// written in the current defer batch, so the next item is separated from it by
 	// a comma. Reset to false at the start of every batch and on Init.
-	incrementalItemWritten bool
+	deferIncrementalItemWritten bool
 
-	// deferItemDataNull is set during the batch pre-walk when the deferred
-	// fragment's data null-propagates through a non-nullable chain (or an
-	// authorizer error scopes the fragment): there is no deliverable incremental
-	// item, so the error is reported on the completed entry instead. Reset to false
-	// at the start of every batch (ResolveDeferBatch) and on Init, so its value
-	// never leaks from one defer batch into the next.
+	// deferItemDataNull marks that the deferred fragment produced no deliverable
+	// data — null-bubbled through a non-nullable chain, or scoped out by an
+	// authorizer error — so its error goes on the completed entry instead of an
+	// incremental item. Reset at the start of every batch (ResolveDeferBatch) and
+	// on Init, so it never leaks across defer batches.
 	deferItemDataNull bool
 }
 
@@ -169,7 +247,7 @@ func (r *Resolvable) Reset() {
 	r.currentDefer = nil
 	r.deferDescriptors = nil
 	r.enableDeferRender = false
-	r.incrementalItemWritten = false
+	r.deferIncrementalItemWritten = false
 	r.deferItemDataNull = false
 }
 
@@ -331,7 +409,7 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 	r.enableRender = false
 	r.deferMode = true
 	r.enableDeferRender = false
-	r.incrementalItemWritten = false
+	r.deferIncrementalItemWritten = false
 	r.deferItemDataNull = false
 
 	_ = r.walkObject(rootData, r.data)
@@ -359,7 +437,7 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 		r.out = scratch
 
 		r.enableRender = true
-		r.incrementalItemWritten = false
+		r.deferIncrementalItemWritten = false
 		r.enableDeferRender = false
 
 		_ = r.walkObject(rootData, r.data)
@@ -1205,7 +1283,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 			r.enableDeferRender = true
 			startedRender = true
 
-			if r.enableRender && r.incrementalItemWritten {
+			if r.enableRender && r.deferIncrementalItemWritten {
 				r.printBytes(comma)
 			}
 
@@ -1224,7 +1302,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 					r.deferItemDataNull = true
 				}
 				r.printDeferEnvelopeClose()
-				r.incrementalItemWritten = true
+				r.deferIncrementalItemWritten = true
 			}
 			r.enableDeferRender = false
 		}
