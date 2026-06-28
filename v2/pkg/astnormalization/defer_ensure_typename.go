@@ -8,21 +8,17 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
-// deferEnsureTypename registers a visitor that ensures a non-deferred field always
-// has at least one non-deferred field selection (a __typename placeholder) when all
-// of its child fields carry @__defer_internal. This runs after defer expansion, so
-// only the expanded field form with @__defer_internal is considered.
+// deferEnsureTypename registers a visitor that adds a __typename placeholder to a
+// field whose child fields are all deferred, so the planner never produces an empty
+// selection set. It runs after defer expansion, so deferred children are identified
+// by their @__defer_internal directive.
 //
-// This placeholder is necessary for the planner to not produce an empty selection set,
-// when all nested fields are deffered
+// What gets added depends on the enclosing parent field:
+//   - parent not deferred:                     plain placeholder.
+//   - parent deferred, no child shares its id: placeholder tagged with the parent's defer id.
+//   - parent deferred, a child shares its id:  no placeholder needed.
 //
-// When the enclosing parent field is not deferred, a plain placeholder is added.
-//
-// When the enclosing parent field is itself deferred, a placeholder is added only if
-// none of the child fields share the same defer id as the parent (no intersection).
-// In that case the placeholder is annotated with the parent's defer id so it lands
-// in the correct defer scope. If there is an intersection (at least one child field
-// has the same defer id as the parent), no placeholder is needed.
+// Only nested selection sets are considered; the operation root is skipped.
 func deferEnsureTypename(walker *astvisitor.Walker) {
 	visitor := deferEnsureTypenameVisitor{
 		Walker: walker,

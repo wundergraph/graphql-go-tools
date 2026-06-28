@@ -74,8 +74,18 @@ type Resolvable struct {
 	subgraphExtensions []*astjson.Object
 	allowedExtensions  map[string]*astjson.Value
 
+	// incrementalItemWritten records whether an incremental item has already been
+	// written in the current defer batch, so the next item is separated from it by
+	// a comma. Reset to false at the start of every batch and on Init.
 	incrementalItemWritten bool
-	deferItemDataNull      bool
+
+	// deferItemDataNull is set during the batch pre-walk when the deferred
+	// fragment's data null-propagates through a non-nullable chain (or an
+	// authorizer error scopes the fragment): there is no deliverable incremental
+	// item, so the error is reported on the completed entry instead. Reset to false
+	// at the start of every batch (ResolveDeferBatch) and on Init, so its value
+	// never leaks from one defer batch into the next.
+	deferItemDataNull bool
 }
 
 type TypeNameStats struct {
