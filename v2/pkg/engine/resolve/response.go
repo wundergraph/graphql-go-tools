@@ -70,15 +70,12 @@ type GraphQLDeferResponse struct {
 	DeferTree *DeferTreeNode
 }
 
-// DeferDescriptor describes a single @defer fragment for the incremental-delivery
-// envelope. Path is the response path of the fragment (where it was mounted in
-// the operation); Label is the user-supplied label (empty when none); ParentID
-// is the id of the enclosing @defer (0 for top-level).
+// DeferDescriptor describes a single @defer fragment for the incremental-delivery envelope.
 type DeferDescriptor struct {
-	ID       int
-	ParentID int
-	Label    string
-	Path     []string
+	ID       int      // Valid IDs start with 1.
+	ParentID int      // ParentID is the id of the enclosing @defer (0 for top-level).
+	Label    string   // Label is the user-supplied label (empty when none);
+	Path     []string // Path is the response path of the fragment (where it was mounted in the operation);
 }
 
 func (r *GraphQLDeferResponse) QueryPlanString() string {

@@ -1,4 +1,3 @@
-// v2/pkg/engine/resolve/defer_tree.go
 package resolve
 
 type DeferTreeNodeKind int

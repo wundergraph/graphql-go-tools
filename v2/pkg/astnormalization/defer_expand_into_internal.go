@@ -50,7 +50,7 @@ func (f *deferExpandIntoInternalVisitor) EnterDocument(operation, _ *ast.Documen
 
 func (f *deferExpandIntoInternalVisitor) EnterInlineFragment(ref int) {
 	// expand defer only on operation fields
-	// this rule runs after fragments was inlined, but before they removed
+	// this rule runs after fragments were inlined, but before they removed
 	if len(f.Walker.Ancestors) > 0 && f.Walker.Ancestors[0].Kind == ast.NodeKindFragmentDefinition {
 		return
 	}
