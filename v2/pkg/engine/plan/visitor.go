@@ -45,6 +45,7 @@ type Visitor struct {
 	currentField                 *resolve.Field
 	planners                     []PlannerConfiguration
 	skipFieldsRefs               []int
+	responseOnlyFieldRefs        map[int]struct{}
 	fieldRefDependsOnFieldRefs   map[int][]int
 	fieldDependencyKind          map[fieldDependencyKey]fieldDependencyKind
 	fieldRefDependants           map[int][]int // inverse of fieldRefDependsOnFieldRefs
@@ -659,6 +660,21 @@ func (v *Visitor) LeaveField(fieldRef int) {
 func (v *Visitor) skipField(ref int) bool {
 	// TODO: If this grows, switch to map[int]struct{} for O(1).
 	return slices.Contains(v.skipFieldsRefs, ref)
+}
+
+// IsResponseOnlyField reports whether the field must appear in the response (it
+// resolves to null when the upstream omits it) but must NOT be sent to any
+// subgraph in the upstream fetch. This is used for "partial union" members: when a
+// union field is resolvable by multiple candidate subgraphs that define different
+// members, a member unique to the resolving subgraph is kept in the response shape
+// as null (matching spec-compliant routers) instead of being fetched. The upstream
+// datasource planner consults this to exclude the field from the fetch.
+func (v *Visitor) IsResponseOnlyField(ref int) bool {
+	if v.responseOnlyFieldRefs == nil {
+		return false
+	}
+	_, ok := v.responseOnlyFieldRefs[ref]
+	return ok
 }
 
 func (v *Visitor) introspectionShouldEvaluateIncludeDeprecated(fieldName string, enclosingTypeName string) bool {

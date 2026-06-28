@@ -46,6 +46,11 @@ type NodeSelectionResult struct {
 	// These fields should not be added to user response.
 	skipFieldsRefs []int
 
+	// responseOnlyFieldRefs holds field refs that must appear in the response
+	// (resolving to null) but must NOT be sent to any subgraph in the upstream
+	// fetch. Used for partial-union members unique to the resolving subgraph.
+	responseOnlyFieldRefs map[int]struct{}
+
 	fieldRefDependsOn   map[int][]int
 	fieldDependencyKind map[fieldDependencyKey]fieldDependencyKind
 }
@@ -85,6 +90,7 @@ func (p *NodeSelectionBuilder) SetOperationName(name string) {
 
 func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
+	p.nodeSelectionsVisitor.responseOnlyFieldRefs = nil
 	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 }
 
@@ -109,6 +115,25 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(nil, nil)
 	if report.HasErrors() {
 		return
+	}
+
+	// Step 1.5. Resolve partial unions: when a union field can be resolved by
+	// multiple candidate datasources that define different members, keep only the
+	// members common to all candidates (see prunePartialUnionMembers). Members
+	// unique to the resolving subgraph are kept in the response as null but excluded
+	// from the upstream fetch (responseOnlyFieldRefs); foreign members are dropped.
+	// When this changes the operation, rebuild the suggestions from the pruned
+	// operation with a fresh filter so later steps never see the dropped members.
+	if responseOnly, changed := p.prunePartialUnionMembers(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); changed {
+		p.nodeSelectionsVisitor.responseOnlyFieldRefs = responseOnly
+		dsFilter = NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs)
+		if p.config.Debug.PrintNodeSuggestions {
+			dsFilter.EnableSelectionReasons()
+		}
+		p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(nil, nil)
+		if report.HasErrors() {
+			return
+		}
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
@@ -201,6 +226,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		fieldDependsOn:           p.nodeSelectionsVisitor.fieldDependsOn,
 		fieldRequirementsConfigs: p.nodeSelectionsVisitor.fieldRequirementsConfigs,
 		skipFieldsRefs:           p.nodeSelectionsVisitor.skipFieldsRefs,
+		responseOnlyFieldRefs:    p.nodeSelectionsVisitor.responseOnlyFieldRefs,
 		fieldRefDependsOn:        p.nodeSelectionsVisitor.fieldRefDependsOn,
 		fieldDependencyKind:      p.nodeSelectionsVisitor.fieldDependencyKind,
 	}

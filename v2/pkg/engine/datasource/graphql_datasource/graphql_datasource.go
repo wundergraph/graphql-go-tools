@@ -780,6 +780,12 @@ func (p *Planner[T]) LeaveField(ref int) {
 // This is 3rd step of checks in addition to: planning path and skipFor functionality
 // if field is __typename, it is always allowed
 func (p *Planner[T]) allowField(ref int) bool {
+	// Response-only fields (partial-union members unique to the resolving subgraph)
+	// must appear in the response as null but must NOT be sent upstream.
+	if p.visitor.IsResponseOnlyField(ref) {
+		return false
+	}
+
 	fieldAliasOrName := p.visitor.Operation.FieldAliasOrNameString(ref)
 
 	// In addition, we skip field if its path are equal to planner parent path

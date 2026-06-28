@@ -28,6 +28,11 @@ type nodeSelectionVisitor struct {
 	selectionSetRefs []int // selectionSetRefs is a stack of selection set refs - used to add required fields
 	skipFieldsRefs   []int // skipFieldsRefs holds required field refs added by planner and should not be added to user response
 
+	// responseOnlyFieldRefs holds field refs that must appear in the response
+	// (resolving to null) but must NOT be sent to any subgraph in the upstream
+	// fetch. Populated by the partial-union pass; remapped when fields are rewritten.
+	responseOnlyFieldRefs map[int]struct{}
+
 	pendingKeyRequirements   map[int]pendingKeyRequirements   // pendingKeyRequirements is a map[selectionSetRef][]keyRequirements
 	pendingFieldRequirements map[int]pendingFieldRequirements // pendingFieldRequirements is a map[selectionSetRef]fieldRequirements
 
@@ -787,6 +792,18 @@ func (c *nodeSelectionVisitor) updateSkipFieldRefs(changedFieldRefs map[int][]in
 	for _, fieldRef := range c.skipFieldsRefs {
 		if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
 			c.skipFieldsRefs = append(c.skipFieldsRefs, newRefs...)
+		}
+	}
+
+	// Keep response-only markers attached when the abstract selection rewriter
+	// replaces a field with new refs, so the upstream fetch still excludes them.
+	if c.responseOnlyFieldRefs != nil {
+		for oldRef := range c.responseOnlyFieldRefs {
+			if newRefs := changedFieldRefs[oldRef]; newRefs != nil {
+				for _, newRef := range newRefs {
+					c.responseOnlyFieldRefs[newRef] = struct{}{}
+				}
+			}
 		}
 	}
 }
