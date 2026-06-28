@@ -215,51 +215,72 @@ func (u *partialUnionPruner) reachableCandidates(fieldRef int) map[DSHash]struct
 // resolving subgraph defines them) or dropped (when foreign). Returns true if the
 // operation was modified.
 func (u *partialUnionPruner) pruneUnionFieldToIntersection(fieldRef int, candidates map[DSHash]struct{}) bool {
+	unionTypeName, allMemberSet, ok := u.unionFieldMembers(fieldRef)
+	if !ok {
+		return false
+	}
+
+	intersection := u.memberIntersection(unionTypeName, candidates, allMemberSet)
+	// No conflict: every union member is shared by all candidates, nothing to prune.
+	if len(intersection) == len(allMemberSet) {
+		return false
+	}
+
+	selectionSetRef, ok := u.operation.FieldSelectionSet(fieldRef)
+	if !ok {
+		return false
+	}
+
+	resolvingMembers := u.resolvingSubgraphMembers(fieldRef, unionTypeName)
+
+	kept, changed := u.rewriteUnionMembers(selectionSetRef, allMemberSet, intersection, resolvingMembers)
+	if !changed {
+		return false
+	}
+
+	u.replaceSelectionSet(selectionSetRef, kept)
+	return true
+}
+
+// unionFieldMembers resolves the field's union return type and the set of its members
+// in the federated graph schema. It reports ok=false when the field does not return a
+// union, or when any member is an entity - entity-member unions are resolved via the
+// existing entity-hop mechanism (e.g. "union-intersection" / "union query on array")
+// and must not be touched here; only non-entity value-type members, which cannot be
+// resolved independently, need the partial-union treatment.
+func (u *partialUnionPruner) unionFieldMembers(fieldRef int) (unionTypeName string, allMemberSet map[string]struct{}, ok bool) {
 	info, ok := u.fields[fieldRef]
 	if !ok {
-		return false
+		return "", nil, false
 	}
-
 	enclosingNode, ok := u.definition.NodeByNameStr(info.typeName)
 	if !ok {
-		return false
+		return "", nil, false
 	}
-
 	fieldTypeNode, ok := u.definition.FieldTypeNode([]byte(info.fieldName), enclosingNode)
 	if !ok || fieldTypeNode.Kind != ast.NodeKindUnionTypeDefinition {
-		return false
+		return "", nil, false
 	}
-
-	unionTypeName := u.definition.UnionTypeDefinitionNameString(fieldTypeNode.Ref)
 	allMembers, ok := u.definition.UnionTypeDefinitionMemberTypeNames(fieldTypeNode.Ref)
-	if !ok {
-		return false
+	if !ok || slices.ContainsFunc(allMembers, u.isEntityType) {
+		return "", nil, false
 	}
 
-	allMemberSet := make(map[string]struct{}, len(allMembers))
+	allMemberSet = make(map[string]struct{}, len(allMembers))
 	for _, member := range allMembers {
 		allMemberSet[member] = struct{}{}
 	}
+	return u.definition.UnionTypeDefinitionNameString(fieldTypeNode.Ref), allMemberSet, true
+}
 
-	// Entity union members are resolved via their own entity hops by the existing
-	// planner, which already handles cross-subgraph member intersection correctly
-	// (e.g. the "union-intersection" / "union query on array" cases). Only non-entity
-	// value-type members - which cannot be resolved independently and so must come
-	// from whichever subgraph resolves the list - need the partial-union treatment.
-	if slices.ContainsFunc(allMembers, u.isEntityType) {
-		return false
-	}
-
-	// Intersect the union members across every candidate datasource, using each
-	// datasource's own upstream schema (which carries that subgraph's union members).
-	intersection := make(map[string]struct{}, len(allMembers))
+// memberIntersection returns the union members defined by EVERY candidate datasource,
+// restricted to members of the federated union (allMemberSet). Each datasource carries
+// its own union members in its upstream schema.
+func (u *partialUnionPruner) memberIntersection(unionTypeName string, candidates map[DSHash]struct{}, allMemberSet map[string]struct{}) map[string]struct{} {
+	intersection := make(map[string]struct{}, len(allMemberSet))
 	first := true
 	for dsHash := range candidates {
-		ds, ok := u.dataSourceByHash[dsHash]
-		if !ok {
-			return false
-		}
-		members := upstreamUnionMemberNames(ds, unionTypeName)
+		members := u.datasourceUnionMembers(dsHash, unionTypeName)
 		if first {
 			for _, member := range members {
 				if _, isMember := allMemberSet[member]; isMember {
@@ -279,36 +300,36 @@ func (u *partialUnionPruner) pruneUnionFieldToIntersection(fieldRef int, candida
 			}
 		}
 	}
+	return intersection
+}
 
-	// No conflict: every union member is shared by all candidates, nothing to prune.
-	if len(intersection) == len(allMemberSet) {
-		return false
+// resolvingSubgraphMembers returns the union members defined by the subgraph that
+// resolves the list inline - the unique hop-free candidate. Non-shared members defined
+// there can be kept as response-only nulls; the rest are dropped. When the resolving
+// subgraph is ambiguous (zero or multiple hop-free candidates), this returns an empty
+// set so all non-shared members are dropped, which is the safe intersection behaviour.
+func (u *partialUnionPruner) resolvingSubgraphMembers(fieldRef int, unionTypeName string) map[string]struct{} {
+	members := make(map[string]struct{})
+	hopFree := u.hopFreeCandidates(fieldRef)
+	if len(hopFree) != 1 {
+		return members
 	}
-
-	// Members defined by the subgraph that resolves the list inline (the unique
-	// hop-free candidate). Non-shared members defined there are kept as response-only
-	// nulls; the rest are dropped. When the resolving subgraph is ambiguous (zero or
-	// multiple hop-free candidates), keep nothing extra - drop all non-shared members,
-	// which is the safe intersection behaviour.
-	resolvingMembers := make(map[string]struct{})
-	if hopFree := u.hopFreeCandidates(fieldRef); len(hopFree) == 1 {
-		for dsHash := range hopFree {
-			if ds, ok := u.dataSourceByHash[dsHash]; ok {
-				for _, member := range upstreamUnionMemberNames(ds, unionTypeName) {
-					resolvingMembers[member] = struct{}{}
-				}
-			}
+	for dsHash := range hopFree {
+		for _, member := range u.datasourceUnionMembers(dsHash, unionTypeName) {
+			members[member] = struct{}{}
 		}
 	}
+	return members
+}
 
-	selectionSetRef, ok := u.operation.FieldSelectionSet(fieldRef)
-	if !ok {
-		return false
-	}
-
+// rewriteUnionMembers walks the union field's selections and decides each member
+// fragment's fate: shared members and non-union fragments are kept untouched; a
+// non-shared member is kept (as a response-only null) or dropped via
+// classifyNonSharedMember. It returns the selection refs to keep and whether the set
+// of fetched fields changed.
+func (u *partialUnionPruner) rewriteUnionMembers(selectionSetRef int, allMemberSet, intersection, resolvingMembers map[string]struct{}) (kept []int, changed bool) {
 	selectionRefs := u.operation.SelectionSets[selectionSetRef].SelectionRefs
-	kept := make([]int, 0, len(selectionRefs))
-	changed := false
+	kept = make([]int, 0, len(selectionRefs))
 	for _, selectionRef := range selectionRefs {
 		selection := u.operation.Selections[selectionRef]
 		if selection.Kind != ast.SelectionKindInlineFragment {
@@ -327,41 +348,57 @@ func (u *partialUnionPruner) pruneUnionFieldToIntersection(fieldRef int, candida
 			continue
 		}
 
-		// Non-shared member.
-		if _, defined := resolvingMembers[member]; defined {
-			marked, onlyTypename := u.tryMarkResponseOnly(selection.Ref)
-			if marked {
-				kept = append(kept, selectionRef)
-				changed = true
-				continue
-			}
-			if onlyTypename {
-				// Nothing but __typename - harmless to keep and fetch.
-				kept = append(kept, selectionRef)
-				continue
-			}
-			// Nested selections we cannot safely null out: drop (best effort).
+		keep, memberChanged := u.classifyNonSharedMember(selection.Ref, member, resolvingMembers)
+		if keep {
+			kept = append(kept, selectionRef)
 		}
-		// Foreign member, or unsafe to keep as response-only: drop.
-		changed = true
+		if memberChanged {
+			changed = true
+		}
 	}
+	return kept, changed
+}
 
-	if !changed {
-		return false
+// classifyNonSharedMember decides the fate of an inline fragment on a non-shared union
+// member. keep reports whether the fragment stays in the selection; changed reports
+// whether this alters what is fetched. A member the resolving subgraph defines is kept
+// as a response-only null (or, when it has only __typename, kept and fetched as-is); a
+// foreign member, or one with nested selections that cannot be safely nulled, is dropped.
+func (u *partialUnionPruner) classifyNonSharedMember(inlineFragmentRef int, member string, resolvingMembers map[string]struct{}) (keep, changed bool) {
+	if _, defined := resolvingMembers[member]; !defined {
+		return false, true // foreign - drop
 	}
+	marked, onlyTypename := u.tryMarkResponseOnly(inlineFragmentRef)
+	switch {
+	case marked:
+		return true, true // kept in the response, excluded from the upstream fetch
+	case onlyTypename:
+		return true, false // nothing but __typename - keep and fetch normally
+	default:
+		return false, true // nested selections we cannot safely null out - drop
+	}
+}
 
+// replaceSelectionSet replaces the selections of selectionSetRef with kept, adding a
+// __typename when pruning removed every selection so the set is never empty.
+func (u *partialUnionPruner) replaceSelectionSet(selectionSetRef int, kept []int) {
 	u.operation.EmptySelectionSet(selectionSetRef)
 	for _, selectionRef := range kept {
 		u.operation.AddSelectionRefToSelectionSet(selectionSetRef, selectionRef)
 	}
-
-	// A union selection set must never be empty - keep a __typename if pruning
-	// removed every remaining selection.
 	if len(kept) == 0 {
 		u.operation.AddSelectionRefToSelectionSet(selectionSetRef, u.newTypenameSelection())
 	}
+}
 
-	return true
+// datasourceUnionMembers returns the named union's members as defined by the
+// datasource's upstream schema, or nil when the datasource is unknown.
+func (u *partialUnionPruner) datasourceUnionMembers(dsHash DSHash, unionTypeName string) []string {
+	ds, ok := u.dataSourceByHash[dsHash]
+	if !ok {
+		return nil
+	}
+	return upstreamUnionMemberNames(ds, unionTypeName)
 }
 
 // tryMarkResponseOnly attempts to keep an inline fragment in the response while
