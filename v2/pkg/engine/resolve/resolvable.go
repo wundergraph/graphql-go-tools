@@ -291,13 +291,11 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 
 	if r.deferMode {
-		// Announce only the defers whose anchor survived the initial render. A
-		// recoverable error elsewhere no longer suppresses every defer; one that
-		// null-propagated onto a defer's own anchor cancels just that defer.
-		live := r.liveDeferDescriptors()
-		if len(live) > 0 {
-			r.printPendingEntries(live)
-		}
+		// Announce only the top-level defers whose anchor survived. Nested defers
+		// are announced lazily when their parent is released. A recoverable error
+		// that null-propagated onto a defer's own anchor cancels just that defer.
+		live := r.liveChildDescriptors(0)
+		r.printPendingEntries(live)
 		r.printHasNext(len(live) > 0)
 	}
 
@@ -306,8 +304,13 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	return r.printErr
 }
 
-// ResolveDeferBatch - renders defer incremental chunk corresponding to defer id
-func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext bool) error {
+// ResolveDeferBatch renders the incremental chunk for r.currentDefer, announces
+// the pending entries for its direct children whose anchor survived, adjusts the
+// outstanding counter (announce children, complete self), writes this frame's
+// terminal hasNext, and returns the ids of the live direct children so the caller
+// can schedule exactly those. Nested children are announced lazily here, in their
+// parent's release frame.
+func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstanding *int64) (liveChildren map[int]DeferDescriptor, err error) {
 	r.out = out
 	r.printErr = nil
 	r.authorizationError = nil
@@ -323,9 +326,9 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext 
 
 	_ = r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
-		// Scope the authorizer error to THIS defer: record it as the fragment's
-		// error and route to the completed-with-errors form, instead of aborting
-		// the whole response and orphaning the announced pending.
+		// Scope the authorizer error to this defer: record it as the fragment's
+		// error and route it to the completed-with-errors form, completing the
+		// announced pending.
 		r.addError(r.authorizationError.Error(), nil)
 		r.authorizationError = nil
 		r.deferItemDataNull = true
@@ -333,17 +336,15 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext 
 
 	shouldSkipIncremental := r.deferItemDataNull
 
-	// Second pass: render incremental data into a scratch buffer FIRST. A
-	// render-phase error (e.g. a custom field-value renderer failing) must not
-	// leave a partial frame on the wire — so on error we discard the buffer and
-	// scope the error to this defer's completed entry instead of aborting.
+	// Second pass: render incremental data into a scratch buffer first so a
+	// render-phase error (e.g. a custom field-value renderer failing) never leaves
+	// a partial frame on the wire — on error the buffer is discarded and the error
+	// is scoped to this defer's completed entry.
 	var incrementalItems []byte
 	if !shouldSkipIncremental {
 		savedOut := r.out
-		// The scratch buffer is allocated through the same arena as the rest of
-		// the render (heap-backed when no arena is set), so the intermediate
-		// bytes follow the engine's memory model rather than escaping to a fresh
-		// heap buffer per defer frame.
+		// The scratch buffer is arena-backed (heap fallback when no arena is set),
+		// keeping the intermediate bytes on the engine's memory model.
 		scratch := arena.NewArenaBuffer(r.astjsonArena)
 		r.out = scratch
 
@@ -362,6 +363,17 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext 
 			incrementalItems = scratch.Bytes()
 		}
 	}
+
+	// Direct children whose anchor survived the render are announced now (lazily)
+	// and scheduled by the caller; the rest are cancelled.
+	liveChildren = r.liveChildDescriptors(r.currentDefer.ID)
+
+	// Counter: announce live children, complete self. The frame that drives the
+	// outstanding count to zero writes the terminal hasNext:false. Every defer's
+	// render runs under dc.db.Lock() (held by the caller), which serialises this
+	// mutation with the frame writes.
+	*outstanding += int64(len(liveChildren)) - 1
+	isLast := *outstanding == 0
 
 	// Open the per-defer envelope.
 	r.printBytes(lBrace)
@@ -382,13 +394,17 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, hasNext 
 	// otherwise).
 	r.renderCompleted(shouldSkipIncremental && r.hasErrors())
 
+	// Announce the surviving direct children (lazy nested pending). No-op when
+	// there are none.
+	r.printPendingEntries(liveChildren)
+
 	// hasNext is independent of internal defer errors — they're scoped
 	// to this defer's `completed.errors` and do not terminate the response.
-	r.printHasNext(hasNext)
+	r.printHasNext(!isLast)
 
 	r.printBytes(rBrace)
 
-	return r.printErr
+	return liveChildren, r.printErr
 }
 
 // renderCompleted writes `"completed":[{"id":"<n>"[,"errors":[...]]}]` for the
@@ -425,20 +441,25 @@ func (r *Resolvable) renderCompleted(withErrors bool) {
 // ResolveDeferError writes a terminal defer envelope that reports a
 // fragment-scoped error on the completed entry (no incremental data) and
 // terminates with hasNext. It is used when a deferred group fails in its fetch
-// phase (e.g. a hard pre-fetch authorizer/rate-limiter error) so the announced
-// pending is still completed and the multipart stream still terminates, instead
-// of the error aborting the whole response and orphaning the pending.
-func (r *Resolvable) ResolveDeferError(out io.Writer, message string, hasNext bool) error {
+// phase (e.g. a hard pre-fetch authorizer/rate-limiter error): the announced
+// pending is completed with the error and the multipart stream terminates.
+func (r *Resolvable) ResolveDeferError(out io.Writer, message string, outstanding *int64) error {
 	r.out = out
 	r.printErr = nil
 	r.path = r.path[:0]
 	r.errors = nil
 	r.addError(message, nil)
 
+	// The failing defer completes; drive the outstanding count down by one. The
+	// frame that reaches zero writes the terminal hasNext:false. Serialised by
+	// dc.db.Lock() (held by the caller), so a plain mutation is safe.
+	*outstanding--
+	isLast := *outstanding == 0
+
 	// {"completed":[{"id":"<n>","errors":[...]}],"hasNext":<bool>}
 	r.printBytes(lBrace)
 	r.renderCompleted(true)
-	r.printHasNext(hasNext)
+	r.printHasNext(!isLast)
 	r.printBytes(rBrace)
 
 	return r.printErr
@@ -473,47 +494,21 @@ func (r *Resolvable) deferAnchorAlive(path []string) bool {
 	return v != nil && v.Type() != astjson.TypeNull
 }
 
-// deferTopAncestorAlive walks a descriptor up to its top-level ancestor
-// (ParentID 0) and reports whether that ancestor's anchor survived. Nested
-// defers ride with their top-level ancestor: if the ancestor was cancelled, so
-// are they.
-func (r *Resolvable) deferTopAncestorAlive(d DeferDescriptor) bool {
-	for d.ParentID != 0 {
-		parent, ok := r.deferDescriptors[d.ParentID]
-		if !ok {
-			break
-		}
-		d = parent
-	}
-	return r.deferAnchorAlive(d.Path)
-}
-
-// liveDeferDescriptors returns the descriptors that should be announced: every
-// defer whose top-level ancestor's anchor survived the initial render.
-func (r *Resolvable) liveDeferDescriptors() map[int]DeferDescriptor {
-	if len(r.deferDescriptors) == 0 {
-		return nil
-	}
-	live := make(map[int]DeferDescriptor, len(r.deferDescriptors))
+// liveChildDescriptors returns the descriptors of the defers whose parent is
+// parentID and whose anchor survived the render (present and non-null in r.data).
+// parentID 0 selects the top-level defers (announced in the initial frame); any
+// other id selects that defer's direct children (announced lazily when it is
+// released). The result feeds both the pending announcement (printPendingEntries)
+// and the execution-tree pruning (pruneDeadDefers), so it carries the full
+// descriptors, not just ids.
+func (r *Resolvable) liveChildDescriptors(parentID int) map[int]DeferDescriptor {
+	var live map[int]DeferDescriptor
 	for id, d := range r.deferDescriptors {
-		if r.deferTopAncestorAlive(d) {
+		if d.ParentID == parentID && r.deferAnchorAlive(d.Path) {
+			if live == nil {
+				live = make(map[int]DeferDescriptor)
+			}
 			live[id] = d
-		}
-	}
-	return live
-}
-
-// liveTopLevelDefers returns the set of top-level (ParentID 0) defer ids whose
-// anchor survived the initial render. Used to prune the execution tree so dead
-// defers are never fetched or rendered.
-func (r *Resolvable) liveTopLevelDefers() map[int]struct{} {
-	if len(r.deferDescriptors) == 0 {
-		return nil
-	}
-	live := make(map[int]struct{})
-	for id, d := range r.deferDescriptors {
-		if d.ParentID == 0 && r.deferAnchorAlive(d.Path) {
-			live[id] = struct{}{}
 		}
 	}
 	return live

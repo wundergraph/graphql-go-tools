@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -17,10 +19,8 @@ import (
 // (graphql-js/src/execution/incremental/__tests__/defer-test.ts). Each test names
 // both the equivalent GraphQL @defer operation it represents and the graphql-js
 // analog it is derived from, and asserts the FULL multipart payload sequence
-// (one string per flushed frame) so the exact wire shape is visible.
-//
-// All of these behaviors are now implemented by the engine; the full-payload
-// assertions double as documentation of the exact wire shape for each case.
+// (one string per flushed frame) so the exact wire shape is visible and doubles
+// as documentation of each case.
 
 // ---- test doubles ---------------------------------------------------------
 
@@ -203,15 +203,15 @@ func TestDefer_ErrorInCompleted(t *testing.T) {
 	require.True(t, w.complete)
 }
 
-// TestDefer_MultipleErroringGroups_AllCompleted: two top-level defers that both
-// fully null-bubble each report their error on their own completed entry.
+// TestDefer_MultipleErroringGroups_AllCompleted: two independent top-level defers
+// that both fully null-bubble each report their error on their own completed entry.
 //
 // Operation:
 //
 //	{ ... @defer { f1 }  ... @defer { f2 } }   # f1: String!, f2: String!
 //
-// (A DeferSequence is used instead of DeferParallel only to make the frame order
-// deterministic for a full-payload assertion; the error rendering is identical.)
+// They are independent, so the execution tree is a DeferParallel and the two
+// completion frames may arrive in either order; assertions are order-independent.
 //
 // graphql-js analog: "Handles multiple erroring deferred grouped field sets".
 func TestDefer_MultipleErroringGroups_AllCompleted(t *testing.T) {
@@ -225,7 +225,7 @@ func TestDefer_MultipleErroringGroups_AllCompleted(t *testing.T) {
 			1: {ID: 1},
 			2: {ID: 2},
 		},
-		DeferTree: DeferSequence(DeferSingle(groupA), DeferSingle(groupB)),
+		DeferTree: DeferParallel(DeferSingle(groupA), DeferSingle(groupB)),
 		Response: &GraphQLResponse{
 			Info: deferQueryInfo(),
 			Data: &Object{
@@ -241,11 +241,19 @@ func TestDefer_MultipleErroringGroups_AllCompleted(t *testing.T) {
 	w := &testDeferWriter{}
 	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
 	require.NoError(t, err)
-	require.Equal(t, []string{
+	require.Len(t, w.payloads, 3)
+
+	// Initial frame announces both top-level defers (sorted by id).
+	require.Equal(t,
 		`{"data":{},"pending":[{"id":"1","path":[]},{"id":"2","path":[]}],"hasNext":true}`,
-		`{"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.f1'.","path":["f1"]}]}],"hasNext":true}`,
-		`{"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.f2'.","path":["f2"]}]}],"hasNext":false}`,
-	}, w.payloads)
+		w.payloads[0])
+
+	// Each defer reports its non-null error on its own completed entry; order of
+	// the two completion frames is non-deterministic.
+	rest := strings.Join(w.payloads[1:], "\n")
+	assert.Contains(t, rest, `"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.f1'.","path":["f1"]}]}]`)
+	assert.Contains(t, rest, `"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.f2'.","path":["f2"]}]}]`)
+	assert.Equal(t, 1, strings.Count(rest, `"hasNext":false`))
 	require.True(t, w.complete)
 }
 
@@ -393,11 +401,6 @@ func TestDefer_NestedChildCancelledWithDeadParent(t *testing.T) {
 //	}
 //
 // graphql-js analog: "Keeps deferred work outside nulled error paths".
-//
-// KNOWN BUG: defer delivery is gated on the global resolvable.hasErrors()
-// (resolvable.go printObject ~294 + resolve.go ResolveGraphQLDeferResponse ~530),
-// so ANY initial error drops EVERY defer regardless of path. Today the engine
-// emits only the initial frame below with hasNext:false and no pending.
 func TestDefer_ErrorOnDifferentRootPath_DeferStillDelivered(t *testing.T) {
 	t.Parallel()
 	r := newResolver(t.Context())
@@ -617,21 +620,12 @@ func TestDefer_InitialRenderError_ReturnsToRouter(t *testing.T) {
 // ---- authorizer error during deferred render ------------------------------
 
 // TestDefer_AuthErrorDuringDeferredRender_MustComplete: a hard authorizer error
-// while rendering a deferred field must be delivered as that defer's error and the
-// announced pending must still be completed + the stream terminated, not orphaned.
+// while rendering a deferred field is delivered as that defer's error; the
+// announced pending is completed and the stream terminates.
 //
 // Operation:
 //
 //	{ ... @defer { f1 } }   # f1 carries @requiresScopes; the authorizer hard-errors
-//
-// KNOWN BUG (F04): ResolveDeferBatch returns early on r.authorizationError
-// (resolvable.go ~322) before writing completed/hasNext; the error then aborts
-// ResolveGraphQLDeferResponse (resolve.go ~545), so only the initial frame is
-// flushed and the pending (id "1") is never completed.
-//
-// NOTE: the exact error rendering (message/extensions, incremental vs completed)
-// is the open design point of the fix; the expected payload below encodes the
-// minimum: the pending is completed and the stream terminates.
 func TestDefer_AuthErrorDuringDeferredRender_MustComplete(t *testing.T) {
 	t.Parallel()
 	r := newResolver(t.Context())
@@ -692,18 +686,12 @@ func TestDefer_AuthDenyDuringDeferredRender(t *testing.T) {
 // ---- field-renderer error during deferred render --------------------------
 
 // TestDefer_RenderErrorDuringDeferredRender_MustComplete: a custom field-value
-// renderer error while rendering a deferred field must complete the pending and
-// terminate the stream rather than swallowing the error.
+// renderer error while rendering a deferred field is scoped to that defer's
+// completed entry; the pending is completed and the stream terminates.
 //
 // Operation:
 //
 //	{ ... @defer { f1 } }   # a custom field-value renderer errors on f1
-//
-// KNOWN BUG (F05): the renderer error sets r.printErr, which no-ops printHasNext
-// (resolvable.go ~466) and makes ResolveDeferBatch return the printErr before the
-// terminal frame is flushed; ResolveGraphQLDeferResponse then aborts.
-//
-// NOTE: exact error rendering is the open design point of the fix.
 func TestDefer_RenderErrorDuringDeferredRender_MustComplete(t *testing.T) {
 	t.Parallel()
 	r := newResolver(t.Context())
@@ -727,18 +715,12 @@ func TestDefer_RenderErrorDuringDeferredRender_MustComplete(t *testing.T) {
 // ---- rate-limiter (hard pre-fetch) error during deferred fetch ------------
 
 // TestDefer_RateLimitErrorDuringDeferredFetch_MustComplete: a hard error from the
-// deferred group's pre-fetch (e.g. rate limiter) must still complete the pending
-// and terminate the stream, not orphan it.
+// deferred group's pre-fetch (e.g. rate limiter) is scoped to that defer's
+// completed entry; the pending is completed and the stream terminates.
 //
 // Operation:
 //
 //	{ ... @defer { f1 } }   # the deferred group's pre-fetch is rate-limited (hard error)
-//
-// KNOWN BUG: a hard fetch-phase error in resolveDeferSingle propagates out of
-// ResolveGraphQLDeferResponse (resolve.go ~598/545) without completing the
-// announced pending or writing a terminal frame.
-//
-// NOTE: exact error rendering is the open design point of the fix.
 func TestDefer_RateLimitErrorDuringDeferredFetch_MustComplete(t *testing.T) {
 	t.Parallel()
 	r := newResolver(t.Context())
@@ -765,5 +747,323 @@ func TestDefer_RateLimitErrorDuringDeferredFetch_MustComplete(t *testing.T) {
 		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"completed":[{"id":"1","errors":[{"message":"rate limiter hard error on ds"}]}],"hasNext":false}`,
 	}, w.payloads)
+	require.True(t, w.complete)
+}
+
+// ---- nested defers: lazy announcement -------------------------------------
+
+// TestDefer_NestedDefer_LazyAnnouncement: a nested @defer is announced in its
+// parent's release frame, not eagerly in the initial frame.
+//
+// Operation:
+//
+//	{ user { id ... @defer { profile { bio ... @defer { avatar } } } } }
+//	  defer 1 anchor ["user"]; defer 2 anchor ["user","profile"] (ParentID 1)
+func TestDefer_NestedDefer_LazyAnnouncement(t *testing.T) {
+	t.Parallel()
+	r := newResolver(t.Context())
+
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: map[int]DeferDescriptor{
+			1: {ID: 1, Path: []string{"user"}},
+			2: {ID: 2, Path: []string{"user", "profile"}, ParentID: 1},
+		},
+		DeferTree: DeferSequence(
+			DeferSingle(simpleGroup(1, `{}`)),
+			DeferSingle(simpleGroup(2, `{}`)),
+		),
+		Response: &GraphQLResponse{
+			Info:    deferQueryInfo(),
+			Fetches: simpleFetch(`{"user":{"id":"u1","profile":{"bio":"hi","avatar":"img"}}}`),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Nullable: true,
+							Path:     []string{"user"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}, Nullable: true}},
+								{
+									Name:  []byte("profile"),
+									Defer: &DeferField{DeferID: 1},
+									Value: &Object{
+										Nullable: true,
+										Path:     []string{"profile"},
+										Fields: []*Field{
+											{Name: []byte("bio"), Defer: &DeferField{DeferID: 1}, Value: &String{Path: []string{"bio"}, Nullable: true}},
+											{Name: []byte("avatar"), Defer: &DeferField{DeferID: 2}, Value: &String{Path: []string{"avatar"}, Nullable: true}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
+	require.NoError(t, err)
+	require.Len(t, w.payloads, 3)
+
+	// Initial frame announces ONLY the top-level defer (id 1), not the nested id 2.
+	require.Equal(t,
+		`{"data":{"user":{"id":"u1"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}`,
+		w.payloads[0])
+
+	// Parent release frame announces the nested child (id 2) and completes id 1.
+	assert.Contains(t, w.payloads[1], `"completed":[{"id":"1"}]`)
+	assert.Contains(t, w.payloads[1], `"pending":[{"id":"2","path":["user","profile"]}]`)
+	assert.Contains(t, w.payloads[1], `"hasNext":true`)
+
+	// Child release frame completes id 2 and terminates.
+	assert.Contains(t, w.payloads[2], `"completed":[{"id":"2"}]`)
+	assert.Contains(t, w.payloads[2], `"hasNext":false`)
+	require.True(t, w.complete)
+}
+
+// TestDefer_NestedChild_AnchorDies_Cancelled: when a nested child's anchor
+// null-propagates in the parent's rendered data, the child is cancelled — never
+// announced in the parent frame, never delivered — and the stream terminates on
+// the parent frame.
+//
+// Operation:
+//
+//	{ user { id ... @defer { profile { boom ... @defer { avatar } } } } }
+//	  boom: String! -> null -> nulls `profile` (defer 2's anchor)
+func TestDefer_NestedChild_AnchorDies_Cancelled(t *testing.T) {
+	t.Parallel()
+	r := newResolver(t.Context())
+
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: map[int]DeferDescriptor{
+			1: {ID: 1, Path: []string{"user"}},
+			2: {ID: 2, Path: []string{"user", "profile"}, ParentID: 1},
+		},
+		DeferTree: DeferSequence(
+			DeferSingle(simpleGroup(1, `{}`)),
+			DeferSingle(simpleGroup(2, `{}`)),
+		),
+		Response: &GraphQLResponse{
+			Info:    deferQueryInfo(),
+			Fetches: simpleFetch(`{"user":{"id":"u1","profile":{"boom":null,"avatar":"img"}}}`),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Nullable: true,
+							Path:     []string{"user"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}, Nullable: true}},
+								{
+									Name:  []byte("profile"),
+									Defer: &DeferField{DeferID: 1},
+									Value: &Object{
+										Nullable: true,
+										Path:     []string{"profile"},
+										Fields: []*Field{
+											// non-null boom comes back null -> nulls `profile` (defer 2 anchor).
+											{Name: []byte("boom"), Defer: &DeferField{DeferID: 1}, Value: &String{Path: []string{"boom"}, Nullable: false}},
+											{Name: []byte("avatar"), Defer: &DeferField{DeferID: 2}, Value: &String{Path: []string{"avatar"}, Nullable: true}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
+	require.NoError(t, err)
+	require.Len(t, w.payloads, 2)
+
+	// Initial: only the top-level defer.
+	require.Equal(t,
+		`{"data":{"user":{"id":"u1"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}`,
+		w.payloads[0])
+
+	// Parent release frame: profile null-propagated, so child id 2 is NOT
+	// announced, and this is the terminal frame.
+	assert.Contains(t, w.payloads[1], `"completed":[{"id":"1"}`)
+	assert.NotContains(t, w.payloads[1], `"id":"2"`)
+	assert.Contains(t, w.payloads[1], `"hasNext":false`)
+	require.True(t, w.complete)
+}
+
+// TestDefer_NestedDefer_ThreeLevels: defer 1 (user) -> defer 2 (user.profile) ->
+// defer 3 (user.profile.contact). Each level is announced only when its parent is
+// released; exactly one terminal frame.
+//
+//	{ user { id ...@defer{ profile { bio ...@defer{ contact { phone ...@defer{ ext } } } } } } }
+func TestDefer_NestedDefer_ThreeLevels(t *testing.T) {
+	t.Parallel()
+	r := newResolver(t.Context())
+
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: map[int]DeferDescriptor{
+			1: {ID: 1, Path: []string{"user"}},
+			2: {ID: 2, Path: []string{"user", "profile"}, ParentID: 1},
+			3: {ID: 3, Path: []string{"user", "profile", "contact"}, ParentID: 2},
+		},
+		DeferTree: DeferSequence(
+			DeferSingle(simpleGroup(1, `{}`)),
+			DeferSequence(
+				DeferSingle(simpleGroup(2, `{}`)),
+				DeferSingle(simpleGroup(3, `{}`)),
+			),
+		),
+		Response: &GraphQLResponse{
+			Info:    deferQueryInfo(),
+			Fetches: simpleFetch(`{"user":{"id":"u1","profile":{"bio":"hi","contact":{"phone":"p","ext":"e"}}}}`),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Nullable: true,
+							Path:     []string{"user"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}, Nullable: true}},
+								{
+									Name:  []byte("profile"),
+									Defer: &DeferField{DeferID: 1},
+									Value: &Object{
+										Nullable: true,
+										Path:     []string{"profile"},
+										Fields: []*Field{
+											{Name: []byte("bio"), Defer: &DeferField{DeferID: 1}, Value: &String{Path: []string{"bio"}, Nullable: true}},
+											{
+												Name:  []byte("contact"),
+												Defer: &DeferField{DeferID: 2},
+												Value: &Object{
+													Nullable: true,
+													Path:     []string{"contact"},
+													Fields: []*Field{
+														{Name: []byte("phone"), Defer: &DeferField{DeferID: 2}, Value: &String{Path: []string{"phone"}, Nullable: true}},
+														{Name: []byte("ext"), Defer: &DeferField{DeferID: 3}, Value: &String{Path: []string{"ext"}, Nullable: true}},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
+	require.NoError(t, err)
+
+	// Initial frame announces ONLY the top-level defer.
+	require.Equal(t,
+		`{"data":{"user":{"id":"u1"}},"pending":[{"id":"1","path":["user"]}],"hasNext":true}`,
+		w.payloads[0])
+
+	// id 2 is announced only after id 1; id 3 only after id 2.
+	after1 := strings.Join(w.payloads[1:], "\n")
+	assert.Contains(t, after1, `"id":"2","path":["user","profile"]`)
+	assert.Contains(t, after1, `"id":"3","path":["user","profile","contact"]`)
+	// neither nested defer leaks into the initial frame.
+	assert.NotContains(t, w.payloads[0], `"id":"2"`)
+	// Exactly one terminal frame across the whole stream.
+	assert.Equal(t, 1, strings.Count(strings.Join(w.payloads, "\n"), `"hasNext":false`))
+	require.True(t, w.complete)
+}
+
+// TestDefer_NestedChildren_OneDeadOneLive: a parent with two nested children
+// announces only the child whose anchor survived; the dead one is cancelled.
+//
+//	{ user { id ...@defer{ a { x ...@defer{ ax } } b { boom ...@defer{ bx } } } } }
+//	  defer 1 anchor [user]; child defer 2 anchor [user,a]; child defer 3 anchor [user,b]
+//	  b.boom: String! -> null -> nulls [user,b] -> defer 3 cancelled
+func TestDefer_NestedChildren_OneDeadOneLive(t *testing.T) {
+	t.Parallel()
+	r := newResolver(t.Context())
+
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: map[int]DeferDescriptor{
+			1: {ID: 1, Path: []string{"user"}},
+			2: {ID: 2, Path: []string{"user", "a"}, ParentID: 1},
+			3: {ID: 3, Path: []string{"user", "b"}, ParentID: 1},
+		},
+		DeferTree: DeferSequence(
+			DeferSingle(simpleGroup(1, `{}`)),
+			DeferParallel(
+				DeferSingle(simpleGroup(2, `{}`)),
+				DeferSingle(simpleGroup(3, `{}`)),
+			),
+		),
+		Response: &GraphQLResponse{
+			Info:    deferQueryInfo(),
+			Fetches: simpleFetch(`{"user":{"id":"u1","a":{"x":"xv","ax":"axv"},"b":{"boom":null,"bx":"bxv"}}}`),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Nullable: true,
+							Path:     []string{"user"},
+							Fields: []*Field{
+								{Name: []byte("id"), Value: &String{Path: []string{"id"}, Nullable: true}},
+								{
+									Name:  []byte("a"),
+									Defer: &DeferField{DeferID: 1},
+									Value: &Object{
+										Nullable: true,
+										Path:     []string{"a"},
+										Fields: []*Field{
+											{Name: []byte("x"), Defer: &DeferField{DeferID: 1}, Value: &String{Path: []string{"x"}, Nullable: true}},
+											{Name: []byte("ax"), Defer: &DeferField{DeferID: 2}, Value: &String{Path: []string{"ax"}, Nullable: true}},
+										},
+									},
+								},
+								{
+									Name:  []byte("b"),
+									Defer: &DeferField{DeferID: 1},
+									Value: &Object{
+										Nullable: true,
+										Path:     []string{"b"},
+										Fields: []*Field{
+											{Name: []byte("boom"), Defer: &DeferField{DeferID: 1}, Value: &String{Path: []string{"boom"}, Nullable: false}},
+											{Name: []byte("bx"), Defer: &DeferField{DeferID: 3}, Value: &String{Path: []string{"bx"}, Nullable: true}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
+	require.NoError(t, err)
+
+	all := strings.Join(w.payloads, "\n")
+	// child id 2 (anchor a) survives and is announced + delivered.
+	assert.Contains(t, all, `"id":"2","path":["user","a"]`)
+	// child id 3 (anchor b) is cancelled (b null-propagated) — never announced.
+	assert.NotContains(t, all, `"id":"3"`)
+	// exactly one terminal frame.
+	assert.Equal(t, 1, strings.Count(all, `"hasNext":false`))
 	require.True(t, w.complete)
 }

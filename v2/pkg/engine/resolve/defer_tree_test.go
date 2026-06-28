@@ -11,10 +11,10 @@ func deferLeaf(id int) *DeferTreeNode {
 	return DeferSingle(&DeferFetchGroup{DeferID: id})
 }
 
-func liveSet(ids ...int) map[int]struct{} {
-	m := make(map[int]struct{}, len(ids))
+func liveSet(ids ...int) map[int]DeferDescriptor {
+	m := make(map[int]DeferDescriptor, len(ids))
 	for _, id := range ids {
-		m[id] = struct{}{}
+		m[id] = DeferDescriptor{}
 	}
 	return m
 }

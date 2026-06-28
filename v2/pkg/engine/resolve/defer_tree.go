@@ -54,10 +54,11 @@ func topDeferID(node *DeferTreeNode) (int, bool) {
 }
 
 // pruneDeadDefers drops top-level defer subtrees whose root defer's anchor did
-// not survive the initial render (liveTop holds the surviving top-level ids).
-// A pruned subtree is removed whole — a dead parent takes its nested children
-// with it. Returns nil when nothing survives.
-func pruneDeadDefers(node *DeferTreeNode, liveTop map[int]struct{}) *DeferTreeNode {
+// not survive the initial render (the keys of liveTop are the surviving top-level
+// ids; the value type is irrelevant — only membership is checked, so a descriptor
+// map or an id set both work). A pruned subtree is removed whole — a dead parent
+// takes its nested children with it. Returns nil when nothing survives.
+func pruneDeadDefers(node *DeferTreeNode, liveTop map[int]DeferDescriptor) *DeferTreeNode {
 	if node == nil {
 		return nil
 	}

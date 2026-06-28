@@ -527,21 +527,26 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		}
 
 		// The initial frame is now on the wire — the multipart response is
-		// committed. From here every exit must terminate the stream, so register
-		// Complete() only now: a pre-flush error above returns cleanly to the
-		// router instead of the terminator racing onto the socket first.
+		// committed. From here every exit must terminate the stream, so Complete()
+		// is registered only now: a pre-flush error above can still return cleanly
+		// to the caller for top-level formatting.
 		defer func() {
 			writer.Complete()
 		}()
 
-		// Fetch deferred responses using the parallel execution tree. Each defer
-		// was gated on its anchor surviving the initial render (see
-		// liveDeferDescriptors), so a recoverable initial error no longer drops
-		// defers on surviving paths; only those whose own anchor null-propagated
-		// are pruned away here.
+		// Fetch deferred responses using the parallel execution tree. Each top-level
+		// defer is gated on its anchor surviving the initial render; a defer whose
+		// anchor null-propagated is pruned away here. Nested defers are announced
+		// lazily as their parent is released (see ResolveDeferBatch).
 		if response.DeferTree != nil {
-			liveTree := pruneDeadDefers(response.DeferTree, resolvable.liveTopLevelDefers())
+			liveTop := resolvable.liveChildDescriptors(0)
+			liveTree := pruneDeadDefers(response.DeferTree, liveTop)
 			if liveTree != nil {
+				// outstanding tracks announced-but-not-completed defers: it starts at
+				// the top-level live count and is adjusted per frame as parents
+				// announce children and defers complete. The frame that drives it to
+				// zero writes hasNext:false.
+				outstanding := int64(len(liveTop))
 				dc := &deferContext{
 					response:   response,
 					info:       response.Response.Info,
@@ -549,8 +554,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 					resolvable: resolvable,
 					writer:     writer,
 				}
-				remaining := int64(countDeferLeaves(liveTree))
-				if err := r.resolveDeferTree(dc, ctx, liveTree, &remaining); err != nil {
+				if err := r.resolveDeferTree(dc, ctx, liveTree, &outstanding); err != nil {
 					return nil, err
 				}
 			}
@@ -558,23 +562,6 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 	}
 
 	return resolveInfo, err
-}
-
-// countDeferLeaves returns the number of Single (leaf) nodes in the tree.
-func countDeferLeaves(node *DeferTreeNode) int {
-	if node == nil {
-		return 0
-	}
-	switch node.Kind {
-	case DeferTreeNodeKindSingle:
-		return 1
-	default:
-		total := 0
-		for _, child := range node.ChildNodes {
-			total += countDeferLeaves(child)
-		}
-		return total
-	}
 }
 
 // deferContext bundles the request-scoped state shared by every node in a
@@ -588,14 +575,18 @@ type deferContext struct {
 	writer     DeferResponseWriter
 }
 
-// resolveDeferSingle fetches and renders a single deferred fragment.
-// remaining is an atomic counter of how many leaf nodes have yet to be rendered;
-// the node that decrements it to zero writes hasNext:false (the final frame).
+// resolveDeferSingle fetches and renders a single deferred fragment, announcing
+// the pending entries for its direct children whose anchor survived, and returns
+// those live child ids so the caller can schedule exactly them.
+//
+// outstanding is the dynamic count of announced-but-not-completed defers; the
+// frame that drives it to zero writes hasNext:false (the final frame). The
+// counter is adjusted inside ResolveDeferBatch/ResolveDeferError, under the lock.
 //
 // Each defer group gets its OWN Loader (via NewLoader) sharing only the parent
 // DataBuffer; the render phase is serialised by db.Lock(). Network I/O via
 // ResolveFetchNode runs before the lock, allowing sibling defer fetches to overlap.
-func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *DeferFetchGroup, remaining *int64) error {
+func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *DeferFetchGroup, outstanding *int64) (map[int]DeferDescriptor, error) {
 	// FETCH PHASE — runs outside the DataBuffer lock.
 	// Each goroutine gets its OWN Loader with a NIL arena. Defer groups run
 	// concurrently and the arena is not thread-safe, so this group's errors and
@@ -605,26 +596,23 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	groupLoader.Init(ctx, dc.info) // fresh taintedObjs; errors=nil
 
 	if fetchErr := groupLoader.ResolveFetchNode(group.Fetches); fetchErr != nil {
-		// A hard fetch-phase error (e.g. pre-fetch authorizer/rate-limiter error)
-		// must not abort the whole response and orphan this defer's announced
-		// pending. Scope the error to this defer's completed entry and terminate.
+		// A hard fetch-phase error (e.g. pre-fetch authorizer/rate-limiter error) is
+		// scoped to this defer's completed entry: the announced pending is completed
+		// with the error and the stream terminates.
 		dc.db.Lock()
 		defer dc.db.Unlock()
 		groupLoader.appendSubgraphErrorsToContext()
-		isLast := atomic.AddInt64(remaining, -1) == 0
 		descriptor := dc.resolvable.deferDescriptors[group.DeferID]
 		dc.resolvable.currentDefer = &descriptor
-		if err := dc.resolvable.ResolveDeferError(dc.writer, fetchErr.Error(), !isLast); err != nil {
-			return err
+		if err := dc.resolvable.ResolveDeferError(dc.writer, fetchErr.Error(), outstanding); err != nil {
+			return nil, err
 		}
-		return dc.writer.Flush()
+		return nil, dc.writer.Flush()
 	}
 
 	// RENDER PHASE — serialised by the DataBuffer lock.
 	dc.db.Lock()
 	defer dc.db.Unlock()
-
-	isLast := atomic.AddInt64(remaining, -1) == 0
 
 	// Inject group-local state into Resolvable for this render.
 	dc.resolvable.data = dc.db.Get()
@@ -642,25 +630,41 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 
 	descriptor := dc.resolvable.deferDescriptors[group.DeferID]
 	dc.resolvable.currentDefer = &descriptor
-	if err := dc.resolvable.ResolveDeferBatch(dc.response.Response.Data, dc.writer, !isLast); err != nil {
-		return err
+	liveChildren, err := dc.resolvable.ResolveDeferBatch(dc.response.Response.Data, dc.writer, outstanding)
+	if err != nil {
+		return nil, err
 	}
-	return dc.writer.Flush()
+	return liveChildren, dc.writer.Flush()
 }
 
 // resolveDeferTree walks a DeferTreeNode and resolves deferred fragments:
-// - Single nodes are resolved directly.
-// - Sequence nodes are resolved one child at a time (sequential).
-// - Parallel nodes spawn concurrent goroutines; rendering is serialised by the
+//   - Single nodes are resolved directly.
+//   - Sequence nodes resolve the parent first, then schedule only the children it
+//     announced as live (anchor survived its render); dead children are cancelled.
+//   - Parallel nodes spawn concurrent goroutines; rendering is serialised by the
+//
 // shared DataBuffer lock. Sibling fetch I/O can overlap.
-func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferTreeNode, remaining *int64) error {
+func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferTreeNode, outstanding *int64) error {
 	switch node.Kind {
 	case DeferTreeNodeKindSingle:
-		return r.resolveDeferSingle(dc, ctx, node.Item, remaining)
+		_, err := r.resolveDeferSingle(dc, ctx, node.Item, outstanding)
+		return err
 
 	case DeferTreeNodeKindSequence:
-		for _, child := range node.ChildNodes {
-			if err := r.resolveDeferTree(dc, ctx, child, remaining); err != nil {
+		// buildDeferTree shape: ChildNodes[0] is the parent Single, the rest is the
+		// child subtree. Resolve the parent, then schedule only the children it
+		// announced as live (anchor survived its render).
+		parentNode := node.ChildNodes[0]
+		liveChildren, err := r.resolveDeferSingle(dc, ctx, parentNode.Item, outstanding)
+		if err != nil {
+			return err
+		}
+		for _, child := range node.ChildNodes[1:] {
+			pruned := pruneDeadDefers(child, liveChildren)
+			if pruned == nil {
+				continue
+			}
+			if err := r.resolveDeferTree(dc, ctx, pruned, outstanding); err != nil {
 				return err
 			}
 		}
@@ -680,7 +684,7 @@ func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferT
 				// dc.db.Lock() (appendSubgraphErrorsToContext and render-time
 				// addRejectFieldError), so no per-goroutine clone is needed and
 				// group subgraph errors aggregate into Context.SubgraphErrors().
-				err := r.resolveDeferTree(dc, ctx, child, remaining)
+				err := r.resolveDeferTree(dc, ctx, child, outstanding)
 				// Surface the error only if the client context was cancelled
 				// (disconnect). Ordinary defer-level subgraph errors are rendered
 				// into the group's incremental frame, not propagated, so they
