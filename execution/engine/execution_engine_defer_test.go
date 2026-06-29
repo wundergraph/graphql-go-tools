@@ -49,7 +49,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"{user {name}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"name":"Black"}}}`,
-								latency:    40 * time.Millisecond,
+								latency:    60 * time.Millisecond,
 							},
 							`{"query":"{user {__internal_typename: __typename}}"}`: {
 								statusCode: 200,
@@ -58,12 +58,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"{user {title}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"title":"Sabbat"}}}`,
-								latency:    60 * time.Millisecond,
+								latency:    90 * time.Millisecond,
 							},
 							`{"query":"{user {id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"id":"1"}}}`,
-								latency:    20 * time.Millisecond,
+								latency:    40 * time.Millisecond,
 							},
 							`{"query":"{user {title id}}"}`: {
 								statusCode: 200,
@@ -92,17 +92,17 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							`{"query":"{user {info {__internal_typename: __typename}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"__internal_typename":"Info"}}}}`,
-								latency:    80 * time.Millisecond,
+								latency:    120 * time.Millisecond,
 							},
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
-								latency:    10 * time.Millisecond,
+								latency:    40 * time.Millisecond,
 							},
 							`{"query":"{user {info {phone}}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"info":{"phone":"123"}}}}`,
-								latency:    20 * time.Millisecond,
+								latency:    80 * time.Millisecond,
 							},
 						},
 					}),
