@@ -2,7 +2,6 @@ package engine
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -16,6 +15,11 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 		name        string
 		definition  string
 		dataSources []plan.DataSource
+		// Per-case fetch ordering for the order-dependent parallel-defer subtests.
+		// Maps an exact subgraph request body to the number of streamed frames that
+		// must be flushed before that fetch may return (see fetchSequencer).
+		parallelGates          map[string]int
+		extensiveParallelGates map[string]int
 	}
 
 	makeRootNodesTestCase := func() TestCase {
@@ -48,23 +52,17 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						responses: map[string]sendResponse{
 							`{"query":"{user {name}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"name":"Black"}}}`,
-								latency:    60 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"name":"Black"}}}`},
 							`{"query":"{user {__internal_typename: __typename}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"__internal_typename":"User"}}}`,
 							},
 							`{"query":"{user {title}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"title":"Sabbat"}}}`,
-								latency:    90 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"title":"Sabbat"}}}`},
 							`{"query":"{user {id}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"id":"1"}}}`,
-								latency:    40 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"id":"1"}}}`},
 							`{"query":"{user {title id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"title":"Sabbat","id":"1"}}}`,
@@ -91,19 +89,13 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							},
 							`{"query":"{user {info {__internal_typename: __typename}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"__internal_typename":"Info"}}}}`,
-								latency:    120 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"__internal_typename":"Info"}}}}`},
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
-								latency:    40 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`},
 							`{"query":"{user {info {phone}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"phone":"123"}}}}`,
-								latency:    80 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"phone":"123"}}}}`},
 						},
 					}),
 				),
@@ -146,6 +138,18 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			name:        "defer on non entity field",
 			definition:  definition,
 			dataSources: dataSources,
+			parallelGates: map[string]int{
+				`{"query":"{user {id}}"}`:    1,
+				`{"query":"{user {title}}"}`: 2,
+			},
+			extensiveParallelGates: map[string]int{
+				`{"query":"{user {id}}"}`:                                     2,
+				`{"query":"{user {name}}"}`:                                   3,
+				`{"query":"{user {title}}"}`:                                  4,
+				`{"query":"{user {info {__internal_typename: __typename}}}"}`: 5,
+				`{"query":"{user {info {email}}}"}`:                           6,
+				`{"query":"{user {info {phone}}}"}`:                           7,
+			},
 		}
 	}
 
@@ -216,14 +220,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							},
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
-								latency:    20 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`},
 							`{"query":"{user {info {__internal_typename: __typename}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"__internal_typename":"Info"}}}}`,
-								latency:    60 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"__internal_typename":"Info"}}}}`},
 							`{"query":"{user {__typename __internal_id: id __internal_1_id: id}}"}`: {
 								statusCode: 200,
 								body:       `{"data":{"user":{"__typename":"User","__internal_id":"1","__internal_1_id":"1"}}}`,
@@ -303,14 +303,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						responses: map[string]sendResponse{
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
-								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black"}]}}`,
-								latency:    20 * time.Millisecond,
-							},
+								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black"}]}}`},
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
-								body:       `{"data":{"_entities":[{"__typename":"User","title":"Sabbat"}]}}`,
-								latency:    40 * time.Millisecond,
-							},
+								body:       `{"data":{"_entities":[{"__typename":"User","title":"Sabbat"}]}}`},
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name title}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
 								body:       `{"data":{"_entities":[{"__typename":"User","name":"Black","title":"Sabbat"}]}}`,
@@ -321,9 +317,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							},
 							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {phone}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 								statusCode: 200,
-								body:       `{"data":{"_entities":[{"__typename":"User","info":{"phone":"123"}}]}}`,
-								latency:    100 * time.Millisecond,
-							},
+								body:       `{"data":{"_entities":[{"__typename":"User","info":{"phone":"123"}}]}}`},
 						},
 					}),
 				),
@@ -370,6 +364,18 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			name:        "entity - distributed fields",
 			definition:  definition,
 			dataSources: dataSources,
+			parallelGates: map[string]int{
+				`{"query":"{user {id}}"}`: 1,
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: 2,
+			},
+			extensiveParallelGates: map[string]int{
+				`{"query":"{user {id}}"}`: 2,
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`:  3,
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: 4,
+				`{"query":"{user {info {__internal_typename: __typename}}}"}`: 5,
+				`{"query":"{user {info {email}}}"}`:                           6,
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename info {phone}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: 7,
+			},
 		}
 	}
 
@@ -642,6 +648,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
+				fetchGates:  tc.parallelGates,
 				expectedResponse: `{"data":{"user":{"name":"Black"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
 {"incremental":[{"data":{"title":"Sabbat"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}
@@ -811,8 +818,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					}
 				},
 				dataSources: tc.dataSources,
-				// This test incremental order depends on latency of responses,
-				// which gives us predictable order for the parallel fetches
+				fetchGates:  tc.extensiveParallelGates,
+				// Incremental order is made deterministic by fetchGates: each parallel
+				// fetch is held until the frames that must precede it have streamed.
 				expectedResponse: `{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}
 {"incremental":[{"data":{"user":{}},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["user"]},{"id":"3","path":["user"]},{"id":"4","path":["user"]},{"id":"5","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"id":"1"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":true}
@@ -913,33 +921,23 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							// defer id 1 (root): nestedInfo { a }
 							`{"query":"{user {info {nestedInfo {a}}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"nestedInfo":{"a":"A"}}}}}`,
-								latency:    10 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"nestedInfo":{"a":"A"}}}}}`},
 							// defer id 2 (parent 1): nestedInfo { b }
 							`{"query":"{user {info {nestedInfo {b}}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"nestedInfo":{"b":"B"}}}}}`,
-								latency:    20 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"nestedInfo":{"b":"B"}}}}}`},
 							// defer id 3 (parent 2): nestedInfo { c } and phone
 							`{"query":"{user {info {nestedInfo {c} phone}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"nestedInfo":{"c":"C"},"phone":"123"}}}}`,
-								latency:    30 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"nestedInfo":{"c":"C"},"phone":"123"}}}}`},
 							// defer id 4 (parent 1): email
 							`{"query":"{user {info {email}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`,
-								latency:    80 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"email":"black@sabbat"}}}}`},
 							// defer id 5 (parent 4): nestedInfo { d }
 							`{"query":"{user {info {nestedInfo {d}}}}"}`: {
 								statusCode: 200,
-								body:       `{"data":{"user":{"info":{"nestedInfo":{"d":"D"}}}}}`,
-								latency:    90 * time.Millisecond,
-							},
+								body:       `{"data":{"user":{"info":{"nestedInfo":{"d":"D"}}}}}`},
 						},
 					}),
 				),
@@ -1030,6 +1028,15 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
+			// Deterministic frame order via fetchGates: each defer fetch is held until
+			// the frames that must precede it have streamed (1->2->3 and 1->4->5).
+			fetchGates: map[string]int{
+				`{"query":"{user {info {nestedInfo {a}}}}"}`:       1,
+				`{"query":"{user {info {nestedInfo {b}}}}"}`:       2,
+				`{"query":"{user {info {nestedInfo {c} phone}}}"}`: 3,
+				`{"query":"{user {info {email}}}"}`:                4,
+				`{"query":"{user {info {nestedInfo {d}}}}"}`:       5,
+			},
 			// address is non-deferred (initial). The duplicated user/info/nestedInfo
 			// containers merge, relocating every deferred leaf under one nestedInfo,
 			// yet each defer id survives via its own leaf with a correct parent chain:
@@ -1120,9 +1127,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Article {__typename reviews {author {__typename id __internal_id: id}}}}}","variables":{"representations":[{"__typename":"Article","id":"a1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"Article","reviews":[{"author":{"__typename":"Author","id":"u1","__internal_id":"u1"}},{"author":{"__typename":"Author","id":"u2","__internal_id":"u2"}}]}]}}`,
-						// delay the author defer chain so the title defer (id 1)
-						// always completes first, giving deterministic frame order.
-						latency: 60 * time.Millisecond,
+						// The author defer (id 2) is held until the title defer (id 1)
+						// has streamed; see fetchGates on the subtest.
 					},
 					// nested case: the whole reviews subtree is deferred, so reviews
 					// (and the nested author key) are fetched in the defer.
@@ -1205,6 +1211,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
+			// title (defer 1) must stream before the author chain (defer 2); gate the
+			// author key fetch until the title frame has been flushed.
+			fetchGates: map[string]int{
+				`{"query":"{article {title}}"}`: 1,
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Article {__typename reviews {author {__typename id __internal_id: id}}}}}","variables":{"representations":[{"__typename":"Article","id":"a1"}]}}`: 2,
+			},
 			// article.__typename and each review's __typename are eager (their
 			// objects are materialized in the initial response), so they appear in
 			// the initial data and a literal __typename is available for the entity
@@ -1353,9 +1365,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename account {type}}}}","variables":{"representations":[{"__typename":"User","billing":{"plan":"pro"},"settings":{"region":"us-east"},"id":"1"}]}}`: {
 						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","account":{"type":"premium"}}]}}`,
-						latency:    20 * time.Millisecond,
-					},
+						body:       `{"data":{"_entities":[{"__typename":"User","account":{"type":"premium"}}]}}`},
 					`{"query":"{user {__internal_name: name}}"}`: {
 						statusCode: 200,
 						body:       `{"data":{"user":{"__internal_name":"Alice"}}}`,
@@ -1436,9 +1446,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: {
 						statusCode: 200,
-						body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"]}]}}`,
-						latency:    50 * time.Millisecond,
-					},
+						body:       `{"data":{"_entities":[{"__typename":"User","notifications":["msg1","msg2"]}]}}`},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_billing: billing {plan}}}}","variables":{"representations":[{"__typename":"User","id":"1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","__internal_billing":{"plan":"pro"}}]}}`,
@@ -1740,6 +1748,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
+			fetchGates: map[string]int{
+				// defer 2 (notifications) must stream after defer 1 (account).
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: 2,
+			},
 			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
 {"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
@@ -1793,6 +1805,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
+			fetchGates: map[string]int{
+				// defer 2 (notifications) must stream after defer 1 (account).
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: 2,
+			},
 			expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"}}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
 {"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
@@ -1955,6 +1971,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
+			fetchGates: map[string]int{
+				// defer 2 (account) must stream after defer 1 (billing).
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename account {type}}}}","variables":{"representations":[{"__typename":"User","billing":{"plan":"pro"},"settings":{"region":"us-east"},"id":"1"}]}}`: 2,
+			},
 			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"billing":{"plan":"pro"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
 {"incremental":[{"data":{"account":{"type":"premium"}},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
@@ -2000,6 +2020,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
+			fetchGates: map[string]int{
+				// defer 2 (notifications) must stream after defer 1 (settings).
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: 2,
+			},
 			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"settings":{"language":"en"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
 {"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
@@ -2028,6 +2052,11 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
+			fetchGates: map[string]int{
+				// defer 2 (account + notifications) must stream after defer 1
+				// (billing + settings); gating notifications holds defer 2's frame.
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: 2,
+			},
 			expectedResponse: `{"data":{"user":{"name":"Alice"}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"billing":{"plan":"pro"},"settings":{"region":"us-east","language":"en"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
 {"incremental":[{"data":{"account":{"type":"premium"},"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
@@ -2052,6 +2081,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				}
 			},
 			dataSources: dataSources,
+			fetchGates: map[string]int{
+				// defer 2 (notifications) must stream after defer 1 (account).
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename notifications}}}","variables":{"representations":[{"__typename":"User","name":"Alice","settings":{"language":"en"},"id":"1"}]}}`: 2,
+			},
 			expectedResponse: `{"data":{"user":{"name":"Alice","billing":{"plan":"pro"},"settings":{"region":"us-east","language":"en"}}},"pending":[{"id":"1","path":["user"]},{"id":"2","path":["user"]}],"hasNext":true}
 {"incremental":[{"data":{"account":{"type":"premium"}},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}
 {"incremental":[{"data":{"notifications":["msg1","msg2"]},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
@@ -2086,12 +2119,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			}
 		`
 
-		// makeDataSources builds the two product subgraph stubs with configurable
-		// response latencies so order-dependent defer tests produce deterministic
-		// frame ordering. The price defer group performs two roundtrips (key fetch
-		// on id-1, then entity fetch on id-2), so its total latency is
-		// keyLatencyMS + entityLatencyMS.
-		makeDataSources := func(nameLatency, nameWithErrorLatency, keyLatency, entityLatency time.Duration) []plan.DataSource {
+		// makeDataSources builds the two product subgraph stubs. Order-dependent
+		// defer tests achieve deterministic frame ordering via fetchGates (see
+		// fetchSequencer), not response latencies.
+		makeDataSources := func() []plan.DataSource {
 			return []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id-1",
@@ -2108,17 +2139,14 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								`{"query":"{product {__internal_typename: __typename __typename id}}"}`: {
 									statusCode: 200,
 									body:       `{"data":{"product":{"__internal_typename":"Product","__typename":"Product","id":"1"}}}`,
-									latency:    keyLatency,
 								},
 								`{"query":"{product {name}}"}`: {
 									statusCode: 200,
 									body:       `{"data":{"product":{"name":null}}}`,
-									latency:    nameLatency,
 								},
 								`{"query":"{product {nameWithError}}"}`: {
 									statusCode: 200,
 									body:       `{"data":{"product":{"nameWithError":null}},"errors":[{"message":"upstream name error","path":["product","nameWithError"]}]}`,
-									latency:    nameWithErrorLatency,
 								},
 							},
 						}),
@@ -2153,7 +2181,6 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 								`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[{"__typename":"Product","id":"1"}]}}`: {
 									statusCode: 200,
 									body:       `{"data":{"_entities":[{"__typename":"Product","price":null}]}}`,
-									latency:    entityLatency,
 								},
 							},
 						}),
@@ -2179,7 +2206,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			}
 		}
 
-		dataSources := makeDataSources(0, 0, 0, 0)
+		dataSources := makeDataSources()
 
 		schema, err := graphql.NewSchemaFromString(definition)
 		require.NoError(t, err)
@@ -2222,9 +2249,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { name } ... @defer { price } } }`}
 			},
-			// name must complete first: name responds in 1ms, the price chain
-			// (key fetch + entity fetch) takes ~10ms.
-			dataSources: makeDataSources(10*time.Millisecond, 0, 50*time.Millisecond, 50*time.Millisecond),
+			// name (defer 1) must stream before price (defer 2); gate the price
+			// entity fetch until the name frame has been flushed.
+			dataSources: dataSources,
+			fetchGates: map[string]int{
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[{"__typename":"Product","id":"1"}]}}`: 2,
+			},
 			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
 {"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":true}
 {"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}
@@ -2236,9 +2266,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { price } ... @defer { name } } }`}
 			},
-			// price must complete first: the price chain (key + entity) takes
-			// ~2ms, name responds after 12ms.
-			dataSources: makeDataSources(50*time.Millisecond, 0, 10*time.Millisecond, 10*time.Millisecond),
+			// price (defer 1) must stream before name (defer 2); gate the name
+			// fetch until the price frame has been flushed.
+			dataSources: dataSources,
+			fetchGates: map[string]int{
+				`{"query":"{product {name}}"}`: 2,
+			},
 			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
 {"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":true}
 {"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.name'.","path":["product","name"]}]}],"hasNext":false}
@@ -2250,9 +2283,12 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			operation: func(t *testing.T) graphql.Request {
 				return graphql.Request{Query: `{ product { ... @defer { nameWithError } ... @defer { price } } }`}
 			},
-			// nameWithError must complete first: it responds in 1ms, the price
-			// chain (key + entity) takes ~10ms.
-			dataSources: makeDataSources(0, 10*time.Millisecond, 50*time.Millisecond, 50*time.Millisecond),
+			// nameWithError (defer 1) must stream before price (defer 2); gate the
+			// price entity fetch until the nameWithError frame has been flushed.
+			dataSources: dataSources,
+			fetchGates: map[string]int{
+				`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[{"__typename":"Product","id":"1"}]}}`: 2,
+			},
 			expectedResponse: `{"data":{"product":{}},"pending":[{"id":"1","path":["product"]},{"id":"2","path":["product"]}],"hasNext":true}
 {"incremental":[{"data":{"nameWithError":null},"id":"1","errors":[{"message":"Failed to fetch from Subgraph 'id-1'."}]}],"completed":[{"id":"1"}],"hasNext":true}
 {"completed":[{"id":"2","errors":[{"message":"Cannot return null for non-nullable field 'Query.product.price'.","path":["product","price"]}]}],"hasNext":false}

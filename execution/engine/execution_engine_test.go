@@ -110,15 +110,23 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		operation := testCase.operation(t)
 		resultWriter := graphql.NewEngineResultWriter()
 
+		// One sequencer per execution, injected via context, so the round tripper
+		// (shared across parallel subtests) deterministically orders this
+		// execution's concurrent fetches without colliding with sibling subtests.
+		seq := newFetchSequencer(testCase.fetchGates)
+
 		streamingBuf := bytes.NewBuffer(nil)
 		if opts.streamingResponse {
 			resultWriter.SetFlushCallback(func(data []byte) {
 				streamingBuf.Write(data)
 				streamingBuf.Write([]byte{'\n'})
+				// Each flush is one streamed frame; release any fetch gated behind it.
+				seq.advance()
 			})
 		}
 
 		execCtx, execCtxCancel := context.WithCancel(context.Background())
+		execCtx = context.WithValue(execCtx, fetchSequencerCtxKey, seq)
 		defer execCtxCancel()
 		err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
 		actualResponse := resultWriter.String()
@@ -353,6 +361,13 @@ type ExecutionEngineTestCase struct {
 	customResolveMap map[string]resolve.CustomResolve
 	skipReason       string
 	indentJSON       bool
+
+	// fetchGates deterministically orders concurrent subgraph fetches for
+	// order-dependent (streaming) defer tests. It maps an exact subgraph
+	// request body to the number of streamed frames that must be flushed before
+	// that fetch is allowed to return (see fetchSequencer). Replaces brittle
+	// per-response latencies.
+	fetchGates map[string]int
 
 	expectedResponse      string
 	expectedResponses     []string
