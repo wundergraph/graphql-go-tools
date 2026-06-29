@@ -289,13 +289,14 @@ func (l *Loader) resolveParallel(ctx context.Context, nodes []*FetchTreeNode) er
 	for i := range nodes {
 		node := nodes[i]
 		g.Go(func() error {
-			// do not return error from parallel siblings
-			// to not interrupt a whole parallel group
-			err := l.resolveFetchNodeWithCtx(ctx, node)
-			if err != nil && ctx.Err() != nil {
-				return err
-			}
-			return nil
+			// Propagate genuine processing errors (e.g. result merge failures,
+			// pre-fetch validation errors) so they surface as a top-level error,
+			// matching the serial execution path. Recoverable subgraph fetch
+			// errors are recorded into the response during the merge phase and
+			// return nil, so they never reach here. A plain errgroup.Group (no
+			// context) does not cancel siblings on error, so returning here does
+			// not interrupt the rest of the parallel group; they run to completion.
+			return l.resolveFetchNodeWithCtx(ctx, node)
 		})
 	}
 	if err := g.Wait(); err != nil {

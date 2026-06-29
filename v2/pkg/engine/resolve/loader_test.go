@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/astjson"
 
@@ -477,6 +478,105 @@ func TestLoader_MergeErrorDifferingArrayLength(t *testing.T) {
 	resolvable.errors = loader.errors
 	assert.Error(t, err)
 	assert.Equal(t, "unable to merge results from subgraph ages: differing array lengths", err.Error())
+}
+
+// TestLoader_MergeErrorDifferingArrayLengthParallel guards against a regression
+// where genuine processing errors (here a result-merge failure) raised inside a
+// parallel fetch group were swallowed by resolveParallel and never surfaced as a
+// top-level error, leaving a partially merged response. The error must propagate
+// for parallel fetches exactly as it does for serial ones (see the Sequence-based
+// TestLoader_MergeErrorDifferingArrayLength above). Because parallel siblings can
+// complete their merge in either order, the subgraph named in the error is not
+// deterministic, so we only assert on the error reason.
+func TestLoader_MergeErrorDifferingArrayLengthParallel(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	names := mockedDS(t, ctrl,
+		`{}`,
+		`{"data":{"users":[{"name":"user-1"},{"name":"user-2"}]}}`)
+
+	ages := mockedDS(t, ctrl,
+		`{}`,
+		`{"data":{"users":[{"age":30},{"age":40},{"age":50}]}}`)
+
+	response := &GraphQLResponse{
+		Fetches: Parallel(
+			Single(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: names,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceName: "names",
+				},
+			}),
+			Single(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: ages,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceName: "ages",
+				},
+			}),
+		),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("users"),
+					Value: &Array{
+						Path: []string{"users"},
+						Item: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("age"),
+									Value: &Integer{
+										Path: []string{"age"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ctx := NewContext(context.Background())
+	resolvable := NewResolvable(nil, ResolvableOptions{})
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	err = loader.LoadGraphQLResponseData(ctx, response)
+	resolvable.data = loader.dataBuffer.Get()
+	resolvable.errors = loader.errors
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "differing array lengths")
 }
 
 func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
