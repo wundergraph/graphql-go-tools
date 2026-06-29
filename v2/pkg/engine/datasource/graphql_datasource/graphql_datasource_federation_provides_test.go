@@ -1113,3 +1113,386 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeField(t *t
 		WithDefaultPostProcessor(),
 	))
 }
+
+func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeFieldAndAbstractSelectionRewriting(t *testing.T) {
+	definition := `
+		type Query {
+			media: [Media]
+		}
+
+		inteface Media {
+			id: ID!
+		}
+
+		interface Titled {
+			title: String!
+		}
+
+		type Book implements Media {
+			id: ID!
+			title: String!
+		}
+
+		type Movie implements Media & Titled {
+			id: ID!
+			title: String!
+		}
+	`
+
+	service1SDL := `
+		type Query {
+			media: [Media] @shareable @provides(fields: "... on Book { title }")
+		}
+
+		interface Media {
+			id: ID!
+		}
+
+		interface Titled {
+			title: String!
+		}
+
+		type Book implements Media @key(fields: "id") {
+			id: ID!
+			title: String! @external
+		}
+
+		type Movie implements Media & Titled @key(fields: "id") {
+			id: ID!
+			title: String! @external
+		}
+	`
+
+	service1DataSourceConfig := mustDataSourceConfiguration(
+		t,
+		"service1",
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"media"}},
+				{TypeName: "Book", FieldNames: []string{"id"}, ExternalFieldNames: []string{"title"}},
+				{TypeName: "Movie", FieldNames: []string{"id"}, ExternalFieldNames: []string{"title"}},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Book", SelectionSet: "id"},
+					{TypeName: "Movie", SelectionSet: "id"},
+				},
+				Provides: plan.FederationFieldConfigurations{
+					{TypeName: "Query", FieldName: "media", SelectionSet: "... on Book { title }"},
+				},
+			},
+		},
+		mustCustomConfiguration(t,
+			ConfigurationInput{
+				Fetch: &FetchConfiguration{
+					URL: "http://service1",
+				},
+				SchemaConfiguration: mustSchema(t,
+					&FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: service1SDL,
+					},
+					service1SDL,
+				),
+			},
+		),
+	)
+
+	service2SDL := `
+		type Query {
+			_empty: String
+		}
+
+		type Book @key(fields: "id") {
+			id: ID!
+			title: String!
+		}
+
+		type Movie @key(fields: "id") {
+			id: ID!
+			title: String!
+		}
+	`
+
+	service2DataSourceConfig := mustDataSourceConfiguration(
+		t,
+		"service2",
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"_empty"}},
+				{TypeName: "Media", FieldNames: []string{"id", "title"}},
+				{TypeName: "Book", FieldNames: []string{"id", "title"}},
+				{TypeName: "Movie", FieldNames: []string{"id", "title"}},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Book", SelectionSet: "id"},
+					{TypeName: "Movie", SelectionSet: "id"},
+				},
+			},
+		},
+		mustCustomConfiguration(t,
+			ConfigurationInput{
+				Fetch: &FetchConfiguration{
+					URL: "http://service2",
+				},
+				SchemaConfiguration: mustSchema(t,
+					&FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: service2SDL,
+					},
+					service2SDL,
+				),
+			},
+		),
+	)
+
+	planConfiguration := plan.Configuration{
+		DisableResolveFieldPositions: true,
+		DataSources: []plan.DataSource{
+			service1DataSourceConfig,
+			service2DataSourceConfig,
+		},
+	}
+
+	t.Run("should correctly plan to fetches for proveded and external fields using nested interface selections", RunTest(
+		definition,
+		`
+			query ProvidesInterface {
+				media {
+					... on Media {
+						... on Book {
+							title
+						}
+						... on Titled {
+							... on Movie {
+								title
+							}
+						}
+					}
+				}
+			}
+		`,
+		"ProvidesInterface",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Fetches: resolve.Sequence(
+					resolve.Single(&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {title} ... on Movie {__typename id}}}"}}`,
+							DataSource: &Source{},
+							PostProcessing: resolve.PostProcessingConfiguration{
+								SelectResponseDataPath:   []string{"data"},
+								SelectResponseErrorsPath: []string{"errors"},
+							},
+						},
+						FetchDependencies: resolve.FetchDependencies{
+							FetchID: 0,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}),
+					resolve.SingleWithPath(&resolve.SingleFetch{
+						FetchDependencies: resolve.FetchDependencies{
+							FetchID:           1,
+							DependsOnFetchIDs: []int{0},
+						},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:                                 `{"method":"POST","url":"http://service2","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Movie {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+							DataSource:                            &Source{},
+							SetTemplateOutputToNullOnVariableNull: true,
+							RequiresEntityBatchFetch:              true,
+							Variables: []resolve.Variable{
+								&resolve.ResolvableObjectVariable{
+									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("__typename"),
+												Value: &resolve.String{
+													Path: []string{"__typename"},
+												},
+												OnTypeNames: [][]byte{[]byte("Movie")},
+											},
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+												OnTypeNames: [][]byte{[]byte("Movie")},
+											},
+										},
+									}),
+								},
+							},
+							PostProcessing: EntitiesPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "media", resolve.ArrayPath("media")),
+				),
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("media"),
+							Value: &resolve.Array{
+								Path:     []string{"media"},
+								Nullable: true,
+								Item: &resolve.Object{
+									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"Book":  {},
+										"Movie": {},
+									},
+									TypeName: "Media",
+									Fields: []*resolve.Field{
+										{
+											Name:        []byte("title"),
+											OnTypeNames: [][]byte{[]byte("Book")},
+											Value: &resolve.String{
+												Path: []string{"title"},
+											},
+										},
+										{
+											Name:        []byte("title"),
+											OnTypeNames: [][]byte{[]byte("Movie")},
+											Value: &resolve.String{
+												Path: []string{"title"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		planConfiguration,
+		WithDefaultPostProcessor(),
+	))
+
+	// t.Run("should plan to retrieve title from service2 when requesting title from the movie type", RunTest(
+	// 	definition,
+	// 	`
+	// 		query ProvidesInterface {
+	// 			media {
+	// 				title
+	// 				... on Book {
+	// 					id
+	// 				}
+	// 				... on Movie {
+	// 					id
+	// 				}
+	// 			}
+	// 		}
+	// 	`,
+	// 	"ProvidesInterface",
+	// 	&plan.SynchronousResponsePlan{
+	// 		Response: &resolve.GraphQLResponse{
+	// 			Fetches: resolve.Sequence(
+	// 				resolve.Single(&resolve.SingleFetch{
+	// 					FetchConfiguration: resolve.FetchConfiguration{
+	// 						Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {title id} ... on Movie {id __typename}}}"}}`,
+	// 						DataSource: &Source{},
+	// 						PostProcessing: resolve.PostProcessingConfiguration{
+	// 							SelectResponseDataPath:   []string{"data"},
+	// 							SelectResponseErrorsPath: []string{"errors"},
+	// 						},
+	// 					},
+	// 					FetchDependencies: resolve.FetchDependencies{
+	// 						FetchID: 0,
+	// 					},
+	// 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+	// 				}),
+	// 				resolve.SingleWithPath(&resolve.SingleFetch{
+	// 					FetchDependencies: resolve.FetchDependencies{
+	// 						FetchID:           1,
+	// 						DependsOnFetchIDs: []int{0},
+	// 					},
+	// 					FetchConfiguration: resolve.FetchConfiguration{
+	// 						Input:                                 `{"method":"POST","url":"http://service2","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Movie {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+	// 						DataSource:                            &Source{},
+	// 						SetTemplateOutputToNullOnVariableNull: true,
+	// 						RequiresEntityBatchFetch:              true,
+	// 						Variables: []resolve.Variable{
+	// 							&resolve.ResolvableObjectVariable{
+	// 								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+	// 									Nullable: true,
+	// 									Fields: []*resolve.Field{
+	// 										{
+	// 											Name: []byte("__typename"),
+	// 											Value: &resolve.String{
+	// 												Path: []string{"__typename"},
+	// 											},
+	// 											OnTypeNames: [][]byte{[]byte("Movie")},
+	// 										},
+	// 										{
+	// 											Name: []byte("id"),
+	// 											Value: &resolve.Scalar{
+	// 												Path: []string{"id"},
+	// 											},
+	// 											OnTypeNames: [][]byte{[]byte("Movie")},
+	// 										},
+	// 									},
+	// 								}),
+	// 							},
+	// 						},
+	// 						PostProcessing: EntitiesPostProcessingConfiguration,
+	// 					},
+	// 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+	// 				}, "media", resolve.ArrayPath("media")),
+	// 			),
+	// 			Data: &resolve.Object{
+	// 				Fields: []*resolve.Field{
+	// 					{
+	// 						Name: []byte("media"),
+	// 						Value: &resolve.Array{
+	// 							Path:     []string{"media"},
+	// 							Nullable: true,
+	// 							Item: &resolve.Object{
+	// 								Nullable: true,
+	// 								PossibleTypes: map[string]struct{}{
+	// 									"Book":  {},
+	// 									"Movie": {},
+	// 								},
+	// 								TypeName: "Media",
+	// 								Fields: []*resolve.Field{
+	// 									{
+	// 										Name:        []byte("title"),
+	// 										OnTypeNames: [][]byte{[]byte("Book")},
+	// 										Value: &resolve.String{
+	// 											Path: []string{"title"},
+	// 										},
+	// 									},
+	// 									{
+	// 										Name:        []byte("id"),
+	// 										OnTypeNames: [][]byte{[]byte("Book")},
+	// 										Value: &resolve.Scalar{
+	// 											Path: []string{"id"},
+	// 										},
+	// 									},
+	// 									{
+	// 										Name:        []byte("title"),
+	// 										OnTypeNames: [][]byte{[]byte("Movie")},
+	// 										Value: &resolve.String{
+	// 											Path: []string{"title"},
+	// 										},
+	// 									},
+	// 									{
+	// 										Name:        []byte("id"),
+	// 										OnTypeNames: [][]byte{[]byte("Movie")},
+	// 										Value: &resolve.Scalar{
+	// 											Path: []string{"id"},
+	// 										},
+	// 									},
+	// 								},
+	// 							},
+	// 						},
+	// 					},
+	// 				},
+	// 			},
+	// 		},
+	// 	},
+	// 	planConfiguration,
+	// 	WithDefaultPostProcessor(),
+	// ))
+}
