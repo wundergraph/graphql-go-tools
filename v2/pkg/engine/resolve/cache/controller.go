@@ -47,6 +47,8 @@ func (c *Controller) BeginRequest(ctx *resolve.Context) resolve.RequestCache {
 		ctx:                ctx,
 		configs:            make(map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig),
 		prefixes:           make(map[*resolve.FetchCacheHandle]string),
+		l1RenderedKeys:     make(map[*resolve.FetchCacheHandle][][]string),
+		l1HitItems:         make(map[*resolve.FetchCacheHandle][]bool),
 		renderedMissedKeys: make(map[*resolve.FetchCacheHandle][][]string),
 	}
 }
@@ -56,9 +58,12 @@ type requestCache struct {
 	mode               Mode
 	obs                resolve.CacheObserver
 	ctx                *resolve.Context
+	l1                 map[string][]byte
 	deferred           []deferredSet
 	configs            map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig
 	prefixes           map[*resolve.FetchCacheHandle]string
+	l1RenderedKeys     map[*resolve.FetchCacheHandle][][]string
+	l1HitItems         map[*resolve.FetchCacheHandle][]bool
 	renderedMissedKeys map[*resolve.FetchCacheHandle][][]string
 	// Mutated only under the MergeSession's DataBuffer.Lock per RFC-1 section 6.4.
 }
@@ -72,9 +77,37 @@ type deferredSet struct {
 
 const negativeCacheSentinel = "null"
 
+func (r *requestCache) useL1(cfg *resolve.FetchCacheConfig) bool {
+	return cfg != nil && cfg.L1 && (r.mode == ModeL1 || r.mode == ModeL1L2)
+}
+
+func (r *requestCache) useL2(cfg *resolve.FetchCacheConfig) bool {
+	return cfg != nil && cfg.L2 && r.store != nil && (r.mode == ModeL2 || r.mode == ModeL1L2)
+}
+
+func (r *requestCache) getL1(key string) ([]byte, bool) {
+	if r.l1 == nil {
+		return nil, false
+	}
+	value, ok := r.l1[key]
+	if !ok {
+		return nil, false
+	}
+	return append([]byte(nil), value...), true
+}
+
+func (r *requestCache) setL1(key string, value []byte) {
+	if key == "" {
+		return
+	}
+	if r.l1 == nil {
+		r.l1 = make(map[string][]byte)
+	}
+	r.l1[key] = append([]byte(nil), value...)
+}
+
 func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decision, *resolve.FetchCacheHandle) {
-	if r.mode != ModeL2 || r.store == nil || in.Config == nil || !in.Config.L2 {
-		// TODO(D2): implement L1 and L1+L2 modes.
+	if in.Config == nil || (!r.useL1(in.Config) && !r.useL2(in.Config)) {
 		return resolve.DecisionFetch, nil
 	}
 	if in.BatchStats != nil && len(in.BatchStats) == 0 {
@@ -86,10 +119,15 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 	cfg := in.Config
 	prefix := cacheKeyPrefix(cfg, in.HeaderHash)
 	if cfg.KeySpec.Scope == resolve.CacheScopeRootField {
+		if !r.useL2(cfg) {
+			return resolve.DecisionFetch, nil
+		}
 		return r.prepareRootFieldFetch(in, cfg, prefix, session)
 	}
 	if len(in.BatchStats) > 0 {
 		items := make([]resolve.ItemCacheState, 0, len(in.BatchStats))
+		l1KeysByItem := make([][]string, 0, len(in.BatchStats))
+		l1HitItems := make([]bool, 0, len(in.BatchStats))
 		missedByItem := make([][]string, 0, len(in.BatchStats))
 		var shadowStash map[int]resolve.ShadowCacheEntry
 		allCovered := true
@@ -100,7 +138,7 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 			if len(bucket) > 0 {
 				representative = bucket[0]
 			}
-			state, missedKeys, itemMustWriteBack, shadowEntry := r.prepareItemCacheState(in.Ctx, session, cfg, representative, prefix)
+			state, l1Keys, l1Hit, missedKeys, itemMustWriteBack, shadowEntry := r.prepareItemCacheState(in.Ctx, session, cfg, representative, prefix)
 			state.BatchEntityKey = true
 			state.BatchIndex = i
 			if shadowEntry != nil {
@@ -117,6 +155,8 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 				mustWriteBack = true
 			}
 			items = append(items, state)
+			l1KeysByItem = append(l1KeysByItem, l1Keys)
+			l1HitItems = append(l1HitItems, l1Hit)
 			missedByItem = append(missedByItem, missedKeys)
 		}
 		decision := resolve.DecisionFetch
@@ -136,18 +176,22 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 		}
 		r.configs[handle] = cfg
 		r.prefixes[handle] = prefix
+		r.l1RenderedKeys[handle] = l1KeysByItem
+		r.l1HitItems[handle] = l1HitItems
 		r.renderedMissedKeys[handle] = missedByItem
 		return decision, handle
 	}
 
 	items := make([]resolve.ItemCacheState, 0, len(in.Items))
+	l1KeysByItem := make([][]string, 0, len(in.Items))
+	l1HitItems := make([]bool, 0, len(in.Items))
 	missedByItem := make([][]string, 0, len(in.Items))
 	var shadowStash map[int]resolve.ShadowCacheEntry
 	allCovered := len(in.Items) > 0
 	shadow := false
 	mustWriteBack := false
 	for i, item := range in.Items {
-		state, missedKeys, itemMustWriteBack, shadowEntry := r.prepareItemCacheState(in.Ctx, session, cfg, item, prefix)
+		state, l1Keys, l1Hit, missedKeys, itemMustWriteBack, shadowEntry := r.prepareItemCacheState(in.Ctx, session, cfg, item, prefix)
 		if shadowEntry != nil {
 			shadow = true
 			if shadowStash == nil {
@@ -162,6 +206,8 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 			mustWriteBack = true
 		}
 		items = append(items, state)
+		l1KeysByItem = append(l1KeysByItem, l1Keys)
+		l1HitItems = append(l1HitItems, l1Hit)
 		missedByItem = append(missedByItem, missedKeys)
 	}
 
@@ -181,6 +227,8 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 	}
 	r.configs[handle] = cfg
 	r.prefixes[handle] = prefix
+	r.l1RenderedKeys[handle] = l1KeysByItem
+	r.l1HitItems[handle] = l1HitItems
 	r.renderedMissedKeys[handle] = missedByItem
 	return decision, handle
 }
@@ -265,13 +313,15 @@ func (r *requestCache) prepareRootFieldEntityReuseFetch(in resolve.PrepareFetchI
 
 	lookupItem := rootFieldEntityMappingLookupItem(in.Ctx, cfg.KeySpec.EntityKeyMappings)
 	items := make([]resolve.ItemCacheState, 0, len(in.Items))
+	l1KeysByItem := make([][]string, 0, len(in.Items))
+	l1HitItems := make([]bool, 0, len(in.Items))
 	missedByItem := make([][]string, 0, len(in.Items))
 	var shadowStash map[int]resolve.ShadowCacheEntry
 	allCovered := len(in.Items) > 0
 	shadow := false
 	mustWriteBack := false
 	for i, item := range in.Items {
-		state, missedKeys, itemMustWriteBack, shadowEntry := r.prepareItemCacheState(in.Ctx, session, &entityCfg, lookupItem, prefix)
+		state, l1Keys, l1Hit, missedKeys, itemMustWriteBack, shadowEntry := r.prepareItemCacheState(in.Ctx, session, &entityCfg, lookupItem, prefix)
 		state.Item = item
 		if shadowEntry != nil {
 			shadow = true
@@ -287,6 +337,8 @@ func (r *requestCache) prepareRootFieldEntityReuseFetch(in resolve.PrepareFetchI
 			mustWriteBack = true
 		}
 		items = append(items, state)
+		l1KeysByItem = append(l1KeysByItem, l1Keys)
+		l1HitItems = append(l1HitItems, l1Hit)
 		missedByItem = append(missedByItem, missedKeys)
 	}
 
@@ -306,11 +358,18 @@ func (r *requestCache) prepareRootFieldEntityReuseFetch(in resolve.PrepareFetchI
 	}
 	r.configs[handle] = cfg
 	r.prefixes[handle] = prefix
+	r.l1RenderedKeys[handle] = l1KeysByItem
+	r.l1HitItems[handle] = l1HitItems
 	r.renderedMissedKeys[handle] = missedByItem
 	return decision, handle
 }
 
-func (r *requestCache) prepareItemCacheState(ctx *resolve.Context, session resolve.MergeSession, cfg *resolve.FetchCacheConfig, item *astjson.Value, prefix string) (resolve.ItemCacheState, []string, bool, *resolve.ShadowCacheEntry) {
+func (r *requestCache) prepareItemCacheState(ctx *resolve.Context, session resolve.MergeSession, cfg *resolve.FetchCacheConfig, item *astjson.Value, prefix string) (resolve.ItemCacheState, []string, bool, []string, bool, *resolve.ShadowCacheEntry) {
+	type renderedCandidate struct {
+		candidate resolve.CacheKeyCandidate
+		l1Key     string
+		l2Key     string
+	}
 	type cacheLookupCandidate struct {
 		candidate resolve.CacheCandidate
 		key       string
@@ -318,73 +377,142 @@ func (r *requestCache) prepareItemCacheState(ctx *resolve.Context, session resol
 	}
 
 	state := resolve.ItemCacheState{Item: item}
-	missedKeys := make([]string, 0, len(cfg.KeySpec.Candidates))
-	hits := make([]cacheLookupCandidate, 0, len(cfg.KeySpec.Candidates))
+	useL1 := r.useL1(cfg)
+	useL2 := r.useL2(cfg)
+	l1Keys := make([]string, 0, len(cfg.KeySpec.Candidates))
+	missedL2Keys := make([]string, 0, len(cfg.KeySpec.Candidates))
+	rendered := make([]renderedCandidate, 0, len(cfg.KeySpec.Candidates))
 	mustWriteBack := false
 	for _, candidate := range cfg.KeySpec.Candidates {
-		key, ok := renderEntityKey(session, candidate.Representation, item, prefix)
+		l1Key, ok := renderEntityKey(session, candidate.Representation, item, "")
 		if !ok {
 			state.PendingCandidates = append(state.PendingCandidates, candidate)
 			mustWriteBack = true
 			continue
 		}
-		state.RenderedKeys = append(state.RenderedKeys, key)
-		value, remaining, hit := r.store.Get(key)
-		if !hit {
-			missedKeys = append(missedKeys, key)
-			mustWriteBack = true
-			continue
+		l2Key := ""
+		if useL2 {
+			l2Key, ok = renderEntityKey(session, candidate.Representation, item, prefix)
+			if !ok {
+				state.PendingCandidates = append(state.PendingCandidates, candidate)
+				mustWriteBack = true
+				continue
+			}
+			state.RenderedKeys = append(state.RenderedKeys, l2Key)
+		} else {
+			state.RenderedKeys = append(state.RenderedKeys, l1Key)
 		}
-		cached, err := session.ParseBytes(value)
-		hits = append(hits, cacheLookupCandidate{
-			key:    key,
-			cached: cached,
-			candidate: resolve.CacheCandidate{
-				Value:        append([]byte(nil), value...),
-				RemainingTTL: remaining,
-			},
-		})
-		if err != nil {
-			continue
+		if useL1 {
+			l1Keys = append(l1Keys, l1Key)
 		}
+		rendered = append(rendered, renderedCandidate{candidate: candidate, l1Key: l1Key, l2Key: l2Key})
 	}
-	if len(hits) > 0 {
+
+	applyHits := func(hits []cacheLookupCandidate) bool {
+		if len(hits) == 0 {
+			return false
+		}
 		slices.SortStableFunc(hits, func(a, b cacheLookupCandidate) int {
 			return compareCacheCandidateFreshness(a.candidate.RemainingTTL, b.candidate.RemainingTTL)
 		})
+		state.FromCache = nil
 		state.FromCacheCandidates = make([]resolve.CacheCandidate, 0, len(hits))
+		state.SelectedRemainingTTL = 0
+		state.NegativeHit = false
+		state.NeedsWriteback = false
 		for _, hit := range hits {
 			state.FromCacheCandidates = append(state.FromCacheCandidates, hit.candidate)
 			if hit.cached != nil && hit.cached.Type() == astjson.TypeNull && state.FromCache == nil {
-				// v1 uses a literal JSON null as the negative-cache sentinel.
 				state.FromCache = hit.cached
 				state.SelectedRemainingTTL = hit.candidate.RemainingTTL
 				state.NegativeHit = true
 			}
 		}
-	}
-	if len(state.FromCacheCandidates) > 0 {
 		if state.NegativeHit {
-			// Negative hits are already covering values and must not run the positive
-			// ProvidesData coverage walk.
-		} else if selectMultiCandidateCacheValue(ctx, session, &state, cfg.ProvidesData) {
-			state.FromCache = reorderCacheValueToSelectionOrder(ctx, session, state.FromCache, cfg.ProvidesData)
+			return true
 		}
+		if selectMultiCandidateCacheValue(ctx, session, &state, cfg.ProvidesData) {
+			state.FromCache = reorderCacheValueToSelectionOrder(ctx, session, state.FromCache, cfg.ProvidesData)
+			return true
+		}
+		return false
+	}
+
+	l1Hit := false
+	if useL1 {
+		hits := make([]cacheLookupCandidate, 0, len(rendered))
+		for _, candidate := range rendered {
+			value, hit := r.getL1(candidate.l1Key)
+			if !hit {
+				continue
+			}
+			cached, err := session.ParseBytes(value)
+			if err != nil {
+				continue
+			}
+			hits = append(hits, cacheLookupCandidate{
+				key:    candidate.l1Key,
+				cached: cached,
+				candidate: resolve.CacheCandidate{
+					Value:        append([]byte(nil), value...),
+					RemainingTTL: ttlForConfig(cfg),
+				},
+			})
+		}
+		l1Hit = applyHits(hits)
+		if l1Hit {
+			return state, l1Keys, true, missedL2Keys, mustWriteBack || state.NeedsWriteback, nil
+		}
+	}
+
+	l2Hits := make([]cacheLookupCandidate, 0, len(rendered))
+	if useL2 {
+		for _, candidate := range rendered {
+			value, remaining, hit := r.store.Get(candidate.l2Key)
+			if !hit {
+				missedL2Keys = append(missedL2Keys, candidate.l2Key)
+				mustWriteBack = true
+				continue
+			}
+			cached, err := session.ParseBytes(value)
+			if err != nil {
+				continue
+			}
+			l2Hits = append(l2Hits, cacheLookupCandidate{
+				key:    candidate.l2Key,
+				cached: cached,
+				candidate: resolve.CacheCandidate{
+					Value:        append([]byte(nil), value...),
+					RemainingTTL: remaining,
+				},
+			})
+		}
+		applyHits(l2Hits)
 		if state.NeedsWriteback {
 			mustWriteBack = true
 		}
+		if state.FromCache != nil && useL1 {
+			bytes := append([]byte(nil), state.FromCache.MarshalTo(nil)...)
+			for _, key := range l1Keys {
+				r.setL1(key, bytes)
+			}
+		}
 	}
+
 	var shadowEntry *resolve.ShadowCacheEntry
-	if cfg.ShadowMode && state.FromCache != nil {
+	if useL2 && cfg.ShadowMode && state.FromCache != nil {
 		cacheTTL := ttlForConfig(cfg)
 		if state.NegativeHit {
 			cacheTTL = cfg.NegativeCacheTTL
 		}
-		shadowKey := hits[0].key
-		for _, hit := range hits {
-			if hit.candidate.RemainingTTL == state.SelectedRemainingTTL {
-				shadowKey = hit.key
-				break
+		shadowKey := ""
+		if len(l2Hits) > 0 {
+			shadowKey = l2Hits[0].key
+			for _, hit := range l2Hits {
+				if hit.candidate.RemainingTTL == state.SelectedRemainingTTL {
+					shadowKey = hit.key
+					break
+				}
 			}
 		}
 		shadowEntry = &resolve.ShadowCacheEntry{
@@ -397,8 +525,8 @@ func (r *requestCache) prepareItemCacheState(ctx *resolve.Context, session resol
 		state.SelectedRemainingTTL = 0
 		state.NegativeHit = false
 	}
-	if cfg.ShadowMode && shadowEntry == nil && cfg.ProvidesData == nil {
-		for _, hit := range hits {
+	if useL2 && cfg.ShadowMode && shadowEntry == nil && cfg.ProvidesData == nil {
+		for _, hit := range l2Hits {
 			if hit.cached == nil {
 				continue
 			}
@@ -411,11 +539,11 @@ func (r *requestCache) prepareItemCacheState(ctx *resolve.Context, session resol
 			break
 		}
 	}
-	return state, missedKeys, mustWriteBack, shadowEntry
+	return state, l1Keys, l1Hit, missedL2Keys, mustWriteBack, shadowEntry
 }
 
 func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.MergeInput) error {
-	if h == nil || r.mode != ModeL2 {
+	if h == nil {
 		return nil
 	}
 	session := in.Arena.Begin()
@@ -427,6 +555,10 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 	}
 	ttl := ttlForConfig(cfg)
 	prefix := r.prefixes[h]
+	useL1 := r.useL1(cfg)
+	useL2 := r.useL2(cfg)
+	l1KeysByItem := r.l1RenderedKeys[h]
+	l1HitItems := r.l1HitItems[h]
 	missedByItem := r.renderedMissedKeys[h]
 	for i, item := range h.Items {
 		if item.FromCache == nil {
@@ -460,22 +592,39 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 			}
 		}
 		bytes := append([]byte(nil), item.FromCache.MarshalTo(nil)...)
-		if item.NeedsWriteback {
+		itemFromL1 := i < len(l1HitItems) && l1HitItems[i]
+		if useL1 && itemFromL1 && i < len(l1KeysByItem) {
+			for _, key := range l1KeysByItem[i] {
+				r.setL1(key, bytes)
+			}
+		}
+		if useL2 && !itemFromL1 && item.NeedsWriteback {
 			for _, key := range item.RenderedKeys {
 				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonRefresh)
 			}
-		} else if i < len(missedByItem) {
+		} else if useL2 && !itemFromL1 && i < len(missedByItem) {
 			for _, key := range missedByItem[i] {
 				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonBackfill)
 			}
 		}
 		for _, candidate := range item.PendingCandidates {
-			key, ok := renderEntityKey(session, candidate.Representation, item.FromCache, prefix)
-			if !ok {
-				key, ok = renderEntityKey(session, candidate.Representation, item.Item, prefix)
+			if useL1 {
+				key, ok := renderEntityKey(session, candidate.Representation, item.FromCache, "")
+				if !ok {
+					key, ok = renderEntityKey(session, candidate.Representation, item.Item, "")
+				}
+				if ok {
+					r.setL1(key, bytes)
+				}
 			}
-			if ok {
-				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonBackfill)
+			if useL2 && !itemFromL1 {
+				key, ok := renderEntityKey(session, candidate.Representation, item.FromCache, prefix)
+				if !ok {
+					key, ok = renderEntityKey(session, candidate.Representation, item.Item, prefix)
+				}
+				if ok {
+					r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonBackfill)
+				}
 			}
 		}
 	}
@@ -483,7 +632,7 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 }
 
 func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.MergeInput) error {
-	if h == nil || r.mode != ModeL2 {
+	if h == nil {
 		return nil
 	}
 	session := in.Arena.Begin()
@@ -496,6 +645,9 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	if in.FetchFailed || in.HasErrors {
 		return nil
 	}
+	useL1 := r.useL1(cfg)
+	useL2 := r.useL2(cfg)
+	l1KeysByItem := r.l1RenderedKeys[h]
 	if in.EmptyEntity && in.ResponseData != nil && in.ResponseData.Type() == astjson.TypeNull {
 		if cfg.NegativeCacheTTL <= 0 {
 			return nil
@@ -504,8 +656,15 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		for i := range h.Items {
 			h.Items[i].FromCache = nullValue
 			h.Items[i].NegativeHit = true
-			for _, key := range h.Items[i].RenderedKeys {
-				r.deferSet(key, []byte(negativeCacheSentinel), cfg.NegativeCacheTTL, resolve.CacheWriteReasonRefresh)
+			if useL1 && i < len(l1KeysByItem) {
+				for _, key := range l1KeysByItem[i] {
+					r.setL1(key, []byte(negativeCacheSentinel))
+				}
+			}
+			if useL2 {
+				for _, key := range h.Items[i].RenderedKeys {
+					r.deferSet(key, []byte(negativeCacheSentinel), cfg.NegativeCacheTTL, resolve.CacheWriteReasonRefresh)
+				}
 			}
 		}
 		return nil
@@ -531,12 +690,14 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		}
 		copied := session.StructuralCopy(in.ResponseData)
 		bytes := append([]byte(nil), copied.MarshalTo(nil)...)
-		for _, key := range h.Items[0].RenderedKeys {
-			r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonRefresh)
+		if useL2 {
+			for _, key := range h.Items[0].RenderedKeys {
+				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonRefresh)
+			}
 		}
 		return nil
 	}
-	for _, item := range h.Items {
+	for i, item := range h.Items {
 		itemToStore := in.ResponseData
 		if h.BatchEntityKey {
 			if item.BatchIndex < 0 || item.BatchIndex >= len(batch) {
@@ -551,13 +712,28 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		}
 		copied := session.StructuralCopy(itemToStore)
 		bytes := append([]byte(nil), copied.MarshalTo(nil)...)
-		for _, key := range item.RenderedKeys {
-			r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonRefresh)
+		if useL1 && i < len(l1KeysByItem) {
+			for _, key := range l1KeysByItem[i] {
+				r.setL1(key, bytes)
+			}
+		}
+		if useL2 {
+			for _, key := range item.RenderedKeys {
+				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonRefresh)
+			}
 		}
 		for _, candidate := range item.PendingCandidates {
-			key, ok := renderEntityKey(session, candidate.Representation, itemToStore, prefix)
-			if ok {
-				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonBackfill)
+			if useL1 {
+				key, ok := renderEntityKey(session, candidate.Representation, itemToStore, "")
+				if ok {
+					r.setL1(key, bytes)
+				}
+			}
+			if useL2 {
+				key, ok := renderEntityKey(session, candidate.Representation, itemToStore, prefix)
+				if ok {
+					r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonBackfill)
+				}
 			}
 		}
 	}
@@ -778,10 +954,11 @@ func renderRootFieldKey(prefix string, input []byte) string {
 }
 
 func renderCacheKey(prefix string, payload []byte) string {
-	preimage := make([]byte, 0, len(prefix)+1+len(payload))
-	if prefix != "" {
-		preimage = append(preimage, prefix...)
+	if prefix == "" {
+		return hashHex(payload)
 	}
+	preimage := make([]byte, 0, len(prefix)+1+len(payload))
+	preimage = append(preimage, prefix...)
 	preimage = append(preimage, ':')
 	preimage = append(preimage, payload...)
 	return prefix + ":" + hashHex(preimage)
