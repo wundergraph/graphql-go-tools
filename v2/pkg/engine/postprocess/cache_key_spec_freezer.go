@@ -19,15 +19,18 @@ func (f *cacheKeySpecFreezer) freeze(scope resolve.CacheScope, info *resolve.Fet
 	if info == nil || len(info.RootFields) == 0 {
 		return resolve.CacheKeySpec{}, false
 	}
-	fed, ok := f.federation[info.DataSourceID]
-	if !ok {
-		return resolve.CacheKeySpec{}, false
-	}
 	typeName := info.RootFields[0].TypeName
 	spec := resolve.CacheKeySpec{
 		Scope:     scope,
 		TypeName:  typeName,
 		FieldName: info.RootFields[0].FieldName,
+	}
+	if scope == resolve.CacheScopeRootField {
+		return spec, true
+	}
+	fed, ok := f.federation[info.DataSourceID]
+	if !ok {
+		return resolve.CacheKeySpec{}, false
 	}
 	if scope != resolve.CacheScopeEntity {
 		return resolve.CacheKeySpec{}, false

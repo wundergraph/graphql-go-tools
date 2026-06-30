@@ -76,8 +76,21 @@ func (s *cacheConfigStamper) buildConfig(fetch resolve.Fetch, pd map[*resolve.Fe
 			KeySpec:                     spec,
 		}
 	default:
-		// TODO(B1): root-field stamping.
-		return nil
+		pol, ok := rootFieldPolicyForAllRootFields(provider, info)
+		if !ok {
+			return nil
+		}
+		spec, _ := s.freezer.freeze(resolve.CacheScopeRootField, info)
+		cfg = resolve.FetchCacheConfig{
+			L1:                          false,
+			L2:                          pol.TTL > 0,
+			CacheName:                   pol.CacheName,
+			TTL:                         pol.TTL,
+			IncludeSubgraphHeaderPrefix: pol.IncludeSubgraphHeaderPrefix,
+			ShadowMode:                  pol.ShadowMode,
+			PartialBatchLoad:            pol.PartialBatchLoad,
+			KeySpec:                     spec,
+		}
 	}
 
 	cfg.ProvidesData = pd[info]
@@ -99,4 +112,29 @@ func fetchIsEntity(fetch resolve.Fetch) bool {
 	default:
 		return false
 	}
+}
+
+func rootFieldPolicyForAllRootFields(provider cacheconfig.CacheConfigProvider, info *resolve.FetchInfo) (cacheconfig.RootFieldCachePolicy, bool) {
+	if info == nil || len(info.RootFields) == 0 {
+		return cacheconfig.RootFieldCachePolicy{}, false
+	}
+	first, ok := provider.RootFieldPolicy(info.RootFields[0].TypeName, info.RootFields[0].FieldName)
+	if !ok {
+		return cacheconfig.RootFieldCachePolicy{}, false
+	}
+	for _, rootField := range info.RootFields[1:] {
+		pol, ok := provider.RootFieldPolicy(rootField.TypeName, rootField.FieldName)
+		if !ok || !sameRootFieldCachePolicy(first, pol) {
+			return cacheconfig.RootFieldCachePolicy{}, false
+		}
+	}
+	return first, true
+}
+
+func sameRootFieldCachePolicy(a, b cacheconfig.RootFieldCachePolicy) bool {
+	return a.CacheName == b.CacheName &&
+		a.TTL == b.TTL &&
+		a.IncludeSubgraphHeaderPrefix == b.IncludeSubgraphHeaderPrefix &&
+		a.ShadowMode == b.ShadowMode &&
+		a.PartialBatchLoad == b.PartialBatchLoad
 }

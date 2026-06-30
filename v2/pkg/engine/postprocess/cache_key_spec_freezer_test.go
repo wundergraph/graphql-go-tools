@@ -164,6 +164,25 @@ func TestCacheKeySpecFreezerFreezeEntity(t *testing.T) {
 	}
 }
 
+func TestCacheKeySpecFreezerFreezeRootField(t *testing.T) {
+	freezer := &cacheKeySpecFreezer{}
+	info := &resolve.FetchInfo{
+		DataSourceID: "ds",
+		RootFields: []resolve.GraphCoordinate{
+			{TypeName: "Query", FieldName: "topProducts"},
+		},
+	}
+
+	spec, ok := freezer.freeze(resolve.CacheScopeRootField, info)
+
+	assert.Equal(t, true, ok)
+	assert.Equal(t, resolve.CacheKeySpec{
+		Scope:     resolve.CacheScopeRootField,
+		TypeName:  "Query",
+		FieldName: "topProducts",
+	}, spec)
+}
+
 func parseFreezerDefinition(t *testing.T, input string) *ast.Document {
 	t.Helper()
 

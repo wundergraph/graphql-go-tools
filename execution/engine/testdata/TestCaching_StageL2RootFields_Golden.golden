@@ -1,0 +1,8 @@
+QueryPlan {
+  Fetch(service: "1") {
+  }
+}
+
+
+Fetch cache configs:
+- path:"" cache:{l1:false l2:true cacheName:rootfields ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:RootField type:Query field:topProducts candidates:0 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s} keySpec:{scope:RootField type:"Query" field:"topProducts" candidates:0 mappings:[]}
