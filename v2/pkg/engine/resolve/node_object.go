@@ -141,6 +141,37 @@ func (f *Field) Copy() *Field {
 	}
 }
 
+// ComputeHasAliases recursively checks whether any field in the object tree has an alias
+// or CacheArgs, and sets HasAliases on each Object accordingly.
+func ComputeHasAliases(obj *Object) bool {
+	if obj == nil {
+		return false
+	}
+	hasAliases := false
+	for _, field := range obj.Fields {
+		if field.OriginalName != nil || len(field.CacheArgs) > 0 {
+			hasAliases = true
+		}
+		if computeNodeHasAliases(field.Value) {
+			hasAliases = true
+		}
+	}
+	obj.HasAliases = hasAliases
+	return hasAliases
+}
+
+func computeNodeHasAliases(node Node) bool {
+	switch n := node.(type) {
+	case *Object:
+		return ComputeHasAliases(n)
+	case *Array:
+		if n != nil && n.Item != nil {
+			return computeNodeHasAliases(n.Item)
+		}
+	}
+	return false
+}
+
 func (f *Field) Equals(n *Field) bool {
 	// NOTE: a lot of struct fields are not compared here
 	// because they are not relevant for the value comparison of response nodes

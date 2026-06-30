@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sebdah/goldie/v2"
 	"github.com/stretchr/testify/require"
@@ -81,8 +82,51 @@ func Plan(tb testing.TB, stage cachetesting.CacheStage, query string, responses 
 }
 
 func cacheProvidersForStage(cfg plan.Configuration, stage cachetesting.CacheStage) map[string]cacheconfig.CacheConfigProvider {
-	// TODO(A1+): real per-stage providers.
-	return map[string]cacheconfig.CacheConfigProvider{}
+	switch stage {
+	case cachetesting.StageNoop:
+		return map[string]cacheconfig.CacheConfigProvider{}
+	case cachetesting.StageL2Entities, cachetesting.StageL2RootReusesEntity, cachetesting.StageL1:
+		providers := make(map[string]cacheconfig.CacheConfigProvider, len(cfg.DataSources))
+		provider := cachetestingEntityProvider{}
+		for _, ds := range cfg.DataSources {
+			providers[ds.Id()] = provider
+		}
+		return providers
+	default:
+		// TODO(B1+): real per-stage providers.
+		return map[string]cacheconfig.CacheConfigProvider{}
+	}
+}
+
+type cachetestingEntityProvider struct{}
+
+func (cachetestingEntityProvider) EntityPolicy(typeName string) (cacheconfig.EntityCachePolicy, bool) {
+	switch typeName {
+	case "Product", "User":
+		return cacheconfig.EntityCachePolicy{
+			TypeName:  typeName,
+			CacheName: "entities",
+			TTL:       time.Minute,
+		}, true
+	default:
+		return cacheconfig.EntityCachePolicy{}, false
+	}
+}
+
+func (cachetestingEntityProvider) RootFieldPolicy(typeName, fieldName string) (cacheconfig.RootFieldCachePolicy, bool) {
+	return cacheconfig.RootFieldCachePolicy{}, false
+}
+
+func (cachetestingEntityProvider) MutationPolicy(fieldName string) (cacheconfig.MutationCachePolicy, bool) {
+	return cacheconfig.MutationCachePolicy{}, false
+}
+
+func (cachetestingEntityProvider) SubscriptionPolicy(typeName, fieldName string) (cacheconfig.SubscriptionCachePolicy, bool) {
+	return cacheconfig.SubscriptionCachePolicy{}, false
+}
+
+func (cachetestingEntityProvider) KeySpec(scope resolve.CacheScope, typeName, fieldName string) (resolve.CacheKeySpec, bool) {
+	return resolve.CacheKeySpec{}, false
 }
 
 func federationByDS(cfg plan.Configuration) map[string]plan.FederationMetaData {

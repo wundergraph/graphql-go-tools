@@ -19,7 +19,7 @@ func (s *cacheConfigStamper) process(node *resolve.FetchTreeNode, pd map[*resolv
 		if node.Item == nil || node.Item.Fetch == nil {
 			return
 		}
-		s.processFetch(node.Item.Fetch, pd)
+		s.stamp(node.Item.Fetch, pd)
 	case resolve.FetchTreeNodeKindParallel, resolve.FetchTreeNodeKindSequence:
 		for _, child := range node.ChildNodes {
 			s.process(child, pd)
@@ -27,13 +27,76 @@ func (s *cacheConfigStamper) process(node *resolve.FetchTreeNode, pd map[*resolv
 	}
 }
 
-func (s *cacheConfigStamper) processFetch(fetch resolve.Fetch, pd map[*resolve.FetchInfo]*resolve.Object) {
-	info := fetch.FetchInfo()
-	if s.buildConfig(info, pd[info]) == nil {
+func (s *cacheConfigStamper) stamp(fetch resolve.Fetch, pd map[*resolve.FetchInfo]*resolve.Object) {
+	cfg := s.buildConfig(fetch, pd)
+	if cfg == nil {
 		return
+	}
+	switch f := fetch.(type) {
+	case *resolve.SingleFetch:
+		f.Cache = cfg
+	case *resolve.EntityFetch:
+		f.Cache = cfg
+	case *resolve.BatchEntityFetch:
+		f.Cache = cfg
 	}
 }
 
-func (s *cacheConfigStamper) buildConfig(info *resolve.FetchInfo, providesData *resolve.Object) *resolve.FetchCacheConfig {
-	return nil
+func (s *cacheConfigStamper) buildConfig(fetch resolve.Fetch, pd map[*resolve.FetchInfo]*resolve.Object) *resolve.FetchCacheConfig {
+	info := fetch.FetchInfo()
+	if info == nil || len(info.RootFields) == 0 {
+		return nil
+	}
+	provider := s.providers[info.DataSourceID]
+	if provider == nil {
+		return nil
+	}
+
+	var cfg resolve.FetchCacheConfig
+	switch {
+	case fetchIsEntity(fetch):
+		pol, ok := provider.EntityPolicy(info.RootFields[0].TypeName)
+		if !ok {
+			return nil
+		}
+		spec, ok := s.freezer.freeze(resolve.CacheScopeEntity, info)
+		if !ok {
+			return nil
+		}
+		cfg = resolve.FetchCacheConfig{
+			L1:                          true,
+			L2:                          pol.TTL > 0 || pol.NegativeCacheTTL > 0,
+			CacheName:                   pol.CacheName,
+			TTL:                         pol.TTL,
+			NegativeCacheTTL:            pol.NegativeCacheTTL,
+			IncludeSubgraphHeaderPrefix: pol.IncludeSubgraphHeaderPrefix,
+			EnablePartialCacheLoad:      pol.EnablePartialCacheLoad,
+			ShadowMode:                  pol.ShadowMode,
+			HashAnalyticsKeys:           pol.HashAnalyticsKeys,
+			KeySpec:                     spec,
+		}
+	default:
+		// TODO(B1): root-field stamping.
+		return nil
+	}
+
+	cfg.ProvidesData = pd[info]
+	if cfg.ProvidesData != nil {
+		resolve.ComputeHasAliases(cfg.ProvidesData)
+	}
+	if !cfg.L1 && !cfg.L2 && !cfg.ShadowMode {
+		return nil
+	}
+	return &cfg
+}
+
+func fetchIsEntity(fetch resolve.Fetch) bool {
+	switch f := fetch.(type) {
+	case *resolve.EntityFetch, *resolve.BatchEntityFetch:
+		return true
+	case *resolve.SingleFetch:
+		return f.RequiresEntityFetch || f.RequiresEntityBatchFetch
+	default:
+		return false
+	}
 }
