@@ -70,6 +70,8 @@ type deferredSet struct {
 	reason resolve.CacheWriteReason
 }
 
+const negativeCacheSentinel = "null"
+
 func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decision, *resolve.FetchCacheHandle) {
 	if r.mode != ModeL2 || r.store == nil || in.Config == nil || !in.Config.L2 {
 		// TODO(D2): implement L1 and L1+L2 modes.
@@ -176,12 +178,22 @@ func (r *requestCache) prepareItemCacheState(ctx *resolve.Context, session resol
 			Value:        append([]byte(nil), value...),
 			RemainingTTL: remaining,
 		})
+		cached, err := session.ParseBytes(value)
+		if err == nil && cached.Type() == astjson.TypeNull && state.FromCache == nil {
+			// v1 uses a literal JSON null as the negative-cache sentinel.
+			state.FromCache = cached
+			state.SelectedRemainingTTL = remaining
+			state.NegativeHit = true
+		}
 	}
 	if len(state.FromCacheCandidates) > 0 {
 		slices.SortStableFunc(state.FromCacheCandidates, func(a, b resolve.CacheCandidate) int {
 			return compareCacheCandidateFreshness(a.RemainingTTL, b.RemainingTTL)
 		})
-		if selectMultiCandidateCacheValue(ctx, session, &state, cfg.ProvidesData) {
+		if state.NegativeHit {
+			// Negative hits are already covering values and must not run the positive
+			// ProvidesData coverage walk.
+		} else if selectMultiCandidateCacheValue(ctx, session, &state, cfg.ProvidesData) {
 			state.FromCache = reorderCacheValueToSelectionOrder(ctx, session, state.FromCache, cfg.ProvidesData)
 		}
 		if state.NeedsWriteback {
@@ -206,7 +218,7 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 	prefix := r.prefixes[h]
 	missedByItem := r.renderedMissedKeys[h]
 	for i, item := range h.Items {
-		if item.FromCache == nil || item.FromCache.Type() == astjson.TypeNull {
+		if item.FromCache == nil {
 			continue
 		}
 		targets := []*astjson.Value{item.Item}
@@ -221,6 +233,13 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 				continue
 			}
 			cached := session.StructuralCopy(item.FromCache)
+			if item.NegativeHit && cached.Type() == astjson.TypeNull {
+				*target = *cached
+				continue
+			}
+			if cached.Type() == astjson.TypeNull {
+				continue
+			}
 			if len(item.EntityMergePath) > 0 {
 				if _, err := session.MergeValuesWithPath(target, cached, item.EntityMergePath...); err != nil {
 					return err
@@ -259,11 +278,28 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	session := in.Arena.Begin()
 	defer session.Close()
 
-	if in.FetchFailed || in.HasErrors || in.ResponseData == nil || in.ResponseData.Type() == astjson.TypeNull {
-		return nil
-	}
 	cfg := r.configs[h]
 	if cfg == nil {
+		return nil
+	}
+	if in.FetchFailed || in.HasErrors {
+		return nil
+	}
+	if in.EmptyEntity && in.ResponseData != nil && in.ResponseData.Type() == astjson.TypeNull {
+		if cfg.NegativeCacheTTL <= 0 {
+			return nil
+		}
+		nullValue := session.Null()
+		for i := range h.Items {
+			h.Items[i].FromCache = nullValue
+			h.Items[i].NegativeHit = true
+			for _, key := range h.Items[i].RenderedKeys {
+				r.deferSet(key, []byte(negativeCacheSentinel), cfg.NegativeCacheTTL, resolve.CacheWriteReasonRefresh)
+			}
+		}
+		return nil
+	}
+	if in.ResponseData == nil || in.ResponseData.Type() == astjson.TypeNull {
 		return nil
 	}
 	ttl := ttlForConfig(cfg)
