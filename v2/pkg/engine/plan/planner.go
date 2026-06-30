@@ -189,10 +189,13 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	}
 
 	if p.cacheProvidesData != nil {
+		p.cacheProvidesData.Walker = p.planningWalker
 		p.cacheProvidesData.operation = operation
 		p.cacheProvidesData.definition = definition
+		p.cacheProvidesData.config = p.config
 		p.cacheProvidesData.planners = plannersConfigurations
 		p.cacheProvidesData.fieldPlanners = p.planningVisitor.fieldPlanners
+		p.cacheProvidesData.reset()
 		p.planningWalker.RegisterEnterFieldVisitor(p.cacheProvidesData)
 		p.planningWalker.RegisterLeaveFieldVisitor(p.cacheProvidesData)
 	}
@@ -241,6 +244,15 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	}
 
 	if p.cacheProvidesData != nil {
+		p.planningWalker.ResetVisitors()
+		p.planningWalker.SetVisitorFilter(nil)
+		p.cacheProvidesData.reset()
+		p.planningWalker.RegisterEnterFieldVisitor(p.cacheProvidesData)
+		p.planningWalker.RegisterLeaveFieldVisitor(p.cacheProvidesData)
+		p.planningWalker.Walk(operation, definition, report)
+		if report.HasErrors() {
+			return
+		}
 		p.cacheProvidesData.attachTo(p.planningVisitor.plan)
 	}
 
