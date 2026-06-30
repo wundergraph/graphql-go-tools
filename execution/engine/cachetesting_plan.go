@@ -24,8 +24,9 @@ import (
 )
 
 type PlanResult struct {
-	Response *resolve.GraphQLResponse
-	Fakes    *cachetesting.FakeRegistry
+	Response      *resolve.GraphQLResponse
+	DeferResponse *resolve.GraphQLDeferResponse
+	Fakes         *cachetesting.FakeRegistry
 }
 
 func Plan(tb testing.TB, stage cachetesting.CacheStage, query string, responses map[string]string) PlanResult {
@@ -72,13 +73,17 @@ func Plan(tb testing.TB, stage cachetesting.CacheStage, query string, responses 
 	proc.Process(raw)
 
 	resp := planResponse(tb, raw)
+	deferResp := planDeferResponse(raw)
 	t, ok := tb.(*testing.T)
 	require.True(tb, ok, "Plan goldens require *testing.T")
-	goldie.New(t, goldie.WithNameSuffix(".golden")).Assert(t, tb.Name(), []byte(renderPlanWithCache(resp)))
+	goldie.New(t, goldie.WithNameSuffix(".golden")).Assert(t, tb.Name(), []byte(renderPlanWithCache(resp, deferResp)))
 
 	fakes := cachetesting.NewFakeRegistry(responses)
 	cachetesting.SwapDataSources(resp.Fetches, fakes)
-	return PlanResult{Response: resp, Fakes: fakes}
+	for _, group := range deferRespGroups(deferResp) {
+		cachetesting.SwapDataSources(group.Fetches, fakes)
+	}
+	return PlanResult{Response: resp, DeferResponse: deferResp, Fakes: fakes}
 }
 
 func cacheProvidersForStage(cfg plan.Configuration, stage cachetesting.CacheStage) map[string]cacheconfig.CacheConfigProvider {
@@ -178,14 +183,54 @@ func planResponse(tb testing.TB, raw plan.Plan) *resolve.GraphQLResponse {
 	}
 }
 
-func renderPlanWithCache(resp *resolve.GraphQLResponse) string {
+func planDeferResponse(raw plan.Plan) *resolve.GraphQLDeferResponse {
+	if p, ok := raw.(*plan.DeferResponsePlan); ok {
+		return p.Response
+	}
+	return nil
+}
+
+func deferRespGroups(resp *resolve.GraphQLDeferResponse) []*resolve.DeferFetchGroup {
+	if resp == nil {
+		return nil
+	}
+	groups := append([]*resolve.DeferFetchGroup(nil), resp.Defers...)
+	return appendDeferTreeGroups(groups, resp.DeferTree)
+}
+
+func appendDeferTreeGroups(groups []*resolve.DeferFetchGroup, node *resolve.DeferTreeNode) []*resolve.DeferFetchGroup {
+	if node == nil {
+		return groups
+	}
+	if node.Item != nil {
+		groups = append(groups, node.Item)
+	}
+	for _, child := range node.ChildNodes {
+		groups = appendDeferTreeGroups(groups, child)
+	}
+	return groups
+}
+
+func renderPlanWithCache(resp *resolve.GraphQLResponse, deferResp *resolve.GraphQLDeferResponse) string {
 	var b strings.Builder
 	if resp == nil || resp.Fetches == nil {
 		return "<nil>\n"
 	}
 	b.WriteString(resp.Fetches.QueryPlan().PrettyPrint())
+	for _, group := range deferRespGroups(deferResp) {
+		b.WriteString(fmt.Sprintf("\n\nDeferred %d:\n", group.DeferID))
+		if group.Fetches == nil {
+			b.WriteString("<nil>\n")
+			continue
+		}
+		b.WriteString(group.Fetches.QueryPlan().PrettyPrint())
+	}
 	b.WriteString("\n\nFetch cache configs:\n")
 	renderFetchCache(&b, resp.Fetches)
+	for _, group := range deferRespGroups(deferResp) {
+		b.WriteString(fmt.Sprintf("Deferred %d:\n", group.DeferID))
+		renderFetchCache(&b, group.Fetches)
+	}
 	return b.String()
 }
 

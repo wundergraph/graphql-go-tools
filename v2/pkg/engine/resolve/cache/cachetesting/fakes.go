@@ -300,6 +300,11 @@ type GatedDataSource struct {
 	LoadCounter *atomic.Int64
 }
 
+type DataSourceGate struct {
+	Arrived chan<- string
+	Release <-chan struct{}
+}
+
 func (g *GatedDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 	if g.LoadCounter != nil {
 		g.LoadCounter.Add(1)
@@ -415,6 +420,7 @@ type FakeRegistry struct {
 	responses map[string]string
 	release   chan struct{}
 	loads     map[string]*atomic.Int64
+	gates     map[string]DataSourceGate
 }
 
 func NewFakeRegistry(responses map[string]string) *FakeRegistry {
@@ -425,6 +431,16 @@ func NewFakeRegistry(responses map[string]string) *FakeRegistry {
 		release:   release,
 		loads:     make(map[string]*atomic.Int64),
 	}
+}
+
+func (r *FakeRegistry) SetGate(name, path string, gate DataSourceGate) {
+	key := name + ":" + path
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.gates == nil {
+		r.gates = make(map[string]DataSourceGate)
+	}
+	r.gates[key] = gate
 }
 
 // SwapDataSources keys responses by DataSourceName + ":" + ResponsePath, with
@@ -489,12 +505,28 @@ func (r *FakeRegistry) dataSourceFor(item *resolve.FetchItem) resolve.DataSource
 	name := dataSourceName(item)
 	path := pathOf(item)
 	resp := r.responseFor(name, path)
+	gate := r.gateFor(name, path)
+	var release <-chan struct{} = r.release
+	if gate.Release != nil {
+		release = gate.Release
+	}
 	return &GatedDataSource{
 		Name:        name,
 		Resp:        []byte(resp),
-		Release:     r.release,
+		Arrived:     gate.Arrived,
+		Release:     release,
 		LoadCounter: r.loadCounter(name, path),
 	}
+}
+
+func (r *FakeRegistry) gateFor(name, path string) DataSourceGate {
+	key := name + ":" + path
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.gates == nil {
+		return DataSourceGate{}
+	}
+	return r.gates[key]
 }
 
 func (r *FakeRegistry) LoadCount(name, path string) int64 {
