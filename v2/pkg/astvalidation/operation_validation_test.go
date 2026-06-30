@@ -4935,6 +4935,40 @@ type Query {
 					fragment a on Mutation { ...b }
 					fragment b on Mutation { mutateDog { ... @defer { name } } }`)
 			})
+			t.Run("invalid stream on field inside untyped inline fragment at root", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						... {
+							mutateDogs @stream { name }
+						}
+					}`, `directive "@stream" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("invalid stream on field inside typed inline fragment at root", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						... on Mutation {
+							mutateDogs @stream { name }
+						}
+					}`, `directive "@stream" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("invalid defer on inline fragment nested inside a root inline fragment", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						... on Mutation {
+							... @defer {
+								mutateDog { name }
+							}
+						}
+					}`, `directive "@defer" is not allowed on root fields of mutation operations`)
+			})
+			t.Run("valid stream on field nested below a field via a root inline fragment", func(t *testing.T) {
+				runNormalizationPrevalidation(t, `
+					mutation {
+						... on Mutation {
+							mutateDog { extras @stream { string } }
+						}
+					}`)
+			})
 		})
 
 		t.Run("on subscriptions", func(t *testing.T) {

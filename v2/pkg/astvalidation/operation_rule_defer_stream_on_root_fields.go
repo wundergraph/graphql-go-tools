@@ -79,15 +79,12 @@ func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 	}
 
 	// For mutations, @defer/@stream are only disallowed on root fields.
-	selectionSetCount := 0
-	for _, a := range d.Ancestors {
-		if a.Kind == ast.NodeKindSelectionSet {
-			selectionSetCount++
+	// The directive's target node is the last ancestor;
+	// the target is only nested below a field when a Field appears among the ancestors above it.
+	for _, a := range d.Ancestors[:len(d.Ancestors)-1] {
+		if a.Kind == ast.NodeKindField {
+			return
 		}
-	}
-	// More than one selection set means the directive is nested below a field.
-	if selectionSetCount != 1 {
-		return
 	}
 
 	isRootLevel := false
