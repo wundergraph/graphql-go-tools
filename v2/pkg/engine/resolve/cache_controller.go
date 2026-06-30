@@ -168,6 +168,7 @@ type ShadowCacheEntry struct {
 	CachedValue  *astjson.Value
 	CacheKey     string
 	RemainingTTL time.Duration
+	CacheTTL     time.Duration
 }
 
 type mergeArena struct {

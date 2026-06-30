@@ -1,6 +1,7 @@
 package cachetesting
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 	"slices"
@@ -338,14 +339,19 @@ func (o *RecordingObserver) CompareShadow(h *resolve.FetchCacheHandle, fresh *as
 	if h == nil {
 		return
 	}
-	freshBytes := valueBytes(fresh)
 	compares := make([]ShadowCompare, 0, len(h.ShadowStash))
-	for _, cached := range h.ShadowStash {
+	for itemIndex, cached := range h.ShadowStash {
+		freshValue := shadowFreshValue(h, itemIndex, fresh)
 		compares = append(compares, ShadowCompare{
-			CacheKey: cached.CacheKey,
-			IsFresh:  string(valueBytes(cached.CachedValue)) == string(freshBytes),
+			CacheKey:   cached.CacheKey,
+			EntityType: shadowEntityType(h, itemIndex, cached.CachedValue),
+			IsFresh:    string(valueBytes(cached.CachedValue)) == string(valueBytes(freshValue)),
+			CacheAge:   cached.CacheTTL - cached.RemainingTTL,
 		})
 	}
+	slices.SortFunc(compares, func(a, b ShadowCompare) int {
+		return cmp.Compare(a.CacheKey, b.CacheKey)
+	})
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.compares = append(o.compares, compares...)
@@ -360,6 +366,48 @@ func (o *RecordingObserver) Compares() []ShadowCompare {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return slices.Clone(o.compares)
+}
+
+func shadowFreshValue(h *resolve.FetchCacheHandle, itemIndex int, fresh *astjson.Value) *astjson.Value {
+	if fresh == nil {
+		return nil
+	}
+	item := resolve.ItemCacheState{}
+	if itemIndex >= 0 && itemIndex < len(h.Items) {
+		item = h.Items[itemIndex]
+	}
+	freshValue := fresh
+	if h.BatchEntityKey {
+		if batch := fresh.GetArray(); batch != nil {
+			batchIndex := itemIndex
+			if item.BatchIndex >= 0 {
+				batchIndex = item.BatchIndex
+			}
+			if batchIndex >= 0 && batchIndex < len(batch) {
+				freshValue = batch[batchIndex]
+			}
+		}
+	}
+	if len(item.EntityMergePath) > 0 {
+		if entity := freshValue.Get(item.EntityMergePath...); entity != nil {
+			freshValue = entity
+		}
+	}
+	return freshValue
+}
+
+func shadowEntityType(h *resolve.FetchCacheHandle, itemIndex int, cached *astjson.Value) string {
+	if itemIndex >= 0 && itemIndex < len(h.Items) && h.Items[itemIndex].Item != nil {
+		if typeName := h.Items[itemIndex].Item.GetStringBytes("__typename"); typeName != nil {
+			return string(typeName)
+		}
+	}
+	if cached != nil {
+		if typeName := cached.GetStringBytes("__typename"); typeName != nil {
+			return string(typeName)
+		}
+	}
+	return ""
 }
 
 type FakeRegistry struct {
