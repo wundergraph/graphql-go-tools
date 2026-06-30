@@ -154,6 +154,7 @@ type ItemCacheState struct {
 	NeedsWriteback       bool
 	EntityMergePath      []string
 	BatchIndex           int
+	BatchEntityKey       bool
 	NegativeHit          bool
 	WriteReason          CacheWriteReason
 }

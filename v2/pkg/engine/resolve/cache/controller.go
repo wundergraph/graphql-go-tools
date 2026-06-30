@@ -75,50 +75,64 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 		// TODO(D2): implement L1 and L1+L2 modes.
 		return resolve.DecisionFetch, nil
 	}
+	if in.BatchStats != nil && len(in.BatchStats) == 0 {
+		return resolve.DecisionFetch, nil
+	}
 	session := in.Arena.Begin()
 	defer session.Close()
 
 	cfg := in.Config
+	prefix := cacheKeyPrefix(cfg, in.HeaderHash)
+	if len(in.BatchStats) > 0 {
+		items := make([]resolve.ItemCacheState, 0, len(in.BatchStats))
+		missedByItem := make([][]string, 0, len(in.BatchStats))
+		allCovered := true
+		mustWriteBack := false
+		for i, bucket := range in.BatchStats {
+			var representative *astjson.Value
+			if len(bucket) > 0 {
+				representative = bucket[0]
+			}
+			state, missedKeys, itemMustWriteBack := r.prepareItemCacheState(in.Ctx, session, cfg, representative, prefix)
+			state.BatchEntityKey = true
+			state.BatchIndex = i
+			if state.FromCache == nil {
+				allCovered = false
+			}
+			if itemMustWriteBack {
+				mustWriteBack = true
+			}
+			items = append(items, state)
+			missedByItem = append(missedByItem, missedKeys)
+		}
+		decision := resolve.DecisionFetch
+		if allCovered {
+			decision = resolve.DecisionSkipFullHit
+		}
+		handle := &resolve.FetchCacheHandle{
+			Decision:       decision,
+			WasHit:         allCovered,
+			MustWriteBack:  allCovered && mustWriteBack,
+			BatchEntityKey: true,
+			Items:          items,
+		}
+		r.configs[handle] = cfg
+		r.prefixes[handle] = prefix
+		r.renderedMissedKeys[handle] = missedByItem
+		return decision, handle
+	}
+
 	items := make([]resolve.ItemCacheState, 0, len(in.Items))
 	missedByItem := make([][]string, 0, len(in.Items))
 	allCovered := len(in.Items) > 0
 	mustWriteBack := false
-	prefix := cacheKeyPrefix(cfg, in.HeaderHash)
 	for _, item := range in.Items {
-		state := resolve.ItemCacheState{Item: item}
-		missedKeys := make([]string, 0, len(cfg.KeySpec.Candidates))
-		for _, candidate := range cfg.KeySpec.Candidates {
-			key, ok := renderEntityKey(session, candidate.Representation, item, prefix)
-			if !ok {
-				state.PendingCandidates = append(state.PendingCandidates, candidate)
-				mustWriteBack = true
-				continue
-			}
-			state.RenderedKeys = append(state.RenderedKeys, key)
-			value, remaining, hit := r.store.Get(key)
-			if !hit {
-				missedKeys = append(missedKeys, key)
-				mustWriteBack = true
-				continue
-			}
-			state.FromCacheCandidates = append(state.FromCacheCandidates, resolve.CacheCandidate{
-				Value:        append([]byte(nil), value...),
-				RemainingTTL: remaining,
-			})
-		}
-		if len(state.FromCacheCandidates) > 0 {
-			slices.SortStableFunc(state.FromCacheCandidates, func(a, b resolve.CacheCandidate) int {
-				return compareCacheCandidateFreshness(a.RemainingTTL, b.RemainingTTL)
-			})
-			if selectMultiCandidateCacheValue(in.Ctx, session, &state, cfg.ProvidesData) {
-				state.FromCache = reorderCacheValueToSelectionOrder(in.Ctx, session, state.FromCache, cfg.ProvidesData)
-			}
-			if state.NeedsWriteback {
-				mustWriteBack = true
-			}
-		}
+		state, missedKeys, itemMustWriteBack := r.prepareItemCacheState(in.Ctx, session, cfg, item, prefix)
 		if state.FromCache == nil {
 			allCovered = false
+		}
+		if itemMustWriteBack {
+			mustWriteBack = true
 		}
 		items = append(items, state)
 		missedByItem = append(missedByItem, missedKeys)
@@ -140,6 +154,43 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 	return decision, handle
 }
 
+func (r *requestCache) prepareItemCacheState(ctx *resolve.Context, session resolve.MergeSession, cfg *resolve.FetchCacheConfig, item *astjson.Value, prefix string) (resolve.ItemCacheState, []string, bool) {
+	state := resolve.ItemCacheState{Item: item}
+	missedKeys := make([]string, 0, len(cfg.KeySpec.Candidates))
+	mustWriteBack := false
+	for _, candidate := range cfg.KeySpec.Candidates {
+		key, ok := renderEntityKey(session, candidate.Representation, item, prefix)
+		if !ok {
+			state.PendingCandidates = append(state.PendingCandidates, candidate)
+			mustWriteBack = true
+			continue
+		}
+		state.RenderedKeys = append(state.RenderedKeys, key)
+		value, remaining, hit := r.store.Get(key)
+		if !hit {
+			missedKeys = append(missedKeys, key)
+			mustWriteBack = true
+			continue
+		}
+		state.FromCacheCandidates = append(state.FromCacheCandidates, resolve.CacheCandidate{
+			Value:        append([]byte(nil), value...),
+			RemainingTTL: remaining,
+		})
+	}
+	if len(state.FromCacheCandidates) > 0 {
+		slices.SortStableFunc(state.FromCacheCandidates, func(a, b resolve.CacheCandidate) int {
+			return compareCacheCandidateFreshness(a.RemainingTTL, b.RemainingTTL)
+		})
+		if selectMultiCandidateCacheValue(ctx, session, &state, cfg.ProvidesData) {
+			state.FromCache = reorderCacheValueToSelectionOrder(ctx, session, state.FromCache, cfg.ProvidesData)
+		}
+		if state.NeedsWriteback {
+			mustWriteBack = true
+		}
+	}
+	return state, missedKeys, mustWriteBack
+}
+
 func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.MergeInput) error {
 	if h == nil || r.mode != ModeL2 {
 		return nil
@@ -155,16 +206,28 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 	prefix := r.prefixes[h]
 	missedByItem := r.renderedMissedKeys[h]
 	for i, item := range h.Items {
-		if item.Item == nil || item.FromCache == nil || item.FromCache.Type() == astjson.TypeNull {
+		if item.FromCache == nil || item.FromCache.Type() == astjson.TypeNull {
 			continue
 		}
-		cached := session.StructuralCopy(item.FromCache)
-		if len(item.EntityMergePath) > 0 {
-			if _, err := session.MergeValuesWithPath(item.Item, cached, item.EntityMergePath...); err != nil {
+		targets := []*astjson.Value{item.Item}
+		if h.BatchEntityKey {
+			targets = nil
+			if item.BatchIndex >= 0 && item.BatchIndex < len(in.BatchStats) {
+				targets = in.BatchStats[item.BatchIndex]
+			}
+		}
+		for _, target := range targets {
+			if target == nil {
+				continue
+			}
+			cached := session.StructuralCopy(item.FromCache)
+			if len(item.EntityMergePath) > 0 {
+				if _, err := session.MergeValuesWithPath(target, cached, item.EntityMergePath...); err != nil {
+					return err
+				}
+			} else if _, err := session.MergeValues(target, cached); err != nil {
 				return err
 			}
-		} else if _, err := session.MergeValues(item.Item, cached); err != nil {
-			return err
 		}
 		bytes := append([]byte(nil), item.FromCache.MarshalTo(nil)...)
 		if item.NeedsWriteback {
@@ -205,10 +268,23 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	}
 	ttl := ttlForConfig(cfg)
 	prefix := r.prefixes[h]
+	var batch []*astjson.Value
+	if h.BatchEntityKey {
+		batch = in.ResponseData.GetArray()
+		if batch == nil {
+			return nil
+		}
+	}
 	for _, item := range h.Items {
 		itemToStore := in.ResponseData
+		if h.BatchEntityKey {
+			if item.BatchIndex < 0 || item.BatchIndex >= len(batch) {
+				continue
+			}
+			itemToStore = batch[item.BatchIndex]
+		}
 		if len(item.EntityMergePath) > 0 {
-			if entity := in.ResponseData.Get(item.EntityMergePath...); entity != nil {
+			if entity := itemToStore.Get(item.EntityMergePath...); entity != nil {
 				itemToStore = entity
 			}
 		}

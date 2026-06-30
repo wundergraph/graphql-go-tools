@@ -291,14 +291,18 @@ func (s *FakeStore) ensure() {
 }
 
 type GatedDataSource struct {
-	Name    string
-	Resp    []byte
-	Err     error
-	Arrived chan<- string
-	Release <-chan struct{}
+	Name        string
+	Resp        []byte
+	Err         error
+	Arrived     chan<- string
+	Release     <-chan struct{}
+	LoadCounter *atomic.Int64
 }
 
 func (g *GatedDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	if g.LoadCounter != nil {
+		g.LoadCounter.Add(1)
+	}
 	if g.Arrived != nil {
 		g.Arrived <- g.Name
 	}
@@ -359,8 +363,10 @@ func (o *RecordingObserver) Compares() []ShadowCompare {
 }
 
 type FakeRegistry struct {
+	mu        sync.Mutex
 	responses map[string]string
 	release   chan struct{}
+	loads     map[string]*atomic.Int64
 }
 
 func NewFakeRegistry(responses map[string]string) *FakeRegistry {
@@ -369,6 +375,7 @@ func NewFakeRegistry(responses map[string]string) *FakeRegistry {
 	return &FakeRegistry{
 		responses: responses,
 		release:   release,
+		loads:     make(map[string]*atomic.Int64),
 	}
 }
 
@@ -435,10 +442,31 @@ func (r *FakeRegistry) dataSourceFor(item *resolve.FetchItem) resolve.DataSource
 	path := pathOf(item)
 	resp := r.responseFor(name, path)
 	return &GatedDataSource{
-		Name:    name,
-		Resp:    []byte(resp),
-		Release: r.release,
+		Name:        name,
+		Resp:        []byte(resp),
+		Release:     r.release,
+		LoadCounter: r.loadCounter(name, path),
 	}
+}
+
+func (r *FakeRegistry) LoadCount(name, path string) int64 {
+	counter := r.loadCounter(name, path)
+	return counter.Load()
+}
+
+func (r *FakeRegistry) loadCounter(name, path string) *atomic.Int64 {
+	key := name + ":" + path
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.loads == nil {
+		r.loads = make(map[string]*atomic.Int64)
+	}
+	counter := r.loads[key]
+	if counter == nil {
+		counter = &atomic.Int64{}
+		r.loads[key] = counter
+	}
+	return counter
 }
 
 func (r *FakeRegistry) responseFor(name, path string) string {
