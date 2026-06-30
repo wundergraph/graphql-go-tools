@@ -10,4 +10,4 @@ QueryPlan {
 
 Fetch cache configs:
 - path:"" cache:<nil> keySpec:<nil>
-- path:"topProducts" cache:{l1:true l2:true cacheName:entities ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field:reviews candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s} keySpec:{scope:Entity type:"Product" field:"reviews" candidates:1 mappings:[]}
+- path:"topProducts" cache:{l1:false l2:true cacheName:entities ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field:reviews candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s} keySpec:{scope:Entity type:"Product" field:"reviews" candidates:1 mappings:[]}
