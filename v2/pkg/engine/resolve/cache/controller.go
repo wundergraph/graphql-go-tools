@@ -85,6 +85,9 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 
 	cfg := in.Config
 	prefix := cacheKeyPrefix(cfg, in.HeaderHash)
+	if cfg.KeySpec.Scope == resolve.CacheScopeRootField {
+		return r.prepareRootFieldFetch(in, cfg, prefix, session)
+	}
 	if len(in.BatchStats) > 0 {
 		items := make([]resolve.ItemCacheState, 0, len(in.BatchStats))
 		missedByItem := make([][]string, 0, len(in.BatchStats))
@@ -179,6 +182,75 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 	r.configs[handle] = cfg
 	r.prefixes[handle] = prefix
 	r.renderedMissedKeys[handle] = missedByItem
+	return decision, handle
+}
+
+func (r *requestCache) prepareRootFieldFetch(in resolve.PrepareFetchInput, cfg *resolve.FetchCacheConfig, prefix string, session resolve.MergeSession) (resolve.Decision, *resolve.FetchCacheHandle) {
+	rootFieldKey := renderRootFieldKey(prefix, in.Input)
+	value, remaining, hit := r.store.Get(rootFieldKey)
+
+	items := make([]resolve.ItemCacheState, 0, len(in.Items))
+	var shadowStash map[int]resolve.ShadowCacheEntry
+	allCovered := len(in.Items) > 0
+	shadow := false
+
+	var cached *astjson.Value
+	var cacheCandidates []resolve.CacheCandidate
+	if hit {
+		cacheCandidates = []resolve.CacheCandidate{{Value: append([]byte(nil), value...), RemainingTTL: remaining}}
+		if parsed, err := session.ParseBytes(value); err == nil {
+			cached = parsed
+		}
+	}
+
+	for i, item := range in.Items {
+		state := resolve.ItemCacheState{
+			Item:         item,
+			RenderedKeys: []string{rootFieldKey},
+		}
+		if len(cacheCandidates) > 0 {
+			state.FromCacheCandidates = append([]resolve.CacheCandidate(nil), cacheCandidates...)
+		}
+		if cached != nil && cfg.ProvidesData != nil && coversWithContext(in.Ctx, cached, cfg.ProvidesData) {
+			state.FromCache = reorderCacheValueToSelectionOrder(in.Ctx, session, cached, cfg.ProvidesData)
+			state.SelectedRemainingTTL = remaining
+		}
+		if cfg.ShadowMode && state.FromCache != nil {
+			shadow = true
+			if shadowStash == nil {
+				shadowStash = make(map[int]resolve.ShadowCacheEntry)
+			}
+			shadowStash[i] = resolve.ShadowCacheEntry{
+				CachedValue:  session.StructuralCopy(state.FromCache),
+				CacheKey:     rootFieldKey,
+				RemainingTTL: state.SelectedRemainingTTL,
+				CacheTTL:     ttlForConfig(cfg),
+			}
+			state.FromCache = nil
+			state.SelectedRemainingTTL = 0
+		}
+		if state.FromCache == nil {
+			allCovered = false
+		}
+		items = append(items, state)
+	}
+
+	decision := resolve.DecisionFetch
+	if shadow {
+		decision = resolve.DecisionFetchShadow
+	} else if allCovered {
+		decision = resolve.DecisionSkipFullHit
+	}
+	handle := &resolve.FetchCacheHandle{
+		Decision:    decision,
+		WasHit:      allCovered,
+		Shadow:      shadow,
+		ShadowStash: shadowStash,
+		Items:       items,
+	}
+	r.configs[handle] = cfg
+	r.prefixes[handle] = prefix
+	r.renderedMissedKeys[handle] = make([][]string, len(items))
 	return decision, handle
 }
 
@@ -397,6 +469,17 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	if h.Shadow && r.obs != nil && cfg.ProvidesData != nil && cfg.KeySpec.Scope == resolve.CacheScopeEntity {
 		r.obs.CompareShadow(h, in.ResponseData, session)
 	}
+	if cfg.KeySpec.Scope == resolve.CacheScopeRootField {
+		if len(h.Items) == 0 {
+			return nil
+		}
+		copied := session.StructuralCopy(in.ResponseData)
+		bytes := append([]byte(nil), copied.MarshalTo(nil)...)
+		for _, key := range h.Items[0].RenderedKeys {
+			r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonRefresh)
+		}
+		return nil
+	}
 	for _, item := range h.Items {
 		itemToStore := in.ResponseData
 		if h.BatchEntityKey {
@@ -588,7 +671,8 @@ func reorderCacheValueToSelectionOrder(ctx *resolve.Context, session resolve.Mer
 }
 
 // cacheKeyPrefix returns the visible key prefix. The final store key is
-// "<prefix>:<16-hex xxhash64>", hashing "<prefix>:<rendered entity-key JSON>".
+// "<prefix>:<16-hex xxhash64>". Entity keys hash "<prefix>:<rendered entity-key JSON>".
+// Root-field keys hash "<prefix>:<canonical pre-injection Input bytes>".
 func cacheKeyPrefix(cfg *resolve.FetchCacheConfig, headerHash uint64) string {
 	if cfg == nil {
 		return ""
@@ -597,6 +681,20 @@ func cacheKeyPrefix(cfg *resolve.FetchCacheConfig, headerHash uint64) string {
 		return cfg.CacheName + ":h" + hex64(headerHash)
 	}
 	return cfg.CacheName
+}
+
+func renderRootFieldKey(prefix string, input []byte) string {
+	return renderCacheKey(prefix, input)
+}
+
+func renderCacheKey(prefix string, payload []byte) string {
+	preimage := make([]byte, 0, len(prefix)+1+len(payload))
+	if prefix != "" {
+		preimage = append(preimage, prefix...)
+	}
+	preimage = append(preimage, ':')
+	preimage = append(preimage, payload...)
+	return prefix + ":" + hashHex(preimage)
 }
 
 func renderEntityKey(session resolve.MergeSession, representation *resolve.Object, item *astjson.Value, prefix string) (string, bool) {
@@ -632,13 +730,7 @@ func renderEntityKey(session resolve.MergeSession, representation *resolve.Objec
 	}
 	keyObj.Set(nil, "key", keysObj)
 	jsonBytes := keyObj.MarshalTo(nil)
-	preimage := make([]byte, 0, len(prefix)+1+len(jsonBytes))
-	if prefix != "" {
-		preimage = append(preimage, prefix...)
-	}
-	preimage = append(preimage, ':')
-	preimage = append(preimage, jsonBytes...)
-	return prefix + ":" + hashHex(preimage), true
+	return renderCacheKey(prefix, jsonBytes), true
 }
 
 func renderRepresentationValue(node resolve.Node, value *astjson.Value) (*astjson.Value, bool) {
