@@ -13,10 +13,11 @@ import (
 )
 
 type storeOp struct {
-	Kind  string
-	Key   string
-	Value string
-	TTL   time.Duration
+	Kind   string
+	Key    string
+	Value  string
+	TTL    time.Duration
+	Reason resolve.CacheWriteReason
 }
 
 type storedEntry struct {
@@ -25,12 +26,18 @@ type storedEntry struct {
 }
 
 type testStore struct {
-	data map[string]storedEntry
-	ops  []storeOp
+	data          map[string]storedEntry
+	ops           []storeOp
+	pendingReason map[string]resolve.CacheWriteReason
+	remainingTTL  map[string]time.Duration
 }
 
 func newTestStore() *testStore {
-	return &testStore{data: make(map[string]storedEntry)}
+	return &testStore{
+		data:          make(map[string]storedEntry),
+		pendingReason: make(map[string]resolve.CacheWriteReason),
+		remainingTTL:  make(map[string]time.Duration),
+	}
 }
 
 func (s *testStore) Seed(key string, value []byte, ttl time.Duration) {
@@ -38,6 +45,11 @@ func (s *testStore) Seed(key string, value []byte, ttl time.Duration) {
 		value:     append([]byte(nil), value...),
 		expiresAt: time.Now().Add(ttl),
 	}
+}
+
+func (s *testStore) SeedRemainingTTL(key string, value []byte, ttl, remaining time.Duration) {
+	s.Seed(key, value, ttl)
+	s.remainingTTL[key] = remaining
 }
 
 func (s *testStore) Get(key string) ([]byte, time.Duration, bool) {
@@ -50,15 +62,24 @@ func (s *testStore) Get(key string) ([]byte, time.Duration, bool) {
 	if remaining <= 0 {
 		return nil, 0, false
 	}
+	if override, ok := s.remainingTTL[key]; ok {
+		remaining = override
+	}
 	return append([]byte(nil), entry.value...), remaining, true
 }
 
 func (s *testStore) Set(key string, value []byte, ttl time.Duration) {
-	s.ops = append(s.ops, storeOp{Kind: "Set", Key: key, Value: string(value), TTL: ttl})
+	reason := s.pendingReason[key]
+	delete(s.pendingReason, key)
+	s.ops = append(s.ops, storeOp{Kind: "Set", Key: key, Value: string(value), TTL: ttl, Reason: reason})
 	s.data[key] = storedEntry{
 		value:     append([]byte(nil), value...),
 		expiresAt: time.Now().Add(ttl),
 	}
+}
+
+func (s *testStore) RecordWriteReason(key string, reason resolve.CacheWriteReason) {
+	s.pendingReason[key] = reason
 }
 
 type testMergeArena struct {
@@ -133,6 +154,7 @@ func TestControllerPrepareFetch_SingleCandidateL2Hit(t *testing.T) {
 				Item:                 item,
 				FromCache:            handle.Items[0].FromCache,
 				RenderedKeys:         []string{key},
+				FromCacheCandidates:  []resolve.CacheCandidate{{Value: []byte(`{"upc":"1","name":"Table"}`), RemainingTTL: handle.Items[0].SelectedRemainingTTL}},
 				SelectedRemainingTTL: handle.Items[0].SelectedRemainingTTL,
 			},
 		},
@@ -178,7 +200,7 @@ func TestControllerPrepareFetch_SingleCandidateL2MissWritesOnFetchResult(t *test
 	rc.EndRequest()
 	assert.Equal(t, []storeOp{
 		{Kind: "Get", Key: key},
-		{Kind: "Set", Key: key, Value: `{"upc":"1","name":"Table"}`, TTL: 45 * time.Second},
+		{Kind: "Set", Key: key, Value: `{"upc":"1","name":"Table"}`, TTL: 45 * time.Second, Reason: resolve.CacheWriteReasonRefresh},
 	}, store.ops)
 }
 
@@ -275,7 +297,7 @@ func TestControllerOnFetchResult_WriteGate(t *testing.T) {
 
 			expected := []storeOp{{Kind: "Get", Key: key}}
 			if tt.name == "F1 clean success writes" {
-				expected = append(expected, storeOp{Kind: "Set", Key: key, Value: `{"upc":"1","name":"Table"}`, TTL: 20 * time.Second})
+				expected = append(expected, storeOp{Kind: "Set", Key: key, Value: `{"upc":"1","name":"Table"}`, TTL: 20 * time.Second, Reason: resolve.CacheWriteReasonRefresh})
 			}
 			assert.Equal(t, expected, store.ops)
 		})
@@ -302,15 +324,15 @@ func TestControllerEndRequest_FlushesDeferredSets(t *testing.T) {
 	assert.Equal(t, []storeOp{
 		{Kind: "Get", Key: keyA},
 		{Kind: "Get", Key: keyB},
-		{Kind: "Set", Key: keyA, Value: `{"upc":"1","name":"Table"}`, TTL: time.Minute},
-		{Kind: "Set", Key: keyB, Value: `{"upc":"2","name":"Chair"}`, TTL: time.Minute},
+		{Kind: "Set", Key: keyA, Value: `{"upc":"1","name":"Table"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
+		{Kind: "Set", Key: keyB, Value: `{"upc":"2","name":"Chair"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
 	}, store.ops)
 	rc.EndRequest()
 	assert.Equal(t, []storeOp{
 		{Kind: "Get", Key: keyA},
 		{Kind: "Get", Key: keyB},
-		{Kind: "Set", Key: keyA, Value: `{"upc":"1","name":"Table"}`, TTL: time.Minute},
-		{Kind: "Set", Key: keyB, Value: `{"upc":"2","name":"Chair"}`, TTL: time.Minute},
+		{Kind: "Set", Key: keyA, Value: `{"upc":"1","name":"Table"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
+		{Kind: "Set", Key: keyB, Value: `{"upc":"2","name":"Chair"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
 	}, store.ops)
 }
 
@@ -389,6 +411,7 @@ func productConfig(ttl time.Duration) *resolve.FetchCacheConfig {
 
 func productRepresentation() *resolve.Object {
 	return &resolve.Object{
+		TypeName: "Product",
 		Fields: []*resolve.Field{
 			{Name: []byte("__typename"), Value: &resolve.Scalar{}},
 			{Name: []byte("upc"), Value: &resolve.Scalar{}},

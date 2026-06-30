@@ -41,28 +41,33 @@ func (c *Controller) BeginRequest(ctx *resolve.Context) resolve.RequestCache {
 		c.obs.BeginRequest(ctx)
 	}
 	return &requestCache{
-		store:   c.store,
-		mode:    c.mode,
-		obs:     c.obs,
-		ctx:     ctx,
-		configs: make(map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig),
+		store:              c.store,
+		mode:               c.mode,
+		obs:                c.obs,
+		ctx:                ctx,
+		configs:            make(map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig),
+		prefixes:           make(map[*resolve.FetchCacheHandle]string),
+		renderedMissedKeys: make(map[*resolve.FetchCacheHandle][][]string),
 	}
 }
 
 type requestCache struct {
-	store    Store
-	mode     Mode
-	obs      resolve.CacheObserver
-	ctx      *resolve.Context
-	deferred []deferredSet
-	configs  map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig
+	store              Store
+	mode               Mode
+	obs                resolve.CacheObserver
+	ctx                *resolve.Context
+	deferred           []deferredSet
+	configs            map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig
+	prefixes           map[*resolve.FetchCacheHandle]string
+	renderedMissedKeys map[*resolve.FetchCacheHandle][][]string
 	// Mutated only under the MergeSession's DataBuffer.Lock per RFC-1 section 6.4.
 }
 
 type deferredSet struct {
-	key   string
-	value []byte
-	ttl   time.Duration
+	key    string
+	value  []byte
+	ttl    time.Duration
+	reason resolve.CacheWriteReason
 }
 
 func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decision, *resolve.FetchCacheHandle) {
@@ -75,26 +80,48 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 
 	cfg := in.Config
 	items := make([]resolve.ItemCacheState, 0, len(in.Items))
+	missedByItem := make([][]string, 0, len(in.Items))
 	allCovered := len(in.Items) > 0
+	mustWriteBack := false
 	prefix := cacheKeyPrefix(cfg, in.HeaderHash)
 	for _, item := range in.Items {
 		state := resolve.ItemCacheState{Item: item}
-		key, ok := renderFirstCandidateKey(session, cfg, item, prefix)
-		if ok {
-			state.RenderedKeys = []string{key}
+		missedKeys := make([]string, 0, len(cfg.KeySpec.Candidates))
+		for _, candidate := range cfg.KeySpec.Candidates {
+			key, ok := renderEntityKey(session, candidate.Representation, item, prefix)
+			if !ok {
+				state.PendingCandidates = append(state.PendingCandidates, candidate)
+				mustWriteBack = true
+				continue
+			}
+			state.RenderedKeys = append(state.RenderedKeys, key)
 			value, remaining, hit := r.store.Get(key)
-			if hit && cfg.ProvidesData != nil {
-				cached, err := session.ParseBytes(value)
-				if err == nil && coversWithContext(in.Ctx, cached, cfg.ProvidesData) {
-					state.FromCache = cached
-					state.SelectedRemainingTTL = remaining
-				}
+			if !hit {
+				missedKeys = append(missedKeys, key)
+				mustWriteBack = true
+				continue
+			}
+			state.FromCacheCandidates = append(state.FromCacheCandidates, resolve.CacheCandidate{
+				Value:        append([]byte(nil), value...),
+				RemainingTTL: remaining,
+			})
+		}
+		if len(state.FromCacheCandidates) > 0 {
+			slices.SortStableFunc(state.FromCacheCandidates, func(a, b resolve.CacheCandidate) int {
+				return compareCacheCandidateFreshness(a.RemainingTTL, b.RemainingTTL)
+			})
+			if selectMultiCandidateCacheValue(in.Ctx, session, &state, cfg.ProvidesData) {
+				state.FromCache = reorderCacheValueToSelectionOrder(in.Ctx, session, state.FromCache, cfg.ProvidesData)
+			}
+			if state.NeedsWriteback {
+				mustWriteBack = true
 			}
 		}
 		if state.FromCache == nil {
 			allCovered = false
 		}
 		items = append(items, state)
+		missedByItem = append(missedByItem, missedKeys)
 	}
 
 	decision := resolve.DecisionFetch
@@ -102,11 +129,14 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 		decision = resolve.DecisionSkipFullHit
 	}
 	handle := &resolve.FetchCacheHandle{
-		Decision: decision,
-		WasHit:   allCovered,
-		Items:    items,
+		Decision:      decision,
+		WasHit:        allCovered,
+		MustWriteBack: allCovered && mustWriteBack,
+		Items:         items,
 	}
 	r.configs[handle] = cfg
+	r.prefixes[handle] = prefix
+	r.renderedMissedKeys[handle] = missedByItem
 	return decision, handle
 }
 
@@ -117,7 +147,14 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 	session := in.Arena.Begin()
 	defer session.Close()
 
-	for _, item := range h.Items {
+	cfg := r.configs[h]
+	if cfg == nil {
+		return nil
+	}
+	ttl := ttlForConfig(cfg)
+	prefix := r.prefixes[h]
+	missedByItem := r.renderedMissedKeys[h]
+	for i, item := range h.Items {
 		if item.Item == nil || item.FromCache == nil || item.FromCache.Type() == astjson.TypeNull {
 			continue
 		}
@@ -126,13 +163,29 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 			if _, err := session.MergeValuesWithPath(item.Item, cached, item.EntityMergePath...); err != nil {
 				return err
 			}
-			continue
-		}
-		if _, err := session.MergeValues(item.Item, cached); err != nil {
+		} else if _, err := session.MergeValues(item.Item, cached); err != nil {
 			return err
 		}
+		bytes := append([]byte(nil), item.FromCache.MarshalTo(nil)...)
+		if item.NeedsWriteback {
+			for _, key := range item.RenderedKeys {
+				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonRefresh)
+			}
+		} else if i < len(missedByItem) {
+			for _, key := range missedByItem[i] {
+				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonBackfill)
+			}
+		}
+		for _, candidate := range item.PendingCandidates {
+			key, ok := renderEntityKey(session, candidate.Representation, item.FromCache, prefix)
+			if !ok {
+				key, ok = renderEntityKey(session, candidate.Representation, item.Item, prefix)
+			}
+			if ok {
+				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonBackfill)
+			}
+		}
 	}
-	// TODO(A2b): best-effort multi-candidate read-hit backfill/writeback.
 	return nil
 }
 
@@ -150,15 +203,9 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	if cfg == nil {
 		return nil
 	}
-	ttl := cfg.TTL
-	if cfg.PopulateL2OnMutation && cfg.MutationTTLOverride > 0 {
-		ttl = cfg.MutationTTLOverride
-	}
+	ttl := ttlForConfig(cfg)
+	prefix := r.prefixes[h]
 	for _, item := range h.Items {
-		if len(item.RenderedKeys) == 0 {
-			// TODO(A2b): re-render pending candidates from the fresh response.
-			continue
-		}
 		itemToStore := in.ResponseData
 		if len(item.EntityMergePath) > 0 {
 			if entity := in.ResponseData.Get(item.EntityMergePath...); entity != nil {
@@ -167,11 +214,15 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		}
 		copied := session.StructuralCopy(itemToStore)
 		bytes := append([]byte(nil), copied.MarshalTo(nil)...)
-		r.deferred = append(r.deferred, deferredSet{
-			key:   item.RenderedKeys[0],
-			value: bytes,
-			ttl:   ttl,
-		})
+		for _, key := range item.RenderedKeys {
+			r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonRefresh)
+		}
+		for _, candidate := range item.PendingCandidates {
+			key, ok := renderEntityKey(session, candidate.Representation, itemToStore, prefix)
+			if ok {
+				r.deferSet(key, bytes, ttl, resolve.CacheWriteReasonBackfill)
+			}
+		}
 	}
 	// TODO(A3/A4): negative caching and shadow compare/write ordering.
 	return nil
@@ -179,6 +230,9 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 
 func (r *requestCache) EndRequest() {
 	for _, set := range r.deferred {
+		if recorder, ok := r.store.(writeReasonRecorder); ok {
+			recorder.RecordWriteReason(set.key, set.reason)
+		}
 		r.store.Set(set.key, set.value, set.ttl)
 	}
 	r.deferred = nil
@@ -187,11 +241,153 @@ func (r *requestCache) EndRequest() {
 	}
 }
 
+type writeReasonRecorder interface {
+	RecordWriteReason(key string, reason resolve.CacheWriteReason)
+}
+
+func (r *requestCache) deferSet(key string, value []byte, ttl time.Duration, reason resolve.CacheWriteReason) {
+	r.deferred = append(r.deferred, deferredSet{
+		key:    key,
+		value:  append([]byte(nil), value...),
+		ttl:    ttl,
+		reason: reason,
+	})
+}
+
+func ttlForConfig(cfg *resolve.FetchCacheConfig) time.Duration {
+	if cfg.PopulateL2OnMutation && cfg.MutationTTLOverride > 0 {
+		return cfg.MutationTTLOverride
+	}
+	return cfg.TTL
+}
+
 func renderFirstCandidateKey(session resolve.MergeSession, cfg *resolve.FetchCacheConfig, item *astjson.Value, prefix string) (string, bool) {
 	if len(cfg.KeySpec.Candidates) == 0 {
 		return "", false
 	}
 	return renderEntityKey(session, cfg.KeySpec.Candidates[0].Representation, item, prefix)
+}
+
+func selectMultiCandidateCacheValue(ctx *resolve.Context, session resolve.MergeSession, state *resolve.ItemCacheState, providesData *resolve.Object) bool {
+	if len(state.FromCacheCandidates) == 0 || providesData == nil {
+		return false
+	}
+	parsed := make([]*astjson.Value, len(state.FromCacheCandidates))
+	for i, candidate := range state.FromCacheCandidates {
+		value, err := session.ParseBytes(candidate.Value)
+		if err != nil {
+			continue
+		}
+		parsed[i] = value
+	}
+	if parsed[0] != nil && coversWithContext(ctx, parsed[0], providesData) {
+		state.FromCache = parsed[0]
+		state.SelectedRemainingTTL = state.FromCacheCandidates[0].RemainingTTL
+		return true
+	}
+	if len(state.FromCacheCandidates) <= 1 {
+		return false
+	}
+
+	var merged *astjson.Value
+	for i := len(parsed) - 1; i >= 0; i-- {
+		if parsed[i] == nil {
+			continue
+		}
+		current := session.StructuralCopy(parsed[i])
+		if merged == nil {
+			merged = current
+			continue
+		}
+		if _, err := session.MergeValues(merged, current); err != nil {
+			merged = nil
+			break
+		}
+	}
+	if merged != nil && coversWithContext(ctx, merged, providesData) {
+		state.FromCache = merged
+		state.SelectedRemainingTTL = state.FromCacheCandidates[0].RemainingTTL
+		state.NeedsWriteback = true
+		return true
+	}
+
+	for i := 1; i < len(parsed); i++ {
+		if parsed[i] == nil {
+			continue
+		}
+		if coversWithContext(ctx, parsed[i], providesData) {
+			state.FromCache = parsed[i]
+			state.SelectedRemainingTTL = state.FromCacheCandidates[i].RemainingTTL
+			state.NeedsWriteback = true
+			return true
+		}
+	}
+	return false
+}
+
+func compareCacheCandidateFreshness(a, b time.Duration) int {
+	aKnown := a > 0
+	bKnown := b > 0
+	switch {
+	case aKnown && bKnown:
+		return cmp.Compare(b, a)
+	case aKnown:
+		return -1
+	case bKnown:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func reorderCacheValueToSelectionOrder(ctx *resolve.Context, session resolve.MergeSession, value *astjson.Value, node resolve.Node) *astjson.Value {
+	if value == nil || node == nil {
+		return value
+	}
+	switch typed := node.(type) {
+	case *resolve.Object:
+		if value.Type() != astjson.TypeObject {
+			return value
+		}
+		reordered := session.NewObject()
+		seen := make(map[string]struct{}, len(typed.Fields))
+		for _, field := range typed.Fields {
+			fieldName := cacheFieldName(ctx, field)
+			fieldValue := value.Get(fieldName)
+			if fieldValue == nil {
+				continue
+			}
+			reordered.Set(nil, fieldName, reorderCacheValueToSelectionOrder(ctx, session, fieldValue, field.Value))
+			seen[fieldName] = struct{}{}
+		}
+		obj, err := value.Object()
+		if err != nil {
+			return value
+		}
+		obj.Visit(func(key []byte, fieldValue *astjson.Value) {
+			fieldName := string(key)
+			if _, ok := seen[fieldName]; ok {
+				return
+			}
+			reordered.Set(nil, fieldName, fieldValue)
+		})
+		return reordered
+	case *resolve.Array:
+		if value.Type() != astjson.TypeArray {
+			return value
+		}
+		items, err := value.Array()
+		if err != nil {
+			return value
+		}
+		reordered := session.NewArray()
+		for i, item := range items {
+			reordered.SetArrayItem(nil, i, reorderCacheValueToSelectionOrder(ctx, session, item, typed.Item))
+		}
+		return reordered
+	default:
+		return value
+	}
 }
 
 // cacheKeyPrefix returns the visible key prefix. The final store key is
