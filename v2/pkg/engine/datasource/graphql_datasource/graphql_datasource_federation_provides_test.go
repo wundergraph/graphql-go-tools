@@ -1120,7 +1120,7 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeFieldAndAb
 			media: [Media]
 		}
 
-		inteface Media {
+		interface Media {
 			id: ID!
 		}
 
