@@ -13,8 +13,8 @@ import (
 // - Query operations: @defer and @stream are allowed everywhere (root and nested fields)
 // - Mutation operations: @defer and @stream are NOT allowed on root fields, but allowed on nested fields
 // - Subscription operations: @defer and @stream are NOT allowed anywhere (root or nested fields)
-// Directives with if: false are allowed (disabled directives).
-// Directives with if: $variable are allowed (dynamic directives that can't be statically determined).
+// Only directives with "if: true" are validated against the root field.
+// Directives with "if: $variable" are validated only when $variable==true.
 func DeferStreamOnValidOperations() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := deferStreamOnValidOpsVisitor{
