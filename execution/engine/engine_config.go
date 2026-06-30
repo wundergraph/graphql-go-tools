@@ -63,6 +63,9 @@ func (e *Configuration) DataSources() []plan.DataSource {
 	return e.plannerConfig.DataSources
 }
 
+// PlannerConfig exposes the built plan.Configuration for plan-driven tests.
+func (e *Configuration) PlannerConfig() plan.Configuration { return e.plannerConfig }
+
 func (e *Configuration) FieldConfigurations() plan.FieldConfigurations {
 	return e.plannerConfig.Fields
 }

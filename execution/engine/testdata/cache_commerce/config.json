@@ -1,0 +1,272 @@
+{
+  "engineConfig": {
+    "defaultFlushInterval": "500",
+    "datasourceConfigurations": [
+      {
+        "kind": "GRAPHQL",
+        "rootNodes": [
+          {
+            "typeName": "Query",
+            "fieldNames": [
+              "me",
+              "user"
+            ]
+          },
+          {
+            "typeName": "User",
+            "fieldNames": [
+              "id",
+              "username"
+            ]
+          }
+        ],
+        "overrideFieldPathFromAlias": true,
+        "customGraphql": {
+          "fetch": {
+            "url": {
+              "staticVariableContent": "http://user.service"
+            },
+            "method": "POST",
+            "body": {},
+            "baseUrl": {},
+            "path": {}
+          },
+          "subscription": {
+            "enabled": true,
+            "url": {
+              "staticVariableContent": "http://user.service"
+            },
+            "protocol": "GRAPHQL_SUBSCRIPTION_PROTOCOL_WS",
+            "websocketSubprotocol": "GRAPHQL_WEBSOCKET_SUBPROTOCOL_AUTO"
+          },
+          "federation": {
+            "enabled": true,
+            "serviceSdl": "extend type Query {\n    me: User\n    user(id: ID!): User\n}\ntype User @key(fields: \"id\") {\n    id: ID!\n    username: String!\n}\n"
+          },
+          "upstreamSchema": {
+            "key": "68714e916ae5c46b1ca8cbbfeabafcd03f78ff1d"
+          }
+        },
+        "requestTimeoutSeconds": "10",
+        "id": "0",
+        "keys": [
+          {
+            "typeName": "User",
+            "selectionSet": "id"
+          }
+        ]
+      },
+      {
+        "kind": "GRAPHQL",
+        "rootNodes": [
+          {
+            "typeName": "Query",
+            "fieldNames": [
+              "topProducts",
+              "product"
+            ]
+          },
+          {
+            "typeName": "Product",
+            "fieldNames": [
+              "upc",
+              "sku",
+              "name",
+              "price"
+            ]
+          }
+        ],
+        "overrideFieldPathFromAlias": true,
+        "customGraphql": {
+          "fetch": {
+            "url": {
+              "staticVariableContent": "http://product.service"
+            },
+            "method": "POST",
+            "body": {},
+            "baseUrl": {},
+            "path": {}
+          },
+          "subscription": {
+            "enabled": true,
+            "url": {
+              "staticVariableContent": "http://product.service"
+            },
+            "protocol": "GRAPHQL_SUBSCRIPTION_PROTOCOL_WS",
+            "websocketSubprotocol": "GRAPHQL_WEBSOCKET_SUBPROTOCOL_AUTO"
+          },
+          "federation": {
+            "enabled": true,
+            "serviceSdl": "extend type Query {\n    topProducts(first: Int = 5): [Product!]!\n    product(upc: String!): Product\n}\ntype Product @key(fields: \"upc\") @key(fields: \"sku\") {\n    upc: String!\n    sku: String!\n    name: String!\n    price: Int!\n}\n"
+          },
+          "upstreamSchema": {
+            "key": "e8f8026cd1502b6af1b5801d55b3524924b7aa81"
+          }
+        },
+        "requestTimeoutSeconds": "10",
+        "id": "1",
+        "keys": [
+          {
+            "typeName": "Product",
+            "selectionSet": "upc"
+          },
+          {
+            "typeName": "Product",
+            "selectionSet": "sku"
+          }
+        ]
+      },
+      {
+        "kind": "GRAPHQL",
+        "rootNodes": [
+          {
+            "typeName": "Query",
+            "fieldNames": [
+              "latestReviews"
+            ]
+          },
+          {
+            "typeName": "User",
+            "fieldNames": [
+              "id",
+              "reviews"
+            ],
+            "externalFieldNames": [
+              "username"
+            ]
+          },
+          {
+            "typeName": "Product",
+            "fieldNames": [
+              "upc",
+              "reviews"
+            ]
+          }
+        ],
+        "childNodes": [
+          {
+            "typeName": "Review",
+            "fieldNames": [
+              "body",
+              "author",
+              "product"
+            ]
+          }
+        ],
+        "overrideFieldPathFromAlias": true,
+        "customGraphql": {
+          "fetch": {
+            "url": {
+              "staticVariableContent": "http://review.service"
+            },
+            "method": "POST",
+            "body": {},
+            "baseUrl": {},
+            "path": {}
+          },
+          "subscription": {
+            "enabled": true,
+            "url": {
+              "staticVariableContent": "http://review.service"
+            },
+            "protocol": "GRAPHQL_SUBSCRIPTION_PROTOCOL_WS",
+            "websocketSubprotocol": "GRAPHQL_WEBSOCKET_SUBPROTOCOL_AUTO"
+          },
+          "federation": {
+            "enabled": true,
+            "serviceSdl": "extend type Query {\n    latestReviews(first: Int = 5): [Review!]!\n}\ntype Review {\n    body: String!\n    author: User! @provides(fields: \"username\")\n    product: Product!\n}\nextend type User @key(fields: \"id\") {\n    id: ID! @external\n    username: String! @external\n    reviews: [Review]\n}\nextend type Product @key(fields: \"upc\") {\n    upc: String! @external\n    reviews: [Review]\n}\n"
+          },
+          "upstreamSchema": {
+            "key": "d3d1b8346dbf116808e4687f84f674334da84bc3"
+          }
+        },
+        "requestTimeoutSeconds": "10",
+        "id": "2",
+        "keys": [
+          {
+            "typeName": "User",
+            "selectionSet": "id"
+          },
+          {
+            "typeName": "Product",
+            "selectionSet": "upc"
+          }
+        ],
+        "provides": [
+          {
+            "typeName": "Review",
+            "fieldName": "author",
+            "selectionSet": "username"
+          }
+        ]
+      }
+    ],
+    "fieldConfigurations": [
+      {
+        "typeName": "Query",
+        "fieldName": "user",
+        "argumentsConfiguration": [
+          {
+            "name": "id",
+            "sourceType": "FIELD_ARGUMENT"
+          }
+        ]
+      },
+      {
+        "typeName": "Query",
+        "fieldName": "topProducts",
+        "argumentsConfiguration": [
+          {
+            "name": "first",
+            "sourceType": "FIELD_ARGUMENT"
+          }
+        ]
+      },
+      {
+        "typeName": "Query",
+        "fieldName": "product",
+        "argumentsConfiguration": [
+          {
+            "name": "upc",
+            "sourceType": "FIELD_ARGUMENT"
+          }
+        ]
+      },
+      {
+        "typeName": "Query",
+        "fieldName": "latestReviews",
+        "argumentsConfiguration": [
+          {
+            "name": "first",
+            "sourceType": "FIELD_ARGUMENT"
+          }
+        ]
+      }
+    ],
+    "graphqlSchema": "schema {\n  query: Query\n}\n\ntype Query {\n  me: User\n  user(id: ID!): User\n  topProducts(first: Int = 5): [Product!]!\n  product(upc: String!): Product\n  latestReviews(first: Int = 5): [Review!]!\n}\n\ntype User {\n  id: ID!\n  username: String!\n  reviews: [Review]\n}\n\ntype Product {\n  upc: String!\n  sku: String!\n  name: String!\n  price: Int!\n  reviews: [Review]\n}\n\ntype Review {\n  body: String!\n  author: User!\n  product: Product!\n}",
+    "stringStorage": {
+      "68714e916ae5c46b1ca8cbbfeabafcd03f78ff1d": "schema {\n  query: Query\n}\n\ndirective @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT\n\ntype Query {\n  me: User\n  user(id: ID!): User\n}\n\ntype User @key(fields: \"id\") {\n  id: ID!\n  username: String!\n}\n\nscalar openfed__FieldSet",
+      "e8f8026cd1502b6af1b5801d55b3524924b7aa81": "schema {\n  query: Query\n}\n\ndirective @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT\n\ntype Product @key(fields: \"upc\") @key(fields: \"sku\") {\n  name: String!\n  price: Int!\n  sku: String!\n  upc: String!\n}\n\ntype Query {\n  product(upc: String!): Product\n  topProducts(first: Int = 5): [Product!]!\n}\n\nscalar openfed__FieldSet",
+      "d3d1b8346dbf116808e4687f84f674334da84bc3": "schema {\n  query: Query\n}\n\ndirective @external on FIELD_DEFINITION | OBJECT\n\ndirective @key(fields: openfed__FieldSet!, resolvable: Boolean = true) repeatable on INTERFACE | OBJECT\n\ndirective @provides(fields: openfed__FieldSet!) on FIELD_DEFINITION\n\ntype Product @key(fields: \"upc\") {\n  reviews: [Review]\n  upc: String! @external\n}\n\ntype Query {\n  latestReviews(first: Int = 5): [Review!]!\n}\n\ntype Review {\n  author: User! @provides(fields: \"username\")\n  body: String!\n  product: Product!\n}\n\ntype User @key(fields: \"id\") {\n  id: ID! @external\n  reviews: [Review]\n  username: String! @external\n}\n\nscalar openfed__FieldSet"
+    }
+  },
+  "version": "00000000-0000-0000-0000-000000000000",
+  "subgraphs": [
+    {
+      "id": "0",
+      "name": "account",
+      "routingUrl": "http://user.service"
+    },
+    {
+      "id": "1",
+      "name": "products",
+      "routingUrl": "http://product.service"
+    },
+    {
+      "id": "2",
+      "name": "reviews",
+      "routingUrl": "http://review.service"
+    }
+  ],
+  "compatibilityVersion": "1:0.62.2"
+}

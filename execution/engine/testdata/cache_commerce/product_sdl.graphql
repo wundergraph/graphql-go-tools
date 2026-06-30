@@ -1,0 +1,10 @@
+extend type Query {
+    topProducts(first: Int = 5): [Product!]!
+    product(upc: String!): Product
+}
+type Product @key(fields: "upc") @key(fields: "sku") {
+    upc: String!
+    sku: String!
+    name: String!
+    price: Int!
+}

@@ -1,0 +1,8 @@
+QueryPlan {
+  Fetch(service: "0") {
+  }
+}
+
+
+Fetch cache configs:
+- path:"" cache:<nil> keySpec:<nil>
