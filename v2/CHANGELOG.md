@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.5.0...v2.5.1) (2026-06-30)
+
+
+### Bug Fixes
+
+* fix variables default value extraction panic on non list variable type ([#1553](https://github.com/wundergraph/graphql-go-tools/issues/1553)) ([ac5922e](https://github.com/wundergraph/graphql-go-tools/commit/ac5922ed8e6bf861554997ddc30c5deb47388387))
+
 ## [2.5.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.6...v2.5.0) (2026-06-18)
 
 
