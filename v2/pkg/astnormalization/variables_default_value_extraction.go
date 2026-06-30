@@ -184,15 +184,7 @@ func (v *variablesDefaultValueExtractionVisitor) traverseValue(value ast.Value, 
 				listTypeRef = v.definition.Types[listTypeRef].OfType
 			}
 
-			if !v.isValidTypeRef(listTypeRef) || !v.definition.TypeIsList(listTypeRef) {
-				continue
-			}
-
 			listItemType := v.definition.Types[listTypeRef].OfType
-			if !v.isValidTypeRef(listItemType) {
-				continue
-			}
-
 			v.traverseValue(listValue, listItemType)
 		}
 	case ast.ValueKindObject:
