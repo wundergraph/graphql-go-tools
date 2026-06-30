@@ -3,7 +3,9 @@ package postprocess
 import (
 	"slices"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -25,6 +27,7 @@ type Processor struct {
 	responseTreeProcessors *ResponseTreeProcessors
 	extractDeferFetches    *extractDeferFetches
 	buildDeferTree         *buildDeferTree
+	cachingPlanner         *cachingPlanner
 }
 
 type FetchTreeProcessors struct {
@@ -71,6 +74,9 @@ type processorOptions struct {
 	collectDataSourceInfo                 bool
 	disableExtractDeferFetches            bool
 	disableBuildDeferTree                 bool
+	cacheProviders                        map[string]cacheconfig.CacheConfigProvider
+	cacheFederation                       map[string]plan.FederationMetaData
+	cacheDefinition                       *ast.Document
 }
 
 type ProcessorOption func(*processorOptions)
@@ -136,11 +142,20 @@ func DisableBuildDeferTree() ProcessorOption {
 	}
 }
 
+func EnableCaching(providers map[string]cacheconfig.CacheConfigProvider, federation map[string]plan.FederationMetaData, definition *ast.Document) ProcessorOption {
+	return func(o *processorOptions) {
+		o.cacheProviders = providers
+		o.cacheFederation = federation
+		o.cacheDefinition = definition
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
 		o(opts)
 	}
+	freezer := &cacheKeySpecFreezer{federation: opts.cacheFederation, definition: opts.cacheDefinition}
 	return &Processor{
 		collectDataSourceInfo: opts.collectDataSourceInfo,
 		disableExtractFetches: opts.disableExtractFetches,
@@ -180,6 +195,12 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		buildDeferTree: &buildDeferTree{
 			disable: opts.disableBuildDeferTree,
 		},
+		cachingPlanner: &cachingPlanner{
+			providers: opts.cacheProviders,
+			freezer:   freezer,
+			stamper:   &cacheConfigStamper{providers: opts.cacheProviders, freezer: freezer},
+			l1:        &optimizeL1Cache{disable: len(opts.cacheProviders) == 0},
+		},
 	}
 }
 
@@ -194,6 +215,7 @@ func (p *Processor) Process(pre plan.Plan) {
 		// initialize the fetch tree
 		p.createFetchTree(t.Response)
 		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Fetches)
+		p.cachingPlanner.Annotate(t.Response, t.Response.Fetches)
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Fetches)
 
 	case *plan.DeferResponsePlan:
@@ -203,6 +225,8 @@ func (p *Processor) Process(pre plan.Plan) {
 
 		// extract deferred fetches into their own fetch trees
 		p.extractDeferFetches.Process(t)
+
+		p.cachingPlanner.Annotate(t.Response.Response, deferTrees(t)...)
 
 		// process the initial response fetch tree
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Response.Fetches)
@@ -223,6 +247,7 @@ func (p *Processor) Process(pre plan.Plan) {
 		p.appendTriggerToFetchTree(t.Response)
 
 		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Response.Fetches)
+		p.cachingPlanner.Annotate(t.Response.Response, t.Response.Response.Fetches)
 
 		// resolve input template for the root query in the subscription trigger
 		p.fetchTreeProcessors.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)

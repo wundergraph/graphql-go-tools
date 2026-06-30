@@ -16,9 +16,10 @@ import (
 type Planner struct {
 	config Configuration
 
-	planningWalker  *astvisitor.Walker
-	planningVisitor *Visitor
-	costVisitor     *CostVisitor
+	planningWalker    *astvisitor.Walker
+	planningVisitor   *Visitor
+	costVisitor       *CostVisitor
+	cacheProvidesData *cacheProvidesDataVisitor
 
 	nodeSelectionBuilder *NodeSelectionBuilder
 	planningPathBuilder  *PathBuilder
@@ -66,10 +67,16 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	planningVisitor := NewVisitor(&planningWalker)
 	planningVisitor.disableResolveFieldPositions = config.DisableResolveFieldPositions
 
+	var cacheProvidesData *cacheProvidesDataVisitor
+	if len(config.CacheConfigProviders) > 0 {
+		cacheProvidesData = &cacheProvidesDataVisitor{}
+	}
+
 	p := &Planner{
 		config:                 config,
 		planningWalker:         &planningWalker,
 		planningVisitor:        planningVisitor,
+		cacheProvidesData:      cacheProvidesData,
 		prepareOperationWalker: &prepareOperationWalker,
 		deferInfoCollector:     deferInfoCollector,
 	}
@@ -181,6 +188,15 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		p.planningWalker.RegisterLeaveFieldVisitor(p.costVisitor)
 	}
 
+	if p.cacheProvidesData != nil {
+		p.cacheProvidesData.operation = operation
+		p.cacheProvidesData.definition = definition
+		p.cacheProvidesData.planners = plannersConfigurations
+		p.cacheProvidesData.fieldPlanners = p.planningVisitor.fieldPlanners
+		p.planningWalker.RegisterEnterFieldVisitor(p.cacheProvidesData)
+		p.planningWalker.RegisterLeaveFieldVisitor(p.cacheProvidesData)
+	}
+
 	// Per-DS planners:
 	for key := range p.planningVisitor.planners {
 		if p.config.MinifySubgraphOperations {
@@ -222,6 +238,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		costCalc := NewCostCalculator(p.planningVisitor.Config)
 		costCalc.tree = p.costVisitor.finalCostTree()
 		p.planningVisitor.plan.SetCostCalculator(costCalc)
+	}
+
+	if p.cacheProvidesData != nil {
+		p.cacheProvidesData.attachTo(p.planningVisitor.plan)
 	}
 
 	// Step 5. Plan is handed over to postprocess.Processor. It checks fetch dependencies and

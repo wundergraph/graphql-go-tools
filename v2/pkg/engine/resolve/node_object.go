@@ -13,6 +13,7 @@ type Object struct {
 	PossibleTypes map[string]struct{} `json:"-"`
 	SourceName    string              `json:"-"`
 	TypeName      string              `json:"-"`
+	HasAliases    bool                `json:"-"`
 }
 
 func (o *Object) Copy() Node {
@@ -21,9 +22,10 @@ func (o *Object) Copy() Node {
 		fields[i] = f.Copy()
 	}
 	return &Object{
-		Nullable: o.Nullable,
-		Path:     o.Path,
-		Fields:   fields,
+		Nullable:   o.Nullable,
+		Path:       o.Path,
+		Fields:     fields,
+		HasAliases: o.HasAliases,
 	}
 }
 
@@ -109,7 +111,11 @@ type Field struct {
 	OnTypeNames       [][]byte
 	ParentOnTypeNames []ParentOnTypeNames
 	Info              *FieldInfo
+	OriginalName      []byte          `json:"-"`
+	CacheArgs         []CacheFieldArg `json:"-"`
 }
+
+type CacheFieldArg struct{ Name, VariableName string }
 
 type ParentOnTypeNames struct {
 	Depth int
@@ -123,13 +129,15 @@ func (f *Field) Copy() *Field {
 		deferField = &cp
 	}
 	return &Field{
-		Name:        f.Name,
-		Value:       f.Value.Copy(),
-		Position:    f.Position,
-		Defer:       deferField,
-		Stream:      f.Stream,
-		OnTypeNames: f.OnTypeNames,
-		Info:        f.Info,
+		Name:         f.Name,
+		Value:        f.Value.Copy(),
+		Position:     f.Position,
+		Defer:        deferField,
+		Stream:       f.Stream,
+		OnTypeNames:  f.OnTypeNames,
+		Info:         f.Info,
+		OriginalName: f.OriginalName,
+		CacheArgs:    append([]CacheFieldArg(nil), f.CacheArgs...),
 	}
 }
 

@@ -39,8 +39,17 @@ type GraphQLResponse struct {
 	RawFetches []*FetchItem
 	Fetches    *FetchTreeNode
 
-	Info        *GraphQLResponseInfo
-	DataSources []DataSourceInfo
+	Info              *GraphQLResponseInfo
+	DataSources       []DataSourceInfo
+	cacheProvidesData map[*FetchInfo]*Object
+}
+
+func (r *GraphQLResponse) SetCacheProvidesData(m map[*FetchInfo]*Object) {
+	r.cacheProvidesData = m
+}
+
+func (r *GraphQLResponse) CacheProvidesData() map[*FetchInfo]*Object {
+	return r.cacheProvidesData
 }
 
 func (g *GraphQLResponse) SingleFlightAllowed() bool {
