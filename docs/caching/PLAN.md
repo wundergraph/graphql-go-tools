@@ -437,6 +437,7 @@ LIGHTWEIGHT RFC:
 - Problem: by-key root fields should hit the shared entity cache.
 - Solution: render entity candidates from root args via `EntityKeyMappings`, look up the entity key space, backfill missing candidates after the fetch.
 - Key decisions: reuse is L2 here (root→entity L1 promotion is v2); best-effort multi-key backfill covers the arg-vs-data renderability split.
+- V1 cache-name constraint: by-key root-field policies must share `CacheName` with the corresponding entity policy to reuse entries.
 - Reviewer guidance: assert the EXACT ordered `Get`/`Set` sequence (a wrong key or missing backfill fails); read key == write key.
 
 ---

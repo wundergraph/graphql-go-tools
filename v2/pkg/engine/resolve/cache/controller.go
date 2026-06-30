@@ -186,6 +186,10 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 }
 
 func (r *requestCache) prepareRootFieldFetch(in resolve.PrepareFetchInput, cfg *resolve.FetchCacheConfig, prefix string, session resolve.MergeSession) (resolve.Decision, *resolve.FetchCacheHandle) {
+	if len(cfg.KeySpec.EntityKeyMappings) > 0 {
+		return r.prepareRootFieldEntityReuseFetch(in, cfg, prefix, session)
+	}
+
 	rootFieldKey := renderRootFieldKey(prefix, in.Input)
 	value, remaining, hit := r.store.Get(rootFieldKey)
 
@@ -251,6 +255,58 @@ func (r *requestCache) prepareRootFieldFetch(in resolve.PrepareFetchInput, cfg *
 	r.configs[handle] = cfg
 	r.prefixes[handle] = prefix
 	r.renderedMissedKeys[handle] = make([][]string, len(items))
+	return decision, handle
+}
+
+func (r *requestCache) prepareRootFieldEntityReuseFetch(in resolve.PrepareFetchInput, cfg *resolve.FetchCacheConfig, prefix string, session resolve.MergeSession) (resolve.Decision, *resolve.FetchCacheHandle) {
+	entityCfg := *cfg
+	entityCfg.KeySpec.Candidates = entityKeyMappingCandidates(cfg.KeySpec.EntityKeyMappings)
+	entityCfg.KeySpec.EntityKeyMappings = nil
+
+	lookupItem := rootFieldEntityMappingLookupItem(in.Ctx, cfg.KeySpec.EntityKeyMappings)
+	items := make([]resolve.ItemCacheState, 0, len(in.Items))
+	missedByItem := make([][]string, 0, len(in.Items))
+	var shadowStash map[int]resolve.ShadowCacheEntry
+	allCovered := len(in.Items) > 0
+	shadow := false
+	mustWriteBack := false
+	for i, item := range in.Items {
+		state, missedKeys, itemMustWriteBack, shadowEntry := r.prepareItemCacheState(in.Ctx, session, &entityCfg, lookupItem, prefix)
+		state.Item = item
+		if shadowEntry != nil {
+			shadow = true
+			if shadowStash == nil {
+				shadowStash = make(map[int]resolve.ShadowCacheEntry)
+			}
+			shadowStash[i] = *shadowEntry
+		}
+		if state.FromCache == nil {
+			allCovered = false
+		}
+		if itemMustWriteBack {
+			mustWriteBack = true
+		}
+		items = append(items, state)
+		missedByItem = append(missedByItem, missedKeys)
+	}
+
+	decision := resolve.DecisionFetch
+	if shadow {
+		decision = resolve.DecisionFetchShadow
+	} else if allCovered {
+		decision = resolve.DecisionSkipFullHit
+	}
+	handle := &resolve.FetchCacheHandle{
+		Decision:      decision,
+		WasHit:        allCovered,
+		MustWriteBack: allCovered && mustWriteBack,
+		Shadow:        shadow,
+		ShadowStash:   shadowStash,
+		Items:         items,
+	}
+	r.configs[handle] = cfg
+	r.prefixes[handle] = prefix
+	r.renderedMissedKeys[handle] = missedByItem
 	return decision, handle
 }
 
@@ -469,7 +525,7 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	if h.Shadow && r.obs != nil && cfg.ProvidesData != nil && cfg.KeySpec.Scope == resolve.CacheScopeEntity {
 		r.obs.CompareShadow(h, in.ResponseData, session)
 	}
-	if cfg.KeySpec.Scope == resolve.CacheScopeRootField {
+	if cfg.KeySpec.Scope == resolve.CacheScopeRootField && len(cfg.KeySpec.EntityKeyMappings) == 0 {
 		if len(h.Items) == 0 {
 			return nil
 		}
@@ -506,6 +562,40 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		}
 	}
 	return nil
+}
+
+func entityKeyMappingCandidates(mappings []resolve.EntityKeyMapping) []resolve.CacheKeyCandidate {
+	candidates := make([]resolve.CacheKeyCandidate, 0, len(mappings))
+	for _, mapping := range mappings {
+		fields := make([]*resolve.Field, 0, len(mapping.FieldMappings)+1)
+		fields = append(fields, &resolve.Field{Name: []byte("__typename"), Value: &resolve.Scalar{}})
+		for _, fieldMapping := range mapping.FieldMappings {
+			fields = append(fields, &resolve.Field{Name: []byte(fieldMapping.EntityKeyField), Value: &resolve.Scalar{}})
+		}
+		candidates = append(candidates, resolve.CacheKeyCandidate{Representation: &resolve.Object{
+			TypeName: mapping.EntityTypeName,
+			Fields:   fields,
+		}})
+	}
+	return candidates
+}
+
+func rootFieldEntityMappingLookupItem(ctx *resolve.Context, mappings []resolve.EntityKeyMapping) *astjson.Value {
+	item := astjson.ObjectValue(nil)
+	if ctx == nil {
+		return item
+	}
+	variables := ctx.VariablesView()
+	for _, mapping := range mappings {
+		for _, fieldMapping := range mapping.FieldMappings {
+			value := variables.Get(fieldMapping.ArgumentPath...)
+			if value == nil {
+				continue
+			}
+			item.Set(nil, fieldMapping.EntityKeyField, value)
+		}
+	}
+	return item
 }
 
 func (r *requestCache) EndRequest() {

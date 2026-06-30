@@ -94,7 +94,10 @@ func cacheProvidersForStage(cfg plan.Configuration, stage cachetesting.CacheStag
 		return providers
 	case cachetesting.StageL2RootFields, cachetesting.StageL2RootReusesEntity:
 		providers := make(map[string]cacheconfig.CacheConfigProvider, len(cfg.DataSources))
-		provider := cachetestingEntityProvider{rootFields: true}
+		provider := cachetestingEntityProvider{
+			rootFields:       true,
+			rootReusesEntity: stage == cachetesting.StageL2RootReusesEntity,
+		}
 		for _, ds := range cfg.DataSources {
 			providers[ds.Id()] = provider
 		}
@@ -106,7 +109,8 @@ func cacheProvidersForStage(cfg plan.Configuration, stage cachetesting.CacheStag
 }
 
 type cachetestingEntityProvider struct {
-	rootFields bool
+	rootFields       bool
+	rootReusesEntity bool
 }
 
 func (cachetestingEntityProvider) EntityPolicy(typeName string) (cacheconfig.EntityCachePolicy, bool) {
@@ -124,10 +128,14 @@ func (cachetestingEntityProvider) EntityPolicy(typeName string) (cacheconfig.Ent
 
 func (p cachetestingEntityProvider) RootFieldPolicy(typeName, fieldName string) (cacheconfig.RootFieldCachePolicy, bool) {
 	if p.rootFields && typeName == "Query" && (fieldName == "topProducts" || fieldName == "latestReviews" || fieldName == "product" || fieldName == "user") {
+		cacheName := "rootfields"
+		if p.rootReusesEntity && (fieldName == "product" || fieldName == "user") {
+			cacheName = "entities"
+		}
 		return cacheconfig.RootFieldCachePolicy{
 			TypeName:  typeName,
 			FieldName: fieldName,
-			CacheName: "rootfields",
+			CacheName: cacheName,
 			TTL:       time.Minute,
 		}, true
 	}
