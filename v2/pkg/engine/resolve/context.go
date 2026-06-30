@@ -43,6 +43,9 @@ type Context struct {
 	rateLimiter   RateLimiter
 	fieldRenderer FieldValueRenderer
 
+	cacheController CacheController
+	requestCache    RequestCache
+
 	subgraphErrors map[string]error
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
@@ -190,6 +193,10 @@ func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
 }
 
+func (c *Context) SetCacheController(controller CacheController) {
+	c.cacheController = controller
+}
+
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
 }
@@ -225,6 +232,13 @@ type RateLimiter interface {
 
 func (c *Context) SetRateLimiter(limiter RateLimiter) {
 	c.rateLimiter = limiter
+}
+
+func (c *Context) endCacheRequest() {
+	if c.requestCache != nil {
+		c.requestCache.EndRequest()
+		c.requestCache = nil
+	}
 }
 
 func (c *Context) SubgraphErrors() error {
@@ -283,6 +297,7 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 func (c *Context) clone(ctx context.Context) *Context {
 	cpy := *c
 	cpy.ctx = ctx
+	cpy.requestCache = nil
 	if c.Variables != nil {
 		variablesData := c.Variables.MarshalTo(nil)
 		cpy.Variables = astjson.MustParseBytes(variablesData)
@@ -305,6 +320,7 @@ func (c *Context) clone(ctx context.Context) *Context {
 }
 
 func (c *Context) Free() {
+	c.endCacheRequest()
 	c.ctx = nil
 	c.Variables = nil
 	c.Files = nil
@@ -315,6 +331,7 @@ func (c *Context) Free() {
 	c.Extensions = nil
 	c.subgraphErrors = nil
 	c.authorizer = nil
+	c.cacheController = nil
 	c.LoaderHooks = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil

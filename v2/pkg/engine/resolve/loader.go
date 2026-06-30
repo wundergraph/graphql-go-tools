@@ -110,9 +110,12 @@ type result struct {
 	//	[item1, item3], // merge response[1] into item1 and item3
 	//
 	// ]
-	batchStats       [][]*astjson.Value
-	fetchSkipped     bool
-	nestedMergeItems []*result
+	batchStats        [][]*astjson.Value
+	fetchSkipped      bool
+	nestedMergeItems  []*result
+	response          *astjson.Value
+	responseData      *astjson.Value
+	responseHasErrors bool
 
 	statusCode int
 	err        error
@@ -394,21 +397,111 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	if prepared == nil {
 		return nil
 	}
+	l.cachePrepare(prepared)
 	if err := l.loadPhase(ctx, prepared); err != nil {
 		return errors.WithStack(err)
 	}
-	return l.mergePhase(prepared)
+	if err := l.mergePhase(prepared); err != nil {
+		return errors.WithStack(err)
+	}
+	return l.cacheMerge(prepared)
 }
 
 type preparedFetch struct {
-	item       *FetchItem
-	items      []*astjson.Value
-	res        *result
-	source     DataSource
-	input      []byte
-	trace      *DataSourceLoadTrace
-	skipLoad   bool
-	batchFetch bool
+	item        *FetchItem
+	items       []*astjson.Value
+	res         *result
+	source      DataSource
+	input       []byte
+	trace       *DataSourceLoadTrace
+	skipLoad    bool
+	batchFetch  bool
+	cacheHandle *FetchCacheHandle
+}
+
+func (l *Loader) cacheRequest() RequestCache {
+	if l.ctx.cacheController == nil {
+		return nil
+	}
+	l.dataBuffer.Lock()
+	defer l.dataBuffer.Unlock()
+	if l.ctx.requestCache == nil {
+		l.ctx.requestCache = l.ctx.cacheController.BeginRequest(l.ctx)
+	}
+	return l.ctx.requestCache
+}
+
+func (l *Loader) cachePrepare(prepared *preparedFetch) {
+	if prepared == nil || prepared.skipLoad {
+		return
+	}
+	var cfg *FetchCacheConfig
+	switch f := prepared.item.Fetch.(type) {
+	case *SingleFetch:
+		cfg = f.Cache
+	case *EntityFetch:
+		cfg = f.Cache
+	case *BatchEntityFetch:
+		cfg = f.Cache
+	}
+	if cfg == nil || (!cfg.L1 && !cfg.L2) {
+		return
+	}
+	rc := l.cacheRequest()
+	if rc == nil {
+		return
+	}
+	_, hash := l.ctx.HeadersForSubgraphRequest(prepared.res.ds.Name)
+	decision, handle := rc.PrepareFetch(PrepareFetchInput{
+		Ctx:        l.ctx,
+		Item:       prepared.item,
+		Items:      prepared.items,
+		Config:     cfg,
+		BatchStats: prepared.res.batchStats,
+		Input:      prepared.input,
+		HeaderHash: hash,
+		Arena:      l.mergeArena(),
+	})
+	prepared.cacheHandle = handle
+	switch decision {
+	case DecisionSkipFullHit:
+		prepared.skipLoad = true
+		prepared.res.fetchSkipped = true
+	case DecisionFetchPartial:
+	case DecisionFetch, DecisionFetchShadow:
+	}
+}
+
+func (l *Loader) cacheMerge(prepared *preparedFetch) error {
+	h := prepared.cacheHandle
+	if h == nil {
+		return nil
+	}
+	res := prepared.res
+	in := MergeInput{
+		Item:         prepared.item,
+		Items:        prepared.items,
+		ResponseData: res.responseData,
+		BatchStats:   res.batchStats,
+		HasErrors:    res.responseHasErrors,
+		FetchFailed:  res.err != nil || len(res.out) == 0 || res.response == nil,
+		StatusCode:   res.statusCode,
+		Arena:        l.mergeArena(),
+	}
+	if res.response != nil {
+		in.EmptyEntity = isEmptyEntityFetch(prepared.item, res.response)
+	}
+	rc := l.cacheRequest()
+	switch h.Decision {
+	case DecisionSkipFullHit, DecisionFetchPartial:
+		return rc.OnFetchSkipped(h, in)
+	default:
+		return rc.OnFetchResult(h, in)
+	}
+}
+
+func (l *Loader) mergeArena() MergeArena {
+	return mergeArena{a: l.jsonArena, db: l.dataBuffer}
 }
 
 func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
@@ -633,6 +726,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
+	res.response = response
 
 	if l.allowCustomExtensionProperties {
 		extensions := response.Get("extensions")
@@ -648,6 +742,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	} else {
 		responseData = response
 	}
+	res.responseData = responseData
 
 	hasErrors := false
 
@@ -678,6 +773,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			}
 		}
 	}
+	res.responseHasErrors = hasErrors
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {

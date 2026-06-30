@@ -169,6 +169,7 @@ type BatchEntityFetch struct {
 	Input                BatchInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
+	Cache                *FetchCacheConfig
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
@@ -209,6 +210,7 @@ type EntityFetch struct {
 	Input                EntityInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
+	Cache                *FetchCacheConfig
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
@@ -278,6 +280,8 @@ type FetchConfiguration struct {
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
+
+	Cache *FetchCacheConfig
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -302,6 +306,12 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 		return false
 	}
 	if fc.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
+		return false
+	}
+	if (fc.Cache == nil) != (other.Cache == nil) {
+		return false
+	}
+	if fc.Cache != nil && !fc.Cache.Equals(other.Cache) {
 		return false
 	}
 
