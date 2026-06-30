@@ -12,6 +12,7 @@ import (
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve/cache"
 )
 
 // CacheStage mirrors the staged caching implementation order from the S4 plan.
@@ -49,6 +50,51 @@ type StoreOp struct {
 	Key   string
 	Value string
 	TTL   time.Duration
+}
+
+type Mode uint8
+
+const (
+	ModeNoop Mode = iota
+	ModeL1
+	ModeL2
+	ModeL1L2
+)
+
+func NewRealishCache(tb testing.TB, mode Mode, store *FakeStore, obs resolve.CacheObserver) resolve.CacheController {
+	tb.Helper()
+	return cache.NewController(storeAdapter{store: store}, cacheMode(mode), obs)
+}
+
+func cacheMode(mode Mode) cache.Mode {
+	switch mode {
+	case ModeNoop:
+		return cache.ModeNoop
+	case ModeL1:
+		return cache.ModeL1
+	case ModeL2:
+		return cache.ModeL2
+	case ModeL1L2:
+		return cache.ModeL1L2
+	default:
+		return cache.ModeNoop
+	}
+}
+
+type storeAdapter struct {
+	store *FakeStore
+}
+
+func (s storeAdapter) Get(key string) ([]byte, time.Duration, bool) {
+	entry, ok := s.store.Get(key)
+	if !ok {
+		return nil, 0, false
+	}
+	return entry.Value, time.Until(entry.ExpiresAt), true
+}
+
+func (s storeAdapter) Set(key string, value []byte, ttl time.Duration) {
+	s.store.Set(key, value, ttl)
 }
 
 type FakeCacheController struct {
