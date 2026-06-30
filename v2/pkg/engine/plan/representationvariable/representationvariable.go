@@ -1,4 +1,4 @@
-package graphql_datasource
+package representationvariable
 
 import (
 	"bytes"
@@ -18,7 +18,7 @@ type objectFields struct {
 
 // TODO: add support for remapping path
 
-func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData) (*resolve.Object, error) {
+func BuildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData) (*resolve.Object, error) {
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
 		return nil, report
@@ -120,7 +120,7 @@ func fieldsHasField(fields []*resolve.Field, field *resolve.Field) (int, bool) {
 	return -1, false
 }
 
-func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
+func MergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
 	fieldCount := 0
 	for _, object := range objects {
 		fieldCount += len(object.Fields)

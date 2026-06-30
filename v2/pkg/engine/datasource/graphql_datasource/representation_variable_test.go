@@ -7,6 +7,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	representationvariable "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/representationvariable"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -18,7 +19,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			SelectionSet: keyStr,
 		}
 
-		node, err := buildRepresentationVariableNode(&definition, cfg, federationMeta)
+		node, err := representationvariable.BuildRepresentationVariableNode(&definition, cfg, federationMeta)
 		require.NoError(t, err)
 
 		require.Equal(t, expectedNode, node)
@@ -313,7 +314,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userRepresentation, adminRepresentation})
+		merged := representationvariable.MergeRepresentationVariableNodes([]*resolve.Object{userRepresentation, adminRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -362,7 +363,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := representationvariable.MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -413,7 +414,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := representationvariable.MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -567,7 +568,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := representationvariable.MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -793,7 +794,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := representationvariable.MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 }
