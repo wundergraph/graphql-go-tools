@@ -85,14 +85,14 @@ func cacheProvidersForStage(cfg plan.Configuration, stage cachetesting.CacheStag
 	switch stage {
 	case cachetesting.StageNoop:
 		return map[string]cacheconfig.CacheConfigProvider{}
-	case cachetesting.StageL2Entities, cachetesting.StageL2RootReusesEntity, cachetesting.StageL1:
+	case cachetesting.StageL2Entities, cachetesting.StageL1:
 		providers := make(map[string]cacheconfig.CacheConfigProvider, len(cfg.DataSources))
 		provider := cachetestingEntityProvider{}
 		for _, ds := range cfg.DataSources {
 			providers[ds.Id()] = provider
 		}
 		return providers
-	case cachetesting.StageL2RootFields:
+	case cachetesting.StageL2RootFields, cachetesting.StageL2RootReusesEntity:
 		providers := make(map[string]cacheconfig.CacheConfigProvider, len(cfg.DataSources))
 		provider := cachetestingEntityProvider{rootFields: true}
 		for _, ds := range cfg.DataSources {
@@ -123,7 +123,7 @@ func (cachetestingEntityProvider) EntityPolicy(typeName string) (cacheconfig.Ent
 }
 
 func (p cachetestingEntityProvider) RootFieldPolicy(typeName, fieldName string) (cacheconfig.RootFieldCachePolicy, bool) {
-	if p.rootFields && typeName == "Query" && (fieldName == "topProducts" || fieldName == "latestReviews") {
+	if p.rootFields && typeName == "Query" && (fieldName == "topProducts" || fieldName == "latestReviews" || fieldName == "product" || fieldName == "user") {
 		return cacheconfig.RootFieldCachePolicy{
 			TypeName:  typeName,
 			FieldName: fieldName,

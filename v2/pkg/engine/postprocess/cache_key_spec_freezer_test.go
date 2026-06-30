@@ -165,22 +165,121 @@ func TestCacheKeySpecFreezerFreezeEntity(t *testing.T) {
 }
 
 func TestCacheKeySpecFreezerFreezeRootField(t *testing.T) {
-	freezer := &cacheKeySpecFreezer{}
-	info := &resolve.FetchInfo{
-		DataSourceID: "ds",
-		RootFields: []resolve.GraphCoordinate{
-			{TypeName: "Query", FieldName: "topProducts"},
+	definition := parseFreezerDefinition(t, `
+		scalar String
+
+		type Query {
+			product(upc: String!): Product
+			user(id: String!): User
+			review(slug: String!): Review
+			topProducts: [Product!]!
+		}
+
+		type Product {
+			upc: String!
+			sku: String!
+			name: String!
+		}
+
+		type User {
+			id: String!
+			name: String!
+		}
+
+		type Review {
+			id: String!
+			slug: String!
+		}
+	`)
+	federation := initFreezerFederation(t, []plan.FederationFieldConfiguration{
+		{TypeName: "Product", SelectionSet: "upc"},
+		{TypeName: "Product", SelectionSet: "sku"},
+		{TypeName: "User", SelectionSet: "id"},
+		{TypeName: "Review", SelectionSet: "id"},
+	})
+	freezer := &cacheKeySpecFreezer{
+		federation: map[string]plan.FederationMetaData{"ds": federation},
+		definition: definition,
+	}
+	tests := []struct {
+		name     string
+		field    string
+		expected resolve.CacheKeySpec
+	}{
+		{
+			name:  "product arg matches one product key",
+			field: "product",
+			expected: resolve.CacheKeySpec{
+				Scope:     resolve.CacheScopeRootField,
+				TypeName:  "Query",
+				FieldName: "product",
+				EntityKeyMappings: []resolve.EntityKeyMapping{
+					{
+						EntityTypeName: "Product",
+						FieldMappings: []resolve.EntityFieldMapping{
+							{EntityKeyField: "upc", ArgumentPath: []string{"upc"}, ArgumentIsEntityKey: true},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "user arg matches user key",
+			field: "user",
+			expected: resolve.CacheKeySpec{
+				Scope:     resolve.CacheScopeRootField,
+				TypeName:  "Query",
+				FieldName: "user",
+				EntityKeyMappings: []resolve.EntityKeyMapping{
+					{
+						EntityTypeName: "User",
+						FieldMappings: []resolve.EntityFieldMapping{
+							{EntityKeyField: "id", ArgumentPath: []string{"id"}, ArgumentIsEntityKey: true},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "root args do not match entity key",
+			field: "review",
+			expected: resolve.CacheKeySpec{
+				Scope:             resolve.CacheScopeRootField,
+				TypeName:          "Query",
+				FieldName:         "review",
+				EntityKeyMappings: []resolve.EntityKeyMapping{},
+			},
+		},
+		{
+			name:  "root field without args has no mapping",
+			field: "topProducts",
+			expected: resolve.CacheKeySpec{
+				Scope:     resolve.CacheScopeRootField,
+				TypeName:  "Query",
+				FieldName: "topProducts",
+			},
 		},
 	}
 
-	spec, ok := freezer.freeze(resolve.CacheScopeRootField, info)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &resolve.FetchInfo{
+				DataSourceID: "ds",
+				RootFields: []resolve.GraphCoordinate{
+					{TypeName: "Query", FieldName: tt.field},
+				},
+			}
 
-	assert.Equal(t, true, ok)
-	assert.Equal(t, resolve.CacheKeySpec{
-		Scope:     resolve.CacheScopeRootField,
-		TypeName:  "Query",
-		FieldName: "topProducts",
-	}, spec)
+			spec, ok := freezer.freeze(resolve.CacheScopeRootField, info)
+
+			assert.Equal(t, true, ok)
+			assert.Equal(t, tt.expected, spec)
+
+			federation.Keys = append(federation.Keys, plan.FederationFieldConfiguration{TypeName: "Product", SelectionSet: "mutated"})
+			freezer.federation["ds"] = federation
+			assert.Equal(t, tt.expected, spec)
+		})
+	}
 }
 
 func parseFreezerDefinition(t *testing.T, input string) *ast.Document {
