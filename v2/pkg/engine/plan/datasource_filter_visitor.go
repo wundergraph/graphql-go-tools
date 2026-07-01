@@ -805,17 +805,17 @@ func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx in
 				}
 			}
 
-			for _, child := range f.nodes.childNodesOnSameSource(i) {
-				if !f.nodes.items[child].IsExternal || f.nodes.items[child].IsProvided {
-					countOfSelectableChilds++
-				}
-			}
+			// count the whole selectable subtree, not just direct children, so a
+			// duplicate whose @provides/shareable coverage reaches deeper (e.g. an
+			// interface field that provides its nested selection) is preferred
+			countOfSelectableChilds = f.nodes.selectableTreeNodeCount(i)
 		}
 
 		nodesInfos = append(nodesInfos, nodeInfo{
 			nodeIdx:            i,
 			jumpCount:          jumpCount,
 			hasSelectedSibling: hasSelectedSibling,
+			selectableChilds:   countOfSelectableChilds,
 		})
 	}
 

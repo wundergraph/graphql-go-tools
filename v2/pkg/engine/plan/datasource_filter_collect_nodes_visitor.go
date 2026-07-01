@@ -77,17 +77,18 @@ func (c *nodesCollector) initVisitors() {
 	// prepare visitors for each data source
 	for _, dataSource := range c.dataSources {
 		visitor := &collectNodesDSVisitor{
-			operation:             c.operation,
-			definition:            c.definition,
-			nodes:                 c.nodes,
-			info:                  c.fieldInfo,
-			keys:                  make([]DSKeyInfo, 0, 2),
-			localSeenKeys:         make(map[SeenKeyPath]struct{}),
-			localSuggestionLookup: make(map[int]struct{}),
-			providesEntries:       make(map[string]struct{}),
-			globalSeenKeys:        c.seenKeys,
-			dataSource:            dataSource,
-			notExternalKeyPaths:   make(map[string]struct{}),
+			operation:               c.operation,
+			definition:              c.definition,
+			nodes:                   c.nodes,
+			info:                    c.fieldInfo,
+			keys:                    make([]DSKeyInfo, 0, 2),
+			localSeenKeys:           make(map[SeenKeyPath]struct{}),
+			localSuggestionLookup:   make(map[int]struct{}),
+			availableProvidedFields: make(map[int]providesSelection),
+			usedProvidedFields:      make(map[int]providesSelection),
+			globalSeenKeys:          c.seenKeys,
+			dataSource:              dataSource,
+			notExternalKeyPaths:     make(map[string]struct{}),
 		}
 		c.dsVisitors = append(c.dsVisitors, visitor)
 		c.dsVisitorsReports = append(c.dsVisitorsReports, operationreport.NewReport())
@@ -258,9 +259,20 @@ type collectNodesDSVisitor struct {
 	localSuggestions      []*NodeSuggestion
 	localSuggestionLookup map[int]struct{}
 
-	// local provides entries, they should survive reset
-	// because unique fields refs are collected only once
-	providesEntries map[string]struct{}
+	// availableProvidedFields stores, per field ref carrying a @provides directive,
+	// the selection tree of fields the directive makes available under that field -
+	// regardless of what the query selects. Survives reset because unique field refs
+	// are collected only once.
+	availableProvidedFields map[int]providesSelection
+
+	// usedProvidedFields stores provided fields used in the query - fields of the
+	// operation matched against availableProvidedFields of an enclosing @provides
+	// field. Presence of a field ref means the field is provided; the value is the
+	// position inside the available selection tree applying to the field's children
+	// (nil for leaf fields), so a child resolves with a single lookup. Fields are
+	// visited parents-first, so an entry is always resolved before the children
+	// need it. Survives reset like availableProvidedFields.
+	usedProvidedFields map[int]providesSelection
 
 	// global node suggestion, we append to them after each run
 	nodes *NodeSuggestions
@@ -371,18 +383,55 @@ func (f *collectNodesDSVisitor) handleProvidesSuggestions(fieldRef int, typeName
 		parentTypeName:       fieldTypeName,
 		providesSelectionSet: providesSelectionSet,
 		definition:           f.definition,
-		parentPath:           currentPath,
 	}
-	providesSuggestions, report := providesSuggestions(input)
+	selection, report := providesSuggestions(input)
 	if report.HasErrors() {
 		return fmt.Errorf("failed to get provides suggestions for %s.%s at path %s: %v", typeName, fieldName, currentPath, report)
 	}
 
-	for providedKey := range providesSuggestions {
-		f.providesEntries[providedKey] = struct{}{}
+	if len(selection) > 0 {
+		f.availableProvidedFields[fieldRef] = selection
 	}
 
 	return nil
+}
+
+// childSelection returns the provided selection applying to the children of the given
+// field: the field's own @provides selection when it is an anchor, otherwise the
+// nested selection the field got from an enclosing @provides directive.
+func (f *collectNodesDSVisitor) childSelection(fieldRef int) providesSelection {
+	if fieldRef == -1 {
+		return nil
+	}
+	if selection, ok := f.availableProvidedFields[fieldRef]; ok {
+		return selection
+	}
+	return f.usedProvidedFields[fieldRef]
+}
+
+// resolveProvided reports whether the field is provided by an enclosing @provides
+// directive of this data source and memoizes the provided selection for the field's
+// children. A field is provided when its parent's provided selection has a branch
+// for the field name whose allowed types include the field's enclosing type - so a
+// provides pinned to one concrete type at some level can not match a sibling
+// concrete type at the same position.
+func (f *collectNodesDSVisitor) resolveProvided(fieldRef int, info fieldInfo) bool {
+	if _, ok := f.usedProvidedFields[fieldRef]; ok {
+		return true
+	}
+
+	parentSelection := f.childSelection(info.parentFieldRef)
+	if parentSelection == nil {
+		return false
+	}
+
+	childSelection, provided := parentSelection.providedTypeSelection(info.fieldName, info.typeName)
+	if !provided {
+		return false
+	}
+
+	f.usedProvidedFields[fieldRef] = childSelection
+	return true
 }
 
 func (f *collectNodesDSVisitor) shouldAddUnionTypenameFieldSuggestion(info fieldInfo) bool {
@@ -425,12 +474,16 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return err
 	}
 
+	// provided selection applying to the field and its siblings - the fields of the
+	// entity at the parent path - used to treat provided key fields as not external
+	parentProvidedSelection := f.childSelection(info.parentFieldRef)
+
 	// For pubsub entities could also be a child node, so checking for only root nodes is not enough, so we check for entity keys existence
 	// when we have no keys, it is still expensive to create an index entry for a seen key path,
 	// so we skip check as a whole when there is no entity with such a name
 	if f.dataSource.HasEntity(info.typeName) {
 		// should be done after handling provides
-		if err := f.collectKeysForPath(info.typeName, info.parentPath); err != nil {
+		if err := f.collectKeysForPath(info.typeName, info.parentPath, parentProvidedSelection); err != nil {
 			return err
 		}
 	}
@@ -442,7 +495,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		for _, possibleTypeName := range info.possibleTypeNames {
 			// for each of the possible typenames we also check if we have an entity
 			if f.dataSource.HasEntity(possibleTypeName) {
-				if err := f.collectKeysForPath(possibleTypeName, info.parentPath); err != nil {
+				if err := f.collectKeysForPath(possibleTypeName, info.parentPath, parentProvidedSelection); err != nil {
 					return err
 				}
 			}
@@ -460,7 +513,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return nil
 	}
 
-	_, isProvided := f.providesEntries[providedFieldKey(info.typeName, info.fieldName, info.currentPathWithoutFragments)]
+	isProvided := f.resolveProvided(fieldRef, info)
 
 	if info.isTypeName && f.isInterfaceObject(info.typeName) {
 		// we should not add a typename on the interface object
@@ -542,9 +595,14 @@ func (f *collectNodesDSVisitor) applySuggestions() {
 		treeNode.SetData(itemIds)
 	}
 
-	// apply provides entries
-	for entry := range f.providesEntries {
-		f.nodes.addProvidedField(entry, f.dataSource.Hash())
+	// apply provided selections: used provided fields first, available after,
+	// as the nearest field with a @provides directive defines what is provided
+	// for its children
+	for fieldRef, selection := range f.usedProvidedFields {
+		f.nodes.addProvidedSelection(f.dataSource.Hash(), fieldRef, selection)
+	}
+	for fieldRef, selection := range f.availableProvidedFields {
+		f.nodes.addProvidedSelection(f.dataSource.Hash(), fieldRef, selection)
 	}
 }
 
@@ -575,6 +633,9 @@ type fieldInfo struct {
 	possibleTypeNames                                              []string
 	currentPathWithoutFragments                                    string
 	enclosingTypeDefinition                                        ast.Node
+	// parentFieldRef is the nearest ancestor field ref (skipping inline fragments),
+	// or -1 for a root field. Used to walk the typed ancestry for provides chains.
+	parentFieldRef int
 }
 
 func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
@@ -599,6 +660,15 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 	currentPath := fmt.Sprintf("%s.%s", parentPath, fieldAliasOrName)
 	currentPathWithoutFragments := fmt.Sprintf("%s.%s", parentPathWithoutFragment, fieldAliasOrName)
 
+	// nearest ancestor field ref (tree nodes are created only for fields, so the tree
+	// parent is the nearest ancestor field, skipping inline fragments), -1 at the root
+	parentFieldRef := -1
+	if len(f.parentNodeIds) >= 2 {
+		if parentNodeID := f.parentNodeIds[len(f.parentNodeIds)-2]; parentNodeID != treeRootID {
+			parentFieldRef = TreeNodeFieldRef(parentNodeID)
+		}
+	}
+
 	f.fieldInfo[fieldRef] = fieldInfo{
 		typeName:                    typeName,
 		possibleTypeNames:           possibleTypes,
@@ -611,5 +681,6 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 		currentPathWithoutFragments: currentPathWithoutFragments,
 		isTypeName:                  isTypeName,
 		enclosingTypeDefinition:     f.walker.EnclosingTypeDefinition,
+		parentFieldRef:              parentFieldRef,
 	}
 }

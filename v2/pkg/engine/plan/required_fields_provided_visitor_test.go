@@ -41,22 +41,20 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
 
 	cases := []struct {
-		name           string
-		typeName       string
-		requiredFields string
-		parentPath     string
-		providedFields map[string]struct{}
-		expected       bool
-		datasource     DataSource
+		name              string
+		typeName          string
+		requiredFields    string
+		providedSelection providesSelection
+		expected          bool
+		datasource        DataSource
 	}{
 		{
 			name:           "all fields provided",
 			typeName:       "User",
 			requiredFields: "id name",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{
-				"User|id|query.me.id":     {},
-				"User|name|query.me.name": {},
+			providedSelection: providesSelection{
+				"id":   {{allowedTypes: pTypes("User")}},
+				"name": {{allowedTypes: pTypes("User")}},
 			},
 			expected: true,
 		},
@@ -64,9 +62,8 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "one field missing",
 			typeName:       "User",
 			requiredFields: "id name",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{
-				"User|id|query.me.id": {},
+			providedSelection: providesSelection{
+				"id": {{allowedTypes: pTypes("User")}},
 			},
 			expected: false,
 		},
@@ -74,10 +71,10 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "nested fields provided",
 			typeName:       "User",
 			requiredFields: "address { street }",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{
-				"User|address|query.me.address":          {},
-				"Address|street|query.me.address.street": {},
+			providedSelection: providesSelection{
+				"address": {{allowedTypes: pTypes("User"), selection: providesSelection{
+					"street": {{allowedTypes: pTypes("Address")}},
+				}}},
 			},
 			expected: true,
 		},
@@ -85,10 +82,10 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "one nested field missing - missing field is external",
 			typeName:       "User",
 			requiredFields: "address { street zip }",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{
-				"User|address|query.me.address":          {},
-				"Address|street|query.me.address.street": {},
+			providedSelection: providesSelection{
+				"address": {{allowedTypes: pTypes("User"), selection: providesSelection{
+					"street": {{allowedTypes: pTypes("Address")}},
+				}}},
 			},
 			expected: false,
 			datasource: dsb().
@@ -102,10 +99,10 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "one nested field missing - missing field is not external",
 			typeName:       "User",
 			requiredFields: "address { street zip }",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{
-				"User|address|query.me.address":          {},
-				"Address|street|query.me.address.street": {},
+			providedSelection: providesSelection{
+				"address": {{allowedTypes: pTypes("User"), selection: providesSelection{
+					"street": {{allowedTypes: pTypes("Address")}},
+				}}},
 			},
 			expected: true,
 			datasource: dsb().
@@ -117,11 +114,11 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "deeply nested fields provided",
 			typeName:       "User",
 			requiredFields: "address { street zip }",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{
-				"User|address|query.me.address":          {},
-				"Address|street|query.me.address.street": {},
-				"Address|zip|query.me.address.zip":       {},
+			providedSelection: providesSelection{
+				"address": {{allowedTypes: pTypes("User"), selection: providesSelection{
+					"street": {{allowedTypes: pTypes("Address")}},
+					"zip":    {{allowedTypes: pTypes("Address")}},
+				}}},
 			},
 			expected: true,
 		},
@@ -129,29 +126,27 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "requires with field name",
 			typeName:       "User",
 			requiredFields: "name",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{
-				"User|name|query.me.name": {},
+			providedSelection: providesSelection{
+				"name": {{allowedTypes: pTypes("User")}},
 			},
 			expected: true,
 		},
 		{
-			name:           "no provided fields",
-			typeName:       "User",
-			requiredFields: "id",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{},
-			expected:       false,
+			name:              "no provided fields",
+			typeName:          "User",
+			requiredFields:    "id",
+			providedSelection: providesSelection{},
+			expected:          false,
 		},
 		{
 			name:           "nested fragments (union)",
 			typeName:       "User",
 			requiredFields: "thing { ... on A { a } ... on B { b } }",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{
-				"User|thing|query.me.thing": {},
-				"A|a|query.me.thing.a":      {},
-				"B|b|query.me.thing.b":      {},
+			providedSelection: providesSelection{
+				"thing": {{allowedTypes: pTypes("User"), selection: providesSelection{
+					"a": {{allowedTypes: pTypes("A")}},
+					"b": {{allowedTypes: pTypes("B")}},
+				}}},
 			},
 			expected: true,
 		},
@@ -159,10 +154,10 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "nested fragments (union) - missing B",
 			typeName:       "User",
 			requiredFields: "thing { ... on A { a } ... on B { b } }",
-			parentPath:     "query.me",
-			providedFields: map[string]struct{}{
-				"User|thing|query.me.thing": {},
-				"A|a|query.me.thing.a":      {},
+			providedSelection: providesSelection{
+				"thing": {{allowedTypes: pTypes("User"), selection: providesSelection{
+					"a": {{allowedTypes: pTypes("A")}},
+				}}},
 			},
 			expected: false,
 		},
@@ -171,12 +166,11 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			input := areRequiredFieldsProvidedInput{
-				typeName:       c.typeName,
-				requiredFields: c.requiredFields,
-				definition:     &definition,
-				providedFields: c.providedFields,
-				parentPath:     c.parentPath,
-				dataSource:     dsb().DS(),
+				typeName:          c.typeName,
+				requiredFields:    c.requiredFields,
+				definition:        &definition,
+				providedSelection: c.providedSelection,
+				dataSource:        dsb().DS(),
 			}
 			if c.datasource != nil {
 				input.dataSource = c.datasource
