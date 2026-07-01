@@ -10,7 +10,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 | # | Task | Status | Commit(s) | Notes / deviations |
 |---|---|---|---|---|
-| 01 | representationvariable extraction | done | (see git log) | Pure move; tests moved and extended with an entity-interface case per the task file. |
+| 01 | representationvariable extraction | done | ca0ec6fb | Pure move; tests moved and extended with an entity-interface case per the task file. |
 | 02 | runtime contract + loader seam | todo | — | — |
 | 03 | planner wiring + engine SetCaching | todo | — | — |
 | 04 | test infrastructure | todo | — | — |
