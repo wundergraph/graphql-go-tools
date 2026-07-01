@@ -94,6 +94,12 @@ type deferredSet struct {
 	reason resolve.CacheWriteReason
 }
 
+// negativeCacheSentinel is the stored form of a negative entry: a whole-value
+// JSON null. It is distinguishable from "no entry" (a store miss) and from a
+// positive null FIELD value (which always lives inside an object) — the read
+// path routes on a TOP-LEVEL TypeNull cached value only.
+const negativeCacheSentinel = "null"
+
 // useL2 reports whether this fetch participates in L2 through this controller.
 func (r *requestCache) useL2(cfg *resolve.FetchCacheConfig) bool {
 	return cfg != nil && cfg.L2 && r.store != nil
@@ -285,6 +291,17 @@ func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resol
 	for _, hit := range hits {
 		state.FromCacheCandidates = append(state.FromCacheCandidates, hit.candidate)
 		parsed = append(parsed, hit.cached)
+		// A TOP-LEVEL null cached value is the negative sentinel: the entity is
+		// KNOWN to not exist, so the item is served as null without a coverage
+		// walk (there is nothing to cover). The freshest sentinel wins.
+		if hit.cached != nil && hit.cached.Type() == astjson.TypeNull && state.FromCache == nil {
+			state.FromCache = hit.cached
+			state.SelectedRemainingTTL = hit.candidate.RemainingTTL
+			state.NegativeHit = true
+		}
+	}
+	if state.NegativeHit {
+		return state, missedKeys, mustWriteBack
 	}
 	// The selected value stays in NORMALIZED (stored) form on the handle;
 	// OnFetchSkipped denormalizes it to the requesting aliases at splice time.
@@ -316,11 +333,6 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 		if item.FromCache == nil || item.Item == nil {
 			continue
 		}
-		if item.FromCache.Type() == astjson.TypeNull {
-			// Negative sentinels land with task 11; a null value has nothing
-			// to splice.
-			continue
-		}
 		// A batch item splices into EVERY merge target of its unique
 		// representation (the BatchStats bucket at its original position).
 		targets := []*astjson.Value{item.Item}
@@ -329,6 +341,15 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 			if item.BatchIndex >= 0 && item.BatchIndex < len(in.BatchStats) {
 				targets = in.BatchStats[item.BatchIndex]
 			}
+		}
+		if item.FromCache.Type() == astjson.TypeNull {
+			// A negative hit splices NOTHING: a real successful-but-empty
+			// entity fetch leaves the merge targets untouched (mergeResult
+			// early-returns), and the resolvable then renders the null bubble
+			// and its non-null error exactly as it would uncached. Replacing
+			// the target with null here would make the cached response DIFFER
+			// from the uncached one — caching must never change the response.
+			continue
 		}
 		for _, target := range targets {
 			if target == nil {
@@ -388,11 +409,30 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		return nil
 	}
 	if in.FetchFailed || in.HasErrors {
+		// All failure signals block ALL writes — including negative ones: a
+		// transport/parse failure or errored response is a transient error,
+		// never a proof of nonexistence (FetchFailed wins over EmptyEntity).
+		return nil
+	}
+	if in.EmptyEntity && in.ResponseData != nil && in.ResponseData.Type() == astjson.TypeNull {
+		// The ONE non-failure that still writes: a SUCCESSFUL fetch that
+		// legitimately returned no entity caches the null sentinel so repeated
+		// lookups for a nonexistent entity skip the network.
+		if cfg.NegativeCacheTTL <= 0 {
+			return nil
+		}
+		tx := in.Arena.Begin()
+		defer tx.Commit()
+		for i := range h.Items {
+			h.Items[i].FromCache = tx.Null()
+			h.Items[i].NegativeHit = true
+			for _, key := range h.Items[i].RenderedKeys {
+				r.deferSet(key, []byte(negativeCacheSentinel), cfg.NegativeCacheTTL, resolve.CacheWriteReasonRefresh)
+			}
+		}
 		return nil
 	}
 	if in.ResponseData == nil || in.ResponseData.Type() == astjson.TypeNull {
-		// Includes the EmptyEntity case for now; the negative-cache sentinel
-		// write lands with task 11.
 		return nil
 	}
 	tx := in.Arena.Begin()
