@@ -23,7 +23,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 11 | negative caching | done | d8888bff | DEVIATION from first pass: negative hits splice NOTHING so cached and uncached responses are byte-identical (incl. the null-bubble error); reviews/11-*.md. |
 | 12 | shadow mode | done | 09d5775b | Stash-after-selection clears serving fields; ShadowCacheEntry gained CacheTTL (reserved in task-02 log); RecordingObserver materializes compares; H4 re-runs at task 17; reviews/12-*.md. |
 | 13 | root-field L2 | done | be3295de + 29443089 | Key excludes the query text (coordinate + canonical variables) for alias reuse; shadow hit = plain Fetch (compare structurally impossible); reviews/13-*.md. |
-| 14 | per-root-field isolation | todo | — | — |
+| 14 | per-root-field isolation | done | (see git log) | Fresh RFC-3 implementation (no first-pass reference); exactly three path-builder touches; gate on parentPath=="query" + provider policy; reviews/14-*.md. |
 | 15 | entity-cache reuse | todo | — | — |
 | 16 | optimizeL1Cache pass | todo | — | — |
 | 17 | L1 runtime store | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 14 (per-root-field isolation; dep 13 is done).
+- Next step: task 15 (entity-cache reuse; deps 08 + 13 are done). Phase B is complete.
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -87,3 +87,4 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 12: shadow stashes AFTER the selection ladder and clears the serving fields (incl. NeedsWriteback — OnFetchResult refreshes from fresh anyway); H4 (L1-hit-wins) re-runs at task 17.
 - Task 13: the root-field key preimage is coordinate + name-sorted variables, EXCLUDING the query text (alias reuse requires it); safe under the engine's always-on variable extraction (documented precondition at rootFieldCacheKey).
 - Task 13: merged-fetch policy equality compares VALUES excluding coordinates; a root-field shadow hit is a plain DecisionFetch (no stash → compare structurally impossible).
+- Task 14: no first-pass reference existed (RFC-3 was a follow-up there); implemented fresh: `shouldIsolateRootField` gate + exactly three path-builder touches; the fold-refusal keys off parentPath (the entity-root-node trap row pins why).
