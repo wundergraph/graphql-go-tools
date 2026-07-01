@@ -2801,6 +2801,14 @@ func (l *Loader) buildEntityKeyValue(data *astjson.Value, keyFields []KeyField) 
 		} else {
 			val := data.Get(kf.Name)
 			if val != nil {
+				// Coerce numbers to strings so this write-path key matches the
+				// read-path key. The entity-fetch key builder (setNestedKey /
+				// EntityQueryCacheKeyTemplate.renderCacheKeys) always coerces @key
+				// values to strings, so without this a mutation-returned Int id
+				// {"id":1} would never invalidate the cached read {"id":"1"}.
+				if val.Type() == astjson.TypeNumber {
+					val = val.CoerceToString(l.jsonArena)
+				}
 				obj.Set(l.jsonArena, kf.Name, val)
 			}
 		}

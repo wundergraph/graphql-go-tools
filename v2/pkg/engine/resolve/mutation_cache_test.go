@@ -128,6 +128,34 @@ func TestBuildEntityKeyValue(t *testing.T) {
 		// "id" is missing in data, so it is omitted from the result
 		assert.Equal(t, `{}`, got)
 	})
+
+	t.Run("numeric key coerced to string to match read-path key", func(t *testing.T) {
+		// A mutation returning an Int @key (e.g. Employee.id) yields {"id":1} in the
+		// response data. The entity-fetch (read) key builder coerces numbers to strings,
+		// so the write/invalidate key must too — otherwise {"id":1} never invalidates the
+		// cached read {"id":"1"}.
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		data, err := astjson.ParseWithArena(ar, `{"id":1,"__typename":"Employee","isAvailable":false}`)
+		require.NoError(t, err)
+
+		result := testBuildEntityKeyValue(ar, data, []KeyField{{Name: "id"}})
+		got := string(result.MarshalTo(nil))
+
+		assert.Equal(t, `{"id":"1"}`, got)
+	})
+
+	t.Run("nested numeric key coerced to string", func(t *testing.T) {
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		data, err := astjson.ParseWithArena(ar, `{"key":{"id":42},"name":"Eve"}`)
+		require.NoError(t, err)
+
+		result := testBuildEntityKeyValue(ar, data, []KeyField{
+			{Name: "key", Children: []KeyField{{Name: "id"}}},
+		})
+		got := string(result.MarshalTo(nil))
+
+		assert.Equal(t, `{"key":{"id":"42"}}`, got)
+	})
 }
 
 // ---------------------------------------------------------------------------
