@@ -49,3 +49,11 @@ const (
 	// recursive path runs unchanged.
 	MemoizeFetchDependencyOrdering = true
 )
+
+var (
+	// MergeContiguousMutationRootFields allows contiguous mutation root fields planned on
+	// the same subgraph to share one upstream mutation fetch while preserving alias order.
+	// It deliberately only merges adjacent same-subgraph runs so GraphQL's serial mutation
+	// semantics are preserved across subgraph boundaries.
+	MergeContiguousMutationRootFields = true
+)

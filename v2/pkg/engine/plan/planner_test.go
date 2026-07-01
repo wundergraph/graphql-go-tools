@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
@@ -22,6 +23,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/mondaytweaks"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -798,6 +800,262 @@ func TestPlanner_Plan(t *testing.T) {
 
 		assert.Equal(t, plan2Expected, plan2)
 	})
+}
+
+func TestPlanner_MergeContiguousMutationRootFields(t *testing.T) {
+	const fieldCount = 16
+
+	definition := `
+		schema {
+			query: Query
+			mutation: Mutation
+		}
+
+		type Query {
+			noop: String
+		}
+
+		type Mutation {
+			change_column_value(board_id: ID!, item_id: ID!, column_id: String!, value: String!): ChangeColumnValueResult!
+		}
+
+		type ChangeColumnValueResult {
+			id: ID!
+		}
+	`
+	upstreamDefinition := `
+		type Mutation {
+			change_column_value(board_id: ID!, item_id: ID!, column_id: String!, value: String!): ChangeColumnValueResult!
+		}
+
+		type ChangeColumnValueResult {
+			id: ID!
+		}
+	`
+
+	mutationFields := make([]string, 0, fieldCount)
+	for i := range fieldCount {
+		mutationFields = append(mutationFields, fmt.Sprintf(
+			`m%02d: change_column_value(board_id: "1", item_id: "%d", column_id: "status", value: "{\"index\":%d}") { id }`,
+			i,
+			i,
+			i,
+		))
+	}
+	operation := fmt.Sprintf(`
+		mutation BulkChangeColumnValues {
+			%s
+		}
+	`, strings.Join(mutationFields, "\n"))
+
+	dsConfig := dsb().
+		WithBehavior(DataSourcePlanningBehavior{
+			MergeAliasedRootNodes: true,
+		}).
+		Schema(upstreamDefinition).
+		Id("changeColumnValueDS").
+		Hash(1).
+		RootNode("Mutation", "change_column_value").
+		ChildNode("ChangeColumnValueResult", "id").
+		DS()
+
+	planConfig := Configuration{
+		DataSources:                  []DataSource{dsConfig},
+		DisableResolveFieldPositions: true,
+		DisableIncludeInfo:           true,
+	}
+
+	planOperation := func(t *testing.T) *SynchronousResponsePlan {
+		t.Helper()
+
+		def := unsafeparser.ParseGraphqlDocumentString(definition)
+		op := unsafeparser.ParseGraphqlDocumentString(operation)
+		require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
+
+		var report operationreport.Report
+		norm := astnormalization.NewNormalizer(true, true)
+		norm.NormalizeOperation(&op, &def, &report)
+		require.False(t, report.HasErrors(), report.Error())
+
+		valid := astvalidation.DefaultOperationValidator()
+		valid.Validate(&op, &def, &report)
+		require.False(t, report.HasErrors(), report.Error())
+
+		p, err := NewPlanner(planConfig)
+		require.NoError(t, err)
+
+		pp := p.Plan(&op, &def, "BulkChangeColumnValues", &report)
+		require.False(t, report.HasErrors(), report.Error())
+
+		syncPlan, ok := pp.(*SynchronousResponsePlan)
+		require.True(t, ok)
+		return syncPlan
+	}
+
+	assertAliasesPreserved := func(t *testing.T, plan *SynchronousResponsePlan) {
+		t.Helper()
+
+		require.NotNil(t, plan.Response)
+		require.NotNil(t, plan.Response.Data)
+		require.Len(t, plan.Response.Data.Fields, fieldCount)
+
+		for i, field := range plan.Response.Data.Fields {
+			alias := fmt.Sprintf("m%02d", i)
+			require.Equal(t, []byte(alias), field.Name)
+
+			value, ok := field.Value.(*resolve.Object)
+			require.True(t, ok)
+			require.Equal(t, []string{alias}, value.Path)
+		}
+	}
+
+	t.Run("disabled keeps separate mutation root fetches", func(t *testing.T) {
+		previousFlagValue := mondaytweaks.MergeContiguousMutationRootFields
+		mondaytweaks.MergeContiguousMutationRootFields = false
+		t.Cleanup(func() {
+			mondaytweaks.MergeContiguousMutationRootFields = previousFlagValue
+		})
+
+		plan := planOperation(t)
+
+		require.Len(t, plan.Response.RawFetches, fieldCount)
+		assertAliasesPreserved(t, plan)
+	})
+
+	t.Run("enabled reuses one fetch for contiguous same-subgraph mutation roots", func(t *testing.T) {
+		previousFlagValue := mondaytweaks.MergeContiguousMutationRootFields
+		mondaytweaks.MergeContiguousMutationRootFields = true
+		t.Cleanup(func() {
+			mondaytweaks.MergeContiguousMutationRootFields = previousFlagValue
+		})
+
+		plan := planOperation(t)
+
+		require.Len(t, plan.Response.RawFetches, 1)
+		assertAliasesPreserved(t, plan)
+	})
+}
+
+func TestPlanner_MergeContiguousMutationRootFieldsDoesNotCrossSubgraphs(t *testing.T) {
+	definition := `
+		schema {
+			query: Query
+			mutation: Mutation
+		}
+
+		type Query {
+			noop: String
+		}
+
+		type Mutation {
+			change_column_value(id: ID!): ChangeColumnValueResult!
+			create_update(id: ID!): CreateUpdateResult!
+		}
+
+		type ChangeColumnValueResult {
+			id: ID!
+		}
+
+		type CreateUpdateResult {
+			id: ID!
+		}
+	`
+	operation := `
+		mutation MixedBulkMutation {
+			a0: change_column_value(id: "0") { id }
+			a1: change_column_value(id: "1") { id }
+			b0: create_update(id: "0") { id }
+			b1: create_update(id: "1") { id }
+			a2: change_column_value(id: "2") { id }
+		}
+	`
+
+	changeColumnValueDS := dsb().
+		WithBehavior(DataSourcePlanningBehavior{
+			MergeAliasedRootNodes: true,
+		}).
+		Schema(`
+			type Mutation {
+				change_column_value(id: ID!): ChangeColumnValueResult!
+			}
+
+			type ChangeColumnValueResult {
+				id: ID!
+			}
+		`).
+		Id("changeColumnValueDS").
+		Hash(1).
+		RootNode("Mutation", "change_column_value").
+		ChildNode("ChangeColumnValueResult", "id").
+		DS()
+	createUpdateDS := dsb().
+		WithBehavior(DataSourcePlanningBehavior{
+			MergeAliasedRootNodes: true,
+		}).
+		Schema(`
+			type Mutation {
+				create_update(id: ID!): CreateUpdateResult!
+			}
+
+			type CreateUpdateResult {
+				id: ID!
+			}
+		`).
+		Id("createUpdateDS").
+		Hash(2).
+		RootNode("Mutation", "create_update").
+		ChildNode("CreateUpdateResult", "id").
+		DS()
+
+	previousFlagValue := mondaytweaks.MergeContiguousMutationRootFields
+	mondaytweaks.MergeContiguousMutationRootFields = true
+	t.Cleanup(func() {
+		mondaytweaks.MergeContiguousMutationRootFields = previousFlagValue
+	})
+
+	def := unsafeparser.ParseGraphqlDocumentString(definition)
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
+	require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
+
+	var report operationreport.Report
+	norm := astnormalization.NewNormalizer(true, true)
+	norm.NormalizeOperation(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	valid := astvalidation.DefaultOperationValidator()
+	valid.Validate(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	p, err := NewPlanner(Configuration{
+		DataSources:                  []DataSource{changeColumnValueDS, createUpdateDS},
+		DisableResolveFieldPositions: true,
+		DisableIncludeInfo:           true,
+	})
+	require.NoError(t, err)
+
+	pp := p.Plan(&op, &def, "MixedBulkMutation", &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	syncPlan, ok := pp.(*SynchronousResponsePlan)
+	require.True(t, ok)
+	require.Len(t, syncPlan.Response.RawFetches, 3)
+
+	aliases := []string{"a0", "a1", "b0", "b1", "a2"}
+	require.Len(t, syncPlan.Response.Data.Fields, len(aliases))
+	for i, alias := range aliases {
+		require.Equal(t, []byte(alias), syncPlan.Response.Data.Fields[i].Name)
+	}
+
+	firstFetch, ok := syncPlan.Response.RawFetches[0].Fetch.(*resolve.SingleFetch)
+	require.True(t, ok)
+	secondFetch, ok := syncPlan.Response.RawFetches[1].Fetch.(*resolve.SingleFetch)
+	require.True(t, ok)
+	thirdFetch, ok := syncPlan.Response.RawFetches[2].Fetch.(*resolve.SingleFetch)
+	require.True(t, ok)
+
+	require.Empty(t, firstFetch.DependsOnFetchIDs)
+	require.Equal(t, []int{0}, secondFetch.DependsOnFetchIDs)
+	require.Equal(t, []int{0, 1}, thirdFetch.DependsOnFetchIDs)
 }
 
 var expectedMyHeroPlan = &SynchronousResponsePlan{
