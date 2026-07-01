@@ -11,7 +11,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | # | Task | Status | Commit(s) | Notes / deviations |
 |---|---|---|---|---|
 | 01 | representationvariable extraction | done | ca0ec6fb | Pure move; tests moved and extended with an entity-interface case per the task file. |
-| 02 | runtime contract + loader seam | done | (see git log) | D2/D4/D8 applied; ShadowCacheEntry/ItemCacheState kept to RFC shape (first-pass extras not ported); reviewer notes in reviews/02-*.md. |
+| 02 | runtime contract + loader seam | done | e79ebbe8 | D2/D4/D8 applied; ShadowCacheEntry/ItemCacheState kept to RFC shape (first-pass extras not ported); reviewer notes in reviews/02-*.md. |
 | 03 | planner wiring + engine SetCaching | todo | — | — |
 | 04 | test infrastructure | todo | — | — |
 | 05 | ProvidesData visitor (P1) | todo | — | — |
