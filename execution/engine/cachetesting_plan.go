@@ -220,7 +220,7 @@ func renderPlanWithCache(resp *resolve.GraphQLResponse, deferResp *resolve.Graph
 	}
 	b.WriteString(resp.Fetches.QueryPlan().PrettyPrint())
 	for _, group := range deferRespGroups(deferResp) {
-		b.WriteString(fmt.Sprintf("\n\nDeferred %d:\n", group.DeferID))
+		fmt.Fprintf(&b, "\n\nDeferred %d:\n", group.DeferID)
 		if group.Fetches == nil {
 			b.WriteString("<nil>\n")
 			continue
@@ -230,7 +230,7 @@ func renderPlanWithCache(resp *resolve.GraphQLResponse, deferResp *resolve.Graph
 	b.WriteString("\n\nFetch cache configs:\n")
 	renderFetchCache(&b, resp.Fetches)
 	for _, group := range deferRespGroups(deferResp) {
-		b.WriteString(fmt.Sprintf("Deferred %d:\n", group.DeferID))
+		fmt.Fprintf(&b, "Deferred %d:\n", group.DeferID)
 		renderFetchCache(&b, group.Fetches)
 	}
 	return b.String()
