@@ -57,9 +57,10 @@ func TestControllerNegativeRows(t *testing.T) {
 		assert.Equal(t, astjson.TypeNull, handle.Items[0].FromCache.Type())
 	})
 
-	t.Run("[G2] NegativeCacheTTL == 0 disables the path: zero writes", func(t *testing.T) {
+	t.Run("[G2] NegativeCacheTTL == 0 disables the L2 path: zero store writes", func(t *testing.T) {
 		store := newTestStore()
 		cfg := negativeConfig(t, 0)
+		cfg.L1 = false // isolate the L2 rule; the L1 sentinel has no TTL knob (task 17)
 		rc := newRC(store)
 		item := productItem(t, "404")
 		_, handle := prepare(t, rc, cfg, item)

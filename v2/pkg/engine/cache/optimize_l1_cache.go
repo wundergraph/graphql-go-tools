@@ -34,7 +34,13 @@ type entityFetchInfo struct {
 // provider/consumer pairs span trees).
 func (o *optimizeL1Cache) optimize(trees []*resolve.FetchTreeNode) {
 	var entities []*entityFetchInfo
+	// dependencies indexes EVERY fetch in the trees (cached or not): a
+	// provider/consumer chain routinely passes THROUGH unconfigured fetches
+	// (products -> reviews -> products), and a chain walk restricted to cached
+	// entity fetches would break at the middle hop.
+	dependencies := make(map[int][]int)
 	for treeIndex, tree := range trees {
+		collectFetchDependencies(tree, dependencies)
 		collected := o.collectEntityFetches(tree)
 		for _, entity := range collected {
 			entity.treeIndex = treeIndex
@@ -60,7 +66,7 @@ func (o *optimizeL1Cache) optimize(trees []*resolve.FetchTreeNode) {
 	}
 
 	for _, entity := range eligible {
-		if o.hasValidProvider(entity, eligible, entities) || o.hasValidConsumer(entity, eligible, entities) {
+		if o.hasValidProvider(entity, eligible, dependencies) || o.hasValidConsumer(entity, eligible, dependencies) {
 			continue
 		}
 		cfg := entity.fetch.CacheConfig()
@@ -122,7 +128,7 @@ func (o *optimizeL1Cache) extractEntityFetchInfo(fetch resolve.Fetch) *entityFet
 
 // hasValidProvider reports canRead: a prior fetch of the same entity type (or
 // the union of all priors) provides a SUPERSET of this fetch's tree.
-func (o *optimizeL1Cache) hasValidProvider(consumer *entityFetchInfo, candidates, allFetches []*entityFetchInfo) bool {
+func (o *optimizeL1Cache) hasValidProvider(consumer *entityFetchInfo, candidates []*entityFetchInfo, dependencies map[int][]int) bool {
 	for _, provider := range candidates {
 		if provider.fetchID == consumer.fetchID {
 			continue
@@ -130,14 +136,14 @@ func (o *optimizeL1Cache) hasValidProvider(consumer *entityFetchInfo, candidates
 		if provider.entityType != consumer.entityType {
 			continue
 		}
-		if !o.executesBefore(provider, consumer, allFetches) {
+		if !o.executesBefore(provider, consumer, dependencies) {
 			continue
 		}
 		if objectProvidesAllFields(provider.providesData, consumer.providesData) {
 			return true
 		}
 	}
-	union := o.collectAncestorUnion(consumer, candidates, allFetches)
+	union := o.collectAncestorUnion(consumer, candidates, dependencies)
 	return union != nil && objectProvidesAllFields(union, consumer.providesData)
 }
 
@@ -147,7 +153,7 @@ func (o *optimizeL1Cache) hasValidProvider(consumer *entityFetchInfo, candidates
 // OLD union-fallback flaw: without it, a provider sharing a consumer with
 // other, sufficient providers stayed L1-eligible although nothing ever reused
 // its cached data.
-func (o *optimizeL1Cache) hasValidConsumer(provider *entityFetchInfo, candidates, allFetches []*entityFetchInfo) bool {
+func (o *optimizeL1Cache) hasValidConsumer(provider *entityFetchInfo, candidates []*entityFetchInfo, dependencies map[int][]int) bool {
 	for _, consumer := range candidates {
 		if consumer.fetchID == provider.fetchID {
 			continue
@@ -155,7 +161,7 @@ func (o *optimizeL1Cache) hasValidConsumer(provider *entityFetchInfo, candidates
 		if consumer.entityType != provider.entityType {
 			continue
 		}
-		if !o.executesBefore(provider, consumer, allFetches) {
+		if !o.executesBefore(provider, consumer, dependencies) {
 			continue
 		}
 		if objectProvidesAllFields(provider.providesData, consumer.providesData) {
@@ -164,7 +170,7 @@ func (o *optimizeL1Cache) hasValidConsumer(provider *entityFetchInfo, candidates
 		if !objectSharesAnyField(provider.providesData, consumer.providesData) {
 			continue
 		}
-		union := o.collectAncestorUnion(consumer, candidates, allFetches)
+		union := o.collectAncestorUnion(consumer, candidates, dependencies)
 		if union != nil && objectProvidesAllFields(union, consumer.providesData) {
 			return true
 		}
@@ -178,18 +184,15 @@ func (o *optimizeL1Cache) hasValidConsumer(provider *entityFetchInfo, candidates
 // before every defer-group fetch even across branches with no dependency
 // edge. Defer groups among themselves stay unordered (conservative: they may
 // run in parallel).
-func (o *optimizeL1Cache) executesBefore(a, b *entityFetchInfo, allFetches []*entityFetchInfo) bool {
+func (o *optimizeL1Cache) executesBefore(a, b *entityFetchInfo, dependencies map[int][]int) bool {
 	if a.treeIndex == 0 && b.treeIndex > 0 {
 		return true
 	}
-	if slices.Contains(b.dependsOn, a.fetchID) {
-		return true
-	}
 	visited := make(map[int]bool)
-	return o.isInDependencyChain(b.dependsOn, a.fetchID, allFetches, visited)
+	return o.isInDependencyChain(b.dependsOn, a.fetchID, dependencies, visited)
 }
 
-func (o *optimizeL1Cache) isInDependencyChain(dependsOn []int, targetID int, allFetches []*entityFetchInfo, visited map[int]bool) bool {
+func (o *optimizeL1Cache) isInDependencyChain(dependsOn []int, targetID int, dependencies map[int][]int, visited map[int]bool) bool {
 	for _, depID := range dependsOn {
 		if depID == targetID {
 			return true
@@ -198,21 +201,32 @@ func (o *optimizeL1Cache) isInDependencyChain(dependsOn []int, targetID int, all
 			continue
 		}
 		visited[depID] = true
-		for _, fetch := range allFetches {
-			if fetch.fetchID == depID {
-				if o.isInDependencyChain(fetch.dependsOn, targetID, allFetches, visited) {
-					return true
-				}
-				break
-			}
+		if o.isInDependencyChain(dependencies[depID], targetID, dependencies, visited) {
+			return true
 		}
 	}
 	return false
 }
 
+// collectFetchDependencies records fetchID -> DependsOnFetchIDs for every
+// fetch under node.
+func collectFetchDependencies(node *resolve.FetchTreeNode, out map[int][]int) {
+	if node == nil {
+		return
+	}
+	if node.Item != nil && node.Item.Fetch != nil {
+		if deps := node.Item.Fetch.Dependencies(); deps != nil {
+			out[deps.FetchID] = deps.DependsOnFetchIDs
+		}
+	}
+	for _, child := range node.ChildNodes {
+		collectFetchDependencies(child, out)
+	}
+}
+
 // collectAncestorUnion unions the trees of every same-type provider executing
 // before the consumer.
-func (o *optimizeL1Cache) collectAncestorUnion(consumer *entityFetchInfo, candidates, allFetches []*entityFetchInfo) *resolve.Object {
+func (o *optimizeL1Cache) collectAncestorUnion(consumer *entityFetchInfo, candidates []*entityFetchInfo, dependencies map[int][]int) *resolve.Object {
 	var union *resolve.Object
 	for _, provider := range candidates {
 		if provider.fetchID == consumer.fetchID {
@@ -221,7 +235,7 @@ func (o *optimizeL1Cache) collectAncestorUnion(consumer *entityFetchInfo, candid
 		if provider.entityType != consumer.entityType {
 			continue
 		}
-		if !o.executesBefore(provider, consumer, allFetches) {
+		if !o.executesBefore(provider, consumer, dependencies) {
 			continue
 		}
 		if provider.providesData != nil {

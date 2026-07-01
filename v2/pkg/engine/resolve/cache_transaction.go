@@ -35,8 +35,22 @@ func (t *CacheTransaction) ParseBytes(b []byte) (*astjson.Value, error) {
 
 // StructuralCopy deep-copies v onto the arena, avoiding merge aliasing
 // corruption when the same cached value is spliced into multiple targets.
+// Callers rely on VALUE isolation (mutating the source or the copy never
+// affects the other) — in heap mode (nil arena, one production resolve entry
+// runs this way) astjson.DeepCopy is an identity passthrough, so a real copy
+// is forced via a marshal round-trip there.
 func (t *CacheTransaction) StructuralCopy(v *astjson.Value) *astjson.Value {
-	return astjson.DeepCopy(t.a, v)
+	if t.a != nil {
+		return astjson.DeepCopy(t.a, v)
+	}
+	if v == nil {
+		return nil
+	}
+	copied, err := astjson.ParseBytes(v.MarshalTo(nil))
+	if err != nil {
+		return v
+	}
+	return copied
 }
 
 // MergeValues merges src into dst on the arena. The underlying "changed" flag

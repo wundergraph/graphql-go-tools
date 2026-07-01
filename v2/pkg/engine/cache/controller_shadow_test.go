@@ -171,11 +171,24 @@ func TestControllerShadowRows(t *testing.T) {
 
 	t.Run("[H7] L2-off shadow never yields DecisionFetchShadow", func(t *testing.T) {
 		cfg := shadowConfig(t)
-		cfg.L2 = false // NO-OP / L1-only shapes: the L2 controller stays out entirely
+		cfg.L2 = false
+		cfg.L1 = false // NO-OP shape: the controller stays out entirely
 		rc := NewController(newTestStore(), nil).BeginRequest(nil)
 		decision, handle := prepare(t, rc, cfg, productItem(t, "1"))
 		assert.Equal(t, resolve.DecisionFetch, decision)
 		assert.Nil(t, handle)
+	})
+
+	t.Run("[H7] L1-only shadow is a plain fetch with no stash", func(t *testing.T) {
+		cfg := shadowConfig(t)
+		cfg.L2 = false // L1 stays true: shadow semantics are L2-read-only
+		store := newTestStore()
+		rc := NewController(store, nil).BeginRequest(nil)
+		decision, handle := prepare(t, rc, cfg, productItem(t, "1"))
+		assert.Equal(t, resolve.DecisionFetch, decision)
+		require.NotNil(t, handle)
+		assert.False(t, handle.Shadow)
+		assert.Empty(t, store.ops)
 	})
 
 	t.Run("[H] shadow miss is a plain fetch (no stash, no shadow decision)", func(t *testing.T) {
