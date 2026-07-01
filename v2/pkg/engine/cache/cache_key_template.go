@@ -1,6 +1,9 @@
 package cache
 
 import (
+	"cmp"
+	"slices"
+
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -157,4 +160,58 @@ func hex64(sum uint64) string {
 		sum >>= 4
 	}
 	return string(buf[:])
+}
+
+// rootFieldCacheKey renders the whole-response root-field key: the policy
+// prefix plus a preimage of the fetch's root-field coordinate and the request
+// variables in canonical (name-sorted) form. The QUERY TEXT is deliberately
+// excluded so alias-variant operations share the entry (coverage and
+// normalization guard servability and shape). PRECONDITION: operations are
+// normalized with variable extraction (the engine always does this), so inline
+// argument literals are variables and cannot collide under one key.
+func rootFieldCacheKey(cfg *resolve.FetchCacheConfig, headerHash uint64, ctx *resolve.Context) string {
+	prefix := cacheKeyPrefix(cfg, headerHash)
+	preimage := make([]byte, 0, 64)
+	preimage = append(preimage, cfg.KeySpec.TypeName...)
+	preimage = append(preimage, '.')
+	preimage = append(preimage, cfg.KeySpec.FieldName...)
+	preimage = append(preimage, ':')
+	preimage = append(preimage, canonicalVariables(ctx)...)
+	return renderCacheKey(prefix, preimage)
+}
+
+// canonicalVariables renders the request variables with name-sorted top-level
+// keys, so clients sending the same variables in different order share keys.
+func canonicalVariables(ctx *resolve.Context) []byte {
+	if ctx == nil || ctx.Variables == nil {
+		return []byte("null")
+	}
+	obj, err := ctx.Variables.Object()
+	if err != nil {
+		return ctx.Variables.MarshalTo(nil)
+	}
+	type pair struct {
+		name  string
+		value *astjson.Value
+	}
+	pairs := make([]pair, 0, obj.Len())
+	obj.Visit(func(key []byte, v *astjson.Value) {
+		pairs = append(pairs, pair{name: string(key), value: v})
+	})
+	slices.SortFunc(pairs, func(a, b pair) int {
+		return cmp.Compare(a.name, b.name)
+	})
+	out := make([]byte, 0, 64)
+	out = append(out, '{')
+	for i, p := range pairs {
+		if i > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, '"')
+		out = append(out, p.name...)
+		out = append(out, '"', ':')
+		out = p.value.MarshalTo(out)
+	}
+	out = append(out, '}')
+	return out
 }

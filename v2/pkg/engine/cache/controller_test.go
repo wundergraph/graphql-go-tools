@@ -538,14 +538,6 @@ func TestControllerGates(t *testing.T) {
 		assert.Nil(t, handle)
 	})
 
-	t.Run("root-field scope fetches until task 13", func(t *testing.T) {
-		cfg := entityConfig(t, time.Minute)
-		cfg.KeySpec.Scope = resolve.CacheScopeRootField
-		decision, handle := rc.PrepareFetch(prepareInput(cfg, productItem(t, "1")))
-		assert.Equal(t, resolve.DecisionFetch, decision)
-		assert.Nil(t, handle)
-	})
-
 	t.Run("[I] empty batch short-circuits without a handle", func(t *testing.T) {
 		cfg := entityConfig(t, time.Minute)
 		in := prepareInput(cfg)
