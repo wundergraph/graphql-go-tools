@@ -12,6 +12,10 @@ import (
 
 func TestGraphQLDataSourceFederation_InterfaceTypedProvides(t *testing.T) {
 	planConfiguration := plan.Configuration{
+		Debug: plan.DebugConfiguration{
+			PrintOperationTransformations: true,
+			PrintNodeSuggestions:          true,
+		},
 		DisableResolveFieldPositions: true,
 		DataSources: []plan.DataSource{
 			interfaceProvidesDatasourceA(t),
@@ -244,12 +248,12 @@ func interfaceProvidesDatasourceB(t *testing.T) plan.DataSource {
 			RootNodes: []plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"media"}},
 				{TypeName: "Book", FieldNames: []string{"id"}, ExternalFieldNames: []string{"animals"}},
-				{TypeName: "Dog", ExternalFieldNames: []string{"id", "name"}},
-				{TypeName: "Cat", ExternalFieldNames: []string{"id", "name"}},
 			},
 			ChildNodes: []plan.TypeField{
 				{TypeName: "Media", FieldNames: []string{"id", "animals"}},
 				{TypeName: "Animal", FieldNames: []string{"id", "name"}},
+				{TypeName: "Dog", ExternalFieldNames: []string{"id", "name"}},
+				{TypeName: "Cat", ExternalFieldNames: []string{"id", "name"}},
 			},
 			FederationMetaData: plan.FederationMetaData{
 				Keys: plan.FederationFieldConfigurations{
