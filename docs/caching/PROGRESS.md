@@ -22,7 +22,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 10 | batch entity caching | done | def25586 | Full-batch semantics per unique representation; prepareItemState reused per bucket; splice copies per target; reviews/10-*.md. |
 | 11 | negative caching | done | d8888bff | DEVIATION from first pass: negative hits splice NOTHING so cached and uncached responses are byte-identical (incl. the null-bubble error); reviews/11-*.md. |
 | 12 | shadow mode | done | 09d5775b | Stash-after-selection clears serving fields; ShadowCacheEntry gained CacheTTL (reserved in task-02 log); RecordingObserver materializes compares; H4 re-runs at task 17; reviews/12-*.md. |
-| 13 | root-field L2 | done | be3295de + (commit 2 below) | Key excludes the query text (coordinate + canonical variables) for alias reuse; shadow hit = plain Fetch (compare structurally impossible); reviews/13-*.md. |
+| 13 | root-field L2 | done | be3295de + 29443089 | Key excludes the query text (coordinate + canonical variables) for alias reuse; shadow hit = plain Fetch (compare structurally impossible); reviews/13-*.md. |
 | 14 | per-root-field isolation | todo | — | — |
 | 15 | entity-cache reuse | todo | — | — |
 | 16 | optimizeL1Cache pass | todo | — | — |
