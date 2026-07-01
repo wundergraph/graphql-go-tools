@@ -20,7 +20,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 08 | multi-key / freshness / reorder | done | 3372187b | Full ladder + backfill; malformed cached bytes now refresh (first pass left poison entries); fixtures grew deals subgraph + featuredReview for the plan-driven cross-key row (wgc+rover clean, IDs stable); reviews/08-*.md. |
 | 09 | store normalization + arg keys | done | 5cbd5244 | FromCache stays NORMALIZED; denormalize-at-splice subsumes the task-08 reorder (deleted); pending renders now use the normalized value (first-pass alias bug fixed); inventory grew stockHistory(days) for the arg e2e; reviews/09-*.md. |
 | 10 | batch entity caching | done | def25586 | Full-batch semantics per unique representation; prepareItemState reused per bucket; splice copies per target; reviews/10-*.md. |
-| 11 | negative caching | todo | — | — |
+| 11 | negative caching | done | (see git log) | DEVIATION from first pass: negative hits splice NOTHING so cached and uncached responses are byte-identical (incl. the null-bubble error); reviews/11-*.md. |
 | 12 | shadow mode | todo | — | — |
 | 13 | root-field L2 | todo | — | — |
 | 14 | per-root-field isolation | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 11 (negative caching; dep 07 is done). Task 12 is also unblocked.
+- Next step: task 12 (shadow mode; dep 07 is done).
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -81,3 +81,5 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 09: pending-candidate re-render uses the NORMALIZED value (representation fields carry schema names — a latent first-pass bug for aliased key fields).
 - Task 09: fixtures grew `Product.stockHistory(days: Int!)` on inventory for the entity-level argument e2e row (wgc + rover clean).
 - Task 10: batch buckets use `bucket[0]` as the representative (loader dedup guarantees homogeneous buckets); non-array batch responses write nothing; the loader's batch dedup loop is untouched (task 19).
+- Task 11: negative hits splice NOTHING (first pass replaced the target with null) — the uncached empty fetch leaves targets unmerged and renders a null bubble WITH a non-null error; the cached path must be byte-identical.
+- Task 11: `EmptyEntity` from the loader means "entities-shaped response", not "empty" — the negative branch's `ResponseData TypeNull` conjunct is load-bearing.
