@@ -12,10 +12,6 @@ import (
 
 func TestGraphQLDataSourceFederation_InterfaceTypedProvides(t *testing.T) {
 	planConfiguration := plan.Configuration{
-		Debug: plan.DebugConfiguration{
-			PrintOperationTransformations: true,
-			PrintNodeSuggestions:          true,
-		},
 		DisableResolveFieldPositions: true,
 		DataSources: []plan.DataSource{
 			interfaceProvidesDatasourceA(t),
@@ -258,6 +254,36 @@ func interfaceProvidesDatasourceB(t *testing.T) plan.DataSource {
 			FederationMetaData: plan.FederationMetaData{
 				Keys: plan.FederationFieldConfigurations{
 					{TypeName: "Book", SelectionSet: "id", DisableEntityResolver: true},
+					{
+						TypeName:              "Dog",
+						SelectionSet:          "id",
+						DisableEntityResolver: true,
+						Conditions: []plan.KeyCondition{
+							{
+								FieldPath: []string{"media", "animals", "id"},
+								Coordinates: []plan.FieldCoordinate{
+									{TypeName: "Query", FieldName: "media"},
+									{TypeName: "Media", FieldName: "animals"},
+									{TypeName: "Animal", FieldName: "id"},
+								},
+							},
+						},
+					},
+					{
+						TypeName:              "Cat",
+						SelectionSet:          "id",
+						DisableEntityResolver: true,
+						Conditions: []plan.KeyCondition{
+							{
+								FieldPath: []string{"media", "animals", "id"},
+								Coordinates: []plan.FieldCoordinate{
+									{TypeName: "Query", FieldName: "media"},
+									{TypeName: "Media", FieldName: "animals"},
+									{TypeName: "Animal", FieldName: "id"},
+								},
+							},
+						},
+					},
 				},
 				Provides: plan.FederationFieldConfigurations{
 					{TypeName: "Query", FieldName: "media", SelectionSet: "animals { id name }"},
