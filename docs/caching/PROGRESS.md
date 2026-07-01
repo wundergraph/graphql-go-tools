@@ -13,7 +13,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 01 | representationvariable extraction | done | ca0ec6fb | Pure move; tests moved and extended with an entity-interface case per the task file. |
 | 02 | runtime contract + loader seam | done | e79ebbe8 | D2/D4/D8 applied; ShadowCacheEntry/ItemCacheState kept to RFC shape (first-pass extras not ported); reviewer notes in reviews/02-*.md. |
 | 03 | planner wiring + engine SetCaching | done | 4653a8e1 | SetCaching keyed by datasource ID; provider drops first-pass KeySpecs (D10); P1 registers on the second walk only; reviewer notes in reviews/03-*.md. |
-| 04 | test infrastructure | todo | — | — |
+| 04 | test infrastructure | done | (see git log) | Fixtures in execution/cachingtesting (wgc+rover clean); fakes in v2 cache/cachetesting; first-pass RealishCache/Mode/Stage NOT ported (dead until task 07); Fetch.SetDataSource added (D8 swap); reviews/04-*.md. |
 | 05 | ProvidesData visitor (P1) | todo | — | — |
 | 06 | entity cache configuration | todo | — | — |
 | 07 | entity L2 controller core | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 04 (test infrastructure; deps 02 + 03 are done).
+- Next step: task 05 (ProvidesData visitor; deps 03 + 04 are done). Phase 0 is complete.
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -56,3 +56,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 03: P1 registers ONLY on the gated second walk (the first pass also registered it on the main walk);
   task 05 may revisit if the ported visitor body genuinely needs main-walk state.
 - Task 03: `dataSourceConfiguration.caching` has no producer yet (accessor-only seam, same as the first pass); first consumer lands with task 05.
+- Task 04: harness caching/response keys use SUBGRAPH NAMES, translated to the ID-named datasources of factory-built configs.
+- Task 04: `Fetch.SetDataSource` added to the interface so datasource swapping needs no concrete-type switch (D8 spirit).
+- Task 04: first-pass `RealishCache`/`Mode`/`CacheStage`/`storeAdapter` NOT ported — they need the task-07 controller and would be dead code now; task 07 introduces the controller-backed test cache.
+- Task 04: the harness always plans with `IncludeQueryPlanInResponse` so plan-shape tests assert rendered trees inline (no goldens).

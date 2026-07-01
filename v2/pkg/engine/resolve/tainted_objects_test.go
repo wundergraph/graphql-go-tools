@@ -361,3 +361,5 @@ func (m *mockFetchWithInfo) SetCacheConfig(*FetchCacheConfig) {}
 func (m *mockFetchWithInfo) IsEntityFetch() bool { return false }
 
 func (m *mockFetchWithInfo) IsBatchEntityFetch() bool { return false }
+
+func (m *mockFetchWithInfo) SetDataSource(DataSource) {}
