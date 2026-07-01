@@ -94,7 +94,7 @@ func (o *optimizeL1Cache) extractEntityFetchInfo(fetch resolve.Fetch) *entityFet
 		return nil
 	}
 
-	if !isEntityFetch(fetch) {
+	if !fetchIsEntity(fetch) {
 		return nil
 	}
 
@@ -115,19 +115,6 @@ func (o *optimizeL1Cache) extractEntityFetchInfo(fetch resolve.Fetch) *entityFet
 		providesData: cfg.ProvidesData,
 		dependsOn:    deps.DependsOnFetchIDs,
 		fetch:        fetch,
-	}
-}
-
-func isEntityFetch(fetch resolve.Fetch) bool {
-	switch f := fetch.(type) {
-	case *resolve.EntityFetch:
-		return true
-	case *resolve.BatchEntityFetch:
-		return true
-	case *resolve.SingleFetch:
-		return f.RequiresEntityFetch || f.RequiresEntityBatchFetch
-	default:
-		return false
 	}
 }
 
@@ -184,6 +171,14 @@ func (o *optimizeL1Cache) hasValidConsumer(provider *entityFetchInfo, candidates
 			return true
 		}
 
+		// Union fallback: the consumer may need the combined output of several
+		// providers. Only treat this provider as reused when it actually
+		// contributes at least one field the consumer needs — otherwise a
+		// provider that shares a consumer with other, sufficient providers would
+		// be kept L1-eligible despite nothing ever reusing its cached data.
+		if !objectSharesAnyField(provider.providesData, consumer.providesData) {
+			continue
+		}
 		union := o.collectAncestorUnion(consumer, candidates, allFetches)
 		if union != nil && objectProvidesAllFields(union, consumer.providesData) {
 			return true
@@ -272,6 +267,22 @@ func findFieldByName(fields []*resolve.Field, name []byte) *resolve.Field {
 		}
 	}
 	return nil
+}
+
+// objectSharesAnyField reports whether the provider supplies at least one field
+// the consumer needs. It gates the union fallback in hasValidConsumer so a
+// provider that contributes nothing to a shared consumer is not kept L1-eligible
+// merely because OTHER providers already cover that consumer.
+func objectSharesAnyField(provider, consumer *resolve.Object) bool {
+	if provider == nil || consumer == nil {
+		return false
+	}
+	for _, consumerField := range consumer.Fields {
+		if findFieldByName(provider.Fields, consumerField.Name) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func nodeProvidesAllFields(provider, consumer resolve.Node) bool {

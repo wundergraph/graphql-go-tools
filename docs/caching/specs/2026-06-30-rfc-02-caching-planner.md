@@ -637,7 +637,7 @@ func (s *cacheConfigStamper) buildConfig(fetch resolve.Fetch, pd map[*resolve.Fe
 	}
 
 	cfg.ProvidesData = pd[info]                 // from P1 (§9); consumed at runtime by the coverage walk
-	cfg.HasAliasesFoldIntoProvidesData()        // fold computeHasAliases into the stamper (graft from C)
+	resolve.ComputeHasAliases(cfg.ProvidesData) // stamper-side helper folds the alias/arg fast-path flag onto the tree (§9.3)
 	if !cfg.L1 && !cfg.L2 && !cfg.ShadowMode {
 		return nil // nothing to do -> leave Cache nil so the loader no-ops (PR8)
 	}

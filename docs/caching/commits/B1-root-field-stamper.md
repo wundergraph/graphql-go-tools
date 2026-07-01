@@ -19,7 +19,7 @@ Fill the root-field arms left as TODO in A1a (plan-side only; runtime is B2).
 ## Key decisions
 
 - Conservative all-or-nothing decline reproduces OLD behavior additively in the post-plan stamper, with ZERO path-builder edits. Per-root-field isolation (the optimization that lets differing root fields each cache) is RFC-03, out of scope; v1 declines.
-- `L1=false`: root fields only act as L1 providers in v1 (root->entity L1 promotion is v2).
+- `L1=false`: root fields are L2-only in v1 (they do not populate or read the request-lifetime L1 entity store); root->entity L1 promotion is deferred to v2.
 - L2 derived from `TTL>0`.
 
 ## Tests

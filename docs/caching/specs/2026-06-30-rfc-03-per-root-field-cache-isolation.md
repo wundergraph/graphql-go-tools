@@ -162,7 +162,7 @@ func (r *rootFieldIsolation) shouldIsolate(field *currentFieldInfo, operationTyp
 	if strings.Count(field.currentPath, ".") != 1 {
 		return false // direct children of the root operation only
 	}
-	provider := r.providers[field.ds.Hash().String()] // datasource of the suggestion
+	provider := r.providers[field.ds.DataSourceID()] // keyed by DataSourceID, exactly as RFC-2 keys its provider map
 	if provider == nil {
 		return false
 	}

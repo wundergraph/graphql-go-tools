@@ -66,7 +66,15 @@ type requestCache struct {
 	l1RenderedKeys     map[*resolve.FetchCacheHandle][][]string
 	l1HitItems         map[*resolve.FetchCacheHandle][]bool
 	renderedMissedKeys map[*resolve.FetchCacheHandle][][]string
-	// Mutated only under the MergeSession's DataBuffer.Lock per RFC-1 section 6.4.
+	// Concurrency: PrepareFetch/OnFetchSkipped/OnFetchResult run from parallel
+	// per-fetch (and per-defer-group) goroutines, but each opens exactly one
+	// MergeSession via in.Arena.Begin(), which takes the request's single
+	// DataBuffer.Lock for the whole hook body. Every field above (the L1 store,
+	// the deferred-write set, and all per-handle maps) is therefore read/written
+	// only while that lock is held, so it needs no internal mutex (RFC-1 §6.4).
+	// EndRequest runs once, single-threaded, after the whole tree resolves, and
+	// only touches `deferred` (bytes), so it needs no lock either. This is
+	// verified under `-race` by the M1/M2 concurrency rows.
 }
 
 type deferredSet struct {

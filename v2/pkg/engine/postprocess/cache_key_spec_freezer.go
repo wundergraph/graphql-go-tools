@@ -50,6 +50,11 @@ func (f *cacheKeySpecFreezer) freeze(scope resolve.CacheScope, info *resolve.Fet
 	for _, keySet := range keySets {
 		node, err := representationvariable.BuildRepresentationVariableNode(f.definition, keySet, fed)
 		if err != nil {
+			// Best-effort multi-key: a single malformed @key fragment must not
+			// drop caching for the whole entity, so skip only that candidate and
+			// keep the others (RFC-2 §6.1). If EVERY @key fails to build, the
+			// zero-candidate check below returns (zero, false) and the entity is
+			// simply not cached — the conservative, correct fallback.
 			continue
 		}
 		spec.Candidates = append(spec.Candidates, resolve.CacheKeyCandidate{Representation: node})

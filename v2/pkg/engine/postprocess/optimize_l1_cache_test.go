@@ -58,6 +58,31 @@ func TestOptimizeL1CacheNarrowsEntityFetches(t *testing.T) {
 			},
 		},
 		{
+			// A provider that shares a downstream consumer with OTHER providers
+			// but contributes none of the fields that consumer needs must still
+			// be narrowed off: nothing ever reuses its cached data. F0{sku}
+			// executes before F3{id,name} alongside F1{id}/F2{name}; the union
+			// F0+F1+F2 covers F3, but F0 itself contributes nothing, so F0's L1
+			// is turned off while F1/F2/F3 stay on.
+			name: "provider sharing a consumer but contributing nothing narrows off",
+			roots: func() []*resolve.FetchTreeNode {
+				return []*resolve.FetchTreeNode{
+					resolve.Sequence(
+						resolve.Single(testL1EntityFetch(0, "User", nil, testProvidesObject("sku"))),
+						resolve.Single(testL1EntityFetch(1, "User", nil, testProvidesObject("id"))),
+						resolve.Single(testL1EntityFetch(2, "User", nil, testProvidesObject("name"))),
+						resolve.Single(testL1EntityFetch(3, "User", []int{0, 1, 2}, testProvidesObject("id", "name"))),
+					),
+				}
+			},
+			expected: map[int]bool{
+				0: false,
+				1: true,
+				2: true,
+				3: true,
+			},
+		},
+		{
 			name: "transitive dependency chain establishes prior provider",
 			roots: func() []*resolve.FetchTreeNode {
 				return []*resolve.FetchTreeNode{
