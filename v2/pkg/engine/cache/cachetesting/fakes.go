@@ -7,6 +7,7 @@
 package cachetesting
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 	"slices"
@@ -291,15 +292,25 @@ func (g *GatedDataSource) LoadWithFiles(context.Context, http.Header, []byte, []
 	panic("cache tests never upload files")
 }
 
-// RecordingObserver is the CacheObserver double: it counts lifecycle calls and
-// records the handles and shadow-compare cache keys it sees. The compare
-// itself is controller logic (task 12); the observer only records.
+// ShadowCompare is one recorded shadow probe: the stashed entry's key, its
+// age (CacheTTL - RemainingTTL), and whether the cached bytes equal the fresh
+// value the fetch produced for that item.
+type ShadowCompare struct {
+	CacheKey string
+	IsFresh  bool
+	CacheAge time.Duration
+}
+
+// RecordingObserver is the CacheObserver double: it counts lifecycle calls,
+// records the handles it sees, and materializes shadow compares (byte
+// equality of stashed vs fresh, per item). Production observer wiring arrives
+// with ART (task 20); this double pins the compare inputs.
 type RecordingObserver struct {
 	mu              sync.Mutex
 	beginRequests   int
 	endRequests     int
 	observedHandles []*resolve.FetchCacheHandle
-	shadowKeys      []string
+	compares        []ShadowCompare
 }
 
 func (o *RecordingObserver) BeginRequest(ctx *resolve.Context) {
@@ -324,14 +335,40 @@ func (o *RecordingObserver) CompareShadow(h *resolve.FetchCacheHandle, fresh *as
 	if h == nil {
 		return
 	}
-	keys := make([]string, 0, len(h.ShadowStash))
-	for _, entry := range h.ShadowStash {
-		keys = append(keys, entry.CacheKey)
+	var batch []*astjson.Value
+	if h.BatchEntityKey && fresh != nil {
+		batch = fresh.GetArray()
 	}
-	slices.Sort(keys)
+	compares := make([]ShadowCompare, 0, len(h.ShadowStash))
+	for itemIndex, entry := range h.ShadowStash {
+		freshValue := fresh
+		if h.BatchEntityKey {
+			freshValue = nil
+			if itemIndex >= 0 && itemIndex < len(h.Items) {
+				if batchIndex := h.Items[itemIndex].BatchIndex; batchIndex >= 0 && batchIndex < len(batch) {
+					freshValue = batch[batchIndex]
+				}
+			}
+		}
+		compares = append(compares, ShadowCompare{
+			CacheKey: entry.CacheKey,
+			IsFresh:  string(marshalValue(entry.CachedValue)) == string(marshalValue(freshValue)),
+			CacheAge: entry.CacheTTL - entry.RemainingTTL,
+		})
+	}
+	slices.SortFunc(compares, func(a, b ShadowCompare) int {
+		return cmp.Compare(a.CacheKey, b.CacheKey)
+	})
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.shadowKeys = append(o.shadowKeys, keys...)
+	o.compares = append(o.compares, compares...)
+}
+
+func marshalValue(v *astjson.Value) []byte {
+	if v == nil {
+		return nil
+	}
+	return v.MarshalTo(nil)
 }
 
 func (o *RecordingObserver) OnEntity(h *resolve.FetchCacheHandle, entity *astjson.Value) {}
@@ -353,11 +390,11 @@ func (o *RecordingObserver) ObservedHandles() []*resolve.FetchCacheHandle {
 	return slices.Clone(o.observedHandles)
 }
 
-// ShadowKeys returns the recorded shadow-compare cache keys.
-func (o *RecordingObserver) ShadowKeys() []string {
+// Compares returns the recorded shadow probes, sorted by cache key per call.
+func (o *RecordingObserver) Compares() []ShadowCompare {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return slices.Clone(o.shadowKeys)
+	return slices.Clone(o.compares)
 }
 
 // FakeRegistry hands out GatedDataSources with canned responses and tracks

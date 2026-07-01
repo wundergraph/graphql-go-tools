@@ -113,12 +113,6 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 	if !r.useL2(cfg) {
 		return resolve.DecisionFetch, nil
 	}
-	if cfg.ShadowMode {
-		// Shadow mode (read-never-serve) lands with task 12; until then a
-		// shadow-configured fetch behaves as a plain miss so no cached value
-		// can ever be served.
-		return resolve.DecisionFetch, nil
-	}
 	if cfg.KeySpec.Scope != resolve.CacheScopeEntity {
 		// Root-field caching lands with task 13.
 		return resolve.DecisionFetch, nil
@@ -139,10 +133,17 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 
 	items := make([]resolve.ItemCacheState, 0, len(in.Items))
 	missedByItem := make([][]string, 0, len(in.Items))
+	var shadowStash map[int]resolve.ShadowCacheEntry
 	allCovered := true
 	mustWriteBack := false
-	for _, item := range in.Items {
+	for i, item := range in.Items {
 		state, missed, itemMustWriteBack := r.prepareItemState(tx, cfg, templates, item)
+		if entry := shadowStashEntry(tx, cfg, &state); entry != nil {
+			if shadowStash == nil {
+				shadowStash = make(map[int]resolve.ShadowCacheEntry)
+			}
+			shadowStash[i] = *entry
+		}
 		if state.FromCache == nil {
 			allCovered = false
 		}
@@ -154,7 +155,12 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 	}
 
 	decision := resolve.DecisionFetch
-	if allCovered {
+	switch {
+	case shadowStash != nil:
+		// Shadow reads never serve: the loader treats FetchShadow exactly like
+		// Fetch (full network, full merge); the stash drives the compare.
+		decision = resolve.DecisionFetchShadow
+	case allCovered:
 		decision = resolve.DecisionSkipFullHit
 	}
 	handle := &resolve.FetchCacheHandle{
@@ -164,12 +170,43 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 		// owes best-effort backfill/refresh writes for the keys that missed,
 		// the candidates that could not render, or a merged/older selection.
 		MustWriteBack: allCovered && mustWriteBack,
+		Shadow:        shadowStash != nil,
+		ShadowStash:   shadowStash,
 		Items:         items,
 	}
 	r.configs[handle] = cfg
 	r.prefixes[handle] = cacheKeyPrefix(cfg, in.HeaderHash)
 	r.missedKeys[handle] = missedByItem
 	return decision, handle
+}
+
+// shadowStashEntry moves a shadow-configured item's would-be-served value into
+// a stash entry and CLEARS the serving fields, so nothing can be served while
+// the compare still sees the exact selection (value, key, freshness, TTL).
+// Returns nil when the config is not in shadow mode or nothing was selected.
+func shadowStashEntry(tx *resolve.CacheTransaction, cfg *resolve.FetchCacheConfig, state *resolve.ItemCacheState) *resolve.ShadowCacheEntry {
+	if !cfg.ShadowMode || state.FromCache == nil {
+		return nil
+	}
+	cacheTTL := cfg.TTL
+	if state.NegativeHit {
+		cacheTTL = cfg.NegativeCacheTTL
+	}
+	shadowKey := ""
+	if len(state.RenderedKeys) > 0 {
+		shadowKey = state.RenderedKeys[0]
+	}
+	entry := &resolve.ShadowCacheEntry{
+		CachedValue:  tx.StructuralCopy(state.FromCache),
+		CacheKey:     shadowKey,
+		RemainingTTL: state.SelectedRemainingTTL,
+		CacheTTL:     cacheTTL,
+	}
+	state.FromCache = nil
+	state.SelectedRemainingTTL = 0
+	state.NegativeHit = false
+	state.NeedsWriteback = false
+	return entry
 }
 
 // prepareBatchFetch is the batch arm: one ItemCacheState per UNIQUE
@@ -193,6 +230,7 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 
 	items := make([]resolve.ItemCacheState, 0, len(in.BatchStats))
 	missedByItem := make([][]string, 0, len(in.BatchStats))
+	var shadowStash map[int]resolve.ShadowCacheEntry
 	allCovered := true
 	mustWriteBack := false
 	for i, bucket := range in.BatchStats {
@@ -202,6 +240,12 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 		}
 		state, missed, itemMustWriteBack := r.prepareItemState(tx, cfg, templates, representative)
 		state.BatchIndex = i
+		if entry := shadowStashEntry(tx, cfg, &state); entry != nil {
+			if shadowStash == nil {
+				shadowStash = make(map[int]resolve.ShadowCacheEntry)
+			}
+			shadowStash[i] = *entry
+		}
 		if state.FromCache == nil {
 			allCovered = false
 		}
@@ -213,7 +257,10 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 	}
 
 	decision := resolve.DecisionFetch
-	if allCovered {
+	switch {
+	case shadowStash != nil:
+		decision = resolve.DecisionFetchShadow
+	case allCovered:
 		decision = resolve.DecisionSkipFullHit
 	}
 	handle := &resolve.FetchCacheHandle{
@@ -221,6 +268,8 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 		WasHit:         allCovered,
 		MustWriteBack:  allCovered && mustWriteBack,
 		BatchEntityKey: true,
+		Shadow:         shadowStash != nil,
+		ShadowStash:    shadowStash,
 		Items:          items,
 	}
 	r.configs[handle] = cfg
@@ -437,6 +486,13 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	}
 	tx := in.Arena.Begin()
 	defer tx.Commit()
+
+	if h.Shadow && r.obs != nil {
+		// The staleness probe: compare the stashed cached values against the
+		// fresh response BEFORE any write, inside this hook's transaction
+		// (compare -> write-L1 -> write-L2 order; no second lock acquisition).
+		r.obs.CompareShadow(h, in.ResponseData, tx)
+	}
 
 	// A batch response is the _entities array: each unique representation's
 	// value sits at its original batch position.
