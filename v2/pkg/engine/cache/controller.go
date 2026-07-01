@@ -88,6 +88,15 @@ type requestCache struct {
 	// root-field handles: the cached value is the ENTITY, so the walks use the
 	// root field's value subtree instead of the whole-response tree.
 	reuseProvides map[*resolve.FetchCacheHandle]*resolve.Object
+	// l1 is the request-lifetime entity store: NORMALIZED *astjson.Value
+	// (never bytes, never marshaled) under the SAME derived keys as L2.
+	// EXTERNAL-LOCK INVARIANT: guarded by the caller's CacheTransaction (the
+	// DataBuffer lock) like everything else on requestCache — no internal
+	// mutex. Values are isolated by tx.StructuralCopy at BOTH boundaries
+	// (write and read), so merges can never corrupt a stored value. The map
+	// is allocated lazily on the first write. This is NOT the removed
+	// @requestScoped feature (D11).
+	l1 map[string]*astjson.Value
 }
 
 // deferredSet is one pending L2 write, held as bytes until EndRequest; reason
@@ -110,15 +119,29 @@ func (r *requestCache) useL2(cfg *resolve.FetchCacheConfig) bool {
 	return cfg != nil && cfg.L2 && r.store != nil
 }
 
+// l1Put stores one L1 value; the caller passes a transaction-owned value
+// (ParseBytes/StructuralCopy product — never a heap value smuggled into
+// arena-noscan memory) and holds the transaction.
+func (r *requestCache) l1Put(key string, value *astjson.Value) {
+	if r.l1 == nil {
+		r.l1 = make(map[string]*astjson.Value)
+	}
+	r.l1[key] = value
+}
+
 // PrepareFetch renders the candidate key from the item data, looks L2 up,
 // runs the always-on coverage walk, and AND-reduces per-item hits into the
 // decision. It opens exactly one CacheTransaction for all arena work.
 func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decision, *resolve.FetchCacheHandle) {
 	cfg := in.Config
-	if !r.useL2(cfg) {
+	if cfg == nil || (!cfg.L1 && !r.useL2(cfg)) {
 		return resolve.DecisionFetch, nil
 	}
 	if cfg.KeySpec.Scope == resolve.CacheScopeRootField {
+		if !r.useL2(cfg) {
+			// Root fields are L2 providers only (task 13); L1 never applies.
+			return resolve.DecisionFetch, nil
+		}
 		return r.prepareRootFieldFetch(in, cfg)
 	}
 	if cfg.KeySpec.Scope != resolve.CacheScopeEntity {
@@ -485,11 +508,6 @@ func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resol
 	state := resolve.ItemCacheState{Item: item}
 	mustWriteBack := false
 	var missedKeys []string
-	type lookupHit struct {
-		candidate resolve.CacheCandidate
-		cached    *astjson.Value
-	}
-	hits := make([]lookupHit, 0, len(templates))
 	for i, template := range templates {
 		key, ok := template.render(item)
 		if !ok {
@@ -501,6 +519,43 @@ func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resol
 			continue
 		}
 		state.RenderedKeys = append(state.RenderedKeys, key)
+	}
+
+	// L1 first: keys are derived ONCE and shared with L2; a covering L1 hit
+	// serves with zero parsing and zero marshaling and SHORT-CIRCUITS every
+	// L2 read (and therefore every L2 write-back — coverage never required
+	// L2 here).
+	if cfg.L1 {
+		for _, key := range state.RenderedKeys {
+			stored := r.l1[key]
+			if stored == nil {
+				continue
+			}
+			if stored.Type() == astjson.TypeNull {
+				// The L1 negative sentinel: the entity is KNOWN missing within
+				// this request.
+				state.FromCache = tx.StructuralCopy(stored)
+				state.NegativeHit = true
+				return state, nil, false
+			}
+			if covers(r.ctx, stored, cfg.ProvidesData) {
+				state.FromCache = tx.StructuralCopy(stored)
+				return state, nil, false
+			}
+		}
+	}
+	if !r.useL2(cfg) {
+		// L1-only: a miss is a plain fetch; there is no L2 to read or back
+		// fill.
+		return state, nil, false
+	}
+
+	type lookupHit struct {
+		candidate resolve.CacheCandidate
+		cached    *astjson.Value
+	}
+	hits := make([]lookupHit, 0, len(templates))
+	for _, key := range state.RenderedKeys {
 		value, remaining, hit := r.store.Get(key)
 		if !hit {
 			missedKeys = append(missedKeys, key)
@@ -547,12 +602,31 @@ func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resol
 		}
 	}
 	if state.NegativeHit {
+		if cfg.L1 {
+			r.populateL1(tx, &state)
+		}
 		return state, missedKeys, mustWriteBack
 	}
 	// The selected value stays in NORMALIZED (stored) form on the handle;
 	// OnFetchSkipped denormalizes it to the requesting aliases at splice time.
 	selectMultiCandidateCacheValue(tx, r.ctx, &state, parsed, cfg.ProvidesData)
+	if cfg.L1 && state.FromCache != nil {
+		r.populateL1(tx, &state)
+	}
 	return state, missedKeys, mustWriteBack || state.NeedsWriteback
+}
+
+// populateL1 stores an L2-served value in L1 under every rendered key, so a
+// later fetch of the same entity in this request skips L2 entirely. One
+// structural copy is shared across the keys; the read boundary copies again.
+func (r *requestCache) populateL1(tx *resolve.CacheTransaction, state *resolve.ItemCacheState) {
+	if state.FromCache == nil || len(state.RenderedKeys) == 0 {
+		return
+	}
+	copied := tx.StructuralCopy(state.FromCache)
+	for _, key := range state.RenderedKeys {
+		r.l1Put(key, copied)
+	}
 }
 
 // OnFetchSkipped splices the chosen cached values into the merge targets at
@@ -674,7 +748,7 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		// The ONE non-failure that still writes: a SUCCESSFUL fetch that
 		// legitimately returned no entity caches the null sentinel so repeated
 		// lookups for a nonexistent entity skip the network.
-		if cfg.NegativeCacheTTL <= 0 {
+		if !cfg.L1 && cfg.NegativeCacheTTL <= 0 {
 			return nil
 		}
 		tx := in.Arena.Begin()
@@ -683,7 +757,14 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 			h.Items[i].FromCache = tx.Null()
 			h.Items[i].NegativeHit = true
 			for _, key := range h.Items[i].RenderedKeys {
-				r.deferSet(key, []byte(negativeCacheSentinel), cfg.NegativeCacheTTL, resolve.CacheWriteReasonRefresh)
+				if cfg.L1 {
+					// Within the request the nonexistence is a fact — the L1
+					// sentinel needs no TTL knob.
+					r.l1Put(key, tx.Null())
+				}
+				if r.useL2(cfg) && cfg.NegativeCacheTTL > 0 {
+					r.deferSet(key, []byte(negativeCacheSentinel), cfg.NegativeCacheTTL, resolve.CacheWriteReasonRefresh)
+				}
 			}
 		}
 		return nil
@@ -761,23 +842,37 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		if provides != nil && provides.HasAliases {
 			toStore = normalizeToSchema(tx, r.ctx, itemToStore, provides)
 		}
-		// Marshal ONCE per item; the deferred set holds bytes only.
-		value := toStore.MarshalTo(nil)
-		for _, key := range item.RenderedKeys {
-			r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonRefresh)
-		}
+		// One key derivation feeds BOTH layers: the rendered keys plus the
+		// pending candidates re-rendered from the FRESH normalized value (a
+		// candidate the response still cannot render is skipped silently —
+		// best-effort, never required).
+		keys := item.RenderedKeys
+		backfillFrom := len(keys)
 		for _, candidate := range item.PendingCandidates {
-			// Re-render candidates that could not render at lookup from the
-			// FRESH data (best-effort backfill); a candidate the response still
-			// cannot render is skipped silently — never required. Rendering
-			// uses the NORMALIZED value: representation fields carry schema
-			// names, which an alias-shaped response would not match.
 			template := cacheKeyTemplate{prefix: r.prefixes[h], representation: candidate.Representation}
 			key, ok := template.render(toStore)
 			if !ok {
 				continue
 			}
-			r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonBackfill)
+			keys = append(keys, key)
+		}
+		if cfg.L1 {
+			// write-L1 before write-L2; POINTER store, zero marshaling.
+			copied := tx.StructuralCopy(toStore)
+			for _, key := range keys {
+				r.l1Put(key, copied)
+			}
+		}
+		if r.useL2(cfg) {
+			// Marshal ONCE per item — only the L2 path holds bytes.
+			value := toStore.MarshalTo(nil)
+			for i, key := range keys {
+				reason := resolve.CacheWriteReasonRefresh
+				if i >= backfillFrom {
+					reason = resolve.CacheWriteReasonBackfill
+				}
+				r.deferSet(key, value, cfg.TTL, reason)
+			}
 		}
 	}
 	return nil

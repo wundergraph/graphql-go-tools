@@ -531,11 +531,13 @@ func TestControllerGates(t *testing.T) {
 		assert.Nil(t, handle)
 	})
 
-	t.Run("L1-only config is untouched by the L2 controller (task 17)", func(t *testing.T) {
+	t.Run("L1-only config participates without touching the store (task 17)", func(t *testing.T) {
+		store := newTestStore()
 		cfg := entityConfig(t, 0) // TTL 0 => L2 false, L1 true
-		decision, handle := rc.PrepareFetch(prepareInput(cfg, productItem(t, "1")))
+		decision, handle := NewController(store, nil).BeginRequest(nil).PrepareFetch(prepareInput(cfg, productItem(t, "1")))
 		assert.Equal(t, resolve.DecisionFetch, decision)
-		assert.Nil(t, handle)
+		require.NotNil(t, handle)
+		assert.Empty(t, store.ops)
 	})
 
 	t.Run("[I] empty batch short-circuits without a handle", func(t *testing.T) {

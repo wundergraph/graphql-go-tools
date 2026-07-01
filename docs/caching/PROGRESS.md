@@ -26,14 +26,14 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 14 | per-root-field isolation | done | 1b23ea0c | Fresh RFC-3 implementation (no first-pass reference); exactly three path-builder touches; gate on parentPath=="query" + provider policy; reviews/14-*.md. |
 | 15 | entity-cache reuse | done | 44011a84 | Spec carries the FULL entity candidate set (first pass had mapping-only — E3 backfill impossible there); EntityMergePath finally populated; v1 variable-name constraint documented; reviews/15-*.md. |
 | 16 | optimizeL1Cache pass | done | abe90ce7 | Ordering = dependency edges + TREE order (deviation, argued in reviews/16); schema-name+args field matching; first-pass union aliasing bug fixed and pinned; reviews/16-*.md. |
-| 17 | L1 runtime store | todo | — | — |
+| 17 | L1 runtime store | done | (see git log) | Pointer store, shared keys, L1-first ladder; fixed heap-mode StructuralCopy passthrough + optimize-pass chain break; H4 resolved (shadow stashes L1 selections); reviews/17-*.md. |
 | 18 | defer + concurrency coverage | todo | — | — |
 | 19 | partial fetching | todo | — | — |
 | 20 | ART observability | todo | — | — |
 
 ## Current focus
 
-- Next step: task 17 (request-lifetime shared L1 store; deps 07 + 16 are done).
+- Next step: task 18 (defer + concurrency coverage; deps 10 + 17 are done).
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -93,3 +93,6 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 15: `ItemCacheState.EntityMergePath` is now populated (reserved since task 02/D4) — the reuse splice/extract path.
 - Task 16: executesBefore has TWO sources — dependency edges AND tree order (initial tree precedes every defer group); DependsOnFetchIDs alone cannot see cross-branch defer pairs, which the task's own defer row requires.
 - Task 16: the OLD unionObjects mutated live ProvidesData trees (existing.Value overwrite) — fixed with field copies and pinned by a regression row.
+- Task 17: `CacheTransaction.StructuralCopy` was an identity passthrough in heap mode (DeepCopy(nil) returns v; resolve.go:361 runs a nil-arena loader) — heap mode now forces a real copy via marshal round-trip.
+- Task 17: the optimize-pass ordering walk now indexes EVERY fetch (chains pass through unconfigured hops: products→reviews→products); the l1_e2e chain fixture is the live proof.
+- Task 17: H4 = shadow stashes L1-selected values too (read-never-serve absolute); the L1 negative sentinel ignores the NegativeCacheTTL knob (in-request facts).
