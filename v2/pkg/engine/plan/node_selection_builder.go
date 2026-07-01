@@ -18,6 +18,9 @@ type NodeSelectionBuilder struct {
 	nodeResolvableVisitor *nodesResolvableVisitor
 	nodeSelectionsWalker  *astvisitor.Walker
 	nodeSelectionsVisitor *nodeSelectionVisitor
+
+	fieldMergingAliasWalker  *astvisitor.Walker
+	fieldMergingAliasVisitor *fieldMergingAliasVisitor
 }
 
 type fieldDependencyKind int
@@ -46,6 +49,11 @@ type NodeSelectionResult struct {
 	// These fields should not be added to user response.
 	skipFieldsRefs []int
 
+	// responseOnlyFieldRefs holds field refs that must appear in the response
+	// (resolving to null) but must NOT be sent to any subgraph in the upstream
+	// fetch. Used for partial-union members unique to the resolving subgraph.
+	responseOnlyFieldRefs map[int]struct{}
+
 	fieldRefDependsOn   map[int][]int
 	fieldDependencyKind map[fieldDependencyKey]fieldDependencyKind
 }
@@ -70,12 +78,22 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeResolvableWalker.RegisterEnterDocumentVisitor(nodeResolvableVisitor)
 	nodeResolvableWalker.RegisterEnterFieldVisitor(nodeResolvableVisitor)
 
+	fieldMergingAliasWalker := astvisitor.NewWalkerWithID(24, "FieldMergingAliasWalker")
+	fieldMergingAliasVisitor := &fieldMergingAliasVisitor{
+		walker:      &fieldMergingAliasWalker,
+		dataSources: config.DataSources,
+	}
+	fieldMergingAliasWalker.RegisterEnterDocumentVisitor(fieldMergingAliasVisitor)
+	fieldMergingAliasWalker.RegisterEnterFieldVisitor(fieldMergingAliasVisitor)
+
 	return &NodeSelectionBuilder{
-		config:                config,
-		nodeSelectionsWalker:  &nodeSelectionsWalker,
-		nodeSelectionsVisitor: nodeSelectionVisitor,
-		nodeResolvableWalker:  &nodeResolvableWalker,
-		nodeResolvableVisitor: nodeResolvableVisitor,
+		config:                   config,
+		nodeSelectionsWalker:     &nodeSelectionsWalker,
+		nodeSelectionsVisitor:    nodeSelectionVisitor,
+		nodeResolvableWalker:     &nodeResolvableWalker,
+		nodeResolvableVisitor:    nodeResolvableVisitor,
+		fieldMergingAliasWalker:  &fieldMergingAliasWalker,
+		fieldMergingAliasVisitor: fieldMergingAliasVisitor,
 	}
 }
 
@@ -85,6 +103,7 @@ func (p *NodeSelectionBuilder) SetOperationName(name string) {
 
 func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
+	p.nodeSelectionsVisitor.responseOnlyFieldRefs = nil
 	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 }
 
@@ -104,11 +123,38 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 	p.nodeSelectionsVisitor.debug = p.config.Debug
 
+	// Step 0. Alias fields that share a response name across concrete union/interface members but
+	// differ only in nullability in some subgraph schema. This must run before suggestions are
+	// produced so the response-name based paths stay consistent across all later phases.
+	p.fieldMergingAliasWalker.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return
+	}
+
 	// Step 1. Produce initial suggestions of which datasource owns which fields.
 	// We collect info from all subgraphs with the field, plus available keys per path.
 	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(nil, nil)
 	if report.HasErrors() {
 		return
+	}
+
+	// Step 1.5. Resolve partial unions: when a union field can be resolved by
+	// multiple candidate datasources that define different members, keep only the
+	// members common to all candidates (see prunePartialUnionMembers). Members
+	// unique to the resolving subgraph are kept in the response as null but excluded
+	// from the upstream fetch (responseOnlyFieldRefs); foreign members are dropped.
+	// When this changes the operation, rebuild the suggestions from the pruned
+	// operation with a fresh filter so later steps never see the dropped members.
+	if responseOnly, changed := p.prunePartialUnionMembers(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); changed {
+		p.nodeSelectionsVisitor.responseOnlyFieldRefs = responseOnly
+		dsFilter = NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs)
+		if p.config.Debug.PrintNodeSuggestions {
+			dsFilter.EnableSelectionReasons()
+		}
+		p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(nil, nil)
+		if report.HasErrors() {
+			return
+		}
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
@@ -131,6 +177,18 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 	i := 1
 	hasUnresolvedFields := false
+	fallbackKeyJumpsEnabled := false
+	refilterWithFallbackKeyJumps := false
+	if !p.nodeSelectionsVisitor.hasNewFields {
+		resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions)
+		if resolvableReport.HasErrors() {
+			dsFilter.EnableFallbackKeyJumps()
+			fallbackKeyJumpsEnabled = true
+			refilterWithFallbackKeyJumps = true
+			hasUnresolvedFields = true
+		}
+	}
+
 	// Additional runs to add paths for the new required fields
 	for p.nodeSelectionsVisitor.hasNewFields || hasUnresolvedFields {
 		// When we have rewritten a field, the old node suggestion does not make sense anymore:
@@ -141,12 +199,16 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 		p.nodeSelectionsVisitor.secondaryRun = true
 
-		if p.nodeSelectionsVisitor.hasNewFields {
+		if p.nodeSelectionsVisitor.hasNewFields || refilterWithFallbackKeyJumps {
 			// Repeat Step 1. Update suggestions for the new required fields.
 			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
 			if report.HasErrors() {
 				return
 			}
+			if fallbackKeyJumpsEnabled {
+				p.nodeSelectionsVisitor.pruneStaleFieldRequirements()
+			}
+			refilterWithFallbackKeyJumps = false
 		}
 
 		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
@@ -173,6 +235,12 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions)
 		hasUnresolvedFields = resolvableReport.HasErrors()
 		if hasUnresolvedFields {
+			if !fallbackKeyJumpsEnabled {
+				dsFilter.EnableFallbackKeyJumps()
+				fallbackKeyJumpsEnabled = true
+				refilterWithFallbackKeyJumps = true
+			}
+
 			if i > 100 {
 				report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
 				return
@@ -187,20 +255,13 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		}
 	}
 
-	if i == 1 {
-		// if we have not revisited the operation, we need to check if it is resolvable
-		if resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
-			report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
-			return
-		}
-	}
-
 	return &NodeSelectionResult{
 		dataSources:              p.nodeSelectionsVisitor.dataSources,
 		nodeSuggestions:          p.nodeSelectionsVisitor.nodeSuggestions,
 		fieldDependsOn:           p.nodeSelectionsVisitor.fieldDependsOn,
 		fieldRequirementsConfigs: p.nodeSelectionsVisitor.fieldRequirementsConfigs,
 		skipFieldsRefs:           p.nodeSelectionsVisitor.skipFieldsRefs,
+		responseOnlyFieldRefs:    p.nodeSelectionsVisitor.responseOnlyFieldRefs,
 		fieldRefDependsOn:        p.nodeSelectionsVisitor.fieldRefDependsOn,
 		fieldDependencyKind:      p.nodeSelectionsVisitor.fieldDependencyKind,
 	}

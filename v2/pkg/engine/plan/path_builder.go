@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -112,6 +113,9 @@ func (p *PathBuilder) CreatePlanningPaths(operation, definition *ast.Document, r
 
 	// remove unnecessary fragment paths
 	hasRemovedPaths := p.removeUnnecessaryFragmentPaths()
+	if p.removeDuplicateLeafAbstractFieldPaths() {
+		hasRemovedPaths = true
+	}
 	if hasRemovedPaths && p.config.Debug.PrintPlanningPaths {
 		debugMessage("Final paths after removing unnecessary fragment paths:")
 		p.printPlanningPaths(i)
@@ -132,6 +136,118 @@ func (p *PathBuilder) removeUnnecessaryFragmentPaths() (hasRemovedPaths bool) {
 		}
 	}
 	return
+}
+
+func (p *PathBuilder) removeDuplicateLeafAbstractFieldPaths() (hasRemovedPaths bool) {
+	for plannerIdx, planner := range p.visitor.planners {
+		plannerPathConfig, ok := planner.(removablePlannerPathConfiguration)
+		if !ok {
+			continue
+		}
+
+		pathsToRemove := make([]pathConfiguration, 0, 2)
+		planner.ForEachPath(func(path *pathConfiguration) (shouldBreak bool) {
+			if p.shouldRemoveDuplicateLeafAbstractFieldPath(plannerIdx, plannerPathConfig, path) {
+				pathsToRemove = append(pathsToRemove, *path)
+			}
+			return false
+		})
+
+		for _, path := range pathsToRemove {
+			plannerPathConfig.removePath(path)
+			hasRemovedPaths = true
+		}
+	}
+	return
+}
+
+type removablePlannerPathConfiguration interface {
+	PlannerPathConfiguration
+	removePath(path pathConfiguration)
+}
+
+func (p *PathBuilder) shouldRemoveDuplicateLeafAbstractFieldPath(plannerIdx int, planner removablePlannerPathConfiguration, path *pathConfiguration) bool {
+	if path.pathType != PathTypeField {
+		return false
+	}
+	if !strings.Contains(path.path, ".$") {
+		return false
+	}
+	if !p.visitor.operation.FieldHasSelections(path.fieldRef) {
+		return false
+	}
+	if p.plannerHasActivePathPrefix(planner, path.path) {
+		return false
+	}
+	if !p.fieldReturnsAbstractType(path) {
+		return false
+	}
+	if !p.hasProvidedSuggestionForPath(path) {
+		return false
+	}
+	return p.anotherPlannerOwnsFieldPathWithChildren(plannerIdx, path.fieldRef, path.path)
+}
+
+func (p *PathBuilder) fieldReturnsAbstractType(path *pathConfiguration) bool {
+	fieldName := p.visitor.operation.FieldNameBytes(path.fieldRef)
+
+	var fieldDefinitionRef int
+	var ok bool
+	switch path.enclosingNode.Kind {
+	case ast.NodeKindObjectTypeDefinition:
+		fieldDefinitionRef, ok = p.visitor.definition.ObjectTypeDefinitionFieldWithName(path.enclosingNode.Ref, fieldName)
+	case ast.NodeKindInterfaceTypeDefinition:
+		fieldDefinitionRef, ok = p.visitor.definition.InterfaceTypeDefinitionFieldWithName(path.enclosingNode.Ref, fieldName)
+	default:
+		return false
+	}
+	if !ok {
+		return false
+	}
+
+	typeName := p.visitor.definition.FieldDefinitionTypeNameBytes(fieldDefinitionRef)
+	node, exists := p.visitor.definition.NodeByName(typeName)
+	if !exists {
+		return false
+	}
+
+	return node.Kind == ast.NodeKindInterfaceTypeDefinition || node.Kind == ast.NodeKindUnionTypeDefinition
+}
+
+func (p *PathBuilder) hasProvidedSuggestionForPath(path *pathConfiguration) bool {
+	for _, suggestion := range p.visitor.nodeSuggestions.items {
+		if suggestion.Path == path.path && suggestion.FieldRef == path.fieldRef && suggestion.IsProvided && !suggestion.IsOrphan {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *PathBuilder) anotherPlannerOwnsFieldPathWithChildren(plannerIdx int, fieldRef int, path string) bool {
+	for i, planner := range p.visitor.planners {
+		if i == plannerIdx {
+			continue
+		}
+		plannerPathConfig, ok := planner.(removablePlannerPathConfiguration)
+		if !ok {
+			continue
+		}
+		if plannerPathConfig.HasPathWithFieldRef(fieldRef) && plannerPathConfig.HasPath(path) && p.plannerHasActivePathPrefix(plannerPathConfig, path) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *PathBuilder) plannerHasActivePathPrefix(planner PlannerPathConfiguration, prefix string) (hasPrefix bool) {
+	planner.ForEachPath(func(path *pathConfiguration) (shouldBreak bool) {
+		if path.path != prefix && strings.HasPrefix(path.path, prefix+".") {
+			hasPrefix = true
+			return true
+		}
+		return false
+	})
+	return hasPrefix
 }
 
 func (p *PathBuilder) printRevisitInfo() {

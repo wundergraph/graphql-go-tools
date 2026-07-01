@@ -45,10 +45,21 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 	parentPath := f.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
 
-	_, found := f.nodes.HasSuggestionForPath(typeName, fieldName, currentPath)
+	suggestion, found := f.nodes.SelectedSuggestionForPath(typeName, fieldName, currentPath)
 	if !found {
 		f.walker.StopWithInternalErr(errors.Wrap(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath}, "nodesResolvableVisitor"))
+		return
 	}
+
+	if f.definition.Index.IsRootOperationTypeNameString(typeName) {
+		return
+	}
+
+	if !suggestion.requiresFallbackKey {
+		return
+	}
+
+	f.walker.StopWithInternalErr(errors.Wrap(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath}, "nodesResolvableVisitor"))
 }
 
 type errOperationFieldNotResolved struct {

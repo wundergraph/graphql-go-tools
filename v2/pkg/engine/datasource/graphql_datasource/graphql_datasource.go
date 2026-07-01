@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astminify"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -735,12 +736,75 @@ func (p *Planner[T]) EnterField(ref int) {
 }
 
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
+	configuredArguments := 0
 	if fieldConfiguration != nil {
 		for i := range fieldConfiguration.Arguments {
+			configuredArguments++
 			argumentConfiguration := fieldConfiguration.Arguments[i]
 			p.configureArgument(upstreamFieldRef, fieldRef, *fieldConfiguration, argumentConfiguration)
 		}
 	}
+	if configuredArguments > 0 || !p.visitor.Operation.FieldHasArguments(fieldRef) {
+		return
+	}
+
+	importer := astimport.Importer{}
+	importedArgs := importer.ImportArguments(p.visitor.Operation.FieldArguments(fieldRef), p.visitor.Operation, p.upstreamOperation)
+	for _, arg := range importedArgs {
+		p.upstreamOperation.AddArgumentToField(upstreamFieldRef, arg)
+	}
+	for _, arg := range p.visitor.Operation.FieldArguments(fieldRef) {
+		p.addVariableDefinitionsForRawArgumentValue(p.visitor.Operation.Arguments[arg].Value)
+	}
+}
+
+func (p *Planner[T]) addVariableDefinitionsForRawArgumentValue(value ast.Value) {
+	switch value.Kind {
+	case ast.ValueKindObject:
+		for _, objectFieldRef := range p.visitor.Operation.ObjectValues[value.Ref].Refs {
+			p.addVariableDefinitionsForRawArgumentValue(p.visitor.Operation.ObjectFields[objectFieldRef].Value)
+		}
+		return
+	case ast.ValueKindList:
+		for _, valueRef := range p.visitor.Operation.ListValues[value.Ref].Refs {
+			p.addVariableDefinitionsForRawArgumentValue(p.visitor.Operation.Values[valueRef])
+		}
+		return
+	case ast.ValueKindVariable:
+	default:
+		return
+	}
+
+	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
+	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
+	variableDefinition, exists := p.visitor.Operation.VariableDefinitionByNameAndOperation(p.visitor.Walker.Ancestors[0].Ref, variableName)
+	if !exists {
+		return
+	}
+
+	variableDefinitionTypeRef := p.visitor.Operation.VariableDefinitions[variableDefinition].Type
+	variableDefinitionTypeName := p.visitor.Operation.ResolveTypeNameString(variableDefinitionTypeRef)
+	variableDefinitionTypeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(variableDefinitionTypeName)
+
+	contextVariable := &resolve.ContextVariable{
+		Path:     []string{variableNameStr},
+		Renderer: resolve.NewJSONVariableRenderer(),
+	}
+	contextVariableName, variableExists := p.variables.AddVariable(contextVariable)
+	if variableExists {
+		return
+	}
+
+	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation, variableDefinitionTypeName)
+	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
+
+	if add, ok := p.addDirectivesToVariableDefinitions[variableDefinition]; ok {
+		for _, directive := range add {
+			p.addDirectiveToNode(directive, ast.Node{Kind: ast.NodeKindVariableDefinition, Ref: variableDefinition})
+		}
+	}
+
+	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
 func (p *Planner[T]) addCustomField(ref int) (upstreamFieldRef int) {
@@ -780,6 +844,12 @@ func (p *Planner[T]) LeaveField(ref int) {
 // This is 3rd step of checks in addition to: planning path and skipFor functionality
 // if field is __typename, it is always allowed
 func (p *Planner[T]) allowField(ref int) bool {
+	// Response-only fields (partial-union members unique to the resolving subgraph)
+	// must appear in the response as null but must NOT be sent upstream.
+	if p.visitor.IsResponseOnlyField(ref) {
+		return false
+	}
+
 	fieldAliasOrName := p.visitor.Operation.FieldAliasOrNameString(ref)
 
 	// In addition, we skip field if its path are equal to planner parent path
