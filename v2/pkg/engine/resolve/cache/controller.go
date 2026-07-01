@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -805,13 +806,6 @@ func ttlForConfig(cfg *resolve.FetchCacheConfig) time.Duration {
 		return cfg.MutationTTLOverride
 	}
 	return cfg.TTL
-}
-
-func renderFirstCandidateKey(session resolve.MergeSession, cfg *resolve.FetchCacheConfig, item *astjson.Value, prefix string) (string, bool) {
-	if len(cfg.KeySpec.Candidates) == 0 {
-		return "", false
-	}
-	return renderEntityKey(session, cfg.KeySpec.Candidates[0].Representation, item, prefix)
 }
 
 func selectMultiCandidateCacheValue(ctx *resolve.Context, session resolve.MergeSession, state *resolve.ItemCacheState, providesData *resolve.Object) bool {

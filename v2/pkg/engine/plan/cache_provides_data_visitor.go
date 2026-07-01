@@ -16,6 +16,7 @@ import (
 
 type cacheProvidesDataVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	config                Configuration
 	planners              []PlannerConfiguration
