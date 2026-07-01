@@ -20,6 +20,10 @@ type Planner struct {
 	planningVisitor *Visitor
 	costVisitor     *CostVisitor
 
+	// cacheProvidesData is the P1 caching walk; constructed only when caching
+	// is configured (nil otherwise, the planner no-op gate).
+	cacheProvidesData *cacheProvidesDataVisitor
+
 	nodeSelectionBuilder *NodeSelectionBuilder
 	planningPathBuilder  *PathBuilder
 
@@ -66,10 +70,16 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	planningVisitor := NewVisitor(&planningWalker)
 	planningVisitor.disableResolveFieldPositions = config.DisableResolveFieldPositions
 
+	var cacheProvidesData *cacheProvidesDataVisitor
+	if len(config.CacheConfigProviders) > 0 {
+		cacheProvidesData = &cacheProvidesDataVisitor{}
+	}
+
 	p := &Planner{
 		config:                 config,
 		planningWalker:         &planningWalker,
 		planningVisitor:        planningVisitor,
+		cacheProvidesData:      cacheProvidesData,
 		prepareOperationWalker: &prepareOperationWalker,
 		deferInfoCollector:     deferInfoCollector,
 	}
@@ -222,6 +232,24 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		costCalc := NewCostCalculator(p.planningVisitor.Config)
 		costCalc.tree = p.costVisitor.finalCostTree()
 		p.planningVisitor.plan.SetCostCalculator(costCalc)
+	}
+
+	// P1 caching walk (D9): a gated SECOND, filter-free walk on the finished
+	// planningWalker. ResetVisitors drops every planning visitor (the plan is
+	// already built and is never rebuilt), the filter is cleared so P1 sees
+	// every field, and only P1 is registered for the walk.
+	if p.cacheProvidesData != nil {
+		p.planningWalker.ResetVisitors()
+		p.planningWalker.SetVisitorFilter(nil)
+		p.cacheProvidesData.walker = p.planningWalker
+		p.cacheProvidesData.reset()
+		p.planningWalker.RegisterEnterFieldVisitor(p.cacheProvidesData)
+		p.planningWalker.RegisterLeaveFieldVisitor(p.cacheProvidesData)
+		p.planningWalker.Walk(operation, definition, report)
+		if report.HasErrors() {
+			return
+		}
+		p.cacheProvidesData.attachTo(p.planningVisitor.plan)
 	}
 
 	// Step 5. Plan is handed over to postprocess.Processor. It checks fetch dependencies and

@@ -3,7 +3,10 @@ package postprocess
 import (
 	"slices"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/cache"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -25,6 +28,9 @@ type Processor struct {
 	responseTreeProcessors *ResponseTreeProcessors
 	extractDeferFetches    *extractDeferFetches
 	buildDeferTree         *buildDeferTree
+	// caching orchestrates the caching passes; with no EnableCaching option it
+	// is a guaranteed no-op (the planner no-op gate lives inside it).
+	caching *cache.Configurator
 }
 
 type FetchTreeProcessors struct {
@@ -71,6 +77,9 @@ type processorOptions struct {
 	collectDataSourceInfo                 bool
 	disableExtractDeferFetches            bool
 	disableBuildDeferTree                 bool
+	cacheProviders                        map[string]cacheconfig.CacheConfigProvider
+	cacheFederation                       map[string]plan.FederationMetaData
+	cacheDefinition                       *ast.Document
 }
 
 type ProcessorOption func(*processorOptions)
@@ -136,6 +145,18 @@ func DisableBuildDeferTree() ProcessorOption {
 	}
 }
 
+// EnableCaching wires the caching postprocess passes. It is an INTERNAL
+// detail: the public entry point is the engine Configuration's SetCaching,
+// which builds these inputs (providers and federation keyed by datasource ID,
+// plus the composed schema) and passes them through.
+func EnableCaching(providers map[string]cacheconfig.CacheConfigProvider, federation map[string]plan.FederationMetaData, definition *ast.Document) ProcessorOption {
+	return func(o *processorOptions) {
+		o.cacheProviders = providers
+		o.cacheFederation = federation
+		o.cacheDefinition = definition
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
@@ -180,6 +201,7 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		buildDeferTree: &buildDeferTree{
 			disable: opts.disableBuildDeferTree,
 		},
+		caching: cache.NewConfigurator(opts.cacheProviders, opts.cacheFederation, opts.cacheDefinition),
 	}
 }
 
@@ -194,6 +216,8 @@ func (p *Processor) Process(pre plan.Plan) {
 		// initialize the fetch tree
 		p.createFetchTree(t.Response)
 		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Fetches)
+		// caching passes run on the flat tree, after the concrete fetch types exist
+		p.caching.ConfigureCaching(t.Response, t.Response.Fetches)
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Fetches)
 
 	case *plan.DeferResponsePlan:
@@ -203,6 +227,10 @@ func (p *Processor) Process(pre plan.Plan) {
 
 		// extract deferred fetches into their own fetch trees
 		p.extractDeferFetches.Process(t)
+
+		// caching passes run over the initial tree AND every defer-group tree,
+		// before the trees are organized and the defer tree is built
+		p.caching.ConfigureCaching(t.Response.Response, deferTrees(t)...)
 
 		// process the initial response fetch tree
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Response.Fetches)
@@ -223,12 +251,25 @@ func (p *Processor) Process(pre plan.Plan) {
 		p.appendTriggerToFetchTree(t.Response)
 
 		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Response.Fetches)
+		p.caching.ConfigureCaching(t.Response.Response, t.Response.Response.Fetches)
 
 		// resolve input template for the root query in the subscription trigger
 		p.fetchTreeProcessors.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
 
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Response.Fetches)
 	}
+}
+
+// deferTrees collects the initial response fetch tree plus every defer-group
+// tree of a defer plan, so the caching passes see all trees of one response
+// (cross-tree passes like optimizeL1Cache need the full set).
+func deferTrees(d *plan.DeferResponsePlan) []*resolve.FetchTreeNode {
+	trees := make([]*resolve.FetchTreeNode, 0, 1+len(d.Response.Defers))
+	trees = append(trees, d.Response.Response.Fetches)
+	for _, g := range d.Response.Defers {
+		trees = append(trees, g.Fetches)
+	}
+	return trees
 }
 
 // createFetchTree creates an initial fetch tree from the raw fetches in the GraphQL response.
