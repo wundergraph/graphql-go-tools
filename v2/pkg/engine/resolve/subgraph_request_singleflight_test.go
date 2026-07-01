@@ -23,6 +23,14 @@ func (s *stubFetch) FetchInfo() *FetchInfo {
 	return s.info
 }
 
+func (s *stubFetch) CacheConfig() *FetchCacheConfig { return nil }
+
+func (s *stubFetch) SetCacheConfig(*FetchCacheConfig) {}
+
+func (s *stubFetch) IsEntityFetch() bool { return false }
+
+func (s *stubFetch) IsBatchEntityFetch() bool { return false }
+
 type nilInfoFetch struct{}
 
 func (n *nilInfoFetch) FetchKind() FetchKind {
@@ -36,6 +44,14 @@ func (n *nilInfoFetch) Dependencies() *FetchDependencies {
 func (n *nilInfoFetch) FetchInfo() *FetchInfo {
 	return nil
 }
+
+func (n *nilInfoFetch) CacheConfig() *FetchCacheConfig { return nil }
+
+func (n *nilInfoFetch) SetCacheConfig(*FetchCacheConfig) {}
+
+func (n *nilInfoFetch) IsEntityFetch() bool { return false }
+
+func (n *nilInfoFetch) IsBatchEntityFetch() bool { return false }
 
 func newFetchItem(info *FetchInfo) *FetchItem {
 	return &FetchItem{

@@ -23,6 +23,23 @@ type Fetch interface {
 	// FetchInfo returns additional fetch-related information.
 	// Callers must treat FetchInfo as read-only after planning; it may be nil when disabled by planner options.
 	FetchInfo() *FetchInfo
+
+	// CacheConfig returns the per-fetch cache config; nil means "not cached".
+	// All caching code reads it through this method (never via a switch over
+	// concrete fetch types).
+	CacheConfig() *FetchCacheConfig
+
+	// SetCacheConfig sets the per-fetch cache config; the caching planner passes
+	// call it after the concrete fetch types are created.
+	SetCacheConfig(cfg *FetchCacheConfig)
+
+	// IsEntityFetch reports whether this is a single-entity fetch (an _entities
+	// fetch on an object field).
+	IsEntityFetch() bool
+
+	// IsBatchEntityFetch reports whether this is a batched entity fetch (an
+	// _entities fetch over array items).
+	IsBatchEntityFetch() bool
 }
 
 type FetchItem struct {
@@ -111,6 +128,22 @@ func (s *SingleFetch) FetchInfo() *FetchInfo {
 	return s.Info
 }
 
+func (s *SingleFetch) CacheConfig() *FetchCacheConfig {
+	return s.FetchConfiguration.Cache
+}
+
+func (s *SingleFetch) SetCacheConfig(cfg *FetchCacheConfig) {
+	s.FetchConfiguration.Cache = cfg
+}
+
+func (s *SingleFetch) IsEntityFetch() bool {
+	return false
+}
+
+func (s *SingleFetch) IsBatchEntityFetch() bool {
+	return false
+}
+
 // FetchDependencies holding current fetch id and ids of fetches that current fetch depends on
 // e.g. should be fetched only after all dependent fetches are fetched
 type FetchDependencies struct {
@@ -169,6 +202,7 @@ type BatchEntityFetch struct {
 	Input                BatchInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
+	Cache                *FetchCacheConfig
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
@@ -180,6 +214,22 @@ func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
 
 func (b *BatchEntityFetch) FetchInfo() *FetchInfo {
 	return b.Info
+}
+
+func (b *BatchEntityFetch) CacheConfig() *FetchCacheConfig {
+	return b.Cache
+}
+
+func (b *BatchEntityFetch) SetCacheConfig(cfg *FetchCacheConfig) {
+	b.Cache = cfg
+}
+
+func (b *BatchEntityFetch) IsEntityFetch() bool {
+	return false
+}
+
+func (b *BatchEntityFetch) IsBatchEntityFetch() bool {
+	return true
 }
 
 type BatchInput struct {
@@ -209,6 +259,7 @@ type EntityFetch struct {
 	Input                EntityInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
+	Cache                *FetchCacheConfig
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
@@ -220,6 +271,22 @@ func (e *EntityFetch) Dependencies() *FetchDependencies {
 
 func (e *EntityFetch) FetchInfo() *FetchInfo {
 	return e.Info
+}
+
+func (e *EntityFetch) CacheConfig() *FetchCacheConfig {
+	return e.Cache
+}
+
+func (e *EntityFetch) SetCacheConfig(cfg *FetchCacheConfig) {
+	e.Cache = cfg
+}
+
+func (e *EntityFetch) IsEntityFetch() bool {
+	return true
+}
+
+func (e *EntityFetch) IsBatchEntityFetch() bool {
+	return false
 }
 
 type EntityInput struct {
@@ -278,6 +345,10 @@ type FetchConfiguration struct {
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
+
+	// Cache is the per-fetch cache config; nil means "not cached". A pointer so
+	// most (uncached) fetches carry no inline struct.
+	Cache *FetchCacheConfig
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -302,6 +373,12 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 		return false
 	}
 	if fc.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
+		return false
+	}
+	if (fc.Cache == nil) != (other.Cache == nil) {
+		return false
+	}
+	if fc.Cache != nil && !fc.Cache.Equals(other.Cache) {
 		return false
 	}
 

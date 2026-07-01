@@ -11,7 +11,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | # | Task | Status | Commit(s) | Notes / deviations |
 |---|---|---|---|---|
 | 01 | representationvariable extraction | done | ca0ec6fb | Pure move; tests moved and extended with an entity-interface case per the task file. |
-| 02 | runtime contract + loader seam | todo | — | — |
+| 02 | runtime contract + loader seam | done | (see git log) | D2/D4/D8 applied; ShadowCacheEntry/ItemCacheState kept to RFC shape (first-pass extras not ported); reviewer notes in reviews/02-*.md. |
 | 03 | planner wiring + engine SetCaching | todo | — | — |
 | 04 | test infrastructure | todo | — | — |
 | 05 | ProvidesData visitor (P1) | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 02 (runtime contract + loader seam; no dependencies).
+- Next step: task 03 (planner wiring + engine SetCaching; deps 01 + 02 are done).
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -42,4 +42,10 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Decision log (execution-time decisions not already in PLAN §7)
 
-- none yet
+- 2026-07-01 (user directive): every task commit ships a reviewer document under `docs/caching/reviews/NN-<task>.md`,
+  explaining the decisions of that turn, what was implemented, and what the reviewer should look into.
+  Task 01's document was backfilled in the task 02 commit.
+- Task 02: `ShadowCacheEntry` and `ItemCacheState` follow the RFC-1 §3.7 field set;
+  the first-pass extras (`ShadowCacheEntry.CacheTTL`, per-item `BatchEntityKey`) were not ported — tasks 10/12 add them only if actually needed.
+- Task 02: no existing fetch-type-switch site qualified for the sanctioned predicate cleanup
+  (`preparePhase` needs the concrete types; `isEmptyEntityFetch` already dispatches via `FetchKind()`).
