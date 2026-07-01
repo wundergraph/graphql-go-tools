@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"cmp"
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -767,9 +768,10 @@ type nodeInfo struct {
 	// jumpCount is the number of jumps to the node
 	jumpCount          int
 	hasSelectedSibling bool
+	selectableChilds   int
 }
 
-func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool), checkSelectedSiblings bool) (nodeIsSelected bool) {
+func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool), usePriority bool) (nodeIsSelected bool) {
 	allowedToSelect := make([]int, 0, len(duplicates))
 
 	for _, i := range duplicates {
@@ -794,11 +796,18 @@ func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx in
 		}
 
 		hasSelectedSibling := false
-		if checkSelectedSiblings {
+		countOfSelectableChilds := 0
+		if usePriority {
 			for _, sibling := range f.nodes.siblingNodesOnSameSource(i) {
 				if f.nodes.items[sibling].Selected {
 					hasSelectedSibling = true
 					break
+				}
+			}
+
+			for _, child := range f.nodes.childNodesOnSameSource(i) {
+				if !f.nodes.items[child].IsExternal || f.nodes.items[child].IsProvided {
+					countOfSelectableChilds++
 				}
 			}
 		}
@@ -810,9 +819,14 @@ func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx in
 		})
 	}
 
-	// sort by the number of jumps and selected siblings
+	// sort by the number of jumps, selectable child count, selected siblings
 	slices.SortFunc(nodesInfos, func(a, b nodeInfo) int {
-		if checkSelectedSiblings {
+		if usePriority {
+			// desc on count
+			if n := cmp.Compare(b.selectableChilds, a.selectableChilds); n != 0 {
+				return n
+			}
+
 			if a.hasSelectedSibling != b.hasSelectedSibling {
 				if a.hasSelectedSibling {
 					return -1 // a comes first
@@ -824,7 +838,7 @@ func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx in
 		}
 
 		// acs order from 0 to n
-		return a.jumpCount - b.jumpCount
+		return cmp.Compare(a.jumpCount, b.jumpCount)
 	})
 
 	for _, j := range nodesInfos {
