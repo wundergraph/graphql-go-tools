@@ -114,6 +114,17 @@ type result struct {
 	fetchSkipped     bool
 	nestedMergeItems []*result
 
+	// response / responseData / responseHasErrors surface what mergeResult
+	// already computes to the cache merge hook: the FULL parsed response (the
+	// input isEmptyEntityFetch needs), the data sub-path (what a cache would
+	// persist), and the GraphQL-errors flag. response is assigned only after a
+	// successful parse, so response == nil is the structural fetch-failed
+	// signal (transport / empty body / parse failure). All three are dead
+	// weight when caching is off (written, never read).
+	response          *astjson.Value
+	responseData      *astjson.Value
+	responseHasErrors bool
+
 	statusCode int
 	err        error
 	// subgraphError is THIS fetch's own subgraph error (errors.Join of res.err and
@@ -394,10 +405,18 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	if prepared == nil {
 		return nil
 	}
+	// The two cache hooks bracket the network load and run OUTSIDE the phase
+	// locks, so the controller's CacheTransaction is the single DataBuffer.Lock
+	// acquisition around its arena work. Both are no-ops when no cache
+	// controller is set.
+	l.cachePrepare(prepared)
 	if err := l.loadPhase(ctx, prepared); err != nil {
 		return errors.WithStack(err)
 	}
-	return l.mergePhase(prepared)
+	if err := l.mergePhase(prepared); err != nil {
+		return errors.WithStack(err)
+	}
+	return l.cacheMerge(prepared)
 }
 
 type preparedFetch struct {
@@ -409,6 +428,106 @@ type preparedFetch struct {
 	trace      *DataSourceLoadTrace
 	skipLoad   bool
 	batchFetch bool
+	// cacheHandle is the opaque per-fetch cache state returned by PrepareFetch,
+	// threaded to the merge hook; nil when the controller did not touch the fetch.
+	cacheHandle *FetchCacheHandle
+}
+
+// cacheRequest lazily obtains the request-lifetime cache working surface. The
+// once-create runs under DataBuffer.Lock so it is race-free across the
+// parallel fetches of a group and across per-defer-group Loaders (there is
+// exactly one DataBuffer per request). It does NOT hold the lock across the
+// hook: PrepareFetch / OnFetch* open their own CacheTransaction for arena work.
+func (l *Loader) cacheRequest() RequestCache {
+	if l.ctx.cacheController == nil {
+		return nil
+	}
+	l.dataBuffer.Lock()
+	defer l.dataBuffer.Unlock()
+	if l.ctx.requestCache == nil {
+		l.ctx.requestCache = l.ctx.cacheController.BeginRequest(l.ctx)
+	}
+	return l.ctx.requestCache
+}
+
+// cachePrepare is the pre-load cache hook: lookup + coverage + decision. It
+// early-returns on every render-skip (a fetch the loader already decided to
+// skip is not a cache decision) and when the fetch carries no cache config, so
+// the no-controller / no-config path costs nothing.
+func (l *Loader) cachePrepare(prepared *preparedFetch) {
+	if prepared == nil || prepared.skipLoad {
+		return
+	}
+	cfg := prepared.item.Fetch.CacheConfig()
+	if cfg == nil || (!cfg.L1 && !cfg.L2) {
+		return
+	}
+	rc := l.cacheRequest()
+	if rc == nil {
+		return
+	}
+	_, hash := l.ctx.HeadersForSubgraphRequest(prepared.res.ds.Name)
+	decision, handle := rc.PrepareFetch(PrepareFetchInput{
+		Ctx:        l.ctx,
+		Item:       prepared.item,
+		Items:      prepared.items,
+		Config:     cfg,
+		BatchStats: prepared.res.batchStats,
+		Input:      prepared.input,
+		HeaderHash: hash,
+		Arena:      l.cacheTransactions(),
+	})
+	prepared.cacheHandle = handle
+	if decision == DecisionSkipFullHit {
+		// Full hit: skip the network AND the merge. skipLoad makes loadPhase
+		// early-return; fetchSkipped reuses the existing mergeResult early-return
+		// so no spurious "failed to fetch" error is rendered for the empty res.out.
+		// DecisionFetch / DecisionFetchShadow / DecisionFetchPartial leave the
+		// load in place; the handle drives the merge dispatch.
+		prepared.skipLoad = true
+		prepared.res.fetchSkipped = true
+	}
+}
+
+// cacheMerge is the post-merge cache hook: write / skip-splice / shadow. It is
+// gated only on the handle, so it never fires for fetches the controller did
+// not touch.
+func (l *Loader) cacheMerge(prepared *preparedFetch) error {
+	h := prepared.cacheHandle
+	if h == nil {
+		return nil
+	}
+	res := prepared.res
+	in := MergeInput{
+		Item:         prepared.item,
+		Items:        prepared.items,
+		ResponseData: res.responseData,
+		BatchStats:   res.batchStats,
+		MergePath:    res.postProcessing.MergePath,
+		HasErrors:    res.responseHasErrors,
+		FetchFailed:  res.err != nil || len(res.out) == 0 || res.response == nil,
+		StatusCode:   res.statusCode,
+		Arena:        l.cacheTransactions(),
+	}
+	if res.response != nil {
+		// Only meaningful (and only nil-safe) when a response actually parsed;
+		// on a full-hit skip res.response is nil and EmptyEntity is irrelevant
+		// because cacheMerge dispatches to OnFetchSkipped, which ignores it.
+		in.EmptyEntity = isEmptyEntityFetch(prepared.item, res.response)
+	}
+	rc := l.cacheRequest() // already created during cachePrepare; non-nil because h != nil
+	switch h.Decision {
+	case DecisionSkipFullHit, DecisionFetchPartial:
+		return rc.OnFetchSkipped(h, in)
+	default: // DecisionFetch, DecisionFetchShadow
+		return rc.OnFetchResult(h, in)
+	}
+}
+
+// cacheTransactions returns the TransactionBeginner bound to this request's
+// shared jsonArena and DataBuffer guard. Built only when a cache hook runs.
+func (l *Loader) cacheTransactions() TransactionBeginner {
+	return cacheTransactionBeginner{a: l.jsonArena, db: l.dataBuffer}
 }
 
 func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
@@ -633,6 +752,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
+	res.response = response
 
 	if l.allowCustomExtensionProperties {
 		extensions := response.Get("extensions")
@@ -648,6 +768,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	} else {
 		responseData = response
 	}
+	res.responseData = responseData
 
 	hasErrors := false
 
@@ -678,6 +799,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			}
 		}
 	}
+	res.responseHasErrors = hasErrors
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {

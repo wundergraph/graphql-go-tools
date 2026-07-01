@@ -43,6 +43,13 @@ type Context struct {
 	rateLimiter   RateLimiter
 	fieldRenderer FieldValueRenderer
 
+	// cacheController is the long-lived caching port (see SetCacheController);
+	// requestCache is the per-request working surface it hands back, created
+	// lazily under DataBuffer.Lock and shared by reference across all
+	// per-defer-group Loaders of this request.
+	cacheController CacheController
+	requestCache    RequestCache
+
 	subgraphErrors map[string]error
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
@@ -190,6 +197,22 @@ func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
 }
 
+// SetCacheController wires the caching lifecycle port, mirroring SetAuthorizer.
+// A nil controller (the default) keeps the loader on its cache-free path.
+func (c *Context) SetCacheController(controller CacheController) {
+	c.cacheController = controller
+}
+
+// endCacheRequest finalizes the per-request cache surface (flushing deferred
+// writes) and resets it. It is idempotent and a no-op when caching was never
+// used; deferred at every request entry function.
+func (c *Context) endCacheRequest() {
+	if c.requestCache != nil {
+		c.requestCache.EndRequest()
+		c.requestCache = nil
+	}
+}
+
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
 }
@@ -283,6 +306,10 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 func (c *Context) clone(ctx context.Context) *Context {
 	cpy := *c
 	cpy.ctx = ctx
+	// A cloned resolution (e.g. a subscription event) is a separate request and
+	// must build its own per-request cache surface; the controller port itself
+	// is carried over by the value copy above.
+	cpy.requestCache = nil
 	if c.Variables != nil {
 		variablesData := c.Variables.MarshalTo(nil)
 		cpy.Variables = astjson.MustParseBytes(variablesData)
@@ -305,6 +332,9 @@ func (c *Context) clone(ctx context.Context) *Context {
 }
 
 func (c *Context) Free() {
+	// Defensive: the entry-function defers normally end the cache request; this
+	// covers a Context recycled without passing through one.
+	c.endCacheRequest()
 	c.ctx = nil
 	c.Variables = nil
 	c.Files = nil
@@ -315,6 +345,7 @@ func (c *Context) Free() {
 	c.Extensions = nil
 	c.subgraphErrors = nil
 	c.authorizer = nil
+	c.cacheController = nil
 	c.LoaderHooks = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil

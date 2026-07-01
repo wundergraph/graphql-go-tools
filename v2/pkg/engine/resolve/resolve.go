@@ -337,6 +337,8 @@ type GraphQLResolveInfo struct {
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
+	defer ctx.endCacheRequest()
+
 	resp := &GraphQLResolveInfo{}
 
 	start := time.Now()
@@ -381,6 +383,8 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 }
 
 func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
+	defer ctx.endCacheRequest()
+
 	resp := &GraphQLResolveInfo{}
 
 	inflight, err := r.inboundRequestSingleFlight.GetOrCreate(ctx, response)
@@ -470,6 +474,8 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 }
 
 func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDeferResponse, writer DeferResponseWriter) (*GraphQLResolveInfo, error) {
+	defer ctx.endCacheRequest()
+
 	resolveInfo := &GraphQLResolveInfo{}
 
 	start := time.Now()
@@ -884,6 +890,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	defer cancel()
 
 	resolveCtx = resolveCtx.WithContext(ctx)
+	defer resolveCtx.endCacheRequest()
 
 	// Copy the input.
 	input := make([]byte, len(sharedInput))
