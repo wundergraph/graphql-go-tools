@@ -45,32 +45,52 @@ func (c *fetchCacheConfigurator) buildConfig(fetch resolve.Fetch, pd map[*resolv
 	if provider == nil {
 		return nil
 	}
-	if !fetch.IsEntityFetch() && !fetch.IsBatchEntityFetch() {
-		// Root-field caching lands with task 13.
-		return nil
-	}
-
-	policy, ok := provider.EntityPolicy(info.RootFields[0].TypeName)
-	if !ok {
-		return nil
-	}
-	spec, ok := c.keyBuilder.buildEntitySpec(info)
-	if !ok {
-		return nil
-	}
-	cfg := resolve.FetchCacheConfig{
-		// L1 marks ELIGIBILITY here; optimizeL1Cache (task 16) narrows it to
-		// the fetches whose values are actually reusable within the request.
-		L1:                          true,
-		L2:                          policy.TTL > 0 || policy.NegativeCacheTTL > 0,
-		CacheName:                   policy.CacheName,
-		TTL:                         policy.TTL,
-		NegativeCacheTTL:            policy.NegativeCacheTTL,
-		IncludeSubgraphHeaderPrefix: policy.IncludeSubgraphHeaderPrefix,
-		EnablePartialCacheLoad:      policy.EnablePartialCacheLoad,
-		ShadowMode:                  policy.ShadowMode,
-		HashAnalyticsKeys:           policy.HashAnalyticsKeys,
-		KeySpec:                     spec,
+	var cfg resolve.FetchCacheConfig
+	if fetch.IsEntityFetch() || fetch.IsBatchEntityFetch() {
+		policy, ok := provider.EntityPolicy(info.RootFields[0].TypeName)
+		if !ok {
+			return nil
+		}
+		spec, ok := c.keyBuilder.buildEntitySpec(info)
+		if !ok {
+			return nil
+		}
+		cfg = resolve.FetchCacheConfig{
+			// L1 marks ELIGIBILITY here; optimizeL1Cache (task 16) narrows it
+			// to the fetches whose values are actually reusable within the
+			// request.
+			L1:                          true,
+			L2:                          policy.TTL > 0 || policy.NegativeCacheTTL > 0,
+			CacheName:                   policy.CacheName,
+			TTL:                         policy.TTL,
+			NegativeCacheTTL:            policy.NegativeCacheTTL,
+			IncludeSubgraphHeaderPrefix: policy.IncludeSubgraphHeaderPrefix,
+			EnablePartialCacheLoad:      policy.EnablePartialCacheLoad,
+			ShadowMode:                  policy.ShadowMode,
+			HashAnalyticsKeys:           policy.HashAnalyticsKeys,
+			KeySpec:                     spec,
+		}
+	} else {
+		policy, ok := rootFieldPolicyForAllRootFields(provider, info)
+		if !ok {
+			return nil
+		}
+		spec, ok := c.keyBuilder.buildRootFieldSpec(info)
+		if !ok {
+			return nil
+		}
+		cfg = resolve.FetchCacheConfig{
+			// Root fields act only as L2 providers; root->entity L1 promotion
+			// is an out-of-core follow-up.
+			L1:                          false,
+			L2:                          policy.TTL > 0,
+			CacheName:                   policy.CacheName,
+			TTL:                         policy.TTL,
+			IncludeSubgraphHeaderPrefix: policy.IncludeSubgraphHeaderPrefix,
+			ShadowMode:                  policy.ShadowMode,
+			PartialBatchLoad:            policy.PartialBatchLoad,
+			KeySpec:                     spec,
+		}
 	}
 	cfg.ProvidesData = pd[info]
 	if cfg.ProvidesData != nil {
@@ -82,4 +102,35 @@ func (c *fetchCacheConfigurator) buildConfig(fetch resolve.Fetch, pd map[*resolv
 		return nil
 	}
 	return &cfg
+}
+
+// rootFieldPolicyForAllRootFields returns a policy only when EVERY root field
+// of the fetch resolves to the SAME policy. A merged fetch mixing policies (or
+// mixing cached and uncached fields) declines caching entirely — the
+// conservative safety net; task 14 splits such fetches so the decline stays a
+// rare residual.
+func rootFieldPolicyForAllRootFields(provider cacheconfig.CacheConfigProvider, info *resolve.FetchInfo) (cacheconfig.RootFieldCachePolicy, bool) {
+	first, ok := provider.RootFieldPolicy(info.RootFields[0].TypeName, info.RootFields[0].FieldName)
+	if !ok {
+		return cacheconfig.RootFieldCachePolicy{}, false
+	}
+	for _, rootField := range info.RootFields[1:] {
+		policy, ok := provider.RootFieldPolicy(rootField.TypeName, rootField.FieldName)
+		if !ok || !sameRootFieldCachePolicy(first, policy) {
+			return cacheconfig.RootFieldCachePolicy{}, false
+		}
+	}
+	return first, true
+}
+
+// sameRootFieldCachePolicy compares the policy VALUES, excluding the
+// coordinate: a merged fetch whose root fields all carry equal cache settings
+// is cacheable as one unit (the value covers all its fields; coverage guards
+// servability).
+func sameRootFieldCachePolicy(a, b cacheconfig.RootFieldCachePolicy) bool {
+	return a.CacheName == b.CacheName &&
+		a.TTL == b.TTL &&
+		a.IncludeSubgraphHeaderPrefix == b.IncludeSubgraphHeaderPrefix &&
+		a.ShadowMode == b.ShadowMode &&
+		a.PartialBatchLoad == b.PartialBatchLoad
 }

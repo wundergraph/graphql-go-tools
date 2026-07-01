@@ -70,3 +70,18 @@ func (b *cacheKeyBuilder) buildEntitySpec(info *resolve.FetchInfo) (resolve.Cach
 	}
 	return spec, true
 }
+
+// buildRootFieldSpec builds the key spec for a root-field fetch: scope +
+// the fetch's first root-field coordinate. Root-field keys carry no @key
+// candidates (the value is whole-response scoped); entity-key mappings for
+// by-key root fields land with task 15.
+func (b *cacheKeyBuilder) buildRootFieldSpec(info *resolve.FetchInfo) (resolve.CacheKeySpec, bool) {
+	if info == nil || len(info.RootFields) == 0 {
+		return resolve.CacheKeySpec{}, false
+	}
+	return resolve.CacheKeySpec{
+		Scope:     resolve.CacheScopeRootField,
+		TypeName:  info.RootFields[0].TypeName,
+		FieldName: info.RootFields[0].FieldName,
+	}, true
+}
