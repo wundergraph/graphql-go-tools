@@ -26,6 +26,25 @@ func (d *_errorReturningDataSource) LoadWithFiles(ctx context.Context, headers h
 	return nil, d.err
 }
 
+// _errorWithStatusCodeDataSource implements DataSource and both sets an HTTP status code AND returns an error.
+// This simulates a fetch that fails at the transport level but still has a status code (e.g. HTTP client
+// received a 502 response but could not read the body).
+type _errorWithStatusCodeDataSource struct {
+	err        error
+	statusCode int
+}
+
+func (d *_errorWithStatusCodeDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	if rc := httpclient.GetResponseContext(ctx); rc != nil {
+		rc.StatusCode = d.statusCode
+	}
+	return nil, d.err
+}
+
+func (d *_errorWithStatusCodeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return d.Load(ctx, headers, input)
+}
+
 // _statusCodeDataSource implements DataSource and injects an HTTP status code into the response context.
 type _statusCodeDataSource struct {
 	data       string

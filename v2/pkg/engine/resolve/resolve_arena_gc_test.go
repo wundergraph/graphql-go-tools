@@ -817,6 +817,26 @@ func TestArenaGCSafety_ApolloRouterCompatError_StatusFallback(t *testing.T) {
 	assert.Equal(t, `{"errors":[{"message":"HTTP fetch failed from 'testService': 504: Gateway Timeout","path":[],"extensions":{"code":"SUBREQUEST_HTTP_ERROR","service":"testService","reason":"504: Gateway Timeout","http":{"status":504}}}],"data":{"field":null}}`, output)
 }
 
+func TestArenaGCSafety_ApolloRouterCompatError_FailedToFetch(t *testing.T) {
+	// Covers: renderErrorsFailedToFetch attaching addApolloRouterCompatibilityError.
+	// When a fetch returns an error AND a non-2XX status code (e.g. HTTP client got a 502
+	// but failed to read the body), the SUBREQUEST_HTTP_ERROR code must still be attached.
+	opts := baseResolverOpts()
+	opts.ApolloRouterCompatibilitySubrequestHTTPError = true
+	resolver := newTestResolver(t, opts)
+	output := resolveWithGCPressure(t, resolver,
+		func() *Context { return NewContext(context.Background()) },
+		func() *GraphQLResponse {
+			resp, _ := gcTestResponse(&_errorWithStatusCodeDataSource{
+				err:        errors.New("connection reset"),
+				statusCode: 502,
+			})
+			return resp
+		},
+	)
+	assert.Equal(t, `{"errors":[{"message":"HTTP fetch failed from 'testService': 502: Bad Gateway","path":[],"extensions":{"code":"SUBREQUEST_HTTP_ERROR","service":"testService","reason":"502: Bad Gateway","http":{"status":502}}}],"data":{"field":null}}`, output)
+}
+
 func TestArenaGCSafety_SubgraphStatusCodeInExtensions(t *testing.T) {
 	// Covers: setSubgraphStatusCode (adds statusCode to existing and new extensions)
 	opts := baseResolverOpts()

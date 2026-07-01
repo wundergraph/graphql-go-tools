@@ -48,6 +48,10 @@ const (
 	// upstream path, so output ordering is unchanged. When this flag is false the original
 	// recursive path runs unchanged.
 	MemoizeFetchDependencyOrdering = true
+
+	// ApolloRouterCompatibilitySubrequestHTTPError makes the Loader attach the SUBREQUEST_HTTP_ERROR
+	// code to non-2XX responses with no GraphQL errors body. This is a compatibility mode for Apollo Router.
+	ApolloRouterCompatibilitySubrequestHTTPError = true
 )
 
 var (

@@ -28,6 +28,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/mondaytweaks"
 )
 
 const (
@@ -1090,6 +1091,13 @@ func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
 	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+
+	// Wrap the error in a SUBREQUEST_HTTP_ERROR code if the Apollo Router compatibility mode is enabled
+	// This way we can avoid exposing subgraph architecture to clients
+	if mondaytweaks.ApolloRouterCompatibilitySubrequestHTTPError && l.apolloRouterCompatibilitySubrequestHTTPError && res.statusCode >= 400 {
+		return l.addApolloRouterCompatibilityError(res)
+	}
+
 	errorObject, err := astjson.ParseWithArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
@@ -1116,7 +1124,7 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 	// When that compatibility mode is enabled for a server/client error, emit the same
 	// coded error here instead of a bare status message so status-only failures are shaped
 	// identically to the errors-body path and downstream consumers can normalize them.
-	if l.apolloRouterCompatibilitySubrequestHTTPError && statusCode >= 400 {
+	if mondaytweaks.ApolloRouterCompatibilitySubrequestHTTPError && l.apolloRouterCompatibilitySubrequestHTTPError && statusCode >= 400 {
 		return l.addApolloRouterCompatibilityError(res)
 	}
 
