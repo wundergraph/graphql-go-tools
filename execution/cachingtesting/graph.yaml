@@ -1,0 +1,18 @@
+version: 1
+subgraphs:
+  - name: products
+    routing_url: http://products.service
+    schema:
+      file: subgraphs/products.graphql
+  - name: inventory
+    routing_url: http://inventory.service
+    schema:
+      file: subgraphs/inventory.graphql
+  - name: reviews
+    routing_url: http://reviews.service
+    schema:
+      file: subgraphs/reviews.graphql
+  - name: users
+    routing_url: http://users.service
+    schema:
+      file: subgraphs/users.graphql

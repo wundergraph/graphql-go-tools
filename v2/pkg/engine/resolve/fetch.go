@@ -40,6 +40,11 @@ type Fetch interface {
 	// IsBatchEntityFetch reports whether this is a batched entity fetch (an
 	// _entities fetch over array items).
 	IsBatchEntityFetch() bool
+
+	// SetDataSource replaces the fetch's transport, e.g. to swap in an
+	// in-process fake; it exists so no caller needs a switch over concrete
+	// fetch types.
+	SetDataSource(ds DataSource)
 }
 
 type FetchItem struct {
@@ -144,6 +149,10 @@ func (s *SingleFetch) IsBatchEntityFetch() bool {
 	return false
 }
 
+func (s *SingleFetch) SetDataSource(ds DataSource) {
+	s.FetchConfiguration.DataSource = ds
+}
+
 // FetchDependencies holding current fetch id and ids of fetches that current fetch depends on
 // e.g. should be fetched only after all dependent fetches are fetched
 type FetchDependencies struct {
@@ -232,6 +241,10 @@ func (b *BatchEntityFetch) IsBatchEntityFetch() bool {
 	return true
 }
 
+func (b *BatchEntityFetch) SetDataSource(ds DataSource) {
+	b.DataSource = ds
+}
+
 type BatchInput struct {
 	Header InputTemplate
 	Items  []InputTemplate
@@ -287,6 +300,10 @@ func (e *EntityFetch) IsEntityFetch() bool {
 
 func (e *EntityFetch) IsBatchEntityFetch() bool {
 	return false
+}
+
+func (e *EntityFetch) SetDataSource(ds DataSource) {
+	e.DataSource = ds
 }
 
 type EntityInput struct {

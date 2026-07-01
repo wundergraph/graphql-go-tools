@@ -79,6 +79,13 @@ func (e *Configuration) DataSources() []plan.DataSource {
 	return e.plannerConfig.DataSources
 }
 
+// PlannerConfig returns the built planner configuration. It exists for test
+// harnesses that drive the real v2 planner directly from a composed router
+// config; production code goes through NewExecutionEngine.
+func (e *Configuration) PlannerConfig() plan.Configuration {
+	return e.plannerConfig
+}
+
 func (e *Configuration) FieldConfigurations() plan.FieldConfigurations {
 	return e.plannerConfig.Fields
 }
