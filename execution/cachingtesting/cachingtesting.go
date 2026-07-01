@@ -38,6 +38,20 @@ type PlanResult struct {
 	Response      *resolve.GraphQLResponse
 	DeferResponse *resolve.GraphQLDeferResponse
 	Fakes         *cachetesting.FakeRegistry
+
+	// nameToID translates subgraph names to the ID-named datasources of the
+	// factory-built configuration, so tests can keep using subgraph names.
+	nameToID map[string]string
+}
+
+// LoadCount returns how often the fake datasource for the given SUBGRAPH NAME
+// loaded at the given response path.
+func (r PlanResult) LoadCount(subgraphName, path string) int64 {
+	id, ok := r.nameToID[subgraphName]
+	if !ok {
+		id = subgraphName
+	}
+	return r.Fakes.LoadCount(id, path)
 }
 
 // Plan runs the real planner + postprocess over query against the committed
@@ -105,7 +119,8 @@ func Plan(tb testing.TB, query string, caching map[string]cacheconfig.CachingCon
 	postprocess.NewProcessor(processorOptions...).Process(raw)
 
 	result := PlanResult{
-		Fakes: cachetesting.NewFakeRegistry(translateResponseKeys(responses, nameToID)),
+		Fakes:    cachetesting.NewFakeRegistry(translateResponseKeys(responses, nameToID)),
+		nameToID: nameToID,
 	}
 	switch p := raw.(type) {
 	case *plan.SynchronousResponsePlan:
