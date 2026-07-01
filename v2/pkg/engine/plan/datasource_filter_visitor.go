@@ -456,7 +456,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			}
 
 			return false
-		}) {
+		}, false) {
 			continue
 		}
 
@@ -465,7 +465,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		if f.checkNodes(itemIDs, f.checkNodeChilds, func(i int) (skip bool) {
 			// do not evaluate childs for the leaf nodes
 			return f.nodes.items[i].IsLeaf
-		}) {
+		}, false) {
 			continue
 		}
 
@@ -479,7 +479,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 			// we should not select a __typename field based on a sibling, unless it is on a root query type
 			return f.nodes.items[i].isTypeName && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
-		}) {
+		}, false) {
 			continue
 		}
 
@@ -536,7 +536,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 
 				return true
-			}) {
+			}, true) {
 			continue
 		}
 
@@ -562,7 +562,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 
 				return false
-			}) {
+			}, true) {
 			continue
 		}
 
@@ -611,7 +611,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 
 				return !f.nodeCouldProvideKeysToChildNodes(i)
-			}) {
+			}, false) {
 			continue
 		}
 
@@ -641,7 +641,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 				return false
 			},
-			nil) {
+			nil, false) {
 			continue
 		}
 
@@ -761,14 +761,15 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(
 	return true
 }
 
-type nodeJump struct {
+type nodeInfo struct {
 	// nodeIdx is the index of the node in the nodes slice
 	nodeIdx int
 	// jumpCount is the number of jumps to the node
-	jumpCount int
+	jumpCount          int
+	hasSelectedSibling bool
 }
 
-func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool)) (nodeIsSelected bool) {
+func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool), checkSelectedSiblings bool) (nodeIsSelected bool) {
 	allowedToSelect := make([]int, 0, len(duplicates))
 
 	for _, i := range duplicates {
@@ -783,7 +784,7 @@ func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx in
 		allowedToSelect = append(allowedToSelect, i)
 	}
 
-	jumpsCounts := make([]nodeJump, 0, len(allowedToSelect))
+	nodesInfos := make([]nodeInfo, 0, len(allowedToSelect))
 
 	for _, i := range allowedToSelect {
 		jumpCount := 0
@@ -792,19 +793,41 @@ func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx in
 			jumpCount = len(f.nodes.items[i].requiresKey.Jumps)
 		}
 
-		jumpsCounts = append(jumpsCounts, nodeJump{
-			nodeIdx:   i,
-			jumpCount: jumpCount,
+		hasSelectedSibling := false
+		if checkSelectedSiblings {
+			for _, sibling := range f.nodes.siblingNodesOnSameSource(i) {
+				if f.nodes.items[sibling].Selected {
+					hasSelectedSibling = true
+					break
+				}
+			}
+		}
+
+		nodesInfos = append(nodesInfos, nodeInfo{
+			nodeIdx:            i,
+			jumpCount:          jumpCount,
+			hasSelectedSibling: hasSelectedSibling,
 		})
 	}
 
-	// sort by the number of jumps
-	slices.SortFunc(jumpsCounts, func(a, b nodeJump) int {
+	// sort by the number of jumps and selected siblings
+	slices.SortFunc(nodesInfos, func(a, b nodeInfo) int {
+		if checkSelectedSiblings {
+			if a.hasSelectedSibling != b.hasSelectedSibling {
+				if a.hasSelectedSibling {
+					return -1 // a comes first
+				}
+				if b.hasSelectedSibling {
+					return 1 // b comes first
+				}
+			}
+		}
+
 		// acs order from 0 to n
 		return a.jumpCount - b.jumpCount
 	})
 
-	for _, j := range jumpsCounts {
+	for _, j := range nodesInfos {
 		if callback(j.nodeIdx) {
 			return true
 		}
