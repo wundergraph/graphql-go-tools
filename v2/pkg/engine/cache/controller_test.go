@@ -15,26 +15,42 @@ import (
 
 // testStore is the minimal in-memory Store for controller unit tests, with an
 // ordered op log mirroring cachetesting.FakeStore (which cannot be imported
-// here: cachetesting imports this package).
+// here: cachetesting imports this package). It implements WriteReasonRecorder
+// so the ops carry the refresh/backfill tag.
 type testStore struct {
-	data map[string]testStoreEntry
-	ops  []testStoreOp
+	data       map[string]testStoreEntry
+	ops        []testStoreOp
+	nextReason resolve.CacheWriteReason
 }
 
 type testStoreEntry struct {
 	value     []byte
 	expiresAt time.Time
+	// noTTL marks an entry whose remaining TTL is UNKNOWN: Get reports it as a
+	// hit with remaining 0 (some backends do not expose TTLs).
+	noTTL bool
 }
 
 type testStoreOp struct {
-	Kind  string
-	Key   string
-	Value string
-	TTL   time.Duration
+	Kind   string
+	Key    string
+	Value  string
+	TTL    time.Duration
+	Reason resolve.CacheWriteReason
 }
 
 func newTestStore() *testStore {
 	return &testStore{data: map[string]testStoreEntry{}}
+}
+
+// seed arranges a value without logging ops.
+func (s *testStore) seed(key string, value []byte, ttl time.Duration) {
+	s.data[key] = testStoreEntry{value: append([]byte(nil), value...), expiresAt: time.Now().Add(ttl)}
+}
+
+// seedNoTTL arranges a value whose remaining TTL is unknown to the store.
+func (s *testStore) seedNoTTL(key string, value []byte) {
+	s.data[key] = testStoreEntry{value: append([]byte(nil), value...), expiresAt: time.Now().Add(time.Hour), noTTL: true}
 }
 
 func (s *testStore) Get(key string) ([]byte, time.Duration, bool) {
@@ -43,12 +59,20 @@ func (s *testStore) Get(key string) ([]byte, time.Duration, bool) {
 	if !ok || !time.Now().Before(entry.expiresAt) {
 		return nil, 0, false
 	}
+	if entry.noTTL {
+		return append([]byte(nil), entry.value...), 0, true
+	}
 	return append([]byte(nil), entry.value...), time.Until(entry.expiresAt), true
+}
+
+func (s *testStore) RecordWriteReason(key string, reason resolve.CacheWriteReason) {
+	s.nextReason = reason
 }
 
 func (s *testStore) Set(key string, value []byte, ttl time.Duration) {
 	s.data[key] = testStoreEntry{value: append([]byte(nil), value...), expiresAt: time.Now().Add(ttl)}
-	s.ops = append(s.ops, testStoreOp{Kind: "Set", Key: key, Value: string(value), TTL: ttl})
+	s.ops = append(s.ops, testStoreOp{Kind: "Set", Key: key, Value: string(value), TTL: ttl, Reason: s.nextReason})
+	s.nextReason = ""
 }
 
 // productProvidesData is the coverage tree used across the controller rows:
@@ -150,7 +174,9 @@ func TestControllerDecisionRows(t *testing.T) {
 		// Key fidelity (O row): the read key IS the write key.
 		assert.Equal(t, []string{key}, handle.Items[0].RenderedKeys)
 		require.NotNil(t, handle.Items[0].FromCache)
-		assert.Equal(t, `{"__typename":"Product","name":"Table","price":100}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
+		// The chosen value is reordered to selection order (name, price first),
+		// with cached-only extras (__typename) appended after.
+		assert.Equal(t, `{"name":"Table","price":100,"__typename":"Product"}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
 	})
 
 	t.Run("[D2] miss: empty store fetches", func(t *testing.T) {
@@ -288,7 +314,7 @@ func TestControllerWriteGateRows(t *testing.T) {
 		rc.EndRequest()
 		assert.Equal(t, []testStoreOp{
 			{Kind: "Get", Key: key},
-			{Kind: "Set", Key: key, Value: `{"__typename":"Product","name":"Table","price":100}`, TTL: time.Minute},
+			{Kind: "Set", Key: key, Value: `{"__typename":"Product","name":"Table","price":100}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
 		}, store.ops)
 	})
 
@@ -402,8 +428,8 @@ func TestControllerFlushRows(t *testing.T) {
 		assert.Equal(t, []testStoreOp{
 			{Kind: "Get", Key: h1.Items[0].RenderedKeys[0]},
 			{Kind: "Get", Key: h2.Items[0].RenderedKeys[0]},
-			{Kind: "Set", Key: h1.Items[0].RenderedKeys[0], Value: `{"__typename":"Product","name":"Table","price":100}`, TTL: time.Minute},
-			{Kind: "Set", Key: h2.Items[0].RenderedKeys[0], Value: `{"__typename":"Product","name":"Chair","price":50}`, TTL: time.Minute},
+			{Kind: "Set", Key: h1.Items[0].RenderedKeys[0], Value: `{"__typename":"Product","name":"Table","price":100}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
+			{Kind: "Set", Key: h2.Items[0].RenderedKeys[0], Value: `{"__typename":"Product","name":"Chair","price":50}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
 		}, store.ops)
 	})
 
@@ -472,7 +498,7 @@ func TestControllerMergePath(t *testing.T) {
 			Arena:     beginner(),
 		}))
 		assert.Equal(t,
-			`{"__typename":"Product","upc":"1","nested":{"__typename":"Product","name":"Table","price":100}}`,
+			`{"__typename":"Product","upc":"1","nested":{"name":"Table","price":100,"__typename":"Product"}}`,
 			string(item.MarshalTo(nil)))
 	})
 

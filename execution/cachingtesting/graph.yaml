@@ -16,3 +16,7 @@ subgraphs:
     routing_url: http://users.service
     schema:
       file: subgraphs/users.graphql
+  - name: deals
+    routing_url: http://deals.service
+    schema:
+      file: subgraphs/deals.graphql

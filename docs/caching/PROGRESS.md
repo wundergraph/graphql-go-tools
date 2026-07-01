@@ -17,7 +17,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 05 | ProvidesData visitor (P1) | done | 648a768b | Full port + adversarial rows; ComputeHasAliases deferred to task 06 (first caller); empty-boundary tree pinned as zero coverage; reviews/05-*.md. |
 | 06 | entity cache configuration | done | 3f7e3ca5 | Entity arm only (root fields task 13, mappings task 15); NEW hardening: __typename-only candidates rejected as malformed; ComputeHasAliases landed with its first caller; reviews/06-*.md. |
 | 07 | entity L2 controller core | done | 29606414 | L2-only single-candidate core; deferral gates fail closed (shadow/batch/root/negative/L1/multi-key → plain fetch); no Mode enum; resolve.NewTransactionBeginner exported for controller tests; reviews/07-*.md. |
-| 08 | multi-key / freshness / reorder | todo | — | — |
+| 08 | multi-key / freshness / reorder | done | (see git log) | Full ladder + backfill; malformed cached bytes now refresh (first pass left poison entries); fixtures grew deals subgraph + featuredReview for the plan-driven cross-key row (wgc+rover clean, IDs stable); reviews/08-*.md. |
 | 09 | store normalization + arg keys | todo | — | — |
 | 10 | batch entity caching | todo | — | — |
 | 11 | negative caching | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 08 (multi-key: freshness, reorder, backfill; dep 07 is done). Tasks 09/11/12 are also unblocked.
+- Next step: task 09 (store normalization + arg keys; dep 07 is done). Tasks 10/11/12 are also unblocked.
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -71,3 +71,8 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 07: merge hooks read `MergeInput.MergePath` (D4); `ItemCacheState.EntityMergePath` stays unset (prepare has no path input).
 - Task 07: `resolve.NewTransactionBeginner` is new exported API for controller unit tests; the loader wires its own beginner internally.
 - Task 07: `ttlForConfig`/MutationTTLOverride not ported (mutation caching is out-of-core, D12); writes use `cfg.TTL`.
+- Task 08: served values are reordered to selection order with cached-only extras appended (task-07 splice pins updated accordingly).
+- Task 08: malformed cached bytes count as a MISS for that key and get refreshed by the write path (the first pass left poison entries in place).
+- Task 08: `WriteReasonRecorder` is an optional Store extension for refresh/backfill visibility; reasons never gate writes.
+- Task 08: fixtures grew the `deals` subgraph (sku-keyed Product reference) + `featuredReview` (single-object upc path) to make the cross-key plan expressible; datasource IDs 0–3 unchanged, deals is "4".
+- Task 08: pending candidates re-render on skip from the SERVED value only (the first pass also tried the request item).
