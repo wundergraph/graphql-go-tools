@@ -24,7 +24,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 12 | shadow mode | done | 09d5775b | Stash-after-selection clears serving fields; ShadowCacheEntry gained CacheTTL (reserved in task-02 log); RecordingObserver materializes compares; H4 re-runs at task 17; reviews/12-*.md. |
 | 13 | root-field L2 | done | be3295de + 29443089 | Key excludes the query text (coordinate + canonical variables) for alias reuse; shadow hit = plain Fetch (compare structurally impossible); reviews/13-*.md. |
 | 14 | per-root-field isolation | done | 1b23ea0c | Fresh RFC-3 implementation (no first-pass reference); exactly three path-builder touches; gate on parentPath=="query" + provider policy; reviews/14-*.md. |
-| 15 | entity-cache reuse | done | (see git log) | Spec carries the FULL entity candidate set (first pass had mapping-only — E3 backfill impossible there); EntityMergePath finally populated; v1 variable-name constraint documented; reviews/15-*.md. |
+| 15 | entity-cache reuse | done | 44011a84 | Spec carries the FULL entity candidate set (first pass had mapping-only — E3 backfill impossible there); EntityMergePath finally populated; v1 variable-name constraint documented; reviews/15-*.md. |
 | 16 | optimizeL1Cache pass | todo | — | — |
 | 17 | L1 runtime store | todo | — | — |
 | 18 | defer + concurrency coverage | todo | — | — |
