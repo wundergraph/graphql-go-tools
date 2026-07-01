@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"slices"
 	"time"
 
 	"github.com/wundergraph/astjson"
@@ -44,10 +45,12 @@ func (c *Controller) BeginRequest(ctx *resolve.Context) resolve.RequestCache {
 		c.obs.BeginRequest(ctx)
 	}
 	return &requestCache{
-		store:   c.store,
-		obs:     c.obs,
-		ctx:     ctx,
-		configs: make(map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig),
+		store:      c.store,
+		obs:        c.obs,
+		ctx:        ctx,
+		configs:    make(map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig),
+		prefixes:   make(map[*resolve.FetchCacheHandle]string),
+		missedKeys: make(map[*resolve.FetchCacheHandle][][]string),
 	}
 }
 
@@ -74,13 +77,21 @@ type requestCache struct {
 	// configs threads each handle's config from PrepareFetch to the merge hook
 	// (the handle itself is opaque to the loader and carries no config).
 	configs map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig
+	// prefixes keeps each handle's key prefix so the merge hooks can re-render
+	// pending candidates with the same templates the lookup used.
+	prefixes map[*resolve.FetchCacheHandle]string
+	// missedKeys records, per handle and item, the rendered keys whose lookup
+	// MISSED, so a hit served from another key can backfill them.
+	missedKeys map[*resolve.FetchCacheHandle][][]string
 }
 
-// deferredSet is one pending L2 write, held as bytes until EndRequest.
+// deferredSet is one pending L2 write, held as bytes until EndRequest; reason
+// is metadata only (refresh vs backfill) and never gates the write.
 type deferredSet struct {
-	key   string
-	value []byte
-	ttl   time.Duration
+	key    string
+	value  []byte
+	ttl    time.Duration
+	reason resolve.CacheWriteReason
 }
 
 // useL2 reports whether this fetch participates in L2 through this controller.
@@ -117,38 +128,24 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 	if len(templates) == 0 {
 		return resolve.DecisionFetch, nil
 	}
-	// Task 07 handles the single-candidate case; multi-key selection lands
-	// with task 08.
-	template := templates[0]
 
 	tx := in.Arena.Begin()
 	defer tx.Commit()
 
 	items := make([]resolve.ItemCacheState, 0, len(in.Items))
+	missedByItem := make([][]string, 0, len(in.Items))
 	allCovered := true
+	mustWriteBack := false
 	for _, item := range in.Items {
-		state := resolve.ItemCacheState{Item: item}
-		key, ok := template.render(item)
-		if ok {
-			state.RenderedKeys = []string{key}
-			if value, remaining, hit := r.store.Get(key); hit {
-				// Parse the cached bytes ONCE, onto the transaction's arena.
-				if cached, err := tx.ParseBytes(value); err == nil {
-					state.FromCacheCandidates = []resolve.CacheCandidate{{
-						Value:        append([]byte(nil), value...),
-						RemainingTTL: remaining,
-					}}
-					if covers(cached, cfg.ProvidesData) {
-						state.FromCache = cached
-						state.SelectedRemainingTTL = remaining
-					}
-				}
-			}
-		}
+		state, missed, itemMustWriteBack := r.prepareItemState(tx, cfg, templates, item)
 		if state.FromCache == nil {
 			allCovered = false
 		}
+		if itemMustWriteBack {
+			mustWriteBack = true
+		}
 		items = append(items, state)
+		missedByItem = append(missedByItem, missed)
 	}
 
 	decision := resolve.DecisionFetch
@@ -158,23 +155,108 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 	handle := &resolve.FetchCacheHandle{
 		Decision: decision,
 		WasHit:   allCovered,
-		Items:    items,
+		// MustWriteBack matters only on a full hit: OnFetchSkipped then still
+		// owes best-effort backfill/refresh writes for the keys that missed,
+		// the candidates that could not render, or a merged/older selection.
+		MustWriteBack: allCovered && mustWriteBack,
+		Items:         items,
 	}
 	r.configs[handle] = cfg
+	r.prefixes[handle] = cacheKeyPrefix(cfg, in.HeaderHash)
+	r.missedKeys[handle] = missedByItem
 	return decision, handle
+}
+
+// prepareItemState runs the per-item multi-key ladder: best-effort render of
+// EVERY candidate (renderable → RenderedKeys, not renderable →
+// PendingCandidates), lookup under all rendered keys, freshest-first candidate
+// collection, multi-candidate selection, and reorder of the chosen value to
+// selection order. It returns the item state, the rendered keys whose lookup
+// missed, and whether a full hit on this item still owes write-backs.
+func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resolve.FetchCacheConfig, templates []cacheKeyTemplate, item *astjson.Value) (resolve.ItemCacheState, []string, bool) {
+	state := resolve.ItemCacheState{Item: item}
+	mustWriteBack := false
+	var missedKeys []string
+	type lookupHit struct {
+		candidate resolve.CacheCandidate
+		cached    *astjson.Value
+	}
+	hits := make([]lookupHit, 0, len(templates))
+	for i, template := range templates {
+		key, ok := template.render(item)
+		if !ok {
+			// An unrenderable candidate is skipped at lookup and retried at
+			// write time from the fresh data — never an error (no candidate is
+			// required in the best-effort multi-key model).
+			state.PendingCandidates = append(state.PendingCandidates, cfg.KeySpec.Candidates[i])
+			mustWriteBack = true
+			continue
+		}
+		state.RenderedKeys = append(state.RenderedKeys, key)
+		value, remaining, hit := r.store.Get(key)
+		if !hit {
+			missedKeys = append(missedKeys, key)
+			mustWriteBack = true
+			continue
+		}
+		cached, err := tx.ParseBytes(value)
+		if err != nil {
+			// Malformed cached bytes are treated as a miss for this key; the
+			// write path will refresh it.
+			missedKeys = append(missedKeys, key)
+			mustWriteBack = true
+			continue
+		}
+		hits = append(hits, lookupHit{
+			candidate: resolve.CacheCandidate{
+				Value:        append([]byte(nil), value...),
+				RemainingTTL: remaining,
+			},
+			cached: cached,
+		})
+	}
+	if len(hits) == 0 {
+		return state, missedKeys, mustWriteBack
+	}
+
+	// Freshest first: a known remaining TTL beats an unknown one, larger beats
+	// smaller; the stable sort keeps candidate order for ties.
+	slices.SortStableFunc(hits, func(a, b lookupHit) int {
+		return compareCacheCandidateFreshness(a.candidate.RemainingTTL, b.candidate.RemainingTTL)
+	})
+	state.FromCacheCandidates = make([]resolve.CacheCandidate, 0, len(hits))
+	parsed := make([]*astjson.Value, 0, len(hits))
+	for _, hit := range hits {
+		state.FromCacheCandidates = append(state.FromCacheCandidates, hit.candidate)
+		parsed = append(parsed, hit.cached)
+	}
+	if selectMultiCandidateCacheValue(tx, &state, parsed, cfg.ProvidesData) {
+		state.FromCache = reorderToSelectionOrder(tx, state.FromCache, cfg.ProvidesData)
+	}
+	return state, missedKeys, mustWriteBack || state.NeedsWriteback
 }
 
 // OnFetchSkipped splices the chosen cached values into the merge targets at
 // the surfaced merge path, inside one CacheTransaction; StructuralCopy guards
-// against aliasing when one cached value serves multiple targets.
+// against aliasing when one cached value serves multiple targets. A hit that
+// left other candidate keys missed, unrenderable, or shape-stale still owes
+// best-effort write-backs (no network): refresh the canonical keys after a
+// merged/older selection, backfill the missed keys, and re-render pending
+// candidates from the served value.
 func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.MergeInput) error {
-	if h == nil || r.configs[h] == nil {
+	if h == nil {
+		return nil
+	}
+	cfg := r.configs[h]
+	if cfg == nil {
 		return nil
 	}
 	tx := in.Arena.Begin()
 	defer tx.Commit()
 
-	for _, item := range h.Items {
+	prefix := r.prefixes[h]
+	missedByItem := r.missedKeys[h]
+	for i, item := range h.Items {
 		if item.FromCache == nil || item.Item == nil {
 			continue
 		}
@@ -190,6 +272,30 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 			}
 		} else if _, err := tx.MergeValues(item.Item, cached); err != nil {
 			return err
+		}
+
+		value := item.FromCache.MarshalTo(nil)
+		if item.NeedsWriteback {
+			// The served value was synthesized or older-but-covering: rewrite
+			// the canonical entries so the next lookup hits on the first rung.
+			for _, key := range item.RenderedKeys {
+				r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonRefresh)
+			}
+		} else if i < len(missedByItem) {
+			for _, key := range missedByItem[i] {
+				r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonBackfill)
+			}
+		}
+		for _, candidate := range item.PendingCandidates {
+			// A candidate unrenderable from the request item may render from
+			// the SERVED value (it can carry more fields); skip silently when
+			// it still cannot render — best-effort, never required.
+			template := cacheKeyTemplate{prefix: prefix, representation: candidate.Representation}
+			key, ok := template.render(item.FromCache)
+			if !ok {
+				continue
+			}
+			r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonBackfill)
 		}
 	}
 	return nil
@@ -232,7 +338,18 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		// Marshal ONCE per item; the deferred set holds bytes only.
 		value := itemToStore.MarshalTo(nil)
 		for _, key := range item.RenderedKeys {
-			r.deferSet(key, value, cfg.TTL)
+			r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonRefresh)
+		}
+		for _, candidate := range item.PendingCandidates {
+			// Re-render candidates that could not render at lookup from the
+			// FRESH data (best-effort backfill); a candidate the response still
+			// cannot render is skipped silently — never required.
+			template := cacheKeyTemplate{prefix: r.prefixes[h], representation: candidate.Representation}
+			key, ok := template.render(itemToStore)
+			if !ok {
+				continue
+			}
+			r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonBackfill)
 		}
 	}
 	return nil
@@ -242,7 +359,11 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 // no transaction — and finalizes observability. It runs once, single-threaded,
 // after the root tree and every defer group have resolved.
 func (r *requestCache) EndRequest() {
+	recorder, _ := r.store.(WriteReasonRecorder)
 	for _, set := range r.deferred {
+		if recorder != nil {
+			recorder.RecordWriteReason(set.key, set.reason)
+		}
 		r.store.Set(set.key, set.value, set.ttl)
 	}
 	r.deferred = nil
@@ -251,10 +372,19 @@ func (r *requestCache) EndRequest() {
 	}
 }
 
-func (r *requestCache) deferSet(key string, value []byte, ttl time.Duration) {
+// WriteReasonRecorder is an optional Store extension: a store implementing it
+// receives each write's reason (refresh vs backfill) right before the Set.
+// Reasons are metadata only — they never gate a write — and exist so tests and
+// observability can distinguish refresh from backfill traffic.
+type WriteReasonRecorder interface {
+	RecordWriteReason(key string, reason resolve.CacheWriteReason)
+}
+
+func (r *requestCache) deferSet(key string, value []byte, ttl time.Duration, reason resolve.CacheWriteReason) {
 	r.deferred = append(r.deferred, deferredSet{
-		key:   key,
-		value: append([]byte(nil), value...),
-		ttl:   ttl,
+		key:    key,
+		value:  append([]byte(nil), value...),
+		ttl:    ttl,
+		reason: reason,
 	})
 }

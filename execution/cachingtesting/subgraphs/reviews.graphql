@@ -1,5 +1,6 @@
 extend type Query {
     latestReviews(first: Int = 5): [Review!]!
+    featuredReview: Review
 }
 type Review {
     id: ID!
