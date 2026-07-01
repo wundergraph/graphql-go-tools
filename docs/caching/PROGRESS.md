@@ -21,7 +21,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 09 | store normalization + arg keys | done | 5cbd5244 | FromCache stays NORMALIZED; denormalize-at-splice subsumes the task-08 reorder (deleted); pending renders now use the normalized value (first-pass alias bug fixed); inventory grew stockHistory(days) for the arg e2e; reviews/09-*.md. |
 | 10 | batch entity caching | done | def25586 | Full-batch semantics per unique representation; prepareItemState reused per bucket; splice copies per target; reviews/10-*.md. |
 | 11 | negative caching | done | d8888bff | DEVIATION from first pass: negative hits splice NOTHING so cached and uncached responses are byte-identical (incl. the null-bubble error); reviews/11-*.md. |
-| 12 | shadow mode | done | (see git log) | Stash-after-selection clears serving fields; ShadowCacheEntry gained CacheTTL (reserved in task-02 log); RecordingObserver materializes compares; H4 re-runs at task 17; reviews/12-*.md. |
+| 12 | shadow mode | done | 09d5775b | Stash-after-selection clears serving fields; ShadowCacheEntry gained CacheTTL (reserved in task-02 log); RecordingObserver materializes compares; H4 re-runs at task 17; reviews/12-*.md. |
 | 13 | root-field L2 | todo | — | — |
 | 14 | per-root-field isolation | todo | — | — |
 | 15 | entity-cache reuse | todo | — | — |
