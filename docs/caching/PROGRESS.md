@@ -24,7 +24,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 12 | shadow mode | done | 09d5775b | Stash-after-selection clears serving fields; ShadowCacheEntry gained CacheTTL (reserved in task-02 log); RecordingObserver materializes compares; H4 re-runs at task 17; reviews/12-*.md. |
 | 13 | root-field L2 | done | be3295de + 29443089 | Key excludes the query text (coordinate + canonical variables) for alias reuse; shadow hit = plain Fetch (compare structurally impossible); reviews/13-*.md. |
 | 14 | per-root-field isolation | done | 1b23ea0c | Fresh RFC-3 implementation (no first-pass reference); exactly three path-builder touches; gate on parentPath=="query" + provider policy; reviews/14-*.md. |
-| 15 | entity-cache reuse | todo | — | — |
+| 15 | entity-cache reuse | done | (see git log) | Spec carries the FULL entity candidate set (first pass had mapping-only — E3 backfill impossible there); EntityMergePath finally populated; v1 variable-name constraint documented; reviews/15-*.md. |
 | 16 | optimizeL1Cache pass | todo | — | — |
 | 17 | L1 runtime store | todo | — | — |
 | 18 | defer + concurrency coverage | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 15 (entity-cache reuse; deps 08 + 13 are done). Phase B is complete.
+- Next step: task 16 (optimizeL1Cache pass; dep 06 is done). Phase C is complete.
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -88,3 +88,6 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 13: the root-field key preimage is coordinate + name-sorted variables, EXCLUDING the query text (alias reuse requires it); safe under the engine's always-on variable extraction (documented precondition at rootFieldCacheKey).
 - Task 13: merged-fetch policy equality compares VALUES excluding coordinates; a root-field shadow hit is a plain DecisionFetch (no stash → compare structurally impossible).
 - Task 14: no first-pass reference existed (RFC-3 was a follow-up there); implemented fresh: `shouldIsolateRootField` gate + exactly three path-builder touches; the fold-refusal keys off parentPath (the entity-root-node trap row pins why).
+- Task 15: by-key root-field specs carry the entity's FULL candidate set (arg-coverable render at lookup, the rest backfill) — the first pass froze mapping-only candidates, making the E3 data-derived backfill impossible.
+- Task 15: v1 argument binding reads the request variable NAMED like the key field (documented at deriveEntityKeyMappings); other bindings degrade to plain fetch + backfill, never wrong data.
+- Task 15: `ItemCacheState.EntityMergePath` is now populated (reserved since task 02/D4) — the reuse splice/extract path.

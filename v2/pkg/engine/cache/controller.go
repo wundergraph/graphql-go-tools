@@ -45,12 +45,13 @@ func (c *Controller) BeginRequest(ctx *resolve.Context) resolve.RequestCache {
 		c.obs.BeginRequest(ctx)
 	}
 	return &requestCache{
-		store:      c.store,
-		obs:        c.obs,
-		ctx:        ctx,
-		configs:    make(map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig),
-		prefixes:   make(map[*resolve.FetchCacheHandle]string),
-		missedKeys: make(map[*resolve.FetchCacheHandle][][]string),
+		store:         c.store,
+		obs:           c.obs,
+		ctx:           ctx,
+		configs:       make(map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig),
+		prefixes:      make(map[*resolve.FetchCacheHandle]string),
+		missedKeys:    make(map[*resolve.FetchCacheHandle][][]string),
+		reuseProvides: make(map[*resolve.FetchCacheHandle]*resolve.Object),
 	}
 }
 
@@ -83,6 +84,10 @@ type requestCache struct {
 	// missedKeys records, per handle and item, the rendered keys whose lookup
 	// MISSED, so a hit served from another key can backfill them.
 	missedKeys map[*resolve.FetchCacheHandle][][]string
+	// reuseProvides overrides the coverage/transform tree for by-key
+	// root-field handles: the cached value is the ENTITY, so the walks use the
+	// root field's value subtree instead of the whole-response tree.
+	reuseProvides map[*resolve.FetchCacheHandle]*resolve.Object
 }
 
 // deferredSet is one pending L2 write, held as bytes until EndRequest; reason
@@ -220,6 +225,13 @@ func (r *requestCache) prepareRootFieldFetch(in resolve.PrepareFetchInput, cfg *
 	if len(in.Items) == 0 {
 		return resolve.DecisionFetch, nil
 	}
+	if len(cfg.KeySpec.EntityKeyMappings) > 0 {
+		if decision, handle, ok := r.prepareRootFieldEntityReuse(in, cfg); ok {
+			return decision, handle
+		}
+		// The reuse preconditions did not hold (e.g. a non-object subtree);
+		// fall back to the plain root-field path.
+	}
 	key := rootFieldCacheKey(cfg, in.HeaderHash, r.ctx)
 
 	tx := in.Arena.Begin()
@@ -274,6 +286,124 @@ func (r *requestCache) prepareRootFieldFetch(in resolve.PrepareFetchInput, cfg *
 	r.configs[handle] = cfg
 	r.prefixes[handle] = cacheKeyPrefix(cfg, in.HeaderHash)
 	return decision, handle
+}
+
+// prepareRootFieldEntityReuse serves a BY-KEY root field from the ENTITY key
+// space: the lookup item derives from the field's arguments (via the frozen
+// EntityKeyMappings), the entity candidates flow through the SAME best-effort
+// multi-key machinery as entity fetches (arg-derived renders at lookup,
+// data-derived candidates backfill at write), and the served entity value
+// splices AT the field's response key. Reuse works exactly when the policy
+// shares its CacheName with the entity policy — the prefix makes read key ==
+// write key by construction.
+func (r *requestCache) prepareRootFieldEntityReuse(in resolve.PrepareFetchInput, cfg *resolve.FetchCacheConfig) (resolve.Decision, *resolve.FetchCacheHandle, bool) {
+	responseKey, subtree, ok := rootFieldSubtree(cfg.ProvidesData, cfg.KeySpec.FieldName)
+	if !ok {
+		return resolve.DecisionFetch, nil, false
+	}
+	templates := newCacheKeyTemplates(cfg, in.HeaderHash)
+	if len(templates) == 0 {
+		return resolve.DecisionFetch, nil, false
+	}
+	lookupItem := entityLookupItem(r.ctx, cfg.KeySpec.EntityKeyMappings)
+
+	tx := in.Arena.Begin()
+	defer tx.Commit()
+
+	// The coverage/selection walks run against the FIELD subtree — the cached
+	// value is the entity, not the whole response.
+	reuseCfg := *cfg
+	reuseCfg.ProvidesData = subtree
+
+	items := make([]resolve.ItemCacheState, 0, len(in.Items))
+	missedByItem := make([][]string, 0, len(in.Items))
+	allCovered := true
+	mustWriteBack := false
+	for _, item := range in.Items {
+		state, missed, itemMustWriteBack := r.prepareItemState(tx, &reuseCfg, templates, lookupItem)
+		state.Item = item
+		// The entity value splices (and extracts, on the write side) at the
+		// field's RESPONSE key.
+		state.EntityMergePath = []string{responseKey}
+		if cfg.ShadowMode {
+			// The root-field shadow asymmetry applies here too: read, then
+			// force-refetch without a stash or compare.
+			state.FromCache = nil
+			state.SelectedRemainingTTL = 0
+			state.NegativeHit = false
+			state.NeedsWriteback = false
+		}
+		if state.FromCache == nil {
+			allCovered = false
+		}
+		if itemMustWriteBack {
+			mustWriteBack = true
+		}
+		items = append(items, state)
+		missedByItem = append(missedByItem, missed)
+	}
+
+	decision := resolve.DecisionFetch
+	if allCovered {
+		decision = resolve.DecisionSkipFullHit
+	}
+	handle := &resolve.FetchCacheHandle{
+		Decision:      decision,
+		WasHit:        allCovered,
+		MustWriteBack: allCovered && mustWriteBack,
+		Items:         items,
+	}
+	r.configs[handle] = cfg
+	r.prefixes[handle] = cacheKeyPrefix(cfg, in.HeaderHash)
+	r.missedKeys[handle] = missedByItem
+	r.reuseProvides[handle] = subtree
+	return decision, handle, true
+}
+
+// rootFieldSubtree finds the root field's value node in the ProvidesData tree
+// (matched by SCHEMA name, alias-aware) and returns its response key and
+// object subtree; a non-object subtree (lists etc.) declines reuse.
+func rootFieldSubtree(tree *resolve.Object, fieldName string) (string, *resolve.Object, bool) {
+	if tree == nil {
+		return "", nil, false
+	}
+	for _, field := range tree.Fields {
+		schemaName := string(field.Name)
+		if len(field.OriginalName) > 0 {
+			schemaName = string(field.OriginalName)
+		}
+		if schemaName != fieldName {
+			continue
+		}
+		subtree, ok := field.Value.(*resolve.Object)
+		if !ok {
+			return "", nil, false
+		}
+		return string(field.Name), subtree, true
+	}
+	return "", nil, false
+}
+
+// entityLookupItem builds the arg-derived entity item the templates render
+// from: one field per mapping, read from the request variables by the key
+// field's name (the documented v1 constraint). Missing variables simply leave
+// the candidate unrenderable — best-effort, never an error.
+func entityLookupItem(ctx *resolve.Context, mappings []resolve.EntityKeyMapping) *astjson.Value {
+	item := astjson.ObjectValue(nil)
+	if ctx == nil {
+		return item
+	}
+	variables := ctx.VariablesView()
+	for _, mapping := range mappings {
+		for _, fieldMapping := range mapping.FieldMappings {
+			value := variables.Get(fieldMapping.ArgumentPath...)
+			if value == nil {
+				continue
+			}
+			item.Set(nil, fieldMapping.EntityKeyField, value)
+		}
+	}
+	return item
 }
 
 // prepareBatchFetch is the batch arm: one ItemCacheState per UNIQUE
@@ -467,6 +597,16 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 			// from the uncached one — caching must never change the response.
 			continue
 		}
+		provides := resolve.Node(cfg.ProvidesData)
+		if subtree := r.reuseProvides[h]; subtree != nil {
+			provides = subtree
+		}
+		// A by-key root-field item carries its own merge path (the field's
+		// response key); everything else uses the fetch-level merge path.
+		mergePath := in.MergePath
+		if len(item.EntityMergePath) > 0 {
+			mergePath = item.EntityMergePath
+		}
 		for _, target := range targets {
 			if target == nil {
 				continue
@@ -475,9 +615,9 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 			// aliases in selection order; the walk builds a fresh
 			// transaction-owned value per target, so it is also the
 			// aliasing-safe copy for the splice.
-			cached := denormalizeToSelection(tx, r.ctx, item.FromCache, cfg.ProvidesData)
-			if len(in.MergePath) > 0 {
-				if _, err := tx.MergeValuesWithPath(target, cached, in.MergePath...); err != nil {
+			cached := denormalizeToSelection(tx, r.ctx, item.FromCache, provides)
+			if len(mergePath) > 0 {
+				if _, err := tx.MergeValuesWithPath(target, cached, mergePath...); err != nil {
 					return err
 				}
 			} else if _, err := tx.MergeValues(target, cached); err != nil {
@@ -561,7 +701,7 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		r.obs.CompareShadow(h, in.ResponseData, tx)
 	}
 
-	if cfg.KeySpec.Scope == resolve.CacheScopeRootField {
+	if cfg.KeySpec.Scope == resolve.CacheScopeRootField && len(cfg.KeySpec.EntityKeyMappings) == 0 {
 		// One whole-response value under the fetch's single key, written once
 		// (the items share it).
 		toStore := in.ResponseData
@@ -584,6 +724,10 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 			return nil
 		}
 	}
+	provides := r.reuseProvides[h]
+	if provides == nil {
+		provides = cfg.ProvidesData
+	}
 	for _, item := range h.Items {
 		itemToStore := in.ResponseData
 		if h.BatchEntityKey {
@@ -601,12 +745,21 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 			}
 			itemToStore = entity
 		}
+		if len(item.EntityMergePath) > 0 {
+			// A by-key root field caches the ENTITY below its response key,
+			// never the whole-response wrapper.
+			entity := itemToStore.Get(item.EntityMergePath...)
+			if entity == nil {
+				continue
+			}
+			itemToStore = entity
+		}
 		// Normalize to the stored form (schema names + argument suffixes)
 		// before caching; trees without aliases or args skip the transform
 		// (HasAliases is the fast-path gate) and store the raw value.
 		toStore := itemToStore
-		if cfg.ProvidesData != nil && cfg.ProvidesData.HasAliases {
-			toStore = normalizeToSchema(tx, r.ctx, itemToStore, cfg.ProvidesData)
+		if provides != nil && provides.HasAliases {
+			toStore = normalizeToSchema(tx, r.ctx, itemToStore, provides)
 		}
 		// Marshal ONCE per item; the deferred set holds bytes only.
 		value := toStore.MarshalTo(nil)
