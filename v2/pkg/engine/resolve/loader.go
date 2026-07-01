@@ -1111,6 +1111,15 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 
 	l.ctx.appendSubgraphErrors(res.ds, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
 
+	// A non-2XX response with no GraphQL errors body bypasses mergeErrors, which is where
+	// the Apollo Router compatibility error (SUBREQUEST_HTTP_ERROR) is normally attached.
+	// When that compatibility mode is enabled for a server/client error, emit the same
+	// coded error here instead of a bare status message so status-only failures are shaped
+	// identically to the errors-body path and downstream consumers can normalize them.
+	if l.apolloRouterCompatibilitySubrequestHTTPError && statusCode >= 400 {
+		return l.addApolloRouterCompatibilityError(res)
+	}
+
 	errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"%s"}`, reason))
 	if err != nil {
 		return err
