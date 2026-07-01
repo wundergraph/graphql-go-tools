@@ -174,9 +174,9 @@ func TestControllerDecisionRows(t *testing.T) {
 		// Key fidelity (O row): the read key IS the write key.
 		assert.Equal(t, []string{key}, handle.Items[0].RenderedKeys)
 		require.NotNil(t, handle.Items[0].FromCache)
-		// The chosen value is reordered to selection order (name, price first),
-		// with cached-only extras (__typename) appended after.
-		assert.Equal(t, `{"name":"Table","price":100,"__typename":"Product"}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
+		// FromCache stays in the STORED (normalized) form; denormalization to
+		// the requesting aliases happens at splice time.
+		assert.Equal(t, `{"__typename":"Product","name":"Table","price":100}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
 	})
 
 	t.Run("[D2] miss: empty store fetches", func(t *testing.T) {

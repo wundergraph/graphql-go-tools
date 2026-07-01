@@ -172,7 +172,7 @@ func TestMultiKeyHitRows(t *testing.T) {
 			assert.Equal(t, []testStoreOp{
 				{Kind: "Get", Key: skuKey},
 				{Kind: "Get", Key: upcKey},
-				{Kind: "Set", Key: skuKey, Value: `{"name":"Table","price":100,"__typename":"Product"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonBackfill},
+				{Kind: "Set", Key: skuKey, Value: `{"__typename":"Product","name":"Table","price":100}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonBackfill},
 			}, store.ops)
 		})
 	})
@@ -198,7 +198,7 @@ func TestMultiKeyHitRows(t *testing.T) {
 		rc.EndRequest()
 		assert.Equal(t, []testStoreOp{
 			{Kind: "Get", Key: upcKey},
-			{Kind: "Set", Key: skuKey, Value: `{"name":"Table","price":100,"__typename":"Product","sku":"S1"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonBackfill},
+			{Kind: "Set", Key: skuKey, Value: `{"__typename":"Product","name":"Table","price":100,"sku":"S1"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonBackfill},
 		}, store.ops)
 	})
 }
@@ -216,7 +216,7 @@ func TestMultiKeyFreshnessRows(t *testing.T) {
 			rc := newMultiKeyRC(store)
 			decision, handle := prepare(t, rc, cfg, fullProductItem(t))
 			require.Equal(t, resolve.DecisionSkipFullHit, decision)
-			assert.Equal(t, `{"name":"Fresh","price":1,"__typename":"Product"}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
+			assert.Equal(t, `{"__typename":"Product","name":"Fresh","price":1}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
 			assert.Equal(t, time.Minute, handle.Items[0].SelectedRemainingTTL)
 			assert.False(t, handle.Items[0].NeedsWriteback)
 			// Candidates are recorded freshest first.
@@ -237,7 +237,7 @@ func TestMultiKeyFreshnessRows(t *testing.T) {
 		rc := newMultiKeyRC(store)
 		decision, handle := prepare(t, rc, cfg, fullProductItem(t))
 		require.Equal(t, resolve.DecisionSkipFullHit, decision)
-		assert.Equal(t, `{"name":"Known","price":2,"__typename":"Product"}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
+		assert.Equal(t, `{"__typename":"Product","name":"Known","price":2}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
 	})
 
 	t.Run("[D9] merge synthesis: the union covers, freshest wins conflicts, canonical rewritten", func(t *testing.T) {
@@ -265,7 +265,7 @@ func TestMultiKeyFreshnessRows(t *testing.T) {
 			require.Equal(t, resolve.DecisionSkipFullHit, decision)
 			require.NotNil(t, handle.Items[0].FromCache)
 			// Union serves; the fresher value's weight=9 wins the conflict.
-			assert.Equal(t, `{"name":"Table","price":2,"weight":9,"__typename":"Product"}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
+			assert.Equal(t, `{"__typename":"Product","price":2,"weight":9,"name":"Table"}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
 			assert.True(t, handle.Items[0].NeedsWriteback)
 			assert.True(t, handle.MustWriteBack)
 
@@ -279,8 +279,8 @@ func TestMultiKeyFreshnessRows(t *testing.T) {
 			assert.Equal(t, []testStoreOp{
 				{Kind: "Get", Key: skuKey},
 				{Kind: "Get", Key: upcKey},
-				{Kind: "Set", Key: skuKey, Value: `{"name":"Table","price":2,"weight":9,"__typename":"Product"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
-				{Kind: "Set", Key: upcKey, Value: `{"name":"Table","price":2,"weight":9,"__typename":"Product"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
+				{Kind: "Set", Key: skuKey, Value: `{"__typename":"Product","price":2,"weight":9,"name":"Table"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
+				{Kind: "Set", Key: upcKey, Value: `{"__typename":"Product","price":2,"weight":9,"name":"Table"}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
 			}, store.ops)
 		})
 	})
@@ -305,7 +305,7 @@ func TestMultiKeyFreshnessRows(t *testing.T) {
 			rc := newMultiKeyRC(store)
 			decision, handle := prepare(t, rc, cfg, fullProductItem(t))
 			require.Equal(t, resolve.DecisionSkipFullHit, decision)
-			assert.Equal(t, `{"name":"Older","price":2,"__typename":"Product"}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
+			assert.Equal(t, `{"__typename":"Product","name":"Older","price":2}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
 			assert.Equal(t, 10*time.Second, handle.Items[0].SelectedRemainingTTL)
 			assert.True(t, handle.Items[0].NeedsWriteback)
 		})

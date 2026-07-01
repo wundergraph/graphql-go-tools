@@ -1,6 +1,7 @@
 extend type Product @key(fields: "upc") {
     upc: String! @external
     stock: Int!
+    stockHistory(days: Int!): [Int!]!
     warehouse: Warehouse!
 }
 type Warehouse {

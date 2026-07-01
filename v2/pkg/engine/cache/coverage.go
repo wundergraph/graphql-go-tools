@@ -12,18 +12,19 @@ import (
 // must never be served — the walk is the always-on guard between "some cached
 // bytes exist" and "this fetch can be skipped".
 //
-// Task 07 reads fields by their response name; store-time normalization
-// (schema names + argument-suffix keys, task 09) extends the naming.
-func covers(value *astjson.Value, obj *resolve.Object) bool {
+// Cached values are stored NORMALIZED (task 09), so the walk reads fields by
+// their normalized name — schema name plus argument suffix — which is exactly
+// what makes an argument-mismatched cached field a MISS instead of a hit.
+func covers(ctx *resolve.Context, value *astjson.Value, obj *resolve.Object) bool {
 	if value == nil || obj == nil {
 		return false
 	}
 	for _, field := range obj.Fields {
-		fieldValue := value.Get(string(field.Name))
+		fieldValue := value.Get(normalizedFieldName(ctx, field))
 		if fieldValue == nil {
 			return false
 		}
-		if !coversNode(fieldValue, field.Value) {
+		if !coversNode(ctx, fieldValue, field.Value) {
 			return false
 		}
 	}
@@ -33,7 +34,7 @@ func covers(value *astjson.Value, obj *resolve.Object) bool {
 // coversNode applies the coverage rules per node shape: scalars accept null
 // only when nullable; objects recurse (null OK when nullable); arrays require
 // every element to cover the item shape.
-func coversNode(value *astjson.Value, node resolve.Node) bool {
+func coversNode(ctx *resolve.Context, value *astjson.Value, node resolve.Node) bool {
 	switch typed := node.(type) {
 	case *resolve.Scalar:
 		return value.Type() != astjson.TypeNull || typed.Nullable
@@ -44,7 +45,7 @@ func coversNode(value *astjson.Value, node resolve.Node) bool {
 		if value.Type() != astjson.TypeObject {
 			return false
 		}
-		return covers(value, typed)
+		return covers(ctx, value, typed)
 	case *resolve.Array:
 		if value.Type() == astjson.TypeNull {
 			return typed.Nullable
@@ -60,7 +61,7 @@ func coversNode(value *astjson.Value, node resolve.Node) bool {
 			return false
 		}
 		for _, item := range items {
-			if !coversNode(item, typed.Item) {
+			if !coversNode(ctx, item, typed.Item) {
 				return false
 			}
 		}
