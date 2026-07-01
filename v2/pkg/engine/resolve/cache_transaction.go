@@ -77,6 +77,14 @@ func (t *CacheTransaction) Commit() {
 	t.db.Unlock()
 }
 
+// NewTransactionBeginner builds a TransactionBeginner over an arena and its
+// DataBuffer guard. The loader wires its own internally; this constructor
+// exists for cache-controller unit tests and out-of-loader tooling that must
+// exercise the transaction contract directly.
+func NewTransactionBeginner(a arena.Arena, db *DataBuffer) TransactionBeginner {
+	return cacheTransactionBeginner{a: a, db: db}
+}
+
 // cacheTransactionBeginner is the loader-backed TransactionBeginner, bound to
 // the request's shared jsonArena and its DataBuffer guard. It is built only
 // when a cache hook actually runs, never on the no-op path.

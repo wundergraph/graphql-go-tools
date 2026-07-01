@@ -16,7 +16,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 04 | test infrastructure | done | b0a6b045 | Fixtures in execution/cachingtesting (wgc+rover clean); fakes in v2 cache/cachetesting; first-pass RealishCache/Mode/Stage NOT ported (dead until task 07); Fetch.SetDataSource added (D8 swap); reviews/04-*.md. |
 | 05 | ProvidesData visitor (P1) | done | 648a768b | Full port + adversarial rows; ComputeHasAliases deferred to task 06 (first caller); empty-boundary tree pinned as zero coverage; reviews/05-*.md. |
 | 06 | entity cache configuration | done | 3f7e3ca5 | Entity arm only (root fields task 13, mappings task 15); NEW hardening: __typename-only candidates rejected as malformed; ComputeHasAliases landed with its first caller; reviews/06-*.md. |
-| 07 | entity L2 controller core | todo | — | — |
+| 07 | entity L2 controller core | done | (see git log) | L2-only single-candidate core; deferral gates fail closed (shadow/batch/root/negative/L1/multi-key → plain fetch); no Mode enum; resolve.NewTransactionBeginner exported for controller tests; reviews/07-*.md. |
 | 08 | multi-key / freshness / reorder | todo | — | — |
 | 09 | store normalization + arg keys | todo | — | — |
 | 10 | batch entity caching | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 07 (entity L2 controller core; deps 02 + 04 + 06 are done).
+- Next step: task 08 (multi-key: freshness, reorder, backfill; dep 07 is done). Tasks 09/11/12 are also unblocked.
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -66,3 +66,8 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 06: `buildEntitySpec` rejects candidates whose representation carries no field beyond `__typename`
   (unknown-field @keys silently degrade to __typename-only nodes in the representation walker — a cross-entity key-collision hazard the first pass missed).
 - Task 06: the all-flags-false nil gate in `buildConfig` is unreachable for entities (found policy ⇒ L1); it serves the task-13 root-field arm.
+- Task 07: the controller has NO Mode enum (first pass had one); L2 enablement is `cfg.L2 && store != nil`, L1 composes in task 17.
+- Task 07: every not-yet-implemented feature fails CLOSED in PrepareFetch (shadow/root-field/batch → plain fetch, no reads served); tasks 08–13 replace those gates.
+- Task 07: merge hooks read `MergeInput.MergePath` (D4); `ItemCacheState.EntityMergePath` stays unset (prepare has no path input).
+- Task 07: `resolve.NewTransactionBeginner` is new exported API for controller unit tests; the loader wires its own beginner internally.
+- Task 07: `ttlForConfig`/MutationTTLOverride not ported (mutation caching is out-of-core, D12); writes use `cfg.TTL`.
