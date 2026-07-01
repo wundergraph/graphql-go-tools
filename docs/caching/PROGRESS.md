@@ -10,7 +10,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 | # | Task | Status | Commit(s) | Notes / deviations |
 |---|---|---|---|---|
-| 01 | representationvariable extraction | todo | — | — |
+| 01 | representationvariable extraction | done | (see git log) | Pure move; tests moved and extended with an entity-interface case per the task file. |
 | 02 | runtime contract + loader seam | todo | — | — |
 | 03 | planner wiring + engine SetCaching | todo | — | — |
 | 04 | test infrastructure | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 01 (no dependencies; task 02 is also unblocked and may be taken first if preferred — record the choice here).
+- Next step: task 02 (runtime contract + loader seam; no dependencies).
 - Mid-task state: none.
 
 ## Blockers awaiting human input

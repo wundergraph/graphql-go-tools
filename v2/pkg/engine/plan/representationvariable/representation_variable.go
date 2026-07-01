@@ -1,4 +1,9 @@
-package graphql_datasource
+// Package representationvariable builds the resolve-node representation of a federation
+// entity key: it turns one `@key` selection set into a federation-pointer-free
+// *resolve.Object used to render the `representations` variable for entity fetches.
+// It is shared between the graphql datasource planner and cache-key construction,
+// so that both derive representation nodes from a single walker and can never skew.
+package representationvariable
 
 import (
 	"bytes"
@@ -18,7 +23,10 @@ type objectFields struct {
 
 // TODO: add support for remapping path
 
-func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData) (*resolve.Object, error) {
+// BuildRepresentationVariableNode turns one `@key` selection set (cfg.SelectionSet on
+// cfg.TypeName) into a federation-pointer-free *resolve.Object, with the
+// interfaceObject/entityInterface `__typename` remap from federationCfg baked in.
+func BuildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData) (*resolve.Object, error) {
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
 		return nil, report
@@ -120,7 +128,10 @@ func fieldsHasField(fields []*resolve.Field, field *resolve.Field) (int, bool) {
 	return -1, false
 }
 
-func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
+// MergeRepresentationVariableNodes merges the per-key representation objects into the
+// single nullable object the graphql datasource renders as its `representations`
+// variable; fields with the same name and type conditions are deep-merged.
+func MergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
 	fieldCount := 0
 	for _, object := range objects {
 		fieldCount += len(object.Fields)
@@ -144,6 +155,8 @@ func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object
 	}
 }
 
+// representationVariableVisitor walks one `@key` selection set against the schema
+// definition and assembles the corresponding resolve-node tree.
 type representationVariableVisitor struct {
 	*astvisitor.Walker
 
