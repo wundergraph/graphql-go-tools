@@ -22,7 +22,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 10 | batch entity caching | done | def25586 | Full-batch semantics per unique representation; prepareItemState reused per bucket; splice copies per target; reviews/10-*.md. |
 | 11 | negative caching | done | d8888bff | DEVIATION from first pass: negative hits splice NOTHING so cached and uncached responses are byte-identical (incl. the null-bubble error); reviews/11-*.md. |
 | 12 | shadow mode | done | 09d5775b | Stash-after-selection clears serving fields; ShadowCacheEntry gained CacheTTL (reserved in task-02 log); RecordingObserver materializes compares; H4 re-runs at task 17; reviews/12-*.md. |
-| 13 | root-field L2 | in-progress | (commit 1 below) | Commit 1 (plan side) landed; commit 2 (runtime) next. |
+| 13 | root-field L2 | done | be3295de + (commit 2 below) | Key excludes the query text (coordinate + canonical variables) for alias reuse; shadow hit = plain Fetch (compare structurally impossible); reviews/13-*.md. |
 | 14 | per-root-field isolation | todo | — | — |
 | 15 | entity-cache reuse | todo | — | — |
 | 16 | optimizeL1Cache pass | todo | — | — |
@@ -33,8 +33,8 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 13 commit 2 (the runtime root-field branch in the controller).
-- Mid-task state: task 13 commit 1 (configurator root-field arm) is committed; the controller still declines root-field scope.
+- Next step: task 14 (per-root-field isolation; dep 13 is done).
+- Mid-task state: none.
 
 ## Blockers awaiting human input
 
@@ -85,3 +85,5 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 11: `EmptyEntity` from the loader means "entities-shaped response", not "empty" — the negative branch's `ResponseData TypeNull` conjunct is load-bearing.
 - Task 12: `ShadowCacheEntry.CacheTTL` added (the task-02 log reserved it); the observer derives age without re-deriving config.
 - Task 12: shadow stashes AFTER the selection ladder and clears the serving fields (incl. NeedsWriteback — OnFetchResult refreshes from fresh anyway); H4 (L1-hit-wins) re-runs at task 17.
+- Task 13: the root-field key preimage is coordinate + name-sorted variables, EXCLUDING the query text (alias reuse requires it); safe under the engine's always-on variable extraction (documented precondition at rootFieldCacheKey).
+- Task 13: merged-fetch policy equality compares VALUES excluding coordinates; a root-field shadow hit is a plain DecisionFetch (no stash → compare structurally impossible).

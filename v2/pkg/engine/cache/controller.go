@@ -113,8 +113,10 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 	if !r.useL2(cfg) {
 		return resolve.DecisionFetch, nil
 	}
+	if cfg.KeySpec.Scope == resolve.CacheScopeRootField {
+		return r.prepareRootFieldFetch(in, cfg)
+	}
 	if cfg.KeySpec.Scope != resolve.CacheScopeEntity {
-		// Root-field caching lands with task 13.
 		return resolve.DecisionFetch, nil
 	}
 	if in.BatchStats != nil {
@@ -207,6 +209,71 @@ func shadowStashEntry(tx *resolve.CacheTransaction, cfg *resolve.FetchCacheConfi
 	state.NegativeHit = false
 	state.NeedsWriteback = false
 	return entry
+}
+
+// prepareRootFieldFetch is the root-field arm: ONE whole-response-scoped key
+// per fetch (field coordinate + canonical request variables), one lookup, one
+// coverage walk, with the served value shared across the fetch's merge
+// targets. Root-field shadow is the historical ASYMMETRY: a hit force-refetches
+// and overwrites L2, but never stashes and never compares.
+func (r *requestCache) prepareRootFieldFetch(in resolve.PrepareFetchInput, cfg *resolve.FetchCacheConfig) (resolve.Decision, *resolve.FetchCacheHandle) {
+	if len(in.Items) == 0 {
+		return resolve.DecisionFetch, nil
+	}
+	key := rootFieldCacheKey(cfg, in.HeaderHash, r.ctx)
+
+	tx := in.Arena.Begin()
+	defer tx.Commit()
+
+	value, remaining, hit := r.store.Get(key)
+	var fromCache *astjson.Value
+	var candidate *resolve.CacheCandidate
+	if hit {
+		if cached, err := tx.ParseBytes(value); err == nil {
+			candidate = &resolve.CacheCandidate{
+				Value:        append([]byte(nil), value...),
+				RemainingTTL: remaining,
+			}
+			if cfg.ProvidesData != nil && covers(r.ctx, cached, cfg.ProvidesData) {
+				fromCache = cached
+			}
+		}
+	}
+	if cfg.ShadowMode {
+		// The root-field shadow asymmetry: read, then force-refetch WITHOUT a
+		// stash or compare — the plain DecisionFetch below makes a compare
+		// structurally impossible, and the normal write path overwrites L2.
+		fromCache = nil
+	}
+
+	items := make([]resolve.ItemCacheState, 0, len(in.Items))
+	for _, item := range in.Items {
+		state := resolve.ItemCacheState{
+			Item:         item,
+			RenderedKeys: []string{key},
+			FromCache:    fromCache,
+		}
+		if candidate != nil {
+			state.FromCacheCandidates = []resolve.CacheCandidate{*candidate}
+		}
+		if fromCache != nil {
+			state.SelectedRemainingTTL = remaining
+		}
+		items = append(items, state)
+	}
+
+	decision := resolve.DecisionFetch
+	if fromCache != nil {
+		decision = resolve.DecisionSkipFullHit
+	}
+	handle := &resolve.FetchCacheHandle{
+		Decision: decision,
+		WasHit:   fromCache != nil,
+		Items:    items,
+	}
+	r.configs[handle] = cfg
+	r.prefixes[handle] = cacheKeyPrefix(cfg, in.HeaderHash)
+	return decision, handle
 }
 
 // prepareBatchFetch is the batch arm: one ItemCacheState per UNIQUE
@@ -492,6 +559,20 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 		// fresh response BEFORE any write, inside this hook's transaction
 		// (compare -> write-L1 -> write-L2 order; no second lock acquisition).
 		r.obs.CompareShadow(h, in.ResponseData, tx)
+	}
+
+	if cfg.KeySpec.Scope == resolve.CacheScopeRootField {
+		// One whole-response value under the fetch's single key, written once
+		// (the items share it).
+		toStore := in.ResponseData
+		if cfg.ProvidesData != nil && cfg.ProvidesData.HasAliases {
+			toStore = normalizeToSchema(tx, r.ctx, toStore, cfg.ProvidesData)
+		}
+		value := toStore.MarshalTo(nil)
+		for _, key := range h.Items[0].RenderedKeys {
+			r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonRefresh)
+		}
+		return nil
 	}
 
 	// A batch response is the _entities array: each unique representation's
