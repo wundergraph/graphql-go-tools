@@ -43,13 +43,15 @@ func entityCachingFor(subgraphs ...string) map[string]cacheconfig.CachingConfigu
 
 // TestEntityCacheConfigSyncPlan pins the full per-fetch cache config over a
 // REAL sync plan: the reviews batch entity fetch is configured, the products
-// root fetch stays nil (root-field caching is task 13).
+// root fetch stays nil (root-field caching is task 13). The lone entity fetch
+// has no L1 provider/consumer pair, so optimizeL1Cache (task 16) narrows L1
+// off.
 func TestEntityCacheConfigSyncPlan(t *testing.T) {
 	result := Plan(t, `{ products(first: 2) { upc reviews { body } } }`, entityCachingFor("reviews"), nil)
 	rendered := renderFetchCacheConfigs(result.Response.Fetches)
 	assert.Equal(t, []string{
 		`path:"" cache:<nil>`,
-		`path:"products" cache:{l1:true l2:true cacheName:products ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}`,
+		`path:"products" cache:{l1:false l2:true cacheName:products ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}`,
 	}, rendered)
 }
 
