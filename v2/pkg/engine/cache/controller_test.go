@@ -554,10 +554,10 @@ func TestControllerGates(t *testing.T) {
 		assert.Nil(t, handle)
 	})
 
-	t.Run("batch fetches until task 10", func(t *testing.T) {
+	t.Run("[I] empty batch short-circuits without a handle", func(t *testing.T) {
 		cfg := entityConfig(t, time.Minute)
-		in := prepareInput(cfg, productItem(t, "1"))
-		in.BatchStats = [][]*astjson.Value{{productItem(t, "1")}}
+		in := prepareInput(cfg)
+		in.BatchStats = [][]*astjson.Value{}
 		decision, handle := rc.PrepareFetch(in)
 		assert.Equal(t, resolve.DecisionFetch, decision)
 		assert.Nil(t, handle)

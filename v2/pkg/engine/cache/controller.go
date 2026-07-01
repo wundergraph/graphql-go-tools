@@ -118,8 +118,7 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 		return resolve.DecisionFetch, nil
 	}
 	if in.BatchStats != nil {
-		// Batch entity caching lands with task 10.
-		return resolve.DecisionFetch, nil
+		return r.prepareBatchFetch(in, cfg)
 	}
 	if len(in.Items) == 0 {
 		return resolve.DecisionFetch, nil
@@ -160,6 +159,63 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 		// the candidates that could not render, or a merged/older selection.
 		MustWriteBack: allCovered && mustWriteBack,
 		Items:         items,
+	}
+	r.configs[handle] = cfg
+	r.prefixes[handle] = cacheKeyPrefix(cfg, in.HeaderHash)
+	r.missedKeys[handle] = missedByItem
+	return decision, handle
+}
+
+// prepareBatchFetch is the batch arm: one ItemCacheState per UNIQUE
+// representation (BatchStats bucket), keyed and looked up individually, with
+// the original batch position recorded for the splice and (task 19) the
+// partial realign. Full-batch semantics: ALL covered serves, ANY uncovered
+// refetches everything.
+func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *resolve.FetchCacheConfig) (resolve.Decision, *resolve.FetchCacheHandle) {
+	if len(in.BatchStats) == 0 {
+		// The loader's empty-batch skip normally prevents this call entirely;
+		// an empty batch has nothing to serve or write.
+		return resolve.DecisionFetch, nil
+	}
+	templates := newCacheKeyTemplates(cfg, in.HeaderHash)
+	if len(templates) == 0 {
+		return resolve.DecisionFetch, nil
+	}
+
+	tx := in.Arena.Begin()
+	defer tx.Commit()
+
+	items := make([]resolve.ItemCacheState, 0, len(in.BatchStats))
+	missedByItem := make([][]string, 0, len(in.BatchStats))
+	allCovered := true
+	mustWriteBack := false
+	for i, bucket := range in.BatchStats {
+		var representative *astjson.Value
+		if len(bucket) > 0 {
+			representative = bucket[0]
+		}
+		state, missed, itemMustWriteBack := r.prepareItemState(tx, cfg, templates, representative)
+		state.BatchIndex = i
+		if state.FromCache == nil {
+			allCovered = false
+		}
+		if itemMustWriteBack {
+			mustWriteBack = true
+		}
+		items = append(items, state)
+		missedByItem = append(missedByItem, missed)
+	}
+
+	decision := resolve.DecisionFetch
+	if allCovered {
+		decision = resolve.DecisionSkipFullHit
+	}
+	handle := &resolve.FetchCacheHandle{
+		Decision:       decision,
+		WasHit:         allCovered,
+		MustWriteBack:  allCovered && mustWriteBack,
+		BatchEntityKey: true,
+		Items:          items,
 	}
 	r.configs[handle] = cfg
 	r.prefixes[handle] = cacheKeyPrefix(cfg, in.HeaderHash)
@@ -265,16 +321,31 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 			// to splice.
 			continue
 		}
-		// Denormalize the stored value to the requesting operation's aliases in
-		// selection order; the walk builds a fresh transaction-owned value, so
-		// it is also the aliasing-safe copy for the splice.
-		cached := denormalizeToSelection(tx, r.ctx, item.FromCache, cfg.ProvidesData)
-		if len(in.MergePath) > 0 {
-			if _, err := tx.MergeValuesWithPath(item.Item, cached, in.MergePath...); err != nil {
+		// A batch item splices into EVERY merge target of its unique
+		// representation (the BatchStats bucket at its original position).
+		targets := []*astjson.Value{item.Item}
+		if h.BatchEntityKey {
+			targets = nil
+			if item.BatchIndex >= 0 && item.BatchIndex < len(in.BatchStats) {
+				targets = in.BatchStats[item.BatchIndex]
+			}
+		}
+		for _, target := range targets {
+			if target == nil {
+				continue
+			}
+			// Denormalize the stored value to the requesting operation's
+			// aliases in selection order; the walk builds a fresh
+			// transaction-owned value per target, so it is also the
+			// aliasing-safe copy for the splice.
+			cached := denormalizeToSelection(tx, r.ctx, item.FromCache, cfg.ProvidesData)
+			if len(in.MergePath) > 0 {
+				if _, err := tx.MergeValuesWithPath(target, cached, in.MergePath...); err != nil {
+					return err
+				}
+			} else if _, err := tx.MergeValues(target, cached); err != nil {
 				return err
 			}
-		} else if _, err := tx.MergeValues(item.Item, cached); err != nil {
-			return err
 		}
 
 		value := item.FromCache.MarshalTo(nil)
@@ -327,8 +398,23 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	tx := in.Arena.Begin()
 	defer tx.Commit()
 
+	// A batch response is the _entities array: each unique representation's
+	// value sits at its original batch position.
+	var batch []*astjson.Value
+	if h.BatchEntityKey {
+		batch = in.ResponseData.GetArray()
+		if batch == nil {
+			return nil
+		}
+	}
 	for _, item := range h.Items {
 		itemToStore := in.ResponseData
+		if h.BatchEntityKey {
+			if item.BatchIndex < 0 || item.BatchIndex >= len(batch) {
+				continue
+			}
+			itemToStore = batch[item.BatchIndex]
+		}
 		if len(in.MergePath) > 0 {
 			// The response merges into the item at the merge path; the value to
 			// cache is the entity BELOW that path (D4), never the wrapper.
