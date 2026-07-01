@@ -17,7 +17,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 05 | ProvidesData visitor (P1) | done | 648a768b | Full port + adversarial rows; ComputeHasAliases deferred to task 06 (first caller); empty-boundary tree pinned as zero coverage; reviews/05-*.md. |
 | 06 | entity cache configuration | done | 3f7e3ca5 | Entity arm only (root fields task 13, mappings task 15); NEW hardening: __typename-only candidates rejected as malformed; ComputeHasAliases landed with its first caller; reviews/06-*.md. |
 | 07 | entity L2 controller core | done | 29606414 | L2-only single-candidate core; deferral gates fail closed (shadow/batch/root/negative/L1/multi-key → plain fetch); no Mode enum; resolve.NewTransactionBeginner exported for controller tests; reviews/07-*.md. |
-| 08 | multi-key / freshness / reorder | done | (see git log) | Full ladder + backfill; malformed cached bytes now refresh (first pass left poison entries); fixtures grew deals subgraph + featuredReview for the plan-driven cross-key row (wgc+rover clean, IDs stable); reviews/08-*.md. |
+| 08 | multi-key / freshness / reorder | done | 3372187b | Full ladder + backfill; malformed cached bytes now refresh (first pass left poison entries); fixtures grew deals subgraph + featuredReview for the plan-driven cross-key row (wgc+rover clean, IDs stable); reviews/08-*.md. |
 | 09 | store normalization + arg keys | todo | — | — |
 | 10 | batch entity caching | todo | — | — |
 | 11 | negative caching | todo | — | — |
