@@ -21,12 +21,14 @@ type sseConnection struct {
 	resp    *http.Response
 	handler common.Handler
 	closed  atomic.Bool
+	onClose func() // Callback function to notify parent transport that the connection was closed.
 }
 
-func newSSEConnection(resp *http.Response, handler common.Handler) *sseConnection {
+func newSSEConnection(resp *http.Response, handler common.Handler, onClose func()) *sseConnection {
 	return &sseConnection{
 		resp:    resp,
 		handler: handler,
+		onClose: onClose,
 	}
 }
 
@@ -161,8 +163,11 @@ func (c *sseConnection) sendError(err error) {
 
 func (c *sseConnection) cleanup() {
 	c.closed.Store(true)
-
 	c.resp.Body.Close()
+
+	if c.onClose != nil {
+		c.onClose()
+	}
 }
 
 // closeConn terminates the SSE connection.

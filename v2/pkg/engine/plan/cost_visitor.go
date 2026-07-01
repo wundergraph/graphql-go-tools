@@ -64,7 +64,6 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinitionRef)
 	isListType := v.Definition.TypeIsList(fieldDefinitionTypeRef)
-	isSimpleType := v.Definition.TypeIsEnum(fieldDefinitionTypeRef, v.Definition) || v.Definition.TypeIsScalar(fieldDefinitionTypeRef, v.Definition)
 	unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
 
 	arguments := v.extractFieldArguments(fieldRef)
@@ -72,21 +71,25 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	// Check and push through if the unwrapped type of this field is interface or union.
 	unwrappedTypeNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
 	var implementingTypeNames []string
-	var isAbstractType bool
+	var isAbstractType, isSimpleType bool
 	if exists {
-		if unwrappedTypeNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+		kind := unwrappedTypeNode.Kind
+		if kind == ast.NodeKindInterfaceTypeDefinition {
 			impl, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(unwrappedTypeNode.Ref)
 			if ok {
 				implementingTypeNames = append(implementingTypeNames, impl...)
 				isAbstractType = true
 			}
 		}
-		if unwrappedTypeNode.Kind == ast.NodeKindUnionTypeDefinition {
+		if kind == ast.NodeKindUnionTypeDefinition {
 			impl, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(unwrappedTypeNode.Ref)
 			if ok {
 				implementingTypeNames = append(implementingTypeNames, impl...)
 				isAbstractType = true
 			}
+		}
+		if kind == ast.NodeKindScalarTypeDefinition || kind == ast.NodeKindEnumTypeDefinition {
+			isSimpleType = true
 		}
 	}
 

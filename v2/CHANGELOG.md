@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.5.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.5.0...v2.5.1) (2026-06-30)
+
+
+### Bug Fixes
+
+* fix variables default value extraction panic on non list variable type ([#1553](https://github.com/wundergraph/graphql-go-tools/issues/1553)) ([ac5922e](https://github.com/wundergraph/graphql-go-tools/commit/ac5922ed8e6bf861554997ddc30c5deb47388387))
+
+## [2.5.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.6...v2.5.0) (2026-06-18)
+
+
+### Features
+
+* enable to ignore cost weights on implementing types ([#1542](https://github.com/wundergraph/graphql-go-tools/issues/1542)) ([1ade300](https://github.com/wundergraph/graphql-go-tools/commit/1ade300421bcb1b68cefd63fc5268f19ee56336c))
+
+
+### Bug Fixes
+
+* **cost:** determine correctly the type of list-wrapped scalars and enums ([#1546](https://github.com/wundergraph/graphql-go-tools/issues/1546)) ([2575480](https://github.com/wundergraph/graphql-go-tools/commit/2575480b966074a887db1f96ee8a0ef2022effcd))
+* remove connections from transport connection pool ([#1541](https://github.com/wundergraph/graphql-go-tools/issues/1541)) ([ca47200](https://github.com/wundergraph/graphql-go-tools/commit/ca472008b0a4f9ac5601c4d42266cd2e4cae8cec))
+* **resolve:** fix GC-liveness bug in the loadBatchEntityFetch ([#1536](https://github.com/wundergraph/graphql-go-tools/issues/1536)) ([2ad6fc4](https://github.com/wundergraph/graphql-go-tools/commit/2ad6fc4cc2195d216a6ec7003fac3352d01ff0ad))
+
 ## [2.4.6](https://github.com/wundergraph/graphql-go-tools/compare/v2.4.5...v2.4.6) (2026-06-12)
 
 

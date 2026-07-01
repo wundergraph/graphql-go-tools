@@ -53,6 +53,11 @@ type Configuration struct {
 	// When the list size is unknown from directives, this value is used as a default for static cost.
 	StaticCostDefaultListSize int
 
+	// IgnoreImplementingTypeWeights, when true, ignores @cost weights contributed by
+	// implementing types on abstract (interface/union) fields that have no weight of their own.
+	// Emulates Apollo's cost behavior.
+	IgnoreImplementingTypeWeights bool
+
 	// RelaxSubgraphOperationFieldSelectionMergingNullability relaxes the nullability validation
 	// for field selection merging in upstream (subgraph) operations when enclosing types are
 	// non-overlapping concrete object types. This is a deliberate spec deviation.

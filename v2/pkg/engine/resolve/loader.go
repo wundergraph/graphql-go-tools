@@ -301,7 +301,11 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		return err
 	case *BatchEntityFetch:
 		res := &result{}
-		defer batchEntityToolPool.Put(res.tools)
+		// res.tools is assigned inside loadBatchEntityFetch.
+		// Evaluate when the deferred function runs, not at defer registration:
+		defer func() {
+			batchEntityToolPool.Put(res.tools)
+		}()
 		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -1533,8 +1537,12 @@ WithNextItem:
 				_, _ = itemInput.WriteTo(preparedInput)
 				// new unique representation
 				res.tools.batchHashToIndex[itemHash] = batchItemIndex
-				// create a new targets bucket for this unique index
-				batchStats = arena.SliceAppend(res.tools.a, batchStats, []*astjson.Value{items[i]})
+				// A new targets bucket for the unique index must be allocated on the arena:
+				// a heap-allocated bucket would only be referenced from arena memory,
+				// so the GC could collect its backing array while it is still in use.
+				bucket := arena.AllocateSlice[*astjson.Value](res.tools.a, 1, 1)
+				bucket[0] = items[i]
+				batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
 				batchItemIndex++
 				addSeparator = true
 			}

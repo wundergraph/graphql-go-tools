@@ -266,7 +266,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 
 	wsConn.SetReadLimit(t.opts.ReadLimit)
 
-	proto, err := t.negotiateSubprotocol(opts.WSSubprotocol, wsConn.Subprotocol())
+	proto, err := t.negotiateSubprotocol(opts.WSSubprotocol, common.WSSubprotocol(wsConn.Subprotocol()))
 	if err != nil {
 		t.opts.Logger.Error("wsTransport.dial",
 			abstractlogger.String("endpoint", opts.Endpoint),
@@ -308,13 +308,19 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 	return conn, nil
 }
 
-func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accepted string) (protocol.Protocol, error) {
-	if requested != common.SubprotocolAuto {
-		if accepted != string(requested) {
-			return nil, ErrInvalidSubprotocol(accepted)
-		}
+func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accepted common.WSSubprotocol) (protocol.Protocol, error) {
+	if requested != common.SubprotocolAuto && accepted != requested {
+		return nil, ErrInvalidSubprotocol(accepted)
 	}
 
+	// In auto mode the server must still echo back a valid subprotocol; an
+	// empty or unknown value falls through to the error below.
+	//
+	// Note: a previous client treated an empty response header in auto mode as
+	// graphql-ws to stay compatible with legacy upstreams (and intermediaries
+	// that strip the Sec-WebSocket-Protocol header). That fallback was
+	// intentionally removed. Re-add it here if such compatibility is needed
+	// again.
 	switch common.WSSubprotocol(accepted) {
 	case common.SubprotocolGraphQLTransportWS:
 		return protocol.NewGraphQLTransportWS(), nil
