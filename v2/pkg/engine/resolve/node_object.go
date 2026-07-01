@@ -157,6 +157,39 @@ func (f *Field) Copy() *Field {
 	}
 }
 
+// ComputeHasAliases recursively checks whether any field below obj carries an
+// OriginalName or CacheArgs (i.e. the cached, schema-named form differs from
+// the query's shape) and sets HasAliases on EVERY object along the way, so the
+// runtime denormalization has a per-object fast path.
+func ComputeHasAliases(obj *Object) bool {
+	if obj == nil {
+		return false
+	}
+	hasAliases := false
+	for _, field := range obj.Fields {
+		if field.OriginalName != nil || len(field.CacheArgs) > 0 {
+			hasAliases = true
+		}
+		if computeNodeHasAliases(field.Value) {
+			hasAliases = true
+		}
+	}
+	obj.HasAliases = hasAliases
+	return hasAliases
+}
+
+func computeNodeHasAliases(node Node) bool {
+	switch n := node.(type) {
+	case *Object:
+		return ComputeHasAliases(n)
+	case *Array:
+		if n != nil && n.Item != nil {
+			return computeNodeHasAliases(n.Item)
+		}
+	}
+	return false
+}
+
 func (f *Field) Equals(n *Field) bool {
 	// NOTE: a lot of struct fields are not compared here
 	// because they are not relevant for the value comparison of response nodes

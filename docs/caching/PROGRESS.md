@@ -15,7 +15,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 03 | planner wiring + engine SetCaching | done | 4653a8e1 | SetCaching keyed by datasource ID; provider drops first-pass KeySpecs (D10); P1 registers on the second walk only; reviewer notes in reviews/03-*.md. |
 | 04 | test infrastructure | done | b0a6b045 | Fixtures in execution/cachingtesting (wgc+rover clean); fakes in v2 cache/cachetesting; first-pass RealishCache/Mode/Stage NOT ported (dead until task 07); Fetch.SetDataSource added (D8 swap); reviews/04-*.md. |
 | 05 | ProvidesData visitor (P1) | done | 648a768b | Full port + adversarial rows; ComputeHasAliases deferred to task 06 (first caller); empty-boundary tree pinned as zero coverage; reviews/05-*.md. |
-| 06 | entity cache configuration | todo | — | — |
+| 06 | entity cache configuration | done | (see git log) | Entity arm only (root fields task 13, mappings task 15); NEW hardening: __typename-only candidates rejected as malformed; ComputeHasAliases landed with its first caller; reviews/06-*.md. |
 | 07 | entity L2 controller core | todo | — | — |
 | 08 | multi-key / freshness / reorder | todo | — | — |
 | 09 | store normalization + arg keys | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 06 (entity cache configuration; deps 01 + 03 + 05 are done).
+- Next step: task 07 (entity L2 controller core; deps 02 + 04 + 06 are done).
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -63,3 +63,6 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 05: `ComputeHasAliases` deferred to task 06 (its first caller, per the task file's "folded into the configurator" note).
 - Task 05: a boundary-only entity planner yields an EMPTY ProvidesData tree — the task-07 controller must treat an empty tree as ZERO coverage (never a vacuous full hit).
 - Task 05: `dataSourceConfiguration.Caching()` still unconsumed (the visitor reads nothing datasource-scoped); tasks 06+ read providers from the postprocess options instead.
+- Task 06: `buildEntitySpec` rejects candidates whose representation carries no field beyond `__typename`
+  (unknown-field @keys silently degrade to __typename-only nodes in the representation walker — a cross-entity key-collision hazard the first pass missed).
+- Task 06: the all-flags-false nil gate in `buildConfig` is unreachable for entities (found policy ⇒ L1); it serves the task-13 root-field arm.
