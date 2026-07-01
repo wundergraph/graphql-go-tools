@@ -12,7 +12,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 |---|---|---|---|---|
 | 01 | representationvariable extraction | done | ca0ec6fb | Pure move; tests moved and extended with an entity-interface case per the task file. |
 | 02 | runtime contract + loader seam | done | e79ebbe8 | D2/D4/D8 applied; ShadowCacheEntry/ItemCacheState kept to RFC shape (first-pass extras not ported); reviewer notes in reviews/02-*.md. |
-| 03 | planner wiring + engine SetCaching | todo | — | — |
+| 03 | planner wiring + engine SetCaching | done | (see git log) | SetCaching keyed by datasource ID; provider drops first-pass KeySpecs (D10); P1 registers on the second walk only; reviewer notes in reviews/03-*.md. |
 | 04 | test infrastructure | todo | — | — |
 | 05 | ProvidesData visitor (P1) | todo | — | — |
 | 06 | entity cache configuration | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 03 (planner wiring + engine SetCaching; deps 01 + 02 are done).
+- Next step: task 04 (test infrastructure; deps 02 + 03 are done).
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -49,3 +49,10 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
   the first-pass extras (`ShadowCacheEntry.CacheTTL`, per-item `BatchEntityKey`) were not ported — tasks 10/12 add them only if actually needed.
 - Task 02: no existing fetch-type-switch site qualified for the sanctioned predicate cleanup
   (`preparePhase` needs the concrete types; `isEmptyEntityFetch` already dispatches via `FetchKind()`).
+- Task 03: `SetCaching(map[string]cacheconfig.CachingConfiguration)` is keyed by DATASOURCE ID
+  (matches `FetchInfo.DataSourceID`, the runtime provider key); unknown IDs fail `NewExecutionEngine`.
+- Task 03: the provider interface drops the first-pass `KeySpecs`/`KeySpec(...)` external key input (D10 — keys derive structurally in `cacheKeyBuilder`);
+  `cacheconfig` therefore imports only `time`.
+- Task 03: P1 registers ONLY on the gated second walk (the first pass also registered it on the main walk);
+  task 05 may revisit if the ported visitor body genuinely needs main-walk state.
+- Task 03: `dataSourceConfiguration.caching` has no producer yet (accessor-only seam, same as the first pass); first consumer lands with task 05.

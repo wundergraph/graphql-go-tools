@@ -20,6 +20,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/introspection_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -32,10 +33,10 @@ type internalExecutionContext struct {
 	postProcessor  *postprocess.Processor
 }
 
-func newInternalExecutionContext() *internalExecutionContext {
+func newInternalExecutionContext(postProcessorOptions ...postprocess.ProcessorOption) *internalExecutionContext {
 	return &internalExecutionContext{
 		resolveContext: resolve.NewContext(context.Background()),
-		postProcessor:  postprocess.NewProcessor(),
+		postProcessor:  postprocess.NewProcessor(postProcessorOptions...),
 	}
 }
 
@@ -60,6 +61,9 @@ type ExecutionEngine struct {
 	executionPlanCache       *lru.Cache
 	apolloCompatibilityFlags apollocompatibility.Flags
 	validationOptions        []astvalidation.Option
+	// postProcessorOptions carry the caching wiring (postprocess.EnableCaching)
+	// into every per-execution postprocess.Processor; empty when caching is off.
+	postProcessorOptions []postprocess.ProcessorOption
 }
 
 type WebsocketBeforeStartHook interface {
@@ -128,6 +132,30 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		dsIDs[ds.Id()] = struct{}{}
 	}
 
+	var postProcessorOptions []postprocess.ProcessorOption
+	if len(engineConfig.caching) > 0 {
+		providers := make(map[string]cacheconfig.CacheConfigProvider, len(engineConfig.caching))
+		for id, caching := range engineConfig.caching {
+			if _, ok := dsIDs[id]; !ok {
+				return nil, fmt.Errorf("caching configured for unknown datasource id: %s", id)
+			}
+			providers[id] = &caching
+		}
+		federation := make(map[string]plan.FederationMetaData, len(providers))
+		for _, ds := range engineConfig.plannerConfig.DataSources {
+			if _, ok := providers[ds.Id()]; ok {
+				federation[ds.Id()] = ds.FederationConfiguration()
+			}
+		}
+		engineConfig.plannerConfig.CacheConfigProviders = providers
+		// Caching requires FetchInfo: providers are matched to fetches via
+		// FetchInfo.DataSourceID, so a DisableIncludeInfo + caching combination
+		// must never degrade to silent uncached behavior.
+		engineConfig.plannerConfig.DisableIncludeInfo = false
+		postProcessorOptions = append(postProcessorOptions,
+			postprocess.EnableCaching(providers, federation, engineConfig.schema.Document()))
+	}
+
 	var validationOpts []astvalidation.Option
 	if engineConfig.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability {
 		validationOpts = append(validationOpts, astvalidation.WithRelaxFieldSelectionMergingNullability())
@@ -141,7 +169,8 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
-		validationOptions: validationOpts,
+		validationOptions:    validationOpts,
+		postProcessorOptions: postProcessorOptions,
 	}, nil
 }
 
@@ -213,7 +242,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 	}
 
-	execContext := newInternalExecutionContext()
+	execContext := newInternalExecutionContext(e.postProcessorOptions...)
 	execContext.setContext(ctx)
 	execContext.setVariables(operation.Variables)
 	execContext.setRequest(operation.InternalRequest())
