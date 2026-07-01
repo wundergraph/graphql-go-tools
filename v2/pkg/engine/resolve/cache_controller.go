@@ -232,4 +232,8 @@ type ShadowCacheEntry struct {
 	CachedValue  *astjson.Value
 	CacheKey     string
 	RemainingTTL time.Duration
+	// CacheTTL is the policy TTL the entry was written with, so the observer
+	// can derive the entry's age (CacheTTL - RemainingTTL) without re-deriving
+	// config.
+	CacheTTL time.Duration
 }
