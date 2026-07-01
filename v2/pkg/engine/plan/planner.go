@@ -241,7 +241,14 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	if p.cacheProvidesData != nil {
 		p.planningWalker.ResetVisitors()
 		p.planningWalker.SetVisitorFilter(nil)
-		p.cacheProvidesData.walker = p.planningWalker
+		p.cacheProvidesData.Walker = p.planningWalker
+		p.cacheProvidesData.operation = operation
+		p.cacheProvidesData.definition = definition
+		p.cacheProvidesData.config = p.config
+		p.cacheProvidesData.planners = plannersConfigurations
+		// fieldPlanners is populated by the main walk's LeaveField; it is
+		// complete here because the main walk has finished.
+		p.cacheProvidesData.fieldPlanners = p.planningVisitor.fieldPlanners
 		p.cacheProvidesData.reset()
 		p.planningWalker.RegisterEnterFieldVisitor(p.cacheProvidesData)
 		p.planningWalker.RegisterLeaveFieldVisitor(p.cacheProvidesData)
