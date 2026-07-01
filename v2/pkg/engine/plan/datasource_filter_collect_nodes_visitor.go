@@ -460,7 +460,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return nil
 	}
 
-	_, isProvided := f.providesEntries[providedFieldKey(info.typeName, info.fieldName, info.currentPath)]
+	_, isProvided := f.providesEntries[providedFieldKey(info.typeName, info.fieldName, info.currentPathWithoutFragments)]
 
 	if info.isTypeName && f.isInterfaceObject(info.typeName) {
 		// we should not add a typename on the interface object
