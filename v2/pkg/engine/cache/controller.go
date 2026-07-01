@@ -230,9 +230,9 @@ func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resol
 		state.FromCacheCandidates = append(state.FromCacheCandidates, hit.candidate)
 		parsed = append(parsed, hit.cached)
 	}
-	if selectMultiCandidateCacheValue(tx, &state, parsed, cfg.ProvidesData) {
-		state.FromCache = reorderToSelectionOrder(tx, state.FromCache, cfg.ProvidesData)
-	}
+	// The selected value stays in NORMALIZED (stored) form on the handle;
+	// OnFetchSkipped denormalizes it to the requesting aliases at splice time.
+	selectMultiCandidateCacheValue(tx, r.ctx, &state, parsed, cfg.ProvidesData)
 	return state, missedKeys, mustWriteBack || state.NeedsWriteback
 }
 
@@ -260,12 +260,15 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 		if item.FromCache == nil || item.Item == nil {
 			continue
 		}
-		cached := tx.StructuralCopy(item.FromCache)
-		if cached.Type() == astjson.TypeNull {
+		if item.FromCache.Type() == astjson.TypeNull {
 			// Negative sentinels land with task 11; a null value has nothing
 			// to splice.
 			continue
 		}
+		// Denormalize the stored value to the requesting operation's aliases in
+		// selection order; the walk builds a fresh transaction-owned value, so
+		// it is also the aliasing-safe copy for the splice.
+		cached := denormalizeToSelection(tx, r.ctx, item.FromCache, cfg.ProvidesData)
 		if len(in.MergePath) > 0 {
 			if _, err := tx.MergeValuesWithPath(item.Item, cached, in.MergePath...); err != nil {
 				return err
@@ -335,17 +338,26 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 			}
 			itemToStore = entity
 		}
+		// Normalize to the stored form (schema names + argument suffixes)
+		// before caching; trees without aliases or args skip the transform
+		// (HasAliases is the fast-path gate) and store the raw value.
+		toStore := itemToStore
+		if cfg.ProvidesData != nil && cfg.ProvidesData.HasAliases {
+			toStore = normalizeToSchema(tx, r.ctx, itemToStore, cfg.ProvidesData)
+		}
 		// Marshal ONCE per item; the deferred set holds bytes only.
-		value := itemToStore.MarshalTo(nil)
+		value := toStore.MarshalTo(nil)
 		for _, key := range item.RenderedKeys {
 			r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonRefresh)
 		}
 		for _, candidate := range item.PendingCandidates {
 			// Re-render candidates that could not render at lookup from the
 			// FRESH data (best-effort backfill); a candidate the response still
-			// cannot render is skipped silently — never required.
+			// cannot render is skipped silently — never required. Rendering
+			// uses the NORMALIZED value: representation fields carry schema
+			// names, which an alias-shaped response would not match.
 			template := cacheKeyTemplate{prefix: r.prefixes[h], representation: candidate.Representation}
-			key, ok := template.render(itemToStore)
+			key, ok := template.render(toStore)
 			if !ok {
 				continue
 			}

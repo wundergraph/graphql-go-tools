@@ -18,7 +18,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 06 | entity cache configuration | done | 3f7e3ca5 | Entity arm only (root fields task 13, mappings task 15); NEW hardening: __typename-only candidates rejected as malformed; ComputeHasAliases landed with its first caller; reviews/06-*.md. |
 | 07 | entity L2 controller core | done | 29606414 | L2-only single-candidate core; deferral gates fail closed (shadow/batch/root/negative/L1/multi-key → plain fetch); no Mode enum; resolve.NewTransactionBeginner exported for controller tests; reviews/07-*.md. |
 | 08 | multi-key / freshness / reorder | done | 3372187b | Full ladder + backfill; malformed cached bytes now refresh (first pass left poison entries); fixtures grew deals subgraph + featuredReview for the plan-driven cross-key row (wgc+rover clean, IDs stable); reviews/08-*.md. |
-| 09 | store normalization + arg keys | todo | — | — |
+| 09 | store normalization + arg keys | done | (see git log) | FromCache stays NORMALIZED; denormalize-at-splice subsumes the task-08 reorder (deleted); pending renders now use the normalized value (first-pass alias bug fixed); inventory grew stockHistory(days) for the arg e2e; reviews/09-*.md. |
 | 10 | batch entity caching | todo | — | — |
 | 11 | negative caching | todo | — | — |
 | 12 | shadow mode | todo | — | — |
@@ -33,7 +33,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 
 ## Current focus
 
-- Next step: task 09 (store normalization + arg keys; dep 07 is done). Tasks 10/11/12 are also unblocked.
+- Next step: task 10 (batch entity caching; dep 08 is done). Tasks 11/12 are also unblocked.
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -76,3 +76,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 08: `WriteReasonRecorder` is an optional Store extension for refresh/backfill visibility; reasons never gate writes.
 - Task 08: fixtures grew the `deals` subgraph (sku-keyed Product reference) + `featuredReview` (single-object upc path) to make the cross-key plan expressible; datasource IDs 0–3 unchanged, deals is "4".
 - Task 08: pending candidates re-render on skip from the SERVED value only (the first pass also tried the request item).
+- Task 09: `FromCache` stays NORMALIZED on the handle; denormalization to the requesting aliases happens at splice time and subsumes the task-08 reorder (`reorderToSelectionOrder` deleted).
+- Task 09: the `HasAliases` fast path gates only write-side normalization; the read side always walks (it is also the selection-order pass).
+- Task 09: pending-candidate re-render uses the NORMALIZED value (representation fields carry schema names — a latent first-pass bug for aliased key fields).
+- Task 09: fixtures grew `Product.stockHistory(days: Int!)` on inventory for the entity-level argument e2e row (wgc + rover clean).

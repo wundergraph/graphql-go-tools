@@ -21,11 +21,11 @@ import (
 //
 // It fills FromCache and SelectedRemainingTTL and reports whether a value was
 // selected.
-func selectMultiCandidateCacheValue(tx *resolve.CacheTransaction, state *resolve.ItemCacheState, parsed []*astjson.Value, providesData *resolve.Object) bool {
+func selectMultiCandidateCacheValue(tx *resolve.CacheTransaction, ctx *resolve.Context, state *resolve.ItemCacheState, parsed []*astjson.Value, providesData *resolve.Object) bool {
 	if len(parsed) == 0 || providesData == nil {
 		return false
 	}
-	if parsed[0] != nil && covers(parsed[0], providesData) {
+	if parsed[0] != nil && covers(ctx, parsed[0], providesData) {
 		state.FromCache = parsed[0]
 		state.SelectedRemainingTTL = state.FromCacheCandidates[0].RemainingTTL
 		return true
@@ -54,7 +54,7 @@ func selectMultiCandidateCacheValue(tx *resolve.CacheTransaction, state *resolve
 			break
 		}
 	}
-	if merged != nil && covers(merged, providesData) {
+	if merged != nil && covers(ctx, merged, providesData) {
 		state.FromCache = merged
 		state.SelectedRemainingTTL = state.FromCacheCandidates[0].RemainingTTL
 		state.NeedsWriteback = true
@@ -65,7 +65,7 @@ func selectMultiCandidateCacheValue(tx *resolve.CacheTransaction, state *resolve
 		if parsed[i] == nil {
 			continue
 		}
-		if covers(parsed[i], providesData) {
+		if covers(ctx, parsed[i], providesData) {
 			state.FromCache = parsed[i]
 			state.SelectedRemainingTTL = state.FromCacheCandidates[i].RemainingTTL
 			state.NeedsWriteback = true
@@ -90,61 +90,5 @@ func compareCacheCandidateFreshness(a, b time.Duration) int {
 		return 1
 	default:
 		return 0
-	}
-}
-
-// reorderToSelectionOrder rebuilds the value with its fields in the
-// ProvidesData selection order (recursively), appending cached-only extras
-// after the selected fields, so a spliced value renders byte-identically to a
-// fetched one.
-func reorderToSelectionOrder(tx *resolve.CacheTransaction, value *astjson.Value, node resolve.Node) *astjson.Value {
-	if value == nil || node == nil {
-		return value
-	}
-	switch typed := node.(type) {
-	case *resolve.Object:
-		if value.Type() != astjson.TypeObject {
-			return value
-		}
-		reordered := tx.NewObject()
-		seen := make(map[string]struct{}, len(typed.Fields))
-		for _, field := range typed.Fields {
-			fieldName := string(field.Name)
-			fieldValue := value.Get(fieldName)
-			if fieldValue == nil {
-				continue
-			}
-			reordered.Set(nil, fieldName, reorderToSelectionOrder(tx, fieldValue, field.Value))
-			seen[fieldName] = struct{}{}
-		}
-		obj, err := value.Object()
-		if err != nil {
-			return value
-		}
-		// Keep fields the cache carries beyond the selection (e.g. key fields
-		// another fetch needed) so a write-back never loses data.
-		obj.Visit(func(key []byte, fieldValue *astjson.Value) {
-			fieldName := string(key)
-			if _, ok := seen[fieldName]; ok {
-				return
-			}
-			reordered.Set(nil, fieldName, fieldValue)
-		})
-		return reordered
-	case *resolve.Array:
-		if value.Type() != astjson.TypeArray {
-			return value
-		}
-		items, err := value.Array()
-		if err != nil {
-			return value
-		}
-		reordered := tx.NewArray()
-		for i, item := range items {
-			reordered.SetArrayItem(nil, i, reorderToSelectionOrder(tx, item, typed.Item))
-		}
-		return reordered
-	default:
-		return value
 	}
 }
