@@ -638,7 +638,7 @@ type fieldInfo struct {
 	// parentFieldRef is the nearest ancestor field ref (skipping inline fragments),
 	// or ast.InvalidRef for a root field. Used to walk the typed ancestry for provides chains.
 	parentFieldRef int
-	deferInfo                                                      *DeferInfo
+	deferInfo      *DeferInfo
 }
 
 func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
