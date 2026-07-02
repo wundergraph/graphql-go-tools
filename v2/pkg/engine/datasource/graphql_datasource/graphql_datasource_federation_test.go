@@ -19553,6 +19553,234 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				)
 			})
 		})
+
+		t.Run("provided entity field with __typename selection on non-resolvable parent", func(t *testing.T) {
+			definition := `
+				type Query {
+					notEntity: NotEntity
+				}
+				
+				type NotEntity {
+					entity: Node
+				}
+				
+				interface Node {
+					id: ID!
+				}
+
+				type Entity implements Node {
+					id: ID!
+					name: String!
+				}`
+
+			firstSubgraphSDL := `
+				type Query {
+					notEntity: NotEntity @provides(fields: "entity {... on Entity {id}}")
+				}
+				
+				type NotEntity {
+					entity: Node
+				}
+
+				interface Node {
+					id: ID!
+				}
+
+				type Entity implements Node @key(fields: "id", resolvable: false) {
+					id: ID!
+					name: String!
+				}`
+
+			firstDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"first-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"notEntity"},
+						},
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "name"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:           "NotEntity",
+							ExternalFieldNames: []string{"entity"},
+						},
+						{
+							TypeName:   "Node",
+							FieldNames: []string{"id"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "id",
+								DisableEntityResolver: true,
+							},
+						},
+						Provides: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Query",
+								FieldName:    "notEntity",
+								SelectionSet: "entity {... on Entity {id}}",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://first.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			secondSubgraphSDL := `
+				type Entity @key(fields: "id") {
+					id: ID!
+					name: String!
+				}`
+
+			secondDatasourceConfiguration := mustDataSourceConfiguration(
+				t,
+				"second-service",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Entity",
+							FieldNames: []string{"id", "name"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustCustomConfiguration(t,
+					ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://second.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
+					},
+				),
+			)
+
+			planConfiguration := plan.Configuration{
+				DataSources: []plan.DataSource{
+					firstDatasourceConfiguration,
+					secondDatasourceConfiguration,
+				},
+				DisableResolveFieldPositions: true,
+				Debug: plan.DebugConfiguration{
+					PrintQueryPlans: false,
+				},
+			}
+
+			// this test ensures that query could plan properly
+			t.Run("run", func(t *testing.T) {
+				RunWithPermutations(
+					t,
+					definition,
+					`
+						query Reproduction {
+							notEntity {
+								entity {
+									... on Entity {
+										__typename
+										id
+									}
+								}
+							}
+						}`,
+					"Reproduction",
+					&plan.SynchronousResponsePlan{
+						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								resolve.Single(&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{notEntity {entity {__typename ... on Entity {__typename id}}}}"}}`,
+										PostProcessing: DefaultPostProcessingConfiguration,
+										DataSource:     &Source{},
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								}),
+							),
+							Data: &resolve.Object{
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("notEntity"),
+										Value: &resolve.Object{
+											Path:     []string{"notEntity"},
+											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"NotEntity": {},
+											},
+											TypeName: "NotEntity",
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("entity"),
+													Value: &resolve.Object{
+														Path:     []string{"entity"},
+														Nullable: true,
+														PossibleTypes: map[string]struct{}{
+															"Entity": {},
+														},
+														TypeName: "Node",
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path:       []string{"__typename"},
+																	IsTypeName: true,
+																},
+																OnTypeNames: [][]byte{[]byte("Entity")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("Entity")},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					planConfiguration,
+					WithDefaultPostProcessor(),
+				)
+			})
+		})
 	})
 
 	t.Run("jump over the parent entity", func(t *testing.T) {

@@ -855,11 +855,11 @@ func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
 		return false
 	}
 
-	// if selected parent is external and selected
-	// but current node is not provided, we can't select it as it is external
-	// it means that there was provided some sibling, but not the current field
+	// if the selected parent is external,
+	// and the current node is external and is not provided -
+	// we can't select it.
 	parentIsExternal := f.nodes.items[parentIdx].IsExternal
-	if parentIsExternal && !f.nodes.items[i].IsProvided {
+	if parentIsExternal && (f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided) {
 		return false
 	}
 
