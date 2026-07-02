@@ -54,7 +54,9 @@ func TestMultiKeyCrossKeyHitEndToEnd(t *testing.T) {
 	assert.NotEqual(t, upcKey, skuKey)
 
 	// Request 2: deal.product — deals provides ONLY sku, so the entity fetch
-	// renders only the sku candidate: the cross-key hit.
+	// renders only the sku candidate: the cross-key hit. Its ops assert in
+	// isolation.
+	store.ResetOps()
 	serve := Plan(t, `{ deal(id: "d1") { product { name } } }`, productsEntityCaching(), map[string]string{
 		"deals": `{"data":{"deal":{"__typename":"Deal","product":{"__typename":"Product","sku":"S1"}}}}`,
 	})
@@ -63,11 +65,8 @@ func TestMultiKeyCrossKeyHitEndToEnd(t *testing.T) {
 	assert.Equal(t, int64(1), serve.LoadCount("deals", ""))
 	assert.Equal(t, int64(0), serve.LoadCount("products", "deal.product"))
 
-	// The serve request added exactly one Get under the BACKFILLED sku key.
+	// The serve request performed exactly one Get, under the BACKFILLED sku key.
 	assert.Equal(t, []cachetesting.StoreOp{
-		{Kind: "Get", Key: upcKey},
-		{Kind: "Set", Key: upcKey, Value: `{"__typename":"Product","name":"Table","sku":"S1"}`, TTL: time.Minute},
-		{Kind: "Set", Key: skuKey, Value: `{"__typename":"Product","name":"Table","sku":"S1"}`, TTL: time.Minute},
 		{Kind: "Get", Key: skuKey},
 	}, store.Ops())
 }

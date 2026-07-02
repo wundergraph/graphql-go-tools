@@ -81,7 +81,7 @@ func TestPartialBatchRows(t *testing.T) {
 		store := newTestStore()
 		cfg := partialConfig(t)
 		key1 := writeThrough(t, NewController(store, nil).BeginRequest(nil), cfg, productItem(t, "2"), fresh("2"))
-		storeOpsBefore := len(store.ops)
+		store.ops = nil // the partial request's ops assert in isolation
 
 		rc := NewController(store, nil).BeginRequest(nil)
 		in, _ := batchPrepareInput(t, cfg, "1", "2", "3")
@@ -98,10 +98,9 @@ func TestPartialBatchRows(t *testing.T) {
 			`{"body":{"query":"...","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"3"}]}}}`,
 			string(handle.PartialInput))
 		// Lookups ran for ALL buckets (three Gets; key1 among them).
-		gets := store.ops[storeOpsBefore:]
-		require.Len(t, gets, 3)
-		assert.Equal(t, "Get", gets[0].Kind)
-		assert.Equal(t, key1, gets[1].Key)
+		require.Len(t, store.ops, 3)
+		assert.Equal(t, "Get", store.ops[0].Kind)
+		assert.Equal(t, key1, store.ops[1].Key)
 	})
 
 	t.Run("realign: fetched entities land at their ORIGINAL positions; writes only for fetched", func(t *testing.T) {

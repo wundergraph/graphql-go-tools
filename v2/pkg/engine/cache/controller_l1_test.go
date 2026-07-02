@@ -115,6 +115,7 @@ func TestControllerL1Rows(t *testing.T) {
 		store := newTestStore()
 		cfg := entityConfig(t, time.Minute)
 		key := writeThrough(t, NewController(store, nil).BeginRequest(nil), cfg, productItem(t, "1"), fresh)
+		store.ops = nil // request 2's ops assert in isolation
 
 		rc := NewController(store, nil).BeginRequest(nil)
 		itemA := productItem(t, "1")
@@ -125,11 +126,8 @@ func TestControllerL1Rows(t *testing.T) {
 		decisionB, _ := prepare(t, rc, cfg, itemB)
 		assert.Equal(t, resolve.DecisionSkipFullHit, decisionB)
 		rc.EndRequest()
-		assert.Equal(t, []testStoreOp{
-			{Kind: "Get", Key: key},
-			{Kind: "Set", Key: key, Value: fresh, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
-			{Kind: "Get", Key: key}, // request 2, fetch A only — fetch B rode L1
-		}, store.ops)
+		// Fetch A's single L2 Get is request 2's ONLY store op — fetch B rode L1.
+		assert.Equal(t, []testStoreOp{{Kind: "Get", Key: key}}, store.ops)
 	})
 
 	t.Run("multi-key backfill reaches L1: a pending-rendered key serves the next lookup", func(t *testing.T) {

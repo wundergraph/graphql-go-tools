@@ -97,6 +97,7 @@ func TestControllerBatchRows(t *testing.T) {
 		store := newTestStore()
 		cfg := entityConfig(t, time.Minute)
 		keys := primeBatch(t, store, cfg, []string{"1"}, `[{"__typename":"Product","name":"Table","price":100}]`)
+		store.ops = nil // the mixed batch's ops assert in isolation
 
 		rc := newRC(store)
 		buckets := [][]*astjson.Value{{productItem(t, "1")}, {productItem(t, "3")}}
@@ -116,8 +117,6 @@ func TestControllerBatchRows(t *testing.T) {
 		rc.EndRequest()
 		missKey := handle.Items[1].RenderedKeys[0]
 		assert.Equal(t, []testStoreOp{
-			{Kind: "Get", Key: keys[0]},
-			{Kind: "Set", Key: keys[0], Value: `{"__typename":"Product","name":"Table","price":100}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
 			{Kind: "Get", Key: keys[0]},
 			{Kind: "Get", Key: missKey},
 			{Kind: "Set", Key: keys[0], Value: `{"__typename":"Product","name":"Table","price":100}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},

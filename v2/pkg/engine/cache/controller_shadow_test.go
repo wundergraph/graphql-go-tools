@@ -71,6 +71,7 @@ func TestControllerShadowRows(t *testing.T) {
 		store := newTestStore()
 		cfg := shadowConfig(t)
 		key := primeShadow(t, store, cfg)
+		store.ops = nil // the shadow request's ops assert in isolation
 
 		rc := NewController(store, nil).BeginRequest(nil)
 		decision, handle := prepare(t, rc, cfg, productItem(t, "1"))
@@ -83,12 +84,8 @@ func TestControllerShadowRows(t *testing.T) {
 		require.Contains(t, handle.ShadowStash, 0)
 		assert.Equal(t, key, handle.ShadowStash[0].CacheKey)
 		assert.Equal(t, fresh, string(handle.ShadowStash[0].CachedValue.MarshalTo(nil)))
-		// The store shows the read happened.
-		assert.Equal(t, []testStoreOp{
-			{Kind: "Get", Key: key},
-			{Kind: "Set", Key: key, Value: fresh, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
-			{Kind: "Get", Key: key},
-		}, store.ops)
+		// The store shows the read happened (and nothing else).
+		assert.Equal(t, []testStoreOp{{Kind: "Get", Key: key}}, store.ops)
 	})
 
 	t.Run("[H2] compare MATCH: exact CacheAge, compare precedes the L2 overwrite", func(t *testing.T) {
