@@ -23,33 +23,28 @@ func productL1Caching(ttl time.Duration) map[string]cacheconfig.CachingConfigura
 	}
 }
 
-// l1ChainQuery produces a dependency-ordered same-type pair: the deals root
-// resolves the product by SKU (products fetch A), the reviews hop needs UPC
-// from A's response, and each review's product resolves through a SECOND
-// products fetch B that transitively depends on A — exactly the shape
-// optimizeL1Cache keeps L1 on for.
-const l1ChainQuery = `{ deal(id: "d1") { product { name reviews { product { name } } } } }`
-
-func l1ChainResponses() map[string]string {
-	return map[string]string{
-		"deals":                 `{"data":{"deal":{"__typename":"Deal","id":"d1","product":{"__typename":"Product","sku":"S1"}}}}`,
-		"products:deal.product": `{"data":{"_entities":[{"__typename":"Product","name":"Table","upc":"1"}]}}`,
-		"reviews":               `{"data":{"_entities":[{"__typename":"Product","reviews":[{"__typename":"Review","product":{"__typename":"Product","upc":"1"}}]}]}}`,
-		"products:deal.product.reviews.@.product": `{"data":{"_entities":[{"__typename":"Product","name":"NETWORK-MUST-NOT-SERVE"}]}}`,
-	}
-}
-
-const l1ChainExpected = `{"data":{"deal":{"product":{"name":"Table","reviews":[{"product":{"name":"Table"}}]}}}}`
-
 // TestL1InRequestReuseEndToEnd: fetch A (deal.product) populates L1 under both
 // entity keys (upc backfilled from the response); the DEPENDENT fetch B
 // (review.product, known only by upc) is served from L1 with ZERO network and
 // — the policy being L1-only — ZERO store ops for the whole request.
 func TestL1InRequestReuseEndToEnd(t *testing.T) {
 	store := cachetesting.NewFakeStore()
-	result := Plan(t, l1ChainQuery, productL1Caching(0), l1ChainResponses())
+	// The query produces a dependency-ordered same-type pair: the deals root
+	// resolves the product by SKU (products fetch A), the reviews hop needs
+	// UPC from A's response, and each review's product resolves through a
+	// SECOND products fetch B that transitively depends on A — exactly the
+	// shape optimizeL1Cache keeps L1 on for. Fetch B's canned response is
+	// TAMPERED so accidental network use fails loudly.
+	query := `{ deal(id: "d1") { product { name reviews { product { name } } } } }`
+	responses := map[string]string{
+		"deals":                 `{"data":{"deal":{"__typename":"Deal","id":"d1","product":{"__typename":"Product","sku":"S1"}}}}`,
+		"products:deal.product": `{"data":{"_entities":[{"__typename":"Product","name":"Table","upc":"1"}]}}`,
+		"reviews":               `{"data":{"_entities":[{"__typename":"Product","reviews":[{"__typename":"Review","product":{"__typename":"Product","upc":"1"}}]}]}}`,
+		"products:deal.product.reviews.@.product": `{"data":{"_entities":[{"__typename":"Product","name":"NETWORK-MUST-NOT-SERVE"}]}}`,
+	}
+	result := Plan(t, query, productL1Caching(0), responses)
 	body := ResolveResponse(t, result.Response, cachetesting.NewRealishCache(store, nil))
-	assert.Equal(t, l1ChainExpected, body)
+	assert.Equal(t, `{"data":{"deal":{"product":{"name":"Table","reviews":[{"product":{"name":"Table"}}]}}}}`, body)
 	assert.Equal(t, int64(1), result.LoadCount("products", "deal.product"))
 	assert.Equal(t, int64(0), result.LoadCount("products", "deal.product.reviews.@.product"))
 	assert.Empty(t, store.Ops())
@@ -61,20 +56,25 @@ func TestL1InRequestReuseEndToEnd(t *testing.T) {
 // tampered variant is TestL1InRequestReuseEndToEnd's job), so byte equality
 // across modes is meaningful.
 func TestL1ModeMatrixEndToEnd(t *testing.T) {
-	matrixResponses := func() map[string]string {
-		responses := l1ChainResponses()
-		responses["products:deal.product.reviews.@.product"] = `{"data":{"_entities":[{"__typename":"Product","name":"Table"}]}}`
-		return responses
+	// The same dependency-ordered deal -> product(sku) -> reviews(upc) ->
+	// product(upc) chain as TestL1InRequestReuseEndToEnd, resolved once per
+	// mode over the SAME canned responses.
+	query := `{ deal(id: "d1") { product { name reviews { product { name } } } } }`
+	responses := map[string]string{
+		"deals":                 `{"data":{"deal":{"__typename":"Deal","id":"d1","product":{"__typename":"Product","sku":"S1"}}}}`,
+		"products:deal.product": `{"data":{"_entities":[{"__typename":"Product","name":"Table","upc":"1"}]}}`,
+		"reviews":               `{"data":{"_entities":[{"__typename":"Product","reviews":[{"__typename":"Review","product":{"__typename":"Product","upc":"1"}}]}]}}`,
+		"products:deal.product.reviews.@.product": `{"data":{"_entities":[{"__typename":"Product","name":"Table"}]}}`,
 	}
 	// NO-OP: no caching config, no controller — the baseline bytes.
-	noop := Plan(t, l1ChainQuery, nil, matrixResponses())
+	noop := Plan(t, query, nil, responses)
 	noopBody := ResolveResponse(t, noop.Response, nil)
-	assert.Equal(t, l1ChainExpected, noopBody)
+	assert.Equal(t, `{"data":{"deal":{"product":{"name":"Table","reviews":[{"product":{"name":"Table"}}]}}}}`, noopBody)
 	assert.Equal(t, int64(1), noop.LoadCount("products", "deal.product.reviews.@.product")) // the baseline really fetches B
 
 	// L1-only: identical bytes, fetch B off the network, zero store traffic.
 	l1Store := cachetesting.NewFakeStore()
-	l1Only := Plan(t, l1ChainQuery, productL1Caching(0), matrixResponses())
+	l1Only := Plan(t, query, productL1Caching(0), responses)
 	l1Body := ResolveResponse(t, l1Only.Response, cachetesting.NewRealishCache(l1Store, nil))
 	assert.Equal(t, noopBody, l1Body)
 	assert.Equal(t, int64(0), l1Only.LoadCount("products", "deal.product.reviews.@.product"))
@@ -83,7 +83,7 @@ func TestL1ModeMatrixEndToEnd(t *testing.T) {
 	// L1+L2: identical bytes; fetch A misses L2 once and flushes its writes;
 	// fetch B rides L1 and touches NEITHER the network NOR the store.
 	bothStore := cachetesting.NewFakeStore()
-	both := Plan(t, l1ChainQuery, productL1Caching(time.Minute), matrixResponses())
+	both := Plan(t, query, productL1Caching(time.Minute), responses)
 	bothBody := ResolveResponse(t, both.Response, cachetesting.NewRealishCache(bothStore, nil))
 	assert.Equal(t, noopBody, bothBody)
 	assert.Equal(t, int64(0), both.LoadCount("products", "deal.product.reviews.@.product"))
@@ -95,7 +95,7 @@ func TestL1ModeMatrixEndToEnd(t *testing.T) {
 	assert.Equal(t, `{"__typename":"Product","name":"Table","upc":"1"}`, ops[1].Value)
 
 	// A SECOND request over a fresh plan hits L2 on fetch A and L1 on fetch B.
-	second := Plan(t, l1ChainQuery, productL1Caching(time.Minute), matrixResponses())
+	second := Plan(t, query, productL1Caching(time.Minute), responses)
 	secondBody := ResolveResponse(t, second.Response, cachetesting.NewRealishCache(bothStore, nil))
 	assert.Equal(t, noopBody, secondBody)
 	assert.Equal(t, int64(0), second.LoadCount("products", "deal.product"))

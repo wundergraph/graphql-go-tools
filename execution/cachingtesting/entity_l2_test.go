@@ -27,19 +27,6 @@ func inventoryCaching() map[string]cacheconfig.CachingConfiguration {
 	}
 }
 
-const (
-	entityL2Query    = `{ me { username favoriteProduct { upc stock } } }`
-	entityL2Expected = `{"data":{"me":{"username":"jens","favoriteProduct":{"upc":"1","stock":5}}}}`
-)
-
-func entityL2Responses() map[string]string {
-	return map[string]string{
-		"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
-		"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-		"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
-	}
-}
-
 // countingController wraps a controller to count BeginRequest calls (B rows).
 type countingController struct {
 	inner  resolve.CacheController
@@ -78,13 +65,20 @@ func (h *recordingLoaderHooks) OnFinished(ctx context.Context, ds resolve.DataSo
 // LoaderHooks contract (not fired for the skipped fetch, C7) ride along.
 func TestEntityL2EndToEnd(t *testing.T) {
 	store := cachetesting.NewFakeStore()
+	query := `{ me { username favoriteProduct { upc stock } } }`
+	responses := map[string]string{
+		"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
+		"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
+		"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
+	}
+	expected := `{"data":{"me":{"username":"jens","favoriteProduct":{"upc":"1","stock":5}}}}`
 
 	// Request 1: miss + write-through.
-	first := Plan(t, entityL2Query, inventoryCaching(), entityL2Responses())
+	first := Plan(t, query, inventoryCaching(), responses)
 	firstObserver := &cachetesting.RecordingObserver{}
 	firstController := &countingController{inner: cachetesting.NewRealishCache(store, firstObserver)}
 	firstBody := ResolveResponse(t, first.Response, firstController)
-	assert.Equal(t, entityL2Expected, firstBody)
+	assert.Equal(t, expected, firstBody)
 	assert.Equal(t, int64(1), first.LoadCount("users", ""))
 	assert.Equal(t, int64(1), first.LoadCount("products", "me"))
 	assert.Equal(t, int64(1), first.LoadCount("inventory", "me.favoriteProduct"))
@@ -103,7 +97,7 @@ func TestEntityL2EndToEnd(t *testing.T) {
 
 	// Request 2: L2 hit; the inventory datasource never loads; LoaderHooks do
 	// not fire for the skipped fetch.
-	second := Plan(t, entityL2Query, inventoryCaching(), entityL2Responses())
+	second := Plan(t, query, inventoryCaching(), responses)
 	hooks := &recordingLoaderHooks{}
 	secondController := &countingController{inner: cachetesting.NewRealishCache(store, nil)}
 	ctx := resolve.NewContext(t.Context())
@@ -111,7 +105,7 @@ func TestEntityL2EndToEnd(t *testing.T) {
 	ctx.SetEngineLoaderHooks(hooks)
 	secondBody := resolveWithContext(t, ctx, second.Response)
 
-	assert.Equal(t, entityL2Expected, secondBody)
+	assert.Equal(t, expected, secondBody)
 	assert.Equal(t, int64(1), second.LoadCount("users", ""))
 	assert.Equal(t, int64(1), second.LoadCount("products", "me"))
 	assert.Equal(t, int64(0), second.LoadCount("inventory", "me.favoriteProduct"))
@@ -164,9 +158,13 @@ func TestEntityL2DispatchRows(t *testing.T) {
 		controller := cachetesting.NewRecordingController(map[string]cachetesting.ScriptedDecision{
 			"me.favoriteProduct": {Decision: resolve.DecisionFetch, Handle: handle},
 		})
-		result := Plan(t, entityL2Query, inventoryCaching(), entityL2Responses())
+		result := Plan(t, `{ me { username favoriteProduct { upc stock } } }`, inventoryCaching(), map[string]string{
+			"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
+			"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
+			"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
+		})
 		body := ResolveResponse(t, result.Response, controller)
-		assert.Equal(t, entityL2Expected, body)
+		assert.Equal(t, `{"data":{"me":{"username":"jens","favoriteProduct":{"upc":"1","stock":5}}}}`, body)
 
 		calls := controller.Calls()
 		require.Len(t, calls, 3) // Prepare + Result + End
@@ -180,14 +178,20 @@ func TestEntityL2DispatchRows(t *testing.T) {
 	})
 
 	t.Run("[C3/C6] SkipFullHit skips the network with NO spurious error", func(t *testing.T) {
-		result := Plan(t, entityL2Query, inventoryCaching(), entityL2Responses())
+		query := `{ me { username favoriteProduct { upc stock } } }`
+		responses := map[string]string{
+			"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
+			"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
+			"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
+		}
+		result := Plan(t, query, inventoryCaching(), responses)
 		// A real full hit: seed the store through a first request, then replay.
 		store := cachetesting.NewFakeStore()
-		warmup := Plan(t, entityL2Query, inventoryCaching(), entityL2Responses())
+		warmup := Plan(t, query, inventoryCaching(), responses)
 		ResolveResponse(t, warmup.Response, cachetesting.NewRealishCache(store, nil))
 
 		body := ResolveResponse(t, result.Response, cachetesting.NewRealishCache(store, nil))
-		assert.Equal(t, entityL2Expected, body)
+		assert.Equal(t, `{"data":{"me":{"username":"jens","favoriteProduct":{"upc":"1","stock":5}}}}`, body)
 		assert.Equal(t, int64(0), result.LoadCount("inventory", "me.favoriteProduct"))
 	})
 
@@ -198,7 +202,11 @@ func TestEntityL2DispatchRows(t *testing.T) {
 		fake.SetError("me.favoriteProduct", "Result", errors.New("cache write exploded"))
 		controller := cachetesting.NewFakeCacheController(fake)
 
-		result := Plan(t, entityL2Query, inventoryCaching(), entityL2Responses())
+		result := Plan(t, `{ me { username favoriteProduct { upc stock } } }`, inventoryCaching(), map[string]string{
+			"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
+			"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
+			"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
+		})
 		ctx := resolve.NewContext(t.Context())
 		ctx.SetCacheController(controller)
 		var buf writerBuffer
