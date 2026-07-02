@@ -1370,3 +1370,299 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeFieldAndAb
 		WithDefaultPostProcessor(),
 	))
 }
+
+func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *testing.T) {
+	definition := `
+		type Query {
+			products: [Product]
+		}
+
+		type Product {
+			upc: String!
+			weight: Int
+			price(currency: String!): Int
+			estimateA: Int
+			estimateB: Int
+			estimateC: Int
+			estimateD: Int
+		}
+	`
+
+	catalogSDL := `
+		type Query {
+			products: [Product]
+		}
+
+		type Product @key(fields: "upc") {
+			upc: String!
+			weight: Int
+			price(currency: String!): Int
+		}
+	`
+
+	inventorySDL := `
+		type Product @key(fields: "upc") {
+			upc: String!
+			weight: Int @external
+			price(currency: String!): Int @external
+			estimateA: Int @requires(fields: "price(currency: \"USD\") weight")
+			estimateB: Int @requires(fields: "price(currency: \"EUR\") weight")
+			estimateC: Int @requires(fields: "price(currency: \"CAD\") weight")
+			estimateD: Int @requires(fields: "price(currency: \"UAH\") weight")
+		}
+	`
+
+	catalog := mustDataSourceConfiguration(
+		t,
+		"catalog",
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"products"},
+				},
+				{
+					TypeName:   "Product",
+					FieldNames: []string{"upc", "weight", "price"},
+				},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Product",
+						SelectionSet: "upc",
+					},
+				},
+			},
+		},
+		mustCustomConfiguration(t, ConfigurationInput{
+			Fetch: &FetchConfiguration{
+				URL: "http://catalog.service",
+			},
+			SchemaConfiguration: mustSchema(t,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: catalogSDL,
+				},
+				catalogSDL,
+			),
+		}),
+	)
+
+	inventory := mustDataSourceConfiguration(
+		t,
+		"inventory",
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Product",
+					FieldNames: []string{"upc", "estimateA", "estimateB", "estimateC", "estimateD"},
+				},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Product",
+						SelectionSet: "upc",
+					},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Product",
+						FieldName:    "estimateA",
+						SelectionSet: `price(currency: "USD") weight`,
+					},
+					{
+						TypeName:     "Product",
+						FieldName:    "estimateB",
+						SelectionSet: `price(currency: "EUR") weight`,
+					},
+					{
+						TypeName:     "Product",
+						FieldName:    "estimateC",
+						SelectionSet: `price(currency: "CAD") weight`,
+					},
+					{
+						TypeName:     "Product",
+						FieldName:    "estimateD",
+						SelectionSet: `price(currency: "UAH") weight`,
+					},
+				},
+			},
+		},
+		mustCustomConfiguration(t, ConfigurationInput{
+			Fetch: &FetchConfiguration{
+				URL: "http://inventory.service",
+			},
+			SchemaConfiguration: mustSchema(t,
+				&FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: inventorySDL,
+				},
+				inventorySDL,
+			),
+		}),
+	)
+
+	estimateFetch := func(fetchID int, fieldName string, pricePath string) *resolve.FetchTreeNode {
+		return resolve.SingleWithPath(&resolve.SingleFetch{
+			FetchDependencies: resolve.FetchDependencies{
+				FetchID:           fetchID,
+				DependsOnFetchIDs: []int{0},
+			},
+			FetchConfiguration: resolve.FetchConfiguration{
+				RequiresEntityBatchFetch:              true,
+				Input:                                 `{"method":"POST","url":"http://inventory.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename ` + fieldName + `}}}","variables":{"representations":[$$0$$]}}}`,
+				DataSource:                            &Source{},
+				PostProcessing:                        EntitiesPostProcessingConfiguration,
+				SetTemplateOutputToNullOnVariableNull: true,
+				Variables: resolve.NewVariables(
+					resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("__typename"),
+								Value: &resolve.String{
+									Path: []string{"__typename"},
+								},
+								OnTypeNames: [][]byte{[]byte("Product")},
+							},
+							{
+								Name: []byte("price"),
+								Value: &resolve.Integer{
+									Path:     []string{pricePath},
+									Nullable: true,
+								},
+								OnTypeNames: [][]byte{[]byte("Product")},
+							},
+							{
+								Name: []byte("weight"),
+								Value: &resolve.Integer{
+									Path:     []string{"weight"},
+									Nullable: true,
+								},
+								OnTypeNames: [][]byte{[]byte("Product")},
+							},
+							{
+								Name: []byte("upc"),
+								Value: &resolve.String{
+									Path: []string{"upc"},
+								},
+								OnTypeNames: [][]byte{[]byte("Product")},
+							},
+						},
+					}),
+				),
+			},
+			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+		}, "products", resolve.ArrayPath("products"))
+	}
+
+	RunWithPermutations(
+		t,
+		definition,
+		`
+		query Products {
+			products {
+				upc
+				estimateA
+				estimateB
+				estimateC
+				estimateD
+			}
+		}`,
+		"Products",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Fetches: resolve.Sequence(
+					resolve.Single(&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://catalog.service","body":{"query":"query($a: String!, $b: String!, $c: String!, $d: String!){products {upc price(currency: $a) weight __internal_price: price(currency: $b) __internal_price_1: price(currency: $c) __internal_price_2: price(currency: $d) __typename}}","variables":{"a":"USD","b":"EUR","c":"CAD","d":"UAH"}}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}),
+					estimateFetch(1, "estimateA", "price"),
+					estimateFetch(2, "estimateB", "__internal_price"),
+					estimateFetch(3, "estimateC", "__internal_price_1"),
+					estimateFetch(4, "estimateD", "__internal_price_2"),
+				),
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("products"),
+							Value: &resolve.Array{
+								Path:     []string{"products"},
+								Nullable: true,
+								Item: &resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("upc"),
+											Value: &resolve.String{
+												Path: []string{"upc"},
+											},
+										},
+										{
+											Name: []byte("estimateA"),
+											Value: &resolve.Integer{
+												Path:     []string{"estimateA"},
+												Nullable: true,
+											},
+										},
+										{
+											Name: []byte("estimateB"),
+											Value: &resolve.Integer{
+												Path:     []string{"estimateB"},
+												Nullable: true,
+											},
+										},
+										{
+											Name: []byte("estimateC"),
+											Value: &resolve.Integer{
+												Path:     []string{"estimateC"},
+												Nullable: true,
+											},
+										},
+										{
+											Name: []byte("estimateD"),
+											Value: &resolve.Integer{
+												Path:     []string{"estimateD"},
+												Nullable: true,
+											},
+										},
+									},
+									TypeName: "Product",
+									PossibleTypes: map[string]struct{}{
+										"Product": {},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSource{
+				catalog,
+				inventory,
+			},
+			Fields: plan.FieldConfigurations{
+				{
+					TypeName:  "Product",
+					FieldName: "price",
+					Arguments: plan.ArgumentsConfigurations{
+						{
+							Name:       "currency",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+			DisableResolveFieldPositions: true,
+		},
+		WithDefaultPostProcessor(),
+	)
+}
