@@ -145,15 +145,16 @@ func (f *Field) Copy() *Field {
 		deferField = &cp
 	}
 	return &Field{
-		Name:         f.Name,
-		Value:        f.Value.Copy(),
-		Position:     f.Position,
-		Defer:        deferField,
-		Stream:       f.Stream,
-		OnTypeNames:  f.OnTypeNames,
-		Info:         f.Info,
-		OriginalName: f.OriginalName,
-		CacheArgs:    slices.Clone(f.CacheArgs),
+		Name:              f.Name,
+		Value:             f.Value.Copy(),
+		Position:          f.Position,
+		Defer:             deferField,
+		Stream:            f.Stream,
+		OnTypeNames:       f.OnTypeNames,
+		ParentOnTypeNames: f.ParentOnTypeNames,
+		Info:              f.Info,
+		OriginalName:      f.OriginalName,
+		CacheArgs:         slices.Clone(f.CacheArgs),
 	}
 }
 

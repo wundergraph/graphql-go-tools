@@ -342,17 +342,36 @@ func objectProvidesAllFields(provider, consumer *resolve.Object) bool {
 }
 
 // objectSharesAnyField reports whether the provider supplies at least one
-// field the consumer needs — the union-fallback contribution gate.
+// field PATH the consumer needs — the union-fallback contribution gate. The
+// walk is recursive: sharing only a nested object's NAME while providing none
+// of its leaves the consumer reads is not a contribution.
 func objectSharesAnyField(provider, consumer *resolve.Object) bool {
 	if provider == nil || consumer == nil {
 		return false
 	}
 	for _, consumerField := range consumer.Fields {
-		if findFieldByNarrowingName(provider.Fields, fieldNarrowingName(consumerField)) != nil {
+		providerField := findFieldByNarrowingName(provider.Fields, fieldNarrowingName(consumerField))
+		if providerField != nil && nodeSharesAnyField(providerField.Value, consumerField.Value) {
 			return true
 		}
 	}
 	return false
+}
+
+func nodeSharesAnyField(provider, consumer resolve.Node) bool {
+	if provider == nil || consumer == nil {
+		return false
+	}
+	switch consumerNode := consumer.(type) {
+	case *resolve.Object:
+		providerObj, ok := provider.(*resolve.Object)
+		return ok && objectSharesAnyField(providerObj, consumerNode)
+	case *resolve.Array:
+		providerArr, ok := provider.(*resolve.Array)
+		return ok && nodeSharesAnyField(providerArr.Item, consumerNode.Item)
+	default:
+		return true
+	}
 }
 
 func nodeProvidesAllFields(provider, consumer resolve.Node) bool {

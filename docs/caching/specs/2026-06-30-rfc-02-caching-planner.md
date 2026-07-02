@@ -139,7 +139,7 @@ The OLD `@requestScoped` pre-planning rewrite (`cacheRequestScopedRewrite`) is N
 
 Run-order diagram (CURRENT pipeline, NEW steps marked):
 
-```
+```text
 Planner.Plan (planner.go:92)
   selectOperation        (planner.go:100)
   prepareOperation       (planner.go:105)
@@ -395,7 +395,7 @@ The federation→caching boundary is crossed EXACTLY ONCE, at plan time, BY VALU
 
 Boundary diagram (RFC-1 §7.4):
 
-```
+```text
 plan.FederationMetaData.Keys (ALL resolvable @key selection sets)   +   interfaceObject/entityInterface remaps   +   root-arg↔@key mappings
         │  PLAN-TIME INPUT ONLY — read once, by value, by the freezer
         ▼

@@ -209,20 +209,39 @@ func TestDeferSkipDoesNotReorderFrames(t *testing.T) {
 		done <- err
 	}()
 
-	// Pure channel ordering, no latency: the gated group's fetch is IN FLIGHT
-	// (blocked on the gate) ...
-	<-arrived
+	// Pure channel ordering, no latency dependence: every receive carries a
+	// failsafe timeout so a resolver regression fails the test instead of
+	// hanging it (the timeout can only fire on regression, never orders).
+	waitFor := func(what string, ch <-chan struct{}) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("timed out waiting for %s", what)
+		}
+	}
+	// The gated group's fetch is IN FLIGHT (blocked on the gate) ...
+	select {
+	case <-arrived:
+	case <-time.After(30 * time.Second):
+		t.Fatal("timed out waiting for the gated inventory fetch to arrive")
+	}
 	// ... and the initial frame plus the L1-served sibling's frame still flush
 	// without waiting for it.
-	<-writer.Flushed
-	<-writer.Flushed
+	waitFor("the initial frame flush", writer.Flushed)
+	waitFor("the L1-served sibling's frame flush", writer.Flushed)
 	framesBeforeRelease := writer.Frames()
 	require.Len(t, framesBeforeRelease, 2)
 	assert.Contains(t, framesBeforeRelease[1], `"data":{"stock":5}`)
 
 	close(release)
-	require.NoError(t, <-done)
-	<-writer.Flushed
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("timed out waiting for the defer resolve to complete")
+	}
+	waitFor("the gated sibling's frame flush", writer.Flushed)
 	frames := writer.Frames()
 	require.Len(t, frames, 3)
 	assert.Contains(t, frames[2], `"data":{"warehouse":{"id":"w1"}}`)

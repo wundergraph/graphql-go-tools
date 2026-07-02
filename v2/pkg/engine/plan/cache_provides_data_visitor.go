@@ -144,7 +144,7 @@ func (v *cacheProvidesDataVisitor) trackField(plannerID, fieldRef int) {
 		OnTypeNames: v.resolveEntityOnTypeNames(plannerID, fieldRef, fieldName),
 	}
 	if fetchResponseKey != string(fieldName) {
-		field.OriginalName = v.operation.FieldNameBytes(fieldRef)
+		field.OriginalName = fieldName
 	}
 	if v.operation.FieldHasArguments(fieldRef) {
 		// Root-operation-field arguments are part of the ROOT-FIELD cache key

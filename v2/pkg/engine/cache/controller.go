@@ -128,22 +128,7 @@ func (r *requestCache) registerHandle(h *resolve.FetchCacheHandle, cfg *resolve.
 	r.prefixes[h] = cacheKeyPrefix(cfg, in.HeaderHash)
 	h.HashAnalyticsKeys = cfg.HashAnalyticsKeys
 	if in.Item != nil && in.Item.Fetch != nil {
-		h.Trace = fetchLoadTrace(in.Item.Fetch)
-	}
-}
-
-// fetchLoadTrace returns the fetch's ART trace destination (nil when tracing
-// is disabled for the request).
-func fetchLoadTrace(fetch resolve.Fetch) *resolve.DataSourceLoadTrace {
-	switch f := fetch.(type) {
-	case *resolve.SingleFetch:
-		return f.Trace
-	case *resolve.EntityFetch:
-		return f.Trace
-	case *resolve.BatchEntityFetch:
-		return f.Trace
-	default:
-		return nil
+		h.Trace = in.Item.Fetch.LoadTrace()
 	}
 }
 
@@ -644,15 +629,21 @@ func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resol
 	parsed := make([]*astjson.Value, 0, len(hits))
 	for _, hit := range hits {
 		state.FromCacheCandidates = append(state.FromCacheCandidates, hit.candidate)
-		parsed = append(parsed, hit.cached)
-		// A TOP-LEVEL null cached value is the negative sentinel: the entity is
-		// KNOWN to not exist, so the item is served as null without a coverage
-		// walk (there is nothing to cover). The freshest sentinel wins.
-		if hit.cached != nil && hit.cached.Type() == astjson.TypeNull && state.FromCache == nil {
-			state.FromCache = hit.cached
-			state.SelectedRemainingTTL = hit.candidate.RemainingTTL
-			state.NegativeHit = true
+		if hit.cached != nil && hit.cached.Type() == astjson.TypeNull {
+			// Sentinels never enter the positive selection ladder below.
+			continue
 		}
+		parsed = append(parsed, hit.cached)
+	}
+	// A TOP-LEVEL null cached value is the negative sentinel: the entity is
+	// KNOWN to not exist, so the item is served as null without a coverage
+	// walk (there is nothing to cover). Only the FRESHEST candidate is
+	// authoritative — a STALER sentinel on a sibling @key must never override
+	// a fresher positive value.
+	if freshest := hits[0]; freshest.cached != nil && freshest.cached.Type() == astjson.TypeNull {
+		state.FromCache = freshest.cached
+		state.SelectedRemainingTTL = freshest.candidate.RemainingTTL
+		state.NegativeHit = true
 	}
 	if state.NegativeHit {
 		state.ServedFromLayer = "l2"
@@ -970,7 +961,13 @@ func (r *requestCache) writeFetchedValue(tx *resolve.CacheTransaction, cfg *reso
 		}
 	}
 	if len(keys) > 0 && (cfg.L1 || r.useL2(cfg)) {
-		item.WriteReason = resolve.CacheWriteReasonRefresh
+		// Item-level trace label: a write set consisting ONLY of re-rendered
+		// pending candidates is a pure backfill.
+		if backfillFrom == 0 {
+			item.WriteReason = resolve.CacheWriteReasonBackfill
+		} else {
+			item.WriteReason = resolve.CacheWriteReasonRefresh
+		}
 	}
 }
 
