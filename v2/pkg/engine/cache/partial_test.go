@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -55,18 +56,16 @@ func partialConfig(t *testing.T) *resolve.FetchCacheConfig {
 func batchPrepareInput(t *testing.T, cfg *resolve.FetchCacheConfig, upcs ...string) (resolve.PrepareFetchInput, [][]*astjson.Value) {
 	t.Helper()
 	buckets := make([][]*astjson.Value, 0, len(upcs))
-	representations := ""
-	for i, upc := range upcs {
-		if i > 0 {
-			representations += ","
-		}
-		representations += `{"__typename":"Product","upc":"` + upc + `"}`
-		buckets = append(buckets, []*astjson.Value{astjson.MustParseBytes([]byte(`{"__typename":"Product","upc":"` + upc + `"}`))})
+	representations := make([]string, 0, len(upcs))
+	for _, upc := range upcs {
+		representation := `{"__typename":"Product","upc":"` + upc + `"}`
+		representations = append(representations, representation)
+		buckets = append(buckets, []*astjson.Value{astjson.MustParseBytes([]byte(representation))})
 	}
 	in := resolve.PrepareFetchInput{
 		Config:     cfg,
 		BatchStats: buckets,
-		Input:      []byte(`{"body":{"query":"...","variables":{"representations":[` + representations + `]}}}`),
+		Input:      []byte(`{"body":{"query":"...","variables":{"representations":[` + strings.Join(representations, ",") + `]}}}`),
 		Arena:      beginner(),
 	}
 	return in, buckets
