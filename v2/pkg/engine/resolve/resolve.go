@@ -395,6 +395,12 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		resolvable.skipValueCompletion = loader.skipValueCompletion
 	}
 
+	if ctx.TracingOptions.Enable && ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		// The trace extension renders inside Resolve, before EndRequest can
+		// run — attach the cache traces now so it carries the cache sections.
+		ctx.flushCacheTraces()
+	}
+
 	responseResolveStart := time.Now()
 	err = resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, writer)
 	resp.ResponseResolveStartTime = responseResolveStart
@@ -468,6 +474,13 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		resolvable.errors = loader.errors
 		resolvable.subgraphExtensions = loader.subgraphExtensions
 		resolvable.skipValueCompletion = loader.skipValueCompletion
+	}
+
+	if ctx.TracingOptions.Enable && ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		// The trace extension renders inside Resolve, before EndRequest can
+		// run — attach the cache traces now so it carries the cache sections.
+		// FlushTraces shares EndRequest's no-arena contract.
+		ctx.flushCacheTraces()
 	}
 
 	// only when loading is done, acquire an arena for the response buffer
