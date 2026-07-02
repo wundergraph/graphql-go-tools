@@ -172,10 +172,16 @@ type FetchCacheHandle struct {
 	// the subgraph receives only the missing ones. The loader swaps it in as
 	// the network input (single-flight then dedups on the reduced input).
 	PartialInput []byte
-	Shadow       bool                     // shadow mode: run compare in OnFetchResult before write-back
-	ShadowStash  map[int]ShadowCacheEntry // stashed L2 reads for the shadow compare, keyed by item index
-	Items        []ItemCacheState         // per-item payload, one per merge target
-	Analytics    any                      // observer-owned accumulators; opaque even here
+	// Trace is the fetch's ART trace destination (nil when tracing is off);
+	// the observer attaches the assembled CacheTrace to it at request end.
+	Trace *DataSourceLoadTrace
+	// HashAnalyticsKeys mirrors the policy knob so the observer hashes key
+	// material in trace output when set.
+	HashAnalyticsKeys bool
+	Shadow            bool                     // shadow mode: run compare in OnFetchResult before write-back
+	ShadowStash       map[int]ShadowCacheEntry // stashed L2 reads for the shadow compare, keyed by item index
+	Items             []ItemCacheState         // per-item payload, one per merge target
+	Analytics         any                      // observer-owned accumulators; opaque even here
 }
 
 // String renders a compact, nil-safe summary for logs and panics, e.g.
@@ -217,10 +223,12 @@ type ItemCacheState struct {
 	FromCacheCandidates  []CacheCandidate // freshest-first cached entries matched across RenderedKeys
 	SelectedRemainingTTL time.Duration    // remaining TTL of the chosen value, for analytics/trace
 	NeedsWriteback       bool             // merged/older value chosen -> rewrite the canonical entry
-	EntityMergePath      []string         // the fetch's merge path for root<->entity wrap/extract
-	BatchIndex           int              // original batch position for realign
-	NegativeHit          bool             // subgraph-null sentinel routing
-	WriteReason          CacheWriteReason // refresh / backfill (metadata only, never gates writes)
+	// ServedFromLayer is "l1" or "l2" when FromCache was selected (trace only).
+	ServedFromLayer string
+	EntityMergePath []string         // the fetch's merge path for root<->entity wrap/extract
+	BatchIndex      int              // original batch position for realign
+	NegativeHit     bool             // subgraph-null sentinel routing
+	WriteReason     CacheWriteReason // refresh / backfill (metadata only, never gates writes)
 }
 
 // CacheCandidate is one cached entry matched for an item at lookup, kept as
