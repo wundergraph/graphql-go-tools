@@ -29,7 +29,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 17 | L1 runtime store | done | 36ac68c5 | Pointer store, shared keys, L1-first ladder; fixed heap-mode StructuralCopy passthrough + optimize-pass chain break; H4 resolved (shadow stashes L1 selections); reviews/17-*.md. |
 | 18 | defer + concurrency coverage | done | a0ce527a | First-pass gap CLOSED (N1/N2/M3 proven e2e); flushed-out fix: defer-group ANCESTRY ordering (treeParents via DeferDescriptors.ParentID); N4 via Flushed gate channel (synctest incompatible with engine goroutines); reviews/18-*.md. |
 | 19 | partial fetching | done | f7cf360a | Batch partial (filter+realign) in cache/partial.go; four explained loader touches; per-field expiry = mixed-TTL-across-fetches (interpretation documented); reviews/19-*.md. |
-| 20 | ART observability | done | (see git log) | Production TraceObserver; zero observer calls outside the controller; DataSourceLoadTrace.CacheTrace additive section; reviews/20-*.md. ALL 20 TASKS DONE. |
+| 20 | ART observability | done | 7bd1f3c6 | Production TraceObserver; zero observer calls outside the controller; DataSourceLoadTrace.CacheTrace additive section; reviews/20-*.md. ALL 20 TASKS DONE. |
 
 ## Current focus
 
