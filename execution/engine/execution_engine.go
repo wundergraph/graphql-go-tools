@@ -105,6 +105,17 @@ func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	}
 }
 
+// WithCacheController attaches the runtime cache controller for this
+// execution — the counterpart of Configuration.SetCaching (which wires the
+// PLAN side): the controller serves and populates the request's L1/L2 caches.
+// Without it a cache-configured plan simply fetches everything (the runtime
+// no-op).
+func WithCacheController(controller resolve.CacheController) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SetCacheController(controller)
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {

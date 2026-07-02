@@ -26,18 +26,23 @@ func productsRootFieldCaching() map[string]cacheconfig.CachingConfiguration {
 // TestRootFieldL2EndToEnd: a cached root field is served from L2 on the second
 // request with ZERO network, and an ALIAS-VARIANT operation over the same
 // field and variables is served from the SAME entry (task 09 reuse); a
-// different-arguments operation misses.
+// different-arguments operation misses. Runs through the REAL ExecutionEngine;
+// the old per-path load counts become per-rule request counts (one rule per
+// distinct argument value).
 func TestRootFieldL2EndToEnd(t *testing.T) {
 	store := cachetesting.NewFakeStore()
+	controller := cachetesting.NewRealishCache(store, nil)
 	query := `query($first: Int!) { products(first: $first) { upc name } }`
-	responses := map[string]string{
-		"products": `{"data":{"products":[{"__typename":"Product","upc":"1","name":"Table"}]}}`,
-	}
+	// The engine renames $first to $a in the rendered body: one rule per
+	// distinct argument value.
+	first1 := Rule(`"variables":{"a":1}`, `{"data":{"products":[{"__typename":"Product","upc":"1","name":"Table"}]}}`)
+	first5 := Rule(`"variables":{"a":5}`, `{"data":{"products":[{"__typename":"Product","upc":"1","name":"Table"}]}}`)
+	products := Rules(first1, first5)
+	executionEngine := NewEngine(t, productsRootFieldCaching(), Subgraphs{"products": products})
 
-	first := Plan(t, query, productsRootFieldCaching(), responses)
-	firstBody := resolveWithVariables(t, first, `{"first":1}`, cachetesting.NewRealishCache(store, nil))
+	firstBody := ExecuteWithVariables(t, executionEngine, query, `{"first":1}`, controller)
 	assert.Equal(t, `{"data":{"products":[{"upc":"1","name":"Table"}]}}`, firstBody)
-	assert.Equal(t, int64(1), first.LoadCount("products", ""))
+	assert.Equal(t, int64(1), first1.Count.Load())
 
 	ops := store.Ops()
 	require.Len(t, ops, 2)
@@ -48,21 +53,19 @@ func TestRootFieldL2EndToEnd(t *testing.T) {
 	}, ops)
 
 	// Same operation again: L2 hit, zero network.
-	second := Plan(t, query, productsRootFieldCaching(), responses)
-	secondBody := resolveWithVariables(t, second, `{"first":1}`, cachetesting.NewRealishCache(store, nil))
+	secondBody := ExecuteWithVariables(t, executionEngine, query, `{"first":1}`, controller)
 	assert.Equal(t, firstBody, secondBody)
-	assert.Equal(t, int64(0), second.LoadCount("products", ""))
+	assert.Equal(t, int64(1), first1.Count.Load())
 
 	// ALIAS VARIANT over the same field + variables: served from the SAME entry.
 	aliasQuery := `query($first: Int!) { items: products(first: $first) { code: upc title: name } }`
-	alias := Plan(t, aliasQuery, productsRootFieldCaching(), responses)
-	aliasBody := resolveWithVariables(t, alias, `{"first":1}`, cachetesting.NewRealishCache(store, nil))
+	aliasBody := ExecuteWithVariables(t, executionEngine, aliasQuery, `{"first":1}`, controller)
 	assert.Equal(t, `{"data":{"items":[{"code":"1","title":"Table"}]}}`, aliasBody)
-	assert.Equal(t, int64(0), alias.LoadCount("products", ""))
+	assert.Equal(t, int64(1), first1.Count.Load())
+	assert.Equal(t, int64(1), products.Requests())
 
 	// Different ARGUMENTS: a different key — miss, network runs.
-	differentArgs := Plan(t, query, productsRootFieldCaching(), responses)
-	differentBody := resolveWithVariables(t, differentArgs, `{"first":5}`, cachetesting.NewRealishCache(store, nil))
+	differentBody := ExecuteWithVariables(t, executionEngine, query, `{"first":5}`, controller)
 	assert.Equal(t, `{"data":{"products":[{"upc":"1","name":"Table"}]}}`, differentBody)
-	assert.Equal(t, int64(1), differentArgs.LoadCount("products", ""))
+	assert.Equal(t, int64(1), first5.Count.Load())
 }

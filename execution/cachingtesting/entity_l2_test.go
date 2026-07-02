@@ -1,9 +1,7 @@
 package cachingtesting
 
 import (
-	"context"
 	"errors"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -38,50 +36,30 @@ func (c *countingController) BeginRequest(ctx *resolve.Context) resolve.RequestC
 	return c.inner.BeginRequest(ctx)
 }
 
-// recordingLoaderHooks records which datasources fired OnLoad/OnFinished (C7).
-type recordingLoaderHooks struct {
-	mu       sync.Mutex
-	loads    []string
-	finishes []string
-}
-
-func (h *recordingLoaderHooks) OnLoad(ctx context.Context, ds resolve.DataSourceInfo) context.Context {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.loads = append(h.loads, ds.Name)
-	return ctx
-}
-
-func (h *recordingLoaderHooks) OnFinished(ctx context.Context, ds resolve.DataSourceInfo, info *resolve.ResponseInfo) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.finishes = append(h.finishes, ds.Name)
-}
-
 // TestEntityL2EndToEnd is the end-to-end L2 entity hit: request 1 misses and
-// writes at request end; request 2 serves from L2 with the gated datasource
+// writes at request end; request 2 serves from L2 with the subgraph double
 // proving ZERO network for the cached fetch; complete responses asserted; the
-// lifecycle counts (lazy single BeginRequest, single EndRequest) and the
-// LoaderHooks contract (not fired for the skipped fetch, C7) ride along.
+// lifecycle counts (lazy single BeginRequest, single EndRequest) ride along.
+// Runs through the REAL ExecutionEngine; the engine exposes no execution
+// option for loader hooks, so the C7 LoaderHooks contract (no hooks for the
+// skipped fetch) stays pinned by the resolve-level suites.
 func TestEntityL2EndToEnd(t *testing.T) {
 	store := cachetesting.NewFakeStore()
 	query := `{ me { username favoriteProduct { upc stock } } }`
-	responses := map[string]string{
-		"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
-		"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-		"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
-	}
+	users := Respond(`{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`)
+	products := Respond(`{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`)
+	inventory := Respond(`{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`)
+	executionEngine := NewEngine(t, inventoryCaching(), Subgraphs{"users": users, "products": products, "inventory": inventory})
 	expected := `{"data":{"me":{"username":"jens","favoriteProduct":{"upc":"1","stock":5}}}}`
 
 	// Request 1: miss + write-through.
-	first := Plan(t, query, inventoryCaching(), responses)
 	firstObserver := &cachetesting.RecordingObserver{}
 	firstController := &countingController{inner: cachetesting.NewRealishCache(store, firstObserver)}
-	firstBody := ResolveResponse(t, first.Response, firstController)
+	firstBody := Execute(t, executionEngine, query, firstController)
 	assert.Equal(t, expected, firstBody)
-	assert.Equal(t, int64(1), first.LoadCount("users", ""))
-	assert.Equal(t, int64(1), first.LoadCount("products", "me"))
-	assert.Equal(t, int64(1), first.LoadCount("inventory", "me.favoriteProduct"))
+	assert.Equal(t, int64(1), users.Requests())
+	assert.Equal(t, int64(1), products.Requests())
+	assert.Equal(t, int64(1), inventory.Requests())
 	assert.Equal(t, int64(1), firstController.begins.Load())
 	firstBegins, firstEnds := firstObserver.Counts()
 	assert.Equal(t, 1, firstBegins)
@@ -95,34 +73,25 @@ func TestEntityL2EndToEnd(t *testing.T) {
 		{Kind: "Set", Key: key, Value: `{"__typename":"Product","stock":5}`, TTL: time.Minute},
 	}, firstOps)
 
-	// Request 2: L2 hit; the inventory datasource never loads; LoaderHooks do
-	// not fire for the skipped fetch. The op log resets so request 2's ops
-	// assert in isolation.
+	// Request 2: L2 hit; the inventory subgraph is never hit again. The op log
+	// resets so request 2's ops assert in isolation; a fresh controller keeps
+	// the BeginRequest count per-request.
 	store.ResetOps()
-	second := Plan(t, query, inventoryCaching(), responses)
-	hooks := &recordingLoaderHooks{}
 	secondController := &countingController{inner: cachetesting.NewRealishCache(store, nil)}
-	ctx := resolve.NewContext(t.Context())
-	ctx.SetCacheController(secondController)
-	ctx.SetEngineLoaderHooks(hooks)
-	secondBody := resolveWithContext(t, ctx, second.Response)
+	secondBody := Execute(t, executionEngine, query, secondController)
 
 	assert.Equal(t, expected, secondBody)
-	assert.Equal(t, int64(1), second.LoadCount("users", ""))
-	assert.Equal(t, int64(1), second.LoadCount("products", "me"))
-	assert.Equal(t, int64(0), second.LoadCount("inventory", "me.favoriteProduct"))
+	// The uncached subgraphs fetched again (counts accumulate across the two
+	// requests through the one engine); inventory stayed at ONE.
+	assert.Equal(t, int64(2), users.Requests())
+	assert.Equal(t, int64(2), products.Requests())
+	assert.Equal(t, int64(1), inventory.Requests())
 	assert.Equal(t, int64(1), secondController.begins.Load())
 	// Read key == write key (key fidelity): request 2's ONLY op is a Get
 	// under the SAME key request 1 wrote.
 	assert.Equal(t, []cachetesting.StoreOp{
 		{Kind: "Get", Key: key},
 	}, store.Ops())
-
-	hooks.mu.Lock()
-	defer hooks.mu.Unlock()
-	// The skipped inventory fetch (datasource id/name "1") fired NO hooks.
-	assert.Equal(t, []string{"3", "0"}, hooks.loads)
-	assert.Equal(t, []string{"3", "0"}, hooks.finishes)
 }
 
 // resolveWithContext drives the public sync entry point with a caller-built

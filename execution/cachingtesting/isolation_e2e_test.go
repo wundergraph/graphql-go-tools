@@ -180,23 +180,43 @@ Deferred (id: 1) QueryPlan {
 
 // TestRootFieldIsolationIndependentServing: the two isolated siblings cache
 // and expire INDEPENDENTLY — one entry expires (forced), the other still hits.
+// Runs through the REAL ExecutionEngine: the products double routes each
+// isolated fetch by its request body, so the old per-DS load counts become
+// per-rule request counts.
 func TestRootFieldIsolationIndependentServing(t *testing.T) {
 	store := cachetesting.NewFakeStore()
+	controller := cachetesting.NewRealishCache(store, nil)
 	query := `{ products(first: 1) { upc } promotions { upc } }`
-	responses := map[string]string{
-		"products": `{"data":{"products":[{"__typename":"Product","upc":"1"}],"promotions":[{"__typename":"Product","upc":"9"}]}}`,
-	}
+	productsRule := Rule(`"variables":{"a":1}`, `{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`)
+	promotionsRule := Rule(`promotions`, `{"data":{"promotions":[{"__typename":"Product","upc":"9"}]}}`)
+	products := Rules(productsRule, promotionsRule)
+	executionEngine := NewEngine(t, isolationCaching(), Subgraphs{"products": products})
 	expected := `{"data":{"products":[{"upc":"1"}],"promotions":[{"upc":"9"}]}}`
 
-	first := Plan(t, query, isolationCaching(), responses)
-	firstBody := ResolveResponse(t, first.Response, cachetesting.NewRealishCache(store, nil))
+	firstBody := Execute(t, executionEngine, query, controller)
 	assert.Equal(t, expected, firstBody)
-	// TWO isolated fetches, one per root field, both to the products DS.
-	assert.Equal(t, int64(2), first.LoadCount("products", ""))
+	// TWO isolated fetches, one per root field, both to the products double.
+	assert.Equal(t, int64(1), productsRule.Count.Load())
+	assert.Equal(t, int64(1), promotionsRule.Count.Load())
 
 	ops := store.Ops()
 	require.Len(t, ops, 4)
-	productsKey, promotionsKey := ops[0].Key, ops[1].Key
+	// The two fetches run in parallel: identify the products entry by its
+	// EXACT stored value instead of relying on op order.
+	var productsKey, promotionsKey string
+	for _, op := range ops {
+		if op.Kind != "Set" {
+			continue
+		}
+		switch op.Value {
+		case `{"products":[{"__typename":"Product","upc":"1"}]}`:
+			productsKey = op.Key
+		case `{"promotions":[{"__typename":"Product","upc":"9"}]}`:
+			promotionsKey = op.Key
+		}
+	}
+	require.NotEmpty(t, productsKey)
+	require.NotEmpty(t, promotionsKey)
 	assert.NotEqual(t, productsKey, promotionsKey)
 
 	// Force-expire ONLY the products entry (the store double lets tests age an
@@ -206,10 +226,10 @@ func TestRootFieldIsolationIndependentServing(t *testing.T) {
 	require.True(t, ok)
 	store.Seed(productsKey, entry.Value, -time.Second)
 
-	second := Plan(t, query, isolationCaching(), responses)
-	secondBody := ResolveResponse(t, second.Response, cachetesting.NewRealishCache(store, nil))
+	secondBody := Execute(t, executionEngine, query, controller)
 	assert.Equal(t, expected, secondBody)
 	// The products fetch expired and refetched; promotions still hit: exactly
-	// ONE of the two isolated fetches touched the network.
-	assert.Equal(t, int64(1), second.LoadCount("products", ""))
+	// ONE of the two isolated fetches touched the network again.
+	assert.Equal(t, int64(2), productsRule.Count.Load())
+	assert.Equal(t, int64(1), promotionsRule.Count.Load())
 }

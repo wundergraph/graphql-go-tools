@@ -23,24 +23,25 @@ func inventoryShadowCaching() map[string]cacheconfig.CachingConfiguration {
 }
 
 // TestShadowModeEndToEnd: the response is ALWAYS the fresh network value even
-// on an L2 hit; the shadow compare records the staleness probe.
+// on an L2 hit; the shadow compare records the staleness probe. Runs through
+// the REAL ExecutionEngine: all three requests carry the same body, so the
+// inventory double's single rule is repointed between requests (the stock the
+// subgraph currently reports), and each request builds its own controller so
+// the RecordingObserver stays per-request.
 func TestShadowModeEndToEnd(t *testing.T) {
 	store := cachetesting.NewFakeStore()
 	query := `{ me { favoriteProduct { upc stock } } }`
-	responsesFor := func(stock string) map[string]string {
-		return map[string]string{
-			"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
-			"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-			"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":` + stock + `}]}}`,
-		}
-	}
+	users := Respond(`{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`)
+	products := Respond(`{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`)
+	inventoryRule := Rule("", `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`)
+	inventory := Rules(inventoryRule)
+	executionEngine := NewEngine(t, inventoryShadowCaching(), Subgraphs{"users": users, "products": products, "inventory": inventory})
 
 	// Request 1: shadow MISS — plain fetch + write.
-	first := Plan(t, query, inventoryShadowCaching(), responsesFor("5"))
 	firstObserver := &cachetesting.RecordingObserver{}
-	firstBody := ResolveResponse(t, first.Response, cachetesting.NewRealishCache(store, firstObserver))
+	firstBody := Execute(t, executionEngine, query, cachetesting.NewRealishCache(store, firstObserver))
 	assert.Equal(t, `{"data":{"me":{"favoriteProduct":{"upc":"1","stock":5}}}}`, firstBody)
-	assert.Equal(t, int64(1), first.LoadCount("inventory", "me.favoriteProduct"))
+	assert.Equal(t, int64(1), inventory.Requests())
 	assert.Empty(t, firstObserver.Compares())
 
 	ops := store.Ops()
@@ -50,11 +51,12 @@ func TestShadowModeEndToEnd(t *testing.T) {
 	// Request 2: L2 HIT under shadow — the subgraph now says stock=7 and the
 	// response MUST show 7 (fresh served, never the cached 5); the compare
 	// records the mismatch and L2 is overwritten with the fresh value.
-	second := Plan(t, query, inventoryShadowCaching(), responsesFor("7"))
+	inventoryRule.Response = `{"data":{"_entities":[{"__typename":"Product","stock":7}]}}`
 	secondObserver := &cachetesting.RecordingObserver{}
-	secondBody := ResolveResponse(t, second.Response, cachetesting.NewRealishCache(store, secondObserver))
+	secondBody := Execute(t, executionEngine, query, cachetesting.NewRealishCache(store, secondObserver))
 	assert.Equal(t, `{"data":{"me":{"favoriteProduct":{"upc":"1","stock":7}}}}`, secondBody)
-	assert.Equal(t, int64(1), second.LoadCount("inventory", "me.favoriteProduct"))
+	// Shadow mode ALWAYS fetches: the request count accumulates to 2.
+	assert.Equal(t, int64(2), inventory.Requests())
 	assert.Equal(t, []cachetesting.ShadowCompare{
 		{CacheKey: key, IsFresh: false},
 	}, normalizeCompareAges(secondObserver.Compares()))
@@ -65,11 +67,10 @@ func TestShadowModeEndToEnd(t *testing.T) {
 
 	// Request 3: unchanged data — the compare records IsFresh true; the
 	// response is still the network value.
-	third := Plan(t, query, inventoryShadowCaching(), responsesFor("7"))
 	thirdObserver := &cachetesting.RecordingObserver{}
-	thirdBody := ResolveResponse(t, third.Response, cachetesting.NewRealishCache(store, thirdObserver))
+	thirdBody := Execute(t, executionEngine, query, cachetesting.NewRealishCache(store, thirdObserver))
 	assert.Equal(t, `{"data":{"me":{"favoriteProduct":{"upc":"1","stock":7}}}}`, thirdBody)
-	assert.Equal(t, int64(1), third.LoadCount("inventory", "me.favoriteProduct"))
+	assert.Equal(t, int64(3), inventory.Requests())
 	assert.Equal(t, []cachetesting.ShadowCompare{
 		{CacheKey: key, IsFresh: true},
 	}, normalizeCompareAges(thirdObserver.Compares()))
