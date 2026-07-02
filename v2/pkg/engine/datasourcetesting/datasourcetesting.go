@@ -234,7 +234,8 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 				keysPrinted, _ := json.Marshal(keys)
 				return string(keysPrinted)
 			},
-			reflect.TypeFor[resolve.SkipArrayItem](): func(resolve.SkipArrayItem) string { return "skip_function" },
+			reflect.TypeFor[resolve.SkipArrayItem]():             func(resolve.SkipArrayItem) string { return "skip_function" },
+			reflect.TypeFor[[]resolve.AuthorizationCoordinate](): func([]resolve.AuthorizationCoordinate) string { return "[]" },
 		}
 
 		prettyCfg := &pretty.Config{
