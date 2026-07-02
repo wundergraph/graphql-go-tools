@@ -187,9 +187,11 @@ func TestControllerBatchRows(t *testing.T) {
 			{Kind: "Get", Key: foundKey},
 			{Kind: "Set", Key: foundKey, Value: `{"__typename":"Product","name":"Desk","price":80}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
 		}, store.ops)
-		// Neither layer holds the missing entity: the next lookup is a plain
-		// miss, never a negative hit.
-		decisionB, handleB := prepare(t, rc, cfg, productItem(t, "1"))
+		// Nothing was PERSISTED for the missing entity: a fresh request (whose
+		// L1 starts empty, so the lookup can only hit L2) is a plain miss,
+		// never a negative hit.
+		rcB := newRC(store)
+		decisionB, handleB := prepare(t, rcB, cfg, productItem(t, "1"))
 		assert.Equal(t, resolve.DecisionFetch, decisionB)
 		assert.False(t, handleB.Items[0].NegativeHit)
 	})
