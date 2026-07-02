@@ -292,7 +292,7 @@ func (g *GatedDataSource) Load(ctx context.Context, headers http.Header, input [
 		g.LoadCounter.Add(1)
 	}
 	if g.RecordInput != nil {
-		g.RecordInput(slices.Clone(input))
+		g.RecordInput(input) // the recorder copies (string conversion) only while under its cap
 	}
 	if g.Arrived != nil {
 		g.Arrived <- g.Name
@@ -477,10 +477,18 @@ func (r *FakeRegistry) Inputs(name, path string) []string {
 	return slices.Clone(r.inputs[name+":"+path])
 }
 
+// maxRecordedInputs bounds per-datasource input recording so long-running
+// callers (benchmarks) do not accumulate unbounded copies; assertions read
+// the first loads, which is what the e2e rows need.
+const maxRecordedInputs = 16
+
 func (r *FakeRegistry) recordInput(key string) func([]byte) {
 	return func(input []byte) {
 		r.mu.Lock()
 		defer r.mu.Unlock()
+		if len(r.inputs[key]) >= maxRecordedInputs {
+			return
+		}
 		if r.inputs == nil {
 			r.inputs = make(map[string][]string)
 		}

@@ -45,13 +45,10 @@ func (c *Controller) BeginRequest(ctx *resolve.Context) resolve.RequestCache {
 		c.obs.BeginRequest(ctx)
 	}
 	return &requestCache{
-		store:         c.store,
-		obs:           c.obs,
-		ctx:           ctx,
-		configs:       make(map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig),
-		prefixes:      make(map[*resolve.FetchCacheHandle]string),
-		missedKeys:    make(map[*resolve.FetchCacheHandle][][]string),
-		reuseProvides: make(map[*resolve.FetchCacheHandle]*resolve.Object),
+		store: c.store,
+		obs:   c.obs,
+		ctx:   ctx,
+		// states allocates lazily on the first cached fetch.
 	}
 }
 
@@ -75,19 +72,11 @@ type requestCache struct {
 	// deferred is the request-end L2 write set: BYTES only, so the flush needs
 	// neither lock nor arena.
 	deferred []deferredSet
-	// configs threads each handle's config from PrepareFetch to the merge hook
-	// (the handle itself is opaque to the loader and carries no config).
-	configs map[*resolve.FetchCacheHandle]*resolve.FetchCacheConfig
-	// prefixes keeps each handle's key prefix so the merge hooks can re-render
-	// pending candidates with the same templates the lookup used.
-	prefixes map[*resolve.FetchCacheHandle]string
-	// missedKeys records, per handle and item, the rendered keys whose lookup
-	// MISSED, so a hit served from another key can backfill them.
-	missedKeys map[*resolve.FetchCacheHandle][][]string
-	// reuseProvides overrides the coverage/transform tree for by-key
-	// root-field handles: the cached value is the ENTITY, so the walks use the
-	// root field's value subtree instead of the whole-response tree.
-	reuseProvides map[*resolve.FetchCacheHandle]*resolve.Object
+	// states threads each handle's controller-side state from PrepareFetch to
+	// the merge hooks (the handle itself is opaque to the loader). ONE lazily
+	// allocated map instead of one per field — profiled: per-handle side-map
+	// inserts were a measurable share of the hit path's allocations.
+	states map[*resolve.FetchCacheHandle]*handleState
 	// l1 is the request-lifetime entity store: NORMALIZED *astjson.Value
 	// (never bytes, never marshaled) under the SAME derived keys as L2.
 	// EXTERNAL-LOCK INVARIANT: guarded by the caller's CacheTransaction (the
@@ -97,6 +86,22 @@ type requestCache struct {
 	// is allocated lazily on the first write. This is NOT the removed
 	// @requestScoped feature (D11).
 	l1 map[string]*astjson.Value
+}
+
+// handleState is the controller-side per-handle state.
+type handleState struct {
+	// cfg is the handle's fetch config (the loader never carries it).
+	cfg *resolve.FetchCacheConfig
+	// prefix is the key prefix, so merge hooks re-render pending candidates
+	// with the same templates the lookup used.
+	prefix string
+	// missedKeys records, per item, the rendered keys whose lookup MISSED, so
+	// a hit served from another key can backfill them.
+	missedKeys [][]string
+	// reuseProvides overrides the coverage/transform tree for by-key
+	// root-field handles: the cached value is the ENTITY, so the walks use the
+	// root field's value subtree instead of the whole-response tree.
+	reuseProvides *resolve.Object
 }
 
 // deferredSet is one pending L2 write, held as bytes until EndRequest; reason
@@ -123,13 +128,20 @@ func (r *requestCache) useL2(cfg *resolve.FetchCacheConfig) bool {
 // observability fields: the fetch's ART trace destination (nil when tracing
 // is off) and the key-hashing knob. Observability never adds calls outside
 // the controller — the observer reads the handle at EndRequest.
-func (r *requestCache) registerHandle(h *resolve.FetchCacheHandle, cfg *resolve.FetchCacheConfig, in resolve.PrepareFetchInput) {
-	r.configs[h] = cfg
-	r.prefixes[h] = cacheKeyPrefix(cfg, in.HeaderHash)
+func (r *requestCache) registerHandle(h *resolve.FetchCacheHandle, cfg *resolve.FetchCacheConfig, in resolve.PrepareFetchInput) *handleState {
+	state := &handleState{
+		cfg:    cfg,
+		prefix: cacheKeyPrefix(cfg, in.HeaderHash),
+	}
+	if r.states == nil {
+		r.states = make(map[*resolve.FetchCacheHandle]*handleState)
+	}
+	r.states[h] = state
 	h.HashAnalyticsKeys = cfg.HashAnalyticsKeys
 	if in.Item != nil && in.Item.Fetch != nil {
 		h.Trace = in.Item.Fetch.LoadTrace()
 	}
+	return state
 }
 
 // l1Put stores one L1 value; the caller passes a transaction-owned value
@@ -217,8 +229,8 @@ func (r *requestCache) PrepareFetch(in resolve.PrepareFetchInput) (resolve.Decis
 		ShadowStash:   shadowStash,
 		Items:         items,
 	}
-	r.registerHandle(handle, cfg, in)
-	r.missedKeys[handle] = missedByItem
+	state := r.registerHandle(handle, cfg, in)
+	state.missedKeys = missedByItem
 	return decision, handle
 }
 
@@ -388,9 +400,9 @@ func (r *requestCache) prepareRootFieldEntityReuse(in resolve.PrepareFetchInput,
 		MustWriteBack: allCovered && mustWriteBack,
 		Items:         items,
 	}
-	r.registerHandle(handle, cfg, in)
-	r.missedKeys[handle] = missedByItem
-	r.reuseProvides[handle] = subtree
+	state := r.registerHandle(handle, cfg, in)
+	state.missedKeys = missedByItem
+	state.reuseProvides = subtree
 	return decision, handle, true
 }
 
@@ -529,8 +541,8 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 		PartialInput:   partialInput,
 		Items:          items,
 	}
-	r.registerHandle(handle, cfg, in)
-	r.missedKeys[handle] = missedByItem
+	state := r.registerHandle(handle, cfg, in)
+	state.missedKeys = missedByItem
 	return decision, handle
 }
 
@@ -688,15 +700,16 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 	if h == nil {
 		return nil
 	}
-	cfg := r.configs[h]
-	if cfg == nil {
+	state := r.states[h]
+	if state == nil {
 		return nil
 	}
+	cfg := state.cfg
 	tx := in.Arena.Begin()
 	defer tx.Commit()
 
-	prefix := r.prefixes[h]
-	missedByItem := r.missedKeys[h]
+	prefix := state.prefix
+	missedByItem := state.missedKeys
 	for i := range h.Items {
 		item := &h.Items[i]
 		if item.FromCache == nil || item.Item == nil {
@@ -712,8 +725,8 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 			}
 		}
 		provides := resolve.Node(cfg.ProvidesData)
-		if subtree := r.reuseProvides[h]; subtree != nil {
-			provides = subtree
+		if state.reuseProvides != nil {
+			provides = state.reuseProvides
 		}
 		var missed []string
 		if i < len(missedByItem) {
@@ -807,16 +820,17 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	if h == nil {
 		return nil
 	}
-	cfg := r.configs[h]
-	if cfg == nil {
+	state := r.states[h]
+	if state == nil {
 		return nil
 	}
+	cfg := state.cfg
 	if h.Decision == resolve.DecisionFetchPartial {
 		// The partial arm owns splice + realign + writes and runs BEFORE the
 		// failure gate: on a failed partial fetch the covered splice must
 		// still happen (the cached data is valid; the loader already rendered
 		// the fetch errors), and only the fetched subset is skipped.
-		return r.onPartialBatchResult(h, in, cfg)
+		return r.onPartialBatchResult(h, in, state)
 	}
 	if in.FetchFailed || in.HasErrors {
 		// All failure signals block ALL writes — including negative ones: a
@@ -885,7 +899,7 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 			return nil
 		}
 	}
-	provides := r.reuseProvides[h]
+	provides := state.reuseProvides
 	if provides == nil {
 		provides = cfg.ProvidesData
 	}
@@ -935,7 +949,7 @@ func (r *requestCache) writeFetchedValue(tx *resolve.CacheTransaction, cfg *reso
 	keys := item.RenderedKeys
 	backfillFrom := len(keys)
 	for _, candidate := range item.PendingCandidates {
-		template := cacheKeyTemplate{prefix: r.prefixes[h], representation: candidate.Representation}
+		template := cacheKeyTemplate{prefix: r.states[h].prefix, representation: candidate.Representation}
 		key, ok := template.render(toStore)
 		if !ok {
 			continue
@@ -978,7 +992,7 @@ func (r *requestCache) EndRequest() {
 	if r.obs != nil {
 		// Finalize observability: single-threaded, no lock, no arena — the
 		// observer reads each finished handle (trace assembly, counters).
-		for h := range r.configs {
+		for h := range r.states {
 			r.obs.OnFetchObserved(h)
 		}
 	}
