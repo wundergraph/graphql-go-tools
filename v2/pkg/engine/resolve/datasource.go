@@ -34,3 +34,13 @@ type HookableSubscriptionDataSource interface {
 	// If an error is returned, the error is propagated to the client.
 	SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error)
 }
+
+// HookablePubsubDatasource is an extension of HookableSubscriptionDataSource for pubsub datasources.
+// They contain additional hooks which make sense for pubsub based datasources but not for normal
+// subscription based datasources.
+type HookablePubsubDatasource interface {
+	HookableSubscriptionDataSource
+	// SubscriptionOnCreate is called right before the trigger gets generated.
+	// It lets a source rewrite the subscription event configuration.
+	SubscriptionOnCreate(ctx context.Context, input []byte) (newInput []byte, err error)
+}
