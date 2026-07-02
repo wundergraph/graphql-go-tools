@@ -80,25 +80,6 @@ func (c *pathBuilderVisitor) shouldRevisit() bool {
 	return c.hasMissingPaths() || c.hasFieldsWaitingForDependency()
 }
 
-// selectionSetPendingRequirements - is a wrapper to been able to have predictable order of fieldsRequirementConfig but at the same time deduplicate fieldsRequirementConfig
-type selectionSetPendingRequirements struct {
-	existsTracker      map[fieldsRequirementConfig]struct{} // existsTracker allows us to not add duplicated fieldsRequirementConfig
-	requirementConfigs []fieldsRequirementConfig            // requirementConfigs is a list of fieldsRequirementConfig which should be added to the selection set
-}
-
-// fieldsRequirementConfig is a mapping between requestedByPlannerID or requestedByFieldRef, which requested required fields,
-// and fieldSelections which should be added
-type fieldsRequirementConfig struct {
-	path            string
-	fieldSelections string
-	skipTypename    bool
-
-	requestedByFieldRef int // requestedByFieldRef is a field ref which requested fields via @requires directive
-
-	requestedByPlannerID int // requestedByPlannerID is a planner id which requested fields from @key directive
-	providedByPlannerID  int // providedByPlannerID is a planner id which should provide fields for the requestedByPlannerID planner
-}
-
 type arrayField struct {
 	fieldRef  int
 	fieldPath string
@@ -222,20 +203,6 @@ func (c *pathBuilderVisitor) addedPathDSHash(path string) (hash DSHash, ok bool)
 	}
 
 	return c.addedPathTracker[indexes[0]].dsHash, true
-}
-
-func (c *pathBuilderVisitor) isPathAddedFor(path string, hash DSHash) bool {
-	indexes, ok := c.addedPathTrackerIndex[path]
-	if !ok {
-		return false
-	}
-
-	for _, i := range indexes {
-		if c.addedPathTracker[i].dsHash == hash {
-			return true
-		}
-	}
-	return false
 }
 
 func (c *pathBuilderVisitor) addMissingPath(path string) {
@@ -635,31 +602,6 @@ func (c *pathBuilderVisitor) fieldIsChildNode(plannerIdx int) bool {
 	return strings.ContainsAny(fieldPath, ".")
 }
 
-// addPlannerDependencies adds dependencies between planners based on @key directive
-// e.g. when we have a record in a map, that this fieldRef is a dependency for the planner id
-// we will notify that planner about the dependency on thecurrentPlannerIdx where this field is landed
-func (c *pathBuilderVisitor) addPlannerDependencies(fieldRef int, plannedOnPlannerId int) {
-	plannerIds, mappingExists := c.fieldDependenciesForPlanners[fieldRef]
-	if !mappingExists {
-		return
-	}
-
-	for _, notifyPlannerIdx := range plannerIds {
-		fetchConfiguration := c.planners[notifyPlannerIdx].ObjectFetchConfiguration()
-
-		notified := slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannedOnPlannerId)
-		if !notified {
-			if notifyPlannerIdx == plannedOnPlannerId {
-				return
-				// c.walker.StopWithInternalErr(fmt.Errorf("wrong fetch dependencies planner %d depends on itself", notifyPlannerIdx))
-			}
-
-			fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, plannedOnPlannerId)
-			slices.Sort(fetchConfiguration.dependsOnFetchIDs)
-		}
-	}
-}
-
 // recordFieldPlannedOn - records the planner id on which the field was planned
 func (c *pathBuilderVisitor) recordFieldPlannedOn(fieldRef int, plannerIdx int) {
 	if !slices.Contains(c.fieldsPlannedOn[fieldRef], plannerIdx) {
@@ -779,6 +721,9 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(fieldRef int, typeName, fi
 		})
 
 		if fieldHasRequiresDirective {
+			if plannerConfig.RequiredFields().HasArgumentConflictWith(requiresConfigurations) {
+				continue
+			}
 			// we should not plan fields with requires on the same planner as its dependencies,
 			// because field with requires always will need an additional fetch before could be planned.
 			// or the current planner provides dependencies for one of the requires dependency

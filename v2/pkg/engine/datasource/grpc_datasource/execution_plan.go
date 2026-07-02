@@ -1175,7 +1175,6 @@ type buildFieldMessageConfig struct {
 	memberTypes           []string
 	fragmentSelections    []fragmentSelection
 	fieldsSelectionSetRef int
-	fieldRefs             []int
 }
 
 // buildMessageForField builds the message for a given field resolver type.
