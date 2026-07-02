@@ -83,6 +83,34 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		messages := collect(100 * time.Millisecond)
 		assert.Len(t, messages, 2, "should receive exactly 2 messages before stopping")
 	})
+
+	t.Run("skips empty keepalive events", func(t *testing.T) {
+		body := io.NopCloser(strings.NewReader(
+			":\n\n" +
+				": keepalive\n\n" +
+				"event: next\n\n" +
+				"event: next\ndata:\n\n" +
+				"event: next\n: internal keepalive\ndata: {\"data\":\ndata: {\"time\":\"12:00\"}}\n\n" +
+				"event: complete\n\n",
+		))
+		resp := &http.Response{Body: body}
+		handler, receive := collectingHandler()
+		wrappedHandler, collect := waitForMessages(handler)
+		conn := newSSEConnection(resp, wrappedHandler)
+
+		go conn.readLoop()
+
+		msg1 := receive(t, 1*time.Second)
+		require.NotNil(t, msg1.Payload)
+		assert.Equal(t, common.MessageTypeData, msg1.Type)
+		assert.JSONEq(t, `{"time":"12:00"}`, string(msg1.Payload.Data))
+
+		msg2 := receive(t, 1*time.Second)
+		assert.Equal(t, common.MessageTypeComplete, msg2.Type)
+
+		messages := collect(100 * time.Millisecond)
+		assert.Len(t, messages, 2, "empty SSE keepalives should not be delivered")
+	})
 }
 
 func TestSSEConnection_Close(t *testing.T) {
