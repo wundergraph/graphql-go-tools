@@ -1384,6 +1384,7 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 			estimateA: Int
 			estimateB: Int
 			estimateC: Int
+			estimateD: Int
 		}
 	`
 
@@ -1407,6 +1408,7 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 			estimateA: Int @requires(fields: "price(currency: \"USD\") weight")
 			estimateB: Int @requires(fields: "price(currency: \"EUR\") weight")
 			estimateC: Int @requires(fields: "price(currency: \"CAD\") weight")
+			estimateD: Int @requires(fields: "price(currency: \"UAH\") weight")
 		}
 	`
 
@@ -1454,7 +1456,7 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 			RootNodes: []plan.TypeField{
 				{
 					TypeName:   "Product",
-					FieldNames: []string{"upc", "estimateA", "estimateB", "estimateC"},
+					FieldNames: []string{"upc", "estimateA", "estimateB", "estimateC", "estimateD"},
 				},
 			},
 			FederationMetaData: plan.FederationMetaData{
@@ -1480,6 +1482,11 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 						FieldName:    "estimateC",
 						SelectionSet: `price(currency: "CAD") weight`,
 					},
+					{
+						TypeName:     "Product",
+						FieldName:    "estimateD",
+						SelectionSet: `price(currency: "UAH") weight`,
+					},
 				},
 			},
 		},
@@ -1497,6 +1504,60 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 		}),
 	)
 
+	estimateFetch := func(fetchID int, fieldName string, pricePath string) *resolve.FetchTreeNode {
+		return resolve.SingleWithPath(&resolve.SingleFetch{
+			FetchDependencies: resolve.FetchDependencies{
+				FetchID:           fetchID,
+				DependsOnFetchIDs: []int{0},
+			},
+			FetchConfiguration: resolve.FetchConfiguration{
+				RequiresEntityBatchFetch:              true,
+				Input:                                 `{"method":"POST","url":"http://inventory.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename ` + fieldName + `}}}","variables":{"representations":[$$0$$]}}}`,
+				DataSource:                            &Source{},
+				PostProcessing:                        EntitiesPostProcessingConfiguration,
+				SetTemplateOutputToNullOnVariableNull: true,
+				Variables: resolve.NewVariables(
+					resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("__typename"),
+								Value: &resolve.String{
+									Path: []string{"__typename"},
+								},
+								OnTypeNames: [][]byte{[]byte("Product")},
+							},
+							{
+								Name: []byte("price"),
+								Value: &resolve.Integer{
+									Path:     []string{pricePath},
+									Nullable: true,
+								},
+								OnTypeNames: [][]byte{[]byte("Product")},
+							},
+							{
+								Name: []byte("weight"),
+								Value: &resolve.Integer{
+									Path:     []string{"weight"},
+									Nullable: true,
+								},
+								OnTypeNames: [][]byte{[]byte("Product")},
+							},
+							{
+								Name: []byte("upc"),
+								Value: &resolve.String{
+									Path: []string{"upc"},
+								},
+								OnTypeNames: [][]byte{[]byte("Product")},
+							},
+						},
+					}),
+				),
+			},
+			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+		}, "products", resolve.ArrayPath("products"))
+	}
+
 	RunWithPermutations(
 		t,
 		definition,
@@ -1507,6 +1568,7 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 				estimateA
 				estimateB
 				estimateC
+				estimateD
 			}
 		}`,
 		"Products",
@@ -1515,114 +1577,16 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 				Fetches: resolve.Sequence(
 					resolve.Single(&resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://catalog.service","body":{"query":"query($a: String!, $b: String!){products {upc price(currency: $a) weight __internal_price: price(currency: $b) __typename}}","variables":{"a":"USD","b":"EUR"}}}`,
+							Input:          `{"method":"POST","url":"http://catalog.service","body":{"query":"query($a: String!, $b: String!, $c: String!, $d: String!){products {upc price(currency: $a) weight __internal_price: price(currency: $b) __internal_price_1: price(currency: $c) __internal_price_2: price(currency: $d) __typename}}","variables":{"a":"USD","b":"EUR","c":"CAD","d":"UAH"}}}`,
 							DataSource:     &Source{},
 							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
-					resolve.SingleWithPath(&resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           1,
-							DependsOnFetchIDs: []int{0},
-						},
-						FetchConfiguration: resolve.FetchConfiguration{
-							RequiresEntityBatchFetch:              true,
-							Input:                                 `{"method":"POST","url":"http://inventory.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename estimateA}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							PostProcessing:                        EntitiesPostProcessingConfiguration,
-							SetTemplateOutputToNullOnVariableNull: true,
-							Variables: resolve.NewVariables(
-								resolve.NewResolvableObjectVariable(&resolve.Object{
-									Nullable: true,
-									Fields: []*resolve.Field{
-										{
-											Name: []byte("__typename"),
-											Value: &resolve.String{
-												Path: []string{"__typename"},
-											},
-											OnTypeNames: [][]byte{[]byte("Product")},
-										},
-										{
-											Name: []byte("price"),
-											Value: &resolve.Integer{
-												Path:     []string{"price"},
-												Nullable: true,
-											},
-											OnTypeNames: [][]byte{[]byte("Product")},
-										},
-										{
-											Name: []byte("weight"),
-											Value: &resolve.Integer{
-												Path:     []string{"weight"},
-												Nullable: true,
-											},
-											OnTypeNames: [][]byte{[]byte("Product")},
-										},
-										{
-											Name: []byte("upc"),
-											Value: &resolve.String{
-												Path: []string{"upc"},
-											},
-											OnTypeNames: [][]byte{[]byte("Product")},
-										},
-									},
-								}),
-							),
-						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					}, "products", resolve.ArrayPath("products")),
-					resolve.SingleWithPath(&resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           2,
-							DependsOnFetchIDs: []int{0},
-						},
-						FetchConfiguration: resolve.FetchConfiguration{
-							RequiresEntityBatchFetch:              true,
-							Input:                                 `{"method":"POST","url":"http://inventory.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename estimateB}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							PostProcessing:                        EntitiesPostProcessingConfiguration,
-							SetTemplateOutputToNullOnVariableNull: true,
-							Variables: resolve.NewVariables(
-								resolve.NewResolvableObjectVariable(&resolve.Object{
-									Nullable: true,
-									Fields: []*resolve.Field{
-										{
-											Name: []byte("__typename"),
-											Value: &resolve.String{
-												Path: []string{"__typename"},
-											},
-											OnTypeNames: [][]byte{[]byte("Product")},
-										},
-										{
-											Name: []byte("price"),
-											Value: &resolve.Integer{
-												Path:     []string{"__internal_price"},
-												Nullable: true,
-											},
-											OnTypeNames: [][]byte{[]byte("Product")},
-										},
-										{
-											Name: []byte("weight"),
-											Value: &resolve.Integer{
-												Path:     []string{"weight"},
-												Nullable: true,
-											},
-											OnTypeNames: [][]byte{[]byte("Product")},
-										},
-										{
-											Name: []byte("upc"),
-											Value: &resolve.String{
-												Path: []string{"upc"},
-											},
-											OnTypeNames: [][]byte{[]byte("Product")},
-										},
-									},
-								}),
-							),
-						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					}, "products", resolve.ArrayPath("products")),
+					estimateFetch(1, "estimateA", "price"),
+					estimateFetch(2, "estimateB", "__internal_price"),
+					estimateFetch(3, "estimateC", "__internal_price_1"),
+					estimateFetch(4, "estimateD", "__internal_price_2"),
 				),
 				Data: &resolve.Object{
 					Fields: []*resolve.Field{
@@ -1651,6 +1615,20 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 											Name: []byte("estimateB"),
 											Value: &resolve.Integer{
 												Path:     []string{"estimateB"},
+												Nullable: true,
+											},
+										},
+										{
+											Name: []byte("estimateC"),
+											Value: &resolve.Integer{
+												Path:     []string{"estimateC"},
+												Nullable: true,
+											},
+										},
+										{
+											Name: []byte("estimateD"),
+											Value: &resolve.Integer{
+												Path:     []string{"estimateD"},
 												Nullable: true,
 											},
 										},
