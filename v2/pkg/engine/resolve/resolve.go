@@ -19,6 +19,7 @@ import (
 
 	"github.com/wundergraph/go-arena"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -499,6 +500,40 @@ func (r *Resolver) authorizeFieldsPreFetch(ctx *Context, response *GraphQLRespon
 		}
 	}
 	return nil
+}
+
+// authorizeSubscriptionPreFetch authorizes a subscription's single protected root field before the
+// trigger is started, so an unauthorized subscription never opens (or holds) an upstream subscription.
+// It returns the response body to write and true when the subscription is unauthorized. Nested
+// protected fields are still authorized per update during resolution.
+func (r *Resolver) authorizeSubscriptionPreFetch(ctx *Context, response *GraphQLResponse) (deny []byte, denied bool, err error) {
+	if ctx.preFetchFieldAuthorizer == nil {
+		return nil, false, nil
+	}
+	if response == nil || response.Data == nil || len(response.Data.Fields) == 0 {
+		return nil, false, nil
+	}
+	rootField := response.Data.Fields[0]
+	if rootField.Info == nil || !rootField.Info.HasAuthorizationRule || len(rootField.Info.Source.IDs) == 0 {
+		return nil, false, nil
+	}
+	coordinate := GraphCoordinate{
+		TypeName:  rootField.Info.ExactParentTypeName,
+		FieldName: rootField.Info.Name,
+	}
+	decisions, err := ctx.preFetchFieldAuthorizer.AuthorizeFields(ctx, []GraphCoordinate{coordinate})
+	if err != nil {
+		return nil, false, err
+	}
+	if len(decisions) != 1 || decisions[0].Allowed {
+		return nil, false, nil
+	}
+	message := fmt.Sprintf("Unauthorized to load field '%s.%s'.", coordinate.TypeName, coordinate.FieldName)
+	if decisions[0].Reason != "" {
+		message = fmt.Sprintf("Unauthorized to load field '%s.%s', Reason: %s.", coordinate.TypeName, coordinate.FieldName, decisions[0].Reason)
+	}
+	body := fmt.Sprintf(`{"errors":[{"message":%q,"extensions":{"code":%q}}],"data":null}`, message, errorcodes.UnauthorizedFieldOrType)
+	return []byte(body), true, nil
 }
 
 // trigger groups subscriptions that share a data source and input.
@@ -1392,6 +1427,14 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return nil
 	}
 
+	// Authorize the subscription's protected root field before starting the trigger, so an
+	// unauthorized subscription never opens an upstream subscription.
+	if body, denied, authErr := r.authorizeSubscriptionPreFetch(ctx, subscription.Response); authErr != nil {
+		return authErr
+	} else if denied {
+		return writeFlushComplete(writer, body)
+	}
+
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {
 		input, err = hook.SubscriptionOnCreate(ctx.Context(), input)
 		if err != nil {
@@ -1496,6 +1539,14 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 
 	if err := ctx.ctx.Err(); err != nil {
 		return err
+	}
+
+	// Authorize the subscription's protected root field before starting the trigger, so an
+	// unauthorized subscription never opens an upstream subscription.
+	if body, denied, authErr := r.authorizeSubscriptionPreFetch(ctx, subscription.Response); authErr != nil {
+		return authErr
+	} else if denied {
+		return writeFlushComplete(writer, body)
 	}
 
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {

@@ -439,6 +439,69 @@ func TestPreFetchFieldAuthorizationSkipLoader(t *testing.T) {
 	assert.Equal(t, int64(0), authorizer.batchCalls.Load())
 }
 
+// A subscription's protected root field must be authorized before the trigger starts, so an
+// unauthorized subscription never opens an upstream subscription.
+func TestAuthorizeSubscriptionPreFetch(t *testing.T) {
+	newSubResponse := func() *GraphQLResponse {
+		return &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeSubscription},
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("messageAdded"),
+						Info: &FieldInfo{
+							Name:                 "messageAdded",
+							ExactParentTypeName:  "Subscription",
+							Source:               TypeFieldSource{IDs: []string{"chat"}, Names: []string{"chat"}},
+							HasAuthorizationRule: true,
+						},
+						Value: &String{Path: []string{"messageAdded"}, Nullable: true},
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("denied root field returns error body", func(t *testing.T) {
+		authorizer := &batchTestAuthorizer{
+			decisions: map[GraphCoordinate]AuthorizationDecision{
+				{TypeName: "Subscription", FieldName: "messageAdded"}: {Allowed: false, Reason: "missing scope 'chat:read'"},
+			},
+		}
+		ctx := NewContext(context.Background())
+		ctx.SetPreFetchFieldAuthorizer(authorizer)
+		resolver := newResolver(context.Background())
+
+		body, denied, err := resolver.authorizeSubscriptionPreFetch(ctx, newSubResponse())
+		require.NoError(t, err)
+		assert.True(t, denied)
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Subscription.messageAdded', Reason: missing scope 'chat:read'.","extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":null}`, string(body))
+		assert.Equal(t, int64(1), authorizer.batchCalls.Load())
+	})
+
+	t.Run("allowed root field proceeds", func(t *testing.T) {
+		authorizer := &batchTestAuthorizer{}
+		ctx := NewContext(context.Background())
+		ctx.SetPreFetchFieldAuthorizer(authorizer)
+		resolver := newResolver(context.Background())
+
+		body, denied, err := resolver.authorizeSubscriptionPreFetch(ctx, newSubResponse())
+		require.NoError(t, err)
+		assert.False(t, denied)
+		assert.Nil(t, body)
+	})
+
+	t.Run("mode disabled is a no-op", func(t *testing.T) {
+		ctx := NewContext(context.Background())
+		resolver := newResolver(context.Background())
+
+		body, denied, err := resolver.authorizeSubscriptionPreFetch(ctx, newSubResponse())
+		require.NoError(t, err)
+		assert.False(t, denied)
+		assert.Nil(t, body)
+	})
+}
+
 func singleFieldResponse(service DataSource, fieldName string, value Node, rootField GraphCoordinate) *GraphQLResponse {
 	return &GraphQLResponse{
 		Info: &GraphQLResponseInfo{
