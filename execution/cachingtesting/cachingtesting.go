@@ -42,6 +42,9 @@ type PlanResult struct {
 	DeferResponse *resolve.GraphQLDeferResponse
 	Fakes         *cachetesting.FakeRegistry
 
+	// tb lets the name-keyed accessors fail fast on typo'd subgraph names
+	// instead of silently reading empty registry state.
+	tb testing.TB
 	// nameToID translates subgraph names to the ID-named datasources of the
 	// factory-built configuration, so tests can keep using subgraph names.
 	nameToID map[string]string
@@ -53,14 +56,14 @@ func (p PlanResult) Inputs(name, path string) []string {
 	return p.Fakes.Inputs(p.datasourceID(name), path)
 }
 
-// datasourceID resolves a subgraph name to its datasource ID, falling back to
-// the literal name (consistent with LoadCount — a typo'd name can then never
-// silently register an unusable gate or fetch path).
+// datasourceID resolves a subgraph name to its datasource ID; an unknown name
+// fails the test immediately, so a typo can never make a LoadCount/Inputs
+// assertion pass vacuously or register an unusable gate.
 func (p PlanResult) datasourceID(name string) string {
-	if id, ok := p.nameToID[name]; ok {
-		return id
-	}
-	return name
+	p.tb.Helper()
+	id, ok := p.nameToID[name]
+	require.True(p.tb, ok, "unknown subgraph name %q", name)
+	return id
 }
 
 // Gate attaches gate channels to the fake datasource for the given SUBGRAPH
@@ -81,11 +84,7 @@ func (p PlanResult) Gate(name, path string, gate cachetesting.DataSourceGate) {
 // LoadCount returns how often the fake datasource for the given SUBGRAPH NAME
 // loaded at the given response path.
 func (r PlanResult) LoadCount(subgraphName, path string) int64 {
-	id, ok := r.nameToID[subgraphName]
-	if !ok {
-		id = subgraphName
-	}
-	return r.Fakes.LoadCount(id, path)
+	return r.Fakes.LoadCount(r.datasourceID(subgraphName), path)
 }
 
 // Plan runs the real planner + postprocess over query against the committed
@@ -153,7 +152,8 @@ func Plan(tb testing.TB, query string, caching map[string]cacheconfig.CachingCon
 	postprocess.NewProcessor(processorOptions...).Process(raw)
 
 	result := PlanResult{
-		Fakes:    cachetesting.NewFakeRegistry(translateResponseKeys(responses, nameToID)),
+		Fakes:    cachetesting.NewFakeRegistry(translateResponseKeys(tb, responses, nameToID)),
+		tb:       tb,
 		nameToID: nameToID,
 	}
 	switch p := raw.(type) {
@@ -321,20 +321,28 @@ func subgraphNameToDatasourceID(rc *nodev1.RouterConfig) map[string]string {
 
 // translateResponseKeys rewrites subgraph-name response keys ("products",
 // "products:path") to the datasource-ID keys FakeRegistry matches on at
-// runtime; unknown prefixes (e.g. "*") pass through unchanged.
-func translateResponseKeys(responses map[string]string, nameToID map[string]string) map[string]string {
+// runtime; unknown prefixes (e.g. "*") pass through unchanged. Two source keys
+// landing on the same registry key (a subgraph name AND its raw datasource ID)
+// fail the test instead of letting map iteration pick a winner.
+func translateResponseKeys(tb testing.TB, responses map[string]string, nameToID map[string]string) map[string]string {
+	tb.Helper()
 	out := make(map[string]string, len(responses))
+	translated := make(map[string]string, len(responses))
 	for key, value := range responses {
 		name, path, hasPath := strings.Cut(key, ":")
+		outKey := key
 		if id, ok := nameToID[name]; ok {
 			if hasPath {
-				out[id+":"+path] = value
+				outKey = id + ":" + path
 			} else {
-				out[id] = value
+				outKey = id
 			}
-			continue
 		}
-		out[key] = value
+		if prev, collides := translated[outKey]; collides {
+			tb.Fatalf("response keys %q and %q both translate to %q", prev, key, outKey)
+		}
+		translated[outKey] = key
+		out[outKey] = value
 	}
 	return out
 }

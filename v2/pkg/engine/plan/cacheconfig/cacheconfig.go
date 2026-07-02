@@ -39,6 +39,17 @@ type RootFieldCachePolicy struct {
 	ShadowMode, PartialBatchLoad   bool
 }
 
+// EnablesCaching reports whether the policy enables ANY cache behavior for its
+// root field: L2 is derived from the TTL (see the package doc) and root fields
+// never carry L1, so only a positive TTL or shadow mode makes the policy
+// effective. An ineffective policy yields no FetchCacheConfig (the
+// configurator's all-flags-false safety net), so consumers that change plans
+// for cached fields — the per-root-field isolation gate — must treat it as
+// "not cached".
+func (p RootFieldCachePolicy) EnablesCaching() bool {
+	return p.TTL > 0 || p.ShadowMode
+}
+
 // MutationCachePolicy declares how a mutation root field interacts with the
 // cache (invalidation / L2 population inheritance).
 type MutationCachePolicy struct {

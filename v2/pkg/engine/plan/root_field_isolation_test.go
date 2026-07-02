@@ -60,4 +60,29 @@ func TestShouldIsolateRootField(t *testing.T) {
 		}
 		assert.False(t, shouldIsolateRootField(providers, uncachedField, "query"))
 	})
+
+	t.Run("an INERT policy (no TTL, no shadow) never isolates", func(t *testing.T) {
+		// The configurator's all-flags-false safety net drops such a policy's
+		// config entirely; isolating for it would change the plan without
+		// enabling any caching.
+		inertProviders := map[string]cacheconfig.CacheConfigProvider{
+			"products": &cacheconfig.CachingConfiguration{
+				RootFields: []cacheconfig.RootFieldCachePolicy{
+					{TypeName: "Query", FieldName: "products", CacheName: "products-cache"},
+				},
+			},
+		}
+		assert.False(t, shouldIsolateRootField(inertProviders, productsField, "query"))
+	})
+
+	t.Run("a shadow-only policy isolates", func(t *testing.T) {
+		shadowProviders := map[string]cacheconfig.CacheConfigProvider{
+			"products": &cacheconfig.CachingConfiguration{
+				RootFields: []cacheconfig.RootFieldCachePolicy{
+					{TypeName: "Query", FieldName: "products", CacheName: "products-cache", ShadowMode: true},
+				},
+			},
+		}
+		assert.True(t, shouldIsolateRootField(shadowProviders, productsField, "query"))
+	})
 }

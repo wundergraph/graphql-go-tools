@@ -47,6 +47,16 @@ func (c *fetchCacheConfigurator) buildConfig(fetch resolve.Fetch, pd map[*resolv
 	}
 	var cfg resolve.FetchCacheConfig
 	if fetch.IsEntityFetch() || fetch.IsBatchEntityFetch() {
+		// Policy and key spec both derive from RootFields[0].TypeName, so a
+		// fetch resolving entities of MIXED types (an abstract-path entity
+		// fetch collects one root coordinate per enclosing concrete type) has
+		// no single policy or key space — decline caching entirely, the
+		// conservative mirror of the root-field all-or-nothing rule below.
+		for _, rootField := range info.RootFields[1:] {
+			if rootField.TypeName != info.RootFields[0].TypeName {
+				return nil
+			}
+		}
 		policy, ok := provider.EntityPolicy(info.RootFields[0].TypeName)
 		if !ok {
 			return nil

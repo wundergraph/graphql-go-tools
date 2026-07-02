@@ -17,7 +17,10 @@ import (
 //   - the field is a DIRECT child of the QUERY operation root (mutation roots
 //     are already one-planner-per-root; subscriptions are out of core);
 //   - the field's datasource has a provider AND that provider has a
-//     RootFieldPolicy for the exact (typeName, fieldName) coordinate.
+//     RootFieldPolicy for the exact (typeName, fieldName) coordinate AND that
+//     policy actually enables caching (an inert policy — no TTL, no shadow —
+//     yields no FetchCacheConfig via the configurator's all-flags-false safety
+//     net, so isolating for it would change the plan without caching anything).
 //
 // The decision reads the CacheConfigProvider ONLY — never FederationMetaData.
 func shouldIsolateRootField(providers map[string]cacheconfig.CacheConfigProvider, field *currentFieldInfo, parentPath string) bool {
@@ -31,6 +34,6 @@ func shouldIsolateRootField(providers map[string]cacheconfig.CacheConfigProvider
 	if provider == nil {
 		return false
 	}
-	_, ok := provider.RootFieldPolicy(field.typeName, field.fieldName)
-	return ok
+	policy, ok := provider.RootFieldPolicy(field.typeName, field.fieldName)
+	return ok && policy.EnablesCaching()
 }

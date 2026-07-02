@@ -213,11 +213,20 @@ func (o *optimizeL1Cache) executesBefore(a, b *entityFetchInfo, dependencies map
 // resolver resolves a parent defer group fully before its children (and the
 // initial tree before every group), so ancestor-tree fetches execute before
 // every descendant-tree fetch. SIBLING groups stay unordered (parallel).
+// The walk is bounded by the tree count: treeParents crosses the public
+// ConfigureCaching API, and a malformed parent cycle must terminate, never
+// hang. Within such a cycle direct parent edges may still report enclosure —
+// harmless: L1 is only an eligibility hint, and the runtime still gates every
+// serve on key and coverage matches against actually-cached values.
 func (o *optimizeL1Cache) treeEncloses(a, b int) bool {
 	if a == b {
 		return false
 	}
-	for cur := b; cur >= 0 && cur < len(o.treeParents); {
+	cur := b
+	for range o.treeParents {
+		if cur < 0 || cur >= len(o.treeParents) {
+			return false
+		}
 		parent := o.treeParents[cur]
 		if parent == a {
 			return true

@@ -59,7 +59,6 @@ func benchResolve(b *testing.B, result PlanResult, controller resolve.CacheContr
 	b.Helper()
 	r := resolve.New(context.Background(), resolve.ResolverOptions{MaxConcurrency: 1024})
 	b.ReportAllocs()
-	b.ResetTimer()
 	for b.Loop() {
 		ctx := resolve.NewContext(context.Background())
 		if controller != nil {
@@ -136,9 +135,9 @@ func BenchmarkLoader(b *testing.B) {
 		benchResolve(b, result, controller)
 	})
 	b.Run("entity/l2-miss-write", func(b *testing.B) {
-		// Every iteration misses (fresh store per loop is too heavy; instead a
-		// zero-TTL... a NEGATIVE-TTL store entry cannot be expressed, so the
-		// miss path uses a store that never returns hits).
+		// Every iteration misses and writes: missStore never returns hits and
+		// swallows writes, keeping the steady-state miss+write path measurable
+		// without unbounded map growth.
 		result := Plan(b, entityQuery, entityCaching, entityResponses)
 		controller := cache.NewController(missStore{}, nil)
 		benchResolve(b, result, controller)
@@ -164,9 +163,9 @@ func BenchmarkLoader(b *testing.B) {
 		store := newBenchStore()
 		controller := cache.NewController(store, nil)
 		prime(b, primeResult, controller)
-		// Drop upc 2's entry before each run is unnecessary: it stays missing
-		// because the store primed only upc 1 and iteration writes go to upc 2
-		// AFTER the filter — delete it each iteration to keep the partial shape.
+		// partialShapeStore serves the primed upc 1 entry but drops the
+		// iteration's upc 2 write-backs, so the one-of-two-primed partial
+		// shape holds for every iteration.
 		result := Plan(b, batchQuery, partialCaching, map[string]string{
 			"products": `{"data":{"products":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"}]}}`,
 			"reviews":  `{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Wobbly"}]}]}}`,
@@ -219,7 +218,6 @@ func benchResolveWithVariables(b *testing.B, result PlanResult, variables string
 	b.Helper()
 	r := resolve.New(context.Background(), resolve.ResolverOptions{MaxConcurrency: 1024})
 	b.ReportAllocs()
-	b.ResetTimer()
 	for b.Loop() {
 		ctx := resolve.NewContext(context.Background())
 		ctx.Variables = astjson.MustParseBytes([]byte(variables))

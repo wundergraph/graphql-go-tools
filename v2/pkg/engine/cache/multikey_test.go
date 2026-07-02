@@ -390,4 +390,56 @@ func TestMultiKeyNegativeSentinelAuthority(t *testing.T) {
 		assert.Equal(t, resolve.DecisionSkipFullHit, decision)
 		assert.True(t, handle.Items[0].NegativeHit)
 	})
+
+	t.Run("a mid-fresh sentinel keeps candidate alignment: the older-single rung reports ITS OWN TTL", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			// THREE candidates so a sentinel can sit BETWEEN a fresher
+			// non-covering positive and an older covering one: the ladder must
+			// pair each parsed value with its own candidate, never the
+			// sentinel's neighbor.
+			builder := newKeyBuilder(t, parseKeyBuilderDefinition(t), newKeyBuilderFederation(t, "upc", "sku", "name"))
+			spec, ok := builder.buildEntitySpec(productEntityInfo())
+			require.True(t, ok)
+			require.Len(t, spec.Candidates, 3)
+			cfg := &resolve.FetchCacheConfig{
+				L1:        true,
+				L2:        true,
+				CacheName: "entities",
+				TTL:       time.Minute,
+				KeySpec:   spec,
+				// Both fields non-nullable: the fresher value's null name breaks
+				// single-serve AND the union (freshest wins the merge conflict).
+				ProvidesData: &resolve.Object{
+					Fields: []*resolve.Field{
+						{Name: []byte("name"), Value: &resolve.Scalar{Nullable: false, Path: []string{"name"}}},
+						{Name: []byte("price"), Value: &resolve.Scalar{Nullable: false, Path: []string{"price"}}},
+					},
+				},
+			}
+			throwaway := NewController(newTestStore(), nil).BeginRequest(nil)
+			_, keysHandle := prepare(t, throwaway, cfg, astjson.MustParseBytes([]byte(`{"__typename":"Product","upc":"1","sku":"S1","name":"X"}`)))
+			require.Len(t, keysHandle.Items[0].RenderedKeys, 3)
+			keys := keysHandle.Items[0].RenderedKeys
+
+			store := newTestStore()
+			store.seed(keys[0], []byte(`{"__typename":"Product","name":null,"price":1}`), 10*time.Second)
+			store.seed(keys[1], []byte(negativeCacheSentinel), 5*time.Second)
+			store.seed(keys[2], []byte(`{"__typename":"Product","name":"Older","price":2}`), 2*time.Second)
+
+			rc := NewController(store, nil).BeginRequest(nil)
+			decision, handle := prepare(t, rc, cfg, astjson.MustParseBytes([]byte(`{"__typename":"Product","upc":"1","sku":"S1","name":"X"}`)))
+			require.Equal(t, resolve.DecisionSkipFullHit, decision)
+			require.NotNil(t, handle.Items[0].FromCache)
+			assert.False(t, handle.Items[0].NegativeHit)
+			assert.Equal(t, `{"__typename":"Product","name":"Older","price":2}`, string(handle.Items[0].FromCache.MarshalTo(nil)))
+			assert.True(t, handle.Items[0].NeedsWriteback)
+			// The older value's OWN 2s — not the mid sentinel's 5s.
+			assert.Equal(t, 2*time.Second, handle.Items[0].SelectedRemainingTTL)
+			assert.Equal(t, []resolve.CacheCandidate{
+				{Value: []byte(`{"__typename":"Product","name":null,"price":1}`), RemainingTTL: 10 * time.Second},
+				{Value: []byte(negativeCacheSentinel), RemainingTTL: 5 * time.Second},
+				{Value: []byte(`{"__typename":"Product","name":"Older","price":2}`), RemainingTTL: 2 * time.Second},
+			}, handle.Items[0].FromCacheCandidates)
+		})
+	})
 }
