@@ -331,6 +331,41 @@ func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfi
 	return maxWeight
 }
 
+// actualImplementingFieldWeight returns the runtime-weighted average of the per-implementing-type
+// weights for an abstract field, based on which concrete types this node actually resolved to.
+//
+// It returns the estimatedMaxWeight when the response carries no per-type information
+// or when no returned implementing type defines an explicit weight.
+//
+// Returned types whose implementing field has no explicit weight contribute zero to the average.
+func (node *CostTreeNode) actualImplementingFieldWeight(config *DataSourceCostConfig, fieldName string, stats resolve.TypeNameStats, estimatedMaxWeight float64) float64 {
+	if stats.Size == 0 {
+		return estimatedMaxWeight
+	}
+	if len(stats.TypeNames) == 1 {
+		if _, onlyAbstract := stats.TypeNames[node.fieldTypeName]; onlyAbstract {
+			return estimatedMaxWeight
+		}
+	}
+	var sum float64
+	weighted := false
+	for _, implTypeName := range node.implementingTypeNames {
+		count, returned := stats.TypeNames[implTypeName]
+		if !returned {
+			continue
+		}
+		fieldWeight := config.Weights[FieldCoordinate{implTypeName, fieldName}]
+		if fieldWeight != nil && fieldWeight.HasWeight {
+			weighted = true
+			sum += float64(fieldWeight.Weight * count)
+		}
+	}
+	if !weighted {
+		return estimatedMaxWeight
+	}
+	return sum / float64(stats.Size)
+}
+
 func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostConfig, fieldName string, arguments map[string]ArgumentInfo, vars resolve.VariablesView, defaultListSize int) *FieldListSize {
 	var maxMultiplier int
 	var maxListSize *FieldListSize
@@ -595,16 +630,16 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		// the corresponding field on each concrete type implementing that interface,
 		// either directly or indirectly through other interfaces.
 		//
-		// Composition should not let interface fields have weights, so we assume that
-		// the enclosing type is concrete.
-		// Commented condition is a good check for that. Might be needed later:
-		// fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType
+		// fromImplementingTypes marks that fieldWeight was resolved from the implementing
+		// types of the enclosing interface/union rather than from the field itself.
+		fromImplementingTypes := false
 		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// This field is part of the enclosing interface/union.
 			// We look into implementing types and find the max-weighted field.
 			// Found fieldWeight can be used for all the calculations.
 			if !input.ignoreImplementingTypeWeights {
 				fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoords.FieldName)
+				fromImplementingTypes = fieldWeight != nil
 			}
 			// If this field has listSize defined, then do not look into implementing types.
 			if input.isEstimation && listSize == nil && node.returnsListType {
@@ -613,7 +648,11 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		}
 
 		if fieldWeight != nil && fieldWeight.HasWeight {
-			nodeCost.field += float64(fieldWeight.Weight)
+			weight := float64(fieldWeight.Weight)
+			if fromImplementingTypes && !input.isEstimation {
+				weight = parent.actualImplementingFieldWeight(dsCostConfig, node.fieldCoords.FieldName, input.typeStats[parent.jsonPath], weight)
+			}
+			nodeCost.field += weight
 		} else {
 			// Use the weight of the type returned by this field
 			switch {
@@ -776,7 +815,13 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 
 	// For a concrete object field, scale its children by how often the object actually
 	// resolved non-null relative to its parent's occurrences.
-	if !node.returnsSimpleType && parentStats.Size > 0 {
+	//
+	// Fragment fields under an abstract parent are excluded: runtime stats are keyed by
+	// response path, so occurrences of the same field selected in other fragments are
+	// indistinguishable and the ratio would count them all. Their childMultiplier follows
+	// the type-share multiplier set below instead.
+	isFragmentField := node.parent.returnsAbstractType && !node.isEnclosingTypeAbstract
+	if !node.returnsSimpleType && !isFragmentField && parentStats.Size > 0 {
 		if nodeStats, ok := input.typeStats[node.jsonPath]; ok {
 			// The field's own weight is kept via multiplier while its children
 			// are charged only for the fraction of occurrences where the object was present.
@@ -790,36 +835,8 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 	if !node.parent.returnsAbstractType || parentStats.Size == 0 {
 		return
 	}
-	// Fields selected on the abstract type itself carry the max implementing-type weight;
-	// re-weight by the actual type distribution. Gated to abstract lists only because
-	// for a single abstract object this would change how interface fields are billed
-	// (max weight today), and it mishandles fields with no explicit per-implementing-type weights.
-	if node.parent.returnsListType && node.isEnclosingTypeAbstract && nodeCost.field > 0 && !input.ignoreImplementingTypeWeights {
-		var weightedSum float64
-		found := false
-		for _, implTypeName := range parent.implementingTypeNames {
-			count, typeNameFound := parentStats.TypeNames[implTypeName]
-			if !typeNameFound {
-				continue
-			}
-			for _, dsHash := range node.dataSourceHashes {
-				dsCostConfig, ok := input.configs[dsHash]
-				if !ok || dsCostConfig == nil {
-					continue
-				}
-
-				coords := FieldCoordinate{implTypeName, node.fieldCoords.FieldName}
-				fieldWeight := dsCostConfig.Weights[coords]
-				if fieldWeight != nil {
-					found = true
-					weightedSum += float64(fieldWeight.Weight * count)
-				}
-			}
-		}
-		if found {
-			nodeCost.multiplier = weightedSum / (nodeCost.field * float64(parentStats.Size))
-		}
-	}
+	// Fields selected on the abstract type itself need no multiplier adjustment: their
+	// weight is already resolved per actual type distribution (see actualImplementingFieldWeight).
 	if !node.isEnclosingTypeAbstract {
 		count, typeNameFound := parentStats.TypeNames[node.fieldCoords.TypeName]
 		if !typeNameFound {
@@ -919,14 +936,14 @@ func NewCostCalculator(config Configuration) *CostCalculator {
 // config should be static per process or instance. vars could change between requests.
 func (c *CostCalculator) EstimateCost(vars resolve.VariablesView) int {
 	input := newCostInput(true, c, vars, nil)
-	// fmt.Println(c.DebugPrint(vars, nil))
+	fmt.Println(c.DebugPrint(vars, nil))
 	return int(math.RoundToEven(c.tree.cost(input)))
 }
 
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
 func (c *CostCalculator) ActualCost(vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats) int {
 	input := newCostInput(false, c, vars, typeStats)
-	// fmt.Println(c.DebugPrint(vars, typeStats))
+	fmt.Println(c.DebugPrint(vars, typeStats))
 	return int(math.RoundToEven(c.tree.cost(input)))
 }
 
