@@ -360,12 +360,11 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldCtx fieldRequi
 
 	// check if the required fields are already provided
 	input := areRequiredFieldsProvidedInput{
-		typeName:       fieldCtx.typeName,
-		requiredFields: requiresConfiguration.SelectionSet,
-		definition:     c.definition,
-		dataSource:     fieldCtx.dsConfig,
-		providedFields: c.nodeSuggestions.providedFields[fieldCtx.dsConfig.Hash()],
-		parentPath:     fieldCtx.parentPath,
+		typeName:          fieldCtx.typeName,
+		requiredFields:    requiresConfiguration.SelectionSet,
+		definition:        c.definition,
+		dataSource:        fieldCtx.dsConfig,
+		providedSelection: c.nodeSuggestions.providedSelectionForParentOfField(fieldCtx.dsConfig.Hash(), fieldCtx.fieldRef),
 	}
 
 	provided, report := areRequiredFieldsProvided(input)
