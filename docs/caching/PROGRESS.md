@@ -27,7 +27,7 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 15 | entity-cache reuse | done | 44011a84 | Spec carries the FULL entity candidate set (first pass had mapping-only — E3 backfill impossible there); EntityMergePath finally populated; v1 variable-name constraint documented; reviews/15-*.md. |
 | 16 | optimizeL1Cache pass | done | abe90ce7 | Ordering = dependency edges + TREE order (deviation, argued in reviews/16); schema-name+args field matching; first-pass union aliasing bug fixed and pinned; reviews/16-*.md. |
 | 17 | L1 runtime store | done | 36ac68c5 | Pointer store, shared keys, L1-first ladder; fixed heap-mode StructuralCopy passthrough + optimize-pass chain break; H4 resolved (shadow stashes L1 selections); reviews/17-*.md. |
-| 18 | defer + concurrency coverage | done | (see git log) | First-pass gap CLOSED (N1/N2/M3 proven e2e); flushed-out fix: defer-group ANCESTRY ordering (treeParents via DeferDescriptors.ParentID); N4 via Flushed gate channel (synctest incompatible with engine goroutines); reviews/18-*.md. |
+| 18 | defer + concurrency coverage | done | a0ce527a | First-pass gap CLOSED (N1/N2/M3 proven e2e); flushed-out fix: defer-group ANCESTRY ordering (treeParents via DeferDescriptors.ParentID); N4 via Flushed gate channel (synctest incompatible with engine goroutines); reviews/18-*.md. |
 | 19 | partial fetching | todo | — | — |
 | 20 | ART observability | todo | — | — |
 
