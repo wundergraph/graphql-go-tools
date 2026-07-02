@@ -773,10 +773,11 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 					r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", obj.SourceName, string(typeName)), errorcodes.InvalidGraphql)
 				}
 
-				// if object is not nullable at pre-walk we need to return an error
-				// to immediately stop the resolving of the current object and bubble up null
+				// if object is not nullable at pre-walk we need to stop resolving
+				// the current object. Under NULL this nulls the object in place;
+				// otherwise it bubbles up null.
 				if !obj.Nullable {
-					return r.err()
+					return r.erroredPosition(obj.Path, parent)
 				}
 
 				// if object is nullable we can just set it to null
@@ -1236,12 +1237,15 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 		}
 		return r.erroredPosition(f.Path, parent)
 	}
-	if !r.print {
-		if value.Type() != astjson.TypeNumber {
+	if value.Type() != astjson.TypeNumber {
+		// The type check must run on both passes: under NULL an errored array
+		// item (empty path) is not mutated on the validation pass, so the print
+		// pass must render null here instead of the raw invalid value.
+		if !r.print {
 			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 			r.addError(fmt.Sprintf("Float cannot represent non-float value: \"%s\"", string(r.marshalBuf)), f.Path)
-			return r.erroredPosition(f.Path, parent)
 		}
+		return r.erroredPosition(f.Path, parent)
 	}
 	if r.print {
 		if r.options.ApolloCompatibilityTruncateFloatValues {

@@ -87,6 +87,39 @@ func TestErrorBehaviorMatrix(t *testing.T) {
 	}
 }
 
+// Regression (Codex finding 1): a non-null Float list item with a type mismatch
+// under NULL must render null in place, never leak the raw invalid value.
+func TestResolvable_NullBehavior_FloatListItemTypeMismatch(t *testing.T) {
+	root := &Object{Fields: []*Field{{
+		Name:  []byte("values"),
+		Value: &Array{Path: []string{"values"}, Item: &Float{}}, // [Float!]!
+	}}}
+	got := resolveWith(t, ErrorBehaviorNull, `{"values":[1.5,"bad",3.5]}`, root)
+	assert.Equal(t,
+		`{"errors":[{"message":"Float cannot represent non-float value: \"\"bad\"\"","path":["values",1]}],"data":{"values":[1.5,null,3.5]}}`,
+		got)
+}
+
+// Regression (Codex finding 3): a non-null object with an invalid abstract
+// __typename under NULL must render null in place, not propagate.
+func TestResolvable_NullBehavior_InvalidTypename(t *testing.T) {
+	root := &Object{Fields: []*Field{
+		{Name: []byte("hero"), Value: &Object{
+			Path:          []string{"hero"},
+			TypeName:      "Character",
+			PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
+			Fields: []*Field{
+				{Name: []byte("name"), Value: &String{Path: []string{"name"}, Nullable: true}},
+			},
+		}}, // non-null object
+		{Name: []byte("time"), Value: &String{Path: []string{"time"}, Nullable: true}},
+	}}
+	got := resolveWith(t, ErrorBehaviorNull, `{"hero":{"__typename":"Alien","name":"x"},"time":"now"}`, root)
+	assert.Equal(t,
+		`{"errors":[{"message":"Subgraph '' returned invalid value 'Alien' for __typename field.","path":["hero"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"hero":null,"time":"now"}}`,
+		got)
+}
+
 func TestHalt_TrimsToSingleError(t *testing.T) {
 	// two sibling non-null leaves both null -> PROPAGATE would still bubble to
 	// data:null; HALT must additionally guarantee exactly ONE error entry.

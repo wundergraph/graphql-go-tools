@@ -56,3 +56,15 @@ The normalization must not dereference a nil ctx — this was caught by `TestAut
 - Introspection service capabilities → Phase 2.
 - Full behavior×position×nullability matrix + e2e with an erroring subgraph → Phase 3.
 - Authorization-denial null-setting keeps its existing behavior (unchanged).
+
+## Post-review fixes (Codex local review)
+
+A local Codex review after Phase 3 surfaced two genuine NULL-behavior gaps, both now fixed with regression tests (`TestResolvable_NullBehavior_FloatListItemTypeMismatch`, `TestResolvable_NullBehavior_InvalidTypename`):
+
+1. **`walkFloat` empty-path leak.** `walkFloat`'s type-mismatch check was nested inside `if !r.print`, so — unlike the other numeric walkers — it never reached `erroredPosition` on the print pass. For a non-null Float **array item** (empty path, so the validation pass can't null it in place) with a type mismatch under NULL, the print pass rendered the raw invalid value. The check is now hoisted to run on both passes (matching `walkInteger`), so the print pass renders `null`.
+2. **Invalid abstract `__typename` bypassed NULL.** The non-null branch of the `PossibleTypes` check returned `r.err()` (propagate) instead of `erroredPosition`, so under NULL an object with an unknown `__typename` bubbled like PROPAGATE. Now routed through `erroredPosition` (nulls the object in place under NULL, unchanged for PROPAGATE/HALT).
+
+Two further Codex findings were assessed and **not** changed:
+
+- **`walkCustom` double-`Resolve`** for empty-path custom array items under NULL: the print pass re-invokes `Resolve`, but still renders `null` correctly for deterministic resolvers (its check reaches `erroredPosition` on the print pass). Narrow and non-leaking; left as-is.
+- **Authorization-denial null-setting** under NULL: explicitly out of scope for this work (see above); auth rejection keeps its existing bespoke null/propagate handling.
