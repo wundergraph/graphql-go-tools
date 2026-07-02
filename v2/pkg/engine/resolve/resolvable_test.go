@@ -1625,3 +1625,115 @@ func TestMapExtensionForwardingAlgorithm(t *testing.T) {
 	assert.Equal(t, ExtensionForwardingAlgorithmFirstWrite, MapExtensionForwardingAlgorithm(""))
 	assert.Equal(t, ExtensionForwardingAlgorithmFirstWrite, MapExtensionForwardingAlgorithm("nonsense"))
 }
+
+func TestResolvable_ErrorBehaviorDefaultsToPropagate(t *testing.T) {
+	res := NewResolvable(nil, ResolvableOptions{})
+	ctx := &Context{} // ExecutionOptions zero value
+	err := res.Init(ctx, []byte(`{"hero":{"name":"R2D2"}}`), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	object := &Object{Fields: []*Field{{
+		Name: []byte("hero"),
+		Value: &Object{Path: []string{"hero"}, Fields: []*Field{{
+			Name:  []byte("name"),
+			Value: &String{Path: []string{"name"}},
+		}}},
+	}}}
+	out := &bytes.Buffer{}
+	err = res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":{"hero":{"name":"R2D2"}}}`, out.String())
+	assert.Equal(t, ErrorBehaviorPropagate, res.errorBehavior)
+}
+
+func newNullResolvable(t *testing.T, data string) *Resolvable {
+	t.Helper()
+	res := NewResolvable(nil, ResolvableOptions{})
+	err := res.Init(&Context{ExecutionOptions: ExecutionOptions{ErrorBehavior: ErrorBehaviorNull}},
+		[]byte(data), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	return res
+}
+
+// non-null leaf returns null -> stays null, sibling preserved, error recorded
+func TestResolvable_NullBehavior_NonNullLeaf(t *testing.T) {
+	res := newNullResolvable(t, `{"hero":{"id":"1","name":null}}`)
+	object := &Object{Fields: []*Field{{
+		Name: []byte("hero"),
+		Value: &Object{Path: []string{"hero"}, Fields: []*Field{
+			{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+			{Name: []byte("name"), Value: &String{Path: []string{"name"}}}, // non-null
+		}},
+	}}}
+	out := &bytes.Buffer{}
+	err := res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.hero.name'.","path":["hero","name"]}],"data":{"hero":{"id":"1","name":null}}}`, out.String())
+}
+
+// non-null object returns null -> object null, sibling field of parent preserved
+func TestResolvable_NullBehavior_NonNullObject(t *testing.T) {
+	res := newNullResolvable(t, `{"hero":null,"time":"now"}`)
+	object := &Object{Fields: []*Field{
+		{Name: []byte("hero"), Value: &Object{Path: []string{"hero"}, Fields: []*Field{
+			{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+		}}}, // non-null object
+		{Name: []byte("time"), Value: &String{Path: []string{"time"}}},
+	}}
+	out := &bytes.Buffer{}
+	err := res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.hero'.","path":["hero"]}],"data":{"hero":null,"time":"now"}}`, out.String())
+}
+
+// non-null list item null -> that item null, other items preserved
+func TestResolvable_NullBehavior_NonNullListItem(t *testing.T) {
+	res := newNullResolvable(t, `{"names":["a",null,"c"]}`)
+	object := &Object{Fields: []*Field{{
+		Name:  []byte("names"),
+		Value: &Array{Path: []string{"names"}, Item: &String{}}, // non-null items
+	}}}
+	out := &bytes.Buffer{}
+	err := res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.names'.","path":["names",1]}],"data":{"names":["a",null,"c"]}}`, out.String())
+}
+
+// non-null leaf with a type mismatch under NULL -> null in place + error, sibling kept
+func TestResolvable_NullBehavior_TypeMismatch(t *testing.T) {
+	res := newNullResolvable(t, `{"hero":{"id":"1","name":123}}`)
+	object := &Object{Fields: []*Field{{
+		Name: []byte("hero"),
+		Value: &Object{Path: []string{"hero"}, Fields: []*Field{
+			{Name: []byte("id"), Value: &String{Path: []string{"id"}}},
+			{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+		}},
+	}}}
+	out := &bytes.Buffer{}
+	err := res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"errors":[{"message":"String cannot represent non-string value: \"123\"","path":["hero","name"]}],"data":{"hero":{"id":"1","name":null}}}`, out.String())
+}
+
+func newHaltResolvable(t *testing.T, data string) *Resolvable {
+	t.Helper()
+	res := NewResolvable(nil, ResolvableOptions{})
+	err := res.Init(&Context{ExecutionOptions: ExecutionOptions{ErrorBehavior: ErrorBehaviorHalt}},
+		[]byte(data), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	return res
+}
+
+// a single non-null violation -> data:null, single error
+func TestResolvable_HaltBehavior_SingleViolation(t *testing.T) {
+	res := newHaltResolvable(t, `{"hero":{"name":null}}`)
+	object := &Object{Fields: []*Field{{
+		Name: []byte("hero"),
+		Value: &Object{Path: []string{"hero"}, Fields: []*Field{
+			{Name: []byte("name"), Value: &String{Path: []string{"name"}}},
+		}},
+	}}}
+	out := &bytes.Buffer{}
+	err := res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.hero.name'.","path":["hero","name"]}],"data":null}`, out.String())
+}

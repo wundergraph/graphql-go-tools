@@ -8,15 +8,56 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
+// MergeOptions configures optional additions to the introspection base schema.
+type MergeOptions struct {
+	// ServiceCapabilities adds the __Capability type and the __Schema.capabilities
+	// field so the server can advertise GraphQL Service Capabilities (onError,
+	// graphql-spec#1163). When false, the merged schema is byte-identical to today.
+	ServiceCapabilities bool
+}
+
 func MergeDefinitionWithBaseSchema(definition *ast.Document) error {
+	return MergeDefinitionWithBaseSchemaOptions(definition, MergeOptions{})
+}
+
+// MergeDefinitionWithBaseSchemaOptions merges the introspection base schema into
+// definition, optionally adding the Service Capabilities introspection surface.
+func MergeDefinitionWithBaseSchemaOptions(definition *ast.Document, options MergeOptions) error {
 	definition.Input.AppendInputBytes(baseSchema)
+	if options.ServiceCapabilities {
+		definition.Input.AppendInputBytes(baseSchemaServiceCapabilities)
+	}
 	parser := astparser.NewParser()
 	report := operationreport.Report{}
 	parser.Parse(definition, &report)
 	if report.HasErrors() {
 		return report
 	}
+	if options.ServiceCapabilities {
+		addCapabilitiesField(definition)
+	}
 	return handleSchema(definition)
+}
+
+// addCapabilitiesField adds `capabilities: [__Capability!]` to the __Schema object
+// type. The list is nullable so a server that advertises no capabilities (feature
+// disabled) does not violate a non-null constraint. Called only when the base
+// schema was merged with ServiceCapabilities enabled (so __Capability exists).
+func addCapabilitiesField(definition *ast.Document) {
+	node, ok := definition.Index.FirstNodeByNameStr("__Schema")
+	if !ok || node.Kind != ast.NodeKindObjectTypeDefinition {
+		return
+	}
+	fieldNameRef := definition.Input.AppendInputBytes([]byte("capabilities"))
+	// [__Capability!]
+	fieldTypeRef := definition.AddListType(definition.AddNonNullNamedType([]byte("__Capability")))
+	fieldRef := definition.AddFieldDefinition(ast.FieldDefinition{
+		Name: fieldNameRef,
+		Type: fieldTypeRef,
+	})
+	definition.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs = append(
+		definition.ObjectTypeDefinitions[node.Ref].FieldsDefinition.Refs, fieldRef)
+	definition.ObjectTypeDefinitions[node.Ref].HasFieldDefinitions = true
 }
 
 func handleSchema(definition *ast.Document) error {
@@ -339,4 +380,22 @@ enum __TypeKind {
     LIST
     "Indicates this type is a non-null. 'ofType' is a valid field."
     NON_NULL
+}`)
+
+// baseSchemaServiceCapabilities defines the __Capability type used by the GraphQL
+// Service Capabilities introspection surface (graphql-spec#1163). It is merged in
+// only when MergeOptions.ServiceCapabilities is enabled; the __Schema.capabilities
+// field is added programmatically by addCapabilitiesField.
+var baseSchemaServiceCapabilities = []byte(`
+"""
+A __Capability describes a single capability supported by a GraphQL service,
+such as the supported onError request behaviors or the default error behavior.
+"""
+type __Capability {
+    "The identifier of the capability, e.g. 'graphql.onError'."
+    identifier: String!
+    "A human-readable description of the capability."
+    description: String
+    "The value associated with the capability, if any."
+    value: String
 }`)

@@ -17,9 +17,22 @@ type Schema struct {
 	SubscriptionType *FullType   `json:"subscriptionType"`
 	Types            []*FullType `json:"types"`
 	Directives       []Directive `json:"directives"`
-	TypeName         string      `json:"__typename"`
-	Description      *string     `json:"description,omitempty"`
-	fullTypeMap      map[string]*FullType
+	// Capabilities advertises GraphQL Service Capabilities (graphql-spec#1163).
+	// It is omitted entirely when empty so introspection output is byte-identical
+	// to today when the onError feature is disabled.
+	Capabilities []Capability `json:"capabilities,omitempty"`
+	TypeName     string       `json:"__typename"`
+	Description  *string      `json:"description,omitempty"`
+	fullTypeMap  map[string]*FullType
+}
+
+// Capability describes a single GraphQL service capability (Service
+// Capabilities introspection, graphql-spec#1163).
+type Capability struct {
+	Identifier  string  `json:"identifier"`
+	Description *string `json:"description"`
+	Value       *string `json:"value"`
+	TypeName    string  `json:"__typename"`
 }
 
 func (s *Schema) AddType(t *FullType) {
@@ -51,6 +64,60 @@ func NewSchema() Schema {
 		TypeName:    "__Schema",
 		fullTypeMap: make(map[string]*FullType),
 	}
+}
+
+// BuildServiceCapabilities returns the Service Capabilities to advertise, or nil
+// when the onError feature is disabled. When enabled, defaultErrorBehavior is the
+// operator-configured default ("" => "PROPAGATE").
+func BuildServiceCapabilities(enabled bool, defaultErrorBehavior string) []Capability {
+	if !enabled {
+		return nil
+	}
+	if defaultErrorBehavior == "" {
+		defaultErrorBehavior = "PROPAGATE"
+	}
+	def := defaultErrorBehavior
+	return []Capability{
+		{Identifier: "graphql.onError", TypeName: "__Capability"},
+		{Identifier: "graphql.defaultErrorBehavior", Value: &def, TypeName: "__Capability"},
+	}
+}
+
+// stringTypeRef builds a TypeRef for the built-in String scalar, optionally
+// wrapped in NON_NULL, mirroring introspectionVisitor.TypeRef.
+func stringTypeRef(nonNull bool) TypeRef {
+	name := "String"
+	scalar := TypeRef{Kind: SCALAR, Name: &name, TypeName: "__Type"}
+	if !nonNull {
+		return scalar
+	}
+	return TypeRef{Kind: NONNULL, OfType: &scalar, TypeName: "__Type"}
+}
+
+// AddCapabilityType registers the __Capability object type so that
+// __type(name:"__Capability") and __schema { types } resolve it. Idempotent.
+func (s *Schema) AddCapabilityType() {
+	if s.TypeByName("__Capability") != nil {
+		return
+	}
+	ft := NewFullType()
+	ft.Kind = OBJECT
+	ft.Name = "__Capability"
+
+	idField := NewField()
+	idField.Name = "identifier"
+	idField.Type = stringTypeRef(true)
+
+	descField := NewField()
+	descField.Name = "description"
+	descField.Type = stringTypeRef(false)
+
+	valField := NewField()
+	valField.Name = "value"
+	valField.Type = stringTypeRef(false)
+
+	ft.Fields = []Field{idField, descField, valField}
+	s.AddType(ft)
 }
 
 type FullType struct {

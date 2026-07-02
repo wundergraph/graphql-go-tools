@@ -101,6 +101,14 @@ func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	}
 }
 
+// WithErrorBehavior sets the onError error behavior (PROPAGATE / NULL / HALT,
+// graphql-spec#1163) for the request. The empty value is treated as PROPAGATE.
+func WithErrorBehavior(behavior resolve.ErrorBehavior) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.ExecutionOptions.ErrorBehavior = behavior
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {
