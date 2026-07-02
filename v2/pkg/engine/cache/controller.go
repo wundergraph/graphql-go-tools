@@ -477,11 +477,36 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 	}
 
 	decision := resolve.DecisionFetch
+	var partialInput []byte
 	switch {
 	case shadowStash != nil:
 		decision = resolve.DecisionFetchShadow
 	case allCovered:
 		decision = resolve.DecisionSkipFullHit
+	default:
+		// Entity policies expose the knob as EnablePartialCacheLoad;
+		// root-field policies as PartialBatchLoad — either enables the batch
+		// partial path. Shadow wins over partial (read-never-serve).
+		if (cfg.EnablePartialCacheLoad || cfg.PartialBatchLoad) && !cfg.ShadowMode {
+			// SOME buckets covered: filter the representations to the missing
+			// ones and go partial. keep[i] mirrors the bucket order (which is
+			// the representations order). An unexpected input shape falls back
+			// to the plain full fetch — never a wrong request.
+			keep := make([]bool, len(items))
+			anyCovered := false
+			for i := range items {
+				keep[i] = items[i].FromCache == nil
+				if !keep[i] {
+					anyCovered = true
+				}
+			}
+			if anyCovered {
+				if reduced, ok := filterBatchInput(in.Input, keep); ok {
+					decision = resolve.DecisionFetchPartial
+					partialInput = reduced
+				}
+			}
+		}
 	}
 	handle := &resolve.FetchCacheHandle{
 		Decision:       decision,
@@ -490,6 +515,7 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 		BatchEntityKey: true,
 		Shadow:         shadowStash != nil,
 		ShadowStash:    shadowStash,
+		PartialInput:   partialInput,
 		Items:          items,
 	}
 	r.configs[handle] = cfg
@@ -662,66 +688,86 @@ func (r *requestCache) OnFetchSkipped(h *resolve.FetchCacheHandle, in resolve.Me
 				targets = in.BatchStats[item.BatchIndex]
 			}
 		}
-		if item.FromCache.Type() == astjson.TypeNull {
-			// A negative hit splices NOTHING: a real successful-but-empty
-			// entity fetch leaves the merge targets untouched (mergeResult
-			// early-returns), and the resolvable then renders the null bubble
-			// and its non-null error exactly as it would uncached. Replacing
-			// the target with null here would make the cached response DIFFER
-			// from the uncached one — caching must never change the response.
-			continue
-		}
 		provides := resolve.Node(cfg.ProvidesData)
 		if subtree := r.reuseProvides[h]; subtree != nil {
 			provides = subtree
 		}
-		// A by-key root-field item carries its own merge path (the field's
-		// response key); everything else uses the fetch-level merge path.
-		mergePath := in.MergePath
-		if len(item.EntityMergePath) > 0 {
-			mergePath = item.EntityMergePath
+		var missed []string
+		if i < len(missedByItem) {
+			missed = missedByItem[i]
 		}
-		for _, target := range targets {
-			if target == nil {
-				continue
-			}
-			// Denormalize the stored value to the requesting operation's
-			// aliases in selection order; the walk builds a fresh
-			// transaction-owned value per target, so it is also the
-			// aliasing-safe copy for the splice.
-			cached := denormalizeToSelection(tx, r.ctx, item.FromCache, provides)
-			if len(mergePath) > 0 {
-				if _, err := tx.MergeValuesWithPath(target, cached, mergePath...); err != nil {
-					return err
-				}
-			} else if _, err := tx.MergeValues(target, cached); err != nil {
+		if err := r.spliceCachedItem(tx, cfg, prefix, provides, item, missed, targets, in.MergePath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// spliceCachedItem serves ONE covered item: splice the denormalized cached
+// value into every merge target, then settle the best-effort write-back
+// duties (refresh after a merged/older selection, backfill of missed keys,
+// pending-candidate re-render). Shared by OnFetchSkipped and the partial arm.
+func (r *requestCache) spliceCachedItem(tx *resolve.CacheTransaction, cfg *resolve.FetchCacheConfig, prefix string, provides resolve.Node, item resolve.ItemCacheState, missed []string, targets []*astjson.Value, fetchMergePath []string) error {
+	if item.FromCache == nil {
+		return nil
+	}
+	if item.FromCache.Type() == astjson.TypeNull {
+		// A negative hit splices NOTHING and writes nothing: a real
+		// successful-but-empty entity fetch leaves the merge targets untouched
+		// (mergeResult early-returns), and the resolvable then renders the
+		// null bubble and its non-null error exactly as it would uncached.
+		// Replacing the target with null here would make the cached response
+		// DIFFER from the uncached one — caching must never change the
+		// response.
+		return nil
+	}
+
+	// A by-key root-field item carries its own merge path (the field's
+	// response key); everything else uses the fetch-level merge path.
+	mergePath := fetchMergePath
+	if len(item.EntityMergePath) > 0 {
+		mergePath = item.EntityMergePath
+	}
+	for _, target := range targets {
+		if target == nil {
+			continue
+		}
+		// Denormalize the stored value to the requesting operation's
+		// aliases in selection order; the walk builds a fresh
+		// transaction-owned value per target, so it is also the
+		// aliasing-safe copy for the splice.
+		cached := denormalizeToSelection(tx, r.ctx, item.FromCache, provides)
+		if len(mergePath) > 0 {
+			if _, err := tx.MergeValuesWithPath(target, cached, mergePath...); err != nil {
 				return err
 			}
+		} else if _, err := tx.MergeValues(target, cached); err != nil {
+			return err
 		}
+	}
 
-		value := item.FromCache.MarshalTo(nil)
-		if item.NeedsWriteback {
-			// The served value was synthesized or older-but-covering: rewrite
-			// the canonical entries so the next lookup hits on the first rung.
-			for _, key := range item.RenderedKeys {
-				r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonRefresh)
-			}
-		} else if i < len(missedByItem) {
-			for _, key := range missedByItem[i] {
-				r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonBackfill)
-			}
+	value := item.FromCache.MarshalTo(nil)
+	if item.NeedsWriteback {
+		// The served value was synthesized or older-but-covering: rewrite
+		// the canonical entries so the next lookup hits on the first rung.
+		for _, key := range item.RenderedKeys {
+			r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonRefresh)
 		}
-		for _, candidate := range item.PendingCandidates {
-			// A candidate unrenderable from the request item may render from
-			// the SERVED value (it can carry more fields); skip silently when
-			// it still cannot render — best-effort, never required.
-			template := cacheKeyTemplate{prefix: prefix, representation: candidate.Representation}
-			key, ok := template.render(item.FromCache)
-			if !ok {
-				continue
-			}
+	} else {
+		for _, key := range missed {
 			r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonBackfill)
 		}
+	}
+	for _, candidate := range item.PendingCandidates {
+		// A candidate unrenderable from the request item may render from
+		// the SERVED value (it can carry more fields); skip silently when
+		// it still cannot render — best-effort, never required.
+		template := cacheKeyTemplate{prefix: prefix, representation: candidate.Representation}
+		key, ok := template.render(item.FromCache)
+		if !ok {
+			continue
+		}
+		r.deferSet(key, value, cfg.TTL, resolve.CacheWriteReasonBackfill)
 	}
 	return nil
 }
@@ -737,6 +783,13 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 	cfg := r.configs[h]
 	if cfg == nil {
 		return nil
+	}
+	if h.Decision == resolve.DecisionFetchPartial {
+		// The partial arm owns splice + realign + writes and runs BEFORE the
+		// failure gate: on a failed partial fetch the covered splice must
+		// still happen (the cached data is valid; the loader already rendered
+		// the fetch errors), and only the fetched subset is skipped.
+		return r.onPartialBatchResult(h, in, cfg)
 	}
 	if in.FetchFailed || in.HasErrors {
 		// All failure signals block ALL writes — including negative ones: a
@@ -835,47 +888,50 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 			}
 			itemToStore = entity
 		}
-		// Normalize to the stored form (schema names + argument suffixes)
-		// before caching; trees without aliases or args skip the transform
-		// (HasAliases is the fast-path gate) and store the raw value.
-		toStore := itemToStore
-		if provides != nil && provides.HasAliases {
-			toStore = normalizeToSchema(tx, r.ctx, itemToStore, provides)
-		}
-		// One key derivation feeds BOTH layers: the rendered keys plus the
-		// pending candidates re-rendered from the FRESH normalized value (a
-		// candidate the response still cannot render is skipped silently —
-		// best-effort, never required).
-		keys := item.RenderedKeys
-		backfillFrom := len(keys)
-		for _, candidate := range item.PendingCandidates {
-			template := cacheKeyTemplate{prefix: r.prefixes[h], representation: candidate.Representation}
-			key, ok := template.render(toStore)
-			if !ok {
-				continue
-			}
-			keys = append(keys, key)
-		}
-		if cfg.L1 {
-			// write-L1 before write-L2; POINTER store, zero marshaling.
-			copied := tx.StructuralCopy(toStore)
-			for _, key := range keys {
-				r.l1Put(key, copied)
-			}
-		}
-		if r.useL2(cfg) {
-			// Marshal ONCE per item — only the L2 path holds bytes.
-			value := toStore.MarshalTo(nil)
-			for i, key := range keys {
-				reason := resolve.CacheWriteReasonRefresh
-				if i >= backfillFrom {
-					reason = resolve.CacheWriteReasonBackfill
-				}
-				r.deferSet(key, value, cfg.TTL, reason)
-			}
-		}
+		r.writeFetchedValue(tx, cfg, h, item, itemToStore, provides)
 	}
 	return nil
+}
+
+// writeFetchedValue caches one FRESH per-item value: normalize to the stored
+// form (schema names + argument suffixes; HasAliases is the fast-path gate),
+// then feed BOTH layers from one key derivation — the rendered keys plus the
+// pending candidates re-rendered from the normalized value (a candidate the
+// response still cannot render is skipped silently — best-effort, never
+// required). Shared by OnFetchResult and the partial arm.
+func (r *requestCache) writeFetchedValue(tx *resolve.CacheTransaction, cfg *resolve.FetchCacheConfig, h *resolve.FetchCacheHandle, item resolve.ItemCacheState, itemToStore *astjson.Value, provides *resolve.Object) {
+	toStore := itemToStore
+	if provides != nil && provides.HasAliases {
+		toStore = normalizeToSchema(tx, r.ctx, itemToStore, provides)
+	}
+	keys := item.RenderedKeys
+	backfillFrom := len(keys)
+	for _, candidate := range item.PendingCandidates {
+		template := cacheKeyTemplate{prefix: r.prefixes[h], representation: candidate.Representation}
+		key, ok := template.render(toStore)
+		if !ok {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	if cfg.L1 {
+		// write-L1 before write-L2; POINTER store, zero marshaling.
+		copied := tx.StructuralCopy(toStore)
+		for _, key := range keys {
+			r.l1Put(key, copied)
+		}
+	}
+	if r.useL2(cfg) {
+		// Marshal ONCE per item — only the L2 path holds bytes.
+		value := toStore.MarshalTo(nil)
+		for i, key := range keys {
+			reason := resolve.CacheWriteReasonRefresh
+			if i >= backfillFrom {
+				reason = resolve.CacheWriteReasonBackfill
+			}
+			r.deferSet(key, value, cfg.TTL, reason)
+		}
+	}
 }
 
 // EndRequest flushes the deferred L2 writes — bytes only, no lock, no arena,

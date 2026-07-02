@@ -163,14 +163,19 @@ type CacheObserver interface {
 // actually touches the fetch; the loader stores it, threads it back to the
 // merge hook, and never reads a field beyond Decision.
 type FetchCacheHandle struct {
-	Decision       Decision                 // what PrepareFetch decided (drives the merge dispatch)
-	WasHit         bool                     // a covering cache value was found
-	MustWriteBack  bool                     // a hit still needs best-effort L2 writes
-	BatchEntityKey bool                     // batch-entity-key mode (per-element multi-key render on write)
-	Shadow         bool                     // shadow mode: run compare in OnFetchResult before write-back
-	ShadowStash    map[int]ShadowCacheEntry // stashed L2 reads for the shadow compare, keyed by item index
-	Items          []ItemCacheState         // per-item payload, one per merge target
-	Analytics      any                      // observer-owned accumulators; opaque even here
+	Decision       Decision // what PrepareFetch decided (drives the merge dispatch)
+	WasHit         bool     // a covering cache value was found
+	MustWriteBack  bool     // a hit still needs best-effort L2 writes
+	BatchEntityKey bool     // batch-entity-key mode (per-element multi-key render on write)
+	// PartialInput is the reduced fetch input for DecisionFetchPartial: the
+	// original rendered input with the CACHED representations filtered out, so
+	// the subgraph receives only the missing ones. The loader swaps it in as
+	// the network input (single-flight then dedups on the reduced input).
+	PartialInput []byte
+	Shadow       bool                     // shadow mode: run compare in OnFetchResult before write-back
+	ShadowStash  map[int]ShadowCacheEntry // stashed L2 reads for the shadow compare, keyed by item index
+	Items        []ItemCacheState         // per-item payload, one per merge target
+	Analytics    any                      // observer-owned accumulators; opaque even here
 }
 
 // String renders a compact, nil-safe summary for logs and panics, e.g.
