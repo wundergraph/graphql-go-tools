@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.7.0...v2.8.0) (2026-07-02)
+
+
+### Features
+
+* add defer support part 4 ([#1547](https://github.com/wundergraph/graphql-go-tools/issues/1547)) ([8891a0e](https://github.com/wundergraph/graphql-go-tools/commit/8891a0e9e606a3b3055e671a48a9e7bbc5a928ea))
+
 ## [2.7.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.6.0...v2.7.0) (2026-07-02)
 
 
