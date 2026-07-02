@@ -3,6 +3,7 @@ package cachingtesting
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,39 +26,57 @@ func resolveTraced(t *testing.T, resp *resolve.GraphQLResponse, store *cachetest
 	return resolveWithContext(t, ctx, resp)
 }
 
-// cacheTraces walks the fetch tree and renders every attached CacheTrace as
-// canonical JSON (TTL/age nanos normalized to -1 when positive: real-clock
-// values; exactness is pinned by the synctest observer unit rows).
-func cacheTraces(t *testing.T, node *resolve.FetchTreeNode) []string {
+// fullTraces renders EVERY fetch's COMPLETE ART trace as path-labeled,
+// indented JSON — the whole DataSourceLoadTrace, cache section included — with
+// the real-clock fields normalized: durations zeroed, TTL and cache-age nanos
+// set to -1 when positive (their exact values are pinned by the synctest
+// observer unit rows).
+func fullTraces(t *testing.T, node *resolve.FetchTreeNode) string {
 	t.Helper()
-	if node == nil {
-		return nil
-	}
-	var out []string
-	if node.Item != nil && node.Item.Fetch != nil {
-		if trace := loadTraceOf(node.Item.Fetch); trace != nil && trace.CacheTrace != nil {
-			normalized := *trace.CacheTrace
-			normalized.Items = append([]resolve.CacheItemTrace(nil), trace.CacheTrace.Items...)
-			for i := range normalized.Items {
-				if normalized.Items[i].RemainingTTLNano > 0 {
-					normalized.Items[i].RemainingTTLNano = -1
+	var b strings.Builder
+	var walk func(node *resolve.FetchTreeNode)
+	walk = func(node *resolve.FetchTreeNode) {
+		if node == nil {
+			return
+		}
+		if node.Item != nil && node.Item.Fetch != nil {
+			if trace := loadTraceOf(node.Item.Fetch); trace != nil {
+				normalized := *trace
+				normalized.DurationSinceStartNano = 0
+				normalized.DurationLoadNano = 0
+				if normalized.DurationSinceStartPretty != "" {
+					normalized.DurationSinceStartPretty = "0s"
 				}
-			}
-			normalized.ShadowCompares = append([]resolve.CacheShadowCompareTrace(nil), trace.CacheTrace.ShadowCompares...)
-			for i := range normalized.ShadowCompares {
-				if normalized.ShadowCompares[i].CacheAgeNano > 0 {
-					normalized.ShadowCompares[i].CacheAgeNano = -1
+				if normalized.DurationLoadPretty != "" {
+					normalized.DurationLoadPretty = "0s"
 				}
+				if trace.CacheTrace != nil {
+					cacheTrace := *trace.CacheTrace
+					cacheTrace.Items = append([]resolve.CacheItemTrace(nil), trace.CacheTrace.Items...)
+					for i := range cacheTrace.Items {
+						if cacheTrace.Items[i].RemainingTTLNano > 0 {
+							cacheTrace.Items[i].RemainingTTLNano = -1
+						}
+					}
+					cacheTrace.ShadowCompares = append([]resolve.CacheShadowCompareTrace(nil), trace.CacheTrace.ShadowCompares...)
+					for i := range cacheTrace.ShadowCompares {
+						if cacheTrace.ShadowCompares[i].CacheAgeNano > 0 {
+							cacheTrace.ShadowCompares[i].CacheAgeNano = -1
+						}
+					}
+					normalized.CacheTrace = &cacheTrace
+				}
+				raw, err := json.MarshalIndent(&normalized, "", "  ")
+				require.NoError(t, err)
+				fmt.Fprintf(&b, "=== path %q ===\n%s\n", node.Item.ResponsePath, raw)
 			}
-			raw, err := json.Marshal(&normalized)
-			require.NoError(t, err)
-			out = append(out, fmt.Sprintf("path:%q %s", node.Item.ResponsePath, raw))
+		}
+		for _, child := range node.ChildNodes {
+			walk(child)
 		}
 	}
-	for _, child := range node.ChildNodes {
-		out = append(out, cacheTraces(t, child)...)
-	}
-	return out
+	walk(node)
+	return b.String()
 }
 
 func loadTraceOf(fetch resolve.Fetch) *resolve.DataSourceLoadTrace {
@@ -91,17 +110,499 @@ func TestARTCacheTraceEndToEnd(t *testing.T) {
 		first := Plan(t, query, caching, responses)
 		firstBody := resolveTraced(t, first.Response, store)
 		assert.Equal(t, `{"data":{"me":{"favoriteProduct":{"upc":"1","stock":5}}}}`, firstBody)
-		key := store.Ops()[0].Key
-		assert.Equal(t, []string{
-			`path:"me.favoriteProduct" {"decision":"Fetch","hit":false,"items":[{"keys":["` + key + `"],"hit":false,"write_reason":"refresh"}]}`,
-		}, cacheTraces(t, first.Response.Fetches))
+		assert.Equal(t, `=== path "" ===
+{
+  "raw_input_data": {},
+  "input": {
+    "body": {
+      "query": "{me {__typename id}}"
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://users.service"
+  },
+  "output": {
+    "data": {
+      "me": {
+        "__typename": "User",
+        "id": "u1"
+      }
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  }
+}
+=== path "me" ===
+{
+  "raw_input_data": {
+    "__typename": "User",
+    "id": "u1"
+  },
+  "input": {
+    "body": {
+      "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename favoriteProduct {upc __typename}}}}",
+      "variables": {
+        "representations": [
+          {
+            "__typename": "User",
+            "id": "u1"
+          }
+        ]
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://products.service"
+  },
+  "output": {
+    "data": {
+      "_entities": [
+        {
+          "__typename": "User",
+          "favoriteProduct": {
+            "__typename": "Product",
+            "upc": "1"
+          }
+        }
+      ]
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  }
+}
+=== path "me.favoriteProduct" ===
+{
+  "raw_input_data": {
+    "__typename": "Product",
+    "upc": "1"
+  },
+  "input": {
+    "body": {
+      "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename stock}}}",
+      "variables": {
+        "representations": [
+          {
+            "__typename": "Product",
+            "upc": "1"
+          }
+        ]
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://inventory.service"
+  },
+  "output": {
+    "data": {
+      "_entities": [
+        {
+          "__typename": "Product",
+          "stock": 5
+        }
+      ]
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  },
+  "cache": {
+    "decision": "Fetch",
+    "hit": false,
+    "items": [
+      {
+        "keys": [
+          "inventory:22ec9a28afcdd0bf"
+        ],
+        "hit": false,
+        "write_reason": "refresh"
+      }
+    ]
+  }
+}
+`, fullTraces(t, first.Response.Fetches))
 
 		second := Plan(t, query, caching, responses)
 		secondBody := resolveTraced(t, second.Response, store)
 		assert.Equal(t, firstBody, secondBody)
-		assert.Equal(t, []string{
-			`path:"me.favoriteProduct" {"decision":"SkipFullHit","hit":true,"items":[{"keys":["` + key + `"],"served_from":"l2","hit":true,"remaining_ttl_nanoseconds":-1}]}`,
-		}, cacheTraces(t, second.Response.Fetches))
+		assert.Equal(t, `=== path "" ===
+{
+  "raw_input_data": {},
+  "input": {
+    "body": {
+      "query": "{me {__typename id}}"
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://users.service"
+  },
+  "output": {
+    "data": {
+      "me": {
+        "__typename": "User",
+        "id": "u1"
+      }
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  }
+}
+=== path "me" ===
+{
+  "raw_input_data": {
+    "__typename": "User",
+    "id": "u1"
+  },
+  "input": {
+    "body": {
+      "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename favoriteProduct {upc __typename}}}}",
+      "variables": {
+        "representations": [
+          {
+            "__typename": "User",
+            "id": "u1"
+          }
+        ]
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://products.service"
+  },
+  "output": {
+    "data": {
+      "_entities": [
+        {
+          "__typename": "User",
+          "favoriteProduct": {
+            "__typename": "Product",
+            "upc": "1"
+          }
+        }
+      ]
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  }
+}
+=== path "me.favoriteProduct" ===
+{
+  "raw_input_data": {
+    "__typename": "Product",
+    "upc": "1"
+  },
+  "single_flight_used": false,
+  "single_flight_shared_response": false,
+  "load_skipped": true,
+  "cache": {
+    "decision": "SkipFullHit",
+    "hit": true,
+    "items": [
+      {
+        "keys": [
+          "inventory:22ec9a28afcdd0bf"
+        ],
+        "served_from": "l2",
+        "hit": true,
+        "remaining_ttl_nanoseconds": -1
+      }
+    ]
+  }
+}
+`, fullTraces(t, second.Response.Fetches))
 	})
 
 	t.Run("L1 hit within one request", func(t *testing.T) {
@@ -123,10 +624,335 @@ func TestARTCacheTraceEndToEnd(t *testing.T) {
 		// preimage), so the WHOLE cache sections pin as literals: fetch A is a
 		// plain miss+refresh (its sku-derived key; the upc candidate pending),
 		// fetch B is the in-request L1 hit under the upc-derived key.
-		assert.Equal(t, []string{
-			`path:"deal.product" {"decision":"Fetch","hit":false,"items":[{"keys":["entities:f58e5d95ce10e65e"],"hit":false,"write_reason":"refresh","pending_candidates":1}]}`,
-			`path:"deal.product.reviews.@.product" {"decision":"SkipFullHit","hit":true,"items":[{"keys":["entities:153cc511c85713fb"],"served_from":"l1","hit":true,"pending_candidates":1}]}`,
-		}, cacheTraces(t, result.Response.Fetches))
+		assert.Equal(t, `=== path "" ===
+{
+  "raw_input_data": {},
+  "input": {
+    "body": {
+      "query": "query($a: ID!){deal(id: $a){product {__typename sku}}}",
+      "variables": {
+        "a": null
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "undefined": [
+      "a"
+    ],
+    "url": "http://deals.service"
+  },
+  "output": {
+    "data": {
+      "deal": {
+        "__typename": "Deal",
+        "id": "d1",
+        "product": {
+          "__typename": "Product",
+          "sku": "S1"
+        }
+      }
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  }
+}
+=== path "deal.product" ===
+{
+  "raw_input_data": {
+    "__typename": "Product",
+    "sku": "S1"
+  },
+  "input": {
+    "body": {
+      "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name upc}}}",
+      "variables": {
+        "representations": [
+          {
+            "__typename": "Product",
+            "sku": "S1"
+          }
+        ]
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://products.service"
+  },
+  "output": {
+    "data": {
+      "_entities": [
+        {
+          "__typename": "Product",
+          "name": "Table",
+          "upc": "1"
+        }
+      ]
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  },
+  "cache": {
+    "decision": "Fetch",
+    "hit": false,
+    "items": [
+      {
+        "keys": [
+          "entities:f58e5d95ce10e65e"
+        ],
+        "hit": false,
+        "write_reason": "refresh",
+        "pending_candidates": 1
+      }
+    ]
+  }
+}
+=== path "deal.product" ===
+{
+  "raw_input_data": {
+    "__typename": "Product",
+    "sku": "S1",
+    "name": "Table",
+    "upc": "1"
+  },
+  "input": {
+    "body": {
+      "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename reviews {product {__typename upc}}}}}",
+      "variables": {
+        "representations": [
+          {
+            "__typename": "Product",
+            "upc": "1"
+          }
+        ]
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://reviews.service"
+  },
+  "output": {
+    "data": {
+      "_entities": [
+        {
+          "__typename": "Product",
+          "reviews": [
+            {
+              "__typename": "Review",
+              "product": {
+                "__typename": "Product",
+                "upc": "1"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  }
+}
+=== path "deal.product.reviews.@.product" ===
+{
+  "raw_input_data": {
+    "__typename": "Product",
+    "upc": "1"
+  },
+  "single_flight_used": false,
+  "single_flight_shared_response": false,
+  "load_skipped": true,
+  "cache": {
+    "decision": "SkipFullHit",
+    "hit": true,
+    "items": [
+      {
+        "keys": [
+          "entities:153cc511c85713fb"
+        ],
+        "served_from": "l1",
+        "hit": true,
+        "pending_candidates": 1
+      }
+    ]
+  }
+}
+`, fullTraces(t, result.Response.Fetches))
 	})
 
 	t.Run("shadow compare", func(t *testing.T) {
@@ -139,14 +965,303 @@ func TestARTCacheTraceEndToEnd(t *testing.T) {
 		}
 		prime := Plan(t, query, inventoryShadowCaching(), responses)
 		resolveTraced(t, prime.Response, store)
-		key := store.Ops()[0].Key
-
 		second := Plan(t, query, inventoryShadowCaching(), responses)
 		secondBody := resolveTraced(t, second.Response, store)
 		assert.Equal(t, `{"data":{"me":{"favoriteProduct":{"upc":"1","stock":5}}}}`, secondBody)
-		assert.Equal(t, []string{
-			`path:"me.favoriteProduct" {"decision":"FetchShadow","hit":false,"shadow":true,"items":[{"keys":["` + key + `"],"hit":false,"write_reason":"refresh"}],"shadow_compares":[{"key":"` + key + `","is_fresh":true,"cache_age_nanoseconds":-1}]}`,
-		}, cacheTraces(t, second.Response.Fetches))
+		assert.Equal(t, `=== path "" ===
+{
+  "raw_input_data": {},
+  "input": {
+    "body": {
+      "query": "{me {__typename id}}"
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://users.service"
+  },
+  "output": {
+    "data": {
+      "me": {
+        "__typename": "User",
+        "id": "u1"
+      }
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  }
+}
+=== path "me" ===
+{
+  "raw_input_data": {
+    "__typename": "User",
+    "id": "u1"
+  },
+  "input": {
+    "body": {
+      "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename favoriteProduct {upc __typename}}}}",
+      "variables": {
+        "representations": [
+          {
+            "__typename": "User",
+            "id": "u1"
+          }
+        ]
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://products.service"
+  },
+  "output": {
+    "data": {
+      "_entities": [
+        {
+          "__typename": "User",
+          "favoriteProduct": {
+            "__typename": "Product",
+            "upc": "1"
+          }
+        }
+      ]
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  }
+}
+=== path "me.favoriteProduct" ===
+{
+  "raw_input_data": {
+    "__typename": "Product",
+    "upc": "1"
+  },
+  "input": {
+    "body": {
+      "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename stock}}}",
+      "variables": {
+        "representations": [
+          {
+            "__typename": "Product",
+            "upc": "1"
+          }
+        ]
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://inventory.service"
+  },
+  "output": {
+    "data": {
+      "_entities": [
+        {
+          "__typename": "Product",
+          "stock": 5
+        }
+      ]
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  },
+  "cache": {
+    "decision": "FetchShadow",
+    "hit": false,
+    "shadow": true,
+    "items": [
+      {
+        "keys": [
+          "entities:153cc511c85713fb"
+        ],
+        "hit": false,
+        "write_reason": "refresh"
+      }
+    ],
+    "shadow_compares": [
+      {
+        "key": "entities:153cc511c85713fb",
+        "is_fresh": true,
+        "cache_age_nanoseconds": -1
+      }
+    ]
+  }
+}
+`, fullTraces(t, second.Response.Fetches))
 	})
 
 	t.Run("partial batch", func(t *testing.T) {
@@ -167,9 +1282,226 @@ func TestARTCacheTraceEndToEnd(t *testing.T) {
 			body)
 		// One partial fetch: bucket 1 (upc "1") served from L2 under the primed
 		// key, bucket 2 (upc "2") fetched over the reduced batch and refreshed.
-		assert.Equal(t, []string{
-			`path:"products" {"decision":"FetchPartial","hit":false,"items":[{"keys":["reviews:aa052522cb64dff0"],"served_from":"l2","hit":true,"remaining_ttl_nanoseconds":-1},{"keys":["reviews:258590a53d3c528e"],"hit":false,"write_reason":"refresh"}]}`,
-		}, cacheTraces(t, second.Response.Fetches))
+		assert.Equal(t, `=== path "" ===
+{
+  "raw_input_data": {},
+  "input": {
+    "body": {
+      "query": "query($a: Int){products(first: $a){upc __typename}}",
+      "variables": {
+        "a": null
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "undefined": [
+      "a"
+    ],
+    "url": "http://products.service"
+  },
+  "output": {
+    "data": {
+      "products": [
+        {
+          "__typename": "Product",
+          "upc": "1"
+        },
+        {
+          "__typename": "Product",
+          "upc": "2"
+        }
+      ]
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  }
+}
+=== path "products" ===
+{
+  "raw_input_data": [
+    {
+      "__typename": "Product",
+      "upc": "1"
+    },
+    {
+      "__typename": "Product",
+      "upc": "2"
+    }
+  ],
+  "input": {
+    "body": {
+      "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename reviews {body}}}}",
+      "variables": {
+        "representations": [
+          {
+            "__typename": "Product",
+            "upc": "2"
+          }
+        ]
+      }
+    },
+    "header": {},
+    "method": "POST",
+    "url": "http://reviews.service"
+  },
+  "output": {
+    "data": {
+      "_entities": [
+        {
+          "__typename": "Product",
+          "reviews": [
+            {
+              "__typename": "Review",
+              "body": "sturdy chair"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "duration_since_start_pretty": "0s",
+  "duration_load_pretty": "0s",
+  "single_flight_used": true,
+  "single_flight_shared_response": false,
+  "load_skipped": false,
+  "load_stats": {
+    "get_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host_port": ""
+    },
+    "got_conn": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "reused": false,
+      "was_idle": false,
+      "idle_time_nanoseconds": 0,
+      "idle_time_pretty": ""
+    },
+    "got_first_response_byte": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "dns_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "host": ""
+    },
+    "dns_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "connect_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "connect_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": "",
+      "network": "",
+      "addr": ""
+    },
+    "tls_handshake_start": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "tls_handshake_done": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_headers": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    },
+    "wrote_request": {
+      "duration_since_start_nanoseconds": 0,
+      "duration_since_start_pretty": ""
+    }
+  },
+  "cache": {
+    "decision": "FetchPartial",
+    "hit": false,
+    "items": [
+      {
+        "keys": [
+          "reviews:aa052522cb64dff0"
+        ],
+        "served_from": "l2",
+        "hit": true,
+        "remaining_ttl_nanoseconds": -1
+      },
+      {
+        "keys": [
+          "reviews:258590a53d3c528e"
+        ],
+        "hit": false,
+        "write_reason": "refresh"
+      }
+    ]
+  }
+}
+`, fullTraces(t, second.Response.Fetches))
 	})
 
 	t.Run("regression: tracing off leaves fetch traces nil", func(t *testing.T) {
@@ -183,6 +1515,6 @@ func TestARTCacheTraceEndToEnd(t *testing.T) {
 		})
 		body := ResolveResponse(t, result.Response, cachetesting.NewRealishCache(store, nil))
 		assert.Equal(t, `{"data":{"me":{"favoriteProduct":{"upc":"1","stock":5}}}}`, body)
-		assert.Empty(t, cacheTraces(t, result.Response.Fetches))
+		assert.Empty(t, fullTraces(t, result.Response.Fetches))
 	})
 }
