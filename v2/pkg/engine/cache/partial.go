@@ -17,46 +17,11 @@ var errPartialBatchEntityCountMismatch = errors.New("partial batch _entities cou
 // Partial fetching (task 19): a batch entity fetch with SOME buckets covered
 // and some not serves the covered ones from cache and sends the subgraph a
 // REDUCED representations list; the response then realigns to the original
-// bucket positions via ItemCacheState.BatchIndex. Everything lives here — the
-// loader only swaps in the reduced input and leaves the data merge to the
-// partial arm of OnFetchResult (one hook, one lock acquisition).
-
-// filterBatchInput builds the reduced fetch input: the original rendered
-// input with the representations of COVERED buckets removed. keep[i] mirrors
-// the BatchStats bucket order (which is the representations order). Returns
-// ok=false when the input does not have the expected
-// body.variables.representations shape — the caller then falls back to a
-// plain full fetch (never an error, never a wrong request).
-func filterBatchInput(input []byte, keep []bool) ([]byte, bool) {
-	parsed, err := astjson.ParseBytes(input)
-	if err != nil {
-		return nil, false
-	}
-	representations := parsed.Get("body", "variables", "representations")
-	if representations == nil || representations.Type() != astjson.TypeArray {
-		return nil, false
-	}
-	all := representations.GetArray()
-	if len(all) != len(keep) {
-		return nil, false
-	}
-	reduced := astjson.ArrayValue(nil)
-	kept := 0
-	for i, representation := range all {
-		if !keep[i] {
-			continue
-		}
-		reduced.SetArrayItem(nil, kept, representation)
-		kept++
-	}
-	if kept == 0 || kept == len(all) {
-		// Nothing to filter (degenerate cases are handled by Fetch /
-		// SkipFullHit before this point; guard anyway).
-		return nil, false
-	}
-	parsed.Get("body", "variables").Set(nil, "representations", reduced)
-	return parsed.MarshalTo(nil), true
-}
+// bucket positions via ItemCacheState.BatchIndex. The controller marks the
+// missing buckets on handle.BatchFetchKeep and the LOADER assembles the
+// reduced input from the already-rendered representation segments (before any
+// bytes are parsed back); the data merge lives in the partial arm of
+// OnFetchResult (one hook, one lock acquisition).
 
 // onPartialBatchResult is the FetchPartial merge arm: within ONE transaction
 // it splices every covered bucket from cache (denormalized per merge target)

@@ -13,36 +13,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-// TestFilterBatchInput pins the reduced-input bytes and the fallback cases.
-func TestFilterBatchInput(t *testing.T) {
-	input := []byte(`{"method":"POST","url":"http://x","body":{"query":"...","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`)
-
-	t.Run("filters covered representations, keeping order", func(t *testing.T) {
-		reduced, ok := filterBatchInput(input, []bool{true, false, true})
-		require.True(t, ok)
-		assert.Equal(t,
-			`{"method":"POST","url":"http://x","body":{"query":"...","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"3"}]}}}`,
-			string(reduced))
-	})
-
-	t.Run("unexpected shape falls back", func(t *testing.T) {
-		_, ok := filterBatchInput([]byte(`{"body":{"variables":{}}}`), []bool{true})
-		assert.False(t, ok)
-	})
-
-	t.Run("length mismatch falls back", func(t *testing.T) {
-		_, ok := filterBatchInput(input, []bool{true, false})
-		assert.False(t, ok)
-	})
-
-	t.Run("degenerate all-keep and none-keep fall back", func(t *testing.T) {
-		_, ok := filterBatchInput(input, []bool{true, true, true})
-		assert.False(t, ok)
-		_, ok = filterBatchInput(input, []bool{false, false, false})
-		assert.False(t, ok)
-	})
-}
-
 // partialConfig is the batch entity config with partial loading enabled.
 func partialConfig(t *testing.T) *resolve.FetchCacheConfig {
 	t.Helper()
@@ -93,10 +63,9 @@ func TestPartialBatchRows(t *testing.T) {
 		require.NotNil(t, handle.Items[1].FromCache)
 		assert.Equal(t, fresh("2"), string(handle.Items[1].FromCache.MarshalTo(nil)))
 		assert.Nil(t, handle.Items[2].FromCache)
-		// The reduced input carries EXACTLY the missing representations.
-		assert.Equal(t,
-			`{"body":{"query":"...","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"3"}]}}}`,
-			string(handle.PartialInput))
+		// The keep mask marks EXACTLY the missing buckets (the loader then
+		// assembles the reduced input from the pre-rendered segments).
+		assert.Equal(t, []bool{true, false, true}, handle.BatchFetchKeep)
 		// Lookups ran for ALL buckets (three Gets; key1 among them).
 		require.Len(t, store.ops, 3)
 		assert.Equal(t, "Get", store.ops[0].Kind)
@@ -171,12 +140,12 @@ func TestPartialBatchRows(t *testing.T) {
 		inHit, _ := batchPrepareInput(t, cfg, "1", "2")
 		decision, handle := rc.PrepareFetch(inHit)
 		assert.Equal(t, resolve.DecisionSkipFullHit, decision)
-		assert.Nil(t, handle.PartialInput)
+		assert.Nil(t, handle.BatchFetchKeep)
 
 		inMiss, _ := batchPrepareInput(t, cfg, "8", "9")
 		decision, handle = rc.PrepareFetch(inMiss)
 		assert.Equal(t, resolve.DecisionFetch, decision)
-		assert.Nil(t, handle.PartialInput)
+		assert.Nil(t, handle.BatchFetchKeep)
 	})
 
 	t.Run("single-element batch never goes partial", func(t *testing.T) {
@@ -186,7 +155,7 @@ func TestPartialBatchRows(t *testing.T) {
 		in, _ := batchPrepareInput(t, cfg, "1")
 		decision, handle := rc.PrepareFetch(in)
 		assert.Equal(t, resolve.DecisionFetch, decision)
-		assert.Nil(t, handle.PartialInput)
+		assert.Nil(t, handle.BatchFetchKeep)
 	})
 
 	t.Run("failure in the fetched subset: spliced subset intact, zero writes", func(t *testing.T) {
@@ -256,7 +225,7 @@ func TestPartialBatchRows(t *testing.T) {
 		in, _ := batchPrepareInput(t, cfg, "1", "2")
 		decision, handle := rc.PrepareFetch(in)
 		assert.Equal(t, resolve.DecisionFetch, decision)
-		assert.Nil(t, handle.PartialInput)
+		assert.Nil(t, handle.BatchFetchKeep)
 	})
 
 	t.Run("shadow wins over partial", func(t *testing.T) {
@@ -272,6 +241,6 @@ func TestPartialBatchRows(t *testing.T) {
 		in, _ := batchPrepareInput(t, cfg, "1", "2")
 		decision, handle := rc.PrepareFetch(in)
 		assert.Equal(t, resolve.DecisionFetchShadow, decision)
-		assert.Nil(t, handle.PartialInput)
+		assert.Nil(t, handle.BatchFetchKeep)
 	})
 }

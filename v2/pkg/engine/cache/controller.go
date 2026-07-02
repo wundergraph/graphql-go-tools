@@ -500,7 +500,7 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 	}
 
 	decision := resolve.DecisionFetch
-	var partialInput []byte
+	var batchFetchKeep []bool
 	switch {
 	case shadowStash != nil:
 		decision = resolve.DecisionFetchShadow
@@ -511,10 +511,10 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 		// root-field policies as PartialBatchLoad — either enables the batch
 		// partial path. Shadow wins over partial (read-never-serve).
 		if (cfg.EnablePartialCacheLoad || cfg.PartialBatchLoad) && !cfg.ShadowMode {
-			// SOME buckets covered: filter the representations to the missing
-			// ones and go partial. keep[i] mirrors the bucket order (which is
-			// the representations order). An unexpected input shape falls back
-			// to the plain full fetch — never a wrong request.
+			// SOME buckets covered: mark the missing ones and go partial.
+			// keep[i] mirrors the bucket order (which is the representations
+			// order); the LOADER assembles the reduced input from the
+			// already-rendered segments — no bytes are parsed back.
 			keep := make([]bool, len(items))
 			anyCovered := false
 			for i := range items {
@@ -524,10 +524,8 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 				}
 			}
 			if anyCovered {
-				if reduced, ok := filterBatchInput(in.Input, keep); ok {
-					decision = resolve.DecisionFetchPartial
-					partialInput = reduced
-				}
+				decision = resolve.DecisionFetchPartial
+				batchFetchKeep = keep
 			}
 		}
 	}
@@ -538,7 +536,7 @@ func (r *requestCache) prepareBatchFetch(in resolve.PrepareFetchInput, cfg *reso
 		BatchEntityKey: true,
 		Shadow:         shadowStash != nil,
 		ShadowStash:    shadowStash,
-		PartialInput:   partialInput,
+		BatchFetchKeep: batchFetchKeep,
 		Items:          items,
 	}
 	state := r.registerHandle(handle, cfg, in)
