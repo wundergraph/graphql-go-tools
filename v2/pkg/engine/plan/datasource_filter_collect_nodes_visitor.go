@@ -8,6 +8,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -574,6 +575,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 			IsLeaf:                    isLeaf,
 			isTypeName:                info.isTypeName,
 			treeNodeId:                treeNodeId,
+			deferInfo:                 info.deferInfo,
 		}
 
 		f.localSuggestions = append(f.localSuggestions, &node)
@@ -636,6 +638,7 @@ type fieldInfo struct {
 	// parentFieldRef is the nearest ancestor field ref (skipping inline fragments),
 	// or ast.InvalidRef for a root field. Used to walk the typed ancestry for provides chains.
 	parentFieldRef int
+	deferInfo      *DeferInfo
 }
 
 func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
@@ -678,5 +681,32 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 		isTypeName:                  isTypeName,
 		enclosingTypeDefinition:     f.walker.EnclosingTypeDefinition,
 		parentFieldRef:              parentFieldRef,
+		deferInfo:                   f.deferInfo(fieldRef),
 	}
+}
+
+func (f *treeBuilderVisitor) deferInfo(fieldRef int) *DeferInfo {
+	deferDirectiveRef, exists := f.operation.Fields[fieldRef].Directives.HasDirectiveByNameBytes(f.operation, literal.DEFER_INTERNAL)
+	if !exists {
+		return nil
+	}
+
+	info := &DeferInfo{}
+
+	idValue, idExists := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("id"))
+	if idExists && idValue.Kind == ast.ValueKindInteger {
+		info.ID = int(f.operation.IntValueAsInt(idValue.Ref))
+	}
+
+	parentIdValue, exists := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("parentDeferId"))
+	if exists && parentIdValue.Kind == ast.ValueKindInteger {
+		info.ParentID = int(f.operation.IntValueAsInt(parentIdValue.Ref))
+	}
+
+	labelValue, exists := f.operation.DirectiveArgumentValueByName(deferDirectiveRef, []byte("label"))
+	if exists {
+		info.Label = f.operation.StringValueContentString(labelValue.Ref)
+	}
+
+	return info
 }

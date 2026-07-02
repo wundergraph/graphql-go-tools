@@ -28,14 +28,28 @@ func (l *DirectiveList) HasDirectiveByName(document *Document, name string) bool
 	return false
 }
 
+func (l *DirectiveList) HasDirectiveByNameBytes(document *Document, directiveName ByteSlice) (directiveRef int, exists bool) {
+	for i := range l.Refs {
+		if bytes.Equal(directiveName, document.DirectiveNameBytes(l.Refs[i])) {
+			return l.Refs[i], true
+		}
+	}
+	return InvalidRef, false
+}
+
 func (l *DirectiveList) RemoveDirectiveByName(document *Document, name string) {
 	for i := range l.Refs {
 		if document.DirectiveNameString(l.Refs[i]) == name {
-			if i < len(l.Refs)-1 {
-				l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
-			} else {
-				l.Refs = l.Refs[:i]
-			}
+			l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
+			return
+		}
+	}
+}
+
+func (l *DirectiveList) RemoveDirectiveByRef(directiveRef int) {
+	for i := range l.Refs {
+		if l.Refs[i] == directiveRef {
+			l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
 			return
 		}
 	}
@@ -117,17 +131,51 @@ func (d *Document) DirectivesAreEqual(left, right int) bool {
 		d.ArgumentSetsAreEquals(d.DirectiveArgumentSet(left), d.DirectiveArgumentSet(right))
 }
 
+// DirectiveSetsAreEqual reports whether two directive sets are equal as
+// multisets, ignoring @__defer_internal directives (an internal planning
+// concern). Directives may be repeatable, so each directive in one set must
+// have a distinct matching directive in the other set: [@cache, @cache] and
+// [@cache] are NOT equal.
 func (d *Document) DirectiveSetsAreEqual(left, right []int) bool {
-	if len(left) != len(right) {
+	leftDirectives := d.directivesWithoutDeferInternal(left)
+	rightDirectives := d.directivesWithoutDeferInternal(right)
+
+	if len(leftDirectives) != len(rightDirectives) {
 		return false
 	}
-	for i := range left {
-		leftDirective, rightDirective := left[i], right[i]
-		if !d.DirectivesAreEqual(leftDirective, rightDirective) {
+
+	matched := make([]bool, len(rightDirectives))
+	for _, leftDirective := range leftDirectives {
+		found := false
+		for j, rightDirective := range rightDirectives {
+			if matched[j] {
+				continue
+			}
+			if d.DirectivesAreEqual(leftDirective, rightDirective) {
+				matched[j] = true
+				found = true
+				break
+			}
+		}
+		if !found {
 			return false
 		}
 	}
+
 	return true
+}
+
+// directivesWithoutDeferInternal returns the directive refs with any
+// @__defer_internal directives filtered out.
+func (d *Document) directivesWithoutDeferInternal(refs []int) []int {
+	filtered := make([]int, 0, len(refs))
+	for _, ref := range refs {
+		if bytes.Equal(d.DirectiveNameBytes(ref), literal.DEFER_INTERNAL) {
+			continue
+		}
+		filtered = append(filtered, ref)
+	}
+	return filtered
 }
 
 // DirectiveSetsHasCompatibleStreamDirective checks if directives sets contains stream directive with same arguments
@@ -135,10 +183,17 @@ func (d *Document) DirectiveSetsHasCompatibleStreamDirective(left, right []int) 
 	leftRef, leftExists := d.DirectiveWithNameBytes(left, literal.STREAM)
 	rightRef, rightExists := d.DirectiveWithNameBytes(right, literal.STREAM)
 
+	// Both have @stream: they must be equal
 	if leftExists && rightExists {
 		return d.DirectivesAreEqual(leftRef, rightRef)
 	}
 
+	// One has @stream, the other doesn't: incompatible
+	if leftExists != rightExists {
+		return false
+	}
+
+	// Neither has @stream: compatible
 	return true
 }
 

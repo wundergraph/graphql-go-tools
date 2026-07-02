@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/kingledion/go-tools/tree"
 	"github.com/phf/go-queue/queue"
@@ -37,7 +38,27 @@ type NodeSuggestion struct {
 	treeNodeId                uint
 	possibleTypeNames         []string
 
+	deferInfo          *DeferInfo // this node's own defer directive, if the field itself is deferred
+	descendantDeferIDs []int      // defer ids of deferred descendant fields that route through this node (this node is on their parent path to the root)
+
 	requiresKey *SourceConnection
+}
+
+type DeferInfo struct {
+	ID       int
+	Label    string
+	ParentID int
+}
+
+func (d *DeferInfo) Equals(o *DeferInfo) bool {
+	if d == nil && o == nil {
+		return true
+	}
+	if d == nil || o == nil {
+		return false
+	}
+
+	return d.ID == o.ID && d.Label == o.Label && d.ParentID == o.ParentID
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
@@ -138,6 +159,102 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 		pathSuggestions:    make(map[string][]*NodeSuggestion),
 		responseTree:       *responseTree,
 		providedSelections: make(map[DSHash]map[int]providesSelection),
+	}
+}
+
+func (f *NodeSuggestions) ProcessDefer(fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration) {
+	for i := range f.items {
+		if !f.items[i].Selected {
+			continue
+		}
+
+		if f.items[i].deferInfo == nil {
+			continue
+		}
+
+		f.propagateDeferParentsUpToRootNode(i, fieldRequirementsConfigs)
+	}
+}
+
+func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration) {
+	// if the item is a root node and requires a key we are already able to jump from here,
+	// so we skip propagating defer id
+
+	hasKeyDependency := false
+	hasRequiresKey := f.items[i].requiresKey != nil
+
+	// When the deferred field is on the entity, and the parent field is on the same datasource, hasRequiresKey will be false.
+	// But if this field has the "requires" directive, it will be resolved by entity call,
+	// and it will have the "requires" key configuration.
+	if !hasRequiresKey && fieldRequirementsConfigs != nil {
+		requirements, ok := fieldRequirementsConfigs[fieldIndexKey{fieldRef: f.items[i].FieldRef, dsHash: f.items[i].DataSourceHash}]
+		if ok {
+			for _, r := range requirements {
+				if r.FieldName == "" {
+					hasKeyDependency = true
+				}
+			}
+		}
+	}
+
+	if (f.items[i].IsRootNode && hasRequiresKey) || hasKeyDependency {
+		return
+	}
+
+	parentIndexesToAddDeferID := make([]int, 0, 2)
+	current := i
+	for {
+		treeNode := f.treeNode(current)
+		parentNodeIndexes := treeNode.GetParent().GetData()
+
+		parentIdToUpdate := -1
+		for _, parentIdx := range parentNodeIndexes {
+			if f.items[parentIdx].DataSourceHash != f.items[current].DataSourceHash {
+				continue
+			}
+
+			if f.items[parentIdx].deferInfo != nil && f.items[parentIdx].deferInfo.ID == f.items[i].deferInfo.ID {
+				// If the parent item is in the same defer scope, we should not mark it as a
+				// defer parent, because defer parents are planned twice - in a deferred planner
+				// and in the regular planner.
+				break
+			}
+
+			if slices.Contains(f.items[parentIdx].descendantDeferIDs, f.items[i].deferInfo.ID) {
+				// no need to update already contains this defer id
+				break
+			} else {
+				parentIdToUpdate = parentIdx
+			}
+		}
+
+		if parentIdToUpdate == -1 {
+			// could happen if we haven't set it
+			// because it already contains this defer id
+			break
+		}
+
+		parentIndexesToAddDeferID = append(parentIndexesToAddDeferID, parentIdToUpdate)
+
+		// if we have found a root node, and it requires a key - we have found the root node from which we could branch out.
+		// if the node is a root node, but it doesn't require a key, we need to go up to the root query node,
+		// because it is an entity node within the query started from the root query node
+		if f.items[parentIdToUpdate].IsRootNode && f.items[parentIdToUpdate].requiresKey != nil {
+			break
+		}
+
+		current = parentIdToUpdate
+	}
+
+	// Collect the parent indexes during the walk, then mark them in a second pass.
+	// The walk above reads descendantDeferIDs to decide when to stop climbing
+	// (the "already contains this defer id" break). Appending inline would let the
+	// in-progress walk observe a defer id it just wrote and stop early, so the
+	// mutation is deferred until the parent path is fully resolved.
+	for _, parentIdx := range parentIndexesToAddDeferID {
+		if !slices.Contains(f.items[parentIdx].descendantDeferIDs, f.items[i].deferInfo.ID) {
+			f.items[parentIdx].descendantDeferIDs = append(f.items[parentIdx].descendantDeferIDs, f.items[i].deferInfo.ID)
+		}
 	}
 }
 
