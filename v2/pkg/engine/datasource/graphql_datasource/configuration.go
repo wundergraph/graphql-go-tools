@@ -20,7 +20,19 @@ type ConfigurationInput struct {
 	SchemaConfiguration    *SchemaConfiguration
 	CustomScalarTypeFields []SingleTypeField
 
-	GRPC *grpcdatasource.GRPCConfiguration
+	GRPC    *grpcdatasource.GRPCConfiguration
+	Connect *ConnectConfiguration
+}
+
+// ConnectConfiguration holds Connect protocol-specific configuration. The
+// GRPC field on ConfigurationInput is still required when Connect is set, as
+// Connect reuses the same protobuf mapping and compiler — only the wire
+// transport differs.
+type ConnectConfiguration struct {
+	// BaseURL is the base URL of the Connect service (e.g., "http://localhost:8080").
+	BaseURL string
+	// Encoding specifies the serialization format (Protobuf or JSON).
+	Encoding grpcdatasource.ConnectEncoding
 }
 
 type Configuration struct {
@@ -29,7 +41,8 @@ type Configuration struct {
 	schemaConfiguration    SchemaConfiguration
 	customScalarTypeFields []SingleTypeField
 
-	grpc *grpcdatasource.GRPCConfiguration
+	grpc    *grpcdatasource.GRPCConfiguration
+	connect *ConnectConfiguration
 }
 
 func NewConfiguration(input ConfigurationInput) (Configuration, error) {
@@ -46,8 +59,8 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 
 	cfg.schemaConfiguration = *input.SchemaConfiguration
 
-	if input.Fetch == nil && input.Subscription == nil && input.GRPC == nil {
-		return Configuration{}, errors.New("fetch or subscription or grpc configuration is required")
+	if input.Fetch == nil && input.Subscription == nil && input.GRPC == nil && input.Connect == nil {
+		return Configuration{}, errors.New("fetch or subscription or grpc or connect configuration is required")
 	}
 
 	if input.Fetch != nil {
@@ -76,6 +89,16 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 		cfg.grpc = input.GRPC
 	}
 
+	if input.Connect != nil {
+		// Connect reuses the gRPC mapping/compiler for proto schema definitions,
+		// so the GRPC configuration is required even when only the Connect
+		// transport will be dialed at runtime.
+		if input.GRPC == nil {
+			return Configuration{}, errors.New("grpc configuration (mapping/compiler) is required when using connect")
+		}
+		cfg.connect = input.Connect
+	}
+
 	return cfg, nil
 }
 
@@ -97,6 +120,10 @@ func (c *Configuration) FederationConfiguration() *FederationConfiguration {
 
 func (c *Configuration) IsGRPC() bool {
 	return c.grpc != nil
+}
+
+func (c *Configuration) IsConnect() bool {
+	return c.connect != nil
 }
 
 type SingleTypeField struct {
