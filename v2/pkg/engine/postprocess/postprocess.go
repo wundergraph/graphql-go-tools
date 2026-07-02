@@ -228,10 +228,6 @@ func (p *Processor) Process(pre plan.Plan) {
 		// extract deferred fetches into their own fetch trees
 		p.extractDeferFetches.Process(t)
 
-		// caching passes run over the initial tree AND every defer-group tree,
-		// before the trees are organized and the defer tree is built
-		p.caching.ConfigureCaching(t.Response.Response, deferTreeParents(t), deferTrees(t)...)
-
 		// process the initial response fetch tree
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Response.Fetches)
 
@@ -242,6 +238,13 @@ func (p *Processor) Process(pre plan.Plan) {
 
 		// order defer fetches into parallel/sequence groups
 		p.buildDeferTree.Process(t.Response)
+
+		// caching passes run AFTER the defer tree is built: the group trees
+		// and their ancestry come from the AUTHORITATIVE DeferTree the
+		// resolver executes (a parent group resolves fully before its
+		// children), not from a parallel derivation
+		cachingTrees, cachingTreeParents := collectDeferCachingTrees(t.Response)
+		p.caching.ConfigureCaching(t.Response.Response, cachingTreeParents, cachingTrees...)
 		// emptily defers, as they are now ordered in a separate tree
 		t.Response.Defers = nil
 
@@ -263,35 +266,62 @@ func (p *Processor) Process(pre plan.Plan) {
 // deferTrees collects the initial response fetch tree plus every defer-group
 // tree of a defer plan, so the caching passes see all trees of one response
 // (cross-tree passes like optimizeL1Cache need the full set).
-// deferTreeParents mirrors deferTrees: for each tree, the index of the tree
-// whose @defer group ENCLOSES it (-1 for the initial tree), derived from the
-// DeferDescriptors' ParentID chain. The narrowing pass uses it as an ordering
-// source (a parent group resolves fully before its children).
-func deferTreeParents(d *plan.DeferResponsePlan) []int {
-	deferIDToTree := make(map[int]int, len(d.Response.Defers))
-	for i, g := range d.Response.Defers {
-		deferIDToTree[g.DeferID] = i + 1
+// collectDeferCachingTrees gathers the fetch trees the caching passes run
+// over — the initial tree plus every defer group — with each tree's parent
+// index for the L1 narrowing pass's ancestry ordering. Both come from the
+// BUILT DeferTree: a Sequence node's first child is the parent group and the
+// remaining children are its nested groups; Parallel children share their
+// enclosing parent. A group without fetches contributes no tree, and its
+// children attach to the nearest fetch-bearing ancestor (a weaker but still
+// sound ordering). Falls back to the flat Defers list (all parented to the
+// initial tree) when the defer tree was not built (disableBuildDeferTree).
+func collectDeferCachingTrees(response *resolve.GraphQLDeferResponse) ([]*resolve.FetchTreeNode, []int) {
+	trees := []*resolve.FetchTreeNode{response.Response.Fetches}
+	parents := []int{-1}
+	if response.DeferTree == nil {
+		for _, group := range response.Defers {
+			if group.Fetches == nil {
+				continue
+			}
+			trees = append(trees, group.Fetches)
+			parents = append(parents, 0)
+		}
+		return trees, parents
 	}
-	parents := make([]int, 1+len(d.Response.Defers))
-	parents[0] = -1
-	for i, g := range d.Response.Defers {
-		parents[i+1] = 0
-		if descriptor, ok := d.Response.DeferDescriptors[g.DeferID]; ok && descriptor.ParentID != 0 {
-			if parentTree, ok := deferIDToTree[descriptor.ParentID]; ok {
-				parents[i+1] = parentTree
+	var walk func(node *resolve.DeferTreeNode, parentIndex int)
+	walk = func(node *resolve.DeferTreeNode, parentIndex int) {
+		if node == nil {
+			return
+		}
+		switch node.Kind {
+		case resolve.DeferTreeNodeKindSingle:
+			if node.Item != nil && node.Item.Fetches != nil {
+				trees = append(trees, node.Item.Fetches)
+				parents = append(parents, parentIndex)
+			}
+		case resolve.DeferTreeNodeKindSequence:
+			if len(node.ChildNodes) == 0 {
+				return
+			}
+			// buildDeferTree shape: ChildNodes[0] is the parent group, the
+			// rest is its child subtree.
+			before := len(trees)
+			walk(node.ChildNodes[0], parentIndex)
+			childParent := parentIndex
+			if len(trees) == before+1 {
+				childParent = before
+			}
+			for _, child := range node.ChildNodes[1:] {
+				walk(child, childParent)
+			}
+		case resolve.DeferTreeNodeKindParallel:
+			for _, child := range node.ChildNodes {
+				walk(child, parentIndex)
 			}
 		}
 	}
-	return parents
-}
-
-func deferTrees(d *plan.DeferResponsePlan) []*resolve.FetchTreeNode {
-	trees := make([]*resolve.FetchTreeNode, 0, 1+len(d.Response.Defers))
-	trees = append(trees, d.Response.Response.Fetches)
-	for _, g := range d.Response.Defers {
-		trees = append(trees, g.Fetches)
-	}
-	return trees
+	walk(response.DeferTree, 0)
+	return trees, parents
 }
 
 // createFetchTree creates an initial fetch tree from the raw fetches in the GraphQL response.
