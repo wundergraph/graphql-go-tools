@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.6.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.5.1...v2.6.0) (2026-07-02)
+
+
+### Features
+
+* add SubscriptionOnCreate hook ([#1538](https://github.com/wundergraph/graphql-go-tools/issues/1538)) ([3f30cb2](https://github.com/wundergraph/graphql-go-tools/commit/3f30cb240926ceff846c6ca5be7cd580408f60bb))
+
+
+### Bug Fixes
+
+* allow provides on abstract types ([#1552](https://github.com/wundergraph/graphql-go-tools/issues/1552)) ([fb2d52a](https://github.com/wundergraph/graphql-go-tools/commit/fb2d52a852bdeb53bd988f9d8000734f7297562b))
+
 ## [2.5.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.5.0...v2.5.1) (2026-06-30)
 
 
