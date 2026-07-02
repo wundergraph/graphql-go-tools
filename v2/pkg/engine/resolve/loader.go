@@ -110,7 +110,11 @@ type result struct {
 	//	[item1, item3], // merge response[1] into item1 and item3
 	//
 	// ]
-	batchStats       [][]*astjson.Value
+	batchStats [][]*astjson.Value
+	// cachePartial marks a DecisionFetchPartial fetch: mergeResult stops after
+	// response/error processing and leaves the data merge to the cache hook
+	// (the reduced response is positionally misaligned with batchStats).
+	cachePartial     bool
 	fetchSkipped     bool
 	nestedMergeItems []*result
 
@@ -478,14 +482,26 @@ func (l *Loader) cachePrepare(prepared *preparedFetch) {
 		Arena:      l.cacheTransactions(),
 	})
 	prepared.cacheHandle = handle
-	if decision == DecisionSkipFullHit {
+	switch decision {
+	case DecisionSkipFullHit:
 		// Full hit: skip the network AND the merge. skipLoad makes loadPhase
 		// early-return; fetchSkipped reuses the existing mergeResult early-return
 		// so no spurious "failed to fetch" error is rendered for the empty res.out.
-		// DecisionFetch / DecisionFetchShadow / DecisionFetchPartial leave the
-		// load in place; the handle drives the merge dispatch.
 		prepared.skipLoad = true
 		prepared.res.fetchSkipped = true
+	case DecisionFetchPartial:
+		// Partial: the network call carries the REDUCED input (missing
+		// representations only) and the loader's own positional data merge is
+		// skipped — OnFetchResult splices the cached items and realigns +
+		// merges the fetched ones in a single hook (one lock acquisition).
+		// Error/response processing in mergeResult still runs unchanged.
+		if handle != nil && handle.PartialInput != nil {
+			prepared.input = handle.PartialInput
+		}
+		prepared.res.cachePartial = true
+	default:
+		// DecisionFetch / DecisionFetchShadow leave the load in place; the
+		// handle drives the merge dispatch.
 	}
 }
 
@@ -517,9 +533,11 @@ func (l *Loader) cacheMerge(prepared *preparedFetch) error {
 	}
 	rc := l.cacheRequest() // already created during cachePrepare; non-nil because h != nil
 	switch h.Decision {
-	case DecisionSkipFullHit, DecisionFetchPartial:
+	case DecisionSkipFullHit:
 		return rc.OnFetchSkipped(h, in)
-	default: // DecisionFetch, DecisionFetchShadow
+	default: // DecisionFetch, DecisionFetchShadow, DecisionFetchPartial
+		// The partial arm lives in OnFetchResult too: one hook call splices
+		// the cached items AND realigns + merges + writes the fetched ones.
 		return rc.OnFetchResult(h, in)
 	}
 }
@@ -830,6 +848,13 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 
 		// no data
+		return nil
+	}
+
+	if res.cachePartial {
+		// Partial fetch: response and errors are fully processed above; the
+		// cache hook owns the data merge (splice + realign), so the positional
+		// merge below must not run against the REDUCED response.
 		return nil
 	}
 

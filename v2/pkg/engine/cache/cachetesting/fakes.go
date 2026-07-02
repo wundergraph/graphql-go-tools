@@ -266,6 +266,9 @@ type GatedDataSource struct {
 	Arrived     chan<- string
 	Release     <-chan struct{}
 	LoadCounter *atomic.Int64
+	// RecordInput (optional) receives every Load's input bytes, so tests can
+	// assert the EXACT request the subgraph saw (e.g. partial-batch filtering).
+	RecordInput func(input []byte)
 }
 
 // DataSourceGate is the per-fetch gate configuration FakeRegistry attaches to
@@ -278,6 +281,9 @@ type DataSourceGate struct {
 func (g *GatedDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 	if g.LoadCounter != nil {
 		g.LoadCounter.Add(1)
+	}
+	if g.RecordInput != nil {
+		g.RecordInput(slices.Clone(input))
 	}
 	if g.Arrived != nil {
 		g.Arrived <- g.Name
@@ -406,6 +412,7 @@ type FakeRegistry struct {
 	release   chan struct{}
 	loads     map[string]*atomic.Int64
 	gates     map[string]DataSourceGate
+	inputs    map[string][]string
 }
 
 // NewFakeRegistry builds a registry over canned responses. Response keys are
@@ -453,6 +460,25 @@ func (r *FakeRegistry) LoadCount(name, path string) int64 {
 	return r.loadCounter(name, path).Load()
 }
 
+// Inputs returns the exact input bytes every Load of the datasource
+// identified by name + path received, in order.
+func (r *FakeRegistry) Inputs(name, path string) []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.inputs[name+":"+path])
+}
+
+func (r *FakeRegistry) recordInput(key string) func([]byte) {
+	return func(input []byte) {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if r.inputs == nil {
+			r.inputs = make(map[string][]string)
+		}
+		r.inputs[key] = append(r.inputs[key], string(input))
+	}
+}
+
 func (r *FakeRegistry) dataSourceFor(item *resolve.FetchItem) resolve.DataSource {
 	name := dataSourceName(item)
 	path := pathOf(item)
@@ -468,6 +494,7 @@ func (r *FakeRegistry) dataSourceFor(item *resolve.FetchItem) resolve.DataSource
 		Arrived:     gate.Arrived,
 		Release:     release,
 		LoadCounter: r.loadCounter(name, path),
+		RecordInput: r.recordInput(name + ":" + path),
 	}
 }
 
