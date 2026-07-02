@@ -34,6 +34,7 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 		dedup.ProcessFetchTree(input)
 		assert.Equal(t, input, input)
 	})
+
 	t.Run("same path, same input", func(t *testing.T) {
 		input := &resolve.FetchTreeNode{
 			ChildNodes: []*resolve.FetchTreeNode{
@@ -61,6 +62,89 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
 						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+					},
+				},
+			},
+		}
+
+		dedup := &deduplicateSingleFetches{}
+		dedup.ProcessFetchTree(input)
+
+		assert.Equal(t, output, input)
+	})
+
+	t.Run("same path, same input, different fetch id, different defer id", func(t *testing.T) {
+		input := &resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
+						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 1, DeferID: 1}},
+					},
+				},
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
+						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 2, DeferID: 2}},
+					},
+				},
+			},
+		}
+
+		output := &resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
+						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 1, DeferID: 1}},
+					},
+				},
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
+						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 2, DeferID: 2}},
+					},
+				},
+			},
+		}
+
+		dedup := &deduplicateSingleFetches{}
+		dedup.ProcessFetchTree(input)
+
+		assert.Equal(t, output, input)
+	})
+
+	t.Run("same path, same input, different fetch id, same defer id", func(t *testing.T) {
+		input := &resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
+						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 1, DeferID: 1}},
+					},
+				},
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
+						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 2, DeferID: 1}},
+					},
+				},
+			},
+		}
+
+		output := &resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
+						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 1, DeferID: 1}},
 					},
 				},
 			},

@@ -1409,9 +1409,9 @@ func (w *Walker) Walk(document, definition *ast.Document, report *operationrepor
 	w.walk()
 }
 
-// DefferOnEnterField runs the provided func() after the current batch of visitors
-// This gives you the possibility to execute some code that should e.g. run after all EnterField Visitors
-func (w *Walker) DefferOnEnterField(fn func()) {
+// RunAfterEnterField runs the provided func() after the current batch of EnterField visitors.
+// This gives you the possibility to execute code that should run only after all EnterField visitors have run.
+func (w *Walker) RunAfterEnterField(fn func()) {
 	w.deferred = append(w.deferred, fn)
 }
 
