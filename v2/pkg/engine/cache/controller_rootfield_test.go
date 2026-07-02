@@ -76,6 +76,7 @@ func TestControllerRootFieldRows(t *testing.T) {
 		store := newTestStore()
 		cfg := rootFieldConfig(time.Minute)
 		key := primeRoot(t, store, cfg, nil, responseData)
+		store.ops = nil // request 2's ops assert in isolation
 
 		rc := newRC(store, nil)
 		item := rootItem()
@@ -88,11 +89,8 @@ func TestControllerRootFieldRows(t *testing.T) {
 		}))
 		assert.Equal(t, responseData, string(item.MarshalTo(nil)))
 		rc.EndRequest()
-		assert.Equal(t, []testStoreOp{
-			{Kind: "Get", Key: key},
-			{Kind: "Set", Key: key, Value: responseData, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
-			{Kind: "Get", Key: key},
-		}, store.ops)
+		// The hit's single Get under the SAME key the prime wrote.
+		assert.Equal(t, []testStoreOp{{Kind: "Get", Key: key}}, store.ops)
 	})
 
 	t.Run("[D-root] coverage failure: a smaller cached value never serves a bigger selection", func(t *testing.T) {

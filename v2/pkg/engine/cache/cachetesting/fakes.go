@@ -254,6 +254,15 @@ func (s *FakeStore) Ops() []StoreOp {
 	return slices.Clone(s.ops)
 }
 
+// ResetOps clears the operation log (the DATA stays), so a multi-request test
+// can assert each request's ops in isolation instead of re-listing the
+// accumulated history.
+func (s *FakeStore) ResetOps() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ops = nil
+}
+
 // GatedDataSource is an in-process DataSource whose Load can be ordered
 // deterministically with gate channels: it announces arrival on Arrived, then
 // blocks until Release yields, then returns Resp/Err. Nil channels skip the

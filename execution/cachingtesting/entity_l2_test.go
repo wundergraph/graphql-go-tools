@@ -96,7 +96,9 @@ func TestEntityL2EndToEnd(t *testing.T) {
 	}, firstOps)
 
 	// Request 2: L2 hit; the inventory datasource never loads; LoaderHooks do
-	// not fire for the skipped fetch.
+	// not fire for the skipped fetch. The op log resets so request 2's ops
+	// assert in isolation.
+	store.ResetOps()
 	second := Plan(t, query, inventoryCaching(), responses)
 	hooks := &recordingLoaderHooks{}
 	secondController := &countingController{inner: cachetesting.NewRealishCache(store, nil)}
@@ -110,11 +112,9 @@ func TestEntityL2EndToEnd(t *testing.T) {
 	assert.Equal(t, int64(1), second.LoadCount("products", "me"))
 	assert.Equal(t, int64(0), second.LoadCount("inventory", "me.favoriteProduct"))
 	assert.Equal(t, int64(1), secondController.begins.Load())
-	// Read key == write key (key fidelity): request 2's single extra op is a
-	// Get under the SAME key request 1 wrote.
+	// Read key == write key (key fidelity): request 2's ONLY op is a Get
+	// under the SAME key request 1 wrote.
 	assert.Equal(t, []cachetesting.StoreOp{
-		{Kind: "Get", Key: key},
-		{Kind: "Set", Key: key, Value: `{"__typename":"Product","stock":5}`, TTL: time.Minute},
 		{Kind: "Get", Key: key},
 	}, store.Ops())
 

@@ -50,15 +50,14 @@ func TestBatchEntityL2EndToEnd(t *testing.T) {
 		{Kind: "Set", Key: key2, Value: `{"__typename":"Product","reviews":[{"body":"Wobbly"}]}`, TTL: time.Minute},
 	}, firstOps)
 
+	// Request 2's ops assert in isolation.
+	store.ResetOps()
 	second := Plan(t, query, reviewsEntityCaching(), responses)
 	secondBody := ResolveResponse(t, second.Response, cachetesting.NewRealishCache(store, nil))
 	assert.Equal(t, expected, secondBody)
 	assert.Equal(t, int64(0), second.LoadCount("reviews", "products"))
+	// The full-batch hit performs exactly one Get per entity — no writes.
 	assert.Equal(t, []cachetesting.StoreOp{
-		{Kind: "Get", Key: key1},
-		{Kind: "Get", Key: key2},
-		{Kind: "Set", Key: key1, Value: `{"__typename":"Product","reviews":[{"body":"Solid"}]}`, TTL: time.Minute},
-		{Kind: "Set", Key: key2, Value: `{"__typename":"Product","reviews":[{"body":"Wobbly"}]}`, TTL: time.Minute},
 		{Kind: "Get", Key: key1},
 		{Kind: "Get", Key: key2},
 	}, store.Ops())

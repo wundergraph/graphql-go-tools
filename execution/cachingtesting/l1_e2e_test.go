@@ -94,12 +94,23 @@ func TestL1ModeMatrixEndToEnd(t *testing.T) {
 	assert.Equal(t, "Set", ops[2].Kind)
 	assert.Equal(t, `{"__typename":"Product","name":"Table","upc":"1"}`, ops[1].Value)
 
-	// A SECOND request over a fresh plan hits L2 on fetch A and L1 on fetch B.
+	// A SECOND request over a fresh plan hits L2 on fetch A and L1 on fetch B;
+	// its ops assert in isolation.
+	bothStore.ResetOps()
 	second := Plan(t, query, productL1Caching(time.Minute), responses)
 	secondBody := ResolveResponse(t, second.Response, cachetesting.NewRealishCache(bothStore, nil))
 	assert.Equal(t, noopBody, secondBody)
 	assert.Equal(t, int64(0), second.LoadCount("products", "deal.product"))
 	assert.Equal(t, int64(0), second.LoadCount("products", "deal.product.reviews.@.product"))
+	// Exactly three ops: fetch A's sku-key Get (L2 hit), fetch B's upc-key Get
+	// (L2 hit — request 2's L1 only holds A's RENDERED key), and fetch A's
+	// pending upc candidate re-rendered from the served value (backfill Set at
+	// the request-end flush).
+	assert.Equal(t, []cachetesting.StoreOp{
+		{Kind: "Get", Key: ops[0].Key},
+		{Kind: "Get", Key: ops[2].Key},
+		{Kind: "Set", Key: ops[2].Key, Value: `{"__typename":"Product","name":"Table","upc":"1"}`, TTL: time.Minute},
+	}, bothStore.Ops())
 }
 
 // TestL1LazyInitAndParallelWrites (M1 + M2): two parallel eligible entity
