@@ -1,6 +1,7 @@
 package cachingtesting
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
+	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/cache/cachetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -27,120 +30,56 @@ func inventoryL1Caching(ttl time.Duration) map[string]cacheconfig.CachingConfigu
 	}
 }
 
+// executeDeferOnFlush is ExecuteDefer with a per-flushed-frame callback (called
+// with all frames flushed so far), so tests can close subgraph gates off
+// deterministic frame progress instead of latency.
+func executeDeferOnFlush(tb testing.TB, executionEngine *engine.ExecutionEngine, query string, controller resolve.CacheController, onFlush func(frames []string)) []string {
+	tb.Helper()
+	var frames []string
+	writer := graphql.NewEngineResultWriter()
+	writer.SetFlushCallback(func(data []byte) {
+		frames = append(frames, string(data))
+		onFlush(frames)
+	})
+	require.NoError(tb, executionEngine.Execute(context.Background(), &graphql.Request{Query: query}, &writer, engine.WithCacheController(controller)))
+	if writer.Len() > 0 {
+		frames = append(frames, writer.String())
+	}
+	return frames
+}
+
 // TestDeferL1CrossGroupServing (N1 + M3): an entity cached by the INITIAL
 // fetch serves a same-entity DEFERRED fetch in a later group — the deferred
 // group's subgraph is never hit, both frames are complete, and the per-group
 // loaders share ONE L1 through the by-reference Context (one BeginRequest).
 func TestDeferL1CrossGroupServing(t *testing.T) {
 	query := `{ me { favoriteProduct { upc stock warehouse { id location } } } products(first: 1) { upc ... @defer { stock } } }`
-	responses := map[string]string{
-		"users":                        `{"data":{"me":{"__typename":"User","id":"u1"}}}`,
-		"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-		"products":                     `{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`,
-		"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5,"warehouse":{"__typename":"Warehouse","id":"w1","location":"Berlin"}}]}}`,
-		// TAMPERED: if the deferred group ever touches the network, the frame
-		// shows 999 and the assertion fails loudly.
-		"inventory:products": `{"data":{"_entities":[{"__typename":"Product","stock":999}]}}`,
-	}
-	result := Plan(t, query, inventoryL1Caching(0), responses)
-
-	// The reviewer-guidance plan inspection: the initial tree really carries a
-	// configured inventory fetch (the superset provider) and the DEFER GROUP
-	// really carries a configured same-entity fetch — L1 kept on BOTH.
-	assert.Equal(t, `QueryPlan {
-  Sequence {
-    Parallel {
-      Fetch(service: "3") {
-        {
-            me {
-                __typename
-                id
-            }
-        }
-      }
-      Fetch(service: "0") {
-        {
-            products(first: $a){
-                upc
-                __typename
-            }
-        }
-      }
-    }
-    Fetch(service: "0") {
-      {
-        fragment Key on User {
-            __typename
-            id
-        }
-      } =>
-      {
-          _entities(representations: $representations){
-              ... on User {
-                  __typename
-                  favoriteProduct {
-                      upc
-                      __typename
-                  }
-              }
-          }
-      }
-    }
-    Flatten(path: "me.favoriteProduct") {
-      Fetch(service: "1") {
-        {
-          fragment Key on Product {
-              __typename
-              upc
-          }
-        } =>
-        Cache: {l1:true l2:false cacheName:inventory ttl:0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
-        {
-            _entities(representations: $representations){
-                ... on Product {
-                    __typename
-                    stock
-                    warehouse {
-                        id
-                        location
-                    }
-                }
-            }
-        }
-      }
-    }
-  }
-}
-Deferred (id: 1) QueryPlan {
-  Fetch(service: "1") {
-    {
-      fragment Key on Product {
-          __typename
-          upc
-      }
-    } =>
-    Cache: {l1:true l2:false cacheName:inventory ttl:0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
-    {
-        _entities(representations: $representations){
-            ... on Product {
-                __typename
-                stock
-            }
-        }
-    }
-  }
-}
-`, PrettyPlan(result))
+	users := Respond(`{"data":{"me":{"__typename":"User","id":"u1"}}}`)
+	products := Rules(
+		Rule(`_entities`, `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`),
+		Rule(`products(first: $a)`, `{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`),
+	)
+	// TAMPERED fallback: the deferred group's stock-only request misses the
+	// warehouse rule, so if it ever touches the network the frame shows 999
+	// and the assertion fails loudly.
+	tampered := Rule(``, `{"data":{"_entities":[{"__typename":"Product","stock":999}]}}`)
+	inventory := Rules(
+		Rule(`warehouse`, `{"data":{"_entities":[{"__typename":"Product","stock":5,"warehouse":{"__typename":"Warehouse","id":"w1","location":"Berlin"}}]}}`),
+		tampered,
+	)
+	executionEngine := NewEngine(t, inventoryL1Caching(0), Subgraphs{"users": users, "products": products, "inventory": inventory})
 
 	store := cachetesting.NewFakeStore()
 	controller := &countingController{inner: cachetesting.NewRealishCache(store, nil)}
-	frames := ResolveDeferResponse(t, result.DeferResponse, controller)
+	frames := ExecuteDefer(t, executionEngine, query, controller)
 	assert.Equal(t, []string{
 		`{"data":{"me":{"favoriteProduct":{"upc":"1","stock":5,"warehouse":{"id":"w1","location":"Berlin"}}},"products":[{"upc":"1"}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"stock":5},"id":"1","subPath":[0]}],"completed":[{"id":"1"}],"hasNext":false}`,
 	}, frames)
-	// The deferred subgraph was NEVER hit; L1-only means zero store traffic.
-	assert.Equal(t, int64(0), result.LoadCount("inventory", "products"))
+	// The deferred group NEVER hit the network: inventory saw exactly the one
+	// initial superset fetch; L1-only means zero store traffic.
+	assert.Equal(t, int64(0), tampered.Count.Load())
+	assert.Equal(t, int64(1), inventory.Requests())
 	assert.Empty(t, store.Ops())
 	// M3: one BeginRequest — every group's loader worked on the same L1.
 	assert.Equal(t, int64(1), controller.begins.Load())
@@ -151,109 +90,28 @@ Deferred (id: 1) QueryPlan {
 // defer-group ancestry (no dependency edge links the two inventory fetches).
 func TestDeferL1GroupToLaterGroup(t *testing.T) {
 	query := `{ products(first: 1) { upc ... @defer { stock warehouse { id location } ... @defer { reviews { product { stock } } } } } }`
-	responses := map[string]string{
-		"products":           `{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`,
-		"inventory:products": `{"data":{"_entities":[{"__typename":"Product","stock":5,"warehouse":{"__typename":"Warehouse","id":"w1","location":"Berlin"}}]}}`,
-		"reviews":            `{"data":{"_entities":[{"__typename":"Product","reviews":[{"__typename":"Review","product":{"__typename":"Product","upc":"1"}}]}]}}`,
-		// TAMPERED: the nested group's inventory fetch must never fire.
-		"inventory:products.@.reviews.@.product": `{"data":{"_entities":[{"__typename":"Product","stock":999}]}}`,
-	}
-	result := Plan(t, query, inventoryL1Caching(0), responses)
-
-	// Plan inspection: the OUTER group's inventory fetch (id 1) is the
-	// provider; the NESTED group (id 2, parent = outer) carries the
-	// same-entity consumer, kept L1 although NO dependency edge links it to
-	// the provider.
-	assert.Equal(t, `QueryPlan {
-  Fetch(service: "0") {
-    {
-        products(first: $a){
-            upc
-            __typename
-        }
-    }
-  }
-}
-Deferred (id: 1) QueryPlan {
-  Fetch(service: "1") {
-    {
-      fragment Key on Product {
-          __typename
-          upc
-      }
-    } =>
-    Cache: {l1:true l2:false cacheName:inventory ttl:0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
-    {
-        _entities(representations: $representations){
-            ... on Product {
-                __typename
-                stock
-                warehouse {
-                    id
-                    location
-                }
-            }
-        }
-    }
-  }
-}
-Deferred (id: 2) QueryPlan {
-  Sequence {
-    Fetch(service: "2") {
-      {
-        fragment Key on Product {
-            __typename
-            upc
-        }
-      } =>
-      {
-          _entities(representations: $representations){
-              ... on Product {
-                  __typename
-                  reviews {
-                      product {
-                          __typename
-                          upc
-                      }
-                  }
-              }
-          }
-      }
-    }
-    Flatten(path: "products.@.reviews.@.product") {
-      Fetch(service: "1") {
-        {
-          fragment Key on Product {
-              __typename
-              upc
-          }
-        } =>
-        Cache: {l1:true l2:false cacheName:inventory ttl:0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
-        {
-            _entities(representations: $representations){
-                ... on Product {
-                    __typename
-                    stock
-                }
-            }
-        }
-      }
-    }
-  }
-}
-`, PrettyPlan(result))
-	groups := DeferGroups(result.DeferResponse)
-	require.Len(t, groups, 2)
-	assert.Equal(t, 1, result.DeferResponse.DeferDescriptors[groups[1].DeferID].ParentID)
+	products := Respond(`{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`)
+	// TAMPERED fallback: the nested group's stock-only inventory fetch must
+	// never fire.
+	tampered := Rule(``, `{"data":{"_entities":[{"__typename":"Product","stock":999}]}}`)
+	inventory := Rules(
+		Rule(`warehouse`, `{"data":{"_entities":[{"__typename":"Product","stock":5,"warehouse":{"__typename":"Warehouse","id":"w1","location":"Berlin"}}]}}`),
+		tampered,
+	)
+	reviews := Respond(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"__typename":"Review","product":{"__typename":"Product","upc":"1"}}]}]}}`)
+	executionEngine := NewEngine(t, inventoryL1Caching(0), Subgraphs{"products": products, "inventory": inventory, "reviews": reviews})
 
 	store := cachetesting.NewFakeStore()
-	frames := ResolveDeferResponse(t, result.DeferResponse, cachetesting.NewRealishCache(store, nil))
+	frames := ExecuteDefer(t, executionEngine, query, cachetesting.NewRealishCache(store, nil))
 	assert.Equal(t, []string{
 		`{"data":{"products":[{"upc":"1"}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"stock":5,"warehouse":{"id":"w1","location":"Berlin"}},"id":"1","subPath":[0]}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["products"]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"reviews":[{"product":{"stock":5}}]},"id":"2","subPath":[0]}],"completed":[{"id":"2"}],"hasNext":false}`,
 	}, frames)
-	assert.Equal(t, int64(0), result.LoadCount("inventory", "products.@.reviews.@.product"))
+	// The nested group NEVER hit the network: inventory saw exactly the OUTER
+	// group's superset fetch; L1-only means zero store traffic.
+	assert.Equal(t, int64(0), tampered.Count.Load())
+	assert.Equal(t, int64(1), inventory.Requests())
 	assert.Empty(t, store.Ops())
 }
 
@@ -297,18 +155,24 @@ func TestDeferSingleFlush(t *testing.T) {
 	// The deferred selection is NOT covered by the initial fetch, so the group
 	// genuinely fetches and owes an L2 write.
 	query := `{ me { favoriteProduct { upc stock } } products(first: 1) { upc ... @defer { warehouse { id location } } } }`
-	responses := map[string]string{
-		"users":                        `{"data":{"me":{"__typename":"User","id":"u1"}}}`,
-		"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-		"products":                     `{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`,
-		"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
-		"inventory:products":           `{"data":{"_entities":[{"__typename":"Product","warehouse":{"__typename":"Warehouse","id":"w1","location":"Berlin"}}]}}`,
-	}
-	result := Plan(t, query, inventoryL1Caching(time.Minute), responses)
+	users := Respond(`{"data":{"me":{"__typename":"User","id":"u1"}}}`)
+	products := Rules(
+		Rule(`_entities`, `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`),
+		Rule(`products(first: $a)`, `{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`),
+	)
+	inventory := Rules(
+		Rule(`stock`, `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`),
+		Rule(`warehouse`, `{"data":{"_entities":[{"__typename":"Product","warehouse":{"__typename":"Warehouse","id":"w1","location":"Berlin"}}]}}`),
+	)
+	executionEngine := NewEngine(t, inventoryL1Caching(time.Minute), Subgraphs{"users": users, "products": products, "inventory": inventory})
+
 	store := cachetesting.NewFakeStore()
 	controller := &endCountingController{inner: cachetesting.NewRealishCache(store, nil)}
-	frames := ResolveDeferResponse(t, result.DeferResponse, controller)
-	require.Len(t, frames, 2)
+	frames := ExecuteDefer(t, executionEngine, query, controller)
+	assert.Equal(t, []string{
+		`{"data":{"me":{"favoriteProduct":{"upc":"1","stock":5}},"products":[{"upc":"1"}]},"pending":[{"id":"1","path":["products"]}],"hasNext":true}`,
+		`{"incremental":[{"data":{"warehouse":{"id":"w1","location":"Berlin"}},"id":"1","subPath":[0]}],"completed":[{"id":"1"}],"hasNext":false}`,
+	}, frames)
 	assert.Equal(t, int64(1), controller.ends.Load())
 
 	ops := store.Ops()
@@ -331,70 +195,43 @@ func TestDeferSingleFlush(t *testing.T) {
 // the skip neither waits for nor reorders the fetching sibling.
 func TestDeferSkipDoesNotReorderFrames(t *testing.T) {
 	query := `{ me { favoriteProduct { upc stock } } products(first: 1) { upc ... @defer { stock } ... @defer { warehouse { id } } } }`
-	responses := map[string]string{
-		"users":                        `{"data":{"me":{"__typename":"User","id":"u1"}}}`,
-		"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-		"products":                     `{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`,
-		"products:products":            `{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`,
-		"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
-		// Only the warehouse group LOADS (the stock group is L1-served and
-		// never reaches its gated datasource).
-		"inventory:products": `{"data":{"_entities":[{"__typename":"Product","warehouse":{"__typename":"Warehouse","id":"w1"}}]}}`,
-	}
-	result := Plan(t, query, inventoryL1Caching(0), responses)
-
-	arrived := make(chan string, 4)
+	users := Respond(`{"data":{"me":{"__typename":"User","id":"u1"}}}`)
+	products := Rules(
+		Rule(`_entities`, `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`),
+		Rule(`products(first: $a)`, `{"data":{"products":[{"__typename":"Product","upc":"1"}]}}`),
+	)
+	// Only the warehouse group LOADS (the stock group is L1-served); its HTTP
+	// response stays gated until `release` closes.
 	release := make(chan struct{})
-	result.Gate("inventory", "products", cachetesting.DataSourceGate{Arrived: arrived, Release: release})
+	gated := &SubgraphRule{
+		Match:    `warehouse`,
+		Response: `{"data":{"_entities":[{"__typename":"Product","warehouse":{"__typename":"Warehouse","id":"w1"}}]}}`,
+		Gate:     release,
+	}
+	stockRule := Rule(`stock`, `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`)
+	inventory := Rules(gated, stockRule)
+	executionEngine := NewEngine(t, inventoryL1Caching(0), Subgraphs{"users": users, "products": products, "inventory": inventory})
 
-	writer := &deferFrameWriter{Flushed: make(chan struct{}, 8)}
-	done := make(chan error, 1)
-	ctx := resolve.NewContext(t.Context())
-	ctx.SetCacheController(cachetesting.NewRealishCache(cachetesting.NewFakeStore(), nil))
-	r := resolve.New(t.Context(), resolve.ResolverOptions{MaxConcurrency: 16})
-	go func() {
-		_, err := r.ResolveGraphQLDeferResponse(ctx, result.DeferResponse, writer)
-		done <- err
-	}()
-
-	// Pure channel ordering, no latency dependence: every receive carries a
-	// failsafe timeout so a resolver regression fails the test instead of
-	// hanging it (the timeout can only fire on regression, never orders).
-	waitFor := func(what string, ch <-chan struct{}) {
-		t.Helper()
-		select {
-		case <-ch:
-		case <-time.After(30 * time.Second):
-			t.Fatalf("timed out waiting for %s", what)
+	// Pure gate ordering, no latency dependence: the gated sibling's frame can
+	// only flush after `release` closes, and `release` closes only once BOTH
+	// earlier frames (initial + the L1-served skip sibling's) have flushed — so
+	// the skip demonstrably did not wait for the gated fetch, and the full
+	// frame order is deterministic.
+	frames := executeDeferOnFlush(t, executionEngine, query, cachetesting.NewRealishCache(cachetesting.NewFakeStore(), nil), func(frames []string) {
+		if len(frames) == 2 {
+			close(release)
 		}
-	}
-	// The gated group's fetch is IN FLIGHT (blocked on the gate) ...
-	select {
-	case <-arrived:
-	case <-time.After(30 * time.Second):
-		t.Fatal("timed out waiting for the gated inventory fetch to arrive")
-	}
-	// ... and the initial frame plus the L1-served sibling's frame still flush
-	// without waiting for it.
-	waitFor("the initial frame flush", writer.Flushed)
-	waitFor("the L1-served sibling's frame flush", writer.Flushed)
-	framesBeforeRelease := writer.Frames()
-	require.Equal(t, []string{
+	})
+	assert.Equal(t, []string{
 		`{"data":{"me":{"favoriteProduct":{"upc":"1","stock":5}},"products":[{"upc":"1"}]},"pending":[{"id":"1","path":["products"]},{"id":"2","path":["products"]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"stock":5},"id":"1","subPath":[0]}],"completed":[{"id":"1"}],"hasNext":true}`,
-	}, framesBeforeRelease)
-
-	close(release)
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(30 * time.Second):
-		t.Fatal("timed out waiting for the defer resolve to complete")
-	}
-	waitFor("the gated sibling's frame flush", writer.Flushed)
-	frames := writer.Frames()
-	require.Len(t, frames, 3)
-	assert.Equal(t, `{"incremental":[{"data":{"warehouse":{"id":"w1"}},"id":"2","subPath":[0]}],"completed":[{"id":"2"}],"hasNext":false}`, frames[2])
+		`{"incremental":[{"data":{"warehouse":{"id":"w1"}},"id":"2","subPath":[0]}],"completed":[{"id":"2"}],"hasNext":false}`,
+	}, frames)
+	// The skip group never touched the network: inventory saw exactly the
+	// initial stock fetch and the gated warehouse fetch.
+	assert.Equal(t, int64(1), stockRule.Count.Load())
+	assert.Equal(t, int64(1), gated.Count.Load())
+	assert.Equal(t, int64(2), inventory.Requests())
 }
 
 // erroringResultCache fails OnFetchResult when the fresh response contains
@@ -438,61 +275,40 @@ var errFromHook = errors.New("cache hook failed")
 // THAT group's outcome; the sibling group's frame is complete and unaffected.
 func TestDeferHookErrorIsolation(t *testing.T) {
 	query := `{ me { favoriteProduct { upc ... @defer { stock } } } products(first: 1) { upc ... @defer { warehouse { id } } } }`
-	responses := map[string]string{
-		"users":                        `{"data":{"me":{"__typename":"User","id":"u1"}}}`,
-		"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-		"products":                     `{"data":{"products":[{"__typename":"Product","upc":"2"}]}}`,
-		"products:products":            `{"data":{"products":[{"__typename":"Product","upc":"2"}]}}`,
-		"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
-		"inventory:products":           `{"data":{"_entities":[{"__typename":"Product","warehouse":{"__typename":"Warehouse","id":"w1"}}]}}`,
+	users := Respond(`{"data":{"me":{"__typename":"User","id":"u1"}}}`)
+	products := Rules(
+		Rule(`_entities`, `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`),
+		Rule(`products(first: $a)`, `{"data":{"products":[{"__typename":"Product","upc":"2"}]}}`),
+	)
+	// Parallel sibling groups flush in either order — gate the ERRORING group's
+	// subgraph fetch until the healthy sibling's frame has flushed, so the frame
+	// order is gate-deterministic and every frame can be pinned in full.
+	release := make(chan struct{})
+	gated := &SubgraphRule{
+		Match:    `warehouse`,
+		Response: `{"data":{"_entities":[{"__typename":"Product","warehouse":{"__typename":"Warehouse","id":"w1"}}]}}`,
+		Gate:     release,
 	}
-	result := Plan(t, query, inventoryL1Caching(time.Minute), responses)
+	inventory := Rules(
+		gated,
+		Rule(`stock`, `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`),
+	)
+	executionEngine := NewEngine(t, inventoryL1Caching(time.Minute), Subgraphs{"users": users, "products": products, "inventory": inventory})
+
 	controller := &erroringResultController{
 		inner:  cachetesting.NewRealishCache(cachetesting.NewFakeStore(), nil),
 		marker: "warehouse",
 	}
-
-	// Parallel sibling groups flush in either order — gate the ERRORING group's
-	// subgraph fetch until the healthy sibling's frame has flushed, so the frame
-	// order is channel-deterministic and every frame can be pinned in full.
-	arrived := make(chan string, 4)
-	release := make(chan struct{})
-	result.Gate("inventory", "products", cachetesting.DataSourceGate{Arrived: arrived, Release: release})
-
-	writer := &deferFrameWriter{Flushed: make(chan struct{}, 8)}
-	done := make(chan error, 1)
-	ctx := resolve.NewContext(t.Context())
-	ctx.SetCacheController(controller)
-	r := resolve.New(t.Context(), resolve.ResolverOptions{MaxConcurrency: 16})
-	go func() {
-		_, err := r.ResolveGraphQLDeferResponse(ctx, result.DeferResponse, writer)
-		done <- err
-	}()
-
-	waitFor := func(what string, ch <-chan struct{}) {
-		t.Helper()
-		select {
-		case <-ch:
-		case <-time.After(30 * time.Second):
-			t.Fatalf("timed out waiting for %s", what)
+	frames := executeDeferOnFlush(t, executionEngine, query, controller, func(frames []string) {
+		if len(frames) == 2 {
+			close(release)
 		}
-	}
-	waitFor("the initial frame flush", writer.Flushed)
-	waitFor("the healthy sibling's frame flush", writer.Flushed)
-	close(release)
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(30 * time.Second):
-		t.Fatal("timed out waiting for the defer resolve to complete")
-	}
-	waitFor("the erroring group's frame flush", writer.Flushed)
-
+	})
 	// The erroring group's frame carries ONLY the hook failure (no warehouse
 	// data); the sibling's frame is complete and unaffected.
 	assert.Equal(t, []string{
 		`{"data":{"me":{"favoriteProduct":{"upc":"1"}},"products":[{"upc":"2"}]},"pending":[{"id":"1","path":["me","favoriteProduct"]},{"id":"2","path":["products"]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"stock":5},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}`,
 		`{"completed":[{"id":"2","errors":[{"message":"cache hook failed"}]}],"hasNext":false}`,
-	}, writer.Frames())
+	}, frames)
 }

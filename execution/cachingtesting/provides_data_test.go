@@ -19,6 +19,8 @@ func enableP1() map[string]cacheconfig.CachingConfiguration {
 // TestProvidesDataFidelity is the fidelity gate over REAL federation plans
 // (real fieldPlanners from the main walk, not synthetic attribution): the full
 // per-fetch ProvidesData side-table is pinned for a root + batch-entity plan.
+// This is a planner-level test that pins plan-internal state (the ProvidesData
+// resolve.Object trees) not visible in a client response.
 func TestProvidesDataFidelity(t *testing.T) {
 	result := Plan(t, `{ products(first: 2) { upc name reviews { body } } }`, enableP1(), nil)
 	pd := result.Response.CacheProvidesData()
@@ -101,7 +103,9 @@ func TestProvidesDataFidelity(t *testing.T) {
 // TestProvidesDataDeferredFetchOwnTree pins that a DEFERRED fetch gets its own
 // side-table entry (keyed per *FetchInfo, shared across the initial response
 // and all defer groups): the deferred inventory fetch's tree is exactly
-// {stock}, independent of the initial inventory fetch's larger tree.
+// {stock}, independent of the initial inventory fetch's larger tree. This is a
+// planner-level test that pins plan-internal state (the deferred fetch's
+// ProvidesData tree keyed by its *FetchInfo) not visible in a client response.
 func TestProvidesDataDeferredFetchOwnTree(t *testing.T) {
 	query := `
 		query {

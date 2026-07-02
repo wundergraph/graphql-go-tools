@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,10 +30,13 @@ import (
 
 // SubgraphRule routes one canned response: the first rule whose Match
 // substring appears in the incoming request body wins (empty Match matches
-// everything). Count records how many requests the rule served.
+// everything). Count records how many requests the rule served. A non-nil
+// Gate blocks the RESPONSE (after the request is recorded) until the channel
+// is closed — the deterministic ordering handle for defer-group tests.
 type SubgraphRule struct {
 	Match    string
 	Response string
+	Gate     <-chan struct{}
 	Count    atomic.Int64
 }
 
@@ -92,6 +96,9 @@ func (s *Subgraph) start(tb testing.TB, name string) {
 		for _, rule := range s.Rules {
 			if rule.Match == "" || strings.Contains(string(body), rule.Match) {
 				rule.Count.Add(1)
+				if rule.Gate != nil {
+					<-rule.Gate
+				}
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(rule.Response))
 				return
@@ -174,4 +181,74 @@ func ExecuteWithVariables(tb testing.TB, executionEngine *engine.ExecutionEngine
 	writer := graphql.NewEngineResultWriter()
 	require.NoError(tb, executionEngine.Execute(context.Background(), request, &writer, options...))
 	return writer.String()
+}
+
+// TracedExecutionOptions are the deterministic ART options for pinned traces:
+// predictable timings, no connection-timing noise, trace in the extensions.
+func TracedExecutionOptions() engine.ExecutionOptions {
+	return engine.WithRequestTraceOptions(resolve.TraceOptions{
+		Enable:                                 true,
+		ExcludeLoadStats:                       true,
+		EnablePredictableDebugTimings:          true,
+		Debug:                                  true,
+		IncludeTraceOutputInResponseExtensions: true,
+	})
+}
+
+// ExecuteTraced runs one operation with ART enabled and returns the full body
+// including extensions.trace.
+func ExecuteTraced(tb testing.TB, executionEngine *engine.ExecutionEngine, query string, controller resolve.CacheController, options ...engine.ExecutionOptions) string {
+	tb.Helper()
+	return Execute(tb, executionEngine, query, controller, append(options, TracedExecutionOptions())...)
+}
+
+// ExecutePlanned runs one operation with the QueryPlan included in the
+// response extensions and returns the full body.
+func ExecutePlanned(tb testing.TB, executionEngine *engine.ExecutionEngine, query string, controller resolve.CacheController, options ...engine.ExecutionOptions) string {
+	tb.Helper()
+	return Execute(tb, executionEngine, query, controller, append(options, engine.WithIncludeQueryPlanInResponse())...)
+}
+
+// ExecuteDefer runs one @defer operation and returns every flushed frame in
+// delivery order.
+func ExecuteDefer(tb testing.TB, executionEngine *engine.ExecutionEngine, query string, controller resolve.CacheController, options ...engine.ExecutionOptions) []string {
+	tb.Helper()
+	if controller != nil {
+		options = append(options, engine.WithCacheController(controller))
+	}
+	var frames []string
+	writer := graphql.NewEngineResultWriter()
+	writer.SetFlushCallback(func(data []byte) {
+		frames = append(frames, string(data))
+	})
+	require.NoError(tb, executionEngine.Execute(context.Background(), &graphql.Request{Query: query}, &writer, options...))
+	if writer.Len() > 0 {
+		frames = append(frames, writer.String())
+	}
+	return frames
+}
+
+// NormalizeURLs rewrites every subgraph double's ephemeral httptest URL to the
+// stable fixture form http://<name>.service so response pins stay literal.
+func (s Subgraphs) NormalizeURLs(body string) string {
+	for name, subgraph := range s {
+		if subgraph.server != nil {
+			body = strings.ReplaceAll(body, subgraph.server.URL, "http://"+name+".service")
+		}
+	}
+	return body
+}
+
+var (
+	remainingTTLPattern = regexp.MustCompile(`"remaining_ttl_nanoseconds":[1-9][0-9]*`)
+	cacheAgePattern     = regexp.MustCompile(`"cache_age_nanoseconds":[1-9][0-9]*`)
+)
+
+// NormalizeCacheTraceClock rewrites the real-clock cache-trace fields (positive
+// remaining-TTL and cache-age nanos) to -1 so full-body pins stay literal;
+// their exact values are pinned by the synctest observer unit rows.
+func NormalizeCacheTraceClock(body string) string {
+	body = remainingTTLPattern.ReplaceAllString(body, `"remaining_ttl_nanoseconds":-1`)
+	body = cacheAgePattern.ReplaceAllString(body, `"cache_age_nanoseconds":-1`)
+	return body
 }
