@@ -173,11 +173,12 @@ type FetchCacheHandle struct {
 	WasHit         bool     // a covering cache value was found
 	MustWriteBack  bool     // a hit still needs best-effort L2 writes
 	BatchEntityKey bool     // batch-entity-key mode (per-element multi-key render on write)
-	// PartialInput is the reduced fetch input for DecisionFetchPartial: the
-	// original rendered input with the CACHED representations filtered out, so
-	// the subgraph receives only the missing ones. The loader swaps it in as
-	// the network input (single-flight then dedups on the reduced input).
-	PartialInput []byte
+	// BatchFetchKeep marks, per unique batch bucket, whether the NETWORK fetch
+	// must include its representation (DecisionFetchPartial: true = still
+	// missing, false = served from cache). The loader assembles the reduced
+	// input from the already-rendered representation segments BEFORE any bytes
+	// are parsed back — nil means "fetch all".
+	BatchFetchKeep []bool
 	// Trace is the fetch's ART trace destination (nil when tracing is off);
 	// the observer attaches the assembled CacheTrace to it at request end.
 	Trace *DataSourceLoadTrace

@@ -414,6 +414,15 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	// acquisition around its arena work. Both are no-ops when no cache
 	// controller is set.
 	l.cachePrepare(prepared)
+	if prepared.batchAssembly != nil && !prepared.skipLoad {
+		var keep []bool
+		if prepared.cacheHandle != nil {
+			keep = prepared.cacheHandle.BatchFetchKeep
+		}
+		if err := l.assembleBatchInput(prepared, keep); err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	if err := l.loadPhase(ctx, prepared); err != nil {
 		return errors.WithStack(err)
 	}
@@ -432,9 +441,70 @@ type preparedFetch struct {
 	trace      *DataSourceLoadTrace
 	skipLoad   bool
 	batchFetch bool
+	// batchAssembly defers the batch input assembly until AFTER the cache
+	// decision: the final input is rendered exactly once, containing only the
+	// representations the network fetch still needs (no parse-back filtering).
+	batchAssembly *batchInputAssembly
 	// cacheHandle is the opaque per-fetch cache state returned by PrepareFetch,
 	// threaded to the merge hook; nil when the controller did not touch the fetch.
 	cacheHandle *FetchCacheHandle
+}
+
+// batchInputAssembly holds the pre-rendered pieces of a batch entity input:
+// header/separator/footer plus one segment per UNIQUE representation (bucket
+// order). All slices live on the fetch's batchEntityTools arena, which stays
+// alive until resolveSingle returns.
+type batchInputAssembly struct {
+	header             []byte
+	separator          []byte
+	footer             []byte
+	segments           [][]byte
+	undefinedVariables []string
+	info               *FetchInfo
+	fetchItem          *FetchItem
+}
+
+// assembleBatchInput renders the FINAL batch input from the pre-rendered
+// pieces, including only the buckets keep marks (nil keep = all), then runs
+// the undefined-variables post-processing and the pre-fetch validation that
+// operate on the final bytes.
+func (l *Loader) assembleBatchInput(prepared *preparedFetch, keep []bool) error {
+	assembly := prepared.batchAssembly
+	buf := arena.NewArenaBuffer(prepared.res.tools.a)
+	_, _ = buf.Write(assembly.header)
+	wroteItem := false
+	for i, segment := range assembly.segments {
+		if keep != nil && (i >= len(keep) || !keep[i]) {
+			continue
+		}
+		if wroteItem {
+			_, _ = buf.Write(assembly.separator)
+		}
+		_, _ = buf.Write(segment)
+		wroteItem = true
+	}
+	_, _ = buf.Write(assembly.footer)
+	if err := SetInputUndefinedVariables(buf, assembly.undefinedVariables); err != nil {
+		return errors.WithStack(err)
+	}
+	fetchInput := buf.Bytes()
+
+	if l.ctx.TracingOptions.Enable && prepared.res.fetchSkipped {
+		l.setTracingInput(assembly.fetchItem, fetchInput, prepared.trace)
+		prepared.skipLoad = true
+		return nil
+	}
+
+	allowed, err := l.validatePreFetch(fetchInput, assembly.info, prepared.res)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		prepared.skipLoad = true
+		return nil
+	}
+	prepared.input = fetchInput
+	return nil
 }
 
 // cacheRequest lazily obtains the request-lifetime cache working surface. The
@@ -494,14 +564,12 @@ func (l *Loader) cachePrepare(prepared *preparedFetch) {
 			prepared.trace.LoadSkipped = true
 		}
 	case DecisionFetchPartial:
-		// Partial: the network call carries the REDUCED input (missing
-		// representations only) and the loader's own positional data merge is
-		// skipped — OnFetchResult splices the cached items and realigns +
-		// merges the fetched ones in a single hook (one lock acquisition).
-		// Error/response processing in mergeResult still runs unchanged.
-		if handle != nil && handle.PartialInput != nil {
-			prepared.input = handle.PartialInput
-		}
+		// Partial: the batch input assembly (which runs after this hook)
+		// includes only the buckets handle.BatchFetchKeep marks, and the
+		// loader's own positional data merge is skipped — OnFetchResult
+		// splices the cached items and realigns + merges the fetched ones in
+		// a single hook (one lock acquisition). Error/response processing in
+		// mergeResult still runs unchanged.
 		prepared.res.cachePartial = true
 	default:
 		// DecisionFetch / DecisionFetchShadow leave the load in place; the
@@ -1769,8 +1837,11 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 	}
 
 	res.tools = batchEntityToolPool.Get(len(items))
-	preparedInput := arena.NewArenaBuffer(res.tools.a)
+	headerInput := arena.NewArenaBuffer(res.tools.a)
+	separatorInput := arena.NewArenaBuffer(res.tools.a)
+	footerInput := arena.NewArenaBuffer(res.tools.a)
 	itemInput := arena.NewArenaBuffer(res.tools.a)
+	segments := arena.AllocateSlice[[]byte](res.tools.a, 0, len(items))
 	batchStats := arena.AllocateSlice[[]*astjson.Value](res.tools.a, 0, len(items))
 	defer func() {
 		// we need to clear the batchStats slice to avoid memory corruption
@@ -1786,12 +1857,14 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 	// I tried using arena here, but it only worsened the situation
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, headerInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	if err = fetch.Input.Separator.Render(l.ctx, nil, separatorInput); err != nil {
+		return errors.WithStack(err)
+	}
 	batchItemIndex := 0
-	addSeparator := false
 
 WithNextItem:
 	for i, item := range items {
@@ -1822,14 +1895,13 @@ WithNextItem:
 				batchStats[existingIndex] = arena.SliceAppend(res.tools.a, batchStats[existingIndex], items[i])
 				continue WithNextItem
 			} else {
-				if addSeparator {
-					err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
-					if err != nil {
-						return errors.WithStack(err)
-					}
-				}
-				_, _ = itemInput.WriteTo(preparedInput)
-				// new unique representation
+				// New unique representation: keep its rendered SEGMENT — the
+				// final input assembles AFTER the cache decision, so a partial
+				// hit sends only the still-missing representations without
+				// ever parsing the input back.
+				segment := arena.AllocateSlice[byte](res.tools.a, itemInput.Len(), itemInput.Len())
+				copy(segment, itemInput.Bytes())
+				segments = arena.SliceAppend(res.tools.a, segments, segment)
 				res.tools.batchHashToIndex[itemHash] = batchItemIndex
 				// A new targets bucket for the unique index must be allocated on the arena:
 				// a heap-allocated bucket would only be referenced from arena memory,
@@ -1838,7 +1910,6 @@ WithNextItem:
 				bucket[0] = items[i]
 				batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
 				batchItemIndex++
-				addSeparator = true
 			}
 		}
 	}
@@ -1854,17 +1925,11 @@ WithNextItem:
 		}
 	}
 
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, footerInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	fetchInput := preparedInput.Bytes()
 	// it's important to copy the *astjson.Value's off the arena to avoid memory corruption
 	res.batchStats = make([][]*astjson.Value, len(batchStats))
 	for i := range batchStats {
@@ -1872,23 +1937,20 @@ WithNextItem:
 		copy(res.batchStats[i], batchStats[i])
 	}
 
-	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
-		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
-		prepared.skipLoad = true
-		return nil
+	// The final input assembles in resolveSingle AFTER the cache decision
+	// (assembleBatchInput), so a partial hit renders only the still-missing
+	// representations; undefined-variable post-processing and the pre-fetch
+	// validation run there, on the final bytes.
+	prepared.batchAssembly = &batchInputAssembly{
+		header:             headerInput.Bytes(),
+		separator:          separatorInput.Bytes(),
+		footer:             footerInput.Bytes(),
+		segments:           segments,
+		undefinedVariables: undefinedVariables,
+		info:               fetch.Info,
+		fetchItem:          fetchItem,
 	}
-
-	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		prepared.skipLoad = true
-		return nil
-	}
-
 	prepared.source = fetch.DataSource
-	prepared.input = fetchInput
 	prepared.trace = fetch.Trace
 	return nil
 }
