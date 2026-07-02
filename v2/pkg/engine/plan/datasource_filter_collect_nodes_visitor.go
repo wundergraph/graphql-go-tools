@@ -205,47 +205,47 @@ func (c *nodesCollector) buildTree() {
 }
 
 type treeBuilderVisitor struct {
-	walker        *astvisitor.Walker
-	operation     *ast.Document
-	definition    *ast.Document
-	nodes         *NodeSuggestions
-	parentNodeIds []uint
-	fieldInfo     map[int]fieldInfo
+	walker          *astvisitor.Walker
+	operation       *ast.Document
+	definition      *ast.Document
+	nodes           *NodeSuggestions
+	parentFieldRefs []int // ancestor field refs, ast.InvalidRef sentinel at the root
+	fieldInfo       map[int]fieldInfo
 }
 
 func (f *treeBuilderVisitor) EnterDocument(_, _ *ast.Document) {
-	f.parentNodeIds = []uint{treeRootID}
+	f.parentFieldRefs = []int{ast.InvalidRef}
 }
 
 func (f *treeBuilderVisitor) EnterField(fieldRef int) {
 	if f.nodes.IsFieldSeen(fieldRef) {
-		currentNodeId := TreeNodeID(fieldRef)
-		f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
+		f.parentFieldRefs = append(f.parentFieldRefs, fieldRef)
 		return
 	}
 	f.nodes.AddSeenField(fieldRef)
 
-	parentNodeId := f.currentParentID()
-	currentNodeId := TreeNodeID(fieldRef)
-
 	// we intentionally ignore the return values added, exists
 	// because we do not recheck the same field refs, so all added nodes should be new and unique
-	_, _ = f.nodes.responseTree.Add(currentNodeId, parentNodeId, nil)
-	f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
+	_, _ = f.nodes.responseTree.Add(TreeNodeID(fieldRef), f.currentParentNodeID(), nil)
+
+	// must push before collectFieldInfo: it reads the parent field ref at len-2
+	f.parentFieldRefs = append(f.parentFieldRefs, fieldRef)
 
 	f.collectFieldInfo(fieldRef)
 }
 
-func (f *treeBuilderVisitor) currentParentID() uint {
-	return f.parentNodeIds[len(f.parentNodeIds)-1]
+// currentParentNodeID maps the nearest ancestor field ref to its tree node id,
+// treeRootID for a root field
+func (f *treeBuilderVisitor) currentParentNodeID() uint {
+	if parentFieldRef := f.parentFieldRefs[len(f.parentFieldRefs)-1]; parentFieldRef != ast.InvalidRef {
+		return TreeNodeID(parentFieldRef)
+	}
+	return treeRootID
 }
 
 func (f *treeBuilderVisitor) LeaveField(ref int) {
-	parentNodeId := f.currentParentID()
-	currentNodeId := TreeNodeID(ref)
-
-	if parentNodeId == currentNodeId {
-		f.parentNodeIds = f.parentNodeIds[:len(f.parentNodeIds)-1]
+	if f.parentFieldRefs[len(f.parentFieldRefs)-1] == ref {
+		f.parentFieldRefs = f.parentFieldRefs[:len(f.parentFieldRefs)-1]
 	}
 }
 
@@ -400,7 +400,7 @@ func (f *collectNodesDSVisitor) handleProvidesSuggestions(fieldRef int, typeName
 // field: the field's own @provides selection when it is an anchor, otherwise the
 // nested selection the field got from an enclosing @provides directive.
 func (f *collectNodesDSVisitor) childSelection(fieldRef int) providesSelection {
-	if fieldRef == -1 {
+	if fieldRef == ast.InvalidRef {
 		return nil
 	}
 	if selection, ok := f.availableProvidedFields[fieldRef]; ok {
@@ -634,7 +634,7 @@ type fieldInfo struct {
 	currentPathWithoutFragments                                    string
 	enclosingTypeDefinition                                        ast.Node
 	// parentFieldRef is the nearest ancestor field ref (skipping inline fragments),
-	// or -1 for a root field. Used to walk the typed ancestry for provides chains.
+	// or ast.InvalidRef for a root field. Used to walk the typed ancestry for provides chains.
 	parentFieldRef int
 }
 
@@ -661,13 +661,9 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 	currentPathWithoutFragments := fmt.Sprintf("%s.%s", parentPathWithoutFragment, fieldAliasOrName)
 
 	// nearest ancestor field ref (tree nodes are created only for fields, so the tree
-	// parent is the nearest ancestor field, skipping inline fragments), -1 at the root
-	parentFieldRef := -1
-	if len(f.parentNodeIds) >= 2 {
-		if parentNodeID := f.parentNodeIds[len(f.parentNodeIds)-2]; parentNodeID != treeRootID {
-			parentFieldRef = TreeNodeFieldRef(parentNodeID)
-		}
-	}
+	// parent is the nearest ancestor field, skipping inline fragments), ast.InvalidRef
+	// at the root; len-1 is the current field pushed by EnterField
+	parentFieldRef := f.parentFieldRefs[len(f.parentFieldRefs)-2]
 
 	f.fieldInfo[fieldRef] = fieldInfo{
 		typeName:                    typeName,
