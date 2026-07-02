@@ -500,6 +500,24 @@ func TestAuthorizeSubscriptionPreFetch(t *testing.T) {
 		assert.False(t, denied)
 		assert.Nil(t, body)
 	})
+
+	t.Run("wrong decision count fails closed", func(t *testing.T) {
+		ctx := NewContext(context.Background())
+		ctx.SetPreFetchFieldAuthorizer(miscountBatchAuthorizer{})
+		resolver := newResolver(context.Background())
+
+		body, denied, err := resolver.authorizeSubscriptionPreFetch(ctx, newSubResponse())
+		require.Error(t, err)
+		assert.False(t, denied)
+		assert.Nil(t, body)
+	})
+}
+
+// miscountBatchAuthorizer returns the wrong number of decisions to exercise the fail-closed path.
+type miscountBatchAuthorizer struct{}
+
+func (miscountBatchAuthorizer) AuthorizeFields(_ *Context, _ []GraphCoordinate) ([]AuthorizationDecision, error) {
+	return nil, nil
 }
 
 func singleFieldResponse(service DataSource, fieldName string, value Node, rootField GraphCoordinate) *GraphQLResponse {

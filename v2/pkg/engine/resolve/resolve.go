@@ -525,7 +525,11 @@ func (r *Resolver) authorizeSubscriptionPreFetch(ctx *Context, response *GraphQL
 	if err != nil {
 		return nil, false, err
 	}
-	if len(decisions) != 1 || decisions[0].Allowed {
+	// Fail closed: a wrong decision count is an authorizer bug, not an authorization grant.
+	if len(decisions) != 1 {
+		return nil, false, fmt.Errorf("pre-fetch field authorizer returned %d decisions for 1 coordinate", len(decisions))
+	}
+	if decisions[0].Allowed {
 		return nil, false, nil
 	}
 	message := fmt.Sprintf("Unauthorized to load field '%s.%s'.", coordinate.TypeName, coordinate.FieldName)
