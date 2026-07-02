@@ -44,8 +44,9 @@ func NewConfigurator(providers map[string]cacheconfig.CacheConfigProvider, feder
 // response: fetchCacheConfigurator assembles and sets the per-fetch
 // *resolve.FetchCacheConfig, then optimizeL1Cache narrows cfg.L1 across all
 // trees. It must run AFTER createConcreteSingleFetchTypes (the concrete fetch
-// types carry the config) and BEFORE organizeFetchTree/buildDeferTree (it
-// expects the flat trees).
+// types carry the config); the passes walk flat AND organized trees alike,
+// and the defer pipeline calls it AFTER buildDeferTree so the group trees and
+// their ancestry come from the authoritative DeferTree.
 //
 // treeParents gives the narrowing pass the defer-group ancestry: one entry per
 // tree, the index of the tree whose group ENCLOSES it (-1 for a root). The
