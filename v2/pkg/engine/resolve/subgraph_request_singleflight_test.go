@@ -33,6 +33,8 @@ func (s *stubFetch) IsBatchEntityFetch() bool { return false }
 
 func (s *stubFetch) SetDataSource(DataSource) {}
 
+func (s *stubFetch) LoadTrace() *DataSourceLoadTrace { return nil }
+
 type nilInfoFetch struct{}
 
 func (n *nilInfoFetch) FetchKind() FetchKind {
@@ -56,6 +58,8 @@ func (n *nilInfoFetch) IsEntityFetch() bool { return false }
 func (n *nilInfoFetch) IsBatchEntityFetch() bool { return false }
 
 func (n *nilInfoFetch) SetDataSource(DataSource) {}
+
+func (n *nilInfoFetch) LoadTrace() *DataSourceLoadTrace { return nil }
 
 func newFetchItem(info *FetchInfo) *FetchItem {
 	return &FetchItem{

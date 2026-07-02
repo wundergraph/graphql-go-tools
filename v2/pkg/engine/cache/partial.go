@@ -1,10 +1,18 @@
 package cache
 
 import (
+	"errors"
+
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
+
+// errPartialBatchEntityCountMismatch surfaces a subgraph contract violation:
+// the reduced _entities response must contain exactly one element per sent
+// representation (nulls included), like the loader's own full-batch
+// invalidBatchItemCount check.
+var errPartialBatchEntityCountMismatch = errors.New("partial batch _entities count does not match the reduced representations")
 
 // Partial fetching (task 19): a batch entity fetch with SOME buckets covered
 // and some not serves the covered ones from cache and sends the subgraph a
@@ -97,7 +105,7 @@ func (r *requestCache) onPartialBatchResult(h *resolve.FetchCacheHandle, in reso
 			continue
 		}
 		if fetchedIndex >= len(batch) {
-			continue
+			return errPartialBatchEntityCountMismatch
 		}
 		src := batch[fetchedIndex]
 		fetchedIndex++
@@ -120,6 +128,9 @@ func (r *requestCache) onPartialBatchResult(h *resolve.FetchCacheHandle, in reso
 			}
 		}
 		r.writeFetchedValue(tx, cfg, h, item, src, cfg.ProvidesData)
+	}
+	if !fetchFailed && fetchedIndex != len(batch) {
+		return errPartialBatchEntityCountMismatch
 	}
 	return nil
 }

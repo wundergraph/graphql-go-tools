@@ -354,6 +354,8 @@ func (m *mockFetchWithInfo) Dependencies() *FetchDependencies {
 	return nil
 }
 
+func (m *mockFetchWithInfo) LoadTrace() *DataSourceLoadTrace { return nil }
+
 func (m *mockFetchWithInfo) CacheConfig() *FetchCacheConfig { return nil }
 
 func (m *mockFetchWithInfo) SetCacheConfig(*FetchCacheConfig) {}

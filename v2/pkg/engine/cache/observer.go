@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/wundergraph/astjson"
@@ -46,7 +48,8 @@ func (o *TraceObserver) CompareShadow(h *resolve.FetchCacheHandle, fresh *astjso
 		batch = fresh.GetArray()
 	}
 	compares := make([]resolve.CacheShadowCompareTrace, 0, len(h.ShadowStash))
-	for itemIndex, entry := range h.ShadowStash {
+	for _, itemIndex := range slices.Sorted(maps.Keys(h.ShadowStash)) {
+		entry := h.ShadowStash[itemIndex]
 		freshValue := fresh
 		if h.BatchEntityKey {
 			freshValue = nil

@@ -82,9 +82,12 @@ func (t cacheKeyTemplate) render(item *astjson.Value) (string, bool) {
 
 // renderRepresentationValue extracts the canonical key value for one template
 // node from the item: objects recurse over the template's fields, scalars pass
-// through (numbers canonicalized to their JSON string so 1 and 1.0 cannot
-// split the key space); a null or absent value makes the candidate
-// unrenderable.
+// through. Numbers are unified with STRINGS of the same literal (the number 1
+// and the string "1" render the same key material) — astjson preserves the
+// original literal, so 1 and 1.0 remain DISTINCT keys: a conservative split
+// (extra miss, never wrong data). Full numeric canonicalization is deliberately
+// avoided: parsing to float64 would corrupt integers beyond 2^53. A null or
+// absent value makes the candidate unrenderable.
 func renderRepresentationValue(node resolve.Node, value *astjson.Value) (*astjson.Value, bool) {
 	if value == nil || value.Type() == astjson.TypeNull {
 		return nil, false

@@ -49,13 +49,23 @@ type PlanResult struct {
 // Inputs returns the exact input bytes every load of the fake datasource for
 // the given SUBGRAPH NAME + fetch path received, in order.
 func (p PlanResult) Inputs(name, path string) []string {
-	return p.Fakes.Inputs(p.nameToID[name], path)
+	return p.Fakes.Inputs(p.datasourceID(name), path)
+}
+
+// datasourceID resolves a subgraph name to its datasource ID, falling back to
+// the literal name (consistent with LoadCount — a typo'd name can then never
+// silently register an unusable gate or fetch path).
+func (p PlanResult) datasourceID(name string) string {
+	if id, ok := p.nameToID[name]; ok {
+		return id
+	}
+	return name
 }
 
 // Gate attaches gate channels to the fake datasource for the given SUBGRAPH
 // NAME + fetch path, re-swapping the trees so the gate takes effect.
 func (p PlanResult) Gate(name, path string, gate cachetesting.DataSourceGate) {
-	p.Fakes.SetGate(p.nameToID[name], path, gate)
+	p.Fakes.SetGate(p.datasourceID(name), path, gate)
 	if p.Response != nil {
 		cachetesting.SwapDataSources(p.Response.Fetches, p.Fakes)
 	}

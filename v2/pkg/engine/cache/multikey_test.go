@@ -355,3 +355,39 @@ func TestMultiKeyFreshnessRows(t *testing.T) {
 		assert.False(t, handle.MustWriteBack) // not a full hit
 	})
 }
+
+// TestMultiKeyNegativeSentinelAuthority pins that ONLY the freshest candidate
+// decides a negative hit: a staler negative sentinel on a sibling @key must
+// never override a fresher positive value (and the freshest sentinel still
+// wins over staler positives).
+func TestMultiKeyNegativeSentinelAuthority(t *testing.T) {
+	t.Run("stale sentinel loses to a fresher positive sibling", func(t *testing.T) {
+		store := newTestStore()
+		cfg := multiKeyConfig(t)
+		skuKey, upcKey := deriveMultiKeys(t, cfg)
+		// sku: negative sentinel with 55s left; upc: positive value with 295s.
+		store.seed(skuKey, []byte(negativeCacheSentinel), 55*time.Second)
+		store.seed(upcKey, []byte(`{"__typename":"Product","name":"Table","price":100}`), 295*time.Second)
+
+		rc := NewController(store, nil).BeginRequest(nil)
+		decision, handle := prepare(t, rc, cfg, fullProductItem(t))
+		assert.Equal(t, resolve.DecisionSkipFullHit, decision)
+		require.NotNil(t, handle.Items[0].FromCache)
+		assert.False(t, handle.Items[0].NegativeHit)
+		assert.Equal(t, `{"__typename":"Product","name":"Table","price":100}`,
+			string(handle.Items[0].FromCache.MarshalTo(nil)))
+	})
+
+	t.Run("the freshest sentinel still wins over a staler positive", func(t *testing.T) {
+		store := newTestStore()
+		cfg := multiKeyConfig(t)
+		skuKey, upcKey := deriveMultiKeys(t, cfg)
+		store.seed(skuKey, []byte(negativeCacheSentinel), 295*time.Second)
+		store.seed(upcKey, []byte(`{"__typename":"Product","name":"Table","price":100}`), 55*time.Second)
+
+		rc := NewController(store, nil).BeginRequest(nil)
+		decision, handle := prepare(t, rc, cfg, fullProductItem(t))
+		assert.Equal(t, resolve.DecisionSkipFullHit, decision)
+		assert.True(t, handle.Items[0].NegativeHit)
+	})
+}

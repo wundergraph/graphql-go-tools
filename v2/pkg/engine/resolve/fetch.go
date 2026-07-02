@@ -41,6 +41,11 @@ type Fetch interface {
 	// _entities fetch over array items).
 	IsBatchEntityFetch() bool
 
+	// LoadTrace returns the fetch's ART trace destination; nil when tracing is
+	// disabled for the request. Caching/observability code reads it through
+	// this method (never via a switch over concrete fetch types).
+	LoadTrace() *DataSourceLoadTrace
+
 	// SetDataSource replaces the fetch's transport, e.g. to swap in an
 	// in-process fake; it exists so no caller needs a switch over concrete
 	// fetch types.
@@ -198,6 +203,10 @@ func (ppc *PostProcessingConfiguration) Equals(other *PostProcessingConfiguratio
 	return true
 }
 
+func (f *SingleFetch) LoadTrace() *DataSourceLoadTrace {
+	return f.Trace
+}
+
 func (*SingleFetch) FetchKind() FetchKind {
 	return FetchKindSingle
 }
@@ -260,6 +269,10 @@ type BatchInput struct {
 	Footer       InputTemplate
 }
 
+func (f *BatchEntityFetch) LoadTrace() *DataSourceLoadTrace {
+	return f.Trace
+}
+
 func (*BatchEntityFetch) FetchKind() FetchKind {
 	return FetchKindEntityBatch
 }
@@ -311,6 +324,10 @@ type EntityInput struct {
 	Item        InputTemplate
 	SkipErrItem bool
 	Footer      InputTemplate
+}
+
+func (f *EntityFetch) LoadTrace() *DataSourceLoadTrace {
+	return f.Trace
 }
 
 func (*EntityFetch) FetchKind() FetchKind {

@@ -19,12 +19,42 @@ func covers(ctx *resolve.Context, value *astjson.Value, obj *resolve.Object) boo
 	if value == nil || obj == nil {
 		return false
 	}
+	typeName := valueTypeName(value)
 	for _, field := range obj.Fields {
+		if skipFieldForTypeName(field, typeName) {
+			continue
+		}
 		fieldValue := value.Get(normalizedFieldName(ctx, field))
 		if fieldValue == nil {
 			return false
 		}
 		if !coversNode(ctx, fieldValue, field.Value) {
+			return false
+		}
+	}
+	return true
+}
+
+// valueTypeName reads the cached value's __typename ("" when absent).
+func valueTypeName(value *astjson.Value) string {
+	typeName := value.Get("__typename")
+	if typeName == nil {
+		return ""
+	}
+	return string(typeName.GetStringBytes())
+}
+
+// skipFieldForTypeName reports whether a type-conditioned field does not apply
+// to the cached value's concrete type: requiring it would turn every valid
+// polymorphic response into a coverage miss. An absent __typename keeps the
+// field REQUIRED (conservative: no evidence the condition is satisfied means
+// no serve).
+func skipFieldForTypeName(field *resolve.Field, typeName string) bool {
+	if len(field.OnTypeNames) == 0 || typeName == "" {
+		return false
+	}
+	for _, onTypeName := range field.OnTypeNames {
+		if string(onTypeName) == typeName {
 			return false
 		}
 	}

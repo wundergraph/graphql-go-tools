@@ -102,6 +102,26 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 		assert.True(t, l1Of(consumer))
 	})
 
+	t.Run("[flaw pin] nested NAME-only overlap is not a contribution", func(t *testing.T) {
+		// The irrelevant provider shares the OBJECT NAME "warehouse" but none
+		// of the leaves the consumer reads; the relevant provider covers the
+		// consumer alone. The contribution gate must recurse past the name.
+		warehouseWith := func(leaf string) *resolve.Object {
+			return &resolve.Object{Fields: []*resolve.Field{
+				{Name: []byte("warehouse"), Value: &resolve.Object{Fields: []*resolve.Field{
+					{Name: []byte(leaf), Value: &resolve.Scalar{Path: []string{leaf}}},
+				}}},
+			}}
+		}
+		relevant := narrowingFetch(1, nil, "Product", warehouseWith("location"), true, true)
+		irrelevant := narrowingFetch(2, nil, "Product", warehouseWith("id"), true, true)
+		consumer := narrowingFetch(3, []int{1, 2}, "Product", warehouseWith("location"), true, true)
+		pass.optimize([]*resolve.FetchTreeNode{tree(relevant, irrelevant, consumer)}, nil)
+		assert.True(t, l1Of(relevant))
+		assert.False(t, l1Of(irrelevant))
+		assert.True(t, l1Of(consumer))
+	})
+
 	t.Run("partial overlap without full coverage narrows both off", func(t *testing.T) {
 		provider := narrowingFetch(1, nil, "Product", narrowingTree("name", "price"), true, true)
 		consumer := narrowingFetch(2, []int{1}, "Product", narrowingTree("price", "weight"), true, true)

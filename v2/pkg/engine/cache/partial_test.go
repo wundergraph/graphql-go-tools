@@ -214,6 +214,40 @@ func TestPartialBatchRows(t *testing.T) {
 		}
 	})
 
+	t.Run("a short reduced response is a contract violation, not a silent skip", func(t *testing.T) {
+		store := newTestStore()
+		cfg := partialConfig(t)
+		writeThrough(t, NewController(store, nil).BeginRequest(nil), cfg, productItem(t, "2"), fresh("2"))
+
+		rc := NewController(store, nil).BeginRequest(nil)
+		in, buckets := batchPrepareInput(t, cfg, "1", "2", "3")
+		decision, handle := rc.PrepareFetch(in)
+		require.Equal(t, resolve.DecisionFetchPartial, decision)
+		// TWO representations were sent; only ONE entity came back.
+		err := rc.OnFetchResult(handle, resolve.MergeInput{
+			BatchStats:   buckets,
+			ResponseData: astjson.MustParseBytes([]byte(`[` + fresh("1") + `]`)),
+			Arena:        beginner(),
+		})
+		assert.ErrorIs(t, err, errPartialBatchEntityCountMismatch)
+	})
+
+	t.Run("an over-long reduced response is a contract violation too", func(t *testing.T) {
+		store := newTestStore()
+		cfg := partialConfig(t)
+		writeThrough(t, NewController(store, nil).BeginRequest(nil), cfg, productItem(t, "2"), fresh("2"))
+
+		rc := NewController(store, nil).BeginRequest(nil)
+		in, buckets := batchPrepareInput(t, cfg, "1", "2")
+		_, handle := rc.PrepareFetch(in)
+		err := rc.OnFetchResult(handle, resolve.MergeInput{
+			BatchStats:   buckets,
+			ResponseData: astjson.MustParseBytes([]byte(`[` + fresh("1") + `,` + fresh("9") + `]`)),
+			Arena:        beginner(),
+		})
+		assert.ErrorIs(t, err, errPartialBatchEntityCountMismatch)
+	})
+
 	t.Run("config gate: partial disabled keeps all-or-nothing", func(t *testing.T) {
 		store := newTestStore()
 		cfg := entityConfig(t, time.Minute) // EnablePartialCacheLoad false

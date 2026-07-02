@@ -39,12 +39,17 @@ func TestAliasIndependentReuseEndToEnd(t *testing.T) {
 	assert.Equal(t, `{"data":{"me":{"favoriteProduct":{"upc":"1","inStock":5}}}}`, firstBody)
 	assert.Equal(t, int64(1), first.LoadCount("inventory", "me.favoriteProduct"))
 
-	// The STORED form is normalized to the schema name.
+	// The STORED form is normalized to the schema name; the write key equals
+	// the miss-lookup's key (read key == write key — ops[0] is the Get).
 	ops := store.Ops()
 	require.Len(t, ops, 2)
 	assert.Equal(t, cachetesting.StoreOp{
+		Kind: "Get",
+		Key:  ops[0].Key,
+	}, ops[0])
+	assert.Equal(t, cachetesting.StoreOp{
 		Kind:  "Set",
-		Key:   ops[1].Key,
+		Key:   ops[0].Key,
 		Value: `{"stock":5,"__typename":"Product"}`,
 		TTL:   time.Minute,
 	}, ops[1])
