@@ -96,7 +96,10 @@ type NodeSuggestions struct {
 	pathSuggestions map[string][]*NodeSuggestion
 	seenFields      map[int]struct{}
 	responseTree    tree.Tree[[]int]
-	providedFields  map[DSHash]map[string]struct{}
+	// providedSelections stores, per data source, the provided selection applying to
+	// the children of a field ref - for @provides anchor fields their own selection,
+	// for provided fields the nested selection from the enclosing @provides
+	providedSelections map[DSHash]map[int]providesSelection
 }
 
 func TraverseBFS(data tree.Tree[[]int]) iter.Seq2[uint, tree.Node[[]int]] {
@@ -130,11 +133,11 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 	responseTree.Add(treeRootID, 0, nil)
 
 	return &NodeSuggestions{
-		items:           make([]*NodeSuggestion, 0, size),
-		seenFields:      make(map[int]struct{}, size),
-		pathSuggestions: make(map[string][]*NodeSuggestion),
-		responseTree:    *responseTree,
-		providedFields:  make(map[DSHash]map[string]struct{}),
+		items:              make([]*NodeSuggestion, 0, size),
+		seenFields:         make(map[int]struct{}, size),
+		pathSuggestions:    make(map[string][]*NodeSuggestion),
+		responseTree:       *responseTree,
+		providedSelections: make(map[DSHash]map[int]providesSelection),
 	}
 }
 
@@ -205,12 +208,34 @@ func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (
 	return suggestions
 }
 
-// addProvidedField stores globally provided fields paths for a datasource
-func (f *NodeSuggestions) addProvidedField(key string, dsHash DSHash) {
-	if _, ok := f.providedFields[dsHash]; !ok {
-		f.providedFields[dsHash] = make(map[string]struct{})
+// addProvidedSelection stores the provided selection applying to the children of the
+// given field ref for a datasource
+func (f *NodeSuggestions) addProvidedSelection(dsHash DSHash, fieldRef int, selection providesSelection) {
+	if _, ok := f.providedSelections[dsHash]; !ok {
+		f.providedSelections[dsHash] = make(map[int]providesSelection)
 	}
-	f.providedFields[dsHash][key] = struct{}{}
+	f.providedSelections[dsHash][fieldRef] = selection
+}
+
+// providedSelectionForParentOfField returns the provided selection applying to the
+// field and its siblings - the selection stored for the field's parent field
+func (f *NodeSuggestions) providedSelectionForParentOfField(dsHash DSHash, fieldRef int) providesSelection {
+	perDS, ok := f.providedSelections[dsHash]
+	if !ok {
+		return nil
+	}
+
+	node, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	if !ok {
+		return nil
+	}
+
+	parentID := node.GetParentID()
+	if parentID == treeRootID {
+		return nil
+	}
+
+	return perDS[TreeNodeFieldRef(parentID)]
 }
 
 func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
@@ -282,6 +307,18 @@ func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 		out = append(out, childIdx)
 	}
 	return
+}
+
+// selectableTreeNodeCount returns how many nodes in the subtree rooted at idx are
+// selectable on the same data source as idx, counted recursively. It measures how
+// much of its own subtree a data source can resolve without a jump, so a shareable
+// or @provides duplicate that covers a deeper subtree (e.g. provides nested fields)
+// is preferred over one whose children dead-end and require a jump elsewhere.
+func (f *NodeSuggestions) selectableTreeNodeCount(idx int) (count int) {
+	for _, childIdx := range f.childNodesOnSameSource(idx) {
+		count += 1 + f.selectableTreeNodeCount(childIdx)
+	}
+	return count
 }
 
 func (f *NodeSuggestions) childNodesIdsOnOtherDS(idx int) (out []int) {

@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"cmp"
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -456,7 +457,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			}
 
 			return false
-		}) {
+		}, false) {
 			continue
 		}
 
@@ -465,7 +466,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		if f.checkNodes(itemIDs, f.checkNodeChilds, func(i int) (skip bool) {
 			// do not evaluate childs for the leaf nodes
 			return f.nodes.items[i].IsLeaf
-		}) {
+		}, false) {
 			continue
 		}
 
@@ -479,7 +480,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 			// we should not select a __typename field based on a sibling, unless it is on a root query type
 			return f.nodes.items[i].isTypeName && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
-		}) {
+		}, false) {
 			continue
 		}
 
@@ -536,7 +537,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 
 				return true
-			}) {
+			}, true) {
 			continue
 		}
 
@@ -562,7 +563,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 
 				return false
-			}) {
+			}, true) {
 			continue
 		}
 
@@ -611,7 +612,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 
 				return !f.nodeCouldProvideKeysToChildNodes(i)
-			}) {
+			}, false) {
 			continue
 		}
 
@@ -641,7 +642,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 				return false
 			},
-			nil) {
+			nil, false) {
 			continue
 		}
 
@@ -761,14 +762,16 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(
 	return true
 }
 
-type nodeJump struct {
+type nodeInfo struct {
 	// nodeIdx is the index of the node in the nodes slice
 	nodeIdx int
 	// jumpCount is the number of jumps to the node
-	jumpCount int
+	jumpCount          int
+	hasSelectedSibling bool
+	selectableChilds   int
 }
 
-func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool)) (nodeIsSelected bool) {
+func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool), usePriority bool) (nodeIsSelected bool) {
 	allowedToSelect := make([]int, 0, len(duplicates))
 
 	for _, i := range duplicates {
@@ -783,7 +786,7 @@ func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx in
 		allowedToSelect = append(allowedToSelect, i)
 	}
 
-	jumpsCounts := make([]nodeJump, 0, len(allowedToSelect))
+	nodesInfos := make([]nodeInfo, 0, len(allowedToSelect))
 
 	for _, i := range allowedToSelect {
 		jumpCount := 0
@@ -792,19 +795,53 @@ func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx in
 			jumpCount = len(f.nodes.items[i].requiresKey.Jumps)
 		}
 
-		jumpsCounts = append(jumpsCounts, nodeJump{
-			nodeIdx:   i,
-			jumpCount: jumpCount,
+		hasSelectedSibling := false
+		countOfSelectableChilds := 0
+		if usePriority {
+			for _, sibling := range f.nodes.siblingNodesOnSameSource(i) {
+				if f.nodes.items[sibling].Selected {
+					hasSelectedSibling = true
+					break
+				}
+			}
+
+			// count the whole selectable subtree, not just direct children, so a
+			// duplicate whose @provides/shareable coverage reaches deeper (e.g. an
+			// interface field that provides its nested selection) is preferred
+			countOfSelectableChilds = f.nodes.selectableTreeNodeCount(i)
+		}
+
+		nodesInfos = append(nodesInfos, nodeInfo{
+			nodeIdx:            i,
+			jumpCount:          jumpCount,
+			hasSelectedSibling: hasSelectedSibling,
+			selectableChilds:   countOfSelectableChilds,
 		})
 	}
 
-	// sort by the number of jumps
-	slices.SortFunc(jumpsCounts, func(a, b nodeJump) int {
+	// sort by the number of jumps, selectable child count, selected siblings
+	slices.SortFunc(nodesInfos, func(a, b nodeInfo) int {
+		if usePriority {
+			// desc on count
+			if n := cmp.Compare(b.selectableChilds, a.selectableChilds); n != 0 {
+				return n
+			}
+
+			if a.hasSelectedSibling != b.hasSelectedSibling {
+				if a.hasSelectedSibling {
+					return -1 // a comes first
+				}
+				if b.hasSelectedSibling {
+					return 1 // b comes first
+				}
+			}
+		}
+
 		// acs order from 0 to n
-		return a.jumpCount - b.jumpCount
+		return cmp.Compare(a.jumpCount, b.jumpCount)
 	})
 
-	for _, j := range jumpsCounts {
+	for _, j := range nodesInfos {
 		if callback(j.nodeIdx) {
 			return true
 		}

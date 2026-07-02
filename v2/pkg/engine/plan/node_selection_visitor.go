@@ -291,12 +291,11 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 
 	// check if the required fields are already provided
 	input := areRequiredFieldsProvidedInput{
-		typeName:       typeName,
-		requiredFields: requiresConfiguration.SelectionSet,
-		definition:     c.definition,
-		dataSource:     dsConfig,
-		providedFields: c.nodeSuggestions.providedFields[dsConfig.Hash()],
-		parentPath:     parentPath,
+		typeName:          typeName,
+		requiredFields:    requiresConfiguration.SelectionSet,
+		definition:        c.definition,
+		dataSource:        dsConfig,
+		providedSelection: c.nodeSuggestions.providedSelectionForParentOfField(dsConfig.Hash(), fieldRef),
 	}
 
 	provided, report := areRequiredFieldsProvided(input)
