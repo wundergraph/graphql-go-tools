@@ -29,7 +29,6 @@ type variablesExtractionVisitor struct {
 
 	operation, definition     *ast.Document
 	importer                  astimport.Importer
-	skip                      bool
 	extractedVariables        [][]byte
 	extractedVariableTypeRefs []int
 	uploadFinder              *uploads.UploadFinder

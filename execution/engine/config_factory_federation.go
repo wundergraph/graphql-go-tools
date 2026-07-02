@@ -115,11 +115,9 @@ type FederationEngineConfigFactory struct {
 	engineCtx                 context.Context
 	httpClient                *http.Client
 	streamingClient           *http.Client
-	schema                    *graphql.Schema
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
-	subgraphsConfigs          []SubgraphConfiguration
 
 	grpcClient grpc.ClientConnInterface
 }

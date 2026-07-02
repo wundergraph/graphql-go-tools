@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
@@ -42,20 +41,6 @@ func (s *Source) typeInfo(typeName *string) *introspection.FullType {
 	}
 
 	return s.introspectionData.Schema.TypeByName(*typeName)
-}
-
-func (s *Source) writeNull(w io.Writer) error {
-	_, err := w.Write(null)
-	return err
-}
-
-func (s *Source) singleType(w io.Writer, typeName *string) error {
-	typeInfo := s.typeInfo(typeName)
-	if typeInfo == nil {
-		return s.writeNull(w)
-	}
-
-	return json.NewEncoder(w).Encode(typeInfo)
 }
 
 func (s *Source) singleTypeBytes(typeName *string) ([]byte, error) {

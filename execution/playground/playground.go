@@ -35,12 +35,6 @@ type playgroundTemplateData struct {
 	SubscriptionEndpointURL string
 }
 
-type fileConfig struct {
-	name        string
-	url         string
-	contentType string
-}
-
 // HandlerConfig is the configuration Object for playground http Handlers
 type HandlerConfig struct {
 	// Path is where the handler should be hosted

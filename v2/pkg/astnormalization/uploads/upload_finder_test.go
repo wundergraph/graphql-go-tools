@@ -6,8 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wundergraph/astjson"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
@@ -168,7 +166,6 @@ func TestUploadsFinder(t *testing.T) {
 type testCase struct {
 	schema, operation, variables string
 	withNormalization            bool
-	mapping                      map[string]string
 }
 
 func runTest(t *testing.T, tc testCase) (paths []uploads.UploadPathMapping, err error) {
@@ -208,7 +205,6 @@ type testVisitor struct {
 	*astvisitor.Walker
 
 	operation, definition *ast.Document
-	variables             *astjson.Value
 	findUploads           *uploads.UploadFinder
 
 	uploadPaths []uploads.UploadPathMapping

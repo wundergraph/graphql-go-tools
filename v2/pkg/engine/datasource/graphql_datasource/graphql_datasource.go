@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 	"unicode"
 
 	"github.com/buger/jsonparser"
@@ -124,14 +123,6 @@ func (p *Planner[T]) EnableDebugQueryPlanLogging() {
 
 func (p *Planner[T]) IncludeQueryPlanInFetchConfiguration() {
 	p.includeQueryPlanInFetchConfiguration = true
-}
-
-func (p *Planner[T]) parentNodeIsAbstract() bool {
-	if len(p.parentTypeNodes) < 2 {
-		return false
-	}
-	parentTypeNode := p.parentTypeNodes[len(p.parentTypeNodes)-2]
-	return parentTypeNode.Kind.IsAbstractType()
 }
 
 func (p *Planner[T]) EnterVariableDefinition(ref int) {
@@ -389,11 +380,6 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		QueryPlan:                             p.queryPlan,
 		OperationName:                         p.propagatedOperationName,
 	}
-}
-
-func (p *Planner[T]) shouldSelectSingleEntity() bool {
-	return p.dataSourcePlannerConfig.HasRequiredFields() &&
-		p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
 }
 
 func (p *Planner[T]) requiresEntityFetch() bool {
@@ -899,18 +885,6 @@ func (p *Planner[T]) handleOnTypeInlineFragment() {
 	}
 }
 
-func (p *Planner[T]) fieldDefinition(fieldName, typeName string) *ast.FieldDefinition {
-	node, ok := p.visitor.Definition.Index.FirstNodeByNameStr(typeName)
-	if !ok {
-		return nil
-	}
-	definition, ok := p.visitor.Definition.NodeFieldDefinitionByName(node, []byte(fieldName))
-	if !ok {
-		return nil
-	}
-	return &p.visitor.Definition.FieldDefinitions[definition]
-}
-
 // isOnTypeInlineFragmentAllowed returns false if we already have an entity fragment with the same type name
 func (p *Planner[T]) isOnTypeInlineFragmentAllowed() bool {
 	p.DebugPrint("isOnTypeInlineFragmentAllowed")
@@ -1282,11 +1256,6 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 	}
 }
 
-const (
-	normalizationFailedErrMsg  = "upstream operation: normalization failed: %s"
-	printOperationFailedErrMsg = "upstream operation: failed to print: %s"
-)
-
 func (p *Planner[T]) debugPrintOperationOnEnter(kind ast.NodeKind, ref int) {
 	if !p.debug {
 		return
@@ -1605,21 +1574,6 @@ func (p *Planner[T]) replaceQueryType(definition *ast.Document) {
 	definition.ReplaceRootOperationTypeDefinition(p.rootTypeName, ast.OperationTypeQuery)
 }
 
-// normalizeOperation normalizes operation against definition.
-func (p *Planner[T]) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report) (ok bool) {
-	report.Reset()
-	normalizer := astnormalization.NewWithOpts(
-		// we should not extract variables from the upstream operation as they will be lost
-		// cause when we are building an input we use our own variables
-		astnormalization.WithRemoveFragmentDefinitions(),
-		astnormalization.WithRemoveUnusedVariables(),
-		astnormalization.WithInlineFragmentSpreads(),
-	)
-	normalizer.NormalizeOperation(operation, definition, report)
-
-	return !report.HasErrors()
-}
-
 // handleFieldAlias determines the appropriate field name and alias for a given field reference.
 func (p *Planner[T]) handleFieldAlias(ref int) (newFieldName string, alias ast.Alias) {
 	fieldName := p.visitor.Operation.FieldNameString(ref)
@@ -1921,36 +1875,6 @@ func (s *Source) cleanupVariables(variables []byte, undefinedVariables []string)
 	return variables
 }
 
-// removeEmptyObjects removes empty objects from JSON: {"b": "b", "c": {}} -> {"b": "b"}
-func (s *Source) removeEmptyObjects(variables []byte) []byte {
-	var changed bool
-	for {
-		variables, changed = s.replaceEmptyObject(variables)
-		if !changed {
-			break
-		}
-	}
-	return variables
-}
-
-func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
-	if i := bytes.Index(variables, []byte(":{}")); i != -1 {
-		end := i + 3
-		hasTrailingComma := false
-		if variables[end] == ',' {
-			end++
-			hasTrailingComma = true
-		}
-		startQuote := bytes.LastIndex(variables[:i-2], []byte("\""))
-		if !hasTrailingComma && variables[startQuote-1] == ',' {
-			startQuote--
-		}
-		return append(variables[:startQuote], variables[end:]...), true
-	}
-
-	return variables, false
-}
-
 func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	input = s.compactAndUnNullVariables(input)
 	return httpclient.DoMultipartForm(s.httpClient, ctx, headers, input, files)
@@ -1976,9 +1900,6 @@ type GraphQLSubscriptionOptions struct {
 	ForwardedClientHeaderNames              []string            `json:"forwarded_client_header_names"`
 	ForwardedClientHeaderRegularExpressions []RegularExpression `json:"forwarded_client_header_regular_expressions"`
 	WsSubProtocol                           string              `json:"ws_sub_protocol"`
-	readTimeout                             time.Duration
-	pingInterval                            time.Duration
-	pingTimeout                             time.Duration
 }
 
 type GraphQLBody struct {

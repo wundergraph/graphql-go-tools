@@ -513,23 +513,6 @@ func (v *Visitor) resolveFieldPosition(ref int) resolve.Position {
 	}
 }
 
-func (v *Visitor) resolveSkipIncludeOnParent() (info skipIncludeInfo, ok bool) {
-	if len(v.skipIncludeOnFragments) == 0 {
-		return skipIncludeInfo{}, false
-	}
-
-	for _, ancestor := range slices.Backward(v.Walker.Ancestors) {
-		if ancestor.Kind != ast.NodeKindInlineFragment {
-			continue
-		}
-		if info, ok := v.skipIncludeOnFragments[ancestor.Ref]; ok {
-			return info, true
-		}
-	}
-
-	return skipIncludeInfo{}, false
-}
-
 func (v *Visitor) resolveOnTypeNames(fieldRef int, fieldName ast.ByteSlice) (onTypeNames [][]byte) {
 	if len(v.Walker.Ancestors) < 2 {
 		return nil
@@ -947,42 +930,6 @@ func (v *Visitor) resolveFieldExport(fieldRef int) *resolve.FieldExport {
 	}
 }
 
-func (v *Visitor) fieldRequiresExportedVariable(fieldRef int) bool {
-	for _, arg := range v.Operation.Fields[fieldRef].Arguments.Refs {
-		if v.valueRequiresExportedVariable(v.Operation.Arguments[arg].Value) {
-			return true
-		}
-	}
-	return false
-}
-
-func (v *Visitor) valueRequiresExportedVariable(value ast.Value) bool {
-	switch value.Kind {
-	case ast.ValueKindVariable:
-		name := v.Operation.VariableValueNameString(value.Ref)
-		if _, ok := v.exportedVariables[name]; ok {
-			return true
-		}
-		return false
-	case ast.ValueKindList:
-		for _, ref := range v.Operation.ListValues[value.Ref].Refs {
-			if v.valueRequiresExportedVariable(v.Operation.Values[ref]) {
-				return true
-			}
-		}
-		return false
-	case ast.ValueKindObject:
-		for _, ref := range v.Operation.ObjectValues[value.Ref].Refs {
-			if v.valueRequiresExportedVariable(v.Operation.ObjectFieldValue(ref)) {
-				return true
-			}
-		}
-		return false
-	default:
-		return false
-	}
-}
-
 func (v *Visitor) EnterOperationDefinition(opRef int) {
 	operationName := v.Operation.OperationDefinitionNameString(opRef)
 	if v.OperationName != operationName {
@@ -1034,46 +981,6 @@ func (v *Visitor) EnterOperationDefinition(opRef int) {
 	}
 }
 
-// TODO: cleanup - field alias override logic is disabled
-func (v *Visitor) resolveFieldPath(ref int) []string {
-	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
-	fieldName := v.Operation.FieldNameUnsafeString(ref)
-	plannerConfig := v.currentOrParentPlannerConfiguration(ref)
-
-	aliasOverride := false
-	if plannerConfig != nil && plannerConfig.Planner() != nil {
-		behavior := plannerConfig.DataSourceConfiguration().PlanningBehavior()
-		aliasOverride = behavior.OverrideFieldPathFromAlias
-	}
-
-	for i := range v.Config.Fields {
-		if v.Config.Fields[i].TypeName == typeName && v.Config.Fields[i].FieldName == fieldName {
-			if aliasOverride {
-				override, exists := plannerConfig.DownstreamResponseFieldAlias(ref)
-				if exists {
-					return []string{override}
-				}
-			}
-			if aliasOverride && v.Operation.FieldAliasIsDefined(ref) {
-				return []string{v.Operation.FieldAliasString(ref)}
-			}
-			if v.Config.Fields[i].DisableDefaultMapping {
-				return nil
-			}
-			if len(v.Config.Fields[i].Path) != 0 {
-				return v.Config.Fields[i].Path
-			}
-			return []string{fieldName}
-		}
-	}
-
-	if aliasOverride {
-		return []string{v.Operation.FieldAliasOrNameString(ref)}
-	}
-
-	return []string{fieldName}
-}
-
 func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.Operation, v.Definition = operation, definition
 }
@@ -1092,43 +999,6 @@ var (
 	templateRegex = regexp.MustCompile(`{{.*?}}`)
 	selectorRegex = regexp.MustCompile(`{{\s*\.(.*?)\s*}}`)
 )
-
-func (v *Visitor) currentOrParentPlannerConfiguration(fieldRef int) PlannerConfiguration {
-	// TODO: this method should be dropped it is unnecessary expensive
-
-	const none = -1
-	currentPath := v.currentFullPath(false)
-	plannerIndex := none
-	plannerPathDeepness := none
-
-	for i := range v.planners {
-		v.planners[i].ForEachPath(func(plannerPath *pathConfiguration) bool {
-			if v.isCurrentOrParentPath(currentPath, plannerPath.path) {
-				currentPlannerPathDeepness := v.pathDeepness(plannerPath.path)
-				if currentPlannerPathDeepness > plannerPathDeepness {
-					plannerPathDeepness = currentPlannerPathDeepness
-					plannerIndex = i
-					return true
-				}
-			}
-			return false
-		})
-	}
-
-	if plannerIndex != none {
-		return v.planners[plannerIndex]
-	}
-
-	return nil
-}
-
-func (v *Visitor) isCurrentOrParentPath(currentPath string, parentPath string) bool {
-	return strings.HasPrefix(currentPath, parentPath)
-}
-
-func (v *Visitor) pathDeepness(path string) int {
-	return strings.Count(path, ".")
-}
 
 func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input *string, variables *resolve.Variables) {
 	*input = templateRegex.ReplaceAllStringFunc(*input, func(s string) string {

@@ -8722,8 +8722,6 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	})
 }
 
-type runTestOnTestDefinitionOptions func(planConfig *plan.Configuration)
-
 func runTestOnTestDefinition(t *testing.T, operation, operationName string, expectedPlan plan.Plan) func(t *testing.T) {
 	config := plan.Configuration{
 		DataSources: []plan.DataSource{
@@ -10039,43 +10037,6 @@ type Review {
   product: Product!
   notes: String
   likes(filterToPublicOnly: Boolean): Int!
-}
-
-type User {
-  id: ID!
-  username: String!
-  reviews: [Review]
-}
-`
-
-const federationTestSchemaWithRename = `
-scalar String
-scalar Int
-scalar ID
-scalar XBoolean
-
-schema {
-	query: Query
-}
-
-type Product {
-  upc: String!
-  name: String!
-  price: Int!
-  reviews: [Review]
-}
-
-type Query {
-  me: User
-  topProducts(first: Int = 5): [Product]
-}
-
-type Review {
-  body: String!
-  author: User!
-  product: Product!
-  notes: String
-  likes(filterToPublicOnly: XBoolean!): Int!
 }
 
 type User {

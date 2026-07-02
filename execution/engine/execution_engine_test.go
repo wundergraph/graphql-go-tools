@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -170,21 +169,6 @@ func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.Pl
 
 	cfg, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		id,
-		factory,
-		metadata,
-		customConfig,
-	)
-	require.NoError(t, err)
-
-	return cfg
-}
-
-func mustGraphqlDataSourceConfigurationWithName(t *testing.T, id, name string, factory plan.PlannerFactory[graphql_datasource.Configuration], metadata *plan.DataSourceMetadata, customConfig graphql_datasource.Configuration) plan.DataSourceConfiguration[graphql_datasource.Configuration] {
-	t.Helper()
-
-	cfg, err := plan.NewDataSourceConfigurationWithName[graphql_datasource.Configuration](
-		id,
-		name,
 		factory,
 		metadata,
 		customConfig,
@@ -6517,15 +6501,6 @@ type Review {
 `
 
 	return graphql.NewSchemaFromString(rawSchema)
-}
-
-func newPollingUpstreamHandler() http.Handler {
-	counter := 0
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		counter++
-		respBody := fmt.Sprintf(`{"counter":%d}`, counter)
-		_, _ = w.Write([]byte(respBody))
-	})
 }
 
 const testSubscriptionDefinition = `
