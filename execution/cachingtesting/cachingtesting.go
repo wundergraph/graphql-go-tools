@@ -8,6 +8,7 @@ package cachingtesting
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -253,6 +254,20 @@ func ResolveDeferResponseWith(tb testing.TB, resp *resolve.GraphQLDeferResponse,
 	_, err := r.ResolveGraphQLDeferResponse(ctx, resp, writer)
 	require.NoError(tb, err)
 	require.True(tb, writer.complete)
+}
+
+// PrettyPlan renders the ENTIRE execution plan as one engine-pretty-printed
+// string — the initial tree plus every defer group, each cached fetch carrying
+// its cache config line — so plan tests assert the complete plan at once and
+// read top to bottom.
+func PrettyPlan(result PlanResult) string {
+	var b strings.Builder
+	b.WriteString(result.Response.Fetches.QueryPlan().PrettyPrint())
+	for _, group := range DeferGroups(result.DeferResponse) {
+		fmt.Fprintf(&b, "Deferred (id: %d) ", group.DeferID)
+		b.WriteString(group.Fetches.QueryPlan().PrettyPrint())
+	}
+	return b.String()
 }
 
 // DeferGroups flattens a defer response's groups (the extracted Defers list

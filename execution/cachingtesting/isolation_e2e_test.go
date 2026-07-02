@@ -1,7 +1,6 @@
 package cachingtesting
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -10,7 +9,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/cache/cachetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // isolationCaching configures two sibling root fields on the products
@@ -26,36 +24,31 @@ func isolationCaching() map[string]cacheconfig.CachingConfiguration {
 	}
 }
 
-// renderFetchIsolation walks a fetch tree rendering path, cache name/TTL, and
-// dependency edges per fetch — the isolation shape in one string per fetch.
-func renderFetchIsolation(node *resolve.FetchTreeNode) []string {
-	if node == nil {
-		return nil
-	}
-	var out []string
-	if node.Item != nil && node.Item.Fetch != nil {
-		cfg := node.Item.Fetch.CacheConfig()
-		cacheName, ttl := "<nil>", time.Duration(0)
-		if cfg != nil {
-			cacheName, ttl = cfg.CacheName, cfg.TTL
-		}
-		out = append(out, fmt.Sprintf("path:%q cache:%s ttl:%s dependsOn:%v",
-			node.Item.ResponsePath, cacheName, ttl, node.Item.Fetch.Dependencies().DependsOnFetchIDs))
-	}
-	for _, child := range node.ChildNodes {
-		out = append(out, renderFetchIsolation(child)...)
-	}
-	return out
-}
-
 // TestRootFieldIsolationPlans covers the plan-level isolation rows.
 func TestRootFieldIsolationPlans(t *testing.T) {
 	t.Run("two cached siblings with different policies become two parallel fetches", func(t *testing.T) {
 		result := Plan(t, `{ products(first: 1) { upc } promotions { upc } }`, isolationCaching(), nil)
-		assert.Equal(t, []string{
-			`path:"" cache:products-cache ttl:1m0s dependsOn:[]`,
-			`path:"" cache:promotions-cache ttl:5m0s dependsOn:[]`,
-		}, renderFetchIsolation(result.Response.Fetches))
+		assert.Equal(t, `QueryPlan {
+  Parallel {
+    Fetch(service: "0") {
+      Cache: {l1:false l2:true cacheName:products-cache ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:RootField type:Query field:products candidates:0 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+      {
+          products(first: $a){
+              upc
+          }
+      }
+    }
+    Fetch(service: "0") {
+      Cache: {l1:false l2:true cacheName:promotions-cache ttl:5m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:RootField type:Query field:promotions candidates:0 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+      {
+          promotions {
+              upc
+          }
+      }
+    }
+  }
+}
+`, PrettyPlan(result))
 	})
 
 	t.Run("cached + uncached sibling: cached isolated, uncached separate without config", func(t *testing.T) {
@@ -67,17 +60,43 @@ func TestRootFieldIsolationPlans(t *testing.T) {
 			},
 		}
 		result := Plan(t, `{ products(first: 1) { upc } promotions { upc } }`, caching, nil)
-		assert.Equal(t, []string{
-			`path:"" cache:products-cache ttl:1m0s dependsOn:[]`,
-			`path:"" cache:<nil> ttl:0s dependsOn:[]`,
-		}, renderFetchIsolation(result.Response.Fetches))
+		assert.Equal(t, `QueryPlan {
+  Parallel {
+    Fetch(service: "0") {
+      Cache: {l1:false l2:true cacheName:products-cache ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:RootField type:Query field:products candidates:0 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+      {
+          products(first: $a){
+              upc
+          }
+      }
+    }
+    Fetch(service: "0") {
+      {
+          promotions {
+              upc
+          }
+      }
+    }
+  }
+}
+`, PrettyPlan(result))
 	})
 
 	t.Run("caching off: one merged fetch, byte-identical to the pre-isolation plan", func(t *testing.T) {
 		result := Plan(t, `{ products(first: 1) { upc } promotions { upc } }`, nil, nil)
-		assert.Equal(t, []string{
-			`path:"" cache:<nil> ttl:0s dependsOn:[]`,
-		}, renderFetchIsolation(result.Response.Fetches))
+		assert.Equal(t, `QueryPlan {
+  Fetch(service: "0") {
+    {
+        products(first: $a){
+            upc
+        }
+        promotions {
+            upc
+        }
+    }
+  }
+}
+`, PrettyPlan(result))
 	})
 
 	t.Run("entity-root-node trap: a nested entity under an isolated root still merges into its subtree", func(t *testing.T) {
@@ -86,12 +105,38 @@ func TestRootFieldIsolationPlans(t *testing.T) {
 			"inventory": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
 		})
 		// TWO fetches only: the isolated products root (its own subtree intact)
-		// and the inventory entity fetch depending on it — the products
+		// and the inventory entity fetch sequenced after it — the products
 		// subtree was NOT torn apart into more fetches.
-		assert.Equal(t, []string{
-			`path:"" cache:products-cache ttl:1m0s dependsOn:[]`,
-			`path:"products" cache:<nil> ttl:0s dependsOn:[0]`,
-		}, renderFetchIsolation(result.Response.Fetches))
+		assert.Equal(t, `QueryPlan {
+  Sequence {
+    Fetch(service: "0") {
+      Cache: {l1:false l2:true cacheName:products-cache ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:RootField type:Query field:products candidates:0 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+      {
+          products(first: $a){
+              upc
+              __typename
+          }
+      }
+    }
+    Fetch(service: "1") {
+      {
+        fragment Key on Product {
+            __typename
+            upc
+        }
+      } =>
+      {
+          _entities(representations: $representations){
+              ... on Product {
+                  __typename
+                  stock
+              }
+          }
+      }
+    }
+  }
+}
+`, PrettyPlan(result))
 
 		body := ResolveResponse(t, result.Response, nil)
 		assert.Equal(t, `{"data":{"products":[{"upc":"1","stock":5}]}}`, body)
@@ -100,14 +145,36 @@ func TestRootFieldIsolationPlans(t *testing.T) {
 	t.Run("defer composition: an isolated root's deferred sub-fetch lands in its defer group", func(t *testing.T) {
 		result := Plan(t, `{ products(first: 1) { upc ... @defer { stock } } }`, isolationCaching(), nil)
 		require.NotNil(t, result.DeferResponse)
-		assert.Equal(t, []string{
-			`path:"" cache:products-cache ttl:1m0s dependsOn:[]`,
-		}, renderFetchIsolation(result.Response.Fetches))
-		groups := DeferGroups(result.DeferResponse)
-		require.Len(t, groups, 1)
-		assert.Equal(t, []string{
-			`path:"products" cache:<nil> ttl:0s dependsOn:[0]`,
-		}, renderFetchIsolation(groups[0].Fetches))
+		assert.Equal(t, `QueryPlan {
+  Fetch(service: "0") {
+    Cache: {l1:false l2:true cacheName:products-cache ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:RootField type:Query field:products candidates:0 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+    {
+        products(first: $a){
+            upc
+            __typename
+        }
+    }
+  }
+}
+Deferred (id: 1) QueryPlan {
+  Fetch(service: "1") {
+    {
+      fragment Key on Product {
+          __typename
+          upc
+      }
+    } =>
+    {
+        _entities(representations: $representations){
+            ... on Product {
+                __typename
+                stock
+            }
+        }
+    }
+  }
+}
+`, PrettyPlan(result))
 	})
 }
 
