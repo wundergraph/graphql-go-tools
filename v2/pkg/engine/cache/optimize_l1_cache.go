@@ -14,7 +14,11 @@ import (
 // fetch can serve (canRead) drops its eligibility. The configurator is the
 // SOLE eligibility setter; this pass NEVER turns L1 on. Wrong narrowing costs
 // only a missed hit, never correctness.
-type optimizeL1Cache struct{}
+type optimizeL1Cache struct {
+	// treeParents is the per-run tree ancestry (index of the enclosing tree,
+	// -1 for roots); see optimize.
+	treeParents []int
+}
 
 // entityFetchInfo is the narrowing view of one L1-relevant entity fetch.
 type entityFetchInfo struct {
@@ -32,7 +36,20 @@ type entityFetchInfo struct {
 // optimize runs the cross-tree narrowing over ALL fetch trees of one response
 // (the root tree and every defer group — the L1 store is request-lifetime, so
 // provider/consumer pairs span trees).
-func (o *optimizeL1Cache) optimize(trees []*resolve.FetchTreeNode) {
+func (o *optimizeL1Cache) optimize(trees []*resolve.FetchTreeNode, treeParents []int) {
+	// treeParents encodes the defer-group ancestry (parent tree index per
+	// tree, -1 for roots); nil defaults to "tree 0 encloses every other
+	// tree" — the plain root-before-defers rule.
+	o.treeParents = treeParents
+	if len(o.treeParents) != len(trees) {
+		o.treeParents = make([]int, len(trees))
+		for i := range o.treeParents {
+			o.treeParents[i] = 0
+		}
+		if len(o.treeParents) > 0 {
+			o.treeParents[0] = -1
+		}
+	}
 	var entities []*entityFetchInfo
 	// dependencies indexes EVERY fetch in the trees (cached or not): a
 	// provider/consumer chain routinely passes THROUGH unconfigured fetches
@@ -185,11 +202,32 @@ func (o *optimizeL1Cache) hasValidConsumer(provider *entityFetchInfo, candidates
 // edge. Defer groups among themselves stay unordered (conservative: they may
 // run in parallel).
 func (o *optimizeL1Cache) executesBefore(a, b *entityFetchInfo, dependencies map[int][]int) bool {
-	if a.treeIndex == 0 && b.treeIndex > 0 {
+	if o.treeEncloses(a.treeIndex, b.treeIndex) {
 		return true
 	}
 	visited := make(map[int]bool)
 	return o.isInDependencyChain(b.dependsOn, a.fetchID, dependencies, visited)
+}
+
+// treeEncloses reports whether tree a is a strict ancestor of tree b: the
+// resolver resolves a parent defer group fully before its children (and the
+// initial tree before every group), so ancestor-tree fetches execute before
+// every descendant-tree fetch. SIBLING groups stay unordered (parallel).
+func (o *optimizeL1Cache) treeEncloses(a, b int) bool {
+	if a == b {
+		return false
+	}
+	for cur := b; cur >= 0 && cur < len(o.treeParents); {
+		parent := o.treeParents[cur]
+		if parent == a {
+			return true
+		}
+		if parent == cur {
+			return false
+		}
+		cur = parent
+	}
+	return false
 }
 
 func (o *optimizeL1Cache) isInDependencyChain(dependsOn []int, targetID int, dependencies map[int][]int, visited map[int]bool) bool {

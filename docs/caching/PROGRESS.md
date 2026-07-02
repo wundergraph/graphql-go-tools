@@ -27,13 +27,13 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 15 | entity-cache reuse | done | 44011a84 | Spec carries the FULL entity candidate set (first pass had mapping-only — E3 backfill impossible there); EntityMergePath finally populated; v1 variable-name constraint documented; reviews/15-*.md. |
 | 16 | optimizeL1Cache pass | done | abe90ce7 | Ordering = dependency edges + TREE order (deviation, argued in reviews/16); schema-name+args field matching; first-pass union aliasing bug fixed and pinned; reviews/16-*.md. |
 | 17 | L1 runtime store | done | 36ac68c5 | Pointer store, shared keys, L1-first ladder; fixed heap-mode StructuralCopy passthrough + optimize-pass chain break; H4 resolved (shadow stashes L1 selections); reviews/17-*.md. |
-| 18 | defer + concurrency coverage | todo | — | — |
+| 18 | defer + concurrency coverage | done | (see git log) | First-pass gap CLOSED (N1/N2/M3 proven e2e); flushed-out fix: defer-group ANCESTRY ordering (treeParents via DeferDescriptors.ParentID); N4 via Flushed gate channel (synctest incompatible with engine goroutines); reviews/18-*.md. |
 | 19 | partial fetching | todo | — | — |
 | 20 | ART observability | todo | — | — |
 
 ## Current focus
 
-- Next step: task 18 (defer + concurrency coverage; deps 10 + 17 are done).
+- Next step: task 19 (partial fetching; deps 10 + 17 are done).
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -96,3 +96,6 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 17: `CacheTransaction.StructuralCopy` was an identity passthrough in heap mode (DeepCopy(nil) returns v; resolve.go:361 runs a nil-arena loader) — heap mode now forces a real copy via marshal round-trip.
 - Task 17: the optimize-pass ordering walk now indexes EVERY fetch (chains pass through unconfigured hops: products→reviews→products); the l1_e2e chain fixture is the live proof.
 - Task 17: H4 = shadow stashes L1-selected values too (read-never-serve absolute); the L1 negative sentinel ignores the NegativeCacheTTL knob (in-request facts).
+- Task 18: executesBefore now uses defer-group ANCESTRY (treeEncloses over treeParents; postprocess derives them from DeferDescriptors.ParentID) — nested groups order after their parents; siblings stay unordered.
+- Task 18: a nested @defer with a SUBSET selection is normalized away — nested-group fixtures must select via a different path (the reviews hop back to the same entity).
+- Task 18: synctest bubbles deadlock on engine-lifetime goroutines (WS ping loops, resolver heartbeat) — defer-frame ordering tests gate on the writer's Flushed channel instead.
