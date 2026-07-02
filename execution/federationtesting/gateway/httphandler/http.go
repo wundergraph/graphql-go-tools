@@ -31,12 +31,14 @@ func (g *GraphQLHTTPRequestHandler) handleHTTP(w http.ResponseWriter, r *http.Re
 
 	if g.enableART {
 		tracingOpts := resolve.TraceOptions{
-			Enable:                                 true,
-			ExcludePlannerStats:                    false,
-			ExcludeRawInputData:                    false,
-			ExcludeInput:                           false,
-			ExcludeOutput:                          false,
-			ExcludeLoadStats:                       false,
+			Enable:              true,
+			ExcludePlannerStats: false,
+			ExcludeRawInputData: false,
+			ExcludeInput:        false,
+			ExcludeOutput:       false,
+			// Load stats are connection-timing noise that only bloats the ART
+			// golden files — the tests never assert on them.
+			ExcludeLoadStats:                       true,
 			EnablePredictableDebugTimings:          true,
 			Debug:                                  true,
 			IncludeTraceOutputInResponseExtensions: true,
