@@ -2,6 +2,7 @@ package cachingtesting
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -314,13 +315,15 @@ func TestDeferSingleFlush(t *testing.T) {
 	require.Len(t, ops, 4)
 	// Both lookups (initial + deferred group) precede BOTH writes: the single
 	// request-end flush carries the initial fetch's write and the group's.
-	assert.Equal(t, "Get", ops[0].Kind)
-	assert.Equal(t, "Get", ops[1].Kind)
-	assert.Equal(t, "Set", ops[2].Kind)
-	assert.Equal(t, "Set", ops[3].Kind)
+	assert.Equal(t, []string{"Get", "Get", "Set", "Set"}, []string{ops[0].Kind, ops[1].Kind, ops[2].Kind, ops[3].Kind})
+	// The two flush writes drain a map, so their order is free — sort, then
+	// pin the complete value set.
 	values := []string{ops[2].Value, ops[3].Value}
-	assert.Contains(t, values, `{"__typename":"Product","stock":5}`)
-	assert.Contains(t, values, `{"__typename":"Product","warehouse":{"__typename":"Warehouse","id":"w1","location":"Berlin"}}`)
+	slices.Sort(values)
+	assert.Equal(t, []string{
+		`{"__typename":"Product","stock":5}`,
+		`{"__typename":"Product","warehouse":{"__typename":"Warehouse","id":"w1","location":"Berlin"}}`,
+	}, values)
 }
 
 // TestDeferSkipDoesNotReorderFrames (N4): a SkipFullHit on one sibling group
@@ -376,8 +379,10 @@ func TestDeferSkipDoesNotReorderFrames(t *testing.T) {
 	waitFor("the initial frame flush", writer.Flushed)
 	waitFor("the L1-served sibling's frame flush", writer.Flushed)
 	framesBeforeRelease := writer.Frames()
-	require.Len(t, framesBeforeRelease, 2)
-	assert.Contains(t, framesBeforeRelease[1], `"data":{"stock":5}`)
+	require.Equal(t, []string{
+		`{"data":{"me":{"favoriteProduct":{"upc":"1","stock":5}},"products":[{"upc":"1"}]},"pending":[{"id":"1","path":["products"]},{"id":"2","path":["products"]}],"hasNext":true}`,
+		`{"incremental":[{"data":{"stock":5},"id":"1","subPath":[0]}],"completed":[{"id":"1"}],"hasNext":true}`,
+	}, framesBeforeRelease)
 
 	close(release)
 	select {
@@ -389,8 +394,7 @@ func TestDeferSkipDoesNotReorderFrames(t *testing.T) {
 	waitFor("the gated sibling's frame flush", writer.Flushed)
 	frames := writer.Frames()
 	require.Len(t, frames, 3)
-	assert.Contains(t, frames[2], `"data":{"warehouse":{"id":"w1"}}`)
-	assert.True(t, strings.HasSuffix(frames[2], `"hasNext":false}`))
+	assert.Equal(t, `{"incremental":[{"data":{"warehouse":{"id":"w1"}},"id":"2","subPath":[0]}],"completed":[{"id":"2"}],"hasNext":false}`, frames[2])
 }
 
 // erroringResultCache fails OnFetchResult when the fresh response contains
@@ -447,17 +451,48 @@ func TestDeferHookErrorIsolation(t *testing.T) {
 		inner:  cachetesting.NewRealishCache(cachetesting.NewFakeStore(), nil),
 		marker: "warehouse",
 	}
-	frames := ResolveDeferResponse(t, result.DeferResponse, controller)
-	require.Len(t, frames, 3)
-	assert.Equal(t,
+
+	// Parallel sibling groups flush in either order — gate the ERRORING group's
+	// subgraph fetch until the healthy sibling's frame has flushed, so the frame
+	// order is channel-deterministic and every frame can be pinned in full.
+	arrived := make(chan string, 4)
+	release := make(chan struct{})
+	result.Gate("inventory", "products", cachetesting.DataSourceGate{Arrived: arrived, Release: release})
+
+	writer := &deferFrameWriter{Flushed: make(chan struct{}, 8)}
+	done := make(chan error, 1)
+	ctx := resolve.NewContext(t.Context())
+	ctx.SetCacheController(controller)
+	r := resolve.New(t.Context(), resolve.ResolverOptions{MaxConcurrency: 16})
+	go func() {
+		_, err := r.ResolveGraphQLDeferResponse(ctx, result.DeferResponse, writer)
+		done <- err
+	}()
+
+	waitFor := func(what string, ch <-chan struct{}) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(30 * time.Second):
+			t.Fatalf("timed out waiting for %s", what)
+		}
+	}
+	waitFor("the initial frame flush", writer.Flushed)
+	waitFor("the healthy sibling's frame flush", writer.Flushed)
+	close(release)
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("timed out waiting for the defer resolve to complete")
+	}
+	waitFor("the erroring group's frame flush", writer.Flushed)
+
+	// The erroring group's frame carries ONLY the hook failure (no warehouse
+	// data); the sibling's frame is complete and unaffected.
+	assert.Equal(t, []string{
 		`{"data":{"me":{"favoriteProduct":{"upc":"1"}},"products":[{"upc":"2"}]},"pending":[{"id":"1","path":["me","favoriteProduct"]},{"id":"2","path":["products"]}],"hasNext":true}`,
-		frames[0])
-	// One frame carries the erroring group's hook failure; the OTHER carries
-	// the sibling's complete data — unaffected. (Parallel siblings flush in
-	// either order; match by content.)
-	joined := strings.Join(frames[1:], " ")
-	assert.Contains(t, joined, `"errors":[{"message":"cache hook failed"}]`)
-	assert.Contains(t, joined, `"data":{"stock":5}`)
-	assert.NotContains(t, joined, `"warehouse"`)
-	assert.True(t, strings.HasSuffix(frames[2], `"hasNext":false}`))
+		`{"incremental":[{"data":{"stock":5},"id":"1"}],"completed":[{"id":"1"}],"hasNext":true}`,
+		`{"completed":[{"id":"2","errors":[{"message":"cache hook failed"}]}],"hasNext":false}`,
+	}, writer.Frames())
 }

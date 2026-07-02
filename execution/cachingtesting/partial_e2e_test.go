@@ -53,8 +53,7 @@ func TestPartialBatchEndToEnd(t *testing.T) {
 	// The EXACT subgraph input: only the missing representation was sent.
 	inputs := second.Inputs("reviews", "products")
 	require.Len(t, inputs, 1)
-	assert.Contains(t, inputs[0], `"representations":[{"__typename":"Product","upc":"2"}]`)
-	assert.NotContains(t, inputs[0], `"upc":"1"`)
+	assert.Equal(t, `{"method":"POST","url":"http://reviews.service","header":{},"body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename reviews {body}}}}","variables":{"representations":[{"__typename":"Product","upc":"2"}]}}}`, inputs[0])
 }
 
 // TestPartialExpiryEndToEnd: mixed TTLs across subgraphs — when one policy's

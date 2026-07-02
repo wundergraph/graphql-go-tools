@@ -409,6 +409,9 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 }
 
 func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
+	// Deferred BEFORE the arena acquire below, so EndRequest runs AFTER the
+	// arena is released — safe because EndRequest is arena-free by contract
+	// (see RequestCache.EndRequest).
 	defer ctx.endCacheRequest()
 
 	resp := &GraphQLResolveInfo{}
@@ -510,6 +513,8 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 }
 
 func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDeferResponse, writer DeferResponseWriter) (*GraphQLResolveInfo, error) {
+	// EndRequest runs after the request arenas are released; it is arena-free
+	// by contract (see RequestCache.EndRequest).
 	defer ctx.endCacheRequest()
 
 	resolveInfo := &GraphQLResolveInfo{}
@@ -926,6 +931,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	defer cancel()
 
 	resolveCtx = resolveCtx.WithContext(ctx)
+	// EndRequest runs after resolveArena is released back to the pool below;
+	// it is arena-free by contract (see RequestCache.EndRequest).
 	defer resolveCtx.endCacheRequest()
 
 	// Copy the input.

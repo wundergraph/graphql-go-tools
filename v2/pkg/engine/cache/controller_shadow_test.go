@@ -188,6 +188,29 @@ func TestControllerShadowRows(t *testing.T) {
 		assert.Empty(t, store.ops)
 	})
 
+	t.Run("[H] a shadow probe never populates L1: the second read still probes L2", func(t *testing.T) {
+		store := newTestStore()
+		cfg := shadowConfig(t) // L1 + L2 + shadow
+		key := primeShadow(t, store, cfg)
+		store.ops = nil // the shadow request's ops assert in isolation
+
+		rc := NewController(store, nil).BeginRequest(nil)
+		_, handleA := prepare(t, rc, cfg, productItem(t, "1"))
+		stashA, okA := handleA.ShadowStash[0]
+		require.True(t, okA)
+		assert.Equal(t, fresh, string(stashA.CachedValue.MarshalTo(nil)))
+		_, handleB := prepare(t, rc, cfg, productItem(t, "1"))
+		stashB, okB := handleB.ShadowStash[0]
+		require.True(t, okB)
+		assert.Equal(t, fresh, string(stashB.CachedValue.MarshalTo(nil)))
+		// BOTH reads hit L2: only SERVED values enter the request's L1, and a
+		// shadow probe serves nothing.
+		assert.Equal(t, []testStoreOp{
+			{Kind: "Get", Key: key},
+			{Kind: "Get", Key: key},
+		}, store.ops)
+	})
+
 	t.Run("[H] shadow miss is a plain fetch (no stash, no shadow decision)", func(t *testing.T) {
 		store := newTestStore()
 		cfg := shadowConfig(t)

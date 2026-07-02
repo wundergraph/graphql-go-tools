@@ -201,6 +201,22 @@ func TestFetchCacheConfiguratorEntityArm(t *testing.T) {
 				return newEntityConfigurator(t, productProviders(fullPolicy))
 			},
 		},
+		{
+			// An abstract-path entity fetch can collect one root coordinate
+			// per enclosing concrete type; policy and key spec both derive
+			// from RootFields[0].TypeName, so mixed types decline entirely.
+			name: "mixed entity types decline caching",
+			fetch: &resolve.EntityFetch{Info: &resolve.FetchInfo{
+				DataSourceID: "products",
+				RootFields: []resolve.GraphCoordinate{
+					{TypeName: "Product", FieldName: "name"},
+					{TypeName: "User", FieldName: "username"},
+				},
+			}},
+			cfg: func(t *testing.T) *fetchCacheConfigurator {
+				return newEntityConfigurator(t, productProviders(fullPolicy))
+			},
+		},
 	}
 	for _, row := range nilRows {
 		t.Run(row.name, func(t *testing.T) {

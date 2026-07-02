@@ -642,7 +642,11 @@ func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resol
 	for _, hit := range hits {
 		state.FromCacheCandidates = append(state.FromCacheCandidates, hit.candidate)
 		if hit.cached != nil && hit.cached.Type() == astjson.TypeNull {
-			// Sentinels never enter the positive selection ladder below.
+			// Sentinels never enter the positive selection ladder below; the
+			// nil placeholder keeps parsed POSITIONALLY ALIGNED with
+			// FromCacheCandidates, so the ladder reads each selected value's
+			// OWN RemainingTTL (the ladder skips nil entries).
+			parsed = append(parsed, nil)
 			continue
 		}
 		parsed = append(parsed, hit.cached)
@@ -659,7 +663,7 @@ func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resol
 	}
 	if state.NegativeHit {
 		state.ServedFromLayer = "l2"
-		if cfg.L1 {
+		if cfg.L1 && !cfg.ShadowMode {
 			r.populateL1(tx, &state)
 		}
 		return state, missedKeys, mustWriteBack
@@ -670,7 +674,10 @@ func (r *requestCache) prepareItemState(tx *resolve.CacheTransaction, cfg *resol
 	if state.FromCache != nil {
 		state.ServedFromLayer = "l2"
 	}
-	if cfg.L1 && state.FromCache != nil {
+	// Only SERVED values may enter the shared L1. Under shadow the selection is
+	// a probe that the stash clears right after this returns — leaking it into
+	// L1 would let a sibling L1 reader serve a value shadow mode never served.
+	if cfg.L1 && !cfg.ShadowMode && state.FromCache != nil {
 		r.populateL1(tx, &state)
 	}
 	return state, missedKeys, mustWriteBack || state.NeedsWriteback
@@ -782,6 +789,16 @@ func (r *requestCache) spliceCachedItem(tx *resolve.CacheTransaction, cfg *resol
 		}
 	}
 
+	if !r.useL2(cfg) {
+		// L1-only: a served hit owes no L2 write-backs (there may be no store
+		// at all) — refresh, backfill, and pending-candidate renders are L2
+		// duties.
+		return nil
+	}
+	if !item.NeedsWriteback && len(missed) == 0 && len(item.PendingCandidates) == 0 {
+		// Pure hit with nothing owed: skip the marshal entirely (hot path).
+		return nil
+	}
 	value := item.FromCache.MarshalTo(nil)
 	if item.NeedsWriteback {
 		// The served value was synthesized or older-but-covering: rewrite
@@ -942,6 +959,13 @@ func (r *requestCache) OnFetchResult(h *resolve.FetchCacheHandle, in resolve.Mer
 // response still cannot render is skipped silently — best-effort, never
 // required). Shared by OnFetchResult and the partial arm.
 func (r *requestCache) writeFetchedValue(tx *resolve.CacheTransaction, cfg *resolve.FetchCacheConfig, h *resolve.FetchCacheHandle, item *resolve.ItemCacheState, itemToStore *astjson.Value, provides *resolve.Object) {
+	if itemToStore == nil || itemToStore.Type() == astjson.TypeNull {
+		// A null element is a MISSING entity, not a value: storing it would
+		// fabricate a negative sentinel under the positive TTL (bypassing the
+		// NegativeCacheTTL knob). Negative caching rides the loader's
+		// whole-response EmptyEntity signal only.
+		return
+	}
 	toStore := itemToStore
 	if provides != nil && provides.HasAliases {
 		toStore = normalizeToSchema(tx, r.ctx, itemToStore, provides)

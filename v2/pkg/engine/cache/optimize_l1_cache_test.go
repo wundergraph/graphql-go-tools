@@ -181,6 +181,19 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 		assert.False(t, l1Of(deferB))
 	})
 
+	t.Run("a malformed treeParents cycle degrades to unordered, never hangs", func(t *testing.T) {
+		// treeParents crosses the public ConfigureCaching API: probing whether
+		// the ROOT tree encloses a member of a 1<->2 parent cycle must
+		// terminate (the walk never reaches -1), leaving root and cycle
+		// unordered — the root provider loses its only consumer and both
+		// narrow off.
+		provider := narrowingFetch(1, nil, "Product", narrowingTree("name", "price"), true, true)
+		consumer := narrowingFetch(4, nil, "Product", narrowingTree("name"), true, true)
+		pass.optimize([]*resolve.FetchTreeNode{tree(provider), tree(consumer), tree()}, []int{-1, 2, 1})
+		assert.False(t, l1Of(provider))
+		assert.False(t, l1Of(consumer))
+	})
+
 	t.Run("determinism: a second run leaves the narrowed state unchanged", func(t *testing.T) {
 		provider := narrowingFetch(1, nil, "Product", narrowingTree("name", "price"), true, true)
 		consumer := narrowingFetch(2, []int{1}, "Product", narrowingTree("name"), true, true)

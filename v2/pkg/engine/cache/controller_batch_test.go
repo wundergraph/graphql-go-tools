@@ -164,4 +164,33 @@ func TestControllerBatchRows(t *testing.T) {
 		key := handle.Items[0].RenderedKeys[0]
 		assert.Equal(t, []testStoreOp{{Kind: "Get", Key: key}}, store.ops)
 	})
+
+	t.Run("[I6] a null batch element writes nothing: never a fake negative sentinel", func(t *testing.T) {
+		store := newTestStore()
+		cfg := entityConfig(t, time.Minute)
+		rc := newRC(store)
+		buckets := [][]*astjson.Value{{productItem(t, "1")}, {productItem(t, "2")}}
+		decision, handle := rc.PrepareFetch(batchInput(cfg, buckets...))
+		require.Equal(t, resolve.DecisionFetch, decision)
+		require.NoError(t, rc.OnFetchResult(handle, resolve.MergeInput{
+			BatchStats:   buckets,
+			ResponseData: astjson.MustParseBytes([]byte(`[null,{"__typename":"Product","name":"Desk","price":80}]`)),
+			Arena:        beginner(),
+		}))
+		rc.EndRequest()
+		missingKey := handle.Items[0].RenderedKeys[0]
+		foundKey := handle.Items[1].RenderedKeys[0]
+		// The null element writes NOTHING: caching it under cfg.TTL would read
+		// back as a negative hit and bypass the NegativeCacheTTL knob.
+		assert.Equal(t, []testStoreOp{
+			{Kind: "Get", Key: missingKey},
+			{Kind: "Get", Key: foundKey},
+			{Kind: "Set", Key: foundKey, Value: `{"__typename":"Product","name":"Desk","price":80}`, TTL: time.Minute, Reason: resolve.CacheWriteReasonRefresh},
+		}, store.ops)
+		// Neither layer holds the missing entity: the next lookup is a plain
+		// miss, never a negative hit.
+		decisionB, handleB := prepare(t, rc, cfg, productItem(t, "1"))
+		assert.Equal(t, resolve.DecisionFetch, decisionB)
+		assert.False(t, handleB.Items[0].NegativeHit)
+	})
 }

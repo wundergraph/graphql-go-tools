@@ -464,13 +464,24 @@ func SwapDataSources(node *resolve.FetchTreeNode, reg *FakeRegistry) {
 	}
 }
 
-// LoadCount returns how often the datasource identified by name + path loaded.
+// LoadCount returns how often the datasource identified by name + path
+// loaded, or -1 when no such datasource was ever swapped in (counters are
+// created eagerly at swap time) — a typo'd name/path pair can then never
+// satisfy a zero-loads assertion vacuously.
 func (r *FakeRegistry) LoadCount(name, path string) int64 {
-	return r.loadCounter(name, path).Load()
+	key := name + ":" + path
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	counter := r.loads[key]
+	if counter == nil {
+		return -1
+	}
+	return counter.Load()
 }
 
 // Inputs returns the exact input bytes every Load of the datasource
-// identified by name + path received, in order.
+// identified by name + path received, in order. An unknown pair returns nil —
+// assert LoadCount alongside when "no inputs" is the expectation.
 func (r *FakeRegistry) Inputs(name, path string) []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()

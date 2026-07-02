@@ -149,6 +149,36 @@ func TestControllerL1Rows(t *testing.T) {
 		assert.Empty(t, store.ops)
 	})
 
+	t.Run("L1-only: a hit owing a pending-candidate render still emits ZERO store ops", func(t *testing.T) {
+		store := newTestStore()
+		cfg := multiKeyConfig(t) // sku + upc candidates
+		cfg.TTL = 0
+		cfg.L1, cfg.L2 = true, false
+		rc := NewController(store, nil).BeginRequest(nil)
+
+		// Fetch A renders only upc; the response carries sku, so L1 holds the
+		// value under BOTH keys.
+		itemA := astjson.MustParseBytes([]byte(`{"__typename":"Product","upc":"1"}`))
+		l1Fetch(t, rc, cfg, itemA, astjson.MustParseBytes([]byte(`{"__typename":"Product","name":"Table","price":100,"sku":"S1"}`)))
+
+		// Fetch B misses sku again: its PENDING sku candidate renders from the
+		// SERVED value at splice time — an L2 write-back duty that must stay
+		// gated off without L2.
+		itemB := astjson.MustParseBytes([]byte(`{"__typename":"Product","upc":"1"}`))
+		decision, handleB := prepare(t, rc, cfg, itemB)
+		assert.Equal(t, resolve.DecisionSkipFullHit, decision)
+		require.Len(t, handleB.Items[0].PendingCandidates, 1)
+		require.NoError(t, rc.OnFetchSkipped(handleB, resolve.MergeInput{
+			Items: []*astjson.Value{itemB},
+			Arena: beginner(),
+		}))
+		rc.EndRequest()
+		assert.Equal(t,
+			`{"__typename":"Product","upc":"1","name":"Table","price":100,"sku":"S1"}`,
+			string(itemB.MarshalTo(nil)))
+		assert.Empty(t, store.ops)
+	})
+
 	t.Run("negative L1: an EmptyEntity result serves the next lookup as a negative hit", func(t *testing.T) {
 		store := newTestStore()
 		cfg := entityConfig(t, 0)

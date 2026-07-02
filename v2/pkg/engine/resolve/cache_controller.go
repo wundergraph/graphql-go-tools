@@ -39,14 +39,15 @@ type RequestCache interface {
 	PrepareFetch(in PrepareFetchInput) (Decision, *FetchCacheHandle)
 
 	// OnFetchSkipped runs after the merge phase when PrepareFetch returned
-	// DecisionSkipFullHit (or DecisionFetchPartial). It splices the chosen,
-	// already-reordered cached values into the merge targets and may emit
-	// best-effort multi-key write-back / backfill writes. The fetch did not hit
-	// the network.
+	// DecisionSkipFullHit. It splices the chosen, already-reordered cached
+	// values into the merge targets and may emit best-effort multi-key
+	// write-back / backfill writes. The fetch did not hit the network.
 	OnFetchSkipped(h *FetchCacheHandle, in MergeInput) error
 
 	// OnFetchResult runs after the merge phase following a real network fetch
-	// (DecisionFetch or DecisionFetchShadow). It applies the write gate
+	// (DecisionFetch, DecisionFetchShadow, or DecisionFetchPartial — the
+	// partial arm splices the cached items and realigns + merges the fetched
+	// ones in this same hook). It applies the write gate
 	// (!FetchFailed && !HasErrors && ResponseData != nil && Type() != Null;
 	// EmptyEntity is the one non-failure that still writes the negative
 	// sentinel), re-renders pending candidate keys from the fresh data, and
@@ -56,7 +57,12 @@ type RequestCache interface {
 
 	// EndRequest runs once after the root tree AND every defer group have
 	// resolved, single-threaded. It flushes batched L2 writes and finalizes
-	// analytics/trace. It needs no lock and no arena.
+	// analytics/trace. It needs no lock and no arena — and it MUST NOT touch
+	// one: on the arena entry paths it runs via defer AFTER the request arena
+	// is released back to its pool, so dereferencing any arena-owned
+	// astjson.Value still held on a handle (ItemCacheState.Item / FromCache,
+	// ShadowStash values) reads reset or reused memory. Everything EndRequest
+	// consumes must be plain heap data (strings, durations, copied bytes).
 	EndRequest()
 }
 
@@ -206,6 +212,9 @@ func (h *FetchCacheHandle) String() string {
 // ItemCacheState is the per-item cache payload, one per merge target.
 // PrepareFetch writes every field except NegativeHit / WriteReason (stamped in
 // OnFetchResult from the fresh response); the merge hooks read it.
+// Item and FromCache may be arena-owned: they are valid inside the fetch-phase
+// hooks only and MUST NOT be dereferenced at EndRequest time (a nil-check is
+// fine — see RequestCache.EndRequest).
 type ItemCacheState struct {
 	Item      *astjson.Value // splice target / write source
 	FromCache *astjson.Value // chosen + reordered cached value; nil = miss, TypeNull = negative hit

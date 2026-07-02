@@ -43,6 +43,12 @@ type FetchCacheConfig struct {
 
 // Equals deep-compares two configs so plan dedup can never lose or conflate
 // cache policy. It is nil-safe: two nils are equal, nil never equals non-nil.
+// ProvidesData is compared by response SHAPE (Object.Equals); the cache alias
+// metadata on it (OriginalName / CacheArgs / HasAliases) is not compared.
+// That is sound because fetch dedup additionally requires byte-identical
+// rendered Input (FetchConfiguration.Equals), which pins the alias/argument
+// structure — and the production dedup pass runs before configs are attached
+// (postprocess: dedupe precedes ConfigureCaching).
 func (c *FetchCacheConfig) Equals(other *FetchCacheConfig) bool {
 	if c == nil || other == nil {
 		return c == other

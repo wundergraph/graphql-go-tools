@@ -202,5 +202,7 @@ func TestFakeRegistrySwapDataSources(t *testing.T) {
 	assert.Equal(t, int64(1), reg.LoadCount("products", "topProducts"))
 	assert.Equal(t, int64(1), reg.LoadCount("reviews", "topProducts.reviews"))
 	assert.Equal(t, int64(1), reg.LoadCount("inventory", "other"))
-	assert.Equal(t, int64(0), reg.LoadCount("products", "unknown"))
+	// A never-swapped name/path pair is -1, never 0: a typo cannot satisfy a
+	// zero-loads assertion vacuously.
+	assert.Equal(t, int64(-1), reg.LoadCount("products", "unknown"))
 }
