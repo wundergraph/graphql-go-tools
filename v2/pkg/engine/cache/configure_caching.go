@@ -46,7 +46,14 @@ func NewConfigurator(providers map[string]cacheconfig.CacheConfigProvider, feder
 // trees. It must run AFTER createConcreteSingleFetchTypes (the concrete fetch
 // types carry the config) and BEFORE organizeFetchTree/buildDeferTree (it
 // expects the flat trees).
-func (c *Configurator) ConfigureCaching(response *resolve.GraphQLResponse, trees ...*resolve.FetchTreeNode) {
+//
+// treeParents gives the narrowing pass the defer-group ancestry: one entry per
+// tree, the index of the tree whose group ENCLOSES it (-1 for a root). The
+// resolver resolves a parent group fully before its children, so an ancestor
+// tree's fetches execute before every descendant tree's. Pass nil when there
+// is only the root tree (or when ancestry is unknown — the pass then assumes
+// only root-before-defers).
+func (c *Configurator) ConfigureCaching(response *resolve.GraphQLResponse, treeParents []int, trees ...*resolve.FetchTreeNode) {
 	if len(c.providers) == 0 {
 		// The single planner no-op gate: no caching configured, nothing runs.
 		return
@@ -54,5 +61,5 @@ func (c *Configurator) ConfigureCaching(response *resolve.GraphQLResponse, trees
 	for _, tree := range trees {
 		c.configurator.configureTree(response, tree)
 	}
-	c.l1.optimize(trees)
+	c.l1.optimize(trees, treeParents)
 }

@@ -52,7 +52,7 @@ func TestConfigureCachingNoOpGate(t *testing.T) {
 		c := NewConfigurator(nil, nil, nil)
 		tree := fetchTreeFixture()
 		response := &resolve.GraphQLResponse{Fetches: tree}
-		c.ConfigureCaching(response, tree)
+		c.ConfigureCaching(response, nil, tree)
 		assert.Equal(t, fetchTreeFixture(), tree)
 		assert.Nil(t, tree.ChildNodes[0].Item.Fetch.CacheConfig())
 		assert.Nil(t, tree.ChildNodes[1].Item.Fetch.CacheConfig())
@@ -65,7 +65,7 @@ func TestConfigureCachingNoOpGate(t *testing.T) {
 		c := NewConfigurator(providers, nil, nil)
 		tree := fetchTreeFixture()
 		response := &resolve.GraphQLResponse{Fetches: tree}
-		c.ConfigureCaching(response, tree)
+		c.ConfigureCaching(response, nil, tree)
 		assert.Equal(t, fetchTreeFixture(), tree)
 		assert.Nil(t, tree.ChildNodes[0].Item.Fetch.CacheConfig())
 		assert.Nil(t, tree.ChildNodes[1].Item.Fetch.CacheConfig())

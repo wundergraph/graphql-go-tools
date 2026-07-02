@@ -54,27 +54,27 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 	t.Run("provider/consumer pair via a dependency edge keeps both", func(t *testing.T) {
 		provider := narrowingFetch(1, nil, "Product", narrowingTree("name", "price"), true, true)
 		consumer := narrowingFetch(2, []int{1}, "Product", narrowingTree("name"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(provider, consumer)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(provider, consumer)}, nil)
 		assert.True(t, l1Of(provider))
 		assert.True(t, l1Of(consumer))
 	})
 
 	t.Run("a lone fetch is narrowed off", func(t *testing.T) {
 		lone := narrowingFetch(1, nil, "Product", narrowingTree("name"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(lone)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(lone)}, nil)
 		assert.False(t, l1Of(lone))
 	})
 
 	t.Run("narrowing a lone L1-only fetch re-nils the inert config", func(t *testing.T) {
 		lone := narrowingFetch(1, nil, "Product", narrowingTree("name"), true, false)
-		pass.optimize([]*resolve.FetchTreeNode{tree(lone)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(lone)}, nil)
 		assert.Nil(t, lone.Item.Fetch.CacheConfig())
 	})
 
 	t.Run("never turns L1 on: a configurator-false fetch stays false despite a pair", func(t *testing.T) {
 		provider := narrowingFetch(1, nil, "Product", narrowingTree("name", "price"), false, true)
 		consumer := narrowingFetch(2, []int{1}, "Product", narrowingTree("name"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(provider, consumer)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(provider, consumer)}, nil)
 		assert.False(t, l1Of(provider))
 		// The consumer's only candidate provider is ineligible: no pair, off.
 		assert.False(t, l1Of(consumer))
@@ -84,7 +84,7 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 		providerA := narrowingFetch(1, nil, "Product", narrowingTree("name"), true, true)
 		providerB := narrowingFetch(2, nil, "Product", narrowingTree("price"), true, true)
 		consumer := narrowingFetch(3, []int{1, 2}, "Product", narrowingTree("name", "price"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(providerA, providerB, consumer)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(providerA, providerB, consumer)}, nil)
 		assert.True(t, l1Of(providerA))
 		assert.True(t, l1Of(providerB))
 		assert.True(t, l1Of(consumer))
@@ -94,7 +94,7 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 		relevant := narrowingFetch(1, nil, "Product", narrowingTree("name"), true, true)
 		irrelevant := narrowingFetch(2, nil, "Product", narrowingTree("weight"), true, true)
 		consumer := narrowingFetch(3, []int{1, 2}, "Product", narrowingTree("name"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(relevant, irrelevant, consumer)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(relevant, irrelevant, consumer)}, nil)
 		assert.True(t, l1Of(relevant))
 		// Shares NO field with the consumer: the union fallback must not keep
 		// it merely because the OTHER provider covers the consumer.
@@ -105,7 +105,7 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 	t.Run("partial overlap without full coverage narrows both off", func(t *testing.T) {
 		provider := narrowingFetch(1, nil, "Product", narrowingTree("name", "price"), true, true)
 		consumer := narrowingFetch(2, []int{1}, "Product", narrowingTree("price", "weight"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(provider, consumer)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(provider, consumer)}, nil)
 		assert.False(t, l1Of(provider))
 		assert.False(t, l1Of(consumer))
 	})
@@ -113,7 +113,7 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 	t.Run("empty union: a consumer with no prior providers is narrowed off", func(t *testing.T) {
 		later := narrowingFetch(2, nil, "Product", narrowingTree("name"), true, true)
 		unrelated := narrowingFetch(1, nil, "User", narrowingTree("name"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(unrelated, later)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(unrelated, later)}, nil)
 		assert.False(t, l1Of(later))
 		assert.False(t, l1Of(unrelated))
 	})
@@ -122,7 +122,7 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 		provider := narrowingFetch(1, nil, "Product", narrowingTree("name", "price"), true, true)
 		bridge := narrowingFetch(2, []int{1}, "User", narrowingTree("id"), true, true)
 		consumer := narrowingFetch(3, []int{2}, "Product", narrowingTree("name"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(provider, bridge, consumer)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(provider, bridge, consumer)}, nil)
 		assert.True(t, l1Of(provider))
 		assert.True(t, l1Of(consumer))
 		assert.False(t, l1Of(bridge))
@@ -133,21 +133,30 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 		// order relates them.
 		provider := narrowingFetch(1, nil, "Product", narrowingTree("name", "price"), true, true)
 		consumer := narrowingFetch(7, []int{5}, "Product", narrowingTree("name"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(provider), tree(consumer)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(provider), tree(consumer)}, nil)
 		assert.True(t, l1Of(provider))
 		assert.True(t, l1Of(consumer))
 
 		// Per-tree-only behavior is rejected: the SAME shapes narrowed off when
 		// the pass only sees the root tree.
 		soloProvider := narrowingFetch(1, nil, "Product", narrowingTree("name", "price"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(soloProvider)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(soloProvider)}, nil)
 		assert.False(t, l1Of(soloProvider))
+	})
+
+	t.Run("a parent defer group orders before its NESTED child group", func(t *testing.T) {
+		provider := narrowingFetch(3, nil, "Product", narrowingTree("name", "price"), true, true)
+		consumer := narrowingFetch(4, nil, "Product", narrowingTree("name"), true, true)
+		// treeParents: tree 1 (outer group) encloses tree 2 (nested group).
+		pass.optimize([]*resolve.FetchTreeNode{tree(), tree(provider), tree(consumer)}, []int{-1, 0, 1})
+		assert.True(t, l1Of(provider))
+		assert.True(t, l1Of(consumer))
 	})
 
 	t.Run("defer groups among themselves stay unordered", func(t *testing.T) {
 		deferA := narrowingFetch(3, nil, "Product", narrowingTree("name", "price"), true, true)
 		deferB := narrowingFetch(4, nil, "Product", narrowingTree("name"), true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(), tree(deferA), tree(deferB)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(), tree(deferA), tree(deferB)}, nil)
 		assert.False(t, l1Of(deferA))
 		assert.False(t, l1Of(deferB))
 	})
@@ -157,9 +166,9 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 		consumer := narrowingFetch(2, []int{1}, "Product", narrowingTree("name"), true, true)
 		lone := narrowingFetch(3, nil, "User", narrowingTree("id"), true, true)
 		trees := []*resolve.FetchTreeNode{tree(provider, consumer, lone)}
-		pass.optimize(trees)
+		pass.optimize(trees, nil)
 		first := []bool{l1Of(provider), l1Of(consumer), l1Of(lone)}
-		pass.optimize(trees)
+		pass.optimize(trees, nil)
 		assert.Equal(t, first, []bool{l1Of(provider), l1Of(consumer), l1Of(lone)})
 		assert.Equal(t, []bool{true, true, false}, first)
 	})
@@ -181,7 +190,7 @@ func TestOptimizeL1CacheRows(t *testing.T) {
 				{Name: []byte("location"), Value: &resolve.Scalar{Path: []string{"location"}}},
 			}}},
 		}}, true, true)
-		pass.optimize([]*resolve.FetchTreeNode{tree(providerA, providerB, consumer)})
+		pass.optimize([]*resolve.FetchTreeNode{tree(providerA, providerB, consumer)}, nil)
 		assert.True(t, l1Of(consumer)) // served by the recursive union
 		// The FIRST-PASS aliasing bug: the union merged INTO provider A's live
 		// tree. A's brand object must still have exactly its own field.
