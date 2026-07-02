@@ -1129,6 +1129,33 @@ func TestExecutionValidation(t *testing.T) {
 								}`, FieldSelectionMerging(), Invalid,
 							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
 					})
+					t.Run("allows differing return type nullability on interface vs non implementing type with relaxation", func(t *testing.T) {
+						runWithDefinition(t, boxDefinition, `
+								{
+									someBox {
+										... on NonNullStringBox1 {
+										scalar
+										}
+										... on StringBox {
+										scalar
+										}
+									}
+								}`, FieldSelectionMerging(true), Valid)
+					})
+					t.Run("rejects differing return type nullability on interface vs implementing type even with relaxation", func(t *testing.T) {
+						runWithDefinition(t, boxDefinition, `
+								{
+									someBox {
+										... on SomeBox {
+										scalar
+										}
+										... on NonNullStringBox1Impl {
+										scalar
+										}
+									}
+								}`, FieldSelectionMerging(true), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String' and 'String!'`))
+					})
 					t.Run("same wrapped scalar return types", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
 							{

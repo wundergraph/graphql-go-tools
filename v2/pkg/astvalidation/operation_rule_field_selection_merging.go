@@ -217,14 +217,20 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 // to the same runtime object. This determines whether field merging must enforce
 // strict type equality (including nullability) or may relax it.
 //
-//   - If either type is an interface, returns true (conservative: any concrete
-//     type might implement that interface).
+//   - If one type is an interface and the other is an object, returns true only
+//     when the object type implements the interface (otherwise they cannot overlap).
+//   - If both types are interfaces, returns true (conservative: some concrete
+//     type might implement both).
 //   - Two object types overlap only when they share the same name.
 //   - All other combinations return false.
 func (f *fieldSelectionMergingVisitor) potentiallySameObject(left, right ast.Node) bool {
 	switch {
-	case left.Kind == ast.NodeKindInterfaceTypeDefinition || right.Kind == ast.NodeKindInterfaceTypeDefinition:
+	case left.Kind == ast.NodeKindInterfaceTypeDefinition && right.Kind == ast.NodeKindInterfaceTypeDefinition:
 		return true
+	case left.Kind == ast.NodeKindInterfaceTypeDefinition && right.Kind == ast.NodeKindObjectTypeDefinition:
+		return f.definition.NodeImplementsInterfaceNode(right, left)
+	case left.Kind == ast.NodeKindObjectTypeDefinition && right.Kind == ast.NodeKindInterfaceTypeDefinition:
+		return f.definition.NodeImplementsInterfaceNode(left, right)
 	case left.Kind == ast.NodeKindObjectTypeDefinition && right.Kind == ast.NodeKindObjectTypeDefinition:
 		return bytes.Equal(f.definition.ObjectTypeDefinitionNameBytes(left.Ref), f.definition.ObjectTypeDefinitionNameBytes(right.Ref))
 	default:
