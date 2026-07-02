@@ -489,6 +489,10 @@ func (l *Loader) cachePrepare(prepared *preparedFetch) {
 		// so no spurious "failed to fetch" error is rendered for the empty res.out.
 		prepared.skipLoad = true
 		prepared.res.fetchSkipped = true
+		if prepared.trace != nil {
+			// The ART trace reports the skipped load like every other skip.
+			prepared.trace.LoadSkipped = true
+		}
 	case DecisionFetchPartial:
 		// Partial: the network call carries the REDUCED input (missing
 		// representations only) and the loader's own positional data merge is
