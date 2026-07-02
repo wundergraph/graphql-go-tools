@@ -1,0 +1,10 @@
+extend type Query {
+    deal(id: ID!): Deal
+}
+type Deal {
+    id: ID!
+    product: Product!
+}
+extend type Product @key(fields: "sku") {
+    sku: String! @external
+}

@@ -110,9 +110,24 @@ type result struct {
 	//	[item1, item3], // merge response[1] into item1 and item3
 	//
 	// ]
-	batchStats       [][]*astjson.Value
+	batchStats [][]*astjson.Value
+	// cachePartial marks a DecisionFetchPartial fetch: mergeResult stops after
+	// response/error processing and leaves the data merge to the cache hook
+	// (the reduced response is positionally misaligned with batchStats).
+	cachePartial     bool
 	fetchSkipped     bool
 	nestedMergeItems []*result
+
+	// response / responseData / responseHasErrors surface what mergeResult
+	// already computes to the cache merge hook: the FULL parsed response (the
+	// input isEmptyEntityFetch needs), the data sub-path (what a cache would
+	// persist), and the GraphQL-errors flag. response is assigned only after a
+	// successful parse, so response == nil is the structural fetch-failed
+	// signal (transport / empty body / parse failure). All three are dead
+	// weight when caching is off (written, never read).
+	response          *astjson.Value
+	responseData      *astjson.Value
+	responseHasErrors bool
 
 	statusCode int
 	err        error
@@ -394,10 +409,27 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	if prepared == nil {
 		return nil
 	}
+	// The two cache hooks bracket the network load and run OUTSIDE the phase
+	// locks, so the controller's CacheTransaction is the single DataBuffer.Lock
+	// acquisition around its arena work. Both are no-ops when no cache
+	// controller is set.
+	l.cachePrepare(prepared)
+	if prepared.batchAssembly != nil && !prepared.skipLoad {
+		var keep []bool
+		if prepared.cacheHandle != nil {
+			keep = prepared.cacheHandle.BatchFetchKeep
+		}
+		if err := l.assembleBatchInput(prepared, keep); err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	if err := l.loadPhase(ctx, prepared); err != nil {
 		return errors.WithStack(err)
 	}
-	return l.mergePhase(prepared)
+	if err := l.mergePhase(prepared); err != nil {
+		return errors.WithStack(err)
+	}
+	return l.cacheMerge(prepared)
 }
 
 type preparedFetch struct {
@@ -409,6 +441,153 @@ type preparedFetch struct {
 	trace      *DataSourceLoadTrace
 	skipLoad   bool
 	batchFetch bool
+	// batchAssembly defers the batch input assembly until AFTER the cache
+	// decision: the final input is rendered exactly once, containing only the
+	// representations the network fetch still needs (no parse-back filtering).
+	batchAssembly *batchInputAssembly
+	// cacheHandle is the opaque per-fetch cache state returned by PrepareFetch,
+	// threaded to the merge hook; nil when the controller did not touch the fetch.
+	cacheHandle *FetchCacheHandle
+}
+
+// assembleBatchInput renders the FINAL batch input (the assembly filtered by
+// keep, nil = all buckets), then runs the tracing-skip branch and the
+// pre-fetch validation that operate on the final bytes.
+func (l *Loader) assembleBatchInput(prepared *preparedFetch, keep []bool) error {
+	fetchInput, err := prepared.batchAssembly.assemble(prepared.res.tools.a, keep)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	if l.ctx.TracingOptions.Enable && prepared.res.fetchSkipped {
+		l.setTracingInput(prepared.item, fetchInput, prepared.trace)
+		prepared.skipLoad = true
+		return nil
+	}
+
+	allowed, err := l.validatePreFetch(fetchInput, prepared.item.Fetch.FetchInfo(), prepared.res)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		prepared.skipLoad = true
+		return nil
+	}
+	prepared.input = fetchInput
+	return nil
+}
+
+// cacheRequest lazily obtains the request-lifetime cache working surface. The
+// once-create runs under DataBuffer.Lock so it is race-free across the
+// parallel fetches of a group and across per-defer-group Loaders (there is
+// exactly one DataBuffer per request). It does NOT hold the lock across the
+// hook: PrepareFetch / OnFetch* open their own CacheTransaction for arena work.
+func (l *Loader) cacheRequest() RequestCache {
+	if l.ctx.cacheController == nil {
+		return nil
+	}
+	l.dataBuffer.Lock()
+	defer l.dataBuffer.Unlock()
+	if l.ctx.requestCache == nil {
+		l.ctx.requestCache = l.ctx.cacheController.BeginRequest(l.ctx)
+	}
+	return l.ctx.requestCache
+}
+
+// cachePrepare is the pre-load cache hook: lookup + coverage + decision. It
+// early-returns on every render-skip (a fetch the loader already decided to
+// skip is not a cache decision) and when the fetch carries no cache config, so
+// the no-controller / no-config path costs nothing.
+func (l *Loader) cachePrepare(prepared *preparedFetch) {
+	if prepared == nil || prepared.skipLoad {
+		return
+	}
+	cfg := prepared.item.Fetch.CacheConfig()
+	if cfg == nil || (!cfg.L1 && !cfg.L2) {
+		return
+	}
+	rc := l.cacheRequest()
+	if rc == nil {
+		return
+	}
+	_, hash := l.ctx.HeadersForSubgraphRequest(prepared.res.ds.Name)
+	decision, handle := rc.PrepareFetch(PrepareFetchInput{
+		Ctx:        l.ctx,
+		Item:       prepared.item,
+		Items:      prepared.items,
+		Config:     cfg,
+		BatchStats: prepared.res.batchStats,
+		Input:      prepared.input,
+		HeaderHash: hash,
+		Arena:      l.cacheTransactions(),
+	})
+	prepared.cacheHandle = handle
+	switch decision {
+	case DecisionSkipFullHit:
+		// Full hit: skip the network AND the merge. skipLoad makes loadPhase
+		// early-return; fetchSkipped reuses the existing mergeResult early-return
+		// so no spurious "failed to fetch" error is rendered for the empty res.out.
+		prepared.skipLoad = true
+		prepared.res.fetchSkipped = true
+		if prepared.trace != nil {
+			// The ART trace reports the skipped load like every other skip.
+			prepared.trace.LoadSkipped = true
+		}
+	case DecisionFetchPartial:
+		// Partial: the batch input assembly (which runs after this hook)
+		// includes only the buckets handle.BatchFetchKeep marks, and the
+		// loader's own positional data merge is skipped — OnFetchResult
+		// splices the cached items and realigns + merges the fetched ones in
+		// a single hook (one lock acquisition). Error/response processing in
+		// mergeResult still runs unchanged.
+		prepared.res.cachePartial = true
+	default:
+		// DecisionFetch / DecisionFetchShadow leave the load in place; the
+		// handle drives the merge dispatch.
+	}
+}
+
+// cacheMerge is the post-merge cache hook: write / skip-splice / shadow. It is
+// gated only on the handle, so it never fires for fetches the controller did
+// not touch.
+func (l *Loader) cacheMerge(prepared *preparedFetch) error {
+	h := prepared.cacheHandle
+	if h == nil {
+		return nil
+	}
+	res := prepared.res
+	in := MergeInput{
+		Item:         prepared.item,
+		Items:        prepared.items,
+		ResponseData: res.responseData,
+		BatchStats:   res.batchStats,
+		MergePath:    res.postProcessing.MergePath,
+		HasErrors:    res.responseHasErrors,
+		FetchFailed:  res.err != nil || len(res.out) == 0 || res.response == nil,
+		StatusCode:   res.statusCode,
+		Arena:        l.cacheTransactions(),
+	}
+	if res.response != nil {
+		// Only meaningful (and only nil-safe) when a response actually parsed;
+		// on a full-hit skip res.response is nil and EmptyEntity is irrelevant
+		// because cacheMerge dispatches to OnFetchSkipped, which ignores it.
+		in.EmptyEntity = isEmptyEntityFetch(prepared.item, res.response)
+	}
+	rc := l.cacheRequest() // already created during cachePrepare; non-nil because h != nil
+	switch h.Decision {
+	case DecisionSkipFullHit:
+		return rc.OnFetchSkipped(h, in)
+	default: // DecisionFetch, DecisionFetchShadow, DecisionFetchPartial
+		// The partial arm lives in OnFetchResult too: one hook call splices
+		// the cached items AND realigns + merges + writes the fetched ones.
+		return rc.OnFetchResult(h, in)
+	}
+}
+
+// cacheTransactions returns the TransactionBeginner bound to this request's
+// shared jsonArena and DataBuffer guard. Built only when a cache hook runs.
+func (l *Loader) cacheTransactions() TransactionBeginner {
+	return cacheTransactionBeginner{a: l.jsonArena, db: l.dataBuffer}
 }
 
 func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
@@ -633,6 +812,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
+	res.response = response
 
 	if l.allowCustomExtensionProperties {
 		extensions := response.Get("extensions")
@@ -648,6 +828,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	} else {
 		responseData = response
 	}
+	res.responseData = responseData
 
 	hasErrors := false
 
@@ -678,6 +859,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			}
 		}
 	}
+	res.responseHasErrors = hasErrors
 
 	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
@@ -708,6 +890,13 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 
 		// no data
+		return nil
+	}
+
+	if res.cachePartial {
+		// Partial fetch: response and errors are fully processed above; the
+		// cache hook owns the data merge (splice + realign), so the positional
+		// merge below must not run against the REDUCED response.
 		return nil
 	}
 
@@ -1604,7 +1793,7 @@ var (
 	batchEntityToolPool = _batchEntityToolPool{}
 )
 
-func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
+func (l *Loader) prepareBatchEntityFetch(_ *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 
 	if l.ctx.TracingOptions.Enable {
@@ -1618,8 +1807,11 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 	}
 
 	res.tools = batchEntityToolPool.Get(len(items))
-	preparedInput := arena.NewArenaBuffer(res.tools.a)
+	headerInput := arena.NewArenaBuffer(res.tools.a)
+	separatorInput := arena.NewArenaBuffer(res.tools.a)
+	footerInput := arena.NewArenaBuffer(res.tools.a)
 	itemInput := arena.NewArenaBuffer(res.tools.a)
+	segments := arena.AllocateSlice[[]byte](res.tools.a, 0, len(items))
 	batchStats := arena.AllocateSlice[[]*astjson.Value](res.tools.a, 0, len(items))
 	defer func() {
 		// we need to clear the batchStats slice to avoid memory corruption
@@ -1635,12 +1827,14 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 	// I tried using arena here, but it only worsened the situation
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, headerInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	if err = fetch.Input.Separator.Render(l.ctx, nil, separatorInput); err != nil {
+		return errors.WithStack(err)
+	}
 	batchItemIndex := 0
-	addSeparator := false
 
 WithNextItem:
 	for i, item := range items {
@@ -1671,14 +1865,13 @@ WithNextItem:
 				batchStats[existingIndex] = arena.SliceAppend(res.tools.a, batchStats[existingIndex], items[i])
 				continue WithNextItem
 			} else {
-				if addSeparator {
-					err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
-					if err != nil {
-						return errors.WithStack(err)
-					}
-				}
-				_, _ = itemInput.WriteTo(preparedInput)
-				// new unique representation
+				// New unique representation: keep its rendered SEGMENT — the
+				// final input assembles AFTER the cache decision, so a partial
+				// hit sends only the still-missing representations without
+				// ever parsing the input back.
+				segment := arena.AllocateSlice[byte](res.tools.a, itemInput.Len(), itemInput.Len())
+				copy(segment, itemInput.Bytes())
+				segments = arena.SliceAppend(res.tools.a, segments, segment)
 				res.tools.batchHashToIndex[itemHash] = batchItemIndex
 				// A new targets bucket for the unique index must be allocated on the arena:
 				// a heap-allocated bucket would only be referenced from arena memory,
@@ -1687,7 +1880,6 @@ WithNextItem:
 				bucket[0] = items[i]
 				batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
 				batchItemIndex++
-				addSeparator = true
 			}
 		}
 	}
@@ -1703,17 +1895,11 @@ WithNextItem:
 		}
 	}
 
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, footerInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	fetchInput := preparedInput.Bytes()
 	// it's important to copy the *astjson.Value's off the arena to avoid memory corruption
 	res.batchStats = make([][]*astjson.Value, len(batchStats))
 	for i := range batchStats {
@@ -1721,23 +1907,18 @@ WithNextItem:
 		copy(res.batchStats[i], batchStats[i])
 	}
 
-	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
-		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
-		prepared.skipLoad = true
-		return nil
+	// The final input assembles in resolveSingle AFTER the cache decision
+	// (assembleBatchInput), so a partial hit renders only the still-missing
+	// representations; undefined-variable post-processing and the pre-fetch
+	// validation run there, on the final bytes.
+	prepared.batchAssembly = &batchInputAssembly{
+		header:             headerInput.Bytes(),
+		separator:          separatorInput.Bytes(),
+		footer:             footerInput.Bytes(),
+		segments:           segments,
+		undefinedVariables: undefinedVariables,
 	}
-
-	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		prepared.skipLoad = true
-		return nil
-	}
-
 	prepared.source = fetch.DataSource
-	prepared.input = fetchInput
 	prepared.trace = fetch.Trace
 	return nil
 }

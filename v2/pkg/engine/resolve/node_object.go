@@ -13,6 +13,12 @@ type Object struct {
 	PossibleTypes map[string]struct{} `json:"-"`
 	SourceName    string              `json:"-"`
 	TypeName      string              `json:"-"`
+
+	// HasAliases marks that somewhere below this object a field carries an
+	// OriginalName or CacheArgs, i.e. the cached (schema-named) form differs
+	// from the query's shape and needs denormalization on read. Set by the
+	// caching planner walk.
+	HasAliases bool `json:"-"`
 }
 
 func (o *Object) Copy() Node {
@@ -21,9 +27,10 @@ func (o *Object) Copy() Node {
 		fields[i] = f.Copy()
 	}
 	return &Object{
-		Nullable: o.Nullable,
-		Path:     o.Path,
-		Fields:   fields,
+		Nullable:   o.Nullable,
+		Path:       o.Path,
+		Fields:     fields,
+		HasAliases: o.HasAliases,
 	}
 }
 
@@ -109,6 +116,21 @@ type Field struct {
 	OnTypeNames       [][]byte
 	ParentOnTypeNames []ParentOnTypeNames
 	Info              *FieldInfo
+
+	// OriginalName is the schema field name when Name is an alias; nil when the
+	// field is not aliased. The cache normalizes to OriginalName on write and
+	// denormalizes back to Name on read. Set by the caching planner walk.
+	OriginalName []byte `json:"-"`
+
+	// CacheArgs are the field's arguments relevant to cache identity, used to
+	// build argument-suffix cache keys. Set by the caching planner walk.
+	CacheArgs []CacheFieldArg `json:"-"`
+}
+
+// CacheFieldArg names one field argument and the operation variable it is
+// bound to, so the cache can render argument-suffix keys per request.
+type CacheFieldArg struct {
+	Name, VariableName string
 }
 
 type ParentOnTypeNames struct {
@@ -123,14 +145,50 @@ func (f *Field) Copy() *Field {
 		deferField = &cp
 	}
 	return &Field{
-		Name:        f.Name,
-		Value:       f.Value.Copy(),
-		Position:    f.Position,
-		Defer:       deferField,
-		Stream:      f.Stream,
-		OnTypeNames: f.OnTypeNames,
-		Info:        f.Info,
+		Name:              f.Name,
+		Value:             f.Value.Copy(),
+		Position:          f.Position,
+		Defer:             deferField,
+		Stream:            f.Stream,
+		OnTypeNames:       f.OnTypeNames,
+		ParentOnTypeNames: f.ParentOnTypeNames,
+		Info:              f.Info,
+		OriginalName:      f.OriginalName,
+		CacheArgs:         slices.Clone(f.CacheArgs),
 	}
+}
+
+// ComputeHasAliases recursively checks whether any field below obj carries an
+// OriginalName or CacheArgs (i.e. the cached, schema-named form differs from
+// the query's shape) and sets HasAliases on EVERY object along the way, so the
+// runtime denormalization has a per-object fast path.
+func ComputeHasAliases(obj *Object) bool {
+	if obj == nil {
+		return false
+	}
+	hasAliases := false
+	for _, field := range obj.Fields {
+		if field.OriginalName != nil || len(field.CacheArgs) > 0 {
+			hasAliases = true
+		}
+		if computeNodeHasAliases(field.Value) {
+			hasAliases = true
+		}
+	}
+	obj.HasAliases = hasAliases
+	return hasAliases
+}
+
+func computeNodeHasAliases(node Node) bool {
+	switch n := node.(type) {
+	case *Object:
+		return ComputeHasAliases(n)
+	case *Array:
+		if n != nil && n.Item != nil {
+			return computeNodeHasAliases(n.Item)
+		}
+	}
+	return false
 }
 
 func (f *Field) Equals(n *Field) bool {

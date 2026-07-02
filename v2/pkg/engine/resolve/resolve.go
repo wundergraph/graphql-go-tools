@@ -337,6 +337,8 @@ type GraphQLResolveInfo struct {
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
+	defer ctx.endCacheRequest()
+
 	resp := &GraphQLResolveInfo{}
 
 	start := time.Now()
@@ -370,6 +372,12 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		resolvable.skipValueCompletion = loader.skipValueCompletion
 	}
 
+	if ctx.TracingOptions.Enable && ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		// The trace extension renders inside Resolve, before EndRequest can
+		// run — attach the cache traces now so it carries the cache sections.
+		ctx.flushCacheTraces()
+	}
+
 	err = resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, writer)
 	if err != nil {
 		return nil, err
@@ -381,6 +389,11 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 }
 
 func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
+	// Deferred BEFORE the arena acquire below, so EndRequest runs AFTER the
+	// arena is released — safe because EndRequest is arena-free by contract
+	// (see RequestCache.EndRequest).
+	defer ctx.endCacheRequest()
+
 	resp := &GraphQLResolveInfo{}
 
 	inflight, err := r.inboundRequestSingleFlight.GetOrCreate(ctx, response)
@@ -434,6 +447,13 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		resolvable.skipValueCompletion = loader.skipValueCompletion
 	}
 
+	if ctx.TracingOptions.Enable && ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		// The trace extension renders inside Resolve, before EndRequest can
+		// run — attach the cache traces now so it carries the cache sections.
+		// FlushTraces shares EndRequest's no-arena contract.
+		ctx.flushCacheTraces()
+	}
+
 	// only when loading is done, acquire an arena for the response buffer
 	responseArena := r.responseBufferPool.Acquire(ctx.Request.ID)
 	buf := arena.NewArenaBuffer(responseArena.Arena)
@@ -470,6 +490,10 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 }
 
 func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDeferResponse, writer DeferResponseWriter) (*GraphQLResolveInfo, error) {
+	// EndRequest runs after the request arenas are released; it is arena-free
+	// by contract (see RequestCache.EndRequest).
+	defer ctx.endCacheRequest()
+
 	resolveInfo := &GraphQLResolveInfo{}
 
 	start := time.Now()
@@ -884,6 +908,9 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	defer cancel()
 
 	resolveCtx = resolveCtx.WithContext(ctx)
+	// EndRequest runs after resolveArena is released back to the pool below;
+	// it is arena-free by contract (see RequestCache.EndRequest).
+	defer resolveCtx.endCacheRequest()
 
 	// Copy the input.
 	input := make([]byte, len(sharedInput))
