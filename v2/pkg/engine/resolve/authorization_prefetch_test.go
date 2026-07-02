@@ -520,6 +520,76 @@ func (miscountBatchAuthorizer) AuthorizeFields(_ *Context, _ []GraphCoordinate) 
 	return nil, nil
 }
 
+// A denied non-null protected child under a nullable parent that the origin DID return must produce
+// exactly one error: the walk emits it and nulls the parent, and the unreached-data sweep must not
+// re-emit the same error for the just-nulled parent.
+func TestPreFetchFieldAuthorizationNoDuplicateErrorOnNullPropagation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	service := NewMockDataSource(ctrl)
+	service.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return([]byte(`{"data":{"user":{"secret":"hidden"}}}`), nil).
+		Times(1)
+
+	response := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: service,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			InputTemplate: InputTemplate{Segments: []TemplateSegment{{SegmentType: StaticSegmentType, Data: []byte(`{}`)}}},
+			Info: &FetchInfo{
+				DataSourceID:   "users",
+				DataSourceName: "users",
+				RootFields:     []GraphCoordinate{{TypeName: "Query", FieldName: "user"}},
+			},
+		}),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("user"),
+					Info: &FieldInfo{Name: "user", ExactParentTypeName: "Query", Source: TypeFieldSource{IDs: []string{"users"}, Names: []string{"users"}}},
+					Value: &Object{
+						Path:     []string{"user"},
+						Nullable: true,
+						Fields: []*Field{
+							{
+								Name:  []byte("secret"),
+								Info:  &FieldInfo{Name: "secret", ExactParentTypeName: "User", Source: TypeFieldSource{IDs: []string{"users"}, Names: []string{"users"}}, HasAuthorizationRule: true},
+								Value: &String{Path: []string{"secret"}, Nullable: false},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	response.Info.AuthorizationCoordinates = []AuthorizationCoordinate{
+		{DataSourceID: "users", Coordinate: GraphCoordinate{TypeName: "User", FieldName: "secret"}},
+	}
+
+	authorizer := &batchTestAuthorizer{
+		decisions: map[GraphCoordinate]AuthorizationDecision{
+			{TypeName: "User", FieldName: "secret"}: {Allowed: false, Reason: "no"},
+		},
+	}
+	resolveCtx := NewContext(context.Background())
+	resolveCtx.SetPreFetchFieldAuthorizer(authorizer)
+
+	var buf bytes.Buffer
+	resolver := newResolver(context.Background())
+	_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
+	require.NoError(t, err)
+
+	assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.user.secret', Reason: no.","path":["user","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"user":null}}`, buf.String())
+}
+
 func singleFieldResponse(service DataSource, fieldName string, value Node, rootField GraphCoordinate) *GraphQLResponse {
 	return &GraphQLResponse{
 		Info: &GraphQLResponseInfo{

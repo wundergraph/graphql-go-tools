@@ -249,12 +249,17 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 
 	r.skipAddingNullErrors = r.hasErrors() && !r.hasData()
 
+	if r.ctx.preFetchFieldAuthorizer != nil {
+		// Emit errors for denied protected fields the origin never returned (empty list / null
+		// parent) BEFORE the walk, so "unreached" reflects the origin response rather than parents
+		// the walk itself nulls due to authorization. Running it afterwards would treat an
+		// auth-nulled parent as unreached and duplicate the walk's error.
+		r.appendUnauthorizedFieldErrorsForUnreachedData(rootData, r.data)
+	}
+
 	hasErrors := r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
 		return r.authorizationError
-	}
-	if r.ctx.preFetchFieldAuthorizer != nil {
-		r.appendUnauthorizedFieldErrorsForUnreachedData(rootData, r.data)
 	}
 	r.printBytes(lBrace)
 	if r.hasErrors() {
