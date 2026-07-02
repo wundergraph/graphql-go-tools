@@ -567,7 +567,10 @@ func (c *pathBuilderVisitor) handlePlanningField(fieldRef int, typeName, fieldNa
 	)
 
 	if isMutationRoot {
-		plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isMutationRoot, ds)
+		plannerIdx, planned = c.planMutationRootWithPreviousPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
+		if !planned {
+			plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isMutationRoot, ds)
+		}
 	} else {
 		plannerIdx, planned = c.planWithExistingPlanners(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
 		if !planned {
@@ -812,6 +815,58 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(fieldRef int, typeName, fi
 	}
 
 	return -1, false
+}
+
+func (c *pathBuilderVisitor) planMutationRootWithPreviousPlanner(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion) (plannerIdx int, planned bool) {
+	if suggestion == nil || !suggestion.IsRootNode {
+		return -1, false
+	}
+	if len(c.mutationRootFieldPlanners) == 0 {
+		return -1, false
+	}
+
+	previousPlannerIdx := c.mutationRootFieldPlanners[len(c.mutationRootFieldPlanners)-1]
+	if previousPlannerIdx < 0 || previousPlannerIdx >= len(c.planners) {
+		return -1, false
+	}
+
+	plannerConfig := c.planners[previousPlannerIdx]
+	dsConfiguration := plannerConfig.DataSourceConfiguration()
+	if suggestion.DataSourceHash != dsConfiguration.Hash() {
+		return -1, false
+	}
+
+	planningBehaviour := dsConfiguration.PlanningBehavior()
+	if !planningBehaviour.MergeAliasedRootNodes {
+		return -1, false
+	}
+
+	if c.secondaryRun && plannerConfig.HasPath(currentPath) {
+		return previousPlannerIdx, true
+	}
+
+	if !plannerConfig.HasPath(parentPath) && !plannerConfig.HasPath(precedingParentPath) {
+		return -1, false
+	}
+
+	if pathAdded := c.addPlannerPathForTypename(previousPlannerIdx, currentPath, parentPath, fieldRef, fieldName, typeName, planningBehaviour); pathAdded {
+		return previousPlannerIdx, true
+	}
+
+	c.addPath(previousPlannerIdx, pathConfiguration{
+		parentPath:       parentPath,
+		path:             currentPath,
+		shouldWalkFields: true,
+		typeName:         typeName,
+		fieldRef:         fieldRef,
+		fragmentRef:      ast.InvalidRef,
+		enclosingNode:    c.walker.EnclosingTypeDefinition,
+		dsHash:           dsConfiguration.Hash(),
+		isRootNode:       true,
+		pathType:         PathTypeField,
+	})
+
+	return previousPlannerIdx, true
 }
 
 func (c *pathBuilderVisitor) isParentPathIsRootOperationPath(parentPath string) bool {
