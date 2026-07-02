@@ -13,6 +13,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 // cacheProvidesDataVisitor is the P1 caching walk (PLAN.md D9): a gated
@@ -24,6 +25,24 @@ import (
 // not the path down to it). It reads planningVisitor.fieldPlanners, which the
 // main walk populates in LeaveField, so it must never run before the main
 // walk; it never re-runs the planning visitor and never rebuilds the plan.
+// walk runs the P1 caching walk on a DEDICATED walker after every planning
+// walk has finished — fieldPlanners (populated by the main walk's LeaveField)
+// is complete by then, and the planning walker's visitor set and filter stay
+// untouched. One call carries all the state the walk needs.
+func (v *cacheProvidesDataVisitor) walk(operation, definition *ast.Document, config Configuration, planners []PlannerConfiguration, fieldPlanners map[int][]int, report *operationreport.Report) {
+	walker := astvisitor.NewWalker(48)
+	v.Walker = &walker
+	v.operation = operation
+	v.definition = definition
+	v.config = config
+	v.planners = planners
+	v.fieldPlanners = fieldPlanners
+	v.reset()
+	walker.RegisterEnterFieldVisitor(v)
+	walker.RegisterLeaveFieldVisitor(v)
+	walker.Walk(operation, definition, report)
+}
+
 type cacheProvidesDataVisitor struct {
 	*astvisitor.Walker
 

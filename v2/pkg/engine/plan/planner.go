@@ -234,25 +234,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		p.planningVisitor.plan.SetCostCalculator(costCalc)
 	}
 
-	// P1 caching walk (D9): a gated SECOND, filter-free walk on the finished
-	// planningWalker. ResetVisitors drops every planning visitor (the plan is
-	// already built and is never rebuilt), the filter is cleared so P1 sees
-	// every field, and only P1 is registered for the walk.
+	// P1 caching walk (D9): a gated SECOND, filter-free walk on a DEDICATED
+	// walker, after all planning walks are done — the planning walker keeps
+	// its visitors and filter, and fieldPlanners is complete here.
 	if p.cacheProvidesData != nil {
-		p.planningWalker.ResetVisitors()
-		p.planningWalker.SetVisitorFilter(nil)
-		p.cacheProvidesData.Walker = p.planningWalker
-		p.cacheProvidesData.operation = operation
-		p.cacheProvidesData.definition = definition
-		p.cacheProvidesData.config = p.config
-		p.cacheProvidesData.planners = plannersConfigurations
-		// fieldPlanners is populated by the main walk's LeaveField; it is
-		// complete here because the main walk has finished.
-		p.cacheProvidesData.fieldPlanners = p.planningVisitor.fieldPlanners
-		p.cacheProvidesData.reset()
-		p.planningWalker.RegisterEnterFieldVisitor(p.cacheProvidesData)
-		p.planningWalker.RegisterLeaveFieldVisitor(p.cacheProvidesData)
-		p.planningWalker.Walk(operation, definition, report)
+		p.cacheProvidesData.walk(operation, definition, p.config, plannersConfigurations, p.planningVisitor.fieldPlanners, report)
 		if report.HasErrors() {
 			return
 		}
