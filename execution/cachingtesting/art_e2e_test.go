@@ -106,9 +106,19 @@ func TestARTCacheTraceEndToEnd(t *testing.T) {
 
 	t.Run("L1 hit within one request", func(t *testing.T) {
 		store := cachetesting.NewFakeStore()
-		result := Plan(t, l1ChainQuery, productL1Caching(0), l1ChainResponses())
+		// The dependency-ordered deal -> product(sku) -> reviews(upc) ->
+		// product(upc) chain: fetch B is served from L1 within the request
+		// (its canned response is TAMPERED so network use fails loudly).
+		query := `{ deal(id: "d1") { product { name reviews { product { name } } } } }`
+		responses := map[string]string{
+			"deals":                 `{"data":{"deal":{"__typename":"Deal","id":"d1","product":{"__typename":"Product","sku":"S1"}}}}`,
+			"products:deal.product": `{"data":{"_entities":[{"__typename":"Product","name":"Table","upc":"1"}]}}`,
+			"reviews":               `{"data":{"_entities":[{"__typename":"Product","reviews":[{"__typename":"Review","product":{"__typename":"Product","upc":"1"}}]}]}}`,
+			"products:deal.product.reviews.@.product": `{"data":{"_entities":[{"__typename":"Product","name":"NETWORK-MUST-NOT-SERVE"}]}}`,
+		}
+		result := Plan(t, query, productL1Caching(0), responses)
 		body := resolveTraced(t, result.Response, store)
-		assert.Equal(t, l1ChainExpected, body)
+		assert.Equal(t, `{"data":{"deal":{"product":{"name":"Table","reviews":[{"product":{"name":"Table"}}]}}}}`, body)
 		// The key hashes are deterministic (xxhash64 of the canonical key
 		// preimage), so the WHOLE cache sections pin as literals: fetch A is a
 		// plain miss+refresh (its sku-derived key; the upc candidate pending),
