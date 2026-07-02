@@ -52,8 +52,19 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	return false
 }
 
+// authorize returns the allow/deny decision for a field coordinate during response resolution,
+// memoizing the result in the allow/deny cache.
+//
+// This cache is also what prevents a field from being authorized twice under pre-fetch field
+// authorization. When that mode is enabled the batch authorizer decides every selected protected
+// coordinate up front and seeds the cache (see seedAuthorizationAllow / seedAuthorizationDeny), so
+// the lookups below always hit and AuthorizeObjectField — the data-aware, post-fetch authorizer call —
+// is never reached. AuthorizeObjectField therefore runs only in the default (disabled) mode, where no
+// decisions are seeded and each coordinate is decided here on first encounter.
 func (r *Resolvable) authorize(value *astjson.Value, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 	decisionID := authorizationDecisionID(dataSourceID, coordinate)
+	// Seeded (pre-fetch) or previously computed (post-fetch) decisions short-circuit here, so the
+	// post-fetch AuthorizeObjectField call below is skipped whenever a decision already exists.
 	if _, ok := r.authorizationAllow[decisionID]; ok {
 		return nil, nil
 	}

@@ -4,6 +4,16 @@ import (
 	"sort"
 )
 
+// CollectAuthorizationCoordinates records, on the plan's GraphQLResponseInfo, every field coordinate
+// that carries an authorization rule (@requiresScopes / @authenticated) together with the data source
+// that resolves it. It is called once at plan build — the result is request-independent and cached with
+// the plan — and drives pre-fetch field authorization: when that mode is enabled the resolver asks the
+// BatchAuthorizer to decide all of these coordinates up front, before any fetch executes.
+//
+// Coordinates are gathered from the raw fetch list, the fetch tree (the post-processor only moves
+// RawFetches into the Fetches tree after planning, so both must be covered), and the response Data tree.
+// They are deduplicated by {DataSourceID, TypeName, FieldName} and sorted for determinism. When the
+// operation selects no protected field the list is left empty, which makes the enabled mode a no-op.
 func CollectAuthorizationCoordinates(response *GraphQLResponse) {
 	if response == nil || response.Info == nil {
 		return
