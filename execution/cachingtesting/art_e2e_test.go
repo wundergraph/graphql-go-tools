@@ -109,11 +109,14 @@ func TestARTCacheTraceEndToEnd(t *testing.T) {
 		result := Plan(t, l1ChainQuery, productL1Caching(0), l1ChainResponses())
 		body := resolveTraced(t, result.Response, store)
 		assert.Equal(t, l1ChainExpected, body)
-		traces := cacheTraces(t, result.Response.Fetches)
-		require.Len(t, traces, 2)
-		assert.Contains(t, traces[0], `path:"deal.product" {"decision":"Fetch","hit":false`)
-		assert.Contains(t, traces[1], `"decision":"SkipFullHit","hit":true,"items":[{"keys":["`)
-		assert.Contains(t, traces[1], `"served_from":"l1","hit":true,"pending_candidates":1}]`)
+		// The key hashes are deterministic (xxhash64 of the canonical key
+		// preimage), so the WHOLE cache sections pin as literals: fetch A is a
+		// plain miss+refresh (its sku-derived key; the upc candidate pending),
+		// fetch B is the in-request L1 hit under the upc-derived key.
+		assert.Equal(t, []string{
+			`path:"deal.product" {"decision":"Fetch","hit":false,"items":[{"keys":["entities:f58e5d95ce10e65e"],"hit":false,"write_reason":"refresh","pending_candidates":1}]}`,
+			`path:"deal.product.reviews.@.product" {"decision":"SkipFullHit","hit":true,"items":[{"keys":["entities:153cc511c85713fb"],"served_from":"l1","hit":true,"pending_candidates":1}]}`,
+		}, cacheTraces(t, result.Response.Fetches))
 	})
 
 	t.Run("shadow compare", func(t *testing.T) {
@@ -152,11 +155,11 @@ func TestARTCacheTraceEndToEnd(t *testing.T) {
 		assert.Equal(t,
 			`{"data":{"products":[{"upc":"1","reviews":[{"body":"great table"}]},{"upc":"2","reviews":[{"body":"sturdy chair"}]}]}}`,
 			body)
-		traces := cacheTraces(t, second.Response.Fetches)
-		require.Len(t, traces, 1)
-		assert.Contains(t, traces[0], `"decision":"FetchPartial","hit":false`)
-		assert.Contains(t, traces[0], `"served_from":"l2","hit":true,"remaining_ttl_nanoseconds":-1`)
-		assert.Contains(t, traces[0], `"hit":false,"write_reason":"refresh"`)
+		// One partial fetch: bucket 1 (upc "1") served from L2 under the primed
+		// key, bucket 2 (upc "2") fetched over the reduced batch and refreshed.
+		assert.Equal(t, []string{
+			`path:"products" {"decision":"FetchPartial","hit":false,"items":[{"keys":["reviews:aa052522cb64dff0"],"served_from":"l2","hit":true,"remaining_ttl_nanoseconds":-1},{"keys":["reviews:258590a53d3c528e"],"hit":false,"write_reason":"refresh"}]}`,
+		}, cacheTraces(t, second.Response.Fetches))
 	})
 
 	t.Run("regression: tracing off leaves fetch traces nil", func(t *testing.T) {
