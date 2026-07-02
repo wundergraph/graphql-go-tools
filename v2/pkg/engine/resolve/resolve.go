@@ -356,6 +356,9 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	if err != nil {
 		return nil, err
 	}
+	if err = r.authorizeFieldsPreFetch(ctx, response, t.resolvable); err != nil {
+		return nil, err
+	}
 
 	if !ctx.ExecutionOptions.SkipLoader {
 		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
@@ -410,6 +413,11 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		r.resolveArenaPool.Release(resolveArena)
 		return nil, err
 	}
+	if err = r.authorizeFieldsPreFetch(ctx, response, t.resolvable); err != nil {
+		r.inboundRequestSingleFlight.FinishErr(inflight, err)
+		r.resolveArenaPool.Release(resolveArena)
+		return nil, err
+	}
 
 	if !ctx.ExecutionOptions.SkipLoader {
 		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
@@ -453,6 +461,40 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// we're safe to release our buffer
 	r.responseBufferPool.Release(responseArena)
 	return resp, err
+}
+
+func (r *Resolver) authorizeFieldsPreFetch(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) error {
+	if ctx.preFetchFieldAuthorizer == nil || response == nil || response.Info == nil || len(response.Info.AuthorizationCoordinates) == 0 {
+		return nil
+	}
+
+	coordinateIndex := make(map[GraphCoordinate]int, len(response.Info.AuthorizationCoordinates))
+	coordinates := make([]GraphCoordinate, 0, len(response.Info.AuthorizationCoordinates))
+	for i := range response.Info.AuthorizationCoordinates {
+		coordinate := response.Info.AuthorizationCoordinates[i].Coordinate
+		if _, exists := coordinateIndex[coordinate]; exists {
+			continue
+		}
+		coordinateIndex[coordinate] = len(coordinates)
+		coordinates = append(coordinates, coordinate)
+	}
+	decisions, err := ctx.preFetchFieldAuthorizer.AuthorizeFields(ctx, coordinates)
+	if err != nil {
+		return err
+	}
+	if len(decisions) != len(coordinates) {
+		return fmt.Errorf("batch authorizer returned %d decisions for %d coordinates", len(decisions), len(coordinates))
+	}
+	for i := range response.Info.AuthorizationCoordinates {
+		authCoordinate := response.Info.AuthorizationCoordinates[i]
+		decision := decisions[coordinateIndex[authCoordinate.Coordinate]]
+		if decision.Allowed {
+			resolvable.seedAuthorizationAllow(authCoordinate.DataSourceID, authCoordinate.Coordinate)
+		} else {
+			resolvable.seedAuthorizationDeny(authCoordinate.DataSourceID, authCoordinate.Coordinate, decision.Reason)
+		}
+	}
+	return nil
 }
 
 // trigger groups subscriptions that share a data source and input.
@@ -635,6 +677,17 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
+		}
+		return
+	}
+	if err := r.authorizeFieldsPreFetch(resolveCtx, sub.resolve.Response, t.resolvable); err != nil {
+		r.resolveArenaPool.Release(resolveArena)
+		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:authorization:failed:%d\n", sub.id.SubscriptionID)
 		}
 		if r.reporter != nil {
 			r.reporter.SubscriptionUpdateSent()

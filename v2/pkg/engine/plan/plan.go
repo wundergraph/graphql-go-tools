@@ -16,6 +16,9 @@ type Plan interface {
 	SetFlushInterval(interval int64)
 	GetCostCalculator() *CostCalculator
 	SetCostCalculator(calc *CostCalculator)
+	// CollectAuthorizationCoordinates populates the plan's response with the field coordinates that
+	// require an authorization decision, so pre-fetch field authorization can resolve them up front.
+	CollectAuthorizationCoordinates()
 }
 
 type SynchronousResponsePlan struct {
@@ -40,6 +43,10 @@ func (s *SynchronousResponsePlan) SetCostCalculator(c *CostCalculator) {
 	s.CostCalculator = c
 }
 
+func (s *SynchronousResponsePlan) CollectAuthorizationCoordinates() {
+	resolve.CollectAuthorizationCoordinates(s.Response)
+}
+
 type SubscriptionResponsePlan struct {
 	Response       *resolve.GraphQLSubscription
 	FlushInterval  int64
@@ -60,4 +67,11 @@ func (s *SubscriptionResponsePlan) GetCostCalculator() *CostCalculator {
 
 func (s *SubscriptionResponsePlan) SetCostCalculator(c *CostCalculator) {
 	s.CostCalculator = c
+}
+
+func (s *SubscriptionResponsePlan) CollectAuthorizationCoordinates() {
+	if s.Response == nil {
+		return
+	}
+	resolve.CollectAuthorizationCoordinates(s.Response.Response)
 }

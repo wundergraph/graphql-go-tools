@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
 	"github.com/wundergraph/astjson"
@@ -19,7 +18,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -254,6 +252,9 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	hasErrors := r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
 		return r.authorizationError
+	}
+	if r.ctx.preFetchFieldAuthorizer != nil {
+		r.appendUnauthorizedFieldErrorsForUnreachedData(rootData, r.data)
 	}
 	r.printBytes(lBrace)
 	if r.hasErrors() {
@@ -813,92 +814,6 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		r.printBytes(rBrace)
 	}
 	return false
-}
-
-func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipField bool) {
-	if field.Info == nil {
-		return false
-	}
-	if !field.Info.HasAuthorizationRule {
-		return false
-	}
-	if r.ctx.authorizer == nil {
-		return false
-	}
-	if len(field.Info.Source.IDs) == 0 {
-		return false
-	}
-	dataSourceID := field.Info.Source.IDs[0]
-	dataSourceName := field.Info.Source.Names[0]
-	typeName := r.objectFieldTypeName(value, field)
-	gc := GraphCoordinate{
-		TypeName:  typeName,
-		FieldName: field.Info.Name,
-	}
-	result, authErr := r.authorize(value, dataSourceID, gc)
-	if authErr != nil {
-		r.authorizationError = authErr
-		return true
-	}
-	if result != nil {
-		r.addRejectFieldError(result.Reason, DataSourceInfo{
-			ID:   dataSourceID,
-			Name: dataSourceName,
-		}, field)
-		return true
-	}
-	return false
-}
-
-func (r *Resolvable) authorize(value *astjson.Value, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
-	r.xxh.Reset()
-	_, _ = r.xxh.WriteString(dataSourceID)
-	_, _ = r.xxh.WriteString(coordinate.TypeName)
-	_, _ = r.xxh.WriteString(coordinate.FieldName)
-	decisionID := r.xxh.Sum64()
-	if _, ok := r.authorizationAllow[decisionID]; ok {
-		return nil, nil
-	}
-	if reason, ok := r.authorizationDeny[decisionID]; ok {
-		return &AuthorizationDeny{Reason: reason}, nil
-	}
-	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.marshalBuf, coordinate)
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		r.authorizationAllow[decisionID] = struct{}{}
-	} else {
-		r.authorizationDeny[decisionID] = result.Reason
-	}
-	return result, nil
-}
-
-func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field *Field) {
-	nodePath := field.Value.NodePath()
-	r.pushNodePathElement(nodePath)
-	fieldPath := r.renderFieldPath()
-
-	var errorMessage string
-	if reason == "" {
-		errorMessage = fmt.Sprintf("Unauthorized to load field '%s'.", fieldPath)
-	} else {
-		errorMessage = fmt.Sprintf("Unauthorized to load field '%s', Reason: %s.", fieldPath, reason)
-	}
-	r.ctx.appendSubgraphErrors(ds, errors.New(errorMessage),
-		NewSubgraphError(ds, fieldPath, reason, 0))
-	r.ensureErrorsInitialized()
-	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, errorMessage, errorcodes.UnauthorizedFieldOrType, r.path)
-	r.popNodePathElement(nodePath)
-}
-
-func (r *Resolvable) objectFieldTypeName(v *astjson.Value, field *Field) string {
-	typeName := v.GetStringBytes("__typename")
-	if typeName != nil {
-		return unsafebytes.BytesToString(typeName)
-	}
-	return field.Info.ExactParentTypeName
 }
 
 func (r *Resolvable) skipFieldOnParentTypeNames(field *Field) bool {
