@@ -46,17 +46,90 @@ func TestDeferL1CrossGroupServing(t *testing.T) {
 	// The reviewer-guidance plan inspection: the initial tree really carries a
 	// configured inventory fetch (the superset provider) and the DEFER GROUP
 	// really carries a configured same-entity fetch — L1 kept on BOTH.
-	assert.Equal(t, []string{
-		`path:"" cache:<nil> ttl:0s dependsOn:[]`,
-		`path:"" cache:<nil> ttl:0s dependsOn:[]`,
-		`path:"me" cache:<nil> ttl:0s dependsOn:[0]`,
-		`path:"me.favoriteProduct" cache:inventory ttl:0s dependsOn:[3]`,
-	}, renderFetchIsolation(result.Response.Fetches))
-	groups := DeferGroups(result.DeferResponse)
-	require.Len(t, groups, 1)
-	assert.Equal(t, []string{
-		`path:"products" cache:inventory ttl:0s dependsOn:[1]`,
-	}, renderFetchIsolation(groups[0].Fetches))
+	assert.Equal(t, `QueryPlan {
+  Sequence {
+    Parallel {
+      Fetch(service: "3") {
+        {
+            me {
+                __typename
+                id
+            }
+        }
+      }
+      Fetch(service: "0") {
+        {
+            products(first: $a){
+                upc
+                __typename
+            }
+        }
+      }
+    }
+    Fetch(service: "0") {
+      {
+        fragment Key on User {
+            __typename
+            id
+        }
+      } =>
+      {
+          _entities(representations: $representations){
+              ... on User {
+                  __typename
+                  favoriteProduct {
+                      upc
+                      __typename
+                  }
+              }
+          }
+      }
+    }
+    Flatten(path: "me.favoriteProduct") {
+      Fetch(service: "1") {
+        {
+          fragment Key on Product {
+              __typename
+              upc
+          }
+        } =>
+        Cache: {l1:true l2:false cacheName:inventory ttl:0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+        {
+            _entities(representations: $representations){
+                ... on Product {
+                    __typename
+                    stock
+                    warehouse {
+                        id
+                        location
+                    }
+                }
+            }
+        }
+      }
+    }
+  }
+}
+Deferred (id: 1) QueryPlan {
+  Fetch(service: "1") {
+    {
+      fragment Key on Product {
+          __typename
+          upc
+      }
+    } =>
+    Cache: {l1:true l2:false cacheName:inventory ttl:0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+    {
+        _entities(representations: $representations){
+            ... on Product {
+                __typename
+                stock
+            }
+        }
+    }
+  }
+}
+`, PrettyPlan(result))
 
 	store := cachetesting.NewFakeStore()
 	controller := &countingController{inner: cachetesting.NewRealishCache(store, nil)}
@@ -86,18 +159,90 @@ func TestDeferL1GroupToLaterGroup(t *testing.T) {
 	}
 	result := Plan(t, query, inventoryL1Caching(0), responses)
 
-	// Plan inspection: the OUTER group's inventory fetch is the provider; the
-	// NESTED group (parent = outer) carries the same-entity consumer, kept L1
-	// although NO dependency edge links it to the provider.
+	// Plan inspection: the OUTER group's inventory fetch (id 1) is the
+	// provider; the NESTED group (id 2, parent = outer) carries the
+	// same-entity consumer, kept L1 although NO dependency edge links it to
+	// the provider.
+	assert.Equal(t, `QueryPlan {
+  Fetch(service: "0") {
+    {
+        products(first: $a){
+            upc
+            __typename
+        }
+    }
+  }
+}
+Deferred (id: 1) QueryPlan {
+  Fetch(service: "1") {
+    {
+      fragment Key on Product {
+          __typename
+          upc
+      }
+    } =>
+    Cache: {l1:true l2:false cacheName:inventory ttl:0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+    {
+        _entities(representations: $representations){
+            ... on Product {
+                __typename
+                stock
+                warehouse {
+                    id
+                    location
+                }
+            }
+        }
+    }
+  }
+}
+Deferred (id: 2) QueryPlan {
+  Sequence {
+    Fetch(service: "2") {
+      {
+        fragment Key on Product {
+            __typename
+            upc
+        }
+      } =>
+      {
+          _entities(representations: $representations){
+              ... on Product {
+                  __typename
+                  reviews {
+                      product {
+                          __typename
+                          upc
+                      }
+                  }
+              }
+          }
+      }
+    }
+    Flatten(path: "products.@.reviews.@.product") {
+      Fetch(service: "1") {
+        {
+          fragment Key on Product {
+              __typename
+              upc
+          }
+        } =>
+        Cache: {l1:true l2:false cacheName:inventory ttl:0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+        {
+            _entities(representations: $representations){
+                ... on Product {
+                    __typename
+                    stock
+                }
+            }
+        }
+      }
+    }
+  }
+}
+`, PrettyPlan(result))
 	groups := DeferGroups(result.DeferResponse)
 	require.Len(t, groups, 2)
-	assert.Equal(t, []string{
-		`path:"products" cache:inventory ttl:0s dependsOn:[0]`,
-	}, renderFetchIsolation(groups[0].Fetches))
-	assert.Equal(t, []string{
-		`path:"products" cache:<nil> ttl:0s dependsOn:[0]`,
-		`path:"products.@.reviews.@.product" cache:inventory ttl:0s dependsOn:[2]`,
-	}, renderFetchIsolation(groups[1].Fetches))
 	assert.Equal(t, 1, result.DeferResponse.DeferDescriptors[groups[1].DeferID].ParentID)
 
 	store := cachetesting.NewFakeStore()

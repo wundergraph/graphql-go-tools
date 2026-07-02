@@ -160,6 +160,9 @@ type FetchTreeQueryPlan struct {
 	Representations   []Representation  `json:"representations,omitempty"`
 	Query             string            `json:"query,omitempty"`
 	Dependencies      []FetchDependency `json:"dependencies,omitempty"`
+	// Cache is the fetch's cache config in its canonical one-line form; empty
+	// when the fetch is uncached, so plans without caching are unchanged.
+	Cache string `json:"cache,omitempty"`
 }
 
 func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {
@@ -196,6 +199,14 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 	}
 	switch n.Kind {
 	case FetchTreeNodeKindSingle:
+		defer func() {
+			// The cache config reads through the Fetch interface (never a
+			// switch over concrete fetch types); an uncached fetch leaves the
+			// field empty and the plan output unchanged.
+			if queryPlan.Fetch != nil && n.Item.Fetch.CacheConfig() != nil {
+				queryPlan.Fetch.Cache = n.Item.Fetch.CacheConfig().String()
+			}
+		}()
 		switch f := n.Item.Fetch.(type) {
 		case *SingleFetch:
 			queryPlan.Fetch = &FetchTreeQueryPlan{
@@ -345,6 +356,9 @@ func (p *PlanPrinter) printFetchInfo(fetch *FetchTreeQueryPlan) {
 
 	if fetch.Representations != nil {
 		p.printRepresentations(fetch.Representations)
+	}
+	if fetch.Cache != "" {
+		p.print(fmt.Sprintf("Cache: %s", fetch.Cache))
 	}
 	p.printQuery(fetch.Query)
 

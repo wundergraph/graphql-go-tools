@@ -1,8 +1,6 @@
 package cachingtesting
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -10,24 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
-
-// renderFetchCacheConfigs walks a fetch tree and renders every fetch's cache
-// config (nil-safe) with its response path, for full-value plan-level asserts.
-func renderFetchCacheConfigs(node *resolve.FetchTreeNode) []string {
-	if node == nil {
-		return nil
-	}
-	var out []string
-	if node.Item != nil && node.Item.Fetch != nil {
-		out = append(out, fmt.Sprintf("path:%q cache:%s", node.Item.ResponsePath, node.Item.Fetch.CacheConfig().String()))
-	}
-	for _, child := range node.ChildNodes {
-		out = append(out, renderFetchCacheConfigs(child)...)
-	}
-	return out
-}
 
 func entityCachingFor(subgraphs ...string) map[string]cacheconfig.CachingConfiguration {
 	caching := make(map[string]cacheconfig.CachingConfiguration, len(subgraphs))
@@ -48,11 +29,38 @@ func entityCachingFor(subgraphs ...string) map[string]cacheconfig.CachingConfigu
 // off.
 func TestEntityCacheConfigSyncPlan(t *testing.T) {
 	result := Plan(t, `{ products(first: 2) { upc reviews { body } } }`, entityCachingFor("reviews"), nil)
-	rendered := renderFetchCacheConfigs(result.Response.Fetches)
-	assert.Equal(t, []string{
-		`path:"" cache:<nil>`,
-		`path:"products" cache:{l1:false l2:true cacheName:products ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}`,
-	}, rendered)
+	assert.Equal(t, `QueryPlan {
+  Sequence {
+    Fetch(service: "0") {
+      {
+          products(first: $a){
+              upc
+              __typename
+          }
+      }
+    }
+    Fetch(service: "2") {
+      {
+        fragment Key on Product {
+            __typename
+            upc
+        }
+      } =>
+      Cache: {l1:false l2:true cacheName:products ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+      {
+          _entities(representations: $representations){
+              ... on Product {
+                  __typename
+                  reviews {
+                      body
+                  }
+              }
+          }
+      }
+    }
+  }
+}
+`, PrettyPlan(result))
 }
 
 // TestEntityCacheConfigDeferPlan pins that DEFER-GROUP entity fetches carry
@@ -70,22 +78,90 @@ func TestEntityCacheConfigDeferPlan(t *testing.T) {
 	result := Plan(t, query, entityCachingFor("inventory"), nil)
 	require.NotNil(t, result.DeferResponse)
 
-	inventoryCfg := `{l1:true l2:true cacheName:products ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}`
-
-	initial := renderFetchCacheConfigs(result.Response.Fetches)
-	assert.Equal(t, []string{
-		`path:"" cache:<nil>`,
-		`path:"" cache:<nil>`,
-		`path:"me" cache:<nil>`,
-		`path:"me.favoriteProduct" cache:` + inventoryCfg,
-	}, initial)
-
-	groups := DeferGroups(result.DeferResponse)
-	require.Len(t, groups, 1)
-	deferred := renderFetchCacheConfigs(groups[0].Fetches)
-	assert.Equal(t, []string{
-		`path:"products" cache:` + inventoryCfg,
-	}, deferred)
+	assert.Equal(t, `QueryPlan {
+  Sequence {
+    Parallel {
+      Fetch(service: "3") {
+        {
+            me {
+                __typename
+                id
+            }
+        }
+      }
+      Fetch(service: "0") {
+        {
+            products(first: $a){
+                upc
+                __typename
+            }
+        }
+      }
+    }
+    Fetch(service: "0") {
+      {
+        fragment Key on User {
+            __typename
+            id
+        }
+      } =>
+      {
+          _entities(representations: $representations){
+              ... on User {
+                  __typename
+                  favoriteProduct {
+                      upc
+                      __typename
+                  }
+              }
+          }
+      }
+    }
+    Flatten(path: "me.favoriteProduct") {
+      Fetch(service: "1") {
+        {
+          fragment Key on Product {
+              __typename
+              upc
+          }
+        } =>
+        Cache: {l1:true l2:true cacheName:products ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+        {
+            _entities(representations: $representations){
+                ... on Product {
+                    __typename
+                    stock
+                    warehouse {
+                        id
+                        location
+                    }
+                }
+            }
+        }
+      }
+    }
+  }
+}
+Deferred (id: 1) QueryPlan {
+  Fetch(service: "1") {
+    {
+      fragment Key on Product {
+          __typename
+          upc
+      }
+    } =>
+    Cache: {l1:true l2:true cacheName:products ttl:1m0s negativeTTL:0s includeHeaders:false partial:false partialBatch:false shadow:false hashAnalytics:false scope:Entity type:Product field: candidates:1 entityKeyMappings:0 providesData:true populateL2OnMutation:false mutationTTL:0s}
+    {
+        _entities(representations: $representations){
+            ... on Product {
+                __typename
+                stock
+            }
+        }
+    }
+  }
+}
+`, PrettyPlan(result))
 }
 
 // TestEntityCacheConfigDeterminism plans the same operation twice and asserts
@@ -94,8 +170,5 @@ func TestEntityCacheConfigDeterminism(t *testing.T) {
 	query := `{ products(first: 2) { upc reviews { body } } }`
 	first := Plan(t, query, entityCachingFor("reviews", "inventory"), nil)
 	second := Plan(t, query, entityCachingFor("reviews", "inventory"), nil)
-	assert.Equal(t,
-		strings.Join(renderFetchCacheConfigs(first.Response.Fetches), "\n"),
-		strings.Join(renderFetchCacheConfigs(second.Response.Fetches), "\n"),
-	)
+	assert.Equal(t, PrettyPlan(first), PrettyPlan(second))
 }
