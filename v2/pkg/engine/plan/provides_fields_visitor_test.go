@@ -130,15 +130,18 @@ func TestProvidesSuggestionsWithFragments(t *testing.T) {
 		require.False(t, report.HasErrors())
 
 		expected := providesSelection{
-			"ab": {{allowedTypes: pTypes("NestedAB"), selection: providesSelection{
-				"a": {{allowedTypes: pTypes("A")}},
-				"b": {{allowedTypes: pTypes("B")}},
-				"__typename": {
-					{allowedTypes: pTypes("A")},
-					{allowedTypes: pTypes("B")},
-					{allowedTypes: pTypes("AB", "A", "B")},
+			"ab": {{
+				allowedTypes: pTypes("NestedAB"),
+				selection: providesSelection{
+					"a": {{allowedTypes: pTypes("A")}},
+					"b": {{allowedTypes: pTypes("B")}},
+					"__typename": {
+						{allowedTypes: pTypes("A")},
+						{allowedTypes: pTypes("B")},
+						{allowedTypes: pTypes("AB", "A", "B")},
+					},
 				},
-			}}},
+			}},
 			"__typename": {{allowedTypes: pTypes("NestedAB")}},
 		}
 
@@ -203,7 +206,7 @@ func TestProvidesSuggestionsOnInterfaceSelections(t *testing.T) {
 	assert.Equal(t, expected, suggestions)
 }
 
-func TestProvidesSuggestionsNestedConcreteFragmentsStayPinned(t *testing.T) {
+func TestProvidesSuggestionsNestedInterfaces(t *testing.T) {
 	definitionSDL := `
 		type Query {
 			f: I1
@@ -247,34 +250,151 @@ func TestProvidesSuggestionsNestedConcreteFragmentsStayPinned(t *testing.T) {
 
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
 
-	input := &providesInput{
-		parentTypeName:       "I1",
-		providesSelectionSet: `i2 { ... on A2 { i3 { ... on A3 { x } } } }`,
-		definition:           &definition,
+	suggestionsFor := func(t *testing.T, providesSelectionSet string) providesSelection {
+		t.Helper()
+
+		suggestions, report := providesSuggestions(&providesInput{
+			parentTypeName:       "I1",
+			providesSelectionSet: providesSelectionSet,
+			definition:           &definition,
+		})
+		require.False(t, report.HasErrors())
+
+		return suggestions
 	}
 
-	suggestions, report := providesSuggestions(input)
-	require.False(t, report.HasErrors())
+	t.Run("no fragments", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { i3 { x } }`)
 
-	// i2 sits on the abstract I1 - allowed for I1 and each implementer
-	i2Selection, ok := suggestions.providedTypeSelection("i2", "I1")
-	require.True(t, ok)
-	_, ok = suggestions.providedTypeSelection("i2", "A1")
-	assert.True(t, ok)
-	_, ok = suggestions.providedTypeSelection("i2", "B1")
-	assert.True(t, ok)
+		// without fragments every field sits on an abstract type - allowed for the
+		// interface itself and every implementer
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {{allowedTypes: pTypes("I2", "A2", "B2"), selection: providesSelection{
+					"x":          {{allowedTypes: pTypes("I3", "A3", "B3")}},
+					"__typename": {{allowedTypes: pTypes("I3", "A3", "B3")}},
+				}}},
+				"__typename": {{allowedTypes: pTypes("I2", "A2", "B2")}},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
 
-	// i3 is pinned by the inline fragment to A2 - B2 must not match
-	i3Selection, ok := i2Selection.providedTypeSelection("i3", "A2")
-	require.True(t, ok)
-	_, ok = i2Selection.providedTypeSelection("i3", "B2")
-	assert.False(t, ok, "i3 under B2 is not promised by the provides selection")
-	_, ok = i2Selection.providedTypeSelection("i3", "I2")
-	assert.False(t, ok, "i3 on the abstract I2 is not promised, provides pinned it to A2")
+		assert.Equal(t, expected, suggestions)
+	})
 
-	// x is pinned to A3 - B3 must not match
-	_, ok = i3Selection.providedTypeSelection("x", "A3")
-	assert.True(t, ok)
-	_, ok = i3Selection.providedTypeSelection("x", "B3")
-	assert.False(t, ok, "x under B3 is not promised by the provides selection")
+	t.Run("fragment on the outer level only", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { ... on A2 { i3 { x } } }`)
+
+		// i3 is pinned to A2, but below the fragment x sits on the abstract I3 again
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {{allowedTypes: pTypes("A2"), selection: providesSelection{
+					"x":          {{allowedTypes: pTypes("I3", "A3", "B3")}},
+					"__typename": {{allowedTypes: pTypes("I3", "A3", "B3")}},
+				}}},
+				"__typename": {
+					{allowedTypes: pTypes("A2")},
+					{allowedTypes: pTypes("I2", "A2", "B2")},
+				},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
+
+		assert.Equal(t, expected, suggestions)
+	})
+
+	t.Run("fragment on the inner level only", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { i3 { ... on A3 { x } } }`)
+
+		// i3 stays on the abstract I2, only x is pinned to A3
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {{allowedTypes: pTypes("I2", "A2", "B2"), selection: providesSelection{
+					"x": {{allowedTypes: pTypes("A3")}},
+					"__typename": {
+						{allowedTypes: pTypes("A3")},
+						{allowedTypes: pTypes("I3", "A3", "B3")},
+					},
+				}}},
+				"__typename": {{allowedTypes: pTypes("I2", "A2", "B2")}},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
+
+		assert.Equal(t, expected, suggestions)
+	})
+
+	t.Run("sibling fragments on both implementers", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { ... on A2 { i3 { x } } ... on B2 { i3 { x } } }`)
+
+		// each fragment contributes its own i3 branch, so what is provided below i3
+		// stays correlated with the enclosing concrete type
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {
+					{allowedTypes: pTypes("A2"), selection: providesSelection{
+						"x":          {{allowedTypes: pTypes("I3", "A3", "B3")}},
+						"__typename": {{allowedTypes: pTypes("I3", "A3", "B3")}},
+					}},
+					{allowedTypes: pTypes("B2"), selection: providesSelection{
+						"x":          {{allowedTypes: pTypes("I3", "A3", "B3")}},
+						"__typename": {{allowedTypes: pTypes("I3", "A3", "B3")}},
+					}},
+				},
+				"__typename": {
+					{allowedTypes: pTypes("A2")},
+					{allowedTypes: pTypes("B2")},
+					{allowedTypes: pTypes("I2", "A2", "B2")},
+				},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
+
+		assert.Equal(t, expected, suggestions)
+	})
+
+	t.Run("fragments on every level", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { ... on A2 { i3 { ... on A3 { x } } } }`)
+
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {{allowedTypes: pTypes("A2"), selection: providesSelection{
+					"x": {{allowedTypes: pTypes("A3")}},
+					"__typename": {
+						{allowedTypes: pTypes("A3")},
+						{allowedTypes: pTypes("I3", "A3", "B3")},
+					},
+				}}},
+				"__typename": {
+					{allowedTypes: pTypes("A2")},
+					{allowedTypes: pTypes("I2", "A2", "B2")},
+				},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
+
+		assert.Equal(t, expected, suggestions)
+
+		// i2 sits on the abstract I1 - allowed for I1 and each implementer
+		i2Selection, ok := suggestions.providedTypeSelection("i2", "I1")
+		require.True(t, ok)
+		_, ok = suggestions.providedTypeSelection("i2", "A1")
+		assert.True(t, ok)
+		_, ok = suggestions.providedTypeSelection("i2", "B1")
+		assert.True(t, ok)
+
+		// i3 is pinned by the inline fragment to A2 - B2 must not match
+		i3Selection, ok := i2Selection.providedTypeSelection("i3", "A2")
+		require.True(t, ok)
+		_, ok = i2Selection.providedTypeSelection("i3", "B2")
+		assert.False(t, ok, "i3 under B2 is not promised by the provides selection")
+		_, ok = i2Selection.providedTypeSelection("i3", "I2")
+		assert.False(t, ok, "i3 on the abstract I2 is not promised, provides pinned it to A2")
+
+		// x is pinned to A3 - B3 must not match
+		_, ok = i3Selection.providedTypeSelection("x", "A3")
+		assert.True(t, ok)
+		_, ok = i3Selection.providedTypeSelection("x", "B3")
+		assert.False(t, ok, "x under B3 is not promised by the provides selection")
+	})
 }

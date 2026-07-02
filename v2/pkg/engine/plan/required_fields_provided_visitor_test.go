@@ -40,6 +40,9 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 	`
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
 
+	// each providedSelection mimics what providesSuggestions builds from the
+	// @provides fields string annotated on the case; __typename entries that
+	// providesSuggestions auto-adds are omitted for brevity
 	cases := []struct {
 		name              string
 		typeName          string
@@ -52,6 +55,7 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "all fields provided",
 			typeName:       "User",
 			requiredFields: "id name",
+			// @provides(fields: "id name")
 			providedSelection: providesSelection{
 				"id":   {{allowedTypes: pTypes("User")}},
 				"name": {{allowedTypes: pTypes("User")}},
@@ -62,6 +66,7 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "one field missing",
 			typeName:       "User",
 			requiredFields: "id name",
+			// @provides(fields: "id")
 			providedSelection: providesSelection{
 				"id": {{allowedTypes: pTypes("User")}},
 			},
@@ -71,6 +76,7 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "nested fields provided",
 			typeName:       "User",
 			requiredFields: "address { street }",
+			// @provides(fields: "address { street }")
 			providedSelection: providesSelection{
 				"address": {{allowedTypes: pTypes("User"), selection: providesSelection{
 					"street": {{allowedTypes: pTypes("Address")}},
@@ -82,6 +88,7 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "one nested field missing - missing field is external",
 			typeName:       "User",
 			requiredFields: "address { street zip }",
+			// @provides(fields: "address { street }")
 			providedSelection: providesSelection{
 				"address": {{allowedTypes: pTypes("User"), selection: providesSelection{
 					"street": {{allowedTypes: pTypes("Address")}},
@@ -99,6 +106,7 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "one nested field missing - missing field is not external",
 			typeName:       "User",
 			requiredFields: "address { street zip }",
+			// @provides(fields: "address { street }")
 			providedSelection: providesSelection{
 				"address": {{allowedTypes: pTypes("User"), selection: providesSelection{
 					"street": {{allowedTypes: pTypes("Address")}},
@@ -114,6 +122,7 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "deeply nested fields provided",
 			typeName:       "User",
 			requiredFields: "address { street zip }",
+			// @provides(fields: "address { street zip }")
 			providedSelection: providesSelection{
 				"address": {{allowedTypes: pTypes("User"), selection: providesSelection{
 					"street": {{allowedTypes: pTypes("Address")}},
@@ -126,15 +135,17 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "requires with field name",
 			typeName:       "User",
 			requiredFields: "name",
+			// @provides(fields: "name")
 			providedSelection: providesSelection{
 				"name": {{allowedTypes: pTypes("User")}},
 			},
 			expected: true,
 		},
 		{
-			name:              "no provided fields",
-			typeName:          "User",
-			requiredFields:    "id",
+			name:           "no provided fields",
+			typeName:       "User",
+			requiredFields: "id",
+			// no @provides directive - nothing is provided
 			providedSelection: providesSelection{},
 			expected:          false,
 		},
@@ -142,6 +153,7 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "nested fragments (union)",
 			typeName:       "User",
 			requiredFields: "thing { ... on A { a } ... on B { b } }",
+			// @provides(fields: "thing { ... on A { a } ... on B { b } }")
 			providedSelection: providesSelection{
 				"thing": {{allowedTypes: pTypes("User"), selection: providesSelection{
 					"a": {{allowedTypes: pTypes("A")}},
@@ -154,6 +166,7 @@ func TestAreRequiredFieldsProvided(t *testing.T) {
 			name:           "nested fragments (union) - missing B",
 			typeName:       "User",
 			requiredFields: "thing { ... on A { a } ... on B { b } }",
+			// @provides(fields: "thing { ... on A { a } }")
 			providedSelection: providesSelection{
 				"thing": {{allowedTypes: pTypes("User"), selection: providesSelection{
 					"a": {{allowedTypes: pTypes("A")}},
