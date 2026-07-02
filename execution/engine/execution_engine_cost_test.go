@@ -6806,4 +6806,532 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			))
 		})
 	})
+
+	t.Run("cost of children with parent as null", func(t *testing.T) {
+		// It verifies that child fields nested under a nullable object field
+		// are not charged when that object resolves to null at runtime.
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+		type Query { items(ids: [ID!]!): [Item] }
+		type Item  {
+			id: ID!
+			parent_item: Item
+			group: Group
+			board: Board
+		}
+		type Group { id: ID! }
+		type Board { id: ID! }
+	`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"items"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Item", FieldNames: []string{"id", "parent_item", "group", "board"}},
+			{TypeName: "Group", FieldNames: []string{"id"}},
+			{TypeName: "Board", FieldNames: []string{"id"}},
+		}
+		itemsFieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName: "Query", FieldName: "items",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:         "ids",
+						SourceType:   plan.FieldArgumentSource,
+						RenderConfig: plan.RenderArgumentAsGraphQLValue,
+					},
+				},
+			},
+		}
+
+		costConfig := &plan.DataSourceCostConfig{
+			Types: map[string]int{
+				"Item":  2,
+				"Group": 5,
+				"Board": 7,
+			},
+		}
+
+		nullParentResponse := `{"data":{"items":[` +
+			`{"id":"1","parent_item":null},` +
+			`{"id":"2","parent_item":{"id":"1","group":{"id":"1"},"board":{"id":"2"}}},` +
+			`{"id":"3","parent_item":null}]}}`
+
+		t.Run("with child fields group and board", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items(ids: ["1", "2", "3"]) {
+							id
+							parent_item {
+								id
+								group { id }
+								board { id }
+							}
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: nullParentResponse,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                itemsFieldConfig,
+				expectedResponse:      nullParentResponse,
+				expectedEstimatedCost: intPtr(160), // 10 * (2 + (2 + 5 + 7))
+				expectedActualCost:    intPtr(24),  //  3 * (2 + (2 + 0.33*(5 + 7)))
+			},
+			computeCosts(),
+		))
+
+		t.Run("without child fields group and board", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items(ids: ["1", "2", "3"]) {
+							id
+							parent_item {
+								id
+							}
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: nullParentResponse,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields: itemsFieldConfig,
+				// group/board are not selected, so the engine strips them from the response.
+				expectedResponse: `{"data":{"items":[` +
+					`{"id":"1","parent_item":null},` +
+					`{"id":"2","parent_item":{"id":"1"}},` +
+					`{"id":"3","parent_item":null}]}}`,
+				expectedEstimatedCost: intPtr(40), // 10 * (2 + (2))
+				expectedActualCost:    intPtr(12), //  3 * (2 + (2))
+			},
+			computeCosts(),
+		))
+
+		t.Run("weighted field two levels under null parent is charged once", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items(ids: ["1", "2", "3"]) {
+							id
+							parent_item {
+								id
+								group { id }
+							}
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[` +
+									`{"id":"1","parent_item":null},` +
+									`{"id":"2","parent_item":{"id":"1","group":{"id":"1"}}},` +
+									`{"id":"3","parent_item":null}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Item": 2, "Group": 5},
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: itemsFieldConfig,
+				expectedResponse: `{"data":{"items":[` +
+					`{"id":"1","parent_item":null},` +
+					`{"id":"2","parent_item":{"id":"1","group":{"id":"1"}}},` +
+					`{"id":"3","parent_item":null}]}}`,
+				expectedEstimatedCost: intPtr(390), // 10 * (2 + (2 + (5 + 30)))
+				expectedActualCost:    intPtr(47),  //  3 * (2 + (2 + 0.33*(5 + 30)))
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("a list nested under a partially-null object that is itself under a list", func(t *testing.T) {
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+		type Query { users: [User] }
+		type User { id: ID!  profile: Profile }
+		type Profile { id: ID!  tags: [Tag] }
+		type Tag { id: ID!  name: String }
+	`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"users"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "User", FieldNames: []string{"id", "profile"}},
+			{TypeName: "Profile", FieldNames: []string{"id", "tags"}},
+			{TypeName: "Tag", FieldNames: []string{"id", "name"}},
+		}
+
+		response := `{"data":{"users":[` +
+			`{"id":"1","profile":null},` +
+			`{"id":"2","profile":{"id":"p2","tags":[` +
+			`{"id":"t1","name":"a"},{"id":"t2","name":"b"},{"id":"t3","name":"c"}]}}]}}`
+
+		t.Run("list under a partially-null object", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getUsers {
+						users {
+							id
+							profile {
+								id
+								tags { id name }
+							}
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: response,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Tag", FieldName: "name"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                []plan.FieldConfiguration{},
+				expectedResponse:      response,
+				expectedEstimatedCost: intPtr(3120), // 10 * (1 + (1 +  10 * (1 + 30)))
+				expectedActualCost:    intPtr(97),   //  2 * (1 + (1 + 0.5 * (3 * (1 + 30))))
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("an abstract non-list field that is null for some elements of an enclosing list", func(t *testing.T) {
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+		type Query { items: [Item] }
+		type Item { id: ID!  hero: Character }
+		interface Character { id: ID! }
+		type Human implements Character { id: ID!  name: String }
+		type Droid implements Character { id: ID!  name: String }
+	`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"items"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Item", FieldNames: []string{"id", "hero"}},
+			{TypeName: "Character", FieldNames: []string{"id"}},
+			{TypeName: "Human", FieldNames: []string{"id", "name"}},
+			{TypeName: "Droid", FieldNames: []string{"id", "name"}},
+		}
+
+		sendResponse := `{"data":{"items":[` +
+			`{"id":"1","hero":null},` +
+			`{"id":"2","hero":{"__typename":"Human","id":"h1","name":"Luke"}},` +
+			`{"id":"3","hero":null}]}}`
+
+		t.Run("abstract null object under list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items {
+							id
+							hero { ... on Human { name } }
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: sendResponse,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Item": 0, "Character": 0, "Human": 0, "Droid": 0},
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"items":[` +
+					`{"id":"1","hero":null},` +
+					`{"id":"2","hero":{"name":"Luke"}},` +
+					`{"id":"3","hero":null}]}}`,
+				expectedEstimatedCost: intPtr(300), // 10 * (1 * 30)
+				// Human.name is resolved exactly once (only 1 of 3 heroes is non-null) => 30.
+				expectedActualCost: intPtr(30), // 3 * (0.33 * 30)
+			},
+			computeCosts(),
+		))
+
+		t.Run("abstract mixed types under list scales fragment by type count", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items {
+							id
+							hero { 
+								id
+								... on Human { name }
+							}
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[` +
+									`{"id":"1","hero":{"__typename":"Human","id":"h1","name":"Luke"}},` +
+									`{"id":"2","hero":{"__typename":"Human","id":"h2","name":"Han"}},` +
+									`{"id":"3","hero":{"__typename":"Droid","id":"d1"}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Item": 0, "Character": 0, "Human": 0, "Droid": 0},
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"items":[` +
+					`{"id":"1","hero":{"id":"h1","name":"Luke"}},` +
+					`{"id":"2","hero":{"id":"h2","name":"Han"}},` +
+					`{"id":"3","hero":{"id":"d1"}}]}}`,
+				expectedEstimatedCost: intPtr(300), // 10 * (1    * 30)
+				expectedActualCost:    intPtr(60),  //  3 * (0.67 * 30)
+			},
+			computeCosts(),
+		))
+
+		t.Run("abstract mixed types with nulls under list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items {
+							id
+							hero { id ... on Human { name } }
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[` +
+									`{"id":"1","hero":{"__typename":"Human","id":"h1","name":"Luke"}},` +
+									`{"id":"2","hero":{"__typename":"Human","id":"h2","name":"Han"}},` +
+									`{"id":"3","hero":{"__typename":"Droid","id":"d1"}},` +
+									`{"id":"4","hero":null}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Item": 0, "Character": 0, "Human": 0, "Droid": 0},
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"items":[` +
+					`{"id":"1","hero":{"id":"h1","name":"Luke"}},` +
+					`{"id":"2","hero":{"id":"h2","name":"Han"}},` +
+					`{"id":"3","hero":{"id":"d1"}},` +
+					`{"id":"4","hero":null}]}}`,
+				expectedEstimatedCost: intPtr(300), // 10 * (1    * (1    * 30))
+				expectedActualCost:    intPtr(60),  //  4 * (0.75 * (0.67 * 30))
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("interface-selected field without explicit weights keeps its type weight", func(t *testing.T) {
+		// pet is selected on the interface Character and has no explicit weight on any
+		// implementing type, so its weight is the returned type's default (Pet = 1).
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+		type Query { heroes: [Character] }
+		interface Character { id: ID!  pet: Pet }
+		type Human implements Character { id: ID!  pet: Pet }
+		type Droid implements Character { id: ID!  pet: Pet }
+		type Pet { id: ID!  name: String }
+	`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"heroes"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Character", FieldNames: []string{"id", "pet"}},
+			{TypeName: "Human", FieldNames: []string{"id", "pet"}},
+			{TypeName: "Droid", FieldNames: []string{"id", "pet"}},
+			{TypeName: "Pet", FieldNames: []string{"id", "name"}},
+		}
+
+		response := `{"data":{"heroes":[` +
+			`{"__typename":"Human","pet":{"id":"p1","name":"a"}},` +
+			`{"__typename":"Droid","pet":{"id":"p2","name":"b"}}]}}`
+
+		t.Run("under abstract list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ heroes { pet { id name } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: response,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Character": 0, "Human": 0, "Droid": 0},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                []plan.FieldConfiguration{},
+				expectedResponse:      `{"data":{"heroes":[{"pet":{"id":"p1","name":"a"}},{"pet":{"id":"p2","name":"b"}}]}}`,
+				expectedEstimatedCost: intPtr(10), // 10 * (0 + (Pet 1))
+				expectedActualCost:    intPtr(2),  //  2 * (0 + (Pet 1))
+			},
+			computeCosts(),
+		))
+	})
 }

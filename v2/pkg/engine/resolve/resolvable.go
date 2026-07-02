@@ -64,6 +64,7 @@ type Resolvable struct {
 
 	// typeNameStats maps the JSON path to its accumulated array/object stats in the final response.
 	// Used to compute the actual cost of the operation.
+	// Maybe gate it behind feature flag?
 	typeNameStats map[string]TypeNameStats
 
 	subgraphExtensions []*astjson.Object
@@ -1020,11 +1021,10 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	return false
 }
 
-// recordObjectTypeStats records the runtime __typename of a single (non-array) object
-// that resolves an abstract (interface/union) field.
+// recordObjectTypeStats records the runtime __typename of a single (non-array) object.
 func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 	// An array item Object has an empty Path
-	if len(obj.Path) == 0 || !obj.isAbstract() {
+	if len(obj.Path) == 0 {
 		return
 	}
 	pathKey := r.currentFieldPath()
@@ -1033,9 +1033,9 @@ func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 	if stats.TypeNames == nil {
 		stats.TypeNames = make(map[string]int, 1)
 	}
-	// Fall back to the declared abstract type name when the subgraph did not return __typename.
 	name := obj.TypeName
 	if typeName != nil {
+		// Fall back to the declared abstract type name when the subgraph did not return __typename.
 		name = string(typeName)
 	}
 	stats.TypeNames[name]++
