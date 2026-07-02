@@ -252,3 +252,54 @@ func writeNegativeThrough(t *testing.T, store *testStore, cfg *resolve.FetchCach
 	rc.EndRequest()
 	return handle.Items[0].RenderedKeys[0]
 }
+
+// countingObserver counts OnFetchObserved calls around the real TraceObserver.
+type countingObserver struct {
+	*TraceObserver
+
+	observed int
+}
+
+func (c *countingObserver) OnFetchObserved(h *resolve.FetchCacheHandle) {
+	c.observed++
+	c.TraceObserver.OnFetchObserved(h)
+}
+
+// TestFlushTracesBeforeEndRequest: the resolver flushes cache traces BEFORE
+// the response renders (extensions.trace serializes during Resolve, EndRequest
+// runs after the response is written). The trace must be attached by
+// FlushTraces, and the handle observed exactly ONCE — EndRequest skips
+// already-flushed handles.
+func TestFlushTracesBeforeEndRequest(t *testing.T) {
+	obs := &countingObserver{TraceObserver: NewTraceObserver()}
+	rc := NewController(newTestStore(), obs).BeginRequest(nil)
+	cfg := entityConfig(t, time.Minute)
+	item := productItem(t, "1")
+	in, trace := tracedInput(cfg, item)
+	decision, handle := rc.PrepareFetch(in)
+	require.Equal(t, resolve.DecisionFetch, decision)
+	require.NoError(t, rc.OnFetchResult(handle, resolve.MergeInput{
+		Items:        []*astjson.Value{item},
+		ResponseData: astjson.MustParseBytes([]byte(`{"__typename":"Product","name":"Table","price":100}`)),
+		Arena:        beginner(),
+	}))
+
+	flusher, ok := rc.(resolve.CacheTraceFlusher)
+	require.True(t, ok, "requestCache must implement CacheTraceFlusher")
+	flusher.FlushTraces()
+	assert.Equal(t, &resolve.CacheTrace{
+		Decision: "Fetch",
+		Hit:      false,
+		Items: []resolve.CacheItemTrace{
+			{
+				Keys:        handle.Items[0].RenderedKeys,
+				Hit:         false,
+				WriteReason: "refresh",
+			},
+		},
+	}, trace.CacheTrace)
+	assert.Equal(t, 1, obs.observed)
+
+	rc.EndRequest()
+	assert.Equal(t, 1, obs.observed)
+}

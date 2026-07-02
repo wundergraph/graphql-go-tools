@@ -213,6 +213,20 @@ func (c *Context) endCacheRequest() {
 	}
 }
 
+// flushCacheTraces asks the request cache to attach the per-fetch cache traces
+// NOW instead of at EndRequest: the trace extension serializes DURING Resolve,
+// while EndRequest runs after the response has been written, so a trace
+// rendered with the response would otherwise never carry the cache sections.
+// A no-op without a cache surface or when the surface doesn't support it.
+func (c *Context) flushCacheTraces() {
+	if c.requestCache == nil {
+		return
+	}
+	if flusher, ok := c.requestCache.(CacheTraceFlusher); ok {
+		flusher.FlushTraces()
+	}
+}
+
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
 }

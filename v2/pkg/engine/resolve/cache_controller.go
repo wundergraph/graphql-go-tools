@@ -66,6 +66,17 @@ type RequestCache interface {
 	EndRequest()
 }
 
+// CacheTraceFlusher is the optional RequestCache extension that attaches the
+// per-fetch cache traces AHEAD of EndRequest. The resolver calls it right
+// before the response renders (only when the trace ships in the response
+// extensions), because the trace extension serializes during Resolve while
+// EndRequest runs after the response has been written. Idempotent per handle;
+// EndRequest's own observation pass skips handles already flushed. Same
+// no-arena contract as EndRequest.
+type CacheTraceFlusher interface {
+	FlushTraces()
+}
+
 // Decision is what PrepareFetch tells the loader to do. It is the ONLY cache
 // concept the loader branches on.
 type Decision uint8

@@ -102,6 +102,9 @@ type handleState struct {
 	// root-field handles: the cached value is the ENTITY, so the walks use the
 	// root field's value subtree instead of the whole-response tree.
 	reuseProvides *resolve.Object
+	// observed marks the handle as already passed to the observer, so a
+	// pre-render FlushTraces and EndRequest's own pass observe it ONCE.
+	observed bool
 }
 
 // deferredSet is one pending L2 write, held as bytes until EndRequest; reason
@@ -1007,17 +1010,30 @@ func (r *requestCache) writeFetchedValue(tx *resolve.CacheTransaction, cfg *reso
 	}
 }
 
+// FlushTraces passes every not-yet-observed handle to the observer (trace
+// assembly, counters) — single-threaded, no lock, no arena. The resolver calls
+// it right before the response renders so extensions.trace carries the cache
+// sections; EndRequest runs the same pass for whatever remains, so each handle
+// is observed exactly once either way.
+func (r *requestCache) FlushTraces() {
+	if r.obs == nil {
+		return
+	}
+	for h, state := range r.states {
+		if state.observed {
+			continue
+		}
+		state.observed = true
+		r.obs.OnFetchObserved(h)
+	}
+}
+
 // EndRequest flushes the deferred L2 writes — bytes only, no lock, no arena,
 // no transaction — and finalizes observability. It runs once, single-threaded,
 // after the root tree and every defer group have resolved.
 func (r *requestCache) EndRequest() {
-	if r.obs != nil {
-		// Finalize observability: single-threaded, no lock, no arena — the
-		// observer reads each finished handle (trace assembly, counters).
-		for h := range r.states {
-			r.obs.OnFetchObserved(h)
-		}
-	}
+	// Finalize observability for handles not already flushed pre-render.
+	r.FlushTraces()
 	recorder, _ := r.store.(WriteReasonRecorder)
 	for _, set := range r.deferred {
 		if recorder != nil {
