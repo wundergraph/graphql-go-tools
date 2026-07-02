@@ -450,52 +450,22 @@ type preparedFetch struct {
 	cacheHandle *FetchCacheHandle
 }
 
-// batchInputAssembly holds the pre-rendered pieces of a batch entity input:
-// header/separator/footer plus one segment per UNIQUE representation (bucket
-// order). All slices live on the fetch's batchEntityTools arena, which stays
-// alive until resolveSingle returns.
-type batchInputAssembly struct {
-	header             []byte
-	separator          []byte
-	footer             []byte
-	segments           [][]byte
-	undefinedVariables []string
-	info               *FetchInfo
-	fetchItem          *FetchItem
-}
-
-// assembleBatchInput renders the FINAL batch input from the pre-rendered
-// pieces, including only the buckets keep marks (nil keep = all), then runs
-// the undefined-variables post-processing and the pre-fetch validation that
-// operate on the final bytes.
+// assembleBatchInput renders the FINAL batch input (the assembly filtered by
+// keep, nil = all buckets), then runs the tracing-skip branch and the
+// pre-fetch validation that operate on the final bytes.
 func (l *Loader) assembleBatchInput(prepared *preparedFetch, keep []bool) error {
-	assembly := prepared.batchAssembly
-	buf := arena.NewArenaBuffer(prepared.res.tools.a)
-	_, _ = buf.Write(assembly.header)
-	wroteItem := false
-	for i, segment := range assembly.segments {
-		if keep != nil && (i >= len(keep) || !keep[i]) {
-			continue
-		}
-		if wroteItem {
-			_, _ = buf.Write(assembly.separator)
-		}
-		_, _ = buf.Write(segment)
-		wroteItem = true
-	}
-	_, _ = buf.Write(assembly.footer)
-	if err := SetInputUndefinedVariables(buf, assembly.undefinedVariables); err != nil {
+	fetchInput, err := prepared.batchAssembly.assemble(prepared.res.tools.a, keep)
+	if err != nil {
 		return errors.WithStack(err)
 	}
-	fetchInput := buf.Bytes()
 
 	if l.ctx.TracingOptions.Enable && prepared.res.fetchSkipped {
-		l.setTracingInput(assembly.fetchItem, fetchInput, prepared.trace)
+		l.setTracingInput(prepared.item, fetchInput, prepared.trace)
 		prepared.skipLoad = true
 		return nil
 	}
 
-	allowed, err := l.validatePreFetch(fetchInput, assembly.info, prepared.res)
+	allowed, err := l.validatePreFetch(fetchInput, prepared.item.Fetch.FetchInfo(), prepared.res)
 	if err != nil {
 		return err
 	}
@@ -1823,7 +1793,7 @@ var (
 	batchEntityToolPool = _batchEntityToolPool{}
 )
 
-func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
+func (l *Loader) prepareBatchEntityFetch(_ *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result, prepared *preparedFetch) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 
 	if l.ctx.TracingOptions.Enable {
@@ -1947,8 +1917,6 @@ WithNextItem:
 		footer:             footerInput.Bytes(),
 		segments:           segments,
 		undefinedVariables: undefinedVariables,
-		info:               fetch.Info,
-		fetchItem:          fetchItem,
 	}
 	prepared.source = fetch.DataSource
 	prepared.trace = fetch.Trace
