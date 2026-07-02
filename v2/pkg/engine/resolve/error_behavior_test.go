@@ -25,3 +25,14 @@ func TestMapErrorBehavior(t *testing.T) {
 		assert.Equal(t, c.want, got, "value for %q", c.in)
 	}
 }
+
+func TestErrorBehavior_OperatorDefaultApplied(t *testing.T) {
+	// simulate: no request onError, operator default = NULL => router sets NULL.
+	effective, ok := MapErrorBehavior("") // request omitted
+	assert.True(t, ok)
+	operatorDefault := ErrorBehaviorNull
+	if effective == ErrorBehaviorPropagate { // request omitted -> apply operator default
+		effective = operatorDefault
+	}
+	assert.Equal(t, ErrorBehaviorNull, effective)
+}

@@ -76,3 +76,13 @@ func TestSchema_AddCapabilityType(t *testing.T) {
 	}
 	assert.Equal(t, 1, count)
 }
+
+func TestCapabilities_DefaultSyncsWithConfig(t *testing.T) {
+	for _, def := range []string{"PROPAGATE", "NULL", "HALT"} {
+		caps := BuildServiceCapabilities(true, def)
+		// second entry is graphql.defaultErrorBehavior; its value must equal config
+		assert.Equal(t, "graphql.defaultErrorBehavior", caps[1].Identifier)
+		assert.NotNil(t, caps[1].Value)
+		assert.Equal(t, def, *caps[1].Value)
+	}
+}
