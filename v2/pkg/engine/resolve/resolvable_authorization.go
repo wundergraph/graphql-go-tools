@@ -79,7 +79,9 @@ func (r *Resolvable) authorize(value *astjson.Value, dataSourceID string, coordi
 }
 
 func authorizationDecisionID(dataSourceID string, coordinate GraphCoordinate) uint64 {
-	return xxhash.Sum64String(dataSourceID + coordinate.TypeName + coordinate.FieldName)
+	// NUL delimiters keep the key unambiguous: without them distinct tuples like ("ab","c","d") and
+	// ("a","bc","d") would hash the same input and could reuse a decision for the wrong coordinate.
+	return xxhash.Sum64String(dataSourceID + "\x00" + coordinate.TypeName + "\x00" + coordinate.FieldName)
 }
 
 func (r *Resolvable) seedAuthorizationAllow(dataSourceID string, coordinate GraphCoordinate) {

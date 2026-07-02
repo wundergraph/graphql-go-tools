@@ -356,11 +356,13 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	if err != nil {
 		return nil, err
 	}
-	if err = r.authorizeFieldsPreFetch(ctx, response, t.resolvable); err != nil {
-		return nil, err
-	}
-
 	if !ctx.ExecutionOptions.SkipLoader {
+		// Pre-fetch field authorization only matters when fetches actually run. When the loader is
+		// skipped (e.g. query-plan-only responses) there are no origin fetches, so we must not invoke
+		// the authorizer here.
+		if err = r.authorizeFieldsPreFetch(ctx, response, t.resolvable); err != nil {
+			return nil, err
+		}
 		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 		if err != nil {
 			return nil, err
@@ -413,13 +415,15 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		r.resolveArenaPool.Release(resolveArena)
 		return nil, err
 	}
-	if err = r.authorizeFieldsPreFetch(ctx, response, t.resolvable); err != nil {
-		r.inboundRequestSingleFlight.FinishErr(inflight, err)
-		r.resolveArenaPool.Release(resolveArena)
-		return nil, err
-	}
-
 	if !ctx.ExecutionOptions.SkipLoader {
+		// Pre-fetch field authorization only matters when fetches actually run. When the loader is
+		// skipped (e.g. query-plan-only responses) there are no origin fetches, so we must not invoke
+		// the authorizer here.
+		if err = r.authorizeFieldsPreFetch(ctx, response, t.resolvable); err != nil {
+			r.inboundRequestSingleFlight.FinishErr(inflight, err)
+			r.resolveArenaPool.Release(resolveArena)
+			return nil, err
+		}
 		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 		if err != nil {
 			r.inboundRequestSingleFlight.FinishErr(inflight, err)

@@ -375,6 +375,70 @@ func TestCollectAuthorizationCoordinates(t *testing.T) {
 	}, response.Info.AuthorizationCoordinates)
 }
 
+// In normal engine execution the post-processor builds the Fetches tree from RawFetches only after
+// planning, so at collection time fetch root-field coordinates live in RawFetches, not the tree.
+func TestCollectAuthorizationCoordinatesFromRawFetches(t *testing.T) {
+	response := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+		RawFetches: []*FetchItem{
+			{Fetch: &SingleFetch{
+				Info: &FetchInfo{
+					DataSourceID: "catalog",
+					RootFields: []GraphCoordinate{
+						{TypeName: "Query", FieldName: "products", HasAuthorizationRule: true},
+						{TypeName: "Query", FieldName: "public"},
+					},
+				},
+			}},
+		},
+	}
+
+	CollectAuthorizationCoordinates(response)
+
+	assert.Equal(t, []AuthorizationCoordinate{
+		{DataSourceID: "catalog", Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
+	}, response.Info.AuthorizationCoordinates)
+}
+
+// When the loader is skipped (e.g. query-plan-only responses) no origin fetch runs, so the batch
+// authorizer must not be invoked.
+func TestPreFetchFieldAuthorizationSkipLoader(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	service := NewMockDataSource(ctrl)
+	service.EXPECT().Load(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	response := singleFieldResponse(service, "account", &String{
+		Path:     []string{"account"},
+		Nullable: true,
+	}, GraphCoordinate{
+		TypeName:             "Query",
+		FieldName:            "account",
+		HasAuthorizationRule: true,
+	})
+	response.Info.AuthorizationCoordinates = []AuthorizationCoordinate{
+		{DataSourceID: "accounts", Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "account"}},
+	}
+
+	authorizer := &batchTestAuthorizer{
+		decisions: map[GraphCoordinate]AuthorizationDecision{
+			{TypeName: "Query", FieldName: "account"}: {Allowed: false, Reason: "missing scope 'account:read'"},
+		},
+	}
+	resolveCtx := NewContext(context.Background())
+	resolveCtx.SetPreFetchFieldAuthorizer(authorizer)
+	resolveCtx.ExecutionOptions.SkipLoader = true
+
+	var buf bytes.Buffer
+	resolver := newResolver(context.Background())
+	_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
+	require.NoError(t, err)
+
+	assert.Equal(t, `{"data":null}`, buf.String())
+	assert.Equal(t, int64(0), authorizer.batchCalls.Load())
+}
+
 func singleFieldResponse(service DataSource, fieldName string, value Node, rootField GraphCoordinate) *GraphQLResponse {
 	return &GraphQLResponse{
 		Info: &GraphQLResponseInfo{
