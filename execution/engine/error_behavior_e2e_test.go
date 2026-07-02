@@ -3,14 +3,12 @@ package engine
 import (
 	"testing"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-
-	graphql_datasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	graphql_datasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // onErrorE2ESchema has a nullable hero whose name is non-null, so a subgraph
