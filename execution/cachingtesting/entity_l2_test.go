@@ -1,6 +1,7 @@
 package cachingtesting
 
 import (
+	"context"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -9,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/execution/engine"
+	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/cache/cachetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -94,74 +97,86 @@ func TestEntityL2EndToEnd(t *testing.T) {
 	}, store.Ops())
 }
 
-// resolveWithContext drives the public sync entry point with a caller-built
-// Context (for hook/controller combinations the plain helper cannot express).
-func resolveWithContext(t *testing.T, ctx *resolve.Context, resp *resolve.GraphQLResponse) string {
-	t.Helper()
-	var buf writerBuffer
-	r := resolve.New(t.Context(), resolve.ResolverOptions{MaxConcurrency: 16})
-	_, err := r.ResolveGraphQLResponse(ctx, resp, nil, &buf)
-	require.NoError(t, err)
-	return buf.String()
-}
-
-type writerBuffer struct {
-	data []byte
-}
-
-func (w *writerBuffer) Write(p []byte) (int, error) {
-	w.data = append(w.data, p...)
-	return len(p), nil
-}
-
-func (w *writerBuffer) String() string {
-	return string(w.data)
-}
-
-// TestEntityL2DispatchRows covers the C dispatch/lifecycle rows with the
-// recording fake: decisions route to the right merge hook, the handle keeps
-// pointer identity from prepare to merge (C8), and hook errors propagate (O).
+// TestEntityL2DispatchRows covers the C dispatch/lifecycle rows through the
+// REAL ExecutionEngine: decisions route to the right merge hook, the handle
+// keeps pointer identity from prepare to merge (C8), and hook errors
+// propagate (O).
 func TestEntityL2DispatchRows(t *testing.T) {
 	t.Run("[C] DecisionFetch dispatches to OnFetchResult with handle identity", func(t *testing.T) {
 		handle := &resolve.FetchCacheHandle{Decision: resolve.DecisionFetch}
 		controller := cachetesting.NewRecordingController(map[string]cachetesting.ScriptedDecision{
 			"me.favoriteProduct": {Decision: resolve.DecisionFetch, Handle: handle},
 		})
-		result := Plan(t, `{ me { username favoriteProduct { upc stock } } }`, inventoryCaching(), map[string]string{
-			"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
-			"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-			"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
-		})
-		body := ResolveResponse(t, result.Response, controller)
+		users := Respond(`{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`)
+		products := Respond(`{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`)
+		inventory := Respond(`{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`)
+		subgraphs := Subgraphs{"users": users, "products": products, "inventory": inventory}
+		executionEngine := NewEngine(t, inventoryCaching(), subgraphs)
+
+		body := Execute(t, executionEngine, `{ me { username favoriteProduct { upc stock } } }`, controller)
 		assert.Equal(t, `{"data":{"me":{"username":"jens","favoriteProduct":{"upc":"1","stock":5}}}}`, body)
 
+		// Only the cached inventory fetch hits the hooks: Prepare + Result + End.
+		// InputBytes carries the double's ephemeral URL; normalize it so the pin
+		// stays literal. EmptyEntity is the loader's RAW signal (entity fetch
+		// whose data._entities is a non-null array); the controller only treats
+		// it as a negative result when ResponseData is also null.
 		calls := controller.Calls()
-		require.Len(t, calls, 3) // Prepare + Result + End
-		assert.Equal(t, "Prepare", calls[0].Op)
-		assert.Equal(t, "me.favoriteProduct", calls[0].FetchPath)
-		assert.Equal(t, "Result", calls[1].Op)
-		assert.Equal(t, `{"__typename":"Product","stock":5}`, calls[1].ResponseData)
-		assert.Equal(t, "End", calls[2].Op)
+		for i := range calls {
+			calls[i].InputBytes = subgraphs.NormalizeURLs(calls[i].InputBytes)
+		}
+		assert.Equal(t, []cachetesting.Call{
+			{
+				Op:         "Prepare",
+				FetchPath:  "me.favoriteProduct",
+				Items:      1,
+				InputBytes: `{"method":"POST","url":"http://inventory.service","header":{},"body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename stock}}}","variables":{"representations":[{"__typename":"Product","upc":"1"}]}}}`,
+				Decision:   resolve.DecisionFetch,
+			},
+			{
+				Op:           "Result",
+				FetchPath:    "me.favoriteProduct",
+				Items:        1,
+				ResponseData: `{"__typename":"Product","stock":5}`,
+				EmptyEntity:  true,
+				StatusCode:   200,
+			},
+			{Op: "End"},
+		}, calls)
 		assert.Equal(t, []*resolve.FetchCacheHandle{handle}, controller.ResultHandles())
 		assert.Equal(t, int64(1), controller.Begins())
 	})
 
 	t.Run("[C3/C6] SkipFullHit skips the network with NO spurious error", func(t *testing.T) {
-		query := `{ me { username favoriteProduct { upc stock } } }`
-		responses := map[string]string{
-			"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
-			"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-			"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
-		}
-		result := Plan(t, query, inventoryCaching(), responses)
-		// A real full hit: seed the store through a first request, then replay.
 		store := cachetesting.NewFakeStore()
-		warmup := Plan(t, query, inventoryCaching(), responses)
-		ResolveResponse(t, warmup.Response, cachetesting.NewRealishCache(store, nil))
+		controller := cachetesting.NewRealishCache(store, nil)
+		query := `{ me { username favoriteProduct { upc stock } } }`
+		users := Respond(`{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`)
+		products := Respond(`{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`)
+		inventory := Respond(`{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`)
+		executionEngine := NewEngine(t, inventoryCaching(), Subgraphs{"users": users, "products": products, "inventory": inventory})
+		expected := `{"data":{"me":{"username":"jens","favoriteProduct":{"upc":"1","stock":5}}}}`
 
-		body := ResolveResponse(t, result.Response, cachetesting.NewRealishCache(store, nil))
-		assert.Equal(t, `{"data":{"me":{"username":"jens","favoriteProduct":{"upc":"1","stock":5}}}}`, body)
-		assert.Equal(t, int64(0), result.LoadCount("inventory", "me.favoriteProduct"))
+		// A real full hit: seed the store through a first request, then replay.
+		warmupBody := Execute(t, executionEngine, query, controller)
+		assert.Equal(t, expected, warmupBody)
+		warmupOps := store.Ops()
+		require.Len(t, warmupOps, 2)
+		key := warmupOps[0].Key
+		assert.Equal(t, []cachetesting.StoreOp{
+			{Kind: "Get", Key: key},
+			{Kind: "Set", Key: key, Value: `{"__typename":"Product","stock":5}`, TTL: time.Minute},
+		}, warmupOps)
+
+		// The replay resolves cleanly (Execute fails the test on any resolver
+		// error) with ZERO further network to inventory: a single Get, no writes.
+		store.ResetOps()
+		body := Execute(t, executionEngine, query, controller)
+		assert.Equal(t, expected, body)
+		assert.Equal(t, int64(1), inventory.Requests())
+		assert.Equal(t, []cachetesting.StoreOp{
+			{Kind: "Get", Key: key},
+		}, store.Ops())
 	})
 
 	t.Run("[O] merge-hook errors propagate to the caller", func(t *testing.T) {
@@ -171,16 +186,14 @@ func TestEntityL2DispatchRows(t *testing.T) {
 		fake.SetError("me.favoriteProduct", "Result", errors.New("cache write exploded"))
 		controller := cachetesting.NewFakeCacheController(fake)
 
-		result := Plan(t, `{ me { username favoriteProduct { upc stock } } }`, inventoryCaching(), map[string]string{
-			"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
-			"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`,
-			"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
-		})
-		ctx := resolve.NewContext(t.Context())
-		ctx.SetCacheController(controller)
-		var buf writerBuffer
-		r := resolve.New(t.Context(), resolve.ResolverOptions{MaxConcurrency: 16})
-		_, err := r.ResolveGraphQLResponse(ctx, result.Response, nil, &buf)
+		users := Respond(`{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`)
+		products := Respond(`{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1"}}]}}`)
+		inventory := Respond(`{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`)
+		executionEngine := NewEngine(t, inventoryCaching(), Subgraphs{"users": users, "products": products, "inventory": inventory})
+
+		// Execute requires success, so drive the engine directly for the error.
+		writer := graphql.NewEngineResultWriter()
+		err := executionEngine.Execute(context.Background(), &graphql.Request{Query: `{ me { username favoriteProduct { upc stock } } }`}, &writer, engine.WithCacheController(controller))
 		require.EqualError(t, err, "cache write exploded")
 	})
 }

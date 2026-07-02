@@ -10,81 +10,72 @@ import (
 )
 
 // TestNoOpBaseline is the Phase 0 exit proof (appendix row A1 shape): with
-// caching unconfigured, the resolved response is byte-identical whether or not
-// a runtime controller is set, and the controller is never consulted.
+// caching unconfigured, the response is byte-identical whether or not a
+// runtime controller is set, and the controller is never consulted.
 func TestNoOpBaseline(t *testing.T) {
 	query := `{ products(first: 2) { upc name } }`
-	responses := map[string]string{
-		"products": `{"data":{"products":[{"__typename":"Product","upc":"1","name":"Table"},{"__typename":"Product","upc":"2","name":"Chair"}]}}`,
-	}
+	products := Respond(`{"data":{"products":[{"__typename":"Product","upc":"1","name":"Table"},{"__typename":"Product","upc":"2","name":"Chair"}]}}`)
+	executionEngine := NewEngine(t, nil, Subgraphs{"products": products})
 	expected := `{"data":{"products":[{"upc":"1","name":"Table"},{"upc":"2","name":"Chair"}]}}`
 
-	baseline := Plan(t, query, nil, responses)
-	baselineBody := ResolveResponse(t, baseline.Response, nil)
+	baselineBody := Execute(t, executionEngine, query, nil)
 	assert.Equal(t, expected, baselineBody)
 
 	controller := cachetesting.NewRecordingController(nil)
-	withController := Plan(t, query, nil, responses)
-	withControllerBody := ResolveResponse(t, withController.Response, controller)
+	withControllerBody := Execute(t, executionEngine, query, controller)
 	assert.Equal(t, expected, withControllerBody)
 	assert.Equal(t, baselineBody, withControllerBody)
 	assert.Equal(t, int64(0), controller.Begins())
 	assert.Empty(t, controller.Calls())
 }
 
-// TestFixtureSmoke plans and resolves one representative operation per fixture
-// shape through the harness with canned responses, asserting the COMPLETE
+// TestFixtureSmoke executes one representative operation per fixture shape
+// through the real engine over subgraph doubles, asserting the COMPLETE
 // response body.
 func TestFixtureSmoke(t *testing.T) {
 	t.Run("multi-key entity via second key set", func(t *testing.T) {
-		result := Plan(t, `{ productBySku(sku: "S1") { upc sku name price } }`, nil, map[string]string{
-			"products": `{"data":{"productBySku":{"__typename":"Product","upc":"1","sku":"S1","name":"Table","price":100}}}`,
-		})
-		body := ResolveResponse(t, result.Response, nil)
+		products := Respond(`{"data":{"productBySku":{"__typename":"Product","upc":"1","sku":"S1","name":"Table","price":100}}}`)
+		executionEngine := NewEngine(t, nil, Subgraphs{"products": products})
+		body := Execute(t, executionEngine, `{ productBySku(sku: "S1") { upc sku name price } }`, nil)
 		assert.Equal(t, `{"data":{"productBySku":{"upc":"1","sku":"S1","name":"Table","price":100}}}`, body)
 	})
 
 	t.Run("by-key root field", func(t *testing.T) {
-		result := Plan(t, `{ product(upc: "1") { name } }`, nil, map[string]string{
-			"products": `{"data":{"product":{"__typename":"Product","name":"Table"}}}`,
-		})
-		body := ResolveResponse(t, result.Response, nil)
+		products := Respond(`{"data":{"product":{"__typename":"Product","name":"Table"}}}`)
+		executionEngine := NewEngine(t, nil, Subgraphs{"products": products})
+		body := Execute(t, executionEngine, `{ product(upc: "1") { name } }`, nil)
 		assert.Equal(t, `{"data":{"product":{"name":"Table"}}}`, body)
 	})
 
 	t.Run("nested cross-subgraph entities", func(t *testing.T) {
-		result := Plan(t, `{ me { username favoriteProduct { name stock warehouse { location } } } }`, nil, map[string]string{
-			"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
-			"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1","name":"Table"}}]}}`,
-			"inventory:me.favoriteProduct": `{"data":{"_entities":[{"__typename":"Product","stock":5,"warehouse":{"location":"Berlin"}}]}}`,
-		})
-		body := ResolveResponse(t, result.Response, nil)
+		users := Respond(`{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`)
+		products := Respond(`{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"1","name":"Table"}}]}}`)
+		inventory := Respond(`{"data":{"_entities":[{"__typename":"Product","stock":5,"warehouse":{"location":"Berlin"}}]}}`)
+		executionEngine := NewEngine(t, nil, Subgraphs{"users": users, "products": products, "inventory": inventory})
+		body := Execute(t, executionEngine, `{ me { username favoriteProduct { name stock warehouse { location } } } }`, nil)
 		assert.Equal(t, `{"data":{"me":{"username":"jens","favoriteProduct":{"name":"Table","stock":5,"warehouse":{"location":"Berlin"}}}}}`, body)
 	})
 
 	t.Run("batch entity reviews", func(t *testing.T) {
-		result := Plan(t, `{ products(first: 2) { upc reviews { body } } }`, nil, map[string]string{
-			"products": `{"data":{"products":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"}]}}`,
-			"reviews":  `{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Solid"}]},{"__typename":"Product","reviews":[{"body":"Wobbly"}]}]}}`,
-		})
-		body := ResolveResponse(t, result.Response, nil)
+		products := Respond(`{"data":{"products":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"}]}}`)
+		reviews := Respond(`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Solid"}]},{"__typename":"Product","reviews":[{"body":"Wobbly"}]}]}}`)
+		executionEngine := NewEngine(t, nil, Subgraphs{"products": products, "reviews": reviews})
+		body := Execute(t, executionEngine, `{ products(first: 2) { upc reviews { body } } }`, nil)
 		assert.Equal(t, `{"data":{"products":[{"upc":"1","reviews":[{"body":"Solid"}]},{"upc":"2","reviews":[{"body":"Wobbly"}]}]}}`, body)
 	})
 
 	t.Run("sibling root fields on one datasource", func(t *testing.T) {
-		result := Plan(t, `{ products(first: 1) { upc } promotions { upc } }`, nil, map[string]string{
-			"products": `{"data":{"products":[{"__typename":"Product","upc":"1"}],"promotions":[{"__typename":"Product","upc":"9"}]}}`,
-		})
-		body := ResolveResponse(t, result.Response, nil)
+		products := Respond(`{"data":{"products":[{"__typename":"Product","upc":"1"}],"promotions":[{"__typename":"Product","upc":"9"}]}}`)
+		executionEngine := NewEngine(t, nil, Subgraphs{"products": products})
+		body := Execute(t, executionEngine, `{ products(first: 1) { upc } promotions { upc } }`, nil)
 		assert.Equal(t, `{"data":{"products":[{"upc":"1"}],"promotions":[{"upc":"9"}]}}`, body)
 	})
 
 	t.Run("mixed ttl siblings across subgraphs", func(t *testing.T) {
-		result := Plan(t, `{ product(upc: "1") { name stock } }`, nil, map[string]string{
-			"products":          `{"data":{"product":{"__typename":"Product","name":"Table","upc":"1"}}}`,
-			"inventory:product": `{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`,
-		})
-		body := ResolveResponse(t, result.Response, nil)
+		products := Respond(`{"data":{"product":{"__typename":"Product","name":"Table","upc":"1"}}}`)
+		inventory := Respond(`{"data":{"_entities":[{"__typename":"Product","stock":5}]}}`)
+		executionEngine := NewEngine(t, nil, Subgraphs{"products": products, "inventory": inventory})
+		body := Execute(t, executionEngine, `{ product(upc: "1") { name stock } }`, nil)
 		assert.Equal(t, `{"data":{"product":{"name":"Table","stock":5}}}`, body)
 	})
 }
@@ -93,6 +84,8 @@ func TestFixtureSmoke(t *testing.T) {
 // request's inventory entity fetch provides a STRICT SUPERSET (stock +
 // warehouse) of the deferred inventory entity fetch in a later group (stock
 // only), so cross-defer-group L1 serving is provable (task 18 rows N1/N2/M3).
+// Stays on the Plan harness: its whole point is the deferred group's PLANNED
+// fetch shape, which no client-visible response can express.
 func TestDeferSupersetShape(t *testing.T) {
 	query := `
 		query {

@@ -12,9 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -188,72 +186,6 @@ func ResolveResponse(tb testing.TB, resp *resolve.GraphQLResponse, controller re
 	_, err := r.ResolveGraphQLResponse(ctx, resp, nil, &buf)
 	require.NoError(tb, err)
 	return buf.String()
-}
-
-// deferFrameWriter captures each flushed incremental frame as one COMPLETE
-// payload string (safe for concurrent Write/Flush from group goroutines).
-type deferFrameWriter struct {
-	mu       sync.Mutex
-	buf      bytes.Buffer
-	frames   []string
-	complete bool
-	// Flushed (optional) receives one signal per flushed frame, so tests can
-	// gate on frame progress with pure channel synchronization (no polling,
-	// no latency). Buffer it generously; Flush blocks on a full channel.
-	Flushed chan struct{}
-}
-
-func (w *deferFrameWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.buf.Write(p)
-}
-
-func (w *deferFrameWriter) Flush() error {
-	w.mu.Lock()
-	w.frames = append(w.frames, w.buf.String())
-	w.buf.Reset()
-	w.mu.Unlock()
-	if w.Flushed != nil {
-		w.Flushed <- struct{}{}
-	}
-	return nil
-}
-
-func (w *deferFrameWriter) Complete() {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.complete = true
-}
-
-// Frames returns the flushed frames so far (usable mid-resolve for gating).
-func (w *deferFrameWriter) Frames() []string {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return slices.Clone(w.frames)
-}
-
-// ResolveDeferResponse resolves a deferred response end to end and returns
-// every flushed incremental frame as a complete string.
-func ResolveDeferResponse(tb testing.TB, resp *resolve.GraphQLDeferResponse, controller resolve.CacheController) []string {
-	tb.Helper()
-	writer := &deferFrameWriter{}
-	ResolveDeferResponseWith(tb, resp, controller, writer)
-	return writer.frames
-}
-
-// ResolveDeferResponseWith is ResolveDeferResponse with a caller-owned writer,
-// for tests that gate on frames mid-resolve.
-func ResolveDeferResponseWith(tb testing.TB, resp *resolve.GraphQLDeferResponse, controller resolve.CacheController, writer *deferFrameWriter) {
-	tb.Helper()
-	ctx := resolve.NewContext(tb.Context())
-	if controller != nil {
-		ctx.SetCacheController(controller)
-	}
-	r := resolve.New(tb.Context(), resolve.ResolverOptions{MaxConcurrency: 16})
-	_, err := r.ResolveGraphQLDeferResponse(ctx, resp, writer)
-	require.NoError(tb, err)
-	require.True(tb, writer.complete)
 }
 
 // PrettyPlan renders the ENTIRE execution plan as one engine-pretty-printed

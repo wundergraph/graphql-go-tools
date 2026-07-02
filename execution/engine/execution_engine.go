@@ -116,6 +116,14 @@ func WithCacheController(controller resolve.CacheController) ExecutionOptions {
 	}
 }
 
+// WithIncludeQueryPlanInResponse includes the fetch tree's QueryPlan in the
+// response extensions.
+func WithIncludeQueryPlanInResponse() ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.ExecutionOptions.IncludeQueryPlanInResponse = true
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {
