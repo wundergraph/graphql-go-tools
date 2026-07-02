@@ -43,6 +43,7 @@ type Resolvable struct {
 	path               []fastjsonext.PathElement
 	depth              int
 	operationType      ast.OperationType
+	errorBehavior      ErrorBehavior
 	renameTypeNames    []RenameTypeName
 	ctx                *Context
 	authorizationError error
@@ -136,6 +137,7 @@ func (r *Resolvable) Reset() {
 	r.printErr = nil
 	r.path = r.path[:0]
 	r.operationType = ast.OperationTypeUnknown
+	r.errorBehavior = ""
 	r.renameTypeNames = r.renameTypeNames[:0]
 	r.authorizationError = nil
 	r.astjsonArena = nil
@@ -212,6 +214,12 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 	r.authorizationError = nil
 	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
+	// r.ctx may be nil when ResolveNode is used to render a variable that is
+	// actually a node (see renderFieldValue); default to PROPAGATE in that case.
+	r.errorBehavior = ErrorBehaviorPropagate
+	if r.ctx != nil && r.ctx.ExecutionOptions.ErrorBehavior != "" {
+		r.errorBehavior = r.ctx.ExecutionOptions.ErrorBehavior
+	}
 
 	hasErrors := r.walkNode(node, data)
 	if hasErrors {
@@ -231,6 +239,10 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
+	r.errorBehavior = r.ctx.ExecutionOptions.ErrorBehavior
+	if r.errorBehavior == "" {
+		r.errorBehavior = ErrorBehaviorPropagate
+	}
 
 	if r.ctx.ExecutionOptions.SkipLoader {
 		// we didn't resolve any data, so there's no point in generating errors
@@ -254,6 +266,10 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	hasErrors := r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
 		return r.authorizationError
+	}
+	if r.errorBehavior == ErrorBehaviorHalt && r.hasErrors() {
+		hasErrors = true // force data: null
+		r.keepFirstErrorOnly()
 	}
 	r.printBytes(lBrace)
 	if r.hasErrors() {
@@ -293,6 +309,37 @@ func (r *Resolvable) enclosingTypeName() string {
 
 func (r *Resolvable) err() bool {
 	return true
+}
+
+// erroredPosition decides how an execution error at the current position is
+// handled under the active error behavior. The caller must have already
+// recorded the error (guarded to the validation pass). Under NULL the position
+// is rendered as null and the error does not propagate; otherwise it propagates.
+func (r *Resolvable) erroredPosition(path []string, parent *astjson.Value) bool {
+	if r.errorBehavior != ErrorBehaviorNull {
+		return r.err()
+	}
+	if r.print {
+		return r.walkNull() // prints null on the print pass, returns false
+	}
+	if len(path) > 0 {
+		astjson.SetNull(r.astjsonArena, parent, path...)
+	}
+	return false
+}
+
+// keepFirstErrorOnly trims r.errors down to its first element (used by HALT).
+func (r *Resolvable) keepFirstErrorOnly() {
+	if r.errors == nil {
+		return
+	}
+	items := r.errors.GetArray()
+	if len(items) <= 1 {
+		return
+	}
+	first := items[0]
+	r.errors = astjson.ArrayValue(r.astjsonArena)
+	r.errors.SetArrayItem(r.astjsonArena, 0, first)
 }
 
 func (r *Resolvable) printErrors() {
@@ -698,15 +745,19 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		if obj.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(obj.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(obj.Path, parent)
+		}
+		return r.erroredPosition(obj.Path, parent)
 	}
 	r.pushNodePathElement(obj.Path)
 	isRoot := r.depth < 2
 	defer r.popNodePathElement(obj.Path)
 	if value.Type() != astjson.TypeObject {
-		r.addError("Object cannot represent non-object value.", obj.Path)
-		return r.err()
+		if !r.print {
+			r.addError("Object cannot represent non-object value.", obj.Path)
+		}
+		return r.erroredPosition(obj.Path, parent)
 	}
 
 	typeName := value.GetStringBytes("__typename")
@@ -946,14 +997,18 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		if arr.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(arr.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(arr.Path, parent)
+		}
+		return r.erroredPosition(arr.Path, parent)
 	}
 	r.pushNodePathElement(arr.Path)
 	defer r.popNodePathElement(arr.Path)
 	if value.Type() != astjson.TypeArray {
-		r.addError("Array cannot represent non-array value.", arr.Path)
-		return r.err()
+		if !r.print {
+			r.addError("Array cannot represent non-array value.", arr.Path)
+		}
+		return r.erroredPosition(arr.Path, parent)
 	}
 	if r.print {
 		r.printBytes(lBrack)
@@ -1076,13 +1131,17 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(s.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(s.Path, parent)
+		}
+		return r.erroredPosition(s.Path, parent)
 	}
 	if value.Type() != astjson.TypeString {
-		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("String cannot represent non-string value: \"%s\"", string(r.marshalBuf)), s.Path)
-		return r.err()
+		if !r.print {
+			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+			r.addError(fmt.Sprintf("String cannot represent non-string value: \"%s\"", string(r.marshalBuf)), s.Path)
+		}
+		return r.erroredPosition(s.Path, parent)
 	}
 	if r.print {
 		if s.IsTypeName {
@@ -1122,13 +1181,17 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(b.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(b.Path, parent)
+		}
+		return r.erroredPosition(b.Path, parent)
 	}
 	if value.Type() != astjson.TypeTrue && value.Type() != astjson.TypeFalse {
-		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \"%s\"", string(r.marshalBuf)), b.Path)
-		return r.err()
+		if !r.print {
+			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+			r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \"%s\"", string(r.marshalBuf)), b.Path)
+		}
+		return r.erroredPosition(b.Path, parent)
 	}
 	if r.print {
 		r.renderScalarFieldValue(value, b.Nullable)
@@ -1143,13 +1206,17 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 		if i.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(i.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(i.Path, parent)
+		}
+		return r.erroredPosition(i.Path, parent)
 	}
 	if value.Type() != astjson.TypeNumber {
-		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \"%s\"", string(r.marshalBuf)), i.Path)
-		return r.err()
+		if !r.print {
+			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+			r.addError(fmt.Sprintf("Int cannot represent non-integer value: \"%s\"", string(r.marshalBuf)), i.Path)
+		}
+		return r.erroredPosition(i.Path, parent)
 	}
 	if r.print {
 		r.renderScalarFieldValue(value, i.Nullable)
@@ -1164,14 +1231,16 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 		if f.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(f.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(f.Path, parent)
+		}
+		return r.erroredPosition(f.Path, parent)
 	}
 	if !r.print {
 		if value.Type() != astjson.TypeNumber {
 			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 			r.addError(fmt.Sprintf("Float cannot represent non-float value: \"%s\"", string(r.marshalBuf)), f.Path)
-			return r.err()
+			return r.erroredPosition(f.Path, parent)
 		}
 	}
 	if r.print {
@@ -1194,8 +1263,10 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(b.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(b.Path, parent)
+		}
+		return r.erroredPosition(b.Path, parent)
 	}
 	if r.print {
 		r.renderScalarFieldValue(value, b.Nullable)
@@ -1210,8 +1281,10 @@ func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(s.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(s.Path, parent)
+		}
+		return r.erroredPosition(s.Path, parent)
 	}
 	if r.print {
 		r.renderScalarFieldValue(value, s.Nullable)
@@ -1242,14 +1315,18 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 		if c.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(c.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(c.Path, parent)
+		}
+		return r.erroredPosition(c.Path, parent)
 	}
 	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 	resolved, err := c.Resolve(r.ctx, r.marshalBuf)
 	if err != nil {
-		r.addError(err.Error(), c.Path)
-		return r.err()
+		if !r.print {
+			r.addError(err.Error(), c.Path)
+		}
+		return r.erroredPosition(c.Path, parent)
 	}
 	if r.print {
 		r.renderScalarFieldBytes(resolved, c.Nullable)
@@ -1321,13 +1398,17 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		if e.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(e.Path, parent)
-		return r.err()
+		if !r.print {
+			r.addNonNullableFieldError(e.Path, parent)
+		}
+		return r.erroredPosition(e.Path, parent)
 	}
 	if value.Type() != astjson.TypeString {
-		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: %s`, e.TypeName, string(r.marshalBuf)), errorcodes.InternalServerError, e.Path)
-		return r.err()
+		if !r.print {
+			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+			r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: %s`, e.TypeName, string(r.marshalBuf)), errorcodes.InternalServerError, e.Path)
+		}
+		return r.erroredPosition(e.Path, parent)
 	}
 	valueString := string(value.GetStringBytes())
 	if !e.isValidValue(valueString) {
@@ -1346,7 +1427,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		if e.Nullable {
 			return r.walkNull()
 		}
-		return r.err()
+		return r.erroredPosition(e.Path, parent)
 	}
 	if !e.isAccessibleValue(valueString) {
 		/* When an inaccessible value is returned, the data is set to null.
@@ -1361,7 +1442,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		if e.Nullable {
 			return r.walkNull()
 		}
-		return r.err()
+		return r.erroredPosition(e.Path, parent)
 	}
 	if r.print {
 		r.renderEnumValue(value, e.Nullable)

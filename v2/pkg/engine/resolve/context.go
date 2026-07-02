@@ -128,6 +128,10 @@ type ExecutionOptions struct {
 	// However, if you're benchmarking internals of the engine, it can be helpful to switch it off
 	// When disabled (set to true) the code becomes a no-op
 	DisableInboundRequestDeduplication bool
+	// ErrorBehavior selects how execution errors interact with non-null
+	// positions (GraphQL onError proposal, graphql-spec#1163). The empty value
+	// is treated as PROPAGATE (spec default).
+	ErrorBehavior ErrorBehavior
 }
 
 type FieldValue struct {
