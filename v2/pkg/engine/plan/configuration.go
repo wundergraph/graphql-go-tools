@@ -156,8 +156,9 @@ type SubscriptionFilterCondition struct {
 }
 
 type SubscriptionFieldCondition struct {
-	FieldPath []string
-	Values    []string
+	FieldPath          []string
+	Values             []string
+	BypassIfValuesNull bool
 }
 
 type ArgumentsConfigurations []ArgumentConfiguration
