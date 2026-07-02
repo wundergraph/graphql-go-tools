@@ -107,6 +107,19 @@ func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
 	r.errorFormatter = w
 }
 
+// MaxConcurrentResolves returns the configured maximum number of concurrent
+// resolves (the size of the resolver semaphore). Use only for stats.
+func (r *Resolver) MaxConcurrentResolves() int {
+	return cap(r.maxConcurrency)
+}
+
+// InflightResolves returns the number of resolves currently holding a
+// semaphore slot. The value is a snapshot and may change immediately after
+// being read. Use only for stats.
+func (r *Resolver) InflightResolves() int {
+	return cap(r.maxConcurrency) - len(r.maxConcurrency)
+}
+
 type tools struct {
 	resolvable *Resolvable
 	loader     *Loader
@@ -339,6 +352,16 @@ type GraphQLResolveInfo struct {
 
 	// ResolveDeduplicated indicates whether the resolution of the entire operation was deduplicated via single flight
 	ResolveDeduplicated bool
+
+	// ResponseResolveStartTime is the time when GraphQL response completion and rendering started.
+	ResponseResolveStartTime time.Time
+	// ResponseResolveDuration is the time spent completing and rendering the GraphQL response.
+	ResponseResolveDuration time.Duration
+
+	// ResponseWriteStartTime is the time when the resolved response started writing to the client.
+	ResponseWriteStartTime time.Time
+	// ResponseWriteDuration is the time spent writing the resolved response to the client.
+	ResponseWriteDuration time.Duration
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
@@ -370,7 +393,10 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		}
 	}
 
+	responseResolveStart := time.Now()
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, writer)
+	resp.ResponseResolveStartTime = responseResolveStart
+	resp.ResponseResolveDuration = time.Since(responseResolveStart)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +421,10 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		if ctx.SetDeduplicationData != nil && inflight.SharedData != nil {
 			ctx.SetDeduplicationData(ctx.ctx, inflight.SharedData)
 		}
+		responseWriteStart := time.Now()
 		_, err = writer.Write(inflight.Data)
+		resp.ResponseWriteStartTime = responseWriteStart
+		resp.ResponseWriteDuration = time.Since(responseWriteStart)
 		return resp, err
 	}
 
@@ -436,7 +465,10 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// only when loading is done, acquire an arena for the response buffer
 	responseArena := r.responseBufferPool.Acquire(ctx.Request.ID)
 	buf := arena.NewArenaBuffer(responseArena.Arena)
+	responseResolveStart := time.Now()
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
+	resp.ResponseResolveStartTime = responseResolveStart
+	resp.ResponseResolveDuration = time.Since(responseResolveStart)
 	if err != nil {
 		r.inboundRequestSingleFlight.FinishErr(inflight, err)
 		r.resolveArenaPool.Release(resolveArena)
@@ -452,7 +484,10 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// this includes flushing and syscalls
 	// as such, it can take some time
 	// which is why we split the arenas and released the first one
+	responseWriteStart := time.Now()
 	_, err = writer.Write(buf.Bytes())
+	resp.ResponseWriteStartTime = responseWriteStart
+	resp.ResponseWriteDuration = time.Since(responseWriteStart)
 	// Extract data from the leader's context to share with singleflight followers.
 	// This runs after the leader has fully resolved and written its response, so all
 	// subgraph response headers have been accumulated on the leader's context.
