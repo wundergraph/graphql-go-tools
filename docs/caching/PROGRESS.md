@@ -29,11 +29,11 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 | 17 | L1 runtime store | done | 36ac68c5 | Pointer store, shared keys, L1-first ladder; fixed heap-mode StructuralCopy passthrough + optimize-pass chain break; H4 resolved (shadow stashes L1 selections); reviews/17-*.md. |
 | 18 | defer + concurrency coverage | done | a0ce527a | First-pass gap CLOSED (N1/N2/M3 proven e2e); flushed-out fix: defer-group ANCESTRY ordering (treeParents via DeferDescriptors.ParentID); N4 via Flushed gate channel (synctest incompatible with engine goroutines); reviews/18-*.md. |
 | 19 | partial fetching | done | f7cf360a | Batch partial (filter+realign) in cache/partial.go; four explained loader touches; per-field expiry = mixed-TTL-across-fetches (interpretation documented); reviews/19-*.md. |
-| 20 | ART observability | todo | — | — |
+| 20 | ART observability | done | (see git log) | Production TraceObserver; zero observer calls outside the controller; DataSourceLoadTrace.CacheTrace additive section; reviews/20-*.md. ALL 20 TASKS DONE. |
 
 ## Current focus
 
-- Next step: task 20 (ART observability; final task).
+- Next step: NONE — all 20 tasks are done. The plan is complete.
 - Mid-task state: none.
 
 ## Blockers awaiting human input
@@ -101,3 +101,4 @@ Status legend: `todo` | `in-progress` | `blocked` | `review` (done, awaiting hum
 - Task 18: synctest bubbles deadlock on engine-lifetime goroutines (WS ping loops, resolver heartbeat) — defer-frame ordering tests gate on the writer's Flushed channel instead.
 - Task 19: FetchPartial dispatches in OnFetchResult BEFORE the failure gate (covered splice must survive a failed fetch); mergeResult returns after response/error processing for partial fetches (res.cachePartial).
 - Task 19: per-field partial expiry = mixed-TTL semantics ACROSS fetches (per-request query rewriting is out of scope; documented in reviews/19); entity policies gate batch partial via EnablePartialCacheLoad, root-field policies via PartialBatchLoad.
+- Task 20: the handle carries the observability contract (Trace destination + HashAnalyticsKeys); trace assembly at EndRequest works because endCacheRequest defers before ResolveGraphQLResponse returns; the shadow stash clears ServedFromLayer (nothing was served).

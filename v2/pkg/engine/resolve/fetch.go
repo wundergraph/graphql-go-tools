@@ -485,7 +485,43 @@ type DataSourceLoadTrace struct {
 	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
 	LoadSkipped                bool            `json:"load_skipped"`
 	LoadStats                  *LoadStats      `json:"load_stats,omitempty"`
+	CacheTrace                 *CacheTrace     `json:"cache,omitempty"`
 	Path                       string          `json:"-"`
+}
+
+// CacheTrace is the per-fetch caching section of the ART trace output,
+// assembled by the cache observer at request end from the opaque
+// FetchCacheHandle — no caching internals leak onto the loader surface.
+type CacheTrace struct {
+	Decision       string                    `json:"decision"`
+	Hit            bool                      `json:"hit"`
+	Shadow         bool                      `json:"shadow,omitempty"`
+	Items          []CacheItemTrace          `json:"items,omitempty"`
+	ShadowCompares []CacheShadowCompareTrace `json:"shadow_compares,omitempty"`
+}
+
+// CacheItemTrace traces one item (or batch bucket) of a cached fetch.
+type CacheItemTrace struct {
+	// Keys are the rendered cache keys (shared by L1 and L2); hashed when the
+	// policy sets HashAnalyticsKeys.
+	Keys []string `json:"keys,omitempty"`
+	// ServedFrom is "l1" or "l2" when the item was served from cache.
+	ServedFrom  string `json:"served_from,omitempty"`
+	Hit         bool   `json:"hit"`
+	NegativeHit bool   `json:"negative_hit,omitempty"`
+	// RemainingTTLNano is the selected candidate's remaining TTL (L2 hits).
+	RemainingTTLNano int64 `json:"remaining_ttl_nanoseconds,omitempty"`
+	// WriteReason is "refresh" or "backfill" when the item's value was written.
+	WriteReason string `json:"write_reason,omitempty"`
+	// PendingCandidates counts key candidates that could not render at lookup.
+	PendingCandidates int `json:"pending_candidates,omitempty"`
+}
+
+// CacheShadowCompareTrace is one shadow staleness probe result.
+type CacheShadowCompareTrace struct {
+	Key          string `json:"key,omitempty"`
+	IsFresh      bool   `json:"is_fresh"`
+	CacheAgeNano int64  `json:"cache_age_nanoseconds"`
 }
 
 type LoadStats struct {

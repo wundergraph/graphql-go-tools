@@ -73,7 +73,8 @@ func (r *requestCache) onPartialBatchResult(h *resolve.FetchCacheHandle, in reso
 	prefix := r.prefixes[h]
 	missedByItem := r.missedKeys[h]
 	fetchedIndex := 0
-	for i, item := range h.Items {
+	for i := range h.Items {
+		item := &h.Items[i]
 		var targets []*astjson.Value
 		if item.BatchIndex >= 0 && item.BatchIndex < len(in.BatchStats) {
 			targets = in.BatchStats[item.BatchIndex]
