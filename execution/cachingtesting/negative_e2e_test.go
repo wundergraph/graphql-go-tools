@@ -25,18 +25,18 @@ func inventoryNegativeCaching() map[string]cacheconfig.CachingConfiguration {
 // TestNegativeCachingEndToEnd: request 1 fetches a nonexistent entity (the
 // subgraph SUCCESSFULLY returns a null entity) and writes the sentinel;
 // request 2 serves the same null response with ZERO network to inventory.
+// Runs through the REAL ExecutionEngine over HTTP subgraph doubles.
 func TestNegativeCachingEndToEnd(t *testing.T) {
 	store := cachetesting.NewFakeStore()
+	controller := cachetesting.NewRealishCache(store, nil)
 	query := `{ me { favoriteProduct { upc stock } } }`
-	responses := map[string]string{
-		"users":                        `{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`,
-		"products:me":                  `{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"404"}}]}}`,
-		"inventory:me.favoriteProduct": `{"data":{"_entities":[null]}}`,
-	}
+	users := Respond(`{"data":{"me":{"__typename":"User","id":"u1","username":"jens"}}}`)
+	products := Respond(`{"data":{"_entities":[{"__typename":"User","favoriteProduct":{"__typename":"Product","upc":"404"}}]}}`)
+	inventory := Respond(`{"data":{"_entities":[null]}}`)
+	executionEngine := NewEngine(t, inventoryNegativeCaching(), Subgraphs{"users": users, "products": products, "inventory": inventory})
 
-	first := Plan(t, query, inventoryNegativeCaching(), responses)
-	firstBody := ResolveResponse(t, first.Response, cachetesting.NewRealishCache(store, nil))
-	assert.Equal(t, int64(1), first.LoadCount("inventory", "me.favoriteProduct"))
+	firstBody := Execute(t, executionEngine, query, controller)
+	assert.Equal(t, int64(1), inventory.Requests())
 
 	// The sentinel was written with the NEGATIVE TTL.
 	ops := store.Ops()
@@ -47,9 +47,9 @@ func TestNegativeCachingEndToEnd(t *testing.T) {
 		{Kind: "Set", Key: key, Value: "null", TTL: 10 * time.Second},
 	}, ops)
 
-	second := Plan(t, query, inventoryNegativeCaching(), responses)
-	secondBody := ResolveResponse(t, second.Response, cachetesting.NewRealishCache(store, nil))
-	assert.Equal(t, int64(0), second.LoadCount("inventory", "me.favoriteProduct"))
+	secondBody := Execute(t, executionEngine, query, controller)
+	// ZERO new network to inventory: the negative sentinel served.
+	assert.Equal(t, int64(1), inventory.Requests())
 
 	// The negative hit reproduces the empty-fetch response BYTE-IDENTICALLY —
 	// the same null bubble AND the same non-null error the uncached path

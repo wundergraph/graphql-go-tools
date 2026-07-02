@@ -23,24 +23,25 @@ func productsEntityCaching() map[string]cacheconfig.CachingConfiguration {
 	}
 }
 
-// TestMultiKeyCrossKeyHitEndToEnd is the plan-driven cross-key row: request 1
+// TestMultiKeyCrossKeyHitEndToEnd is the engine-driven cross-key row: request 1
 // reaches Product through the upc-keyed reviews path and — because the fresh
 // response carries sku — BACKFILLS the sku key; request 2 reaches the same
 // entity through the sku-keyed deals path, renders ONLY the sku key, and is
 // served from the cache with ZERO network to products.
 func TestMultiKeyCrossKeyHitEndToEnd(t *testing.T) {
 	store := cachetesting.NewFakeStore()
+	controller := cachetesting.NewRealishCache(store, nil)
+	reviews := Respond(`{"data":{"featuredReview":{"__typename":"Review","product":{"__typename":"Product","upc":"1"}}}}`)
+	products := Respond(`{"data":{"_entities":[{"__typename":"Product","name":"Table","sku":"S1"}]}}`)
+	deals := Respond(`{"data":{"deal":{"__typename":"Deal","product":{"__typename":"Product","sku":"S1"}}}}`)
+	executionEngine := NewEngine(t, productsEntityCaching(), Subgraphs{"reviews": reviews, "products": products, "deals": deals})
 
 	// Request 1: featuredReview.product — reviews provides upc; the products
 	// entity fetch renders the upc candidate, the sku candidate is pending and
 	// backfills from the fresh response (which includes sku).
-	prime := Plan(t, `{ featuredReview { product { name } } }`, productsEntityCaching(), map[string]string{
-		"reviews":                         `{"data":{"featuredReview":{"__typename":"Review","product":{"__typename":"Product","upc":"1"}}}}`,
-		"products:featuredReview.product": `{"data":{"_entities":[{"__typename":"Product","name":"Table","sku":"S1"}]}}`,
-	})
-	primeBody := ResolveResponse(t, prime.Response, cachetesting.NewRealishCache(store, nil))
+	primeBody := Execute(t, executionEngine, `{ featuredReview { product { name } } }`, controller)
 	assert.Equal(t, `{"data":{"featuredReview":{"product":{"name":"Table"}}}}`, primeBody)
-	assert.Equal(t, int64(1), prime.LoadCount("products", "featuredReview.product"))
+	assert.Equal(t, int64(1), products.Requests())
 
 	primeOps := store.Ops()
 	require.Len(t, primeOps, 3)
@@ -57,13 +58,11 @@ func TestMultiKeyCrossKeyHitEndToEnd(t *testing.T) {
 	// renders only the sku candidate: the cross-key hit. Its ops assert in
 	// isolation.
 	store.ResetOps()
-	serve := Plan(t, `{ deal(id: "d1") { product { name } } }`, productsEntityCaching(), map[string]string{
-		"deals": `{"data":{"deal":{"__typename":"Deal","product":{"__typename":"Product","sku":"S1"}}}}`,
-	})
-	serveBody := ResolveResponse(t, serve.Response, cachetesting.NewRealishCache(store, nil))
+	serveBody := Execute(t, executionEngine, `{ deal(id: "d1") { product { name } } }`, controller)
 	assert.Equal(t, `{"data":{"deal":{"product":{"name":"Table"}}}}`, serveBody)
-	assert.Equal(t, int64(1), serve.LoadCount("deals", ""))
-	assert.Equal(t, int64(0), serve.LoadCount("products", "deal.product"))
+	assert.Equal(t, int64(1), deals.Requests())
+	// ZERO new products requests: the cross-key hit skipped the network.
+	assert.Equal(t, int64(1), products.Requests())
 
 	// The serve request performed exactly one Get, under the BACKFILLED sku key.
 	assert.Equal(t, []cachetesting.StoreOp{
