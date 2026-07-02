@@ -65,7 +65,8 @@ func filterBatchInput(input []byte, keep []bool) ([]byte, bool) {
 // signals the covered splice still happens (the cached data is valid; the
 // loader has already rendered the fetch errors) and only the fetched subset's
 // merge and writes are skipped.
-func (r *requestCache) onPartialBatchResult(h *resolve.FetchCacheHandle, in resolve.MergeInput, cfg *resolve.FetchCacheConfig) error {
+func (r *requestCache) onPartialBatchResult(h *resolve.FetchCacheHandle, in resolve.MergeInput, state *handleState) error {
+	cfg := state.cfg
 	tx := in.Arena.Begin()
 	defer tx.Commit()
 
@@ -78,8 +79,8 @@ func (r *requestCache) onPartialBatchResult(h *resolve.FetchCacheHandle, in reso
 		}
 	}
 
-	prefix := r.prefixes[h]
-	missedByItem := r.missedKeys[h]
+	prefix := state.prefix
+	missedByItem := state.missedKeys
 	fetchedIndex := 0
 	for i := range h.Items {
 		item := &h.Items[i]

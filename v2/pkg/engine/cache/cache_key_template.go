@@ -40,47 +40,79 @@ func newCacheKeyTemplates(cfg *resolve.FetchCacheConfig, headerHash uint64) []ca
 
 // render produces the candidate's key for one entity item, best-effort: it
 // returns ok=false when any referenced key field is absent or null in the
-// item (an unrenderable candidate is skipped, never an error).
+// item (an unrenderable candidate is skipped, never an error). The canonical
+// key JSON is written DIRECTLY to a byte buffer — the hot lookup path builds
+// no intermediate astjson values (profiled: value building dominated the
+// cache-side allocations) — and the preimage bytes are identical to the
+// former astjson-marshal form, so keys stay stable.
 func (t cacheKeyTemplate) render(item *astjson.Value) (string, bool) {
 	if t.representation == nil || item == nil {
 		return "", false
 	}
-	typename := item.Get("__typename")
-	if typename == nil {
+	preimage := make([]byte, 0, 64)
+	preimage = append(preimage, `{"__typename":`...)
+	if typename := item.Get("__typename"); typename != nil {
+		preimage = typename.MarshalTo(preimage)
+	} else {
 		// Entity items always carry __typename in federation responses; the
 		// template's type name stands in when a caller renders from a value
 		// that legitimately lacks it (e.g. argument-derived lookups, task 15).
+		// GraphQL type names never need JSON escaping.
 		if t.representation.TypeName == "" {
 			return "", false
 		}
-		typename = astjson.StringValue(nil, t.representation.TypeName)
+		preimage = append(preimage, '"')
+		preimage = append(preimage, t.representation.TypeName...)
+		preimage = append(preimage, '"')
 	}
-	keyObj := astjson.ObjectValue(nil)
-	keyObj.Set(nil, "__typename", typename)
-	keysObj := astjson.ObjectValue(nil)
-	renderedFields := 0
-	for _, field := range t.representation.Fields {
+	preimage = append(preimage, `,"key":`...)
+	keyStart := len(preimage)
+	preimage, ok := appendRepresentationObject(preimage, t.representation, item)
+	if !ok {
+		return "", false
+	}
+	if len(preimage) == keyStart+2 {
+		// A key without any key field ("{}") would collide across all entities
+		// of the type; treat it as unrenderable.
+		return "", false
+	}
+	preimage = append(preimage, '}')
+	return renderCacheKey(t.prefix, preimage), true
+}
+
+// appendRepresentationObject writes one canonical key object for the template
+// node from the item: fields in template order (GraphQL names never need JSON
+// escaping), objects recurse, and every field must render.
+func appendRepresentationObject(buf []byte, node *resolve.Object, value *astjson.Value) ([]byte, bool) {
+	buf = append(buf, '{')
+	rendered := 0
+	for _, field := range node.Fields {
 		name := string(field.Name)
 		if name == "__typename" {
 			continue
 		}
-		value, ok := renderRepresentationValue(field.Value, item.Get(name))
-		if !ok {
-			return "", false
+		if rendered > 0 {
+			buf = append(buf, ',')
 		}
-		keysObj.Set(nil, name, value)
-		renderedFields++
+		buf = append(buf, '"')
+		buf = append(buf, name...)
+		buf = append(buf, '"', ':')
+		var ok bool
+		buf, ok = appendRepresentationValue(buf, field.Value, value.Get(name))
+		if !ok {
+			return buf, false
+		}
+		rendered++
 	}
-	if renderedFields == 0 {
-		// A key without any key field would collide across all entities of the
-		// type; treat it as unrenderable.
-		return "", false
+	if rendered == 0 && len(node.Fields) > 0 {
+		// Every field was __typename: nothing key-worthy below this node.
+		return buf, false
 	}
-	keyObj.Set(nil, "key", keysObj)
-	return renderCacheKey(t.prefix, keyObj.MarshalTo(nil)), true
+	buf = append(buf, '}')
+	return buf, true
 }
 
-// renderRepresentationValue extracts the canonical key value for one template
+// appendRepresentationValue writes the canonical key value for one template
 // node from the item: objects recurse over the template's fields, scalars pass
 // through. Numbers are unified with STRINGS of the same literal (the number 1
 // and the string "1" render the same key material) — astjson preserves the
@@ -88,35 +120,24 @@ func (t cacheKeyTemplate) render(item *astjson.Value) (string, bool) {
 // (extra miss, never wrong data). Full numeric canonicalization is deliberately
 // avoided: parsing to float64 would corrupt integers beyond 2^53. A null or
 // absent value makes the candidate unrenderable.
-func renderRepresentationValue(node resolve.Node, value *astjson.Value) (*astjson.Value, bool) {
+func appendRepresentationValue(buf []byte, node resolve.Node, value *astjson.Value) ([]byte, bool) {
 	if value == nil || value.Type() == astjson.TypeNull {
-		return nil, false
+		return buf, false
 	}
 	switch typed := node.(type) {
 	case *resolve.Object:
 		if value.Type() != astjson.TypeObject {
-			return nil, false
+			return buf, false
 		}
-		out := astjson.ObjectValue(nil)
-		rendered := 0
-		for _, field := range typed.Fields {
-			name := string(field.Name)
-			if name == "__typename" {
-				continue
-			}
-			child, ok := renderRepresentationValue(field.Value, value.Get(name))
-			if !ok {
-				return nil, false
-			}
-			out.Set(nil, name, child)
-			rendered++
-		}
-		return out, rendered > 0
+		return appendRepresentationObject(buf, typed, value)
 	default:
 		if value.Type() == astjson.TypeNumber {
-			return astjson.StringValue(nil, string(value.MarshalTo(nil))), true
+			buf = append(buf, '"')
+			buf = value.MarshalTo(buf)
+			buf = append(buf, '"')
+			return buf, true
 		}
-		return value, true
+		return value.MarshalTo(buf), true
 	}
 }
 
