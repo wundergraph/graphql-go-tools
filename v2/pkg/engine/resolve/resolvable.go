@@ -167,9 +167,8 @@ type Resolvable struct {
 }
 
 type TypeNameStats struct {
-	Size            int            // the Size of the resolved array/list. It is 1 for non-list objects.
-	TypeNames       map[string]int // distribution of TypeNames in the array
-	actualListSizes map[string]int
+	Size      int            // the Size of the resolved array/list. It is 1 for non-list objects.
+	TypeNames map[string]int // distribution of TypeNames in the array
 }
 
 type ResolvableOptions struct {
@@ -551,23 +550,6 @@ func (r *Resolvable) ResolveDeferError(out io.Writer, message string, outstandin
 	r.printBytes(rBrace)
 
 	return r.printErr
-}
-
-func (r *Resolvable) renderPath() {
-	r.printBytes(lBrack)
-	for i, p := range r.path {
-		if i > 0 {
-			r.printBytes(comma)
-		}
-		if p.Name != "" {
-			r.printBytes(quote)
-			r.printBytes(unsafebytes.StringToBytes(p.Name))
-			r.printBytes(quote)
-		} else {
-			r.printBytes(unsafebytes.StringToBytes(strconv.Itoa(p.Idx)))
-		}
-	}
-	r.printBytes(rBrack)
 }
 
 // deferAnchorAlive reports whether the object a @defer fragment is mounted on

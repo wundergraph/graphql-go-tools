@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"slices"
 	"sort"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -49,18 +48,6 @@ type inlineFragmentSelectionOnUnion struct {
 	unionMemberTypeNames            []string
 	unionMemberTypeNamesInCurrentDS []string
 	unionMemberEntityNames          []string
-}
-
-func (s *inlineFragmentSelectionOnInterface) hasTypeImplementingInterface(typeName string) bool {
-	if len(s.typeNamesImplementingInterfaceInCurrentDS) == 0 {
-		return false
-	}
-
-	return slices.Contains(s.typeNamesImplementingInterfaceInCurrentDS, typeName)
-}
-
-func (s *inlineFragmentSelection) isFragmentOnInterface() bool {
-	return s.definitionNodeKind == ast.NodeKindInterfaceTypeDefinition
 }
 
 func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int) (fieldSelections []fieldSelection, hasTypename bool, typeNameFieldDeferID int) {

@@ -6,8 +6,6 @@ import (
 )
 
 const (
-	chatExampleDirectoryRelativePath = "pkg/testing/subscriptiontesting"
-
 	MutationSendMessage = `mutation SendMessage{
 	post(roomName: "#test", username: "myuser", text: "Hello World!") {
 		text

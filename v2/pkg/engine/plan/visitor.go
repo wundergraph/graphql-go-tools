@@ -926,42 +926,6 @@ func (v *Visitor) resolveFieldExport(fieldRef int) *resolve.FieldExport {
 	}
 }
 
-func (v *Visitor) fieldRequiresExportedVariable(fieldRef int) bool {
-	for _, arg := range v.Operation.Fields[fieldRef].Arguments.Refs {
-		if v.valueRequiresExportedVariable(v.Operation.Arguments[arg].Value) {
-			return true
-		}
-	}
-	return false
-}
-
-func (v *Visitor) valueRequiresExportedVariable(value ast.Value) bool {
-	switch value.Kind {
-	case ast.ValueKindVariable:
-		name := v.Operation.VariableValueNameString(value.Ref)
-		if _, ok := v.exportedVariables[name]; ok {
-			return true
-		}
-		return false
-	case ast.ValueKindList:
-		for _, ref := range v.Operation.ListValues[value.Ref].Refs {
-			if v.valueRequiresExportedVariable(v.Operation.Values[ref]) {
-				return true
-			}
-		}
-		return false
-	case ast.ValueKindObject:
-		for _, ref := range v.Operation.ObjectValues[value.Ref].Refs {
-			if v.valueRequiresExportedVariable(v.Operation.ObjectFieldValue(ref)) {
-				return true
-			}
-		}
-		return false
-	default:
-		return false
-	}
-}
-
 func (v *Visitor) EnterOperationDefinition(opRef int) {
 	operationName := v.Operation.OperationDefinitionNameString(opRef)
 	if v.OperationName != operationName {

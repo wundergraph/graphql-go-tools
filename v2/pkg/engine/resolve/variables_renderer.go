@@ -35,8 +35,7 @@ type VariableRenderer interface {
 // It renders the provided data as JSON
 // If configured, it also does a JSON Validation Check before rendering
 type JSONVariableRenderer struct {
-	Kind          string
-	rootValueType JsonRootType
+	Kind string
 }
 
 func (r *JSONVariableRenderer) GetKind() string {
