@@ -870,6 +870,11 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (
 			if !c.isPlannerDependenciesAllowsToPlanField(field.fieldRef, plannerIdx) {
 				continue
 			}
+
+			// if we do have a conflict plan the field on a different planner
+			if plannerConfig.RequiredFields().HasArgumentConflictWith(requiresConfigurations) {
+				continue
+			}
 		}
 
 		if plannerConfig.HasPath(field.parentPath) || plannerConfig.HasPath(field.precedingParentPath) {
