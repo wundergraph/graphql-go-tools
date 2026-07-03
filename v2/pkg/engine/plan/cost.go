@@ -936,14 +936,14 @@ func NewCostCalculator(config Configuration) *CostCalculator {
 // config should be static per process or instance. vars could change between requests.
 func (c *CostCalculator) EstimateCost(vars resolve.VariablesView) int {
 	input := newCostInput(true, c, vars, nil)
-	fmt.Println(c.DebugPrint(vars, nil))
+	// fmt.Println(c.DebugPrint(vars, nil))
 	return int(math.RoundToEven(c.tree.cost(input)))
 }
 
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
 func (c *CostCalculator) ActualCost(vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats) int {
 	input := newCostInput(false, c, vars, typeStats)
-	fmt.Println(c.DebugPrint(vars, typeStats))
+	// fmt.Println(c.DebugPrint(vars, typeStats))
 	return int(math.RoundToEven(c.tree.cost(input)))
 }
 
