@@ -3,6 +3,8 @@ package ast
 import (
 	"bytes"
 
+	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
@@ -60,4 +62,20 @@ func (d *Document) AddVariableValueArgument(argName, variableName []byte) (varia
 	d.Arguments = append(d.Arguments, arg)
 	argRef = len(d.Arguments) - 1
 	return
+}
+
+func (d *Document) GetVariableBooleanValue(name string) (value, valid bool) {
+	val, err := jsonparser.GetBoolean(d.Input.Variables, name)
+	if err == nil {
+		return val, true
+	}
+	for i := range d.VariableDefinitions {
+		definitionName := d.VariableDefinitionNameString(i)
+		if definitionName == name {
+			if d.VariableDefinitions[i].DefaultValue.IsDefined {
+				return bool(d.BooleanValue(d.VariableDefinitions[i].DefaultValue.Value.Ref)), true
+			}
+		}
+	}
+	return false, false
 }

@@ -9,6 +9,7 @@ type Kind int
 const (
 	SynchronousResponseKind Kind = iota + 1
 	SubscriptionResponseKind
+	DeferResponsePlanKind
 )
 
 type Plan interface {
@@ -74,4 +75,33 @@ func (s *SubscriptionResponsePlan) CollectAuthorizationCoordinates() {
 		return
 	}
 	resolve.CollectAuthorizationCoordinates(s.Response.Response)
+}
+
+type DeferResponsePlan struct {
+	Response       *resolve.GraphQLDeferResponse
+	FlushInterval  int64
+	CostCalculator *CostCalculator
+}
+
+func (d *DeferResponsePlan) PlanKind() Kind {
+	return DeferResponsePlanKind
+}
+
+func (d *DeferResponsePlan) SetFlushInterval(interval int64) {
+	d.FlushInterval = interval
+}
+
+func (d *DeferResponsePlan) GetCostCalculator() *CostCalculator {
+	return d.CostCalculator
+}
+
+func (d *DeferResponsePlan) SetCostCalculator(c *CostCalculator) {
+	d.CostCalculator = c
+}
+
+func (d *DeferResponsePlan) CollectAuthorizationCoordinates() {
+	if d.Response == nil {
+		return
+	}
+	resolve.CollectAuthorizationCoordinates(d.Response.Response)
 }

@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"io"
+	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -40,6 +41,23 @@ func (d *Document) CopyArgumentList(list ArgumentList) ArgumentList {
 		refs = append(refs, d.CopyArgument(r))
 	}
 	return ArgumentList{Refs: refs}
+}
+
+// AddArgumentRef appends an existing argument ref to the list. The caller is
+// responsible for updating the owner's HasArguments flag.
+func (l *ArgumentList) AddArgumentRef(argRef int) {
+	l.Refs = append(l.Refs, argRef)
+}
+
+// RemoveArgumentByName removes the first argument with the given name from the
+// list. The caller is responsible for updating the owner's HasArguments flag,
+func (l *ArgumentList) RemoveArgumentByName(document *Document, name string) {
+	for i := range l.Refs {
+		if document.ArgumentNameString(l.Refs[i]) == name {
+			l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
+			return
+		}
+	}
 }
 
 func (d *Document) PrintArgument(ref int, w io.Writer) error {
@@ -193,4 +211,30 @@ func (d *Document) ImportVariableValueArgument(argName, variableName ByteSlice) 
 	argRef = d.AddArgument(arg)
 
 	return
+}
+
+func (d *Document) AddStringArgument(name, value string) int {
+	strValueRef := d.AddStringValue(StringValue{
+		Content: d.Input.AppendInputString(value),
+	})
+
+	arg := Argument{
+		Name:  d.Input.AppendInputString(name),
+		Value: Value{Kind: ValueKindString, Ref: strValueRef},
+	}
+
+	return d.AddArgument(arg)
+}
+
+func (d *Document) AddIntArgument(name string, value int) int {
+	intValueRef := d.AddIntValue(IntValue{
+		Raw: d.Input.AppendInputString(strconv.Itoa(value)),
+	})
+
+	arg := Argument{
+		Name:  d.Input.AppendInputString(name),
+		Value: Value{Kind: ValueKindInteger, Ref: intValueRef},
+	}
+
+	return d.AddArgument(arg)
 }

@@ -49,7 +49,7 @@ func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string, hasEn
 		return schema
 	}
 
-	if err := asttransform.MergeDefinitionWithBaseSchema(doc); err != nil {
+	if err := asttransform.MergeDefinitionWithBaseSchemaWithInternal(doc, false); err != nil {
 		return schema
 	}
 

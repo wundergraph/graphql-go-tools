@@ -1,7 +1,9 @@
 package resolve
 
 import (
+	"fmt"
 	"io"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -54,6 +56,57 @@ func (g *GraphQLResponse) SingleFlightAllowed() bool {
 	return false
 }
 
+type GraphQLDeferResponse struct {
+	Response *GraphQLResponse
+	Defers   []*DeferFetchGroup
+
+	// DeferDescriptors lists every @defer fragment in the operation, keyed by ID.
+	// Used to render `pending` entries in the initial response and to look up the
+	// path / label of a defer at envelope-render time.
+	DeferDescriptors map[int]DeferDescriptor
+
+	// DeferTree is the execution tree built from DeferDescriptors during post-processing.
+	// Nil until the buildDeferTree post-processor runs.
+	DeferTree *DeferTreeNode
+}
+
+// DeferDescriptor describes a single @defer fragment for the incremental-delivery envelope.
+type DeferDescriptor struct {
+	ID       int      // Valid IDs start with 1.
+	ParentID int      // ParentID is the id of the enclosing @defer (0 for top-level).
+	Label    string   // Label is the user-supplied label (empty when none);
+	Path     []string // Path is the response path of the fragment (where it was mounted in the operation);
+}
+
+func (r *GraphQLDeferResponse) QueryPlanString() string {
+	indent := func(s string) string {
+		return strings.ReplaceAll(s, "\n", "\n    ")
+	}
+
+	primary := indent(r.Response.Fetches.QueryPlan().PrettyPrint())
+	var secondary []string
+
+	for _, g := range r.Defers {
+		secondary = append(secondary, strings.ReplaceAll(g.Fetches.QueryPlan().PrettyPrint(), "\n", "\n    "))
+	}
+
+	return fmt.Sprintf(`
+QueryPlan {
+  Primary {
+	%s
+  }
+  Deferred [
+    %s
+  ]
+}
+`, primary, strings.Join(secondary, "\n"))
+}
+
+type DeferFetchGroup struct {
+	DeferID int
+	Fetches *FetchTreeNode
+}
+
 type GraphQLResponseInfo struct {
 	OperationType ast.OperationType
 	// AuthorizationCoordinates lists every protected field selected by the operation,
@@ -73,6 +126,12 @@ type RenameTypeName struct {
 
 type ResponseWriter interface {
 	io.Writer
+}
+
+type DeferResponseWriter interface {
+	ResponseWriter
+	Flush() error
+	Complete()
 }
 
 type SubscriptionResponseWriter interface {
