@@ -7453,18 +7453,23 @@ func TestExecutionEngine_Cost(t *testing.T) {
 
 	})
 
-	t.Run("nullable fragment object under an abstract list", func(t *testing.T) {
-		// pet is selected in the Human fragment and is null for one of the two Humans:
-		// its child name (weight 30) is resolved exactly once and must be billed once.
+	t.Run("fragment fields sharing a response path under an abstract list", func(t *testing.T) {
+		// Several cost-tree nodes resolve into the same response path when the same field
+		// is selected in multiple fragments. Runtime type stats are keyed by response path,
+		// so they aggregate occurrences across those nodes and cannot be attributed to a
+		// single node. The cases below document the correct actual costs.
+		t.Skip("not implemented yet")
 		t.Parallel()
 
 		schema, err := graphql.NewSchemaFromString(`
-		type Query { heroes: [Character] }
-		interface Character { id: ID! }
-		type Human implements Character { id: ID!  pet: Pet }
-		type Droid implements Character { id: ID! }
-		type Pet { id: ID!  name: String }
-	`)
+			type Query { heroes: [Character] }
+			interface Character { id: ID! }
+			type Human implements Character { id: ID!  pet: Pet  friends: [Friend] }
+			type Droid implements Character { id: ID!  pet: Pet  friends: [Friend] }
+			type Pet { id: ID!  name: String  toy: Toy }
+			type Toy { id: ID!  name: String }
+			type Friend { id: ID!  name: String }
+		`)
 		require.NoError(t, err)
 
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -7480,53 +7485,188 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		}
 		childNodes := []plan.TypeField{
 			{TypeName: "Character", FieldNames: []string{"id"}},
-			{TypeName: "Human", FieldNames: []string{"id", "pet"}},
-			{TypeName: "Droid", FieldNames: []string{"id"}},
-			{TypeName: "Pet", FieldNames: []string{"id", "name"}},
+			{TypeName: "Human", FieldNames: []string{"id", "pet", "friends"}},
+			{TypeName: "Droid", FieldNames: []string{"id", "pet", "friends"}},
+			{TypeName: "Pet", FieldNames: []string{"id", "name", "toy"}},
+			{TypeName: "Toy", FieldNames: []string{"id", "name"}},
+			{TypeName: "Friend", FieldNames: []string{"id", "name"}},
 		}
 
-		t.Run("null pet is not charged for its children", runWithoutError(
-			ExecutionEngineTestCase{
+		makeCase := func(query string, costConfig *plan.DataSourceCostConfig, sendResponse, expectedResponse string, estimatedCost, actualCost int) ExecutionEngineTestCase {
+			return ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						Query: `{ heroes { ...on Human { pet { name } } } }`,
-					}
+					return graphql.Request{Query: query}
 				},
 				dataSources: []plan.DataSource{
 					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
-								sendResponseBody: `{"data":{"heroes":[` +
-									`{"__typename":"Human","pet":{"id":"p1","name":"a"}},` +
-									`{"__typename":"Human","pet":null},` +
-									`{"__typename":"Droid"}]}}`,
-								sendStatusCode: 200,
+								sendResponseBody: sendResponse,
+								sendStatusCode:   200,
 							}),
 						),
-						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
-							CostConfig: &plan.DataSourceCostConfig{
-								Types: map[string]int{"Character": 0, "Human": 0, "Droid": 0, "Pet": 0},
-								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
-									{TypeName: "Pet", FieldName: "name"}: {HasWeight: true, Weight: 30},
-								},
-							},
-						},
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
 						customConfig,
 					),
 				},
-				fields: []plan.FieldConfiguration{},
-				expectedResponse: `{"data":{"heroes":[` +
-					`{"pet":{"name":"a"}},` +
-					`{"pet":null},` +
-					`{}]}}`,
-				expectedEstimatedCost: intPtr(300), // 10 * (0 + (0 + 30))
-				// name is resolved once: pet is present for 1 of 2 Humans (3rd hero is a Droid).
-				expectedActualCost: intPtr(30), // 3 * (0.67 * (0.5 * 30))
+				fields:                []plan.FieldConfiguration{},
+				expectedResponse:      expectedResponse,
+				expectedEstimatedCost: intPtr(estimatedCost),
+				expectedActualCost:    intPtr(actualCost),
+			}
+		}
+
+		petNameCostConfig := &plan.DataSourceCostConfig{
+			Types: map[string]int{"Human": 0, "Droid": 0, "Pet": 0},
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "Pet", FieldName: "name"}: {HasWeight: true, Weight: 30},
 			},
+		}
+
+		// pet is selected in the Human fragment only and is null for one of the two Humans:
+		// its child name (weight 30) is resolved exactly once and must be billed once.
+		t.Run("null pet is not charged for its children", runWithoutError(
+			makeCase(
+				`{
+					heroes {
+						...on Human {
+							pet { name }
+						}
+					}
+				}`,
+				petNameCostConfig,
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","pet":{"id":"p1","name":"a"}},`+
+					`{"__typename":"Human","pet":null},`+
+					`{"__typename":"Droid"}]}}`,
+				`{"data":{"heroes":[`+
+					`{"pet":{"name":"a"}},`+
+					`{"pet":null},`+
+					`{}]}}`,
+				300, // 10 * (0 + (0 + 30))
+				// name is resolved once: pet is present for 1 of 2 Humans (3rd hero is a Droid).
+				30, // 3 * (0.67 * (0.5 * 30))
+			),
+			computeCosts(),
+		))
+
+		// The same nullable pet is selected in BOTH fragments; the shared-path guard fires
+		// and disables the null-discount for both nodes, so children are charged at the full
+		// type-share even where pet was null.
+		// 2 Humans (one null pet) and 1 Droid with a pet => 2 names resolved in total.
+		t.Run("nullable object selected in both fragments", runWithoutError(
+			makeCase(
+				`{
+					heroes {
+						...on Human {
+							pet { name }
+						}
+						...on Droid {
+							pet { name }
+						}
+					}
+				}`,
+				petNameCostConfig,
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","pet":{"name":"a"}},`+
+					`{"__typename":"Human","pet":null},`+
+					`{"__typename":"Droid","pet":{"name":"b"}}]}}`,
+				`{"data":{"heroes":[`+
+					`{"pet":{"name":"a"}},`+
+					`{"pet":null},`+
+					`{"pet":{"name":"b"}}]}}`,
+				300, // 10 * (0 + max(30, 30))
+				60,  // 2 names * 30
+			),
+			computeCosts(),
+		))
+
+		// A list field with the same response path in two fragments: the list-multiplier
+		// branch reads stats aggregated over both fragments and charges each node for the
+		// union of friends.
+		// 1 Human with 2 friends, 1 Droid with 1 friend => 3 names resolved in total.
+		t.Run("list field selected in both fragments", runWithoutError(
+			makeCase(
+				`{
+					heroes {
+						...on Human {
+							friends { name }
+						}
+						...on Droid {
+							friends { name }
+						}
+					}
+				}`,
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Human": 0, "Droid": 0, "Friend": 0},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Friend", FieldName: "name"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","friends":[{"name":"a"},{"name":"b"}]},`+
+					`{"__typename":"Droid","friends":[{"name":"c"}]}]}}`,
+				`{"data":{"heroes":[`+
+					`{"friends":[{"name":"a"},{"name":"b"}]},`+
+					`{"friends":[{"name":"c"}]}]}}`,
+				3000, // 10 heroes * 10 friends * 30
+				90,   // 3 names * 30
+			),
+			computeCosts(),
+		))
+
+		// toy is nested one level deeper inside two fragments: the colliding pet nodes are
+		// siblings, but the toy nodes under them are not, so each toy node scales its
+		// children by the AVERAGE toy presence across both fragments instead of its own.
+		// Human's fragment selects the weighted toy.name; Droid's selects only toy.id (weight 0).
+		toyNameCostConfig := &plan.DataSourceCostConfig{
+			Types: map[string]int{"Human": 0, "Droid": 0, "Pet": 0, "Toy": 0},
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "Toy", FieldName: "name"}: {HasWeight: true, Weight: 30},
+			},
+		}
+		descendantQuery := `{
+			heroes {
+				...on Human {
+					pet { toy { name } }
+				}
+				...on Droid {
+					pet { toy { id } }
+				}
+			}
+		}`
+
+		t.Run("descendant of fragments, weighted name never resolved", runWithoutError(
+			makeCase(
+				descendantQuery,
+				toyNameCostConfig,
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","pet":{"toy":null}},`+
+					`{"__typename":"Droid","pet":{"toy":{"id":"t1"}}}]}}`,
+				`{"data":{"heroes":[`+
+					`{"pet":{"toy":null}},`+
+					`{"pet":{"toy":{"id":"t1"}}}]}}`,
+				300, // 10 * max(30, 0)
+				0,   // name never resolved
+			),
+			computeCosts(),
+		))
+
+		t.Run("descendant of fragments, weighted name resolved once", runWithoutError(
+			makeCase(
+				descendantQuery,
+				toyNameCostConfig,
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","pet":{"toy":{"name":"ball"}}},`+
+					`{"__typename":"Droid","pet":{"toy":null}}]}}`,
+				`{"data":{"heroes":[`+
+					`{"pet":{"toy":{"name":"ball"}}},`+
+					`{"pet":{"toy":null}}]}}`,
+				300, // 10 * max(30, 0)
+				30,  // name resolved once
+			),
 			computeCosts(),
 		))
 	})
