@@ -1476,21 +1476,25 @@ func TestResolvable_SubgraphExtensions(t *testing.T) {
 
 		ctx := NewContext(context.Background())
 		resolvable := NewResolvable(nil, opts)
+		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+		assert.NoError(t, err)
+
 		loader := &Loader{
+			dataBuffer:                     &DataBuffer{data: resolvable.data},
 			allowCustomExtensionProperties: true,
 			subgraphErrorPropagationMode:   SubgraphErrorPropagationModePassThrough,
 			allowedSubgraphErrorFields:     map[string]struct{}{"message": {}},
 		}
-		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
-		assert.NoError(t, err)
 
 		err = loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{
 			Fetches: fetchTree,
 			Data:    helloObject,
-		}, resolvable)
+		})
 		assert.NoError(t, err)
 
 		out := &bytes.Buffer{}
+		resolvable.subgraphExtensions = loader.subgraphExtensions
+		resolvable.errors = loader.errors
 		err = resolvable.Resolve(ctx.ctx, helloObject, fetchTree, out)
 		assert.NoError(t, err)
 		return out.String()

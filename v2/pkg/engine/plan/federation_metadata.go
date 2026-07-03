@@ -81,8 +81,15 @@ type FederationFieldConfiguration struct {
 	DisableEntityResolver bool           `json:"-"`                    // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
 	Conditions            []KeyCondition `json:"conditions,omitempty"` // conditions stores coordinates under which we could use implicit key, while on other paths this key is not available
 
-	parsedSelectionSet *ast.Document
-	RemappedPaths      map[string]string
+	parsedSelectionSet     *ast.Document
+	RemappedPaths          map[string]string
+	RequiredFieldArguments []RequiredFieldArgumentInfo
+}
+
+type RequiredFieldArgumentInfo struct {
+	TypeName string
+	Path     string
+	Value    string
 }
 
 type KeyCondition struct {
@@ -125,6 +132,57 @@ func (f FederationFieldConfiguration) String() string {
 }
 
 type FederationFieldConfigurations []FederationFieldConfiguration
+
+// HasArgumentConflictWith checks if the field configurations have a conflict
+// with the same field argument but a different value.
+// Reason: If we require the same field argument with the same value, we can plan it to be resolved
+// on the same planner. If the values differ, we need to resolve it on a different call because
+// we currently cannot pass the same field with a different argument value in the same query.
+//
+// TODO: In the future we could think about using two entity fetches in a single fetch.
+// e.g.:
+//
+//	query {
+//	  __internal_fetch_requires_field_a: _entites(representations: $representations) { ... }
+//	  __internal_fetch_requires_field_b: _entites(representations: $representations) { ... }
+//	}
+func (f FederationFieldConfigurations) HasArgumentConflictWith(other []FederationFieldConfiguration) bool {
+	if len(f) == 0 || len(other) == 0 {
+		return false
+	}
+
+	keyFunc := func(argInfo RequiredFieldArgumentInfo) string {
+		return argInfo.TypeName + "|" + argInfo.Path
+	}
+
+	// Store all fields with arguments in a map
+	seenFields := map[string]string{}
+	for i := range f {
+		if f[i].FieldName == "" || len(f[i].RequiredFieldArguments) == 0 {
+			continue
+		}
+
+		for _, argInfo := range f[i].RequiredFieldArguments {
+			seenFields[keyFunc(argInfo)] = argInfo.Value
+		}
+	}
+
+	for i := range other {
+		if other[i].FieldName == "" || len(other[i].RequiredFieldArguments) == 0 {
+			continue
+		}
+
+		for _, argInfo := range other[i].RequiredFieldArguments {
+			if value, ok := seenFields[keyFunc(argInfo)]; ok {
+				if value != argInfo.Value {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
 
 func (f *FederationFieldConfigurations) FilterByTypeAndResolvability(typeName string, skipUnresovable bool) (out []FederationFieldConfiguration) {
 	for i := range *f {
