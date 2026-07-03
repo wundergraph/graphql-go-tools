@@ -7000,6 +7000,58 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			},
 			computeCosts(),
 		))
+
+		t.Run("weighted field two levels under parent that is always null is never charged", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items(ids: ["1", "2", "3"]) {
+							id
+							parent_item {
+								id
+								group { id }
+							}
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[` +
+									`{"id":"1","parent_item":null},` +
+									`{"id":"2","parent_item":null},` +
+									`{"id":"3","parent_item":null}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Item": 2, "Group": 5},
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: itemsFieldConfig,
+				expectedResponse: `{"data":{"items":[` +
+					`{"id":"1","parent_item":null},` +
+					`{"id":"2","parent_item":null},` +
+					`{"id":"3","parent_item":null}]}}`,
+				expectedEstimatedCost: intPtr(390), // 10 * (2 + (2 + (5 + 30)))
+				expectedActualCost:    intPtr(12),  //  3 * (2 + 2 + 0*(5 + 30))
+			},
+			computeCosts(),
+		))
 	})
 
 	t.Run("a list nested under a partially-null object that is itself under a list", func(t *testing.T) {

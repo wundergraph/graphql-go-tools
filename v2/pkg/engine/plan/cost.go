@@ -822,11 +822,10 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 	// the type-share multiplier set below instead.
 	isFragmentField := node.parent.returnsAbstractType && !node.isEnclosingTypeAbstract
 	if !node.returnsSimpleType && !isFragmentField && parentStats.Size > 0 {
-		if nodeStats, ok := input.typeStats[node.jsonPath]; ok {
-			// The field's own weight is kept via multiplier while its children
-			// are charged only for the fraction of occurrences where the object was present.
-			nodeCost.childMultiplier = float64(nodeStats.Size) / float64(parentStats.Size)
-		}
+		nodeStats := input.typeStats[node.jsonPath]
+		// The field's own weight is kept via multiplier while its children
+		// are charged only for the fraction of occurrences where the object was present.
+		nodeCost.childMultiplier = float64(nodeStats.Size) / float64(parentStats.Size)
 	}
 
 	// If the field sits directly under a field resolving an abstract type (a list or a single object),
