@@ -1,7 +1,6 @@
 package ast_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -447,7 +446,6 @@ func TestDocument_NodeByName(t *testing.T) {
 func TestDirectiveList_RemoveDirectiveByName(t *testing.T) {
 	const schema = "type User @directive1 @directive2 @directive3 @directive4 @directive5 { field: String! }"
 	doc, _ := astparser.ParseGraphqlDocumentString(schema)
-	replacer := strings.NewReplacer(" ", "", "\t", "", "\r", "", "\n", "")
 	// delete the last directive
 	doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive5")
 	// delete the middle directive
@@ -455,7 +453,29 @@ func TestDirectiveList_RemoveDirectiveByName(t *testing.T) {
 	// delete the first directive
 	doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive1")
 	out, _ := astprinter.PrintString(&doc)
-	assert.Equal(t, replacer.Replace("type User @directive2 @directive4 { field: String! }"), replacer.Replace(out))
+	assert.Equal(t, "type User @directive2 @directive4 {field: String!}", out)
+}
+
+func TestArgumentList_RemoveArgumentByName(t *testing.T) {
+	const operation = "{ field(arg1: 1, arg2: 2, arg3: 3, arg4: 4, arg5: 5) }"
+	doc, _ := astparser.ParseGraphqlDocumentString(operation)
+	// delete the last argument
+	doc.Fields[0].Arguments.RemoveArgumentByName(&doc, "arg5")
+	// delete the middle argument
+	doc.Fields[0].Arguments.RemoveArgumentByName(&doc, "arg3")
+	// delete the first argument
+	doc.Fields[0].Arguments.RemoveArgumentByName(&doc, "arg1")
+	out, _ := astprinter.PrintString(&doc)
+	assert.Equal(t, "{field(arg2: 2, arg4: 4)}", out)
+}
+
+func TestArgumentList_AddArgumentRef(t *testing.T) {
+	const operation = "{ field(arg1: 1) }"
+	doc, _ := astparser.ParseGraphqlDocumentString(operation)
+	argRef := doc.AddIntArgument("arg2", 2)
+	doc.Fields[0].Arguments.AddArgumentRef(argRef)
+	out, _ := astprinter.PrintString(&doc)
+	assert.Equal(t, "{field(arg1: 1, arg2: 2)}", out)
 }
 
 func TestDirectiveList_HasDirectiveByName(t *testing.T) {
