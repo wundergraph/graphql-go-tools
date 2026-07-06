@@ -268,121 +268,229 @@ func TestFieldAuthorizationDecisionSeeding(t *testing.T) {
 }
 
 func TestResolvableAuthorizationUnreachedData(t *testing.T) {
-	t.Run("empty list emits nested denied field once", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
+	// newPreFetchResolvable enables pre-fetch mode on the context; subtests seed decisions directly.
+	newPreFetchResolvable := func() *Resolvable {
+		ctx := NewContext(context.Background())
+		ctx.SetPreFetchFieldAuthorizer(&batchTestAuthorizer{})
+		return newResolvableForAuthorizationTest(ctx)
+	}
+
+	// walkUnreached runs the pre-render walk with the synthetic authorization descent armed,
+	// exactly as Resolve does for the initial walk in pre-fetch mode.
+	walkUnreached := func(t *testing.T, resolvable *Resolvable, root *Object, data *astjson.Value) {
+		t.Helper()
+		resolvable.unreachedAuthWalk = true
+		resolvable.walkObject(root, data)
+		resolvable.unreachedAuthWalk = false
+	}
+
+	t.Run("empty list emits nested denied field as element zero", func(t *testing.T) {
+		resolvable := newPreFetchResolvable()
 		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
-		root := authorizationUnreachedRoot()
+		root := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("products"),
+					Value: &Array{
+						Path: []string{"products"},
+						Item: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("secret"),
+									Info: &FieldInfo{
+										Name:                 "secret",
+										ExactParentTypeName:  "Product",
+										HasAuthorizationRule: true,
+										Source: TypeFieldSource{
+											IDs:   []string{"products"},
+											Names: []string{"products"},
+										},
+									},
+									Value: &String{Path: []string{"secret"}},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
 		data := mustParseAuthorizationValue(t, `{"products":[]}`)
 
-		resolvable.appendUnauthorizedFieldErrorsForUnreachedData(root, data)
+		walkUnreached(t, resolvable, root, data)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products",0,"secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
 	})
 
 	t.Run("null nullable parent emits denied nested field", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
+		resolvable := newPreFetchResolvable()
 		resolvable.authorization.seedDeny("accounts", GraphCoordinate{TypeName: "Account", FieldName: "secret"}, "missing account scope")
-		root := authorizationNestedRoot()
+		root := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("account"),
+					Value: &Object{
+						Path:     []string{"account"},
+						Nullable: true,
+						Fields: []*Field{
+							{
+								Name: []byte("secret"),
+								Info: &FieldInfo{
+									Name:                 "secret",
+									ExactParentTypeName:  "Account",
+									HasAuthorizationRule: true,
+									Source: TypeFieldSource{
+										IDs:   []string{"accounts"},
+										Names: []string{"Accounts"},
+									},
+								},
+								Value: &String{Path: []string{"secret"}, Nullable: true},
+							},
+						},
+					},
+				},
+			},
+		}
 		data := mustParseAuthorizationValue(t, `{"account":null}`)
 
-		resolvable.appendUnauthorizedFieldErrorsForUnreachedData(root, data)
+		walkUnreached(t, resolvable, root, data)
 
 		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret', Reason: missing account scope.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
 	})
 
-	t.Run("nested object with reached child emits nothing", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
+	t.Run("reached child is denied by the walk itself, not the synthetic descent", func(t *testing.T) {
+		resolvable := newPreFetchResolvable()
 		resolvable.authorization.seedDeny("accounts", GraphCoordinate{TypeName: "Account", FieldName: "secret"}, "missing account scope")
-		root := authorizationNestedRoot()
-		data := mustParseAuthorizationValue(t, `{"account":{"secret":"hidden"}}`)
-
-		resolvable.appendUnauthorizedFieldErrorsForUnreachedData(root, data)
-
-		assert.Nil(t, resolvable.errors)
-	})
-
-	t.Run("array of non-objects emits denied nested field once via dedup map", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
-		root := authorizationUnreachedRoot()
-		data := mustParseAuthorizationValue(t, `{"products":["not-object","also-not-object"]}`)
-
-		resolvable.appendUnauthorizedFieldErrorsForUnreachedData(root, data)
-
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
-	})
-
-	t.Run("non-array value for array field emits denied nested field", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
-		root := authorizationUnreachedRoot()
-		data := mustParseAuthorizationValue(t, `{"products":"not-array"}`)
-
-		resolvable.appendUnauthorizedFieldErrorsForUnreachedData(root, data)
-
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
-	})
-
-	t.Run("non-object root walks subtree", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "")
-		root := authorizationUnreachedRoot()
-		data := mustParseAuthorizationValue(t, `null`)
-
-		resolvable.appendUnauthorizedFieldErrorsForUnreachedData(root, data)
-
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.secret'.","path":["products","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
-	})
-
-	t.Run("direct nested array path emits denied field", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
-		node := &Array{
-			Path: []string{"edges"},
-			Item: &Object{
-				Fields: []*Field{authorizationProtectedField("products", "products", "Product", "secret", &String{Path: []string{"secret"}})},
-			},
-		}
-		value := mustParseAuthorizationValue(t, `{"edges":[]}`)
-
-		resolvable.appendUnauthorizedFieldErrorsForUnreachedNode(node, value, []string{"products"}, map[string]struct{}{})
-
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.edges.secret', Reason: missing product scope.","path":["products","edges","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
-	})
-
-	t.Run("direct nested array path with non-array child emits denied field", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
-		node := &Array{
-			Path: []string{"edges"},
-			Item: &Object{
-				Fields: []*Field{authorizationProtectedField("products", "products", "Product", "secret", &String{Path: []string{"secret"}})},
-			},
-		}
-		value := mustParseAuthorizationValue(t, `{"edges":"not-array"}`)
-
-		resolvable.appendUnauthorizedFieldErrorsForUnreachedNode(node, value, []string{"products"}, map[string]struct{}{})
-
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.edges.secret', Reason: missing product scope.","path":["products","edges","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
-	})
-
-	t.Run("direct nested array path recurses into array items", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
-		node := &Array{
-			Path: []string{"edges"},
-			Item: &Array{
-				Path: []string{"nodes"},
-				Item: &Object{
-					Fields: []*Field{authorizationProtectedField("products", "products", "Product", "secret", &String{Path: []string{"secret"}})},
+		root := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("account"),
+					Value: &Object{
+						Path:     []string{"account"},
+						Nullable: true,
+						Fields: []*Field{
+							{
+								Name: []byte("secret"),
+								Info: &FieldInfo{
+									Name:                 "secret",
+									ExactParentTypeName:  "Account",
+									HasAuthorizationRule: true,
+									Source: TypeFieldSource{
+										IDs:   []string{"accounts"},
+										Names: []string{"Accounts"},
+									},
+								},
+								Value: &String{Path: []string{"secret"}, Nullable: true},
+							},
+						},
+					},
 				},
 			},
 		}
-		value := mustParseAuthorizationValue(t, `{"edges":[{"nodes":[]}]}`)
+		data := mustParseAuthorizationValue(t, `{"account":{"secret":"hidden"}}`)
 
-		resolvable.appendUnauthorizedFieldErrorsForUnreachedNode(node, value, []string{"products"}, map[string]struct{}{})
+		walkUnreached(t, resolvable, root, data)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.edges.nodes.secret', Reason: missing product scope.","path":["products","edges","nodes","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		// exactly one error: the data walk owns reached fields, the synthetic descent stays out
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret', Reason: missing account scope.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+	})
+
+	t.Run("denied frontier field stops the synthetic descent into its subtree", func(t *testing.T) {
+		resolvable := newPreFetchResolvable()
+		resolvable.authorization.seedDeny("accounts", GraphCoordinate{TypeName: "Account", FieldName: "vault"}, "missing vault scope")
+		resolvable.authorization.seedDeny("accounts", GraphCoordinate{TypeName: "Vault", FieldName: "secret"}, "missing secret scope")
+		root := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("account"),
+					Value: &Object{
+						Path:     []string{"account"},
+						Nullable: true,
+						Fields: []*Field{
+							{
+								Name: []byte("vault"),
+								Info: &FieldInfo{
+									Name:                 "vault",
+									ExactParentTypeName:  "Account",
+									HasAuthorizationRule: true,
+									Source: TypeFieldSource{
+										IDs:   []string{"accounts"},
+										Names: []string{"Accounts"},
+									},
+								},
+								Value: &Object{
+									Path:     []string{"vault"},
+									Nullable: true,
+									Fields: []*Field{
+										{
+											Name: []byte("secret"),
+											Info: &FieldInfo{
+												Name:                 "secret",
+												ExactParentTypeName:  "Vault",
+												HasAuthorizationRule: true,
+												Source: TypeFieldSource{
+													IDs:   []string{"accounts"},
+													Names: []string{"Accounts"},
+												},
+											},
+											Value: &String{Path: []string{"secret"}, Nullable: true},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		data := mustParseAuthorizationValue(t, `{"account":null}`)
+
+		walkUnreached(t, resolvable, root, data)
+
+		// the denied vault covers its subtree: no Vault.secret error
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.vault', Reason: missing vault scope.","path":["account","vault"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+	})
+
+	t.Run("nested empty arrays recurse as element zero per level", func(t *testing.T) {
+		resolvable := newPreFetchResolvable()
+		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
+		root := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("edges"),
+					Value: &Array{
+						Path:     []string{"edges"},
+						Nullable: true,
+						Item: &Array{
+							Path:     []string{"nodes"},
+							Nullable: true,
+							Item: &Object{
+								Nullable: true,
+								Fields: []*Field{
+									{
+										Name: []byte("secret"),
+										Info: &FieldInfo{
+											Name:                 "secret",
+											ExactParentTypeName:  "Product",
+											HasAuthorizationRule: true,
+											Source: TypeFieldSource{
+												IDs:   []string{"products"},
+												Names: []string{"products"},
+											},
+										},
+										Value: &String{Path: []string{"secret"}, Nullable: true},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		data := mustParseAuthorizationValue(t, `{"edges":[]}`)
+
+		walkUnreached(t, resolvable, root, data)
+
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.edges.nodes.secret', Reason: missing product scope.","path":["edges",0,"nodes",0,"secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
 	})
 }
 
@@ -457,7 +565,19 @@ func deepOrdersResponse(service DataSource, rootProtected bool) *GraphQLResponse
 							Nullable: true,
 							TypeName: "Order",
 							Fields: []*Field{
-								authorizationProtectedField("shop", "shop", "Order", "total", &String{Path: []string{"total"}}),
+								{
+									Name: []byte("total"),
+									Info: &FieldInfo{
+										Name:                 "total",
+										ExactParentTypeName:  "Order",
+										HasAuthorizationRule: true,
+										Source: TypeFieldSource{
+											IDs:   []string{"shop"},
+											Names: []string{"shop"},
+										},
+									},
+									Value: &String{Path: []string{"total"}},
+								},
 								{
 									Name: []byte("items"),
 									Value: &Array{
@@ -471,7 +591,19 @@ func deepOrdersResponse(service DataSource, rootProtected bool) *GraphQLResponse
 														Path:     []string{"product"},
 														TypeName: "Product",
 														Fields: []*Field{
-															authorizationProtectedField("shop", "shop", "Product", "secret", &String{Path: []string{"secret"}, Nullable: true}),
+															{
+																Name: []byte("secret"),
+																Info: &FieldInfo{
+																	Name:                 "secret",
+																	ExactParentTypeName:  "Product",
+																	HasAuthorizationRule: true,
+																	Source: TypeFieldSource{
+																		IDs:   []string{"shop"},
+																		Names: []string{"shop"},
+																	},
+																},
+																Value: &String{Path: []string{"secret"}, Nullable: true},
+															},
 															{
 																Name: []byte("pricing"),
 																Value: &Object{
@@ -479,7 +611,19 @@ func deepOrdersResponse(service DataSource, rootProtected bool) *GraphQLResponse
 																	Nullable: true,
 																	TypeName: "Pricing",
 																	Fields: []*Field{
-																		authorizationProtectedField("shop", "shop", "Pricing", "internal", &String{Path: []string{"internal"}, Nullable: true}),
+																		{
+																			Name: []byte("internal"),
+																			Info: &FieldInfo{
+																				Name:                 "internal",
+																				ExactParentTypeName:  "Pricing",
+																				HasAuthorizationRule: true,
+																				Source: TypeFieldSource{
+																					IDs:   []string{"shop"},
+																					Names: []string{"shop"},
+																				},
+																			},
+																			Value: &String{Path: []string{"internal"}, Nullable: true},
+																		},
 																	},
 																},
 															},
@@ -519,18 +663,16 @@ func TestResolvableAuthorizationEndToEnd(t *testing.T) {
 		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
 		require.NoError(t, err)
 
-		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products",0,"secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
 	})
 
-	// The two subtests below exercise the interplay between the unreached-data pre-pass and the
-	// auth walk on one deep response tree (orders -> items -> product -> pricing).
+	// The two subtests below exercise the interplay between the synthetic (unreached-data)
+	// descent and the auth walk on one deep response tree (orders -> items -> product -> pricing).
 
 	t.Run("fetch runs, mixed reached and unreached branches", func(t *testing.T) {
-		// orders[0] is fully reached: the walk denies+nulls secret; pricing is null, so the
-		// pre-pass reports the denied Pricing.internal beneath it. orders[1].items is empty, so
-		// the pre-pass reports Product.secret there — and Pricing.internal again, but deduped
-		// against the orders[0] report (identical structural path). Order.total is protected but
-		// allowed: untouched, no error.
+		// orders[0] is reached: the walk denies+nulls secret; its null pricing hides
+		// Pricing.internal, reported by the synthetic descent. orders[1].items is empty: both
+		// denied fields are reported there as pretend element 0. Order.total is allowed: no error.
 		loads := &atomic.Int64{}
 		service := countingAuthorizationDataSource{
 			loads: loads,
@@ -551,17 +693,16 @@ func TestResolvableAuthorizationEndToEnd(t *testing.T) {
 		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
 		require.NoError(t, err)
 
-		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders","items","product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders","items","product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",0,"items",0,"product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":[{"total":"a","items":[{"product":{"secret":null,"pricing":null}}]},{"total":"b","items":[]}]}}`, buf.String())
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",0,"items",0,"product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders",0,"items",0,"product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",1,"items",0,"product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders",1,"items",0,"product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":[{"total":"a","items":[{"product":{"secret":null,"pricing":null}}]},{"total":"b","items":[]}]}}`, buf.String())
 		assert.Equal(t, int64(1), loads.Load())
 		assert.Equal(t, int64(1), authorizer.batchCalls.Load())
 		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())
 	})
 
 	t.Run("denied root prevents fetch, nested denials still reported", func(t *testing.T) {
-		// Query.orders is denied, and it is the fetch's only root field, so the fetch is skipped
-		// entirely — no data below orders exists. The walk still reaches the orders field itself
-		// (its parent, the root object, always has data) and emits the deny + nulls it; the
-		// pre-pass reports the denied Product.secret in the subtree the data never materialized.
+		// Query.orders is the fetch's only root field and is denied, so the fetch is skipped.
+		// The walk still reaches orders itself (the root object always has data), emits the deny
+		// and nulls it; its error covers the subtree, so Product.secret is not reported.
 		loads := &atomic.Int64{}
 		service := countingAuthorizationDataSource{
 			loads: loads,
@@ -582,7 +723,7 @@ func TestResolvableAuthorizationEndToEnd(t *testing.T) {
 		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
 		require.NoError(t, err)
 
-		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders","items","product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders', Reason: missing orders scope.","path":["orders"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":null}}`, buf.String())
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders', Reason: missing orders scope.","path":["orders"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":null}}`, buf.String())
 		assert.Equal(t, int64(0), loads.Load())
 		assert.Equal(t, int64(1), authorizer.batchCalls.Load())
 		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())
@@ -590,20 +731,6 @@ func TestResolvableAuthorizationEndToEnd(t *testing.T) {
 }
 
 func TestResolvableAuthorizationHelpers(t *testing.T) {
-	t.Run("append authorization path", func(t *testing.T) {
-		assert.Equal(t, []string{"root", "child", "leaf"}, appendAuthorizationPath([]string{"root"}, []string{"child", "leaf"}))
-	})
-
-	t.Run("append authorization field path uses node path", func(t *testing.T) {
-		field := &Field{Name: []byte("alias"), Value: &String{Path: []string{"node", "field"}}}
-		assert.Equal(t, []string{"root", "node", "field"}, appendAuthorizationFieldPath([]string{"root"}, field))
-	})
-
-	t.Run("append authorization field path falls back to field name", func(t *testing.T) {
-		field := &Field{Name: []byte("alias"), Value: &StaticString{Value: "constant"}}
-		assert.Equal(t, []string{"root", "alias"}, appendAuthorizationFieldPath([]string{"root"}, field))
-	})
-
 	t.Run("first string", func(t *testing.T) {
 		assert.Empty(t, firstString(nil))
 		assert.Equal(t, "first", firstString([]string{"first", "second"}))
@@ -630,22 +757,6 @@ func TestResolvableAuthorizationRejectErrors(t *testing.T) {
 		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret'.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
 	})
 
-	t.Run("field path error with reason", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-
-		resolvable.addRejectFieldPathError("missing scope", DataSourceInfo{ID: "accounts", Name: "Accounts"}, []string{"account", "secret"})
-
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret', Reason: missing scope.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
-		require.Error(t, resolvable.ctx.subgraphErrors["Accounts"])
-	})
-
-	t.Run("field path error without reason", func(t *testing.T) {
-		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-
-		resolvable.addRejectFieldPathError("", DataSourceInfo{ID: "accounts", Name: "Accounts"}, []string{"account", "secret"})
-
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret'.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
-	})
 }
 
 func TestResolvableAuthorizationObjectFieldTypeName(t *testing.T) {
@@ -672,49 +783,4 @@ func mustParseAuthorizationValue(t *testing.T, data string) *astjson.Value {
 	value, err := astjson.ParseBytes([]byte(data))
 	require.NoError(t, err)
 	return value
-}
-
-func authorizationUnreachedRoot() *Object {
-	return &Object{
-		Fields: []*Field{
-			{
-				Name: []byte("products"),
-				Value: &Array{
-					Path: []string{"products"},
-					Item: &Object{
-						Fields: []*Field{
-							authorizationProtectedField("products", "products", "Product", "secret", &String{Path: []string{"secret"}}),
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func authorizationNestedRoot() *Object {
-	return &Object{
-		Fields: []*Field{
-			{
-				Name:  []byte("account"),
-				Value: &Object{Path: []string{"account"}, Fields: []*Field{authorizationProtectedField("accounts", "Accounts", "Account", "secret", &String{Path: []string{"secret"}})}},
-			},
-		},
-	}
-}
-
-func authorizationProtectedField(dataSourceID, dataSourceName, parentTypeName, fieldName string, value Node) *Field {
-	return &Field{
-		Name: []byte(fieldName),
-		Info: &FieldInfo{
-			Name:                 fieldName,
-			ExactParentTypeName:  parentTypeName,
-			HasAuthorizationRule: true,
-			Source: TypeFieldSource{
-				IDs:   []string{dataSourceID},
-				Names: []string{dataSourceName},
-			},
-		},
-		Value: value,
-	}
 }
