@@ -6858,42 +6858,21 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			},
 		}
 
-		costConfig := &plan.DataSourceCostConfig{
-			Types: map[string]int{
-				"Item":  2,
-				"Group": 5,
-				"Board": 7,
-			},
-		}
-
-		nullParentResponse := `{"data":{"items":[` +
-			`{"id":"1","parent_item":null},` +
-			`{"id":"2","parent_item":{"id":"1","group":{"id":"1"},"board":{"id":"2"}}},` +
-			`{"id":"3","parent_item":null}]}}`
-
-		t.Run("with child fields group and board", runWithoutError(
-			ExecutionEngineTestCase{
+		makeCase := func(query, response, expectedResponse string, costConfig *plan.DataSourceCostConfig, estimatedCost, actualCost int) ExecutionEngineTestCase {
+			if expectedResponse == "" {
+				expectedResponse = response
+			}
+			return ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						Query: `query getItems {
-						items(ids: ["1", "2", "3"]) {
-							id
-							parent_item {
-								id
-								group { id }
-								board { id }
-							}
-						}
-					}`,
-					}
+					return graphql.Request{Query: query}
 				},
 				dataSources: []plan.DataSource{
 					mustGraphqlDataSourceConfiguration(t, "id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
-								sendResponseBody: nullParentResponse,
+								sendResponseBody: response,
 								sendStatusCode:   200,
 							}),
 						),
@@ -6902,206 +6881,142 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				fields:                itemsFieldConfig,
-				expectedResponse:      nullParentResponse,
-				expectedEstimatedCost: intPtr(160), // 10 * (2 + (2 + 5 + 7))
-				expectedActualCost:    intPtr(24),  //  3 * (2 + (2 + 0.33*(5 + 7)))
-			},
+				expectedResponse:      expectedResponse,
+				expectedEstimatedCost: intPtr(estimatedCost),
+				expectedActualCost:    intPtr(actualCost),
+			}
+		}
+
+		t.Run("with child fields group and board", runWithoutError(
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
+							id
+							group { id }
+							board { id }
+						}
+					}
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":{"id":"1","group":{"id":"1"},"board":{"id":"2"}}},`+
+					`{"id":"3","parent_item":null}]}}`,
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5, "Board": 7},
+				},
+				160, // 10 * (2 + (2 + 5 + 7))
+				24,  //  3 * (2 + (2 + 0.33*(5 + 7)))
+			),
 			computeCosts(),
 		))
 
 		t.Run("without child fields group and board", runWithoutError(
-			ExecutionEngineTestCase{
-				schema: schema,
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						Query: `query getItems {
-						items(ids: ["1", "2", "3"]) {
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
 							id
-							parent_item {
-								id
-							}
 						}
-					}`,
 					}
-				},
-				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t, "id",
-						mustFactory(t,
-							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
-								sendResponseBody: nullParentResponse,
-								sendStatusCode:   200,
-							}),
-						),
-						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
-						customConfig,
-					),
-				},
-				fields: itemsFieldConfig,
-				// group/board are not selected, so the engine strips them from the response.
-				expectedResponse: `{"data":{"items":[` +
-					`{"id":"1","parent_item":null},` +
-					`{"id":"2","parent_item":{"id":"1"}},` +
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":{"id":"1"}},`+
 					`{"id":"3","parent_item":null}]}}`,
-				expectedEstimatedCost: intPtr(40), // 10 * (2 + (2))
-				expectedActualCost:    intPtr(12), //  3 * (2 + (2))
-			},
+				// group/board are not selected, so the engine strips them from the response.
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":{"id":"1"}},`+
+					`{"id":"3","parent_item":null}]}}`,
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5, "Board": 7},
+				},
+				40, // 10 * (2 + (2))
+				12, //  3 * (2 + (2))
+			),
 			computeCosts(),
 		))
 
 		t.Run("weighted field two levels under null parent is charged once", runWithoutError(
-			ExecutionEngineTestCase{
-				schema: schema,
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						Query: `query getItems {
-						items(ids: ["1", "2", "3"]) {
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
 							id
-							parent_item {
-								id
-								group { id }
-							}
+							group { id }
 						}
-					}`,
 					}
-				},
-				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t, "id",
-						mustFactory(t,
-							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
-								sendResponseBody: `{"data":{"items":[` +
-									`{"id":"1","parent_item":null},` +
-									`{"id":"2","parent_item":{"id":"1","group":{"id":"1"}}},` +
-									`{"id":"3","parent_item":null}]}}`,
-								sendStatusCode: 200,
-							}),
-						),
-						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
-							CostConfig: &plan.DataSourceCostConfig{
-								Types: map[string]int{"Item": 2, "Group": 5},
-								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
-									{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
-								},
-							},
-						},
-						customConfig,
-					),
-				},
-				fields: itemsFieldConfig,
-				expectedResponse: `{"data":{"items":[` +
-					`{"id":"1","parent_item":null},` +
-					`{"id":"2","parent_item":{"id":"1","group":{"id":"1"}}},` +
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":{"id":"1","group":{"id":"1"}}},`+
 					`{"id":"3","parent_item":null}]}}`,
-				expectedEstimatedCost: intPtr(390), // 10 * (2 + (2 + (5 + 30)))
-				expectedActualCost:    intPtr(47),  //  3 * (2 + (2 + 0.33*(5 + 30)))
-			},
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				390, // 10 * (2 + (2 + (5 + 30)))
+				47,  //  3 * (2 + (2 + 0.33*(5 + 30)))
+			),
 			computeCosts(),
 		))
 
 		t.Run("weighted field two levels under not-null parents is not charged", runWithoutError(
-			ExecutionEngineTestCase{
-				schema: schema,
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						Query: `query getItems {
-						items(ids: ["1", "2", "3"]) {
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
 							id
-							parent_item {
-								id
-								group { id }
-							}
+							group { id }
 						}
-					}`,
 					}
-				},
-				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t, "id",
-						mustFactory(t,
-							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
-								sendResponseBody: `{"data":{"items":[` +
-									`{"id":"1","parent_item":{"id":"1","group":null}},` +
-									`{"id":"2","parent_item":{"id":"2","group":null}},` +
-									`{"id":"3","parent_item":{"id":"3","group":null}}]}}`,
-								sendStatusCode: 200,
-							}),
-						),
-						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
-							CostConfig: &plan.DataSourceCostConfig{
-								Types: map[string]int{"Item": 2, "Group": 5},
-								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
-									{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
-								},
-							},
-						},
-						customConfig,
-					),
-				},
-				fields: itemsFieldConfig,
-				expectedResponse: `{"data":{"items":[` +
-					`{"id":"1","parent_item":{"id":"1","group":null}},` +
-					`{"id":"2","parent_item":{"id":"2","group":null}},` +
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":{"id":"1","group":null}},`+
+					`{"id":"2","parent_item":{"id":"2","group":null}},`+
 					`{"id":"3","parent_item":{"id":"3","group":null}}]}}`,
-				expectedEstimatedCost: intPtr(390), // 10 * (2 + (2 + 5))
-				expectedActualCost:    intPtr(27),  //  3 * (2 + (2 + 5))
-			},
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				390, // 10 * (2 + (2 + 5))
+				27,  //  3 * (2 + (2 + 5))
+			),
 			computeCosts(),
 		))
 
 		t.Run("weighted field two levels under parent that is always null is never charged", runWithoutError(
-			ExecutionEngineTestCase{
-				schema: schema,
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						Query: `query getItems {
-						items(ids: ["1", "2", "3"]) {
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
 							id
-							parent_item {
-								id
-								group { id }
-							}
+							group { id }
 						}
-					}`,
 					}
-				},
-				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfiguration(t, "id",
-						mustFactory(t,
-							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
-								sendResponseBody: `{"data":{"items":[` +
-									`{"id":"1","parent_item":null},` +
-									`{"id":"2","parent_item":null},` +
-									`{"id":"3","parent_item":null}]}}`,
-								sendStatusCode: 200,
-							}),
-						),
-						&plan.DataSourceMetadata{
-							RootNodes:  rootNodes,
-							ChildNodes: childNodes,
-							CostConfig: &plan.DataSourceCostConfig{
-								Types: map[string]int{"Item": 2, "Group": 5},
-								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
-									{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
-								},
-							},
-						},
-						customConfig,
-					),
-				},
-				fields: itemsFieldConfig,
-				expectedResponse: `{"data":{"items":[` +
-					`{"id":"1","parent_item":null},` +
-					`{"id":"2","parent_item":null},` +
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":null},`+
 					`{"id":"3","parent_item":null}]}}`,
-				expectedEstimatedCost: intPtr(390), // 10 * (2 + (2 + (5 + 30)))
-				expectedActualCost:    intPtr(12),  //  3 * (2 + 2 + 0*(5 + 30))
-			},
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				390, // 10 * (2 + (2 + (5 + 30)))
+				12,  //  3 * (2 + 2 + 0*(5 + 30))
+			),
 			computeCosts(),
 		))
 	})
