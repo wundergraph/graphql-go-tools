@@ -168,9 +168,8 @@ type Resolvable struct {
 }
 
 type TypeNameStats struct {
-	Size            int            // the Size of the resolved array/list. It is 1 for non-list objects.
-	TypeNames       map[string]int // distribution of TypeNames in the array
-	actualListSizes map[string]int
+	Size      int            // the Size of the resolved array/list. It is 1 for non-list objects.
+	TypeNames map[string]int // distribution of TypeNames in the array
 }
 
 type ResolvableOptions struct {
@@ -1751,9 +1750,9 @@ func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 	if stats.TypeNames == nil {
 		stats.TypeNames = make(map[string]int, 1)
 	}
+	// Fall back to the declared abstract type name when the subgraph did not return __typename.
 	name := obj.TypeName
 	if typeName != nil {
-		// Fall back to the declared abstract type name when the subgraph did not return __typename.
 		name = string(typeName)
 	}
 	stats.TypeNames[name]++
