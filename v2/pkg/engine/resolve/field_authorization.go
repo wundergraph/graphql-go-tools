@@ -3,6 +3,8 @@ package resolve
 import (
 	"fmt"
 
+	"github.com/cespare/xxhash/v2"
+
 	"github.com/wundergraph/astjson"
 )
 
@@ -111,6 +113,12 @@ func (a *FieldAuthorization) decide(value *astjson.Value, dataSourceID string, c
 		a.deny[decisionID] = result.Reason
 	}
 	return result, nil
+}
+
+func authorizationDecisionID(dataSourceID string, coordinate GraphCoordinate) uint64 {
+	// NUL delimiters keep the key unambiguous: without them distinct tuples like ("ab","c","d") and
+	// ("a","bc","d") would hash the same input and could reuse a decision for the wrong coordinate.
+	return xxhash.Sum64String(dataSourceID + "\x00" + coordinate.TypeName + "\x00" + coordinate.FieldName)
 }
 
 func (a *FieldAuthorization) seedAllow(dataSourceID string, coordinate GraphCoordinate) {
