@@ -51,7 +51,13 @@ func WithSkipReason(reason string) func(*testOptions) {
 
 func WithDefaultPostProcessor() func(*testOptions) {
 	return func(o *testOptions) {
-		o.postProcessor = postprocess.NewProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields())
+		o.postProcessor = postprocess.NewProcessor(
+			postprocess.DisableResolveInputTemplates(),
+			postprocess.DisableCreateConcreteSingleFetchTypes(),
+			postprocess.DisableCreateParallelNodes(),
+			postprocess.DisableMergeFields(),
+			postprocess.DisableCollectAuthorizationCoordinates(),
+		)
 	}
 }
 
@@ -269,8 +275,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 				keysPrinted, _ := json.Marshal(keys)
 				return string(keysPrinted)
 			},
-			reflect.TypeFor[resolve.SkipArrayItem]():             func(resolve.SkipArrayItem) string { return "skip_function" },
-			reflect.TypeFor[[]resolve.AuthorizationCoordinate](): func([]resolve.AuthorizationCoordinate) string { return "[]" },
+			reflect.TypeFor[resolve.SkipArrayItem](): func(resolve.SkipArrayItem) string { return "skip_function" },
 		}
 
 		prettyCfg := &pretty.Config{
