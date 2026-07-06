@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.9.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.8.0...v2.9.0) (2026-07-06)
+
+
+### Features
+
+* add flag SkipNullVariablesError ([#1550](https://github.com/wundergraph/graphql-go-tools/issues/1550)) ([43e0087](https://github.com/wundergraph/graphql-go-tools/commit/43e00874da9edbc0a6eefa921a888c3f0edfa643))
+* support requires for conflicting arguments ([#1566](https://github.com/wundergraph/graphql-go-tools/issues/1566)) ([979ee23](https://github.com/wundergraph/graphql-go-tools/commit/979ee23f62a6d4ca9d7b4c8d1915671a53dc02b2))
+
 ## [2.8.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.7.0...v2.8.0) (2026-07-02)
 
 
