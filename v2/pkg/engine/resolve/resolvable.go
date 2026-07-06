@@ -1642,16 +1642,22 @@ func (r *Resolvable) walkUnreachedFields(obj *Object) {
 }
 
 // walkUnreachedItem descends into an array item the data walk has no element for (empty or null
-// array), pretending it is element 0.
+// array)
 func (r *Resolvable) walkUnreachedItem(item Node) {
-	wasInside := r.inUnreachedSubtree
-	r.inUnreachedSubtree = true
-	r.pushArrayPathElement(0)
 	switch item.NodeKind() {
 	case NodeKindObject, NodeKindArray:
-		r.walkNode(item, astjson.NullValue)
+	default:
+		return
 	}
-	r.popArrayPathElement()
+
+	wasInside := r.inUnreachedSubtree
+	r.inUnreachedSubtree = true
+
+	// push the "@" wildcard position any element would occupy
+	r.pushNodePathElement([]string{"@"})
+	r.walkNode(item, astjson.NullValue)
+	r.popNodePathElement([]string{"@"})
+
 	r.inUnreachedSubtree = wasInside
 }
 
@@ -2201,7 +2207,8 @@ func (r *Resolvable) renderFieldPath() string {
 		return invalidPath
 	}
 	for i := range r.path {
-		if r.path[i].Name != "" {
+		// skip array segments: indices (empty Name) and the "@" wildcard
+		if r.path[i].Name != "" && r.path[i].Name != "@" {
 			_, _ = buf.WriteString(".")
 			_, _ = buf.WriteString(r.path[i].Name)
 		}

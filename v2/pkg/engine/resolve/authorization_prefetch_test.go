@@ -164,7 +164,7 @@ func TestPreFetchFieldAuthorization(t *testing.T) {
 		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())
 	})
 
-	t.Run("enabled nested protected field under empty list emits element zero path", func(t *testing.T) {
+	t.Run("enabled nested protected field under empty list emits wildcard path", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -192,7 +192,7 @@ func TestPreFetchFieldAuthorization(t *testing.T) {
 		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
 		require.NoError(t, err)
 
-		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing scope 'read:secret'.","path":["products",0,"secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing scope 'read:secret'.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
 		assert.Equal(t, int64(1), authorizer.batchCalls.Load())
 		assert.Equal(t, int64(0), authorizer.preFetchCalls.Load())
 		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())

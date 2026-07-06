@@ -284,7 +284,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 		resolvable.unreachedAuthWalk = false
 	}
 
-	t.Run("empty list emits nested denied field as element zero", func(t *testing.T) {
+	t.Run("empty list emits nested denied field at the list wildcard", func(t *testing.T) {
 		resolvable := newPreFetchResolvable()
 		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
 		root := &Object{
@@ -318,7 +318,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 		walkUnreached(t, resolvable, root, data)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products",0,"secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
 	})
 
 	t.Run("null nullable parent emits denied nested field", func(t *testing.T) {
@@ -450,7 +450,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.vault', Reason: missing vault scope.","path":["account","vault"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
 	})
 
-	t.Run("nested empty arrays recurse as element zero per level", func(t *testing.T) {
+	t.Run("nested empty arrays recurse with a wildcard per list level", func(t *testing.T) {
 		resolvable := newPreFetchResolvable()
 		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
 		root := &Object{
@@ -490,7 +490,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 		walkUnreached(t, resolvable, root, data)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.edges.nodes.secret', Reason: missing product scope.","path":["edges",0,"nodes",0,"secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.edges.nodes.secret', Reason: missing product scope.","path":["edges","@","nodes","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
 	})
 }
 
@@ -663,7 +663,7 @@ func TestResolvableAuthorizationEndToEnd(t *testing.T) {
 		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
 		require.NoError(t, err)
 
-		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products",0,"secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
 	})
 
 	// The two subtests below exercise the interplay between the synthetic (unreached-data)
@@ -672,7 +672,7 @@ func TestResolvableAuthorizationEndToEnd(t *testing.T) {
 	t.Run("fetch runs, mixed reached and unreached branches", func(t *testing.T) {
 		// orders[0] is reached: the walk denies+nulls secret; its null pricing hides
 		// Pricing.internal, reported by the synthetic descent. orders[1].items is empty: both
-		// denied fields are reported there as pretend element 0. Order.total is allowed: no error.
+		// denied fields are reported there at the "@" wildcard. Order.total is allowed: no error.
 		loads := &atomic.Int64{}
 		service := countingAuthorizationDataSource{
 			loads: loads,
@@ -693,7 +693,7 @@ func TestResolvableAuthorizationEndToEnd(t *testing.T) {
 		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
 		require.NoError(t, err)
 
-		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",0,"items",0,"product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders",0,"items",0,"product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",1,"items",0,"product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders",1,"items",0,"product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":[{"total":"a","items":[{"product":{"secret":null,"pricing":null}}]},{"total":"b","items":[]}]}}`, buf.String())
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",0,"items",0,"product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders",0,"items",0,"product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",1,"items","@","product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders",1,"items","@","product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":[{"total":"a","items":[{"product":{"secret":null,"pricing":null}}]},{"total":"b","items":[]}]}}`, buf.String())
 		assert.Equal(t, int64(1), loads.Load())
 		assert.Equal(t, int64(1), authorizer.batchCalls.Load())
 		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())
