@@ -192,7 +192,7 @@ func TestPreFetchFieldAuthorization(t *testing.T) {
 		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
 		require.NoError(t, err)
 
-		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing scope 'read:secret'.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.@.secret', Reason: missing scope 'read:secret'.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
 		assert.Equal(t, int64(1), authorizer.batchCalls.Load())
 		assert.Equal(t, int64(0), authorizer.preFetchCalls.Load())
 		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())

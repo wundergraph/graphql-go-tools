@@ -318,7 +318,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 		walkUnreached(t, resolvable, root, data)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.@.secret', Reason: missing product scope.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
 	})
 
 	t.Run("null nullable parent emits denied nested field", func(t *testing.T) {
@@ -490,7 +490,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 		walkUnreached(t, resolvable, root, data)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.edges.nodes.secret', Reason: missing product scope.","path":["edges","@","nodes","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.edges.@.nodes.@.secret', Reason: missing product scope.","path":["edges","@","nodes","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
 	})
 }
 
@@ -663,7 +663,7 @@ func TestResolvableAuthorizationEndToEnd(t *testing.T) {
 		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
 		require.NoError(t, err)
 
-		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.@.secret', Reason: missing product scope.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
 	})
 
 	// The two subtests below exercise the interplay between the synthetic (unreached-data)
@@ -693,7 +693,7 @@ func TestResolvableAuthorizationEndToEnd(t *testing.T) {
 		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
 		require.NoError(t, err)
 
-		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",0,"items",0,"product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders",0,"items",0,"product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",1,"items","@","product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders",1,"items","@","product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":[{"total":"a","items":[{"product":{"secret":null,"pricing":null}}]},{"total":"b","items":[]}]}}`, buf.String())
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",0,"items",0,"product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders",0,"items",0,"product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.@.product.secret', Reason: missing product scope.","path":["orders",1,"items","@","product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.@.product.pricing.internal', Reason: missing pricing scope.","path":["orders",1,"items","@","product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":[{"total":"a","items":[{"product":{"secret":null,"pricing":null}}]},{"total":"b","items":[]}]}}`, buf.String())
 		assert.Equal(t, int64(1), loads.Load())
 		assert.Equal(t, int64(1), authorizer.batchCalls.Load())
 		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())

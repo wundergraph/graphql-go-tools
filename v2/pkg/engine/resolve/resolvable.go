@@ -2207,8 +2207,7 @@ func (r *Resolvable) renderFieldPath() string {
 		return invalidPath
 	}
 	for i := range r.path {
-		// skip array segments: indices (empty Name) and the "@" wildcard
-		if r.path[i].Name != "" && r.path[i].Name != "@" {
+		if r.path[i].Name != "" {
 			_, _ = buf.WriteString(".")
 			_, _ = buf.WriteString(r.path[i].Name)
 		}
