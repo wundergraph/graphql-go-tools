@@ -797,6 +797,9 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		return
 	}
 	parentStats := input.typeStats[node.parent.jsonPath]
+	if node.parent.fieldCoords == costTreeRootNodeCoords && parentStats.Size == 0 {
+		parentStats.Size = 1
+	}
 
 	if node.returnsListType {
 		// This node's multiplier is its own array size, averaged over its immediate parent's

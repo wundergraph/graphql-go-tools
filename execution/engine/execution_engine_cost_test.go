@@ -6817,7 +6817,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		t.Parallel()
 
 		schema, err := graphql.NewSchemaFromString(`
-			type Query { items(ids: [ID!]!): [Item] }
+			type Query {
+				items(ids: [ID!]!): [Item]
+				item: Item
+			}
 			type Item  {
 				id: ID!
 				parent_item: Item
@@ -6838,7 +6841,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 
 		rootNodes := []plan.TypeField{
-			{TypeName: "Query", FieldNames: []string{"items"}},
+			{TypeName: "Query", FieldNames: []string{"items", "item"}},
 		}
 		childNodes := []plan.TypeField{
 			{TypeName: "Item", FieldNames: []string{"id", "parent_item", "group", "board"}},
@@ -6886,7 +6889,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedActualCost:    intPtr(actualCost),
 			}
 		}
-
 		t.Run("with child fields group and board", runWithoutError(
 			makeCase(`query getItems {
 					items(ids: ["1", "2", "3"]) {
@@ -6911,7 +6913,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			),
 			computeCosts(),
 		))
-
 		t.Run("without child fields group and board", runWithoutError(
 			makeCase(`query getItems {
 					items(ids: ["1", "2", "3"]) {
@@ -6938,7 +6939,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			),
 			computeCosts(),
 		))
-
 		t.Run("weighted field two levels under null parent is charged once", runWithoutError(
 			makeCase(`query getItems {
 					items(ids: ["1", "2", "3"]) {
@@ -6992,7 +6992,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			),
 			computeCosts(),
 		))
-
 		t.Run("weighted field two levels under parent that is always null is never charged", runWithoutError(
 			makeCase(`query getItems {
 					items(ids: ["1", "2", "3"]) {
@@ -7016,6 +7015,46 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				390, // 10 * (2 + (2 + (5 + 30)))
 				12,  //  3 * (2 + 2 + 0*(5 + 30))
+			),
+			computeCosts(),
+		))
+		t.Run("children of null top-level object are not charged", runWithoutError(
+			makeCase(`query getItem {
+					item {
+						id
+						group { id }
+					}
+				}`,
+				`{"data":{"item":null}}`,
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				37, // 2 + (5 + 30)
+				2,  // 2 + 0*(5 + 30)
+			),
+			computeCosts(),
+		))
+		t.Run("children of non-null top-level object are charged", runWithoutError(
+			makeCase(`query getItem {
+					item {
+						id
+						group { id }
+					}
+				}`,
+				`{"data":{"item":{"id":"1","group":{"id":"g1"}}}}`,
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				37, // 2 + (5 + 30)
+				37, // 2 + 1*(5 + 30)
 			),
 			computeCosts(),
 		))
