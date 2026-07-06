@@ -203,7 +203,14 @@ func TestPreFetchFieldAuthorization(t *testing.T) {
 		defer ctrl.Finish()
 
 		response := generateTestFederationGraphQLResponse(t, ctrl)
-		CollectAuthorizationCoordinates(response)
+		// as collected by the postprocess package from the fixture's fetch infos and data tree
+		response.Info.AuthorizationCoordinates = []AuthorizationCoordinate{
+			{DataSourceID: "products", Coordinate: GraphCoordinate{TypeName: "Product", FieldName: "name"}},
+			{DataSourceID: "reviews", Coordinate: GraphCoordinate{TypeName: "Review", FieldName: "body"}},
+			{DataSourceID: "reviews", Coordinate: GraphCoordinate{TypeName: "Review", FieldName: "product"}},
+			{DataSourceID: "reviews", Coordinate: GraphCoordinate{TypeName: "User", FieldName: "reviews"}},
+			{DataSourceID: "users", Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "me"}},
+		}
 
 		authorizer := &batchTestAuthorizer{}
 		resolveCtx := NewContext(context.Background())
@@ -238,7 +245,9 @@ func TestPreFetchFieldAuthorization(t *testing.T) {
 			Times(1)
 
 		response := interfaceSecretResponse(service)
-		CollectAuthorizationCoordinates(response)
+		response.Info.AuthorizationCoordinates = []AuthorizationCoordinate{
+			{DataSourceID: "profiles", Coordinate: GraphCoordinate{TypeName: "Profile", FieldName: "secret"}},
+		}
 
 		authorizer := &batchTestAuthorizer{
 			decisions: map[GraphCoordinate]AuthorizationDecision{
@@ -350,54 +359,6 @@ func TestPreFetchFieldAuthorization(t *testing.T) {
 		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())
 	})
 
-}
-
-func TestCollectAuthorizationCoordinates(t *testing.T) {
-	response := productsSecretResponse(nil)
-	response.Info.AuthorizationCoordinates = nil
-	response.Fetches = Sequence(
-		SingleWithPath(&SingleFetch{
-			Info: &FetchInfo{
-				DataSourceID: "catalog",
-				RootFields: []GraphCoordinate{
-					{TypeName: "Query", FieldName: "products", HasAuthorizationRule: true},
-					{TypeName: "Query", FieldName: "public"},
-				},
-			},
-		}, "query"),
-	)
-
-	CollectAuthorizationCoordinates(response)
-
-	assert.Equal(t, []AuthorizationCoordinate{
-		{DataSourceID: "catalog", Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
-		{DataSourceID: "products", Coordinate: GraphCoordinate{TypeName: "Product", FieldName: "secret"}},
-	}, response.Info.AuthorizationCoordinates)
-}
-
-// In normal engine execution the post-processor builds the Fetches tree from RawFetches only after
-// planning, so at collection time fetch root-field coordinates live in RawFetches, not the tree.
-func TestCollectAuthorizationCoordinatesFromRawFetches(t *testing.T) {
-	response := &GraphQLResponse{
-		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
-		RawFetches: []*FetchItem{
-			{Fetch: &SingleFetch{
-				Info: &FetchInfo{
-					DataSourceID: "catalog",
-					RootFields: []GraphCoordinate{
-						{TypeName: "Query", FieldName: "products", HasAuthorizationRule: true},
-						{TypeName: "Query", FieldName: "public"},
-					},
-				},
-			}},
-		},
-	}
-
-	CollectAuthorizationCoordinates(response)
-
-	assert.Equal(t, []AuthorizationCoordinate{
-		{DataSourceID: "catalog", Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "products"}},
-	}, response.Info.AuthorizationCoordinates)
 }
 
 // When the loader is skipped (e.g. query-plan-only responses) no origin fetch runs, so the batch

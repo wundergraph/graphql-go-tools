@@ -226,9 +226,6 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	// Step 5. Plan is handed over to postprocess.Processor. It checks fetch dependencies and
 	// orders them into parallel or sequential groups and builds a fetch tree.
-	if p.planningVisitor.plan != nil {
-		p.planningVisitor.plan.CollectAuthorizationCoordinates()
-	}
 	return p.planningVisitor.plan
 }
 
