@@ -143,7 +143,7 @@ type Resolvable struct {
 
 	// typeNameStats maps the JSON path to its accumulated array/object stats in the final response.
 	// Used to compute the actual cost of the operation.
-	// Maybe gate it behind feature flag?
+	// Only populated when ResolvableOptions.EnableCostControl is true.
 	typeNameStats map[string]TypeNameStats
 
 	// subgraphExtensions holds the `extensions` objects collected from subgraph
@@ -180,6 +180,9 @@ type ResolvableOptions struct {
 	ApolloCompatibilityReplaceInvalidVarError      bool
 	AllowedSubgraphExtensions                      map[string]struct{}
 	ExtensionForwardingAlgorithm                   ExtensionForwardingAlgorithm
+
+	// EnableCostControl gates whether typeNameStats are computed during the walk.
+	EnableCostControl bool
 }
 
 type ExtensionForwardingAlgorithm string
@@ -214,7 +217,6 @@ func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
 		astjsonArena:       a,
-		typeNameStats:      make(map[string]TypeNameStats),
 	}
 }
 
@@ -252,10 +254,18 @@ func (r *Resolvable) Reset() {
 	r.deferItemDataNull = false
 }
 
+// initCostControl prepares typeNameStats collection for this walk when cost control is active.
+func (r *Resolvable) initCostControl() {
+	if r.options.EnableCostControl && r.typeNameStats == nil {
+		r.typeNameStats = make(map[string]TypeNameStats)
+	}
+}
+
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
 	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
+	r.initCostControl()
 	r.data = astjson.ObjectValue(r.astjsonArena)
 	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
@@ -276,6 +286,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
+	r.initCostControl()
 	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
 	if initialData != nil {
@@ -1249,7 +1260,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 		}
 	}
 
-	if !r.render() {
+	if !r.render() && r.options.EnableCostControl {
 		r.recordObjectTypeStats(obj, typeName) // For Cost Control
 	}
 
@@ -1668,7 +1679,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	}
 	values := value.GetArray()
 
-	if !r.render() {
+	if !r.render() && r.options.EnableCostControl {
 		// Record arrays stats for Cost Control.
 		pathKey := r.currentFieldPath()
 		stats := r.typeNameStats[pathKey]
