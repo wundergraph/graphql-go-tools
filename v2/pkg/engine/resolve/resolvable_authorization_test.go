@@ -7,6 +7,7 @@ import (
 	stderrors "errors"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -385,26 +386,207 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 	})
 }
 
-func TestResolvableAuthorizationUnreachedDataEndToEnd(t *testing.T) {
-	service := resolvableAuthorizationDataSource{data: []byte(`{"data":{"products":[]}}`)}
-	response := productsSecretResponse(service)
-	response.Info.AuthorizationCoordinates = []AuthorizationCoordinate{
-		{DataSourceID: "products", Coordinate: GraphCoordinate{TypeName: "Product", FieldName: "secret"}},
+type countingAuthorizationDataSource struct {
+	loads *atomic.Int64
+	data  []byte
+}
+
+func (d countingAuthorizationDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	d.loads.Add(1)
+	return d.data, nil
+}
+
+func (d countingAuthorizationDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	d.loads.Add(1)
+	return d.data, nil
+}
+
+// deepOrdersResponse models: query { orders { total items { product { secret pricing { internal } } } } }
+// with every field served by the "shop" data source. Protected coordinates: Order.total,
+// Product.secret, Pricing.internal — plus Query.orders itself when rootProtected is true.
+func deepOrdersResponse(service DataSource, rootProtected bool) *GraphQLResponse {
+	ordersInfo := &FieldInfo{
+		Name:                "orders",
+		ExactParentTypeName: "Query",
+		Source:              TypeFieldSource{IDs: []string{"shop"}, Names: []string{"shop"}},
 	}
-	authorizer := &batchTestAuthorizer{
-		decisions: map[GraphCoordinate]AuthorizationDecision{
-			{TypeName: "Product", FieldName: "secret"}: {Allowed: false, Reason: "missing product scope"},
+	coordinates := []AuthorizationCoordinate{
+		{DataSourceID: "shop", Coordinate: GraphCoordinate{TypeName: "Order", FieldName: "total"}},
+		{DataSourceID: "shop", Coordinate: GraphCoordinate{TypeName: "Pricing", FieldName: "internal"}},
+		{DataSourceID: "shop", Coordinate: GraphCoordinate{TypeName: "Product", FieldName: "secret"}},
+	}
+	rootField := GraphCoordinate{TypeName: "Query", FieldName: "orders"}
+	if rootProtected {
+		ordersInfo.HasAuthorizationRule = true
+		rootField.HasAuthorizationRule = true
+		coordinates = append(coordinates, AuthorizationCoordinate{DataSourceID: "shop", Coordinate: GraphCoordinate{TypeName: "Query", FieldName: "orders"}})
+	}
+	return &GraphQLResponse{
+		Info: &GraphQLResponseInfo{
+			OperationType:            ast.OperationTypeQuery,
+			AuthorizationCoordinates: coordinates,
+		},
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: service,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			InputTemplate: InputTemplate{
+				Segments: []TemplateSegment{
+					{SegmentType: StaticSegmentType, Data: []byte(`{}`)},
+				},
+			},
+			Info: &FetchInfo{
+				DataSourceID:   "shop",
+				DataSourceName: "shop",
+				RootFields:     []GraphCoordinate{rootField},
+			},
+		}),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("orders"),
+					Info: ordersInfo,
+					Value: &Array{
+						Path:     []string{"orders"},
+						Nullable: true,
+						Item: &Object{
+							Nullable: true,
+							TypeName: "Order",
+							Fields: []*Field{
+								authorizationProtectedField("shop", "shop", "Order", "total", &String{Path: []string{"total"}}),
+								{
+									Name: []byte("items"),
+									Value: &Array{
+										Path: []string{"items"},
+										Item: &Object{
+											TypeName: "Item",
+											Fields: []*Field{
+												{
+													Name: []byte("product"),
+													Value: &Object{
+														Path:     []string{"product"},
+														TypeName: "Product",
+														Fields: []*Field{
+															authorizationProtectedField("shop", "shop", "Product", "secret", &String{Path: []string{"secret"}, Nullable: true}),
+															{
+																Name: []byte("pricing"),
+																Value: &Object{
+																	Path:     []string{"pricing"},
+																	Nullable: true,
+																	TypeName: "Pricing",
+																	Fields: []*Field{
+																		authorizationProtectedField("shop", "shop", "Pricing", "internal", &String{Path: []string{"internal"}, Nullable: true}),
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
-	resolveCtx := NewContext(context.Background())
-	resolveCtx.SetPreFetchFieldAuthorizer(authorizer)
+}
 
-	var buf bytes.Buffer
-	resolver := newResolver(context.Background())
-	_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
-	require.NoError(t, err)
+func TestResolvableAuthorizationEndToEnd(t *testing.T) {
+	t.Run("empty list emits nested denied field", func(t *testing.T) {
+		service := resolvableAuthorizationDataSource{data: []byte(`{"data":{"products":[]}}`)}
+		response := productsSecretResponse(service)
+		response.Info.AuthorizationCoordinates = []AuthorizationCoordinate{
+			{DataSourceID: "products", Coordinate: GraphCoordinate{TypeName: "Product", FieldName: "secret"}},
+		}
+		authorizer := &batchTestAuthorizer{
+			decisions: map[GraphCoordinate]AuthorizationDecision{
+				{TypeName: "Product", FieldName: "secret"}: {Allowed: false, Reason: "missing product scope"},
+			},
+		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.SetPreFetchFieldAuthorizer(authorizer)
 
-	assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
+		var buf bytes.Buffer
+		resolver := newResolver(context.Background())
+		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
+		require.NoError(t, err)
+
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.products.secret', Reason: missing product scope.","path":["products","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"products":[]}}`, buf.String())
+	})
+
+	// The two subtests below exercise the interplay between the unreached-data pre-pass and the
+	// auth walk on one deep response tree (orders -> items -> product -> pricing).
+
+	t.Run("fetch runs, mixed reached and unreached branches", func(t *testing.T) {
+		// orders[0] is fully reached: the walk denies+nulls secret; pricing is null, so the
+		// pre-pass reports the denied Pricing.internal beneath it. orders[1].items is empty, so
+		// the pre-pass reports Product.secret there — and Pricing.internal again, but deduped
+		// against the orders[0] report (identical structural path). Order.total is protected but
+		// allowed: untouched, no error.
+		loads := &atomic.Int64{}
+		service := countingAuthorizationDataSource{
+			loads: loads,
+			data:  []byte(`{"data":{"orders":[{"total":"a","items":[{"product":{"secret":"classified","pricing":null}}]},{"total":"b","items":[]}]}}`),
+		}
+		response := deepOrdersResponse(service, false)
+		authorizer := &batchTestAuthorizer{
+			decisions: map[GraphCoordinate]AuthorizationDecision{
+				{TypeName: "Product", FieldName: "secret"}:   {Allowed: false, Reason: "missing product scope"},
+				{TypeName: "Pricing", FieldName: "internal"}: {Allowed: false, Reason: "missing pricing scope"},
+			},
+		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.SetPreFetchFieldAuthorizer(authorizer)
+
+		var buf bytes.Buffer
+		resolver := newResolver(context.Background())
+		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
+		require.NoError(t, err)
+
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders.items.product.pricing.internal', Reason: missing pricing scope.","path":["orders","items","product","pricing","internal"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders","items","product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders",0,"items",0,"product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":[{"total":"a","items":[{"product":{"secret":null,"pricing":null}}]},{"total":"b","items":[]}]}}`, buf.String())
+		assert.Equal(t, int64(1), loads.Load())
+		assert.Equal(t, int64(1), authorizer.batchCalls.Load())
+		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())
+	})
+
+	t.Run("denied root prevents fetch, nested denials still reported", func(t *testing.T) {
+		// Query.orders is denied, and it is the fetch's only root field, so the fetch is skipped
+		// entirely — no data below orders exists. The walk still reaches the orders field itself
+		// (its parent, the root object, always has data) and emits the deny + nulls it; the
+		// pre-pass reports the denied Product.secret in the subtree the data never materialized.
+		loads := &atomic.Int64{}
+		service := countingAuthorizationDataSource{
+			loads: loads,
+			data:  []byte(`{"data":{"orders":[{"total":"leak","items":[{"product":{"secret":"leak","pricing":{"internal":"leak"}}}]}]}}`),
+		}
+		response := deepOrdersResponse(service, true)
+		authorizer := &batchTestAuthorizer{
+			decisions: map[GraphCoordinate]AuthorizationDecision{
+				{TypeName: "Query", FieldName: "orders"}:   {Allowed: false, Reason: "missing orders scope"},
+				{TypeName: "Product", FieldName: "secret"}: {Allowed: false, Reason: "missing product scope"},
+			},
+		}
+		resolveCtx := NewContext(context.Background())
+		resolveCtx.SetPreFetchFieldAuthorizer(authorizer)
+
+		var buf bytes.Buffer
+		resolver := newResolver(context.Background())
+		_, err := resolver.ResolveGraphQLResponse(resolveCtx, response, nil, &buf)
+		require.NoError(t, err)
+
+		assert.Equal(t, `{"errors":[{"message":"Unauthorized to load field 'Query.orders.items.product.secret', Reason: missing product scope.","path":["orders","items","product","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.orders', Reason: missing orders scope.","path":["orders"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"orders":null}}`, buf.String())
+		assert.Equal(t, int64(0), loads.Load())
+		assert.Equal(t, int64(1), authorizer.batchCalls.Load())
+		assert.Equal(t, int64(0), authorizer.objectFieldCalls.Load())
+	})
 }
 
 func TestResolvableAuthorizationHelpers(t *testing.T) {
