@@ -164,9 +164,9 @@ func TestResolvableAuthorizationAuthorize(t *testing.T) {
 		ctx := NewContext(context.Background())
 		ctx.SetAuthorizer(authorizer)
 		resolvable := newResolvableForAuthorizationTest(ctx)
-		resolvable.seedAuthorizationAllow("users", coordinate)
+		resolvable.authorization.seedAllow("users", coordinate)
 
-		result, err := resolvable.authorize(value, "users", coordinate)
+		result, err := resolvable.authorization.decide(value, "users", coordinate)
 		require.NoError(t, err)
 		assert.Nil(t, result)
 		assert.Equal(t, 0, authorizer.objectFieldCalls)
@@ -177,9 +177,9 @@ func TestResolvableAuthorizationAuthorize(t *testing.T) {
 		ctx := NewContext(context.Background())
 		ctx.SetAuthorizer(authorizer)
 		resolvable := newResolvableForAuthorizationTest(ctx)
-		resolvable.seedAuthorizationDeny("users", coordinate, "cached deny")
+		resolvable.authorization.seedDeny("users", coordinate, "cached deny")
 
-		result, err := resolvable.authorize(value, "users", coordinate)
+		result, err := resolvable.authorization.decide(value, "users", coordinate)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "cached deny", result.Reason)
@@ -189,7 +189,7 @@ func TestResolvableAuthorizationAuthorize(t *testing.T) {
 	t.Run("nil authorizer miss allows", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
 
-		result, err := resolvable.authorize(value, "users", coordinate)
+		result, err := resolvable.authorization.decide(value, "users", coordinate)
 		require.NoError(t, err)
 		assert.Nil(t, result)
 	})
@@ -200,11 +200,11 @@ func TestResolvableAuthorizationAuthorize(t *testing.T) {
 		ctx.SetAuthorizer(authorizer)
 		resolvable := newResolvableForAuthorizationTest(ctx)
 
-		result, err := resolvable.authorize(value, "users", coordinate)
+		result, err := resolvable.authorization.decide(value, "users", coordinate)
 		require.NoError(t, err)
 		assert.Nil(t, result)
 
-		_, ok := resolvable.authorizationAllow[authorizationDecisionID("users", coordinate)]
+		_, ok := resolvable.authorization.allow[authorizationDecisionID("users", coordinate)]
 		assert.True(t, ok)
 	})
 
@@ -218,12 +218,12 @@ func TestResolvableAuthorizationAuthorize(t *testing.T) {
 		ctx.SetAuthorizer(authorizer)
 		resolvable := newResolvableForAuthorizationTest(ctx)
 
-		result, err := resolvable.authorize(value, "users", coordinate)
+		result, err := resolvable.authorization.decide(value, "users", coordinate)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "denied", result.Reason)
 
-		reason, ok := resolvable.authorizationDeny[authorizationDecisionID("users", coordinate)]
+		reason, ok := resolvable.authorization.deny[authorizationDecisionID("users", coordinate)]
 		assert.True(t, ok)
 		assert.Equal(t, "denied", reason)
 	})
@@ -239,29 +239,29 @@ func TestResolvableAuthorizationAuthorize(t *testing.T) {
 		ctx.SetAuthorizer(authorizer)
 		resolvable := newResolvableForAuthorizationTest(ctx)
 
-		result, err := resolvable.authorize(value, "users", coordinate)
+		result, err := resolvable.authorization.decide(value, "users", coordinate)
 		assert.Nil(t, result)
 		assert.ErrorIs(t, err, authErr)
 	})
 }
 
-func TestResolvableAuthorizationDecisionSeeding(t *testing.T) {
-	resolvable := NewResolvable(nil, ResolvableOptions{})
+func TestFieldAuthorizationDecisionSeeding(t *testing.T) {
+	authorization := NewFieldAuthorization(NewContext(context.Background()))
 	coordinate := GraphCoordinate{TypeName: "User", FieldName: "email"}
 
 	assert.Equal(t, authorizationDecisionID("users", coordinate), authorizationDecisionID("users", coordinate))
 	assert.NotEqual(t, authorizationDecisionID("users", coordinate), authorizationDecisionID("profiles", coordinate))
 
-	resolvable.seedAuthorizationAllow("users", coordinate)
-	_, allowed := resolvable.authorizationAllow[authorizationDecisionID("users", coordinate)]
+	authorization.seedAllow("users", coordinate)
+	_, allowed := authorization.allow[authorizationDecisionID("users", coordinate)]
 	assert.True(t, allowed)
 
-	resolvable.seedAuthorizationDeny("users", coordinate, "missing email scope")
-	reason, denied := resolvable.authorizationDenyReason("users", coordinate)
+	authorization.seedDeny("users", coordinate, "missing email scope")
+	reason, denied := authorization.denyReason("users", coordinate)
 	assert.True(t, denied)
 	assert.Equal(t, "missing email scope", reason)
 
-	reason, denied = resolvable.authorizationDenyReason("users", GraphCoordinate{TypeName: "User", FieldName: "name"})
+	reason, denied = authorization.denyReason("users", GraphCoordinate{TypeName: "User", FieldName: "name"})
 	assert.False(t, denied)
 	assert.Empty(t, reason)
 }
@@ -269,7 +269,7 @@ func TestResolvableAuthorizationDecisionSeeding(t *testing.T) {
 func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 	t.Run("empty list emits nested denied field once", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.seedAuthorizationDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
+		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
 		root := authorizationUnreachedRoot()
 		data := mustParseAuthorizationValue(t, `{"products":[]}`)
 
@@ -280,7 +280,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 	t.Run("null nullable parent emits denied nested field", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.seedAuthorizationDeny("accounts", GraphCoordinate{TypeName: "Account", FieldName: "secret"}, "missing account scope")
+		resolvable.authorization.seedDeny("accounts", GraphCoordinate{TypeName: "Account", FieldName: "secret"}, "missing account scope")
 		root := authorizationNestedRoot()
 		data := mustParseAuthorizationValue(t, `{"account":null}`)
 
@@ -291,7 +291,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 	t.Run("nested object with reached child emits nothing", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.seedAuthorizationDeny("accounts", GraphCoordinate{TypeName: "Account", FieldName: "secret"}, "missing account scope")
+		resolvable.authorization.seedDeny("accounts", GraphCoordinate{TypeName: "Account", FieldName: "secret"}, "missing account scope")
 		root := authorizationNestedRoot()
 		data := mustParseAuthorizationValue(t, `{"account":{"secret":"hidden"}}`)
 
@@ -302,7 +302,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 	t.Run("array of non-objects emits denied nested field once via dedup map", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.seedAuthorizationDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
+		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
 		root := authorizationUnreachedRoot()
 		data := mustParseAuthorizationValue(t, `{"products":["not-object","also-not-object"]}`)
 
@@ -313,7 +313,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 	t.Run("non-array value for array field emits denied nested field", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.seedAuthorizationDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
+		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
 		root := authorizationUnreachedRoot()
 		data := mustParseAuthorizationValue(t, `{"products":"not-array"}`)
 
@@ -324,7 +324,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 	t.Run("non-object root walks subtree", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.seedAuthorizationDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "")
+		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "")
 		root := authorizationUnreachedRoot()
 		data := mustParseAuthorizationValue(t, `null`)
 
@@ -335,7 +335,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 	t.Run("direct nested array path emits denied field", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.seedAuthorizationDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
+		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
 		node := &Array{
 			Path: []string{"edges"},
 			Item: &Object{
@@ -351,7 +351,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 	t.Run("direct nested array path with non-array child emits denied field", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.seedAuthorizationDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
+		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
 		node := &Array{
 			Path: []string{"edges"},
 			Item: &Object{
@@ -367,7 +367,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 	t.Run("direct nested array path recurses into array items", func(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(NewContext(context.Background()))
-		resolvable.seedAuthorizationDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
+		resolvable.authorization.seedDeny("products", GraphCoordinate{TypeName: "Product", FieldName: "secret"}, "missing product scope")
 		node := &Array{
 			Path: []string{"edges"},
 			Item: &Array{

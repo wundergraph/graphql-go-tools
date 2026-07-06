@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 
 	"github.com/wundergraph/astjson"
@@ -87,19 +86,14 @@ type Resolvable struct {
 	// ctx is the request Context (authorizer, rate limiter, field renderer, options).
 	ctx *Context
 
+	// authorization holds the per-request field-authorization decisions, shared with the Loader.
+	// Set via SetFieldAuthorization by the resolver entry points; lazily created in Init as a
+	// fallback for directly constructed Resolvables (tests).
+	authorization *FieldAuthorization
+
 	// authorizationError holds an auth error raised mid-walk;
 	// in case of defer it is scoped to the current field/defer and converted into a defer local error.
 	authorizationError error
-
-	// xxh is a reused xxhash digest for computing authorization decision cache keys.
-	xxh *xxhash.Digest
-
-	// authorizationAllow caches allowed authorization decision ids (keyed by the
-	// xxh of dataSource id + graph coordinate).
-	authorizationAllow map[uint64]struct{}
-
-	// authorizationDeny caches denied authorization decision ids mapped to their deny reason.
-	authorizationDeny map[uint64]string
 
 	// wroteErrors records whether the `errors` array has been written to the response
 	wroteErrors bool
@@ -207,13 +201,17 @@ func MapExtensionForwardingAlgorithm(algorithm string) ExtensionForwardingAlgori
 
 func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 	return &Resolvable{
-		options:            options,
-		xxh:                xxhash.New(),
-		authorizationAllow: make(map[uint64]struct{}),
-		authorizationDeny:  make(map[uint64]string),
-		astjsonArena:       a,
-		typeNameStats:      make(map[string]TypeNameStats),
+		options:       options,
+		astjsonArena:  a,
+		typeNameStats: make(map[string]TypeNameStats),
 	}
+}
+
+// SetFieldAuthorization wires the per-request field-authorization decisions produced and read
+// during resolution. The resolver entry points call it right after NewResolvable; when unset,
+// Init creates one from the request Context.
+func (r *Resolvable) SetFieldAuthorization(authorization *FieldAuthorization) {
+	r.authorization = authorization
 }
 
 func (r *Resolvable) Reset() {
@@ -233,13 +231,11 @@ func (r *Resolvable) Reset() {
 	r.path = r.path[:0]
 	r.operationType = ast.OperationTypeUnknown
 	r.renameTypeNames = r.renameTypeNames[:0]
+	r.authorization = nil
 	r.authorizationError = nil
 	r.astjsonArena = nil
-	r.xxh.Reset()
 	r.allowedExtensions = nil
 	clear(r.subgraphExtensions)
-	clear(r.authorizationAllow)
-	clear(r.authorizationDeny)
 	clear(r.typeNameStats)
 
 	r.deferMode = false
@@ -252,6 +248,9 @@ func (r *Resolvable) Reset() {
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
 	r.ctx = ctx
+	if r.authorization == nil {
+		r.authorization = NewFieldAuthorization(ctx)
+	}
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.data = astjson.ObjectValue(r.astjsonArena)
@@ -272,6 +271,9 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 
 func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProcessing PostProcessingConfiguration) (err error) {
 	r.ctx = ctx
+	if r.authorization == nil {
+		r.authorization = NewFieldAuthorization(ctx)
+	}
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	// don't init errors! It will heavily increase memory usage
@@ -354,7 +356,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 
 	r.skipAddingNullErrors = r.hasErrors() && !r.hasData()
 
-	if r.ctx.preFetchFieldAuthorizer != nil {
+	if r.authorization.preFetchEnabled() {
 		// Emit errors for denied protected fields the origin never returned (empty list / null
 		// parent) BEFORE the walk, so "unreached" reflects the origin response rather than parents
 		// the walk itself nulls due to authorization. Running it afterwards would treat an

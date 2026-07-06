@@ -316,10 +316,10 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func NewLoader(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SubgraphRequestSingleFlight, a arena.Arena, db *DataBuffer, resolvable *Resolvable) *Loader {
+func NewLoader(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SubgraphRequestSingleFlight, a arena.Arena, db *DataBuffer, authorization *FieldAuthorization) *Loader {
 	return &Loader{
 		dataBuffer:                             db,
-		resolvable:                             resolvable,
+		authorization:                          authorization,
 		apolloCompatibilitySuppressFetchErrors: options.ResolvableOptions.ApolloCompatibilitySuppressFetchErrors,
 		apolloCompatibilityValueCompletionInExtensions: options.ResolvableOptions.ApolloCompatibilityValueCompletionInExtensions,
 		allowCustomExtensionProperties:                 options.AllowCustomExtensionProperties,
@@ -372,6 +372,8 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}()
 
 	resolvable := NewResolvable(nil, r.options.ResolvableOptions)
+	authorization := NewFieldAuthorization(ctx)
+	resolvable.SetFieldAuthorization(authorization)
 
 	err := resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -381,13 +383,13 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	// The DataBuffer wraps the base tree produced by Init (which may already
 	// contain initialData). The loader fetches/merges into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, db, resolvable)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, db, authorization)
 
 	if !ctx.ExecutionOptions.SkipLoader {
 		// Pre-fetch field authorization only matters when fetches actually run. When the loader is
 		// skipped (e.g. query-plan-only responses) there are no origin fetches, so we must not invoke
 		// the authorizer here.
-		if err = r.authorizeFieldsPreFetch(ctx, response, resolvable); err != nil {
+		if err = authorization.authorizePreFetch(response); err != nil {
 			return nil, err
 		}
 		err = loader.LoadGraphQLResponseData(ctx, response)
@@ -446,6 +448,8 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
 	// we're intentionally not using defer Release to have more control over the timing (see below)
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
+	authorization := NewFieldAuthorization(ctx)
+	resolvable.SetFieldAuthorization(authorization)
 
 	err = resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
@@ -456,13 +460,13 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 
 	// The DataBuffer wraps the base tree produced by Init. The loader merges into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, resolvable)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if !ctx.ExecutionOptions.SkipLoader {
 		// Pre-fetch field authorization only matters when fetches actually run. When the loader is
 		// skipped (e.g. query-plan-only responses) there are no origin fetches, so we must not invoke
 		// the authorizer here.
-		if err = r.authorizeFieldsPreFetch(ctx, response, resolvable); err != nil {
+		if err = authorization.authorizePreFetch(response); err != nil {
 			r.inboundRequestSingleFlight.FinishErr(inflight, err)
 			r.resolveArenaPool.Release(resolveArena)
 			return nil, err
@@ -521,40 +525,6 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	return resp, err
 }
 
-func (r *Resolver) authorizeFieldsPreFetch(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) error {
-	if ctx.preFetchFieldAuthorizer == nil || response == nil || response.Info == nil || len(response.Info.AuthorizationCoordinates) == 0 {
-		return nil
-	}
-
-	coordinateIndex := make(map[GraphCoordinate]int, len(response.Info.AuthorizationCoordinates))
-	coordinates := make([]GraphCoordinate, 0, len(response.Info.AuthorizationCoordinates))
-	for i := range response.Info.AuthorizationCoordinates {
-		coordinate := response.Info.AuthorizationCoordinates[i].Coordinate
-		if _, exists := coordinateIndex[coordinate]; exists {
-			continue
-		}
-		coordinateIndex[coordinate] = len(coordinates)
-		coordinates = append(coordinates, coordinate)
-	}
-	decisions, err := ctx.preFetchFieldAuthorizer.AuthorizeFields(ctx, coordinates)
-	if err != nil {
-		return err
-	}
-	if len(decisions) != len(coordinates) {
-		return fmt.Errorf("batch authorizer returned %d decisions for %d coordinates", len(decisions), len(coordinates))
-	}
-	for i := range response.Info.AuthorizationCoordinates {
-		authCoordinate := response.Info.AuthorizationCoordinates[i]
-		decision := decisions[coordinateIndex[authCoordinate.Coordinate]]
-		if decision.Allowed {
-			resolvable.seedAuthorizationAllow(authCoordinate.DataSourceID, authCoordinate.Coordinate)
-		} else {
-			resolvable.seedAuthorizationDeny(authCoordinate.DataSourceID, authCoordinate.Coordinate, decision.Reason)
-		}
-	}
-	return nil
-}
-
 func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDeferResponse, writer DeferResponseWriter) (*GraphQLResolveInfo, error) {
 	resolveInfo := &GraphQLResolveInfo{}
 
@@ -578,6 +548,8 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 	defer r.resolveArenaPool.Release(resolveArena)
 
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
+	authorization := NewFieldAuthorization(ctx)
+	resolvable.SetFieldAuthorization(authorization)
 
 	err := resolvable.Init(ctx, nil, response.Response.Info.OperationType)
 	if err != nil {
@@ -587,14 +559,14 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 	// The DataBuffer wraps the base tree produced by Init. The loader and every
 	// defer group merge into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, resolvable)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if !ctx.ExecutionOptions.SkipLoader {
 		// Pre-fetch field authorization: seed the batch decisions before the initial fetch, so denied
 		// fields are skipped/nulled during the initial and deferred renders, matching the
-		// non-deferred paths. The seeded decisions live on the shared resolvable and cover every
+		// non-deferred paths. The seeded decisions are shared with the resolvable and cover every
 		// selected coordinate, including those inside @defer fragments.
-		if err := r.authorizeFieldsPreFetch(ctx, response.Response, resolvable); err != nil {
+		if err := authorization.authorizePreFetch(response.Response); err != nil {
 			return nil, err
 		}
 
@@ -1023,6 +995,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
+	authorization := NewFieldAuthorization(resolveCtx)
+	resolvable.SetFieldAuthorization(authorization)
 
 	if err := resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
@@ -1035,7 +1009,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 		}
 		return
 	}
-	if err := r.authorizeFieldsPreFetch(resolveCtx, sub.resolve.Response, resolvable); err != nil {
+	if err := authorization.authorizePreFetch(sub.resolve.Response); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
 		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
 		if r.options.Debug {
@@ -1050,7 +1024,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	// The DataBuffer wraps the base tree produced by InitSubscription (the
 	// subscription event payload). The loader merges fetched data into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, resolvable)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if err := loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response); err != nil {
 		r.resolveArenaPool.Release(resolveArena)

@@ -159,11 +159,11 @@ type Loader struct {
 	// dataBuffer holds the shared response tree and its concurrency guard.
 	dataBuffer *DataBuffer
 
-	// resolvable is set for the loader serving the primary response when pre-fetch field
+	// authorization is set for the loader serving the primary response when pre-fetch field
 	// authorization is enabled. It holds the up-front batch decisions that isFetchAuthorizedFromCache
 	// reads to skip fetches serving only denied fields. It is nil for defer-group loaders, whose
 	// denied fields are still nulled/errored during response resolution.
-	resolvable *Resolvable
+	authorization *FieldAuthorization
 
 	// errors accumulates fetch-time errors for this Loader instance.
 	// Each parallel defer group gets its own Loader (via NewLoader) and so its
@@ -1420,7 +1420,7 @@ func (l *Loader) fetchOperationType(info *FetchInfo) ast.OperationType {
 }
 
 func (l *Loader) isFetchAuthorizedFromCache(info *FetchInfo, operationType ast.OperationType, res *result) bool {
-	if l.resolvable == nil || info == nil || len(info.RootFields) == 0 {
+	if l.authorization == nil || info == nil || len(info.RootFields) == 0 {
 		return true
 	}
 	deniedRootFields := 0
@@ -1428,7 +1428,7 @@ func (l *Loader) isFetchAuthorizedFromCache(info *FetchInfo, operationType ast.O
 		if !info.RootFields[i].HasAuthorizationRule {
 			continue
 		}
-		_, denied := l.resolvable.authorizationDenyReason(info.DataSourceID, info.RootFields[i])
+		_, denied := l.authorization.denyReason(info.DataSourceID, info.RootFields[i])
 		if !denied {
 			continue
 		}

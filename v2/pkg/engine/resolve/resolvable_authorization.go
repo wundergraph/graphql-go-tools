@@ -21,7 +21,7 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	if !field.Info.HasAuthorizationRule {
 		return false
 	}
-	if r.ctx.authorizer == nil && r.ctx.preFetchFieldAuthorizer == nil {
+	if r.ctx.authorizer == nil && !r.authorization.preFetchEnabled() {
 		return false
 	}
 	if len(field.Info.Source.IDs) == 0 {
@@ -30,14 +30,14 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	dataSourceID := field.Info.Source.IDs[0]
 	dataSourceName := field.Info.Source.Names[0]
 	typeName := r.objectFieldTypeName(value, field)
-	if r.ctx.preFetchFieldAuthorizer != nil {
+	if r.authorization.preFetchEnabled() {
 		typeName = field.Info.ExactParentTypeName
 	}
 	gc := GraphCoordinate{
 		TypeName:  typeName,
 		FieldName: field.Info.Name,
 	}
-	result, authErr := r.authorize(value, dataSourceID, gc)
+	result, authErr := r.authorization.decide(value, dataSourceID, gc)
 	if authErr != nil {
 		r.authorizationError = authErr
 		return true
@@ -52,60 +52,10 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	return false
 }
 
-// authorize returns the allow/deny decision for a field coordinate during response resolution,
-// memoizing the result in the allow/deny cache.
-//
-// This cache is also what prevents a field from being authorized twice under pre-fetch field
-// authorization. When that mode is enabled the batch authorizer decides every selected protected
-// coordinate up front and seeds the cache (see seedAuthorizationAllow / seedAuthorizationDeny), so
-// the lookups below always hit and AuthorizeObjectField — the data-aware, post-fetch authorizer call —
-// is never reached. AuthorizeObjectField therefore runs only in the default (disabled) mode, where no
-// decisions are seeded and each coordinate is decided here on first encounter.
-func (r *Resolvable) authorize(value *astjson.Value, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
-	decisionID := authorizationDecisionID(dataSourceID, coordinate)
-	// Seeded (pre-fetch) or previously computed (post-fetch) decisions short-circuit here, so the
-	// post-fetch AuthorizeObjectField call below is skipped whenever a decision already exists.
-	if _, ok := r.authorizationAllow[decisionID]; ok {
-		return nil, nil
-	}
-	if reason, ok := r.authorizationDeny[decisionID]; ok {
-		return &AuthorizationDeny{Reason: reason}, nil
-	}
-	if r.ctx.authorizer == nil {
-		// Pre-fetch field authorization without a post-fetch authorizer: the only decisions are those
-		// seeded up front. A coordinate without a seeded decision is treated as authorized.
-		return nil, nil
-	}
-	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.marshalBuf, coordinate)
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		r.authorizationAllow[decisionID] = struct{}{}
-	} else {
-		r.authorizationDeny[decisionID] = result.Reason
-	}
-	return result, nil
-}
-
 func authorizationDecisionID(dataSourceID string, coordinate GraphCoordinate) uint64 {
 	// NUL delimiters keep the key unambiguous: without them distinct tuples like ("ab","c","d") and
 	// ("a","bc","d") would hash the same input and could reuse a decision for the wrong coordinate.
 	return xxhash.Sum64String(dataSourceID + "\x00" + coordinate.TypeName + "\x00" + coordinate.FieldName)
-}
-
-func (r *Resolvable) seedAuthorizationAllow(dataSourceID string, coordinate GraphCoordinate) {
-	r.authorizationAllow[authorizationDecisionID(dataSourceID, coordinate)] = struct{}{}
-}
-
-func (r *Resolvable) seedAuthorizationDeny(dataSourceID string, coordinate GraphCoordinate, reason string) {
-	r.authorizationDeny[authorizationDecisionID(dataSourceID, coordinate)] = reason
-}
-
-func (r *Resolvable) authorizationDenyReason(dataSourceID string, coordinate GraphCoordinate) (string, bool) {
-	reason, ok := r.authorizationDeny[authorizationDecisionID(dataSourceID, coordinate)]
-	return reason, ok
 }
 
 func (r *Resolvable) appendUnauthorizedFieldErrorsForUnreachedData(root *Object, data *astjson.Value) {
@@ -178,7 +128,7 @@ func (r *Resolvable) appendUnauthorizedFieldErrorsInSubtree(node Node, path []st
 			fieldPath := appendAuthorizationFieldPath(path, field)
 			if field.Info != nil && field.Info.HasAuthorizationRule && len(field.Info.Source.IDs) > 0 {
 				dataSourceID := field.Info.Source.IDs[0]
-				reason, denied := r.authorizationDenyReason(dataSourceID, GraphCoordinate{
+				reason, denied := r.authorization.denyReason(dataSourceID, GraphCoordinate{
 					TypeName:  field.Info.ExactParentTypeName,
 					FieldName: field.Info.Name,
 				})
