@@ -39,6 +39,8 @@ type Context struct {
 	Extensions       []byte
 	LoaderHooks      LoaderHooks
 
+	InlineArguments []string
+
 	authorizer    Authorizer
 	rateLimiter   RateLimiter
 	fieldRenderer FieldValueRenderer
@@ -313,6 +315,7 @@ func (c *Context) Free() {
 	c.RemapVariables = nil
 	c.TracingOptions.DisableAll()
 	c.Extensions = nil
+	c.InlineArguments = nil
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil

@@ -1,6 +1,8 @@
 package astnormalization
 
 import (
+	"fmt"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
@@ -33,6 +35,11 @@ type InlineArgumentsValidationOptions struct {
 	ErrorMessage string
 	ErrorCode    string
 	StatusCode   int
+	// ReturnInResponseExtensions, when true and enforcing, names the offending
+	// inline argument in the rejection error message (e.g. `... argument "user.id".`).
+	// In non-enforcing mode the router reports findings via the top-level response
+	// extensions instead, so this option has no effect on the walker there.
+	ReturnInResponseExtensions bool
 }
 
 type InlineArgumentsValidator struct {
@@ -88,16 +95,6 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 		return
 	}
 
-	if v.validator.Options.Enforce {
-		v.StopWithExternalErr(operationreport.ExternalError{
-			Message:       v.validator.Options.ErrorMessage,
-			ExtensionCode: v.validator.Options.ErrorCode,
-			StatusCode:    v.validator.Options.StatusCode,
-			Locations:     operationreport.LocationsFromPosition(v.operation.Arguments[ref].Position),
-		})
-		return
-	}
-
 	finding := InlineArgument{
 		ArgumentName: v.operation.ArgumentNameString(ref),
 		ValueKind:    valueKind,
@@ -113,6 +110,24 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 		case ast.NodeKindDirective:
 			finding.EnclosingName = v.operation.DirectiveNameString(parent.Ref)
 		}
+	}
+
+	if v.validator.Options.Enforce {
+		// Reject on the first inline argument and stop the walk — a single error is
+		// enough to signal that the operation is non-compliant. When configured, the
+		// offending argument is named in the message rather than in a dedicated
+		// extension.
+		message := v.validator.Options.ErrorMessage
+		if v.validator.Options.ReturnInResponseExtensions {
+			message = fmt.Sprintf("%s Inline value provided for argument %q.", message, finding.QualifiedName())
+		}
+		v.StopWithExternalErr(operationreport.ExternalError{
+			Message:       message,
+			ExtensionCode: v.validator.Options.ErrorCode,
+			StatusCode:    v.validator.Options.StatusCode,
+			Locations:     operationreport.LocationsFromPosition(finding.Position),
+		})
+		return
 	}
 
 	v.validator.Findings = append(v.validator.Findings, finding)

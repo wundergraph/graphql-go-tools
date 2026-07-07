@@ -170,7 +170,7 @@ func TestInlineArgumentsRule_Position(t *testing.T) {
 }
 
 func TestInlineArgumentsRule_Enforce(t *testing.T) {
-	t.Run("stops at first inline argument and reports a typed error", func(t *testing.T) {
+	t.Run("stops at the first inline argument and reports a typed error", func(t *testing.T) {
 		validator, report := runInlineArgumentsRule(t,
 			`query { userById(userId: "12345") { loginName } field(order: ASC) }`,
 			InlineArgumentsValidationOptions{
@@ -188,9 +188,31 @@ func TestInlineArgumentsRule_Enforce(t *testing.T) {
 		assert.Equal(t, "INLINE_ARGUMENT_VALUES_NOT_ALLOWED", extErr.ExtensionCode)
 		assert.Equal(t, 400, extErr.StatusCode)
 
-		// Enforce rejects via the report and does not collect findings — the
-		// operation is rejected, so nothing reads them.
+		// Enforce rejects on the first inline argument and stops the walk, so no
+		// findings are collected.
 		assert.Empty(t, validator.Findings)
+	})
+
+	t.Run("names the offending argument in the message when ReturnInResponseExtensions is set", func(t *testing.T) {
+		_, report := runInlineArgumentsRule(t,
+			`query { userById(userId: "12345") { loginName } field(order: ASC) }`,
+			InlineArgumentsValidationOptions{
+				Enforce:                    true,
+				ErrorMessage:               "Inline argument values are not allowed. Use variables instead.",
+				ErrorCode:                  "INLINE_ARGUMENT_VALUES_NOT_ALLOWED",
+				StatusCode:                 400,
+				ReturnInResponseExtensions: true,
+			},
+		)
+
+		require.True(t, report.HasErrors())
+		require.Len(t, report.ExternalErrors, 1)
+		// The first offending argument is named in the message; the walk still stops
+		// there, so only that one is reported.
+		assert.Equal(t,
+			`Inline argument values are not allowed. Use variables instead. Inline value provided for argument "userById.userId".`,
+			report.ExternalErrors[0].Message,
+		)
 	})
 
 	t.Run("compliant operation passes enforce mode", func(t *testing.T) {

@@ -866,6 +866,17 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
+	if len(r.ctx.InlineArguments) > 0 {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		err := r.printInlineArgumentsExtension()
+		if err != nil {
+			return err
+		}
+	}
+
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		if writeComma {
 			r.printBytes(comma)
@@ -976,6 +987,45 @@ func getDefaultReservedExtensions() map[string]struct{} {
 	}
 }
 
+// printInlineArgumentsExtension renders the non-enforcing disallow-inline-arguments
+// findings as `"inlineArguments":{"count":N,"arguments":["field.arg",...]}`. It is
+// only called when r.ctx.InlineArguments is non-empty.
+func (r *Resolvable) printInlineArgumentsExtension() error {
+	r.printBytes(quote)
+	r.printBytes(literalInlineArguments)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+
+	r.printBytes(quote)
+	r.printBytes(literalCount)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(strconv.AppendInt(nil, int64(len(r.ctx.InlineArguments)), 10))
+	r.printBytes(comma)
+
+	r.printBytes(quote)
+	r.printBytes(literalArguments)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrack)
+	for i, name := range r.ctx.InlineArguments {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		// json.Marshal yields a correctly-escaped, quoted JSON string.
+		encoded, err := json.Marshal(name)
+		if err != nil {
+			return err
+		}
+		r.printBytes(encoded)
+	}
+	r.printBytes(rBrack)
+
+	r.printBytes(rBrace)
+	return r.printErr
+}
+
 func (r *Resolvable) hasExtensions() bool {
 	// Apply the filter first to avoid missing extensions or applying empty extensions.
 	if r.filterAllowedSubgraphExtensions(getDefaultReservedExtensions()) {
@@ -991,6 +1041,9 @@ func (r *Resolvable) hasExtensions() bool {
 		return true
 	}
 	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+		return true
+	}
+	if len(r.ctx.InlineArguments) > 0 {
 		return true
 	}
 	if !r.skipValueCompletion && r.valueCompletion != nil {
