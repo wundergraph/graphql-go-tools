@@ -3,6 +3,7 @@ package plan
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
@@ -78,10 +79,11 @@ type requiredFieldInfo struct {
 }
 
 type AddRequiredFieldsResult struct {
-	skipFieldRefs     []int
-	requiredFieldRefs []int
-	modifiedFieldRefs []int
-	remappedPaths     map[string]string // path in a requirements to field name
+	skipFieldRefs          []int
+	requiredFieldRefs      []int
+	requiredFieldArguments []RequiredFieldArgumentInfo
+	modifiedFieldRefs      []int
+	remappedPaths          map[string]string // path in a requirements to field name
 }
 
 func addRequiredFields(config *addRequiredFieldsConfiguration) (out AddRequiredFieldsResult, report *operationreport.Report) {
@@ -109,10 +111,11 @@ func addRequiredFields(config *addRequiredFieldsConfiguration) (out AddRequiredF
 	walker.Walk(parsedSelectionSet, config.definition, report)
 
 	return AddRequiredFieldsResult{
-		skipFieldRefs:     visitor.skipFieldRefs,
-		requiredFieldRefs: visitor.requiredFieldRefs,
-		modifiedFieldRefs: visitor.modifiedFieldRefs,
-		remappedPaths:     visitor.mapping,
+		skipFieldRefs:          visitor.skipFieldRefs,
+		requiredFieldRefs:      visitor.requiredFieldRefs,
+		requiredFieldArguments: visitor.requiredFieldArguments,
+		modifiedFieldRefs:      visitor.modifiedFieldRefs,
+		remappedPaths:          visitor.mapping,
 	}, report
 }
 
@@ -124,10 +127,11 @@ type requiredFieldsVisitor struct {
 	importer       *astimport.Importer
 	key            *ast.Document
 
-	skipFieldRefs     []int
-	requiredFieldRefs []int
-	modifiedFieldRefs []int
-	mapping           map[string]string // path in a requirements to field name
+	skipFieldRefs          []int
+	requiredFieldRefs      []int
+	requiredFieldArguments []RequiredFieldArgumentInfo
+	modifiedFieldRefs      []int
+	mapping                map[string]string // path in a requirements to field name
 }
 
 func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
@@ -533,7 +537,21 @@ func (v *requiredFieldsVisitor) recordRemappedPathIfAliased(fieldRef int, fieldN
 	v.mapping[currentPath] = string(v.config.operation.FieldAliasBytes(fieldRef))
 }
 
-func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.ByteSlice, selectionSet int, addAlias bool, includeDeferIDInAlias bool) ast.Node {
+func (v *requiredFieldsVisitor) storeRequiredFieldArgument(typeName, path string, argRef int) {
+	value := bytes.NewBuffer(nil)
+	if err := v.config.operation.PrintValue(v.config.operation.ArgumentValue(argRef), value); err != nil {
+		v.Walker.StopWithInternalErr(fmt.Errorf("failed to print argument %d: %w", argRef, err))
+		return
+	}
+
+	v.requiredFieldArguments = append(v.requiredFieldArguments, RequiredFieldArgumentInfo{
+		TypeName: typeName,
+		Path:     path,
+		Value:    value.String(),
+	})
+}
+
+func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.ByteSlice, selectionSetRef int, addAlias bool, includeDeferIDInAlias bool) ast.Node {
 	field := ast.Field{
 		Name:         v.config.operation.Input.AppendInputBytes(fieldName),
 		SelectionSet: ast.InvalidRef,
@@ -544,7 +562,7 @@ func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.
 		if includeDeferIDInAlias && v.config.deferInfo != nil {
 			fullAliasName = fmt.Appendf(nil, "__internal_%d_%s", v.effectiveDeferID(), fieldName)
 		} else {
-			fullAliasName = append([]byte("__internal_"), fieldName...)
+			fullAliasName = v.resolveRegularFieldAliasName(selectionSetRef, fieldName)
 		}
 
 		field.Alias = ast.Alias{
@@ -560,9 +578,13 @@ func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.
 
 	if v.key.FieldHasArguments(keyFieldRef) {
 		importedArgs := v.importer.ImportArguments(v.key.Fields[keyFieldRef].Arguments.Refs, v.key, v.config.operation)
+		enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.config.definition)
 
 		for _, arg := range importedArgs {
+
+			argumentPath := v.Walker.Path.DotDelimitedString() + "." + string(fieldName) + "." + v.config.operation.ArgumentNameString(arg)
 			v.config.operation.AddArgumentToField(addedFieldNode.Ref, arg)
+			v.storeRequiredFieldArgument(enclosingTypeName, argumentPath, arg)
 		}
 	}
 
@@ -570,7 +592,7 @@ func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.
 		Kind: ast.SelectionKindField,
 		Ref:  addedFieldNode.Ref,
 	}
-	v.config.operation.AddSelection(selectionSet, selection)
+	v.config.operation.AddSelection(selectionSetRef, selection)
 
 	v.skipFieldRefs = append(v.skipFieldRefs, addedFieldNode.Ref)
 
@@ -583,6 +605,24 @@ func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.
 	v.applyDeferInternalDirective(addedFieldNode.Ref)
 
 	return addedFieldNode
+}
+
+func (v *requiredFieldsVisitor) resolveRegularFieldAliasName(selectionSetRef int, fieldName ast.ByteSlice) []byte {
+	initialAliasName := append([]byte("__internal_"), fieldName...)
+	fullAliasName := initialAliasName
+
+	counter := int64(0)
+	for {
+		operationHasField, _ := v.config.operation.SelectionSetHasFieldSelectionWithNameOrAliasBytes(selectionSetRef, fullAliasName)
+		if !operationHasField {
+			break
+		}
+
+		counter++
+		fullAliasName = strconv.AppendInt(append(initialAliasName, '_'), counter, 10)
+	}
+
+	return fullAliasName
 }
 
 func (v *requiredFieldsVisitor) applyDeferInternalDirective(fieldRef int) {

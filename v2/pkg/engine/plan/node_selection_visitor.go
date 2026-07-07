@@ -177,9 +177,7 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 	c.fieldLandedTo = make(map[int]DSHash)
 }
 
-func (c *nodeSelectionVisitor) LeaveDocument(operation, definition *ast.Document) {
-
-}
+func (c *nodeSelectionVisitor) LeaveDocument(operation, definition *ast.Document) {}
 
 func (c *nodeSelectionVisitor) EnterOperationDefinition(ref int) {
 	operationName := c.operation.OperationDefinitionNameString(ref)
@@ -622,10 +620,11 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 		// TODO: actually we could probably build representations right away?
 		// e.g. build it here, pass to path visitor and down to datasource, without the need to parse it there?
 		fieldConfiguration := FederationFieldConfiguration{
-			TypeName:      typeName,
-			FieldName:     c.operation.FieldNameString(requestedByFieldRef),
-			SelectionSet:  requirements.selectionSet,
-			RemappedPaths: addFieldsResult.remappedPaths,
+			TypeName:               typeName,
+			FieldName:              c.operation.FieldNameString(requestedByFieldRef),
+			SelectionSet:           requirements.selectionSet,
+			RemappedPaths:          addFieldsResult.remappedPaths,
+			RequiredFieldArguments: addFieldsResult.requiredFieldArguments,
 		}
 		c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
 		for _, requiredFieldRef := range addFieldsResult.requiredFieldRefs {

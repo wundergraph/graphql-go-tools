@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.17.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.16.0...execution/v1.17.0) (2026-07-07)
+
+
+### Features
+
+* add defer support part 4 ([#1547](https://github.com/wundergraph/graphql-go-tools/issues/1547)) ([8891a0e](https://github.com/wundergraph/graphql-go-tools/commit/8891a0e9e606a3b3055e671a48a9e7bbc5a928ea))
+
+
+### Bug Fixes
+
+* do not charge children of null-parents ([#1574](https://github.com/wundergraph/graphql-go-tools/issues/1574)) ([cf436ec](https://github.com/wundergraph/graphql-go-tools/commit/cf436ec42bd6d5755429d93f8bcd5ea6ccb88be5))
+
 ## [1.16.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.6...execution/v1.16.0) (2026-06-18)
 
 
