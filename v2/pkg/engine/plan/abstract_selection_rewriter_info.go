@@ -26,6 +26,14 @@ type fieldSelection struct {
 	fieldName         string
 }
 
+// hasNonTypenameFields returns whether the selection set has field selections
+// other than the __typename field.
+func (s *selectionSetInfo) hasNonTypenameFields() bool {
+	return slices.ContainsFunc(s.fields, func(f fieldSelection) bool {
+		return f.fieldName != typeNameField
+	})
+}
+
 type inlineFragmentSelection struct {
 	selectionRef       int
 	typeName           string

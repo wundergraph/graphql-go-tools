@@ -66,8 +66,9 @@ type fieldSelectionRewriter struct {
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
 
-	skipFieldRefs []int
-	alwaysRewrite bool
+	skipFieldRefs       []int
+	alwaysRewrite       bool
+	fieldIsUnresolvable bool
 
 	intersectUnion        bool
 	additionalDatasources []DataSource
@@ -81,6 +82,10 @@ type RewriteResult struct {
 	// in the current datasource. Such fields are kept in the operation to preserve
 	// the response shape, but must not be planned on any datasource - they resolve to null.
 	unfetchableFieldRefs []int
+	// fieldIsUnresolvable indicates that the rewrite has dropped all requested field selections,
+	// because the interface has no possible runtime types able to provide them,
+	// so the field could never be resolved to the requested shape.
+	fieldIsUnresolvable bool
 }
 
 var resultNotRewritten = RewriteResult{}
@@ -482,8 +487,9 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	}
 
 	return RewriteResult{
-		rewritten:        true,
-		changedFieldRefs: changedRefs,
+		rewritten:           true,
+		changedFieldRefs:    changedRefs,
+		fieldIsUnresolvable: r.fieldIsUnresolvable,
 	}, nil
 }
 
@@ -634,6 +640,15 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 		interfaceTypeNames,
 		&newSelectionRefs,
 	)
+
+	// When the interface has no possible runtime types, flattening drops all requested
+	// field selections, and there is no other datasource able to provide them.
+	// Dropping fields when implementing types exist is a regular cleanup - requested
+	// fields belong to types resolvable elsewhere. Without a single implementing type
+	// resolving the field is impossible at all, so we mark the field as unresolvable.
+	if len(newSelectionRefs) == 0 && len(interfaceTypeNames) == 0 && fieldInfo.hasNonTypenameFields() {
+		r.fieldIsUnresolvable = true
+	}
 
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }

@@ -155,6 +155,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.Config = p.config
 	p.planningVisitor.skipFieldsRefs = selectionsConfig.skipFieldsRefs
 	p.planningVisitor.fieldMergingAliasRefs = selectionsConfig.fieldMergingAliasRefs
+	p.planningVisitor.unresolvableFieldRefs = selectionsConfig.unresolvableFieldRefs
 	p.planningVisitor.fieldRefDependsOnFieldRefs = selectionsConfig.fieldRefDependsOn
 	p.planningVisitor.fieldDependencyKind = selectionsConfig.fieldDependencyKind
 	p.planningVisitor.fieldRefDependants = inverseMap(selectionsConfig.fieldRefDependsOn)

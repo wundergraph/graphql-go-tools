@@ -47,6 +47,7 @@ type Visitor struct {
 	planners                     []PlannerConfiguration
 	skipFieldsRefs               []int
 	fieldMergingAliasRefs        map[int]struct{}
+	unresolvableFieldRefs        map[int]struct{}
 	fieldRefDependsOnFieldRefs   map[int][]int
 	fieldDependencyKind          map[fieldDependencyKey]fieldDependencyKind
 	fieldRefDependants           map[int][]int // inverse of fieldRefDependsOnFieldRefs
@@ -808,12 +809,14 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				InaccessibleValues: inaccessibleValues,
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+			_, unresolvable := v.unresolvableFieldRefs[fieldRef]
 			object := &resolve.Object{
 				Nullable:      nullable,
 				Path:          path,
 				Fields:        []*resolve.Field{},
 				TypeName:      typeName,
 				PossibleTypes: map[string]struct{}{},
+				Unresolvable:  unresolvable,
 			}
 
 			switch typeDefinitionNode.Kind {

@@ -52,6 +52,11 @@ type NodeSelectionResult struct {
 	// fieldMergingAliasRefs holds field refs with a planner generated alias -
 	// their client response name is the original field name
 	fieldMergingAliasRefs map[int]struct{}
+
+	// unresolvableFieldRefs holds field refs whose selection sets were dropped
+	// during a rewrite because the abstract type has no possible runtime types
+	// able to provide the requested fields. Resolving such fields is always an error.
+	unresolvableFieldRefs map[int]struct{}
 }
 
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
@@ -61,6 +66,7 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
 		newFieldRefs:                  make(map[int]struct{}),
 		unfetchableFieldRefs:          make(map[int]struct{}),
+		unresolvableFieldRefs:         make(map[int]struct{}),
 		fieldMergingAliasRefs:         make(map[int]struct{}),
 	}
 
@@ -93,6 +99,7 @@ func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
 	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.unfetchableFieldRefs = make(map[int]struct{})
+	p.nodeSelectionsVisitor.unresolvableFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.fieldMergingAliasRefs = make(map[int]struct{})
 }
 
@@ -226,6 +233,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		fieldRefDependsOn:        p.nodeSelectionsVisitor.fieldRefDependsOn,
 		fieldDependencyKind:      p.nodeSelectionsVisitor.fieldDependencyKind,
 		fieldMergingAliasRefs:    p.nodeSelectionsVisitor.fieldMergingAliasRefs,
+		unresolvableFieldRefs:    p.nodeSelectionsVisitor.unresolvableFieldRefs,
 	}
 }
 

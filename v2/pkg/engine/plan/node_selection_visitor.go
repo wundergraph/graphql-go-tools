@@ -61,6 +61,11 @@ type nodeSelectionVisitor struct {
 	// of the union members across the candidate datasources.
 	unfetchableFieldRefs map[int]struct{}
 
+	// unresolvableFieldRefs is a set of field refs whose selection sets were dropped
+	// during a rewrite because the abstract type has no possible runtime types
+	// able to provide the requested fields. Resolving such fields is always an error.
+	unresolvableFieldRefs map[int]struct{}
+
 	// fieldMergingAliasRefs is a set of field refs holding a planner generated alias
 	// (see upstreamFieldMergingAliasPrefix) - their client response name is the original field name
 	fieldMergingAliasRefs map[int]struct{}
@@ -858,9 +863,14 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 			c.unfetchableFieldRefs[unfetchableFieldRef] = struct{}{}
 		}
 
+		if result.fieldIsUnresolvable {
+			c.unresolvableFieldRefs[fieldRef] = struct{}{}
+		}
+
 		c.updateFieldDependsOn(result.changedFieldRefs)
 		c.updateSkipFieldRefs(result.changedFieldRefs)
 		c.updateFieldMergingAliasRefs(result.changedFieldRefs)
+		c.updateUnresolvableFieldRefs(result.changedFieldRefs)
 	} else {
 		// only aliased - the child suggestions have to be recollected with the new paths
 		c.aliasedFieldRefs = append(c.aliasedFieldRefs, fieldRef)
@@ -925,6 +935,14 @@ func (c *nodeSelectionVisitor) updateFieldMergingAliasRefs(changedFieldRefs map[
 	for fieldRef := range c.fieldMergingAliasRefs {
 		for _, newRef := range changedFieldRefs[fieldRef] {
 			c.fieldMergingAliasRefs[newRef] = struct{}{}
+		}
+	}
+}
+
+func (c *nodeSelectionVisitor) updateUnresolvableFieldRefs(changedFieldRefs map[int][]int) {
+	for fieldRef := range c.unresolvableFieldRefs {
+		for _, newRef := range changedFieldRefs[fieldRef] {
+			c.unresolvableFieldRefs[newRef] = struct{}{}
 		}
 	}
 }
