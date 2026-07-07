@@ -1024,12 +1024,7 @@ func (r *Resolvable) printInlineArgumentsExtension() error {
 		if i > 0 {
 			r.printBytes(comma)
 		}
-		// json.Marshal yields a correctly-escaped, quoted JSON string.
-		encoded, err := json.Marshal(name)
-		if err != nil {
-			return err
-		}
-		r.printBytes(encoded)
+		r.printBytes(strconv.AppendQuote(nil, name))
 	}
 	r.printBytes(rBrack)
 
