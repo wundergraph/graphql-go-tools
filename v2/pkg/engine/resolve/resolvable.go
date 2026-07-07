@@ -882,10 +882,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 			r.printBytes(comma)
 		}
 		writeComma = true
-		err := r.printInlineArgumentsExtension()
-		if err != nil {
-			return err
-		}
+		r.printInlineArgumentsExtension()
 	}
 
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
@@ -998,10 +995,7 @@ func getDefaultReservedExtensions() map[string]struct{} {
 	}
 }
 
-// printInlineArgumentsExtension renders the non-enforcing disallow-inline-arguments
-// findings as `"inlineArguments":{"count":N,"arguments":["field.arg",...]}`. It is
-// only called when r.ctx.InlineArguments is non-empty.
-func (r *Resolvable) printInlineArgumentsExtension() error {
+func (r *Resolvable) printInlineArgumentsExtension() {
 	r.printBytes(quote)
 	r.printBytes(literalInlineArguments)
 	r.printBytes(quote)
@@ -1029,7 +1023,6 @@ func (r *Resolvable) printInlineArgumentsExtension() error {
 	r.printBytes(rBrack)
 
 	r.printBytes(rBrace)
-	return r.printErr
 }
 
 func (r *Resolvable) hasExtensions() bool {
