@@ -53,6 +53,12 @@ type nodeSelectionVisitor struct {
 	addTypenameInNestedSelections bool
 
 	newFieldRefs map[int]struct{} // newFieldRefs is a set of field refs which were added by the visitor or was modified by a rewrite
+
+	// unfetchableFieldRefs is a set of field refs which are kept in the operation
+	// to preserve the response shape, but must not be planned on any datasource -
+	// they resolve to null. E.g. fields of the union members outside the intersection
+	// of the union members across the candidate datasources.
+	unfetchableFieldRefs map[int]struct{}
 }
 
 func (c *nodeSelectionVisitor) addNewSkipFieldRefs(fieldRefs ...int) {
@@ -781,12 +787,40 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	}
 
 	var options []rewriterOption
-	if _, wasRewritten := c.persistedRewrittenFieldRefs[fieldRef]; wasRewritten {
+	_, wasRewritten := c.persistedRewrittenFieldRefs[fieldRef]
+	if wasRewritten {
 		// When field was already rewritten in previous walker runs,
 		// but we are visiting it again - it means that we have appended more required fields to it.
 		// So we have to force rewriting it again, because without force we could end up with duplicated fields outside of fragments.
 		// When newly added fields are local - rewriter will consider that rewrite is not necessary.
 		options = append(options, withForceRewrite())
+	}
+
+	// The union member types could differ between the datasources able to resolve the field.
+	// The planner choice between such candidate datasources must not affect the response shape,
+	// so we pass the rest of the candidates to allow the rewriter to shrink the union members
+	// to the intersection. Candidates are all non-orphan suggestions for the field,
+	// regardless of their selection state, which are reachable on their datasource -
+	// an unreachable suggestion could never be planned, so it should not affect the intersection.
+	candidates := c.nodeSuggestions.SuggestionsForFieldRef(fieldRef)
+	if len(candidates) > 0 && candidates[0].hasUnionReturnType {
+		var restDs []DataSource
+		for _, dsItem := range c.dataSources {
+			if dsItem.Hash() == ds.Hash() {
+				continue
+			}
+
+			for _, suggestion := range candidates {
+				if suggestion.DataSourceHash == dsItem.Hash() && c.nodeSuggestions.IsSuggestionReachable(suggestion) {
+					restDs = append(restDs, dsItem)
+					break
+				}
+			}
+		}
+
+		if len(restDs) > 0 {
+			options = append(options, withIntersectUnion(restDs))
+		}
 	}
 
 	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds, options...)
@@ -809,6 +843,10 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	c.hasNewFields = true
 	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
 	c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
+
+	for _, unfetchableFieldRef := range result.unfetchableFieldRefs {
+		c.unfetchableFieldRefs[unfetchableFieldRef] = struct{}{}
+	}
 
 	c.updateFieldDependsOn(result.changedFieldRefs)
 	c.updateSkipFieldRefs(result.changedFieldRefs)

@@ -20,10 +20,11 @@ type nodesCollector struct {
 	report      *operationreport.Report
 	keys        []DSKeyInfo
 
-	maxConcurrency uint
-	seenKeys       map[SeenKeyPath]struct{}
-	fieldInfo      map[int]fieldInfo
-	newFieldRefs   map[int]struct{}
+	maxConcurrency       uint
+	seenKeys             map[SeenKeyPath]struct{}
+	fieldInfo            map[int]fieldInfo
+	newFieldRefs         map[int]struct{}
+	unfetchableFieldRefs map[int]struct{}
 
 	dsVisitors        []*collectNodesDSVisitor
 	dsVisitorsReports []*operationreport.Report
@@ -90,6 +91,7 @@ func (c *nodesCollector) initVisitors() {
 			globalSeenKeys:          c.seenKeys,
 			dataSource:              dataSource,
 			notExternalKeyPaths:     make(map[string]struct{}),
+			unfetchableFieldRefs:    c.unfetchableFieldRefs,
 		}
 		c.dsVisitors = append(c.dsVisitors, visitor)
 		c.dsVisitorsReports = append(c.dsVisitorsReports, operationreport.NewReport())
@@ -294,6 +296,10 @@ type collectNodesDSVisitor struct {
 	globalSeenKeys map[SeenKeyPath]struct{}
 	// seen keys local to the current run
 	localSeenKeys map[SeenKeyPath]struct{}
+
+	// unfetchableFieldRefs - field refs which must not be planned on any datasource,
+	// we should not collect suggestions for them
+	unfetchableFieldRefs map[int]struct{}
 }
 
 // reset - cleanups only data which should not be persisted between runs
@@ -466,6 +472,12 @@ func (f *collectNodesDSVisitor) isNotExternalKeyField(currentPath string) bool {
 }
 
 func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNodeId uint) error {
+	if _, ok := f.unfetchableFieldRefs[fieldRef]; ok {
+		// the field is intentionally left unplanned - it is resolved to null,
+		// so we should not collect suggestions for it
+		return nil
+	}
+
 	info, ok := f.info[fieldRef]
 	if !ok {
 		return nil
@@ -576,6 +588,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 			isTypeName:                info.isTypeName,
 			treeNodeId:                treeNodeId,
 			deferInfo:                 info.deferInfo,
+			hasUnionReturnType:        info.hasUnionReturnType,
 		}
 
 		f.localSuggestions = append(f.localSuggestions, &node)
@@ -637,8 +650,9 @@ type fieldInfo struct {
 	enclosingTypeDefinition                                        ast.Node
 	// parentFieldRef is the nearest ancestor field ref (skipping inline fragments),
 	// or ast.InvalidRef for a root field. Used to walk the typed ancestry for provides chains.
-	parentFieldRef int
-	deferInfo      *DeferInfo
+	parentFieldRef     int
+	deferInfo          *DeferInfo
+	hasUnionReturnType bool
 }
 
 func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
@@ -682,9 +696,20 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 		enclosingTypeDefinition:     f.walker.EnclosingTypeDefinition,
 		parentFieldRef:              parentFieldRef,
 		deferInfo:                   f.deferInfo(fieldRef),
+		hasUnionReturnType:          f.fieldHasUnionReturnType(fieldRef),
 	}
 }
 
+func (f *treeBuilderVisitor) fieldHasUnionReturnType(fieldRef int) bool {
+	definition, ok := f.definition.NodeFieldDefinitionByName(f.walker.EnclosingTypeDefinition, f.operation.FieldNameBytes(fieldRef))
+	if !ok {
+		return false
+	}
+
+	fieldDefinitionTypeNode := f.definition.FieldDefinitionTypeNode(definition)
+
+	return fieldDefinitionTypeNode.Kind == ast.NodeKindUnionTypeDefinition
+}
 func (f *treeBuilderVisitor) deferInfo(fieldRef int) *DeferInfo {
 	deferDirectiveRef, exists := f.operation.Fields[fieldRef].Directives.HasDirectiveByNameBytes(f.operation, literal.DEFER_INTERNAL)
 	if !exists {

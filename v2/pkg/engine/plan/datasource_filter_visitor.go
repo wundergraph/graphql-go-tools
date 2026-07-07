@@ -22,9 +22,10 @@ type DataSourceFilter struct {
 	enableSelectionReasons bool
 	secondaryRun           bool
 
-	fieldDependsOn map[int][]int
-	newFieldRefs   map[int]struct{}
-	dataSources    []DataSource
+	fieldDependsOn       map[int][]int
+	newFieldRefs         map[int]struct{}
+	unfetchableFieldRefs map[int]struct{}
+	dataSources          []DataSource
 
 	jumpsForPathForTypename map[KeyIndex]*DataSourceJumpsGraph
 	dsHashesHavingKeys      map[DSHash]struct{}
@@ -51,6 +52,12 @@ func (f *DataSourceFilter) EnableSelectionReasons() {
 // WithMaxDataSourceCollectorsConcurrency sets the maximum number of concurrent data source collectors
 func (f *DataSourceFilter) WithMaxDataSourceCollectorsConcurrency(maxConcurrency uint) *DataSourceFilter {
 	f.maxDataSourceCollectorsConcurrency = maxConcurrency
+	return f
+}
+
+// WithUnfetchableFieldRefs sets the field refs which must not be planned on any datasource
+func (f *DataSourceFilter) WithUnfetchableFieldRefs(unfetchableFieldRefs map[int]struct{}) *DataSourceFilter {
+	f.unfetchableFieldRefs = unfetchableFieldRefs
 	return f
 }
 
@@ -149,15 +156,16 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 func (f *DataSourceFilter) collectNodes() {
 	if f.nodesCollector == nil {
 		f.nodesCollector = &nodesCollector{
-			operation:      f.operation,
-			definition:     f.definition,
-			dataSources:    f.dataSources,
-			nodes:          f.nodes,
-			report:         f.report,
-			maxConcurrency: f.maxDataSourceCollectorsConcurrency,
-			seenKeys:       make(map[SeenKeyPath]struct{}),
-			fieldInfo:      make(map[int]fieldInfo),
-			newFieldRefs:   f.newFieldRefs,
+			operation:            f.operation,
+			definition:           f.definition,
+			dataSources:          f.dataSources,
+			nodes:                f.nodes,
+			report:               f.report,
+			maxConcurrency:       f.maxDataSourceCollectorsConcurrency,
+			seenKeys:             make(map[SeenKeyPath]struct{}),
+			fieldInfo:            make(map[int]fieldInfo),
+			newFieldRefs:         f.newFieldRefs,
+			unfetchableFieldRefs: f.unfetchableFieldRefs,
 		}
 
 		f.nodesCollector.initVisitors()
@@ -265,6 +273,11 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 		if f.nodes.items[parentIdx].IsExternal && !f.nodes.items[i].IsProvided {
 			// parent can't be selected because it is fully external
 			// we will have to find another way to get to this node
+			break
+		}
+
+		// if parent node returns union type and it is shareable - not unique, we should not select it here
+		if f.nodes.items[parentIdx].hasUnionReturnType && !f.nodes.isNodeUnique(parentIdx) {
 			break
 		}
 

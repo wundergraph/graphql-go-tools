@@ -15,6 +15,10 @@ type nodesResolvableVisitor struct {
 	walker     *astvisitor.Walker
 
 	nodes *NodeSuggestions
+
+	// unfetchableFieldRefs - field refs which are intentionally left unplanned
+	// and resolve to null, so they should not be checked for resolvability
+	unfetchableFieldRefs map[int]struct{}
 }
 
 func (f *nodesResolvableVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -23,6 +27,10 @@ func (f *nodesResolvableVisitor) EnterDocument(operation, definition *ast.Docume
 }
 
 func (f *nodesResolvableVisitor) EnterField(ref int) {
+	if _, ok := f.unfetchableFieldRefs[ref]; ok {
+		return
+	}
+
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)

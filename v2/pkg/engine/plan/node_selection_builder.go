@@ -56,6 +56,7 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 		walker:                        &nodeSelectionsWalker,
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
 		newFieldRefs:                  make(map[int]struct{}),
+		unfetchableFieldRefs:          make(map[int]struct{}),
 	}
 
 	nodeSelectionsWalker.RegisterDocumentVisitor(nodeSelectionVisitor)
@@ -86,12 +87,14 @@ func (p *NodeSelectionBuilder) SetOperationName(name string) {
 func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
 	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
+	p.nodeSelectionsVisitor.unfetchableFieldRefs = make(map[int]struct{})
 }
 
 // SelectNodes implements Steps 1-2 of the planner pipeline.
 // It assigns all the fields and their requirements (via @key and @requires) to DataSources.
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
-	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs)
+	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs).
+		WithUnfetchableFieldRefs(p.nodeSelectionsVisitor.unfetchableFieldRefs)
 
 	if p.config.Debug.PrintNodeSuggestions {
 		dsFilter.EnableSelectionReasons()
@@ -133,10 +136,8 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	hasUnresolvedFields := false
 	// Additional runs to add paths for the new required fields
 	for p.nodeSelectionsVisitor.hasNewFields || hasUnresolvedFields {
-		// When we have rewritten a field, the old node suggestion does not make sense anymore:
-		// we have to remove child nodes of the rewritten fields.
 		for _, fieldRef := range p.nodeSelectionsVisitor.rewrittenFieldRefs {
-			p.nodeSelectionsVisitor.nodeSuggestions.RemoveTreeNodeChilds(fieldRef)
+			p.nodeSelectionsVisitor.nodeSuggestions.RemoveRewrittenFieldChilds(fieldRef)
 		}
 
 		p.nodeSelectionsVisitor.secondaryRun = true
@@ -147,6 +148,15 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 			if report.HasErrors() {
 				return
 			}
+		}
+
+		if len(p.nodeSelectionsVisitor.rewrittenFieldRefs) > 0 {
+			// The fields unselected after a rewrite could have required fields
+			// added to the operation on the parent levels.
+			// When such fields were not re-selected on the requiring datasource
+			// by the filter run above - their requirements are abandoned,
+			// and we have to clean them up.
+			p.cleanupAbandonedFieldDependencies(operation)
 		}
 
 		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
@@ -208,8 +218,124 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 }
 
+// cleanupAbandonedFieldDependencies is a mirror of the field requirements registration.
+// When a field is no longer selected on the datasource which required the fields
+// added to the operation by the planner, its requirements are abandoned:
+// we remove the dependency mappings, and when a required field is not needed
+// by any other field anymore - we remove it from the operation
+// and orphan its suggestions.
+func (p *NodeSelectionBuilder) cleanupAbandonedFieldDependencies(operation *ast.Document) {
+	v := p.nodeSelectionsVisitor
+
+	// requirements of the nested key jumps depend on the key fields of the previous jump,
+	// so removing a required field could abandon other dependency entries -
+	// repeat until there is nothing to remove
+	for {
+		abandonedRequiredRefs := make(map[int]struct{})
+
+		for key, requiredRefs := range v.fieldDependsOn {
+			if v.nodeSuggestions.IsSelectedOnDataSource(key.fieldRef, key.dsHash) {
+				continue
+			}
+
+			delete(v.fieldDependsOn, key)
+			delete(v.fieldRequirementsConfigs, key)
+
+			for _, requiredRef := range requiredRefs {
+				abandonedRequiredRefs[requiredRef] = struct{}{}
+			}
+		}
+
+		if len(abandonedRequiredRefs) == 0 {
+			return
+		}
+
+		// rebuild the plain field refs dependency index from the remaining entries
+		v.fieldRefDependsOn = make(map[int][]int, len(v.fieldRefDependsOn))
+		stillRequiredRefs := make(map[int]struct{})
+		for key, requiredRefs := range v.fieldDependsOn {
+			v.fieldRefDependsOn[key.fieldRef] = append(v.fieldRefDependsOn[key.fieldRef], requiredRefs...)
+			for _, requiredRef := range requiredRefs {
+				stillRequiredRefs[requiredRef] = struct{}{}
+			}
+		}
+
+		for kindKey := range v.fieldDependencyKind {
+			if !slices.Contains(v.fieldRefDependsOn[kindKey.field], kindKey.dependsOn) {
+				delete(v.fieldDependencyKind, kindKey)
+			}
+		}
+
+		touchedSelectionSets := make(map[int]struct{})
+		for requiredRef := range abandonedRequiredRefs {
+			if _, stillRequired := stillRequiredRefs[requiredRef]; stillRequired {
+				continue
+			}
+
+			delete(v.fieldLandedTo, requiredRef)
+			v.skipFieldsRefs = slices.DeleteFunc(v.skipFieldsRefs, func(ref int) bool { return ref == requiredRef })
+			v.nodeSuggestions.OrphanSuggestionsForFieldRef(requiredRef)
+			if setRef := removeFieldFromOperationSelectionSets(operation, requiredRef); setRef != ast.InvalidRef {
+				touchedSelectionSets[setRef] = struct{}{}
+			}
+		}
+
+		// The key fields are added to the operation along with an accompanying __typename selection,
+		// which is intentionally not tracked as a required field.
+		// When a selection set has no required fields anymore,
+		// the planner added __typename is abandoned as well - remove it too.
+		for setRef := range touchedSelectionSets {
+			p.removeAbandonedTypenameFromSelectionSet(operation, setRef, stillRequiredRefs)
+		}
+	}
+}
+
+func (p *NodeSelectionBuilder) removeAbandonedTypenameFromSelectionSet(operation *ast.Document, setRef int, stillRequiredRefs map[int]struct{}) {
+	v := p.nodeSelectionsVisitor
+
+	typenameRefs := make([]int, 0, 1)
+	for _, selectionRef := range operation.SelectionSets[setRef].SelectionRefs {
+		selection := operation.Selections[selectionRef]
+		if selection.Kind != ast.SelectionKindField {
+			continue
+		}
+
+		if _, stillRequired := stillRequiredRefs[selection.Ref]; stillRequired {
+			// the selection set still has required fields, __typename is still needed
+			return
+		}
+
+		if operation.FieldNameUnsafeString(selection.Ref) == typeNameField && slices.Contains(v.skipFieldsRefs, selection.Ref) {
+			typenameRefs = append(typenameRefs, selection.Ref)
+		}
+	}
+
+	for _, typenameRef := range typenameRefs {
+		v.skipFieldsRefs = slices.DeleteFunc(v.skipFieldsRefs, func(ref int) bool { return ref == typenameRef })
+		v.nodeSuggestions.OrphanSuggestionsForFieldRef(typenameRef)
+		removeFieldFromOperationSelectionSets(operation, typenameRef)
+	}
+}
+
+// removeFieldFromOperationSelectionSets removes the field from the selection set containing it
+// and returns the ref of that selection set, or ast.InvalidRef when the field was not found.
+// We have to iterate over the selection sets, because the field could have been added
+// not only to a field selection set but also to a planner created inline fragment.
+func removeFieldFromOperationSelectionSets(operation *ast.Document, fieldRef int) int {
+	fieldNode := ast.Node{Kind: ast.NodeKindField, Ref: fieldRef}
+
+	for setRef := range operation.SelectionSets {
+		if operation.RemoveNodeFromSelectionSet(setRef, fieldNode) {
+			return setRef
+		}
+	}
+
+	return ast.InvalidRef
+}
+
 func (p *NodeSelectionBuilder) isResolvable(operation, definition *ast.Document, nodes *NodeSuggestions) *operationreport.Report {
 	p.nodeResolvableVisitor.nodes = nodes
+	p.nodeResolvableVisitor.unfetchableFieldRefs = p.nodeSelectionsVisitor.unfetchableFieldRefs
 	resolvableReport := &operationreport.Report{}
 	p.nodeResolvableWalker.Walk(operation, definition, resolvableReport)
 
