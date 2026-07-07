@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.0...v2.9.1) (2026-07-07)
+
+
+### Bug Fixes
+
+* do not charge children of null-parents ([#1574](https://github.com/wundergraph/graphql-go-tools/issues/1574)) ([cf436ec](https://github.com/wundergraph/graphql-go-tools/commit/cf436ec42bd6d5755429d93f8bcd5ea6ccb88be5))
+
 ## [2.9.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.8.0...v2.9.0) (2026-07-06)
 
 
