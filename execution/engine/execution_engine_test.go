@@ -104,6 +104,7 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			PropagateFetchReasons:                        opts.propagateFetchReasons,
 			ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
 		}
+		resolveOpts.ResolvableOptions.EnableCostControl = opts.computeCosts
 		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolveOpts)
 		require.NoError(t, err)
 

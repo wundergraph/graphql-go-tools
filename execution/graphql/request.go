@@ -195,13 +195,13 @@ func (r *Request) OperationType() (OperationType, error) {
 }
 
 func (r *Request) ComputeEstimatedCost(calc *plan.CostCalculator, vars resolve.VariablesView) {
-	if calc != nil {
-		r.estimatedCost = calc.EstimateCost(vars)
-		// Debugging of cost trees. Uncomment to debug.
-		// fmt.Println(calc.DebugPrint(vars, nil))
-	} else {
+	if calc == nil {
 		r.estimatedCost = 0
+		return
 	}
+	r.estimatedCost = calc.EstimateCost(vars)
+	// Debugging of cost trees. Uncomment to debug:
+	// fmt.Println(calc.DebugPrint(vars, nil))
 }
 
 func (r *Request) EstimatedCost() int {
@@ -209,13 +209,15 @@ func (r *Request) EstimatedCost() int {
 }
 
 func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats) {
-	if calc != nil {
-		r.actualCost = calc.ActualCost(vars, typeStats)
-		// Debugging of cost trees. Uncomment to debug.
-		// fmt.Println(calc.DebugPrint(vars, typeStats))
-	} else {
+	// typeStats is nil unless the resolver was built with ResolvableOptions.EnableCostControl;
+	// without runtime stats the actual cost cannot be computed.
+	if calc == nil || typeStats == nil {
 		r.actualCost = 0
+		return
 	}
+	r.actualCost = calc.ActualCost(vars, typeStats)
+	// Debugging of cost trees. Uncomment to debug:
+	// fmt.Println(calc.DebugPrint(vars, typeStats))
 }
 
 func (r *Request) ActualCost() int {
