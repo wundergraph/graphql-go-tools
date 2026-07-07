@@ -992,6 +992,11 @@ func (f *DataSourceFilter) childsHasOnlyTypename(i int) (hasOnlyTypename bool) {
 
 	for _, child := range children {
 		itemIds := child.GetData()
+		if len(itemIds) == 0 {
+			// the field is intentionally left unplanned (unfetchable) -
+			// it has no suggestions and contributes neither fields nor typename
+			continue
+		}
 		firstItem := itemIds[0]
 
 		if f.nodes.items[firstItem].isTypeName {
