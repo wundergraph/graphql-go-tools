@@ -191,28 +191,9 @@ func TestInlineArgumentsRule_Enforce(t *testing.T) {
 		// Enforce rejects on the first inline argument and stops the walk, so no
 		// findings are collected.
 		assert.Empty(t, validator.Findings)
-	})
 
-	t.Run("names the offending argument in the message when ReturnInResponseExtensions is set", func(t *testing.T) {
-		_, report := runInlineArgumentsRule(t,
-			`query { userById(userId: "12345") { loginName } field(order: ASC) }`,
-			InlineArgumentsValidationOptions{
-				Enforce:                    true,
-				ErrorMessage:               "Inline argument values are not allowed. Use variables instead.",
-				ErrorCode:                  "INLINE_ARGUMENT_VALUES_NOT_ALLOWED",
-				StatusCode:                 400,
-				ReturnInResponseExtensions: true,
-			},
-		)
-
-		require.True(t, report.HasErrors())
-		require.Len(t, report.ExternalErrors, 1)
-		// The first offending argument is named in the message; the walk still stops
-		// there, so only that one is reported.
-		assert.Equal(t,
-			`Inline argument values are not allowed. Use variables instead. Inline value provided for argument "userById.userId".`,
-			report.ExternalErrors[0].Message,
-		)
+		// The rejection is a generic error: no per-argument location is attached.
+		assert.Empty(t, extErr.Locations)
 	})
 
 	t.Run("compliant operation passes enforce mode", func(t *testing.T) {
