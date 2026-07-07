@@ -46,6 +46,7 @@ type nodeSelectionVisitor struct {
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 
 	rewrittenFieldRefs          []int            // rewrittenFieldRefs holds field refs which had their selection sets rewritten during the current walk
+	aliasedFieldRefs            []int            // aliasedFieldRefs holds field refs which had member fields aliased (without a rewrite) during the current walk
 	persistedRewrittenFieldRefs map[int]struct{} // persistedRewrittenFieldRefs holds field refs which had their selection sets rewritten during any of the walks
 
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
@@ -59,6 +60,10 @@ type nodeSelectionVisitor struct {
 	// they resolve to null. E.g. fields of the union members outside the intersection
 	// of the union members across the candidate datasources.
 	unfetchableFieldRefs map[int]struct{}
+
+	// fieldMergingAliasRefs is a set of field refs holding a planner generated alias
+	// (see upstreamFieldMergingAliasPrefix) - their client response name is the original field name
+	fieldMergingAliasRefs map[int]struct{}
 }
 
 func (c *nodeSelectionVisitor) addNewSkipFieldRefs(fieldRefs ...int) {
@@ -152,6 +157,7 @@ func (c *nodeSelectionVisitor) debugPrint(args ...any) {
 func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.hasNewFields = false
 	c.rewrittenFieldRefs = c.rewrittenFieldRefs[:0]
+	c.aliasedFieldRefs = c.aliasedFieldRefs[:0]
 
 	if c.selectionSetRefs == nil {
 		c.selectionSetRefs = make([]int, 0, 8)
@@ -835,21 +841,32 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		return
 	}
 
-	if !result.rewritten {
+	// a rewrite could have exploded interface fragments into concrete member fragments,
+	// so the check for conflicting member fields runs on the rewritten selection set
+	aliased := c.aliasConflictingMemberFields(fieldRef)
+
+	if !result.rewritten && !aliased {
 		return
 	}
 
-	c.addNewSkipFieldRefs(rewriter.skipFieldRefs...)
-	c.hasNewFields = true
-	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
-	c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
+	if result.rewritten {
+		c.addNewSkipFieldRefs(rewriter.skipFieldRefs...)
+		c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
+		c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
 
-	for _, unfetchableFieldRef := range result.unfetchableFieldRefs {
-		c.unfetchableFieldRefs[unfetchableFieldRef] = struct{}{}
+		for _, unfetchableFieldRef := range result.unfetchableFieldRefs {
+			c.unfetchableFieldRefs[unfetchableFieldRef] = struct{}{}
+		}
+
+		c.updateFieldDependsOn(result.changedFieldRefs)
+		c.updateSkipFieldRefs(result.changedFieldRefs)
+		c.updateFieldMergingAliasRefs(result.changedFieldRefs)
+	} else {
+		// only aliased - the child suggestions have to be recollected with the new paths
+		c.aliasedFieldRefs = append(c.aliasedFieldRefs, fieldRef)
 	}
 
-	c.updateFieldDependsOn(result.changedFieldRefs)
-	c.updateSkipFieldRefs(result.changedFieldRefs)
+	c.hasNewFields = true
 
 	// skip walking into a rewritten field instead of stoping the whole visitor
 	// should allow to do fewer walks over the operation
@@ -900,6 +917,14 @@ func (c *nodeSelectionVisitor) updateSkipFieldRefs(changedFieldRefs map[int][]in
 	for _, fieldRef := range c.skipFieldsRefs {
 		if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
 			c.skipFieldsRefs = append(c.skipFieldsRefs, newRefs...)
+		}
+	}
+}
+
+func (c *nodeSelectionVisitor) updateFieldMergingAliasRefs(changedFieldRefs map[int][]int) {
+	for fieldRef := range c.fieldMergingAliasRefs {
+		for _, newRef := range changedFieldRefs[fieldRef] {
+			c.fieldMergingAliasRefs[newRef] = struct{}{}
 		}
 	}
 }

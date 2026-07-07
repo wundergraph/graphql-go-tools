@@ -123,6 +123,15 @@ func (c *nodesCollector) collectNodes() {
 		nodesToVisit = append(nodesToVisit, task)
 	}
 
+	// a field ref scheduled for a visit could have been marked for recollection
+	// (e.g. when it got a planner generated alias) - the lookup entries
+	// from the previous runs must not skip it
+	for _, visitor := range c.dsVisitors {
+		for _, task := range nodesToVisit {
+			delete(visitor.localSuggestionLookup, task.fieldRef)
+		}
+	}
+
 	wg := &sync.WaitGroup{}
 	wg.Add(len(c.dsVisitors))
 
@@ -311,7 +320,7 @@ func (f *collectNodesDSVisitor) reset() {
 func (f *collectNodesDSVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) (itemID int, ok bool) {
 	idx := slices.IndexFunc(itemIds, func(i int) bool {
 		suggestion := f.nodes.items[i]
-		return suggestion.FieldRef == ref && suggestion.DataSourceHash == f.dataSource.Hash()
+		return !suggestion.IsOrphan && suggestion.FieldRef == ref && suggestion.DataSourceHash == f.dataSource.Hash()
 	})
 
 	if idx != -1 {

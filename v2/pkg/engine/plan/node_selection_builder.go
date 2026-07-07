@@ -48,6 +48,10 @@ type NodeSelectionResult struct {
 
 	fieldRefDependsOn   map[int][]int
 	fieldDependencyKind map[fieldDependencyKey]fieldDependencyKind
+
+	// fieldMergingAliasRefs holds field refs with a planner generated alias -
+	// their client response name is the original field name
+	fieldMergingAliasRefs map[int]struct{}
 }
 
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
@@ -57,6 +61,7 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
 		newFieldRefs:                  make(map[int]struct{}),
 		unfetchableFieldRefs:          make(map[int]struct{}),
+		fieldMergingAliasRefs:         make(map[int]struct{}),
 	}
 
 	nodeSelectionsWalker.RegisterDocumentVisitor(nodeSelectionVisitor)
@@ -88,6 +93,7 @@ func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
 	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.unfetchableFieldRefs = make(map[int]struct{})
+	p.nodeSelectionsVisitor.fieldMergingAliasRefs = make(map[int]struct{})
 }
 
 // SelectNodes implements Steps 1-2 of the planner pipeline.
@@ -138,6 +144,10 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	for p.nodeSelectionsVisitor.hasNewFields || hasUnresolvedFields {
 		for _, fieldRef := range p.nodeSelectionsVisitor.rewrittenFieldRefs {
 			p.nodeSelectionsVisitor.nodeSuggestions.RemoveRewrittenFieldChilds(fieldRef)
+		}
+
+		for _, fieldRef := range p.nodeSelectionsVisitor.aliasedFieldRefs {
+			p.nodeSelectionsVisitor.nodeSuggestions.AbandonFieldChilds(fieldRef)
 		}
 
 		p.nodeSelectionsVisitor.secondaryRun = true
@@ -215,6 +225,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		skipFieldsRefs:           p.nodeSelectionsVisitor.skipFieldsRefs,
 		fieldRefDependsOn:        p.nodeSelectionsVisitor.fieldRefDependsOn,
 		fieldDependencyKind:      p.nodeSelectionsVisitor.fieldDependencyKind,
+		fieldMergingAliasRefs:    p.nodeSelectionsVisitor.fieldMergingAliasRefs,
 	}
 }
 

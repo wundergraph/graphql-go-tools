@@ -8283,7 +8283,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						resolve.Single(&resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
 								DataSource:     &Source{},
-								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{entity {__typename ... on User {email} ... on Organization {email}}}"}}`,
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{entity {__typename ... on User {__internal_merge_User_email: email} ... on Organization {__internal_merge_Organization_email: email}}}"}}`,
 								PostProcessing: DefaultPostProcessingConfiguration,
 							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -8304,14 +8304,14 @@ func TestGraphQLDataSource(t *testing.T) {
 										{
 											Name: []byte("email"),
 											Value: &resolve.String{
-												Path: []string{"email"},
+												Path: []string{"__internal_merge_User_email"},
 											},
 											OnTypeNames: [][]byte{[]byte("User")},
 										},
 										{
 											Name: []byte("email"),
 											Value: &resolve.String{
-												Path:     []string{"email"},
+												Path:     []string{"__internal_merge_Organization_email"},
 												Nullable: true,
 											},
 											OnTypeNames: [][]byte{[]byte("Organization")},

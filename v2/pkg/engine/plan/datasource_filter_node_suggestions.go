@@ -278,6 +278,14 @@ func (f *NodeSuggestions) AddSeenField(fieldRef int) {
 	f.seenFields[fieldRef] = struct{}{}
 }
 
+// RemoveSeenFields makes the fields treated as new again,
+// so their tree nodes and suggestions are recollected on the next filter run
+func (f *NodeSuggestions) RemoveSeenFields(fieldRefs ...int) {
+	for _, fieldRef := range fieldRefs {
+		delete(f.seenFields, fieldRef)
+	}
+}
+
 // RemoveRewrittenFieldChilds removes the child nodes of a field which had its
 // selection set rewritten - the old child suggestions do not make sense anymore.
 // A datasource could have been selected for the field or its parents only to resolve
@@ -300,6 +308,36 @@ func (f *NodeSuggestions) RemoveRewrittenFieldChilds(fieldRef int) {
 
 	// remove rewritten children nodes from the current node
 	node.ReplaceChildren()
+}
+
+// AbandonFieldChilds marks the child suggestions of the field as orphans
+// and detaches them from the tree nodes, keeping the response tree intact.
+// Used when the child paths have changed (e.g. by adding planner generated aliases),
+// so the child suggestions have to be recollected for the same tree nodes.
+// Unlike after RemoveRewrittenFieldChilds, the tree nodes stay reachable,
+// so the orphaned items have to be removed from the node data to not affect
+// the following selection runs.
+func (f *NodeSuggestions) AbandonFieldChilds(fieldRef int) {
+	node, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	if !ok {
+		return
+	}
+
+	f.abandonAndDetachNodeChildrenItems(node, false)
+}
+
+func (f *NodeSuggestions) abandonAndDetachNodeChildrenItems(node tree.Node[[]int], clearData bool) {
+	for _, child := range node.GetChildren() {
+		f.abandonAndDetachNodeChildrenItems(child, true)
+	}
+
+	if clearData {
+		for _, idx := range node.GetData() {
+			f.items[idx].IsOrphan = true
+			f.items[idx].unselect()
+		}
+		node.SetData(nil)
+	}
 }
 
 // abandonNodeChildren recursively marks all nested suggestions as orphans

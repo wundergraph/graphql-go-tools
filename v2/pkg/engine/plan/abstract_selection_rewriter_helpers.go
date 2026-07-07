@@ -609,26 +609,26 @@ func (r *fieldSelectionRewriter) collectFragmentsFieldRefs(fieldRef int, typeNam
 			continue
 		}
 
-		fieldRefs = append(fieldRefs, r.collectNestedFieldRefs(fragmentSelectionSetRef)...)
+		fieldRefs = append(fieldRefs, collectNestedFieldRefs(r.operation, fragmentSelectionSetRef)...)
 	}
 
 	return fieldRefs
 }
 
 // collectNestedFieldRefs returns the refs of all fields in the selection set, recursively
-func (r *fieldSelectionRewriter) collectNestedFieldRefs(selectionSetRef int) []int {
+func collectNestedFieldRefs(operation *ast.Document, selectionSetRef int) []int {
 	var fieldRefs []int
-	for _, selectionRef := range r.operation.SelectionSets[selectionSetRef].SelectionRefs {
-		selection := r.operation.Selections[selectionRef]
+	for _, selectionRef := range operation.SelectionSets[selectionSetRef].SelectionRefs {
+		selection := operation.Selections[selectionRef]
 		switch selection.Kind {
 		case ast.SelectionKindField:
 			fieldRefs = append(fieldRefs, selection.Ref)
-			if nestedSelectionSetRef, ok := r.operation.FieldSelectionSet(selection.Ref); ok {
-				fieldRefs = append(fieldRefs, r.collectNestedFieldRefs(nestedSelectionSetRef)...)
+			if nestedSelectionSetRef, ok := operation.FieldSelectionSet(selection.Ref); ok {
+				fieldRefs = append(fieldRefs, collectNestedFieldRefs(operation, nestedSelectionSetRef)...)
 			}
 		case ast.SelectionKindInlineFragment:
-			if nestedSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(selection.Ref); ok {
-				fieldRefs = append(fieldRefs, r.collectNestedFieldRefs(nestedSelectionSetRef)...)
+			if nestedSelectionSetRef, ok := operation.InlineFragmentSelectionSet(selection.Ref); ok {
+				fieldRefs = append(fieldRefs, collectNestedFieldRefs(operation, nestedSelectionSetRef)...)
 			}
 		}
 	}
