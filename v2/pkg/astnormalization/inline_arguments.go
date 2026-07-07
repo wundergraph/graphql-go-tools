@@ -42,6 +42,9 @@ type InlineArgumentsValidator struct {
 }
 
 func (v *InlineArgumentsValidator) ClearFindings() {
+	if v == nil {
+		return
+	}
 	v.Findings = v.Findings[:0]
 }
 
