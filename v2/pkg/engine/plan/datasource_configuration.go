@@ -9,6 +9,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -244,6 +245,10 @@ type dataSourceConfiguration[T any] struct {
 	factory PlannerFactory[T] // factory is the factory for the creation of the concrete DataSourcePlanner
 	custom  T                 // custom is the datasource specific configuration
 
+	// caching is the optional per-datasource cache policy provider; nil means
+	// no caching for this datasource.
+	caching cacheconfig.CacheConfigProvider
+
 	hash DSHash // hash is a unique hash for the dataSourceConfiguration used to match datasources
 }
 
@@ -348,6 +353,12 @@ func (d *dataSourceConfiguration[T]) Name() string {
 
 func (d *dataSourceConfiguration[T]) FederationConfiguration() FederationMetaData {
 	return d.FederationMetaData
+}
+
+// Caching returns the per-datasource cache policy provider; nil means no
+// caching is configured for this datasource.
+func (d *dataSourceConfiguration[T]) Caching() cacheconfig.CacheConfigProvider {
+	return d.caching
 }
 
 func (d *dataSourceConfiguration[T]) Hash() DSHash {

@@ -123,6 +123,10 @@ type objectFetchConfiguration struct {
 	rootFields         []resolve.GraphCoordinate
 	operationType      ast.OperationType
 	deferID            int
+	// isolatedRootField marks a planner created by the per-root-field cache
+	// isolation gate (root_field_isolation.go): it owns exactly ONE query root
+	// field and never accepts another top-level operation field.
+	isolatedRootField bool
 }
 
 type currentFieldInfo struct {
@@ -655,6 +659,7 @@ func (c *pathBuilderVisitor) handlePlanningField(field *currentFieldInfo) {
 	}
 
 	isMutationRoot := c.isMutationRoot(field.currentPath)
+	isolateRootField := shouldIsolateRootField(c.plannerConfiguration.CacheConfigProviders, field, field.parentPath)
 
 	var (
 		plannerIdx int
@@ -662,9 +667,14 @@ func (c *pathBuilderVisitor) handlePlanningField(field *currentFieldInfo) {
 	)
 
 	// mutation root fields should always be planned on a new planner
-	// because mutations must be executed sequentially
-	if isMutationRoot {
+	// because mutations must be executed sequentially;
+	// cache-isolated query root fields get their own planner so each keeps
+	// its own cache policy and L2 key (root_field_isolation.go)
+	if isMutationRoot || isolateRootField {
 		plannerIdx, planned = c.addNewPlanner(field, isMutationRoot)
+		if planned && isolateRootField {
+			c.planners[plannerIdx].ObjectFetchConfiguration().isolatedRootField = true
+		}
 	} else {
 		plannerIdx, planned = c.planWithExistingPlanners(field)
 		if !planned {
@@ -833,6 +843,15 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (
 		currentPlannerDSHash := dsConfiguration.Hash()
 
 		if field.suggestion.DataSourceHash != currentPlannerDSHash {
+			continue
+		}
+
+		if plannerConfig.ObjectFetchConfiguration().isolatedRootField && c.isParentPathIsRootOperationPath(field.parentPath) {
+			// an isolated planner owns exactly one root field: never fold
+			// another TOP-LEVEL operation field into it. The guard keys off
+			// the parent path, NOT IsRootNode — entity types are root nodes
+			// too, and an IsRootNode guard would tear the isolated field's
+			// own nested entity subtree apart.
 			continue
 		}
 

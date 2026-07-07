@@ -11,6 +11,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -22,6 +23,11 @@ type Configuration struct {
 	schema                   *graphql.Schema
 	plannerConfig            plan.Configuration
 	websocketBeforeStartHook WebsocketBeforeStartHook
+
+	// caching holds the per-datasource caching policies, keyed by datasource ID
+	// (see SetCaching). NewExecutionEngine turns it into the planner's
+	// CacheConfigProviders and the postprocess EnableCaching option.
+	caching map[string]cacheconfig.CachingConfiguration
 }
 
 func NewConfiguration(schema *graphql.Schema) Configuration {
@@ -59,8 +65,25 @@ func (e *Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurat
 	e.plannerConfig.Fields = fieldConfigs
 }
 
+// SetCaching configures caching policies per datasource, keyed by DATASOURCE
+// ID (the same ID the datasource was created with; cache providers are matched
+// to fetches via FetchInfo.DataSourceID at plan time). It is the ONLY public
+// entry point for caching: NewExecutionEngine wires the planner's P1 walk and
+// the postprocess caching passes from it. An empty or nil map keeps caching
+// fully disabled (the planner no-op gate).
+func (e *Configuration) SetCaching(caching map[string]cacheconfig.CachingConfiguration) {
+	e.caching = caching
+}
+
 func (e *Configuration) DataSources() []plan.DataSource {
 	return e.plannerConfig.DataSources
+}
+
+// PlannerConfig returns the built planner configuration. It exists for test
+// harnesses that drive the real v2 planner directly from a composed router
+// config; production code goes through NewExecutionEngine.
+func (e *Configuration) PlannerConfig() plan.Configuration {
+	return e.plannerConfig
 }
 
 func (e *Configuration) FieldConfigurations() plan.FieldConfigurations {

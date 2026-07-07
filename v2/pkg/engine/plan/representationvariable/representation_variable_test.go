@@ -1,4 +1,4 @@
-package graphql_datasource
+package representationvariable
 
 import (
 	"testing"
@@ -18,7 +18,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			SelectionSet: keyStr,
 		}
 
-		node, err := buildRepresentationVariableNode(&definition, cfg, federationMeta)
+		node, err := BuildRepresentationVariableNode(&definition, cfg, federationMeta)
 		require.NoError(t, err)
 
 		require.Equal(t, expectedNode, node)
@@ -27,7 +27,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		runTest(t, `
 			scalar String
-	
+
 			type User {
 				id: String!
 				name: String!
@@ -66,7 +66,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 	t.Run("with interface object", func(t *testing.T) {
 		runTest(t, `
 			scalar String
-	
+
 			type User {
 				id: String!
 				name: String!
@@ -110,12 +110,58 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			})
 	})
 
+	t.Run("with entity interface", func(t *testing.T) {
+		runTest(t, `
+			scalar String
+
+			type User {
+				id: String!
+				name: String!
+			}
+		`,
+			`id name`,
+			plan.FederationMetaData{
+				EntityInterfaces: []plan.EntityInterfaceConfiguration{
+					{
+						InterfaceTypeName: "Account",
+						ConcreteTypeNames: []string{"User", "Admin"},
+					},
+				},
+			},
+			&resolve.Object{
+				Nullable: true,
+				Fields: []*resolve.Field{
+					{
+						Name: []byte("__typename"),
+						Value: &resolve.String{
+							Path: []string{"__typename"},
+						},
+						OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+					},
+					{
+						Name: []byte("id"),
+						Value: &resolve.String{
+							Path: []string{"id"},
+						},
+						OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+					},
+					{
+						Name: []byte("name"),
+						Value: &resolve.String{
+							Path: []string{"name"},
+						},
+						OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+					},
+				},
+			})
+	})
+
 	t.Run("deeply nested", func(t *testing.T) {
 		runTest(t, `
 			scalar String
 			scalar Int
 			scalar Float
-	
+
 			type User {
 				id: String!
 				name: String!
@@ -130,7 +176,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			type Address {
 				zip: Float!
 			}
-				
+
 		`,
 			`id name account { accoundID address(home: true) { zip } }`,
 			plan.FederationMetaData{},
@@ -313,7 +359,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userRepresentation, adminRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userRepresentation, adminRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -362,7 +408,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -413,7 +459,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -567,7 +613,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -793,7 +839,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 }
