@@ -8,7 +8,6 @@ import (
 	"io"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
@@ -144,10 +143,14 @@ type Resolvable struct {
 	// passed to a custom field-value renderer.
 	currentFieldInfo *FieldInfo
 
-	// typeNameStats maps the JSON path to its accumulated array/object stats in the final response.
+	// typeNameStats maps the field path to its accumulated array/object stats in the final response.
 	// Used to compute the actual cost of the operation.
 	// Only populated when ResolvableOptions.EnableCostControl is true.
 	typeNameStats map[string]TypeNameStats
+
+	// typeNameDenials holds the field path of every field denied by field authorization.
+	// Only populated when ResolvableOptions.EnableCostControl is true.
+	typeNameDenials map[string]struct{}
 
 	// subgraphExtensions holds the `extensions` objects collected from subgraph
 	// fetches, merged into the response extensions during rendering.
@@ -252,6 +255,7 @@ func (r *Resolvable) Reset() {
 	r.allowedExtensions = nil
 	clear(r.subgraphExtensions)
 	clear(r.typeNameStats)
+	clear(r.typeNameDenials)
 
 	r.deferMode = false
 	r.currentDefer = nil
@@ -1617,6 +1621,14 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 		NewSubgraphError(ds, fieldPath, reason, 0))
 	r.ensureErrorsInitialized()
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, errorMessage, errorcodes.UnauthorizedFieldOrType, r.path)
+
+	// Record the denied field's path for cost control:
+	if r.options.EnableCostControl && len(nodePath) > 0 && fieldPath != invalidPath {
+		if r.typeNameDenials == nil {
+			r.typeNameDenials = make(map[string]struct{})
+		}
+		r.typeNameDenials[fieldPath] = struct{}{}
+	}
 	r.popNodePathElement(nodePath)
 }
 
@@ -1776,8 +1788,8 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 
 	if !r.render() && r.options.EnableCostControl {
 		// Record arrays stats for Cost Control.
-		pathKey := r.currentFieldPath()
-		stats := r.typeNameStats[pathKey]
+		fieldPath := r.renderFieldPath()
+		stats := r.typeNameStats[fieldPath]
 		stats.Size += len(values)
 		if stats.TypeNames == nil && len(values) > 0 {
 			stats.TypeNames = make(map[string]int)
@@ -1793,7 +1805,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 				stats.TypeNames[typeName]++
 			}
 		}
-		r.typeNameStats[pathKey] = stats
+		r.typeNameStats[fieldPath] = stats
 	}
 
 	hasPrintedValue := false
@@ -1840,8 +1852,8 @@ func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 	if len(obj.Path) == 0 {
 		return
 	}
-	pathKey := r.currentFieldPath()
-	stats := r.typeNameStats[pathKey]
+	fieldPath := r.renderFieldPath()
+	stats := r.typeNameStats[fieldPath]
 	stats.Size++
 	if stats.TypeNames == nil {
 		stats.TypeNames = make(map[string]int, 1)
@@ -1852,18 +1864,7 @@ func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 		name = string(typeName)
 	}
 	stats.TypeNames[name]++
-	r.typeNameStats[pathKey] = stats
-}
-
-// Helper to build JSON path (field names only, no array indices)
-func (r *Resolvable) currentFieldPath() string {
-	var parts []string
-	for _, elem := range r.path {
-		if elem.Name != "" {
-			parts = append(parts, elem.Name)
-		}
-	}
-	return strings.Join(parts, ".")
+	r.typeNameStats[fieldPath] = stats
 }
 
 func (r *Resolvable) walkNull() bool {

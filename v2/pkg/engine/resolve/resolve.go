@@ -412,6 +412,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}
 
 	ctx.TypeNameStats = resolvable.typeNameStats
+	ctx.TypeNameDenials = resolvable.typeNameDenials
 
 	return resp, err
 }
@@ -498,6 +499,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		return nil, err
 	}
 	ctx.TypeNameStats = resolvable.typeNameStats
+	ctx.TypeNameDenials = resolvable.typeNameDenials
 
 	// first release resolverArena
 	// all data is resolved and written into the response arena

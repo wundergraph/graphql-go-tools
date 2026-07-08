@@ -50,9 +50,30 @@ func NewCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Docume
 
 var costTreeRootNodeCoords = FieldCoordinate{"_none", "_root"}
 
+func (v *CostVisitor) operationTypeName() string {
+	if v.operationDefinition == nil {
+		return ""
+	}
+	switch v.Operation.OperationDefinitions[*v.operationDefinition].OperationType {
+	case ast.OperationTypeQuery:
+		return "Query"
+	case ast.OperationTypeMutation:
+		return "Mutation"
+	case ast.OperationTypeSubscription:
+		return "Subscription"
+	default:
+		return ""
+	}
+}
+
 // EnterField creates a partial cost node when entering a field.
 // The node is filled in full in the LeaveField when fieldPlanners data is available.
 func (v *CostVisitor) EnterField(fieldRef int) {
+	if v.tree.fieldPath == "" {
+		// Seed the root with the operation type name, so every node's jsonPath matches the
+		// key convention of the resolver's runtime stats (renderFieldPath): "Query.user.secret".
+		v.tree.fieldPath = v.operationTypeName()
+	}
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameUnsafeString(fieldRef)
 
@@ -98,8 +119,8 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	var jsonPath string
 	if len(v.stack) > 0 {
 		parent := v.stack[len(v.stack)-1]
-		if parent.jsonPath != "" {
-			jsonPath = parent.jsonPath + "." + aliasOrName
+		if parent.fieldPath != "" {
+			jsonPath = parent.fieldPath + "." + aliasOrName
 		} else {
 			jsonPath = aliasOrName
 		}
@@ -117,7 +138,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 		returnsAbstractType:     isAbstractType,
 		isEnclosingTypeAbstract: isEnclosingTypeAbstract,
 		arguments:               arguments,
-		jsonPath:                jsonPath,
+		fieldPath:               jsonPath,
 	}
 
 	// Attach to the parent
