@@ -162,4 +162,166 @@ func TestChildTypeMismatchUnion(t *testing.T) {
 		planConfiguration,
 		WithDefaultPostProcessor(),
 	))
+
+	t.Run("user alias on the conflicting field is preserved and aliased per member", RunTest(
+		definition,
+		`
+		query Accounts {
+			accounts {
+				... on User { account_id: id name }
+				... on Admin { account_id: id name }
+			}
+		}`,
+		"Accounts",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Fetches: resolve.Sequence(
+					resolve.Single(&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://accounts.service","body":{"query":"{accounts {__typename ... on User {__internal_merge_User_account_id: id name} ... on Admin {__internal_merge_Admin_account_id: id name}}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+							DataSource:     &Source{},
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}),
+				),
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("accounts"),
+							Value: &resolve.Array{
+								Path:     []string{"accounts"},
+								Nullable: false,
+								Item: &resolve.Object{
+									Nullable: false,
+									PossibleTypes: map[string]struct{}{
+										"Admin": {},
+										"User":  {},
+									},
+									TypeName: "Account",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("account_id"),
+											Value: &resolve.Scalar{
+												Path:     []string{"__internal_merge_User_account_id"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("account_id"),
+											Value: &resolve.Scalar{
+												Path:     []string{"__internal_merge_Admin_account_id"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Admin")},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Admin")},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		planConfiguration,
+		WithDefaultPostProcessor(),
+	))
+
+	t.Run("distinct user aliases across members are not rewritten", RunTest(
+		definition,
+		`
+		query Accounts {
+			accounts {
+				... on User { uid: id name }
+				... on Admin { aid: id name }
+			}
+		}`,
+		"Accounts",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Fetches: resolve.Sequence(
+					resolve.Single(&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://accounts.service","body":{"query":"{accounts {__typename ... on User {uid: id name} ... on Admin {aid: id name}}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+							DataSource:     &Source{},
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}),
+				),
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("accounts"),
+							Value: &resolve.Array{
+								Path:     []string{"accounts"},
+								Nullable: false,
+								Item: &resolve.Object{
+									Nullable: false,
+									PossibleTypes: map[string]struct{}{
+										"Admin": {},
+										"User":  {},
+									},
+									TypeName: "Account",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("uid"),
+											Value: &resolve.Scalar{
+												Path:     []string{"uid"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("User")},
+										},
+										{
+											Name: []byte("aid"),
+											Value: &resolve.Scalar{
+												Path:     []string{"aid"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Admin")},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("Admin")},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		planConfiguration,
+		WithDefaultPostProcessor(),
+	))
 }

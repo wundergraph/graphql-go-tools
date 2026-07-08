@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"strconv"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
@@ -18,8 +20,9 @@ const upstreamFieldMergingAliasPrefix = "__internal_merge_"
 
 // memberField is a field selected on a concrete member of an abstract type
 type memberField struct {
-	typeName string
-	fieldRef int
+	typeName  string
+	fieldRef  int
+	fieldName string
 }
 
 // aliasConflictingMemberFields adds planner generated aliases to the fields of concrete members
@@ -37,10 +40,16 @@ func (c *nodeSelectionVisitor) aliasConflictingMemberFields(fieldRef int) (alias
 		return false
 	}
 
-	// collect fields of the concrete member fragments by response name.
+	// Collect fields of the concrete member fragments grouped by response name (alias or field name).
 	// Only concrete members are mutually exclusive at runtime - interface fragments could overlap.
-	// A field with an alias owns its response name, so it could not conflict.
-	fieldsByName := make(map[string][]memberField, 2)
+	// The grouping key is the response name, not the schema field name: field merging validation on
+	// a subgraph is keyed on the response name, and a client alias is copied onto every member when a
+	// single abstract selection is flattened (e.g. `account { x: id }` becomes
+	// `... on User { x: id } ... on Admin { x: id }`), so a user alias can still collide.
+	// takenResponseNames tracks the response names already present in each member fragment so a
+	// generated alias can be made collision-free against sibling selections.
+	fieldsByResponseName := make(map[string][]memberField, 2)
+	takenResponseNames := make(map[string]map[string]struct{}, 2)
 	for _, inlineFragmentSelectionRef := range inlineFragmentSelectionRefs {
 		inlineFragmentRef := c.operation.Selections[inlineFragmentSelectionRef].Ref
 		typeName := c.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
@@ -55,28 +64,40 @@ func (c *nodeSelectionVisitor) aliasConflictingMemberFields(fieldRef int) (alias
 			continue
 		}
 
+		taken := takenResponseNames[typeName]
+		if taken == nil {
+			taken = make(map[string]struct{})
+			takenResponseNames[typeName] = taken
+		}
+
 		for _, fieldSelectionRef := range c.operation.SelectionSetFieldSelections(fragmentSelectionSetRef) {
 			memberFieldRef := c.operation.Selections[fieldSelectionRef].Ref
 			fieldName := c.operation.FieldNameString(memberFieldRef)
-			if fieldName == typeNameField || c.operation.FieldAliasIsDefined(memberFieldRef) {
+			responseName := c.operation.FieldAliasOrNameString(memberFieldRef)
+			taken[responseName] = struct{}{}
+
+			if fieldName == typeNameField {
 				continue
 			}
 
-			fieldsByName[fieldName] = append(fieldsByName[fieldName], memberField{typeName: typeName, fieldRef: memberFieldRef})
+			fieldsByResponseName[responseName] = append(fieldsByResponseName[responseName], memberField{typeName: typeName, fieldRef: memberFieldRef, fieldName: fieldName})
 		}
 	}
 
-	for fieldName, members := range fieldsByName {
-		if len(members) < 2 || !c.memberFieldsRequireAlias(fieldName, members) {
+	for responseName, members := range fieldsByResponseName {
+		if len(members) < 2 || !c.memberFieldsRequireAlias(members) {
 			continue
 		}
 
 		for _, member := range members {
+			alias := uniqueMergeAlias(upstreamFieldMergingAliasPrefix+member.typeName+"_"+responseName, takenResponseNames[member.typeName])
 			c.operation.Fields[member.fieldRef].Alias = ast.Alias{
 				IsDefined: true,
-				Name:      c.operation.Input.AppendInputString(upstreamFieldMergingAliasPrefix + member.typeName + "_" + fieldName),
+				Name:      c.operation.Input.AppendInputString(alias),
 			}
-			c.fieldMergingAliasRefs[member.fieldRef] = struct{}{}
+			// preserve the original client-visible response name so it can be restored
+			// when building the resolve tree (see Visitor.EnterField).
+			c.fieldMergingAliasRefs[member.fieldRef] = []byte(responseName)
 		}
 
 		aliased = true
@@ -96,9 +117,7 @@ func (c *nodeSelectionVisitor) aliasConflictingMemberFields(fieldRef int) (alias
 // memberFieldsRequireAlias reports whether the member field types differ only in nullability
 // in any of the datasources upstream schemas. Genuinely incompatible types (e.g. Int vs String)
 // are left untouched to surface through the regular validation instead of being masked by an alias.
-func (c *nodeSelectionVisitor) memberFieldsRequireAlias(fieldName string, members []memberField) bool {
-	fieldNameBytes := []byte(fieldName)
-
+func (c *nodeSelectionVisitor) memberFieldsRequireAlias(members []memberField) bool {
 	for _, ds := range c.dataSources {
 		upstreamSchema, ok := ds.UpstreamSchema()
 		if !ok {
@@ -112,7 +131,7 @@ func (c *nodeSelectionVisitor) memberFieldsRequireAlias(fieldName string, member
 				continue
 			}
 
-			fieldDefinitionRef, exists := upstreamSchema.NodeFieldDefinitionByName(node, fieldNameBytes)
+			fieldDefinitionRef, exists := upstreamSchema.NodeFieldDefinitionByName(node, []byte(member.fieldName))
 			if !exists {
 				continue
 			}
@@ -126,6 +145,24 @@ func (c *nodeSelectionVisitor) memberFieldsRequireAlias(fieldName string, member
 	}
 
 	return false
+}
+
+// uniqueMergeAlias returns candidate if it does not collide with any response name already
+// present in the member fragment, otherwise it appends an incrementing suffix until it is unique.
+// The chosen name is recorded in taken so subsequent generated aliases stay collision-free too.
+func uniqueMergeAlias(candidate string, taken map[string]struct{}) string {
+	if taken == nil {
+		return candidate
+	}
+
+	name := candidate
+	for i := 1; ; i++ {
+		if _, exists := taken[name]; !exists {
+			taken[name] = struct{}{}
+			return name
+		}
+		name = candidate + "_" + strconv.Itoa(i)
+	}
 }
 
 func fieldTypesDifferOnlyInNullability(schema *ast.Document, typeRefs []int) bool {

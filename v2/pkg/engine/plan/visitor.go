@@ -46,7 +46,7 @@ type Visitor struct {
 	fieldStack                   []*resolve.Field
 	planners                     []PlannerConfiguration
 	skipFieldsRefs               []int
-	fieldMergingAliasRefs        map[int]struct{}
+	fieldMergingAliasRefs        map[int][]byte
 	unresolvableFieldRefs        map[int]struct{}
 	fieldRefDependsOnFieldRefs   map[int][]int
 	fieldDependencyKind          map[fieldDependencyKey]fieldDependencyKind
@@ -331,10 +331,11 @@ func (v *Visitor) EnterField(ref int) {
 	onTypeNames := v.resolveOnTypeNames(ref, fieldName)
 
 	// a planner generated alias keeps the upstream operation valid, but the client response name
-	// must remain the original field name; the upstream json path still follows the alias
+	// must remain the original one (the user alias if any, otherwise the field name);
+	// the upstream json path still follows the generated alias
 	responseName := fieldAliasOrName
-	if _, ok := v.fieldMergingAliasRefs[ref]; ok {
-		responseName = fieldName
+	if originalResponseName, ok := v.fieldMergingAliasRefs[ref]; ok {
+		responseName = originalResponseName
 	}
 
 	v.currentField = &resolve.Field{

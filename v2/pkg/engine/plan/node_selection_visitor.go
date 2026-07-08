@@ -66,9 +66,9 @@ type nodeSelectionVisitor struct {
 	// able to provide the requested fields. Resolving such fields is always an error.
 	unresolvableFieldRefs map[int]struct{}
 
-	// fieldMergingAliasRefs is a set of field refs holding a planner generated alias
-	// (see upstreamFieldMergingAliasPrefix) - their client response name is the original field name
-	fieldMergingAliasRefs map[int]struct{}
+	// fieldMergingAliasRefs maps field refs holding a planner generated alias
+	// (see upstreamFieldMergingAliasPrefix) to the original client-visible response name.
+	fieldMergingAliasRefs map[int][]byte
 }
 
 func (c *nodeSelectionVisitor) addNewSkipFieldRefs(fieldRefs ...int) {
@@ -1003,7 +1003,7 @@ func (c *nodeSelectionVisitor) updateSkipFieldRefs(changedFieldRefs map[int][]in
 func (c *nodeSelectionVisitor) updateFieldMergingAliasRefs(changedFieldRefs map[int][]int) {
 	for fieldRef := range c.fieldMergingAliasRefs {
 		for _, newRef := range changedFieldRefs[fieldRef] {
-			c.fieldMergingAliasRefs[newRef] = struct{}{}
+			c.fieldMergingAliasRefs[newRef] = c.fieldMergingAliasRefs[fieldRef]
 		}
 	}
 }
