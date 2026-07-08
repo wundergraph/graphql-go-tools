@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.9.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.1...v2.9.2) (2026-07-07)
+
+
+### Bug Fixes
+
+* **grpc_datasource:** resolve context path segments across repeated message fields ([#1579](https://github.com/wundergraph/graphql-go-tools/issues/1579)) ([2fea190](https://github.com/wundergraph/graphql-go-tools/commit/2fea19098395b98b5ad4094d95a2f2fd70664d36))
+
+## [2.9.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.0...v2.9.1) (2026-07-07)
+
+
+### Bug Fixes
+
+* do not charge children of null-parents ([#1574](https://github.com/wundergraph/graphql-go-tools/issues/1574)) ([cf436ec](https://github.com/wundergraph/graphql-go-tools/commit/cf436ec42bd6d5755429d93f8bcd5ea6ccb88be5))
+
+## [2.9.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.8.0...v2.9.0) (2026-07-06)
+
+
+### Features
+
+* add flag SkipNullVariablesError ([#1550](https://github.com/wundergraph/graphql-go-tools/issues/1550)) ([43e0087](https://github.com/wundergraph/graphql-go-tools/commit/43e00874da9edbc0a6eefa921a888c3f0edfa643))
+* support requires for conflicting arguments ([#1566](https://github.com/wundergraph/graphql-go-tools/issues/1566)) ([979ee23](https://github.com/wundergraph/graphql-go-tools/commit/979ee23f62a6d4ca9d7b4c8d1915671a53dc02b2))
+
 ## [2.8.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.7.0...v2.8.0) (2026-07-02)
 
 

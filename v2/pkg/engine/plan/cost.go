@@ -331,6 +331,41 @@ func (node *CostTreeNode) maxWeightImplementingField(config *DataSourceCostConfi
 	return maxWeight
 }
 
+// actualImplementingFieldWeight returns the runtime-weighted average of the per-implementing-type
+// weights for an abstract field, based on which concrete types this node actually resolved to.
+//
+// It returns the estimatedMaxWeight when the response carries no per-type information
+// or when no returned implementing type defines an explicit weight.
+//
+// Returned types whose implementing field has no explicit weight contribute zero to the average.
+func (node *CostTreeNode) actualImplementingFieldWeight(config *DataSourceCostConfig, fieldName string, stats resolve.TypeNameStats, estimatedMaxWeight float64) float64 {
+	if stats.Size == 0 {
+		return estimatedMaxWeight
+	}
+	if len(stats.TypeNames) == 1 {
+		if _, onlyAbstract := stats.TypeNames[node.fieldTypeName]; onlyAbstract {
+			return estimatedMaxWeight
+		}
+	}
+	var sum float64
+	weighted := false
+	for _, implTypeName := range node.implementingTypeNames {
+		count, returned := stats.TypeNames[implTypeName]
+		if !returned {
+			continue
+		}
+		fieldWeight := config.Weights[FieldCoordinate{implTypeName, fieldName}]
+		if fieldWeight != nil && fieldWeight.HasWeight {
+			weighted = true
+			sum += float64(fieldWeight.Weight * count)
+		}
+	}
+	if !weighted {
+		return estimatedMaxWeight
+	}
+	return sum / float64(stats.Size)
+}
+
 func (node *CostTreeNode) maxMultiplierImplementingField(config *DataSourceCostConfig, fieldName string, arguments map[string]ArgumentInfo, vars resolve.VariablesView, defaultListSize int) *FieldListSize {
 	var maxMultiplier int
 	var maxListSize *FieldListSize
@@ -472,7 +507,11 @@ func (node *CostTreeNode) cost(input *costInput) float64 {
 	// "A: [Obj] @cost(weight: 5)" means that the cost of the field is 5 for each object in the list.
 	// "type Object @cost(weight: 5) { ... }" does exactly the same thing.
 	// Weight defined on a field has priority over the weight defined on a type.
-	cost += (childrenCost + nodeCost.field) * nodeCost.multiplier
+	//
+	// The field's own weight scales with multiplier, while children scale with
+	// childMultiplier. These are equal except for a non-list object that resolved to
+	// null some/all of the time: we still charge the field but not its absent children.
+	cost += nodeCost.field*nodeCost.multiplier + childrenCost*nodeCost.childMultiplier
 	if cost < 0 {
 		cost = 0
 	}
@@ -535,6 +574,10 @@ type costNodeResult struct {
 	args       int
 	directives int
 	multiplier float64
+
+	// childMultiplier scales the cost of this node's children. It is normally equal to multiplier,
+	// but can differ for a non-list object field that resolves to null part of the time.
+	childMultiplier float64
 }
 
 // setDefaultMultiplier enforces multiplier=1 for non-list fields including the root node.
@@ -544,6 +587,10 @@ func (r *costNodeResult) setDefaultMultiplier(node *CostTreeNode) {
 	}
 	if r.multiplier == undefinedMultiplier {
 		r.multiplier = 0
+	}
+	// By default, children scale exactly like the node itself.
+	if r.childMultiplier == undefinedMultiplier {
+		r.childMultiplier = r.multiplier
 	}
 }
 
@@ -561,13 +608,14 @@ func (r *costNodeResult) setDefaultMultiplier(node *CostTreeNode) {
 // Also, it picks the maximum field weight of implementing types and then
 // the maximum among slicing arguments.
 func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNodeResult) {
+	nodeCost.multiplier = undefinedMultiplier
+	nodeCost.childMultiplier = undefinedMultiplier
 	if len(node.dataSourceHashes) == 0 {
 		// no data source is responsible for this field
 		return
 	}
 
 	parent := node.parent
-	nodeCost.multiplier = undefinedMultiplier
 
 	for _, dsHash := range node.dataSourceHashes {
 		dsCostConfig, ok := input.configs[dsHash]
@@ -582,16 +630,16 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		// the corresponding field on each concrete type implementing that interface,
 		// either directly or indirectly through other interfaces.
 		//
-		// Composition should not let interface fields have weights, so we assume that
-		// the enclosing type is concrete.
-		// Commented condition is a good check for that. Might be needed later:
-		// fieldWeight != nil && node.isEnclosingTypeAbstract && parent.returnsAbstractType
+		// fromImplementingTypes marks that fieldWeight was resolved from the implementing
+		// types of the enclosing interface/union rather than from the field itself.
+		fromImplementingTypes := false
 		if node.isEnclosingTypeAbstract && parent.returnsAbstractType {
 			// This field is part of the enclosing interface/union.
 			// We look into implementing types and find the max-weighted field.
 			// Found fieldWeight can be used for all the calculations.
 			if !input.ignoreImplementingTypeWeights {
 				fieldWeight = parent.maxWeightImplementingField(dsCostConfig, node.fieldCoords.FieldName)
+				fromImplementingTypes = fieldWeight != nil
 			}
 			// If this field has listSize defined, then do not look into implementing types.
 			if input.isEstimation && listSize == nil && node.returnsListType {
@@ -600,7 +648,11 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		}
 
 		if fieldWeight != nil && fieldWeight.HasWeight {
-			nodeCost.field += float64(fieldWeight.Weight)
+			weight := float64(fieldWeight.Weight)
+			if fromImplementingTypes && !input.isEstimation {
+				weight = parent.actualImplementingFieldWeight(dsCostConfig, node.fieldCoords.FieldName, input.typeStats[parent.jsonPath], weight)
+			}
+			nodeCost.field += weight
 		} else {
 			// Use the weight of the type returned by this field
 			switch {
@@ -739,73 +791,60 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		return
 	}
 
-	// This block adjusts the multiplier of this node in actual mode.
-	// If this node returns a list, then we need to divide its multiplier by the size of the
-	// ancestor's node returning a list.
-	// If this node is enclosed by a node returning an abstract type, then we need to downsize
-	// multiplier too.
-	var ancestorStats resolve.TypeNameStats
-	var ancestorNode *CostTreeNode
-	// Find the nearest enclosing list ancestor.
-	for p := node.parent; p != nil && p.fieldCoords != costTreeRootNodeCoords; p = p.parent {
-		if p.returnsListType {
-			ancestorNode = p
-			ancestorStats = input.typeStats[p.jsonPath]
-			break
-		}
+	// The block below adjusts the multiplier of the node in ACTUAL mode.
+
+	if node.parent == nil {
+		return
 	}
+	parentStats := input.typeStats[node.parent.jsonPath]
+	if node.parent.fieldCoords == costTreeRootNodeCoords && parentStats.Size == 0 {
+		parentStats.Size = 1
+	}
+
 	if node.returnsListType {
-		// This node's multiplier is its own array size, averaged over the nearest enclosing list
-		// to avoid double-counting of nested lists.
+		// This node's multiplier is its own array size, averaged over its immediate parent's
+		// occurrence count to avoid double-counting.
 		if nodeStats, ok := input.typeStats[node.jsonPath]; ok && nodeStats.Size != 0 {
-			enclosingSize := ancestorStats.Size
-			if enclosingSize <= 0 {
-				enclosingSize = 1
+			parentSize := 1.0
+			if parentStats.Size > 0 {
+				parentSize = float64(parentStats.Size)
 			}
-			nodeCost.multiplier = float64(nodeStats.Size) / float64(enclosingSize)
+			nodeCost.multiplier = float64(nodeStats.Size) / parentSize
 		}
 		return
 	}
 
-	// Non-list field. If it sits directly under an abstract list, narrow
-	// its multiplier by the share of elements that actually match this
-	// field's concrete type. The parent list's full-size multiplier will
-	// multiply this back up to the correct per-type count.
-	if ancestorNode == nil || node.parent != ancestorNode || !ancestorNode.returnsAbstractType || ancestorStats.Size == 0 {
+	// Non-list field.
+
+	// For a concrete object field, scale its children by how often the object actually
+	// resolved non-null relative to its parent's occurrences.
+	//
+	// Fragment fields under an abstract parent are excluded: runtime stats are keyed by
+	// response path, so occurrences of the same field selected in other fragments are
+	// indistinguishable and the ratio would count them all. Their childMultiplier follows
+	// the type-share multiplier set below instead.
+	isFragmentField := node.parent.returnsAbstractType && !node.isEnclosingTypeAbstract
+	if !node.returnsSimpleType && !isFragmentField && parentStats.Size > 0 {
+		nodeStats := input.typeStats[node.jsonPath]
+		// The field's own weight is kept via multiplier while its children
+		// are charged only for the fraction of occurrences where the object was present.
+		nodeCost.childMultiplier = float64(nodeStats.Size) / float64(parentStats.Size)
+	}
+
+	// If the field sits directly under a field resolving an abstract type (a list or a single object),
+	// narrow its multiplier by the share of parent occurrences that
+	// actually match this field's concrete type.
+	if !node.parent.returnsAbstractType || parentStats.Size == 0 {
 		return
 	}
-	if node.isEnclosingTypeAbstract && nodeCost.field > 0 && !input.ignoreImplementingTypeWeights {
-		var weightedSum float64
-		found := false
-		for _, implTypeName := range parent.implementingTypeNames {
-			count, typeNameFound := ancestorStats.TypeNames[implTypeName]
-			if !typeNameFound {
-				continue
-			}
-			found = true
-			for _, dsHash := range node.dataSourceHashes {
-				dsCostConfig, ok := input.configs[dsHash]
-				if !ok || dsCostConfig == nil {
-					continue
-				}
-
-				coords := FieldCoordinate{implTypeName, node.fieldCoords.FieldName}
-				fieldWeight := dsCostConfig.Weights[coords]
-				if fieldWeight != nil {
-					weightedSum += float64(fieldWeight.Weight * count)
-				}
-			}
-		}
-		if found {
-			nodeCost.multiplier = weightedSum / (nodeCost.field * float64(ancestorStats.Size))
-		}
-	}
+	// Fields selected on the abstract type itself need no multiplier adjustment: their
+	// weight is already resolved per actual type distribution (see actualImplementingFieldWeight).
 	if !node.isEnclosingTypeAbstract {
-		count, typeNameFound := ancestorStats.TypeNames[node.fieldCoords.TypeName]
-		if ancestorStats.Size == 0 || !typeNameFound {
+		count, typeNameFound := parentStats.TypeNames[node.fieldCoords.TypeName]
+		if !typeNameFound {
 			nodeCost.multiplier = 0
 		} else {
-			nodeCost.multiplier = float64(count) / float64(ancestorStats.Size)
+			nodeCost.multiplier = float64(count) / float64(parentStats.Size)
 		}
 	}
 	return
@@ -1018,7 +1057,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, input *costInput, dept
 	}
 
 	indent := strings.Repeat("    ", depth)
-	fmt.Fprintf(sb, "%s* %s", indent, node.fieldCoords)
+	fmt.Fprintf(sb, "%s· %s", indent, node.fieldCoords)
 
 	if node.fieldTypeName != "" {
 		fmt.Fprintf(sb, " : %s", node.fieldTypeName)
@@ -1055,10 +1094,11 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, input *costInput, dept
 	nodeCost := node.costsAndMultiplier(input)
 	nodeCost.setDefaultMultiplier(node)
 
-	fmt.Fprintf(sb, "%s  multiplier = %.2f", indent, nodeCost.multiplier)
-
+	fmt.Fprintf(sb, "%s  mult = %.2f", indent, nodeCost.multiplier)
 	fmt.Fprintf(sb, ", fieldCost = %.2f", nodeCost.field)
-
+	if nodeCost.childMultiplier != nodeCost.multiplier {
+		fmt.Fprintf(sb, ", childMult = %.2f", nodeCost.childMultiplier)
+	}
 	if nodeCost.args > 0 {
 		fmt.Fprintf(sb, ", argsCost = %d", nodeCost.args)
 	}
