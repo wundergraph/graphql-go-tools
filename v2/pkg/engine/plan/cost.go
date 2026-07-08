@@ -966,13 +966,12 @@ func (c *CostCalculator) ActualCost(vars resolve.VariablesView, typeStats map[st
 }
 
 // ActualCostWithDenials returns the actual cost of the operation, excluding fields that were
-// denied by field authorization: the client never received a denied field or anything below
-// it, so its whole subtree is charged nothing. typeNameDenials holds the JSON paths of the
-// fields nulled by authorization during resolution (resolve.Context.TypeNameDenials);
+// denied by field authorization.
+// typeDenials holds the field paths of the fields denied by authorization during resolution.
 // nil is equivalent to ActualCost.
-func (c *CostCalculator) ActualCostWithDenials(vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats, typeNameDenials map[string]struct{}) int {
+func (c *CostCalculator) ActualCostWithDenials(vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats, typeDenials map[string]struct{}) int {
 	input := newCostInput(false, c, vars, typeStats)
-	input.typeNameDenials = typeNameDenials
+	input.typeNameDenials = typeDenials
 	// fmt.Println(c.DebugPrint(vars, typeStats))
 	return int(math.RoundToEven(c.tree.cost(input)))
 }

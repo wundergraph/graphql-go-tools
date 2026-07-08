@@ -211,7 +211,7 @@ func (r *Request) EstimatedCost() int {
 func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, resolveCtx *resolve.Context) {
 	// typeStats is nil unless the resolver was built with ResolvableOptions.EnableCostControl;
 	// without runtime stats the actual cost cannot be computed.
-	if calc == nil || resolveCtx.TypeNameStats == nil {
+	if calc == nil || resolveCtx == nil || resolveCtx.TypeNameStats == nil {
 		r.actualCost = 0
 		return
 	}
