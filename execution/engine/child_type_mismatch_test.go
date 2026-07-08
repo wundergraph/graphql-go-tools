@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -152,9 +153,7 @@ func childTypeMismatchResolveObject(doc *ast.Document, selectionSetRef int, rec 
 				continue
 			}
 			if nestedSet, ok := doc.InlineFragmentSelectionSet(selection.Ref); ok {
-				for key, value := range childTypeMismatchResolveObject(doc, nestedSet, rec) {
-					obj[key] = value
-				}
+				maps.Copy(obj, childTypeMismatchResolveObject(doc, nestedSet, rec))
 			}
 		}
 	}

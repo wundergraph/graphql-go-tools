@@ -20466,59 +20466,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								// Fetch 0: root query — first subgraph returns NodeA keys only (pool is @external)
 								resolve.Single(&resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{nodes {__typename ... on NodeA {__typename id}}}"}}`,
+										Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{nodes {__typename ... on NodeA {detail {__typename ... on Detail {__typename id}}}}}"}}`,
 										PostProcessing: DefaultPostProcessingConfiguration,
 										DataSource:     &Source{},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
-								// Fetch 1: entity-resolve NodeA from second subgraph.
-								// Second subgraph owns pool (non-external on NodeA), Pool1.detail, and Detail.uniqueField,
-								// so all three can be resolved inline without additional entity fetches.
+								// Fetch 1: entity-resolve Detail from first subgraph to get sharedField.
+								// This is the jump back — first subgraph is the only owner of Detail.sharedField.
 								resolve.SingleWithPath(&resolve.SingleFetch{
 									FetchDependencies: resolve.FetchDependencies{
 										FetchID:           1,
 										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              true,
-										RequiresEntityFetch:                   false,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NodeA {__typename detail {__typename ... on Detail {__typename id}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("NodeA")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("NodeA")},
-														},
-													},
-												}),
-											},
-										},
-										PostProcessing: EntitiesPostProcessingConfiguration,
-									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								}, "nodes", resolve.ArrayPath("nodes")),
-								// Fetch 2: entity-resolve Detail from first subgraph to get sharedField.
-								// This is the jump back — first subgraph is the only owner of Detail.sharedField.
-								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
 									},
 									FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              true,
