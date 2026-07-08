@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
 
@@ -177,4 +178,118 @@ func (d *Document) FieldTypeNode(fieldName []byte, enclosingNode Node) (node Nod
 	}
 
 	return node, true
+}
+
+// MergeFieldsDefer reconciles @__defer_internal directives when right is merged into left
+// (right is discarded by the caller). Rules:
+//   - if either side is not deferred, the merged field is not deferred — a non-deferred path
+//     means the field must be delivered in the initial response
+//   - if both sides defer, the smaller id wins, since lower ids correspond to earlier/outer
+//     defer scopes that subsume later ones
+func (d *Document) MergeFieldsDefer(left, right int) {
+	leftDeferDirectiveRef, leftDeferExists := d.Fields[left].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+	rightDeferDirectiveRef, rightDeferExists := d.Fields[right].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+
+	switch {
+	case !leftDeferExists && !rightDeferExists:
+		// do nothing
+	case leftDeferExists && !rightDeferExists:
+		d.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
+		d.Fields[left].HasDirectives = len(d.Fields[left].Directives.Refs) > 0
+	case !leftDeferExists:
+		// do nothing, as we are merging right into left
+		// and left do not have the defer,
+		// so right will be discarded
+	default:
+		// both have the defer; defer with smaller id wins
+		leftDeferIdValue, _ := d.DirectiveArgumentValueByName(leftDeferDirectiveRef, []byte("id"))
+		rightDeferIdValue, _ := d.DirectiveArgumentValueByName(rightDeferDirectiveRef, []byte("id"))
+
+		leftId := int(d.IntValueAsInt(leftDeferIdValue.Ref))
+		rightId := int(d.IntValueAsInt(rightDeferIdValue.Ref))
+
+		switch {
+		case leftId == rightId:
+			// do nothing, they are equal
+		case leftId < rightId:
+			// left wins, right discarded
+		case leftId > rightId:
+			d.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
+			// append a right defer to the left
+			// no need to import as a right will be discarded
+			d.Fields[left].Directives.Refs = append(d.Fields[left].Directives.Refs, rightDeferDirectiveRef)
+		}
+	}
+}
+
+// AddDeferInternalDirectiveToField attaches @__defer_internal(id: id, label: label, parentDeferId: parentID) to the given field.
+func (d *Document) AddDeferInternalDirectiveToField(fieldRef int, id int, label string, parentID int) {
+	if id == 0 {
+		return
+	}
+
+	var argRefs []int
+
+	argRefs = append(argRefs, d.AddIntArgument("id", id))
+
+	if label != "" {
+		argRefs = append(argRefs, d.AddStringArgument("label", label))
+	}
+	if parentID != 0 {
+		argRefs = append(argRefs, d.AddIntArgument("parentDeferId", parentID))
+	}
+
+	directiveRef := d.AddDirective(Directive{
+		Name:         d.Input.AppendInputBytes(literal.DEFER_INTERNAL),
+		HasArguments: len(argRefs) > 0,
+		Arguments: ArgumentList{
+			Refs: argRefs,
+		},
+	})
+
+	d.AddDirectiveToNode(directiveRef, Node{
+		Kind: NodeKindField,
+		Ref:  fieldRef,
+	})
+}
+
+func (d *Document) FieldInternalDeferID(fieldRef int) (id int, exists bool) {
+	id, _, exists = d.FieldInternalDeferIDWithDirectiveRef(fieldRef)
+	return
+}
+
+func (d *Document) FieldInternalDeferIDWithDirectiveRef(fieldRef int) (id int, directiveRef int, exists bool) {
+	directiveRef, ok := d.Fields[fieldRef].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+	if !ok {
+		return 0, 0, false
+	}
+	idValue, ok := d.DirectiveArgumentValueByName(directiveRef, []byte("id"))
+	if !ok || idValue.Kind != ValueKindInteger {
+		return 0, 0, false
+	}
+	return int(d.IntValueAsInt(idValue.Ref)), directiveRef, true
+}
+
+// FieldDeferInfo checks if the given field ref has @__defer_internal directive and
+// returns its id, label, parentID
+func (d *Document) FieldDeferInfo(fieldRef int) (id int, label string, parentID int, exists bool) {
+	directiveRef, ok := d.Fields[fieldRef].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+	if !ok {
+		return 0, "", 0, false
+	}
+	idValue, ok := d.DirectiveArgumentValueByName(directiveRef, []byte("id"))
+	if !ok || idValue.Kind != ValueKindInteger {
+		return 0, "", 0, false
+	}
+	id = int(d.IntValueAsInt(idValue.Ref))
+	if id == 0 {
+		return 0, "", 0, false
+	}
+	if labelValue, ok := d.DirectiveArgumentValueByName(directiveRef, []byte("label")); ok && labelValue.Kind == ValueKindString {
+		label = d.StringValueContentString(labelValue.Ref)
+	}
+	if parentValue, ok := d.DirectiveArgumentValueByName(directiveRef, []byte("parentDeferId")); ok && parentValue.Kind == ValueKindInteger {
+		parentID = int(d.IntValueAsInt(parentValue.Ref))
+	}
+	return id, label, parentID, true
 }

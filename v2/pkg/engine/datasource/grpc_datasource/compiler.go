@@ -247,7 +247,6 @@ func (d *Document) MessageRefByName(name string) int {
 		return InvalidRef
 	}
 	return node.ref
-
 }
 
 // MessageByRef returns a Message by its reference index.
@@ -490,7 +489,6 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		Output:      response,
 		RPC:         call,
 	}, nil
-
 }
 
 func (p *RPCCompiler) resolveServiceName(call *RPCCall) (string, bool) {
@@ -846,6 +844,10 @@ func (p *RPCCompiler) resolveDataForPath(message protoref.Message, path ast.Path
 				return nil
 			}
 
+			if path.Len() > 1 {
+				return p.resolveListDataForPath(field.List(), fd, path[1:])
+			}
+
 			return []protoref.Value{protoref.ValueOfList(field.List())}
 		}
 
@@ -892,7 +894,6 @@ func (p *RPCCompiler) resolveUnderlyingList(msg protoref.Message, fieldName stri
 	}
 
 	return p.resolveUnderlyingListItems(listFieldValue, nestingLevel)
-
 }
 
 // resolveUnderlyingListItems resolves the items in a list message.
@@ -1263,7 +1264,6 @@ func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field *F
 		rpcField,
 		data.Get(rpcField.JSONPath),
 	)
-
 	if err != nil {
 		return nil, err
 	}

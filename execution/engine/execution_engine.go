@@ -153,6 +153,12 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			astnormalization.WithRemoveFragmentDefinitions(),
 			astnormalization.WithRemoveUnusedVariables(),
 			astnormalization.WithInlineFragmentSpreads(),
+			astnormalization.WithEnableDefer(),
+			astnormalization.WithPrevalidationRules(
+				astvalidation.DeferStreamOnValidOperations(),
+				astvalidation.DeferStreamHaveUniqueLabels(),
+				astvalidation.DirectivesAreInValidLocations(),
+				astvalidation.StreamAppliedToListFieldsOnly()),
 		)
 		if err != nil {
 			return err
@@ -261,6 +267,9 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			operation.ComputeActualCost(costCalculator, varsView, execContext.resolveContext.TypeNameStats)
 		}
 		return nil
+	case *plan.DeferResponsePlan:
+		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, writer)
+		return err
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:

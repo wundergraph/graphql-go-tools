@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.17.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.16.0...execution/v1.17.0) (2026-07-07)
+
+
+### Features
+
+* add defer support part 4 ([#1547](https://github.com/wundergraph/graphql-go-tools/issues/1547)) ([8891a0e](https://github.com/wundergraph/graphql-go-tools/commit/8891a0e9e606a3b3055e671a48a9e7bbc5a928ea))
+
+
+### Bug Fixes
+
+* do not charge children of null-parents ([#1574](https://github.com/wundergraph/graphql-go-tools/issues/1574)) ([cf436ec](https://github.com/wundergraph/graphql-go-tools/commit/cf436ec42bd6d5755429d93f8bcd5ea6ccb88be5))
+
+## [1.16.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.6...execution/v1.16.0) (2026-06-18)
+
+
+### Features
+
+* enable to ignore cost weights on implementing types ([#1542](https://github.com/wundergraph/graphql-go-tools/issues/1542)) ([1ade300](https://github.com/wundergraph/graphql-go-tools/commit/1ade300421bcb1b68cefd63fc5268f19ee56336c))
+
+
+### Bug Fixes
+
+* **cost:** determine correctly the type of list-wrapped scalars and enums ([#1546](https://github.com/wundergraph/graphql-go-tools/issues/1546)) ([2575480](https://github.com/wundergraph/graphql-go-tools/commit/2575480b966074a887db1f96ee8a0ef2022effcd))
+
 ## [1.15.6](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.15.5...execution/v1.15.6) (2026-06-11)
 
 

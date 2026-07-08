@@ -95,6 +95,7 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
 		engineConf.plannerConfig.ComputeCosts = opts.computeCosts
 		engineConf.plannerConfig.StaticCostDefaultListSize = 10
+		engineConf.plannerConfig.IgnoreImplementingTypeWeights = opts.ignoreImplementingTypeWeights
 		engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
 		resolveOpts := resolve.ResolverOptions{
 			MaxConcurrency:    1024,
@@ -103,12 +104,30 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			PropagateFetchReasons:                        opts.propagateFetchReasons,
 			ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
 		}
+		resolveOpts.ResolvableOptions.EnableCostControl = opts.computeCosts
 		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolveOpts)
 		require.NoError(t, err)
 
 		operation := testCase.operation(t)
 		resultWriter := graphql.NewEngineResultWriter()
+
+		// One sequencer per execution, injected via context, so the round tripper
+		// (shared across parallel subtests) deterministically orders this
+		// execution's concurrent fetches without colliding with sibling subtests.
+		seq := newFetchSequencer(testCase.fetchGates)
+
+		streamingBuf := bytes.NewBuffer(nil)
+		if opts.streamingResponse {
+			resultWriter.SetFlushCallback(func(data []byte) {
+				streamingBuf.Write(data)
+				streamingBuf.Write([]byte{'\n'})
+				// Each flush is one streamed frame; release any fetch gated behind it.
+				seq.advance()
+			})
+		}
+
 		execCtx, execCtxCancel := context.WithCancel(context.Background())
+		execCtx = context.WithValue(execCtx, fetchSequencerCtxKey, seq)
 		defer execCtxCancel()
 		err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
 		actualResponse := resultWriter.String()
@@ -138,8 +157,19 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			assert.Equal(t, compactJSONForAssert(t, testCase.expectedJSONResponse), compactJSONForAssert(t, actualResponse))
 		}
 
-		if testCase.expectedResponse != "" {
-			assert.Equal(t, testCase.expectedResponse, actualResponse)
+		if opts.streamingResponse {
+			streamingResponse := streamingBuf.String()
+			if testCase.expectedResponse != "" {
+				assert.Equal(t, testCase.expectedResponse, streamingResponse)
+			}
+
+			if len(testCase.expectedResponses) > 0 {
+				assert.Contains(t, testCase.expectedResponses, streamingResponse)
+			}
+		} else {
+			if testCase.expectedResponse != "" {
+				assert.Equal(t, testCase.expectedResponse, actualResponse)
+			}
 		}
 
 		if testCase.expectedEstimatedCost != nil {
@@ -333,7 +363,15 @@ type ExecutionEngineTestCase struct {
 	skipReason       string
 	indentJSON       bool
 
+	// fetchGates deterministically orders concurrent subgraph fetches for
+	// order-dependent (streaming) defer tests. It maps an exact subgraph
+	// request body to the number of streamed frames that must be flushed before
+	// that fetch is allowed to return (see fetchSequencer). Replaces brittle
+	// per-response latencies.
+	fetchGates map[string]int
+
 	expectedResponse      string
+	expectedResponses     []string
 	expectedJSONResponse  string
 	expectedFixture       string
 	expectedEstimatedCost *int
@@ -347,7 +385,9 @@ type _executionTestOptions struct {
 	propagateFetchReasons                        bool
 	validateRequiredExternalFields               bool
 	computeCosts                                 bool
+	ignoreImplementingTypeWeights                bool
 	relaxFieldSelectionMergingNullability        bool
+	streamingResponse                            bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -378,9 +418,21 @@ func computeCosts() executionTestOptions {
 	}
 }
 
+func costsIgnoreImplementingTypeWeights() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.ignoreImplementingTypeWeights = true
+	}
+}
+
 func relaxFieldSelectionMergingNullability() executionTestOptions {
 	return func(options *_executionTestOptions) {
 		options.relaxFieldSelectionMergingNullability = true
+	}
+}
+
+func withStreamingResponse() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.streamingResponse = true
 	}
 }
 
@@ -1656,7 +1708,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     "",
-						sendResponseBody: `{"data":{"__internal__typename_placeholder":"Query"}}`,
+						sendResponseBody: `doesn't matter, no fetch will be done, as query typename resolved by engine`,
 						sendStatusCode:   200,
 					}),
 				),
@@ -1692,6 +1744,82 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		},
 		expectedResponse: `{"data":{}}`,
+	}))
+
+	t.Run("execute operation with all nested fields skipped", runWithoutError(ExecutionEngineTestCase{
+		schema: func(t *testing.T) *graphql.Schema {
+			t.Helper()
+			schema := `
+			type Query {
+				hero(name: String!): Hero!
+			}
+
+			type Hero {
+				name: String!
+			}
+			`
+			parseSchema, err := graphql.NewSchemaFromString(schema)
+			require.NoError(t, err)
+			return parseSchema
+		}(t),
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "MyHero",
+				Variables:     []byte(`{"heroName": "Luke"}`),
+				Query: `query MyHero($heroName: String!){
+						hero(name: $heroName) {
+							name @skip(if: true)
+						}
+					}`,
+			}
+		},
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     "",
+						sendResponseBody: `{"data":{"hero":{"__typename":"Hero"}}}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					ChildNodes: []plan.TypeField{
+						{TypeName: "Hero", FieldNames: []string{"name"}},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						`type Query { hero(name: String!): Hero! } type Hero { name: String! }`,
+					),
+				}),
+			),
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Path:      []string{"hero"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{"hero":{}}}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineTestCase{
