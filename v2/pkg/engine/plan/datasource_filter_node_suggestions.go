@@ -42,7 +42,16 @@ type NodeSuggestion struct {
 	deferInfo          *DeferInfo // this node's own defer directive, if the field itself is deferred
 	descendantDeferIDs []int      // defer ids of deferred descendant fields that route through this node (this node is on their parent path to the root)
 
+	// requiresKey holds the key jump path used to reach this node's datasource
+	// from the datasource of a selected parent. Nil when the parent is on the same datasource.
 	requiresKey *SourceConnection
+
+	// requiresFallbackKey marks a node which could NOT be reached with an exact key jump,
+	// but could be reached with a fallback (subset -> compound key) jump.
+	// The fallback jump is not assigned right away: the marker makes nodesResolvableVisitor
+	// report the field as unresolved, which lets NodeSelectionBuilder enable fallback key jumps
+	// and refilter the datasources. Only then assignKeys assigns the fallback path as requiresKey.
+	requiresFallbackKey bool
 }
 
 type DeferInfo struct {
@@ -523,9 +532,18 @@ func (f *NodeSuggestions) providedSelectionForParentOfField(dsHash DSHash, field
 }
 
 func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
-	items, ok := f.pathSuggestions[path]
+	suggestion, ok := f.SelectedSuggestionForPath(typeName, fieldName, path)
 	if !ok {
 		return 0, false
+	}
+
+	return suggestion.DataSourceHash, true
+}
+
+func (f *NodeSuggestions) SelectedSuggestionForPath(typeName, fieldName, path string) (suggestion *NodeSuggestion, ok bool) {
+	items, ok := f.pathSuggestions[path]
+	if !ok {
+		return nil, false
 	}
 
 	for i := range items {
@@ -534,7 +552,80 @@ func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string)
 		}
 
 		if typeName == items[i].TypeName && fieldName == items[i].FieldName && items[i].Selected {
-			return items[i].DataSourceHash, true
+			return items[i], true
+		}
+	}
+
+	return nil, false
+}
+
+// suggestionsForFieldRef returns indexes of the suggestion items for the given field ref.
+// Suggestions for one field ref are grouped under a single response tree node,
+// so the lookup is cheap. When a tree node was removed, its items are orphaned,
+// so a missing tree node means there are no usable suggestions for the field ref.
+func (f *NodeSuggestions) suggestionsForFieldRef(fieldRef int) []int {
+	treeNode, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	if !ok {
+		return nil
+	}
+
+	return treeNode.GetData()
+}
+
+func (f *NodeSuggestions) hasSelectedSuggestionForFieldRefOnDataSource(fieldRef int, dsHash DSHash) bool {
+	for _, itemIdx := range f.suggestionsForFieldRef(fieldRef) {
+		item := f.items[itemIdx]
+		if item.IsOrphan {
+			continue
+		}
+		if !item.Selected {
+			continue
+		}
+		if item.DataSourceHash == dsHash {
+			return true
+		}
+	}
+
+	return false
+}
+
+// firstNonTargetSuggestionForFieldRef returns a datasource able to resolve the given field ref
+// other than the target datasource. It is used to plan a gather hop for a fallback key jump:
+// a member of the target's compound key which the jump source cannot provide (see KeyJump.SourcePaths)
+// has to be fetched from some third datasource before jumping into the target one.
+// Selected suggestions are preferred to reuse fetches which will happen anyway.
+func (f *NodeSuggestions) firstNonTargetSuggestionForFieldRef(fieldRef int, target DSHash) (DSHash, bool) {
+	itemIndexes := f.suggestionsForFieldRef(fieldRef)
+
+	isCandidate := func(item *NodeSuggestion) bool {
+		if item.IsOrphan {
+			return false
+		}
+		if item.DataSourceHash == target {
+			return false
+		}
+		if item.IsExternal && !item.IsProvided {
+			return false
+		}
+		// a datasource which itself needs a fallback jump missing this very field
+		// cannot be used to gather it
+		if sourceConnectionRequiresMissingFallbackKeyField(item.requiresKey, item) {
+			return false
+		}
+		return true
+	}
+
+	for _, itemIdx := range itemIndexes {
+		item := f.items[itemIdx]
+		if item.Selected && isCandidate(item) {
+			return item.DataSourceHash, true
+		}
+	}
+
+	for _, itemIdx := range itemIndexes {
+		item := f.items[itemIdx]
+		if isCandidate(item) {
+			return item.DataSourceHash, true
 		}
 	}
 

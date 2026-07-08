@@ -213,6 +213,155 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}, path)
 		})
 
+		t.Run("no_regular_connection_when_source_key_is_subset_of_target_key", func(t *testing.T) {
+			keysPerPath := map[DSHash][]KeyInfo{
+				1: {
+					{
+						DSHash:       1,
+						TypeName:     "ProductList",
+						SelectionSet: "products { id }",
+						FieldPaths: []KeyInfoFieldPath{
+							{Path: "query.topProducts.products"},
+							{Path: "query.topProducts.products.id"},
+						},
+						Source: true,
+						Target: false,
+					},
+				},
+				2: {
+					{
+						DSHash:       2,
+						TypeName:     "ProductList",
+						SelectionSet: "products { id pid }",
+						FieldPaths: []KeyInfoFieldPath{
+							{Path: "query.topProducts.products"},
+							{Path: "query.topProducts.products.id"},
+							{Path: "query.topProducts.products.pid"},
+						},
+						Source: false,
+						Target: true,
+					},
+				},
+			}
+
+			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "ProductList")
+			path, exists := graph.GetPaths(1, 2)
+			assert.False(t, exists, "Should not use fallback subset-key connection during regular lookup")
+			assert.Nil(t, path, "Path should be nil")
+		})
+
+		t.Run("fallback_connection_when_source_key_is_subset_of_target_key", func(t *testing.T) {
+			keysPerPath := map[DSHash][]KeyInfo{
+				1: {
+					{
+						DSHash:       1,
+						TypeName:     "ProductList",
+						SelectionSet: "products { id }",
+						FieldPaths: []KeyInfoFieldPath{
+							{Path: "query.topProducts.products"},
+							{Path: "query.topProducts.products.id"},
+						},
+						Source: true,
+						Target: false,
+					},
+				},
+				2: {
+					{
+						DSHash:       2,
+						TypeName:     "ProductList",
+						SelectionSet: "products { id pid }",
+						FieldPaths: []KeyInfoFieldPath{
+							{Path: "query.topProducts.products"},
+							{Path: "query.topProducts.products.id"},
+							{Path: "query.topProducts.products.pid"},
+						},
+						Source: false,
+						Target: true,
+					},
+				},
+			}
+
+			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "ProductList")
+			path, exists := graph.GetPathsWithFallback(1, 2)
+			assert.True(t, exists, "Should have a connection")
+
+			assert.Equal(t, []SourceConnection{
+				{
+					Source: 1,
+					Target: 2,
+					Jumps: []KeyJump{
+						{
+							From:         1,
+							To:           2,
+							SelectionSet: "products { id pid }",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.topProducts.products"},
+								{Path: "query.topProducts.products.id"},
+								{Path: "query.topProducts.products.pid"},
+							},
+							TypeName: "ProductList",
+							Fallback: true,
+							SourcePaths: []KeyInfoFieldPath{
+								{Path: "query.topProducts.products"},
+								{Path: "query.topProducts.products.id"},
+							},
+						},
+					},
+					Type: SourceConnectionTypeDirect,
+				},
+			}, path)
+		})
+
+	})
+
+	t.Run("fallback connections have lower priority than regular paths", func(t *testing.T) {
+		keysPerPath := map[DSHash][]KeyInfo{
+			1: {
+				{
+					DSHash:       1,
+					TypeName:     "ProductList",
+					SelectionSet: "products { id }",
+					FieldPaths: []KeyInfoFieldPath{
+						{Path: "query.topProducts.products"},
+						{Path: "query.topProducts.products.id"},
+					},
+					Source: true,
+					Target: false,
+				},
+				{
+					DSHash:       1,
+					TypeName:     "ProductList",
+					SelectionSet: "products { id pid }",
+					FieldPaths: []KeyInfoFieldPath{
+						{Path: "query.topProducts.products"},
+						{Path: "query.topProducts.products.id"},
+						{Path: "query.topProducts.products.pid"},
+					},
+					Source: true,
+					Target: false,
+				},
+			},
+			2: {
+				{
+					DSHash:       2,
+					TypeName:     "ProductList",
+					SelectionSet: "products { id pid }",
+					FieldPaths: []KeyInfoFieldPath{
+						{Path: "query.topProducts.products"},
+						{Path: "query.topProducts.products.id"},
+						{Path: "query.topProducts.products.pid"},
+					},
+					Source: false,
+					Target: true,
+				},
+			},
+		}
+
+		graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "ProductList")
+		path, exists := hasPathBetweenDs(graph, 1, 2, true)
+		assert.True(t, exists, "Should have a connection")
+		assert.False(t, path.Jumps[0].Fallback, "Should prefer the exact-key route over fallback")
+		assert.Equal(t, "products { id pid }", path.Jumps[0].SelectionSet)
 	})
 
 	t.Run("indirect_connection_through_key_chain_with_correct_source/target_keys", func(t *testing.T) {

@@ -86,6 +86,41 @@ func (c *nodeSelectionVisitor) addNewFieldRefs(fieldRefs ...int) {
 	}
 }
 
+// pruneStaleFieldRequirements removes field requirements recorded for (field, datasource) pairs
+// which are no longer selected. When fallback key jumps get enabled, the datasources are
+// refiltered from scratch, and fields may land on different datasources than on the previous runs.
+// Requirements of the de-selected pairs would otherwise remain in the dependency maps
+// and produce dependencies on fetches which will never happen.
+func (c *nodeSelectionVisitor) pruneStaleFieldRequirements() {
+	if len(c.fieldDependsOn) == 0 {
+		return
+	}
+
+	for fieldKey, deps := range c.fieldDependsOn {
+		if c.nodeSuggestions.hasSelectedSuggestionForFieldRefOnDataSource(fieldKey.fieldRef, fieldKey.dsHash) {
+			continue
+		}
+
+		delete(c.fieldDependsOn, fieldKey)
+		delete(c.fieldRequirementsConfigs, fieldKey)
+		delete(c.visitedFieldsKeyChecks, fieldKey)
+		delete(c.visitedFieldsRequiresChecks, fieldKey)
+		for _, dep := range deps {
+			delete(c.fieldDependencyKind, fieldDependencyKey{field: fieldKey.fieldRef, dependsOn: dep})
+		}
+	}
+
+	c.fieldRefDependsOn = make(map[int][]int, len(c.fieldDependsOn))
+	for fieldKey, deps := range c.fieldDependsOn {
+		for _, dep := range deps {
+			if slices.Contains(c.fieldRefDependsOn[fieldKey.fieldRef], dep) {
+				continue
+			}
+			c.fieldRefDependsOn[fieldKey.fieldRef] = append(c.fieldRefDependsOn[fieldKey.fieldRef], dep)
+		}
+	}
+}
+
 type fieldDependencyKey struct {
 	field, dependsOn int
 }
@@ -776,7 +811,27 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 			}
 		}
 
-		for _, requiredFieldRef := range currentFieldRefs {
+		// Record which datasource each required key field should be fetched from.
+		// For a regular jump the source datasource provides the whole key.
+		// For a fallback jump (sourcePathSet is not empty) the source provides
+		// only a subset of the target compound key: key members present in the
+		// source key land on the jump source, while each missing member has to be
+		// gathered from some other datasource (the gather hop of the fallback jump).
+		sourcePathSet := keyJumpSourcePathSet(jump)
+		for i, requiredFieldRef := range currentFieldRefs {
+			if len(sourcePathSet) != 0 {
+				if i >= len(jump.FieldPaths) {
+					continue
+				}
+				if _, ok := sourcePathSet[jump.FieldPaths[i].Path]; ok {
+					c.fieldLandedTo[requiredFieldRef] = jump.From
+					continue
+				}
+				if dsHash, ok := c.nodeSuggestions.firstNonTargetSuggestionForFieldRef(requiredFieldRef, jump.To); ok {
+					c.fieldLandedTo[requiredFieldRef] = dsHash
+				}
+				continue
+			}
 			c.fieldLandedTo[requiredFieldRef] = jump.From
 		}
 
@@ -784,6 +839,20 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 	}
 
 	c.hasNewFields = true
+}
+
+// keyJumpSourcePathSet returns the set of key field paths which the jump source datasource
+// can provide by itself. Non-empty only for fallback jumps (see KeyJump.SourcePaths).
+func keyJumpSourcePathSet(jump KeyJump) map[string]struct{} {
+	if len(jump.SourcePaths) == 0 {
+		return nil
+	}
+
+	out := make(map[string]struct{}, len(jump.SourcePaths))
+	for _, path := range jump.SourcePaths {
+		out[path.Path] = struct{}{}
+	}
+	return out
 }
 
 func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldRef int, ds DataSource) {

@@ -53,10 +53,27 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 	parentPath := f.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
 
-	_, found := f.nodes.HasSuggestionForPath(typeName, fieldName, currentPath)
+	suggestion, found := f.nodes.SelectedSuggestionForPath(typeName, fieldName, currentPath)
 	if !found {
 		f.walker.StopWithInternalErr(errors.Wrap(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath}, "nodesResolvableVisitor"))
+		return
 	}
+
+	// Root fields are fetched directly, never via an entity jump,
+	// so the requiresFallbackKey marker is not applicable to them.
+	if f.definition.Index.IsRootOperationTypeNameString(typeName) {
+		return
+	}
+
+	if !suggestion.requiresFallbackKey {
+		return
+	}
+
+	// The field has a selected suggestion, but its datasource is reachable only via
+	// a fallback (subset -> compound key) jump, which is not allowed on this run.
+	// Report the field as unresolved: NodeSelectionBuilder reacts to this error
+	// by enabling fallback key jumps and refiltering the datasources.
+	f.walker.StopWithInternalErr(errors.Wrap(&errOperationFieldNotResolved{TypeName: typeName, FieldName: fieldName, Path: currentPath}, "nodesResolvableVisitor"))
 }
 
 type errOperationFieldNotResolved struct {
