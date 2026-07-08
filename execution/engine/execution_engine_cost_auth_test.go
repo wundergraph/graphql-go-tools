@@ -165,7 +165,7 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 				{TypeName: "User", FieldName: "secret"}: "missing scope 'secret:read'",
 			}),
 			expectedResponse: `{"errors":[{"message":"Unauthorized to load field 'Query.user.secret', Reason: missing scope 'secret:read'.","path":["user","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"user":{"id":"1","secret":null}}}`,
-		
+
 			expectedEstimatedCost: intPtr(22), // Query.user (5) + User.secret (17)
 			expectedActualCost:    intPtr(5),  // Query.user (5)
 		},
