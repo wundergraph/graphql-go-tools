@@ -58,16 +58,6 @@ type GRPCConfiguration struct {
 	Compiler *RPCCompiler // The compiler for the RPC
 }
 
-// ConnectConfiguration holds Connect protocol-specific configuration. The
-// gRPC configuration is still required when Connect is set, as Connect reuses
-// the same protobuf mapping and compiler; only the wire transport differs.
-type ConnectConfiguration struct {
-	// BaseURL is the base URL of the Connect service (e.g., "http://localhost:8080").
-	BaseURL string
-	// Encoding specifies the serialization format (Protobuf or JSON).
-	Encoding ConnectEncoding
-}
-
 // RPCConfig defines the configuration for a specific RPC operation
 type RPCConfig struct {
 	// RPC is the name of the RPC method to call

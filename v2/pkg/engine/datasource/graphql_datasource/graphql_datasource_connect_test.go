@@ -44,56 +44,28 @@ func TestNewFactoryRPCTransport_PropagatesTransport(t *testing.T) {
 		"AlwaysFlattenFragments must be true for RPC-backed factories so the planner emits inline fields")
 }
 
-// TestNewConfiguration_ConnectRequiresGRPC asserts the invariant that a
-// Connect configuration cannot stand alone: it reuses the gRPC mapping and
-// compiler, so the GRPC field on ConfigurationInput must also be populated.
-func TestNewConfiguration_ConnectRequiresGRPC(t *testing.T) {
-	schema, err := NewSchemaConfiguration(`type Query { hello: String }`, nil)
-	require.NoError(t, err)
-
-	_, err = NewConfiguration(ConfigurationInput{
-		SchemaConfiguration: schema,
-		Connect: &grpcdatasource.ConnectConfiguration{
-			BaseURL:  "http://localhost:8080",
-			Encoding: grpcdatasource.ConnectEncodingProtobuf,
-		},
-	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "grpc configuration")
-	require.Contains(t, err.Error(), "connect")
-}
-
-// TestNewConfiguration_ConnectWithGRPCSucceeds verifies the happy path:
-// when both GRPC (mapping/compiler) and Connect (transport endpoint) are
-// supplied, the configuration is accepted and reports IsConnect/IsGRPC.
-func TestNewConfiguration_ConnectWithGRPCSucceeds(t *testing.T) {
+// TestNewConfiguration_GRPCSucceeds verifies that RPC-backed datasources still
+// use the gRPC mapping/compiler configuration. The actual wire protocol is
+// selected by the RPCTransport supplied to the factory.
+func TestNewConfiguration_GRPCSucceeds(t *testing.T) {
 	schema, err := NewSchemaConfiguration(`type Query { hello: String }`, nil)
 	require.NoError(t, err)
 
 	cfg, err := NewConfiguration(ConfigurationInput{
 		SchemaConfiguration: schema,
 		GRPC:                &grpcdatasource.GRPCConfiguration{},
-		Connect: &grpcdatasource.ConnectConfiguration{
-			BaseURL:  "http://localhost:8080",
-			Encoding: grpcdatasource.ConnectEncodingProtobuf,
-		},
 	})
 	require.NoError(t, err)
-	require.True(t, cfg.IsGRPC(), "GRPC mapping/compiler is still in play under Connect")
-	require.True(t, cfg.IsConnect())
+	require.True(t, cfg.IsGRPC())
 }
 
-// TestNewConfiguration_EmptyConfigMentionsConnect makes sure the error
-// surfaced when no transport-bearing configuration is supplied calls out
-// the connect option, so callers do not assume only fetch/subscription/grpc
-// are valid.
-func TestNewConfiguration_EmptyConfigMentionsConnect(t *testing.T) {
+func TestNewConfiguration_EmptyConfigMentionsGRPC(t *testing.T) {
 	schema, err := NewSchemaConfiguration(`type Query { hello: String }`, nil)
 	require.NoError(t, err)
 
 	_, err = NewConfiguration(ConfigurationInput{SchemaConfiguration: schema})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "connect")
+	require.Contains(t, err.Error(), "grpc")
 }
 
 // stubRPCTransport implements grpcdatasource.RPCTransport for tests that
