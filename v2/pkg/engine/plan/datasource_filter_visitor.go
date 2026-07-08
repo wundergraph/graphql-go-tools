@@ -359,10 +359,12 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 	currentNodeTypeName := currentNode.TypeName
 
 	selectedParentHashes := make([]DSHash, 0, len(parentNodeIndexes))
+	unselectedParentIndexes := make([]int, 0, len(parentNodeIndexes))
 	hasSelectedParentOnSameDataSource := false
 
 	for _, parentIdx := range parentNodeIndexes {
 		if !f.nodes.items[parentIdx].Selected {
+			unselectedParentIndexes = append(unselectedParentIndexes, parentIdx)
 			continue
 		}
 
@@ -387,8 +389,41 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 		path, exists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash)
 		if exists {
 			currentNode.requiresKey = path
-			break
+			return
 		}
+	}
+
+	if len(selectedParentHashes) == 0 {
+		// no parent is selected yet - the node will be revisited on the next run
+		return
+	}
+
+	// None of the selected parents' datasources could provide a key for the jump
+	// to the current node's datasource, but a not yet selected parent duplicate could,
+	// e.g. when the key field is resolvable only from a sibling subgraph.
+	// Select such a parent in addition and route the key jump through it.
+	for _, parentIdx := range unselectedParentIndexes {
+		parentNode := f.nodes.items[parentIdx]
+
+		if parentNode.IsOrphan || parentNode.DataSourceHash == currentNodeDsHash {
+			continue
+		}
+
+		path, exists := hasPathBetweenDs(jumpsForTypename, parentNode.DataSourceHash, currentNodeDsHash)
+		if !exists {
+			continue
+		}
+
+		if !f.selectWithExternalCheck(parentIdx, ReasonStage3SelectParentNodeWhichCouldGiveKeys) {
+			continue
+		}
+
+		currentNode.requiresKey = path
+
+		// the newly selected parent may itself require a key to be reachable
+		parentTreeNode := f.nodes.treeNode(parentIdx)
+		f.assignKeys(parentIdx, parentTreeNode.GetParent().GetData())
+		return
 	}
 }
 
