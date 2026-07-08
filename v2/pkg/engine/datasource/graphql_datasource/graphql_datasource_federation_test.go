@@ -20224,26 +20224,26 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		// abstract types with @external fields to reach an entity whose fields are
 		// split across subgraphs. Mirrors a real-world pattern where:
 		//
-		//   - Node (interface) is implemented by NodeA and NodeB
-		//   - NodeA/NodeB declare pool: Pool! as @external in the first subgraph
-		//     (to satisfy the Node interface), but Pool is truly owned by the second subgraph
-		//   - Pool (interface) is implemented by Pool1
-		//   - Pool1.detail: Detail! is @external in the first subgraph, owned by the second
-		//   - Detail is an entity with fields split across subgraphs:
-		//       uniqueField → second subgraph only
-		//       sharedField → first subgraph only
+		//   - Node (interface) is implemented by NodeA
+		//   - NodeA.detail: Detailer is @external in the first subgraph
+		//     (declared to satisfy the Node interface), but is owned by the second subgraph
+		//   - Detailer (interface) is implemented by the Detail entity
+		//   - Detail.id (the @key) is resolvable from both subgraphs
+		//   - Detail's remaining field is owned by a single subgraph:
+		//       uniqueField → first subgraph only
+		//       (id is the shared @key, listed above)
 		//
-		// Expected execution (zigzag: first → second → first):
-		//   Fetch 0: first  subgraph — root nodes query, returns NodeA keys
-		//   Fetch 1: second subgraph — entity-resolve NodeA, traverse pool → Pool1 → detail,
-		//                              inline Detail.uniqueField (owned by second subgraph)
-		//   Fetch 2: first  subgraph — entity-resolve Detail to get sharedField
+		// Expected execution (second → first):
+		//   Fetch 0: second subgraph — root nodes query, resolves detail, returns Detail id keys
+		//   Fetch 1: first  subgraph — entity-resolve Detail by id to get uniqueField
+		//                              (the first subgraph is the only owner of uniqueField)
+		//   (there is no third fetch)
 		//
-		// Planner confusion: Pool1 appears as an entity in the first subgraph with
-		// detail @external. The planner may incorrectly try to resolve detail through
-		// the first subgraph's Pool1 entity, not realising it must go via the second
-		// subgraph's NodeA entity resolution first.
-		t.Run("external pool interface field on node implementation with split detail entity", func(t *testing.T) {
+		// Planner subtlety: NodeA.detail is @external in the first subgraph, so detail cannot
+		// be resolved there directly; the planner must resolve nodes/detail via the second
+		// subgraph first, then jump back to the first subgraph for Detail.uniqueField.
+		// Detail.uniqueField is owned only by the first subgraph.
+		t.Run("external interface field on node implementation with split detail entity", func(t *testing.T) {
 			definition := `
 				type Query {
 					nodes: [Node!]!
@@ -20270,8 +20270,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 			`
 
-			// First subgraph: query root + NodeA/NodeB as entities (pool is @external).
-			// Owns Detail.sharedField. Pool1.detail is @external (owned by second subgraph).
+			// First subgraph: query root + NodeA entity; NodeA.detail is @external here.
+			// Owns Detail.uniqueField (the field the plan must jump back for).
 			firstSubgraphSDL := `
 				type Query {
 					nodes: [Node!]!
@@ -20356,8 +20356,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				),
 			)
 
-			// Second subgraph: owns pool on NodeA/NodeB, owns detail on Pool1,
-			// owns Detail.uniqueField. Detail.sharedField lives only in first subgraph.
+			// Second subgraph: query root + NodeA entity with the real NodeA.detail,
+			// plus the Detail entity key (id). It does not own Detail.uniqueField.
 			secondSubgraphSDL := `
 				type Query {
 					nodes: [Node!]!
@@ -20463,7 +20463,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					&plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
-								// Fetch 0: root query — first subgraph returns NodeA keys only (pool is @external)
+								// Fetch 0: root query — second subgraph resolves nodes and detail, returning Detail id keys
 								resolve.Single(&resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
 										Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{nodes {__typename ... on NodeA {detail {__typename ... on Detail {__typename id}}}}}"}}`,
@@ -20472,8 +20472,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
-								// Fetch 1: entity-resolve Detail from first subgraph to get sharedField.
-								// This is the jump back — first subgraph is the only owner of Detail.sharedField.
+								// Fetch 1: entity-resolve Detail from first subgraph to get uniqueField.
+								// This is the jump back — first subgraph is the only owner of Detail.uniqueField.
 								resolve.SingleWithPath(&resolve.SingleFetch{
 									FetchDependencies: resolve.FetchDependencies{
 										FetchID:           1,
