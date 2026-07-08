@@ -21,18 +21,7 @@ type ConfigurationInput struct {
 	CustomScalarTypeFields []SingleTypeField
 
 	GRPC    *grpcdatasource.GRPCConfiguration
-	Connect *ConnectConfiguration
-}
-
-// ConnectConfiguration holds Connect protocol-specific configuration. The
-// GRPC field on ConfigurationInput is still required when Connect is set, as
-// Connect reuses the same protobuf mapping and compiler — only the wire
-// transport differs.
-type ConnectConfiguration struct {
-	// BaseURL is the base URL of the Connect service (e.g., "http://localhost:8080").
-	BaseURL string
-	// Encoding specifies the serialization format (Protobuf or JSON).
-	Encoding grpcdatasource.ConnectEncoding
+	Connect *grpcdatasource.ConnectConfiguration
 }
 
 type Configuration struct {
@@ -42,7 +31,7 @@ type Configuration struct {
 	customScalarTypeFields []SingleTypeField
 
 	grpc    *grpcdatasource.GRPCConfiguration
-	connect *ConnectConfiguration
+	connect *grpcdatasource.ConnectConfiguration
 }
 
 func NewConfiguration(input ConfigurationInput) (Configuration, error) {
@@ -60,7 +49,7 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 	cfg.schemaConfiguration = *input.SchemaConfiguration
 
 	if input.Fetch == nil && input.Subscription == nil && input.GRPC == nil && input.Connect == nil {
-		return Configuration{}, errors.New("fetch or subscription or grpc or connect configuration is required")
+		return Configuration{}, errors.New("fetch / subscription / grpc / connect configuration is required")
 	}
 
 	if input.Fetch != nil {

@@ -12,38 +12,36 @@ import (
 	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
 )
 
-func TestNewFactoryConnect_NilCtx(t *testing.T) {
+func TestNewFactoryRPCTransport_NilCtx(t *testing.T) {
 	var nilCtx context.Context
-	_, err := NewFactoryConnect(nilCtx, &stubRPCTransport{})
+	_, err := NewFactoryRPCTransport(nilCtx, &stubRPCTransport{})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "execution context is required")
 }
 
-func TestNewFactoryConnect_NilTransport(t *testing.T) {
-	_, err := NewFactoryConnect(context.Background(), nil)
+func TestNewFactoryRPCTransport_NilTransport(t *testing.T) {
+	_, err := NewFactoryRPCTransport(context.Background(), nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "connect transport is required")
+	require.Contains(t, err.Error(), "rpc transport is required")
 }
 
-// TestNewFactoryConnect_PropagatesTransport verifies that the Connect
-// transport supplied to NewFactoryConnect flows through to the Planner
+// TestNewFactoryRPCTransport_PropagatesTransport verifies that the RPC
+// transport supplied to NewFactoryRPCTransport flows through to the Planner
 // instances the Factory produces, and that PlanningBehavior reflects the
-// Connect-backed Factory.
-func TestNewFactoryConnect_PropagatesTransport(t *testing.T) {
+// RPC-backed Factory.
+func TestNewFactoryRPCTransport_PropagatesTransport(t *testing.T) {
 	transport := &stubRPCTransport{}
-	f, err := NewFactoryConnect(context.Background(), transport)
+	f, err := NewFactoryRPCTransport(context.Background(), transport)
 	require.NoError(t, err)
 	require.NotNil(t, f)
-	require.Same(t, transport, f.connectTransport)
-	require.Nil(t, f.grpcClient)
+	require.Same(t, transport, f.rpcTransport)
 
 	planner, ok := f.Planner(abstractlogger.NoopLogger).(*Planner[Configuration])
 	require.True(t, ok, "Planner returned unexpected type")
-	require.Same(t, transport, planner.connectTransport)
-	require.Nil(t, planner.grpcClient)
+	require.Same(t, transport, planner.rpcTransport)
 
 	require.True(t, f.PlanningBehavior().AlwaysFlattenFragments,
-		"AlwaysFlattenFragments must be true for Connect-backed factories so the planner emits inline fields")
+		"AlwaysFlattenFragments must be true for RPC-backed factories so the planner emits inline fields")
 }
 
 // TestNewConfiguration_ConnectRequiresGRPC asserts the invariant that a
@@ -55,7 +53,7 @@ func TestNewConfiguration_ConnectRequiresGRPC(t *testing.T) {
 
 	_, err = NewConfiguration(ConfigurationInput{
 		SchemaConfiguration: schema,
-		Connect: &ConnectConfiguration{
+		Connect: &grpcdatasource.ConnectConfiguration{
 			BaseURL:  "http://localhost:8080",
 			Encoding: grpcdatasource.ConnectEncodingProtobuf,
 		},
@@ -75,7 +73,7 @@ func TestNewConfiguration_ConnectWithGRPCSucceeds(t *testing.T) {
 	cfg, err := NewConfiguration(ConfigurationInput{
 		SchemaConfiguration: schema,
 		GRPC:                &grpcdatasource.GRPCConfiguration{},
-		Connect: &ConnectConfiguration{
+		Connect: &grpcdatasource.ConnectConfiguration{
 			BaseURL:  "http://localhost:8080",
 			Encoding: grpcdatasource.ConnectEncodingProtobuf,
 		},

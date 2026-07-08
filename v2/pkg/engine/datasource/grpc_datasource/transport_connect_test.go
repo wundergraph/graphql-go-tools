@@ -8,8 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -17,6 +19,16 @@ import (
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
+
+type recordingHTTPClient struct {
+	calls  atomic.Int32
+	client *http.Client
+}
+
+func (c *recordingHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	c.calls.Add(1)
+	return c.client.Do(req)
+}
 
 func TestConnectTransport_Invoke_Protobuf(t *testing.T) {
 	compiler := newTestCompiler(t)
@@ -322,4 +334,72 @@ func TestConnectTransport_DefaultHTTPClient(t *testing.T) {
 
 	err := transport.Invoke(context.Background(), "/productv1.ProductService/QueryCategory", inputMsg, outputMsg)
 	require.NoError(t, err)
+}
+
+// TestConnectTransport_CustomHTTPClient verifies that a configured HTTPClient
+// is used for outgoing Connect requests.
+func TestConnectTransport_CustomHTTPClient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/proto")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte{})
+	}))
+	defer server.Close()
+
+	httpClient := &recordingHTTPClient{client: server.Client()}
+	transport := NewConnectTransport(ConnectTransportConfig{
+		BaseURL:    server.URL,
+		Encoding:   ConnectEncodingProtobuf,
+		HTTPClient: httpClient,
+	})
+
+	compiler := newTestCompiler(t)
+	reqDesc := findMessageDesc(t, compiler, "productv1.QueryCategoryRequest")
+	respDesc := findMessageDesc(t, compiler, "productv1.QueryCategoryResponse")
+
+	inputMsg := dynamicpb.NewMessage(reqDesc)
+	outputMsg := dynamicpb.NewMessage(respDesc)
+
+	err := transport.Invoke(context.Background(), "/productv1.ProductService/QueryCategory", inputMsg, outputMsg)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), httpClient.calls.Load())
+}
+
+// TestConnectTransport_Interceptors verifies that configured Connect
+// interceptors are applied to outgoing unary calls.
+func TestConnectTransport_Interceptors(t *testing.T) {
+	var interceptorCalls atomic.Int32
+	receivedHeader := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeader <- r.Header.Get("X-Interceptor")
+		w.Header().Set("Content-Type", "application/proto")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte{})
+	}))
+	defer server.Close()
+
+	interceptor := connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+			interceptorCalls.Add(1)
+			req.Header().Set("X-Interceptor", "applied")
+			return next(ctx, req)
+		}
+	})
+	transport := NewConnectTransport(ConnectTransportConfig{
+		BaseURL:      server.URL,
+		Encoding:     ConnectEncodingProtobuf,
+		Interceptors: []connect.Interceptor{interceptor},
+	})
+
+	compiler := newTestCompiler(t)
+	reqDesc := findMessageDesc(t, compiler, "productv1.QueryCategoryRequest")
+	respDesc := findMessageDesc(t, compiler, "productv1.QueryCategoryResponse")
+
+	inputMsg := dynamicpb.NewMessage(reqDesc)
+	outputMsg := dynamicpb.NewMessage(respDesc)
+
+	err := transport.Invoke(context.Background(), "/productv1.ProductService/QueryCategory", inputMsg, outputMsg)
+	require.NoError(t, err)
+	require.Equal(t, int32(1), interceptorCalls.Load())
+	require.Equal(t, "applied", <-receivedHeader)
 }

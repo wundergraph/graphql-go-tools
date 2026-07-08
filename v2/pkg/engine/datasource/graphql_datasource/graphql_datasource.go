@@ -92,8 +92,7 @@ type Planner[T Configuration] struct {
 	minifier *astminify.Minifier
 
 	// gRPC / Connect
-	grpcClient       grpc.ClientConnInterface
-	connectTransport grpcdatasource.RPCTransport
+	rpcTransport grpcdatasource.RPCTransport
 
 	printKitPool *sync.Pool
 }
@@ -367,29 +366,12 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			return resolve.FetchConfiguration{}
 		}
 
-		// Pick the transport from the data source Configuration. Connect and
-		// gRPC share the same proto mapping/compiler, so only the wire format
-		// differs; the Configuration declares which one applies, and the
-		// matching factory-side resource (Connect transport or gRPC client)
-		// must be supplied. A mismatch is a configuration bug and surfaces as
-		// a hard error here rather than silently dialing the wrong protocol.
-		var transport grpcdatasource.RPCTransport
-		switch {
-		case p.config.IsConnect():
-			if p.connectTransport == nil {
-				p.stopWithError(errors.WithStack(errors.New("connect configuration requires a connect transport (use NewFactoryConnect)")))
-				return resolve.FetchConfiguration{}
-			}
-			transport = p.connectTransport
-		default:
-			if p.grpcClient == nil {
-				p.stopWithError(errors.WithStack(errors.New("grpc configuration requires a grpc client (use NewFactoryGRPC or NewFactoryGRPCClientProvider)")))
-				return resolve.FetchConfiguration{}
-			}
-			transport = grpcdatasource.NewGRPCTransport(p.grpcClient)
+		if p.rpcTransport == nil {
+			p.stopWithError(errors.WithStack(errors.New("grpc / connect configuration requires an rpc transport")))
+			return resolve.FetchConfiguration{}
 		}
 
-		dataSource, err = grpcdatasource.NewDataSource(transport, grpcdatasource.DataSourceConfig{
+		dataSource, err = grpcdatasource.NewDataSource(p.rpcTransport, grpcdatasource.DataSourceConfig{
 			Operation:         &opDocument,
 			Definition:        p.config.schemaConfiguration.upstreamSchemaAst,
 			Mapping:           p.config.grpc.Mapping,
@@ -1760,13 +1742,12 @@ func getRelaxedPrintKitPool() *sync.Pool {
 }
 
 type Factory[T Configuration] struct {
-	executionContext   context.Context
-	httpClient         *http.Client
-	grpcClient         grpc.ClientConnInterface
-	grpcClientProvider func() grpc.ClientConnInterface
-	connectTransport   grpcdatasource.RPCTransport
-	subscriptionClient GraphQLSubscriptionClient
-	printKitPool       *sync.Pool
+	executionContext     context.Context
+	httpClient           *http.Client
+	rpcTransport         grpcdatasource.RPCTransport
+	rpcTransportProvider func() grpcdatasource.RPCTransport
+	subscriptionClient   GraphQLSubscriptionClient
+	printKitPool         *sync.Pool
 }
 
 // NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
@@ -1804,7 +1785,7 @@ func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConn
 
 	return &Factory[Configuration]{
 		executionContext: executionContext,
-		grpcClient:       grpcClient,
+		rpcTransport:     grpcdatasource.NewGRPCTransport(grpcClient),
 	}, nil
 }
 
@@ -1822,29 +1803,34 @@ func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvid
 		return nil, fmt.Errorf("provider function is required")
 	}
 
+	transportProvider := func() grpcdatasource.RPCTransport {
+		client := clientProvider()
+		if client == nil {
+			return nil
+		}
+		return grpcdatasource.NewGRPCTransport(client)
+	}
+
 	return &Factory[Configuration]{
-		executionContext:   executionContext,
-		grpcClientProvider: clientProvider,
+		executionContext:     executionContext,
+		rpcTransportProvider: transportProvider,
 	}, nil
 }
 
-// NewFactoryConnect creates a Connect protocol factory for the GraphQL
-// datasource planner. The supplied RPCTransport (typically built via
-// grpcdatasource.NewConnectTransport) is dialed in place of a gRPC client
-// connection; the rest of the data source pipeline (mapping, compiler, JSON
-// builder) is identical to NewFactoryGRPC.
-func NewFactoryConnect(executionContext context.Context, connectTransport grpcdatasource.RPCTransport) (*Factory[Configuration], error) {
+// NewFactoryRPCTransport creates an RPC transport factory for the GraphQL
+// datasource planner. Callers can provide either a gRPC or Connect RPCTransport.
+func NewFactoryRPCTransport(executionContext context.Context, rpcTransport grpcdatasource.RPCTransport) (*Factory[Configuration], error) {
 	if executionContext == nil {
 		return nil, fmt.Errorf("execution context is required")
 	}
 
-	if connectTransport == nil {
-		return nil, fmt.Errorf("connect transport is required")
+	if rpcTransport == nil {
+		return nil, fmt.Errorf("rpc transport is required")
 	}
 
 	return &Factory[Configuration]{
 		executionContext: executionContext,
-		connectTransport: connectTransport,
+		rpcTransport:     rpcTransport,
 	}, nil
 }
 
@@ -1882,15 +1868,14 @@ func (f *Factory[T]) getPrintKitPool() *sync.Pool {
 }
 
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
-	grpcClient := f.grpcClient
-	if f.grpcClientProvider != nil {
-		grpcClient = f.grpcClientProvider()
+	rpcTransport := f.rpcTransport
+	if f.rpcTransportProvider != nil {
+		rpcTransport = f.rpcTransportProvider()
 	}
 
 	return &Planner[T]{
 		fetchClient:        f.httpClient,
-		grpcClient:         grpcClient,
-		connectTransport:   f.connectTransport,
+		rpcTransport:       rpcTransport,
 		subscriptionClient: f.subscriptionClient,
 		printKitPool:       f.getPrintKitPool(),
 	}
@@ -1916,7 +1901,7 @@ func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
 		MergeAliasedRootNodes:      true,
 		OverrideFieldPathFromAlias: true,
 		AllowPlanningTypeName:      true,
-		AlwaysFlattenFragments:     f.grpcClient != nil || f.grpcClientProvider != nil || f.connectTransport != nil,
+		AlwaysFlattenFragments:     f.rpcTransport != nil || f.rpcTransportProvider != nil,
 	}
 	return b
 }
