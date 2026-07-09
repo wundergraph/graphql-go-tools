@@ -8,7 +8,6 @@ import (
 	"io"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
@@ -144,10 +143,16 @@ type Resolvable struct {
 	// passed to a custom field-value renderer.
 	currentFieldInfo *FieldInfo
 
-	// typeNameStats maps the JSON path to its accumulated array/object stats in the final response.
+	// typeNameStats maps the field path to its accumulated array/object stats in the final response.
 	// Used to compute the actual cost of the operation.
 	// Only populated when ResolvableOptions.EnableCostControl is true.
 	typeNameStats map[string]TypeNameStats
+
+	// reachedFields memoizes plan fields whose response path was already marked as reached in
+	// typeNameStats, so array elements do not re-render the same path string. A plan field
+	// occupies exactly one response position, so the pointer identifies the path.
+	// Only populated when ResolvableOptions.EnableCostControl is true.
+	reachedFields map[*Field]struct{}
 
 	// subgraphExtensions holds the `extensions` objects collected from subgraph
 	// fetches, merged into the response extensions during rendering.
@@ -252,6 +257,7 @@ func (r *Resolvable) Reset() {
 	r.allowedExtensions = nil
 	clear(r.subgraphExtensions)
 	clear(r.typeNameStats)
+	clear(r.reachedFields)
 
 	r.deferMode = false
 	r.currentDefer = nil
@@ -263,8 +269,14 @@ func (r *Resolvable) Reset() {
 
 // initCostControl prepares typeNameStats collection for this walk when cost control is active.
 func (r *Resolvable) initCostControl() {
-	if r.options.EnableCostControl && r.typeNameStats == nil {
+	if !r.options.EnableCostControl {
+		return
+	}
+	if r.typeNameStats == nil {
 		r.typeNameStats = make(map[string]TypeNameStats)
+	}
+	if r.reachedFields == nil {
+		r.reachedFields = make(map[*Field]struct{})
 	}
 }
 
@@ -1290,8 +1302,11 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 		}
 	}
 
-	if !r.render() && r.options.EnableCostControl {
-		r.recordObjectTypeStats(obj, typeName) // For Cost Control
+	// Cost-control stats are recorded during the render pass: by then the pre-walk has
+	// applied all nulls (denials and non-null violations alike), so the stats describe
+	// exactly the response the client receives.
+	if r.render() && r.options.EnableCostControl {
+		r.recordObjectTypeStats(obj, typeName)
 	}
 
 	// render opening object brace for defer and non defer situation
@@ -1523,6 +1538,7 @@ func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjs
 			r.printBytes(obj.Fields[i].Name)
 			r.printBytes(quote)
 			r.printBytes(colon)
+			r.recordFieldReached(value, obj.Fields[i])
 		}
 		r.currentFieldInfo = obj.Fields[i].Info
 		err := r.walkNode(obj.Fields[i].Value, value)
@@ -1579,14 +1595,7 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	}
 	dataSourceID := field.Info.Source.IDs[0]
 	dataSourceName := field.Info.Source.Names[0]
-	typeName := r.objectFieldTypeName(value, field)
-	if r.authorization.preFetchEnabled() {
-		typeName = field.Info.ExactParentTypeName
-	}
-	gc := GraphCoordinate{
-		TypeName:  typeName,
-		FieldName: field.Info.Name,
-	}
+	gc := r.fieldAuthorizationCoordinate(value, field)
 	result, authErr := r.authorization.decide(value, dataSourceID, gc)
 	if authErr != nil {
 		r.authorizationError = authErr
@@ -1600,6 +1609,22 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 		return true
 	}
 	return false
+}
+
+// fieldAuthorizationCoordinate derives the graph coordinate under which authorization
+// decisions for this field are cached.
+// Pre-fetch decisions are seeded from plan-time coordinates,
+// while post-fetch decisions are memoized under the runtime type of the enclosing object.
+// value is the enclosing object's data, it may be nil for unreached fields.
+func (r *Resolvable) fieldAuthorizationCoordinate(value *astjson.Value, field *Field) GraphCoordinate {
+	typeName := field.Info.ExactParentTypeName
+	if !r.authorization.preFetchEnabled() && value != nil {
+		typeName = r.objectFieldTypeName(value, field)
+	}
+	return GraphCoordinate{
+		TypeName:  typeName,
+		FieldName: field.Info.Name,
+	}
 }
 
 func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field *Field) {
@@ -1680,10 +1705,7 @@ func (r *Resolvable) emitUnreachedFieldDeny(field *Field) bool {
 		return false
 	}
 	dataSourceID := field.Info.Source.IDs[0]
-	reason, denied := r.authorization.denyReason(dataSourceID, GraphCoordinate{
-		TypeName:  field.Info.ExactParentTypeName,
-		FieldName: field.Info.Name,
-	})
+	reason, denied := r.authorization.denyReason(dataSourceID, r.fieldAuthorizationCoordinate(nil, field))
 	if !denied {
 		return false
 	}
@@ -1774,15 +1796,17 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.walkUnreachedItem(arr.Item)
 	}
 
-	if !r.render() && r.options.EnableCostControl {
-		// Record arrays stats for Cost Control.
-		pathKey := r.currentFieldPath()
-		stats := r.typeNameStats[pathKey]
-		stats.Size += len(values)
-		if stats.TypeNames == nil && len(values) > 0 {
-			stats.TypeNames = make(map[string]int)
-		}
+	if r.render() && r.options.EnableCostControl {
+		// Record array stats for Cost Control. Size counts only non-null elements: the
+		// pre-walk nulls elements the client does not receive (denied or invalid), and
+		// those must not be charged.
+		fieldPath := r.renderFieldPath()
+		stats := r.typeNameStats[fieldPath]
 		for _, arrayValue := range values {
+			if arrayValue.Type() == astjson.TypeNull {
+				continue
+			}
+			stats.Size++
 			var typeName string
 			if b := arrayValue.GetStringBytes("__typename"); b != nil {
 				typeName = string(b)
@@ -1790,10 +1814,13 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 				typeName = obj.TypeName
 			}
 			if typeName != "" {
+				if stats.TypeNames == nil {
+					stats.TypeNames = make(map[string]int)
+				}
 				stats.TypeNames[typeName]++
 			}
 		}
-		r.typeNameStats[pathKey] = stats
+		r.typeNameStats[fieldPath] = stats
 	}
 
 	hasPrintedValue := false
@@ -1840,8 +1867,8 @@ func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 	if len(obj.Path) == 0 {
 		return
 	}
-	pathKey := r.currentFieldPath()
-	stats := r.typeNameStats[pathKey]
+	fieldPath := r.renderFieldPath()
+	stats := r.typeNameStats[fieldPath]
 	stats.Size++
 	if stats.TypeNames == nil {
 		stats.TypeNames = make(map[string]int, 1)
@@ -1852,18 +1879,39 @@ func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
 		name = string(typeName)
 	}
 	stats.TypeNames[name]++
-	r.typeNameStats[pathKey] = stats
+	r.typeNameStats[fieldPath] = stats
 }
 
-// Helper to build JSON path (field names only, no array indices)
-func (r *Resolvable) currentFieldPath() string {
-	var parts []string
-	for _, elem := range r.path {
-		if elem.Name != "" {
-			parts = append(parts, elem.Name)
-		}
+// recordFieldReached marks the rendered field's response path in typeNameStats for cost
+// control, creating an empty entry if none exists. Denied fields are skipped.
+// value is the enclosing object's data, used to resolve the field's runtime type.
+func (r *Resolvable) recordFieldReached(value *astjson.Value, field *Field) {
+	if !r.options.EnableCostControl {
+		return
 	}
-	return strings.Join(parts, ".")
+	if _, ok := r.reachedFields[field]; ok {
+		return
+	}
+	if r.fieldHasDenyDecision(value, field) {
+		return
+	}
+	r.reachedFields[field] = struct{}{}
+	nodePath := field.Value.NodePath()
+	r.pushNodePathElement(nodePath)
+	fieldPath := r.renderFieldPath()
+	r.popNodePathElement(nodePath)
+	if _, ok := r.typeNameStats[fieldPath]; !ok {
+		r.typeNameStats[fieldPath] = TypeNameStats{}
+	}
+}
+
+// fieldHasDenyDecision reports whether the field carries a cached authorization deny decision.
+func (r *Resolvable) fieldHasDenyDecision(value *astjson.Value, field *Field) bool {
+	if field.Info == nil || !field.Info.HasAuthorizationRule || len(field.Info.Source.IDs) == 0 {
+		return false
+	}
+	_, denied := r.authorization.denyReason(field.Info.Source.IDs[0], r.fieldAuthorizationCoordinate(value, field))
+	return denied
 }
 
 func (r *Resolvable) walkNull() bool {
