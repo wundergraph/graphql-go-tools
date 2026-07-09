@@ -260,7 +260,7 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 
 	// Non-nullable child nulls its parent object:
 
-	t.Run("denied non-nullable field nulls the parent: earlier sibling is charged", runWithoutError(
+	t.Run("denied non-nullable field nulls the parent: earlier siblings are not charged", runWithoutError(
 		ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
@@ -306,7 +306,7 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 		computeCosts(),
 	))
 
-	t.Run("subgraph null for non-nullable field nulls the parent: earlier sibling and the field are charged", runWithoutError(
+	t.Run("subgraph null for non-nullable field nulls the parent: earlier siblings are not charged", runWithoutError(
 		ExecutionEngineTestCase{
 			schema: schema,
 			operation: func(t *testing.T) graphql.Request {
