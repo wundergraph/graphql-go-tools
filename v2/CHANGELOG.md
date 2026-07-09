@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.1...v2.9.2) (2026-07-07)
+
+
+### Bug Fixes
+
+* **grpc_datasource:** resolve context path segments across repeated message fields ([#1579](https://github.com/wundergraph/graphql-go-tools/issues/1579)) ([2fea190](https://github.com/wundergraph/graphql-go-tools/commit/2fea19098395b98b5ad4094d95a2f2fd70664d36))
+
 ## [2.9.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.0...v2.9.1) (2026-07-07)
 
 

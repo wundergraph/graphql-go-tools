@@ -4776,6 +4776,36 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			// The context path for productCount (blog_post.related_categories.id) crosses a
+			// repeated message field under a non-list parent, which is resolved by a different
+			// code path than a repeated field at the query root. Each category must yield its
+			// own context entry in response order.
+			name:  "Query with field resolver on items of a list nested in a non-list parent",
+			query: "query BlogPostCategoriesWithFieldResolvers { blogPost { id relatedCategories { id name productCount } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]any) {
+				require.NotEmpty(t, data)
+
+				blogPost, ok := data["blogPost"].(map[string]any)
+				require.True(t, ok, "blogPost should be an object")
+
+				relatedCategories, ok := blogPost["relatedCategories"].([]any)
+				require.True(t, ok, "relatedCategories should be an array")
+				require.Len(t, relatedCategories, 2, "Should return 2 related categories")
+
+				for i, cat := range relatedCategories {
+					category, ok := cat.(map[string]any)
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.Equal(t, float64(i), category["productCount"])
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -4807,7 +4837,10 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			var output []byte
+			require.NotPanics(t, func() {
+				output, err = ds.Load(context.Background(), nil, []byte(input))
+			})
 			require.NoError(t, err)
 
 			// Parse the response
