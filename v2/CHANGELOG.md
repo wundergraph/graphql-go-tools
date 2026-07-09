@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.10.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.2...v2.10.0) (2026-07-09)
+
+
+### Features
+
+* **resolve:** add opt-in pre-fetch field authorization mode ([#1561](https://github.com/wundergraph/graphql-go-tools/issues/1561)) ([eb3b142](https://github.com/wundergraph/graphql-go-tools/commit/eb3b1420a219c5ee431dc432ed5e2101a9fe57ad))
+
+
+### Bug Fixes
+
+* do not charge actual cost for denied fields ([#1582](https://github.com/wundergraph/graphql-go-tools/issues/1582)) ([00d9f66](https://github.com/wundergraph/graphql-go-tools/commit/00d9f66ff0d6af5c7b02862806b6090f77e87dd4))
+
 ## [2.9.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.1...v2.9.2) (2026-07-07)
 
 
