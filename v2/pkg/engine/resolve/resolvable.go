@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
@@ -88,19 +87,23 @@ type Resolvable struct {
 	// ctx is the request Context (authorizer, rate limiter, field renderer, options).
 	ctx *Context
 
+	// authorization holds the per-request field-authorization decisions, shared with the Loader.
+	// Set via SetFieldAuthorization by the resolver entry points; lazily created in Init as a
+	// fallback for directly constructed Resolvables (tests).
+	authorization *FieldAuthorization
+
+	// unreachedAuthWalk arms the synthetic authorization descent (pre-fetch mode, initial
+	// pre-render walk only): where the data ends but the plan continues, the walk descends the
+	// plan alone to emit errors for denied protected fields the data walk cannot reach.
+	unreachedAuthWalk bool
+
+	// inUnreachedSubtree is true while inside such a descent; ordinary null semantics are
+	// suppressed there — the walk only reads the decision cache and emits errors.
+	inUnreachedSubtree bool
+
 	// authorizationError holds an auth error raised mid-walk;
 	// in case of defer it is scoped to the current field/defer and converted into a defer local error.
 	authorizationError error
-
-	// xxh is a reused xxhash digest for computing authorization decision cache keys.
-	xxh *xxhash.Digest
-
-	// authorizationAllow caches allowed authorization decision ids (keyed by the
-	// xxh of dataSource id + graph coordinate).
-	authorizationAllow map[uint64]struct{}
-
-	// authorizationDeny caches denied authorization decision ids mapped to their deny reason.
-	authorizationDeny map[uint64]string
 
 	// wroteErrors records whether the `errors` array has been written to the response
 	wroteErrors bool
@@ -211,12 +214,17 @@ func MapExtensionForwardingAlgorithm(algorithm string) ExtensionForwardingAlgori
 
 func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 	return &Resolvable{
-		options:            options,
-		xxh:                xxhash.New(),
-		authorizationAllow: make(map[uint64]struct{}),
-		authorizationDeny:  make(map[uint64]string),
-		astjsonArena:       a,
+		options:       options,
+		astjsonArena:  a,
+		typeNameStats: make(map[string]TypeNameStats),
 	}
+}
+
+// SetFieldAuthorization wires the per-request field-authorization decisions produced and read
+// during resolution. The resolver entry points call it right after NewResolvable; when unset,
+// Init creates one from the request Context.
+func (r *Resolvable) SetFieldAuthorization(authorization *FieldAuthorization) {
+	r.authorization = authorization
 }
 
 func (r *Resolvable) Reset() {
@@ -236,13 +244,13 @@ func (r *Resolvable) Reset() {
 	r.path = r.path[:0]
 	r.operationType = ast.OperationTypeUnknown
 	r.renameTypeNames = r.renameTypeNames[:0]
+	r.authorization = nil
+	r.unreachedAuthWalk = false
+	r.inUnreachedSubtree = false
 	r.authorizationError = nil
 	r.astjsonArena = nil
-	r.xxh.Reset()
 	r.allowedExtensions = nil
 	clear(r.subgraphExtensions)
-	clear(r.authorizationAllow)
-	clear(r.authorizationDeny)
 	clear(r.typeNameStats)
 
 	r.deferMode = false
@@ -262,6 +270,9 @@ func (r *Resolvable) initCostControl() {
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
 	r.ctx = ctx
+	if r.authorization == nil {
+		r.authorization = NewFieldAuthorization(ctx)
+	}
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.initCostControl()
@@ -283,6 +294,9 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 
 func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProcessing PostProcessingConfiguration) (err error) {
 	r.ctx = ctx
+	if r.authorization == nil {
+		r.authorization = NewFieldAuthorization(ctx)
+	}
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.initCostControl()
@@ -366,7 +380,15 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 
 	r.skipAddingNullErrors = r.hasErrors() && !r.hasData()
 
+	if r.authorization.preFetchEnabled() {
+		// Also report denied protected fields the data walk cannot reach (empty list / null
+		// parent): past such points the walk descends the plan alone. A denied field stops the
+		// descent into its own subtree, so a denied parent is never re-reported via its children.
+		r.unreachedAuthWalk = true
+	}
+
 	hasErrors := r.walkObject(rootData, r.data)
+	r.unreachedAuthWalk = false
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
@@ -1215,6 +1237,15 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 	}()
 	value := parent.Get(obj.Path...)
 	if value == nil || value.Type() == astjson.TypeNull {
+		if r.unreachedAuthWalk {
+			r.pushNodePathElement(obj.Path)
+			r.walkUnreachedFields(obj)
+			r.popNodePathElement(obj.Path)
+			if r.inUnreachedSubtree {
+				// synthetic level: no data to render or null-propagate
+				return false
+			}
+		}
 		if obj.Nullable {
 			return r.walkNull()
 		}
@@ -1540,7 +1571,7 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	if !field.Info.HasAuthorizationRule {
 		return false
 	}
-	if r.ctx.authorizer == nil {
+	if r.ctx.authorizer == nil && !r.authorization.preFetchEnabled() {
 		return false
 	}
 	if len(field.Info.Source.IDs) == 0 {
@@ -1549,11 +1580,14 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	dataSourceID := field.Info.Source.IDs[0]
 	dataSourceName := field.Info.Source.Names[0]
 	typeName := r.objectFieldTypeName(value, field)
+	if r.authorization.preFetchEnabled() {
+		typeName = field.Info.ExactParentTypeName
+	}
 	gc := GraphCoordinate{
 		TypeName:  typeName,
 		FieldName: field.Info.Name,
 	}
-	result, authErr := r.authorize(value, dataSourceID, gc)
+	result, authErr := r.authorization.decide(value, dataSourceID, gc)
 	if authErr != nil {
 		r.authorizationError = authErr
 		return true
@@ -1566,31 +1600,6 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 		return true
 	}
 	return false
-}
-
-func (r *Resolvable) authorize(value *astjson.Value, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
-	r.xxh.Reset()
-	_, _ = r.xxh.WriteString(dataSourceID)
-	_, _ = r.xxh.WriteString(coordinate.TypeName)
-	_, _ = r.xxh.WriteString(coordinate.FieldName)
-	decisionID := r.xxh.Sum64()
-	if _, ok := r.authorizationAllow[decisionID]; ok {
-		return nil, nil
-	}
-	if reason, ok := r.authorizationDeny[decisionID]; ok {
-		return &AuthorizationDeny{Reason: reason}, nil
-	}
-	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.marshalBuf, coordinate)
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		r.authorizationAllow[decisionID] = struct{}{}
-	} else {
-		r.authorizationDeny[decisionID] = result.Reason
-	}
-	return result, nil
 }
 
 func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field *Field) {
@@ -1617,6 +1626,79 @@ func (r *Resolvable) objectFieldTypeName(v *astjson.Value, field *Field) string 
 		return unsafebytes.BytesToString(typeName)
 	}
 	return field.Info.ExactParentTypeName
+}
+
+// walkUnreachedFields descends the plan below a point the data walk cannot reach (null/missing
+// object, empty array) and emits UNAUTHORIZED_FIELD_OR_TYPE errors for denied protected fields
+// there. A denied field stops the descent — its error covers its subtree. Decisions are pure
+// cache reads (pre-fetch mode only); no authorizer calls, no data mutation. Recursion goes
+// through the regular walk functions with a null value, re-entering their null branches, so
+// r.path — and with it error paths and messages — comes from the ordinary walk bookkeeping.
+func (r *Resolvable) walkUnreachedFields(obj *Object) {
+	if obj == nil {
+		return
+	}
+	wasInside := r.inUnreachedSubtree
+	r.inUnreachedSubtree = true
+	for i := range obj.Fields {
+		field := obj.Fields[i]
+		if r.emitUnreachedFieldDeny(field) {
+			continue
+		}
+		switch field.Value.NodeKind() {
+		case NodeKindObject, NodeKindArray:
+			r.walkNode(field.Value, astjson.NullValue)
+		}
+	}
+	r.inUnreachedSubtree = wasInside
+}
+
+// walkUnreachedItem descends into an array item the data walk has no element for (empty or null
+// array)
+func (r *Resolvable) walkUnreachedItem(item Node) {
+	switch item.NodeKind() {
+	case NodeKindObject, NodeKindArray:
+	default:
+		return
+	}
+
+	wasInside := r.inUnreachedSubtree
+	r.inUnreachedSubtree = true
+
+	// push the "@" wildcard position any element would occupy
+	r.pushNodePathElement([]string{"@"})
+	r.walkNode(item, astjson.NullValue)
+	r.popNodePathElement([]string{"@"})
+
+	r.inUnreachedSubtree = wasInside
+}
+
+// emitUnreachedFieldDeny reports whether the field carries a seeded deny decision, emitting the
+// corresponding UNAUTHORIZED_FIELD_OR_TYPE error if so.
+func (r *Resolvable) emitUnreachedFieldDeny(field *Field) bool {
+	if field.Info == nil || !field.Info.HasAuthorizationRule || len(field.Info.Source.IDs) == 0 {
+		return false
+	}
+	dataSourceID := field.Info.Source.IDs[0]
+	reason, denied := r.authorization.denyReason(dataSourceID, GraphCoordinate{
+		TypeName:  field.Info.ExactParentTypeName,
+		FieldName: field.Info.Name,
+	})
+	if !denied {
+		return false
+	}
+	r.addRejectFieldError(reason, DataSourceInfo{
+		ID:   dataSourceID,
+		Name: firstString(field.Info.Source.Names),
+	}, field)
+	return true
+}
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 func (r *Resolvable) skipFieldOnParentTypeNames(field *Field) bool {
@@ -1661,6 +1743,15 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	parent := value
 	value = value.Get(arr.Path...)
 	if astjson.ValueIsNull(value) {
+		if r.unreachedAuthWalk {
+			r.pushNodePathElement(arr.Path)
+			r.walkUnreachedItem(arr.Item)
+			r.popNodePathElement(arr.Path)
+			if r.inUnreachedSubtree {
+				// synthetic level: no data to render or null-propagate
+				return false
+			}
+		}
 		if arr.Nullable {
 			return r.walkNull()
 		}
@@ -1677,6 +1768,11 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.printBytes(lBrack)
 	}
 	values := value.GetArray()
+
+	if len(values) == 0 && r.unreachedAuthWalk && !r.inUnreachedSubtree {
+		// no elements to walk: check the item's plan subtree for denied protected fields
+		r.walkUnreachedItem(arr.Item)
+	}
 
 	if !r.render() && r.options.EnableCostControl {
 		// Record arrays stats for Cost Control.

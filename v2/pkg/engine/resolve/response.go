@@ -109,6 +109,16 @@ type DeferFetchGroup struct {
 
 type GraphQLResponseInfo struct {
 	OperationType ast.OperationType
+	// AuthorizationCoordinates lists every protected field selected by the operation,
+	// deduplicated by {DataSourceID, TypeName, FieldName}. It is populated once per plan by the
+	// postprocess package while building the fetch tree, and drives pre-fetch field authorization.
+	AuthorizationCoordinates []AuthorizationCoordinate
+}
+
+// AuthorizationCoordinate is a protected field coordinate paired with the data source that resolves it.
+type AuthorizationCoordinate struct {
+	DataSourceID string
+	Coordinate   GraphCoordinate
 }
 
 type RenameTypeName struct {

@@ -20,6 +20,7 @@ import (
 
 	"github.com/wundergraph/go-arena"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -315,10 +316,11 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func NewLoader(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SubgraphRequestSingleFlight, a arena.Arena, db *DataBuffer) *Loader {
+func NewLoader(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SubgraphRequestSingleFlight, a arena.Arena, db *DataBuffer, authorization *FieldAuthorization) *Loader {
 	return &Loader{
-		dataBuffer:                                     db,
-		apolloCompatibilitySuppressFetchErrors:         options.ResolvableOptions.ApolloCompatibilitySuppressFetchErrors,
+		dataBuffer:                             db,
+		authorization:                          authorization,
+		apolloCompatibilitySuppressFetchErrors: options.ResolvableOptions.ApolloCompatibilitySuppressFetchErrors,
 		apolloCompatibilityValueCompletionInExtensions: options.ResolvableOptions.ApolloCompatibilityValueCompletionInExtensions,
 		allowCustomExtensionProperties:                 options.AllowCustomExtensionProperties,
 		propagateSubgraphErrors:                        options.PropagateSubgraphErrors,
@@ -370,6 +372,8 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}()
 
 	resolvable := NewResolvable(nil, r.options.ResolvableOptions)
+	authorization := NewFieldAuthorization(ctx)
+	resolvable.SetFieldAuthorization(authorization)
 
 	err := resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -379,9 +383,15 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	// The DataBuffer wraps the base tree produced by Init (which may already
 	// contain initialData). The loader fetches/merges into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, db)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil, db, authorization)
 
 	if !ctx.ExecutionOptions.SkipLoader {
+		// Pre-fetch field authorization only matters when fetches actually run. When the loader is
+		// skipped (e.g. query-plan-only responses) there are no origin fetches, so we must not invoke
+		// the authorizer here.
+		if err = authorization.authorizePreFetch(response); err != nil {
+			return nil, err
+		}
 		err = loader.LoadGraphQLResponseData(ctx, response)
 		if err != nil {
 			return nil, err
@@ -438,6 +448,8 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
 	// we're intentionally not using defer Release to have more control over the timing (see below)
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
+	authorization := NewFieldAuthorization(ctx)
+	resolvable.SetFieldAuthorization(authorization)
 
 	err = resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
@@ -448,9 +460,17 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 
 	// The DataBuffer wraps the base tree produced by Init. The loader merges into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if !ctx.ExecutionOptions.SkipLoader {
+		// Pre-fetch field authorization only matters when fetches actually run. When the loader is
+		// skipped (e.g. query-plan-only responses) there are no origin fetches, so we must not invoke
+		// the authorizer here.
+		if err = authorization.authorizePreFetch(response); err != nil {
+			r.inboundRequestSingleFlight.FinishErr(inflight, err)
+			r.resolveArenaPool.Release(resolveArena)
+			return nil, err
+		}
 		err = loader.LoadGraphQLResponseData(ctx, response)
 		if err != nil {
 			r.inboundRequestSingleFlight.FinishErr(inflight, err)
@@ -528,6 +548,8 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 	defer r.resolveArenaPool.Release(resolveArena)
 
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
+	authorization := NewFieldAuthorization(ctx)
+	resolvable.SetFieldAuthorization(authorization)
 
 	err := resolvable.Init(ctx, nil, response.Response.Info.OperationType)
 	if err != nil {
@@ -537,9 +559,17 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 	// The DataBuffer wraps the base tree produced by Init. The loader and every
 	// defer group merge into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if !ctx.ExecutionOptions.SkipLoader {
+		// Pre-fetch field authorization: seed the batch decisions before the initial fetch, so denied
+		// fields are skipped/nulled during the initial and deferred renders, matching the
+		// non-deferred paths. The seeded decisions are shared with the resolvable and cover every
+		// selected coordinate, including those inside @defer fragments.
+		if err := authorization.authorizePreFetch(response.Response); err != nil {
+			return nil, err
+		}
+
 		loader.Init(ctx, response.Response.Info)
 
 		// fetch initial response
@@ -645,7 +675,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	// the arena only in its prepare and merge phases, both of which hold
 	// dc.db.Lock(), and the off-lock network phase allocates nothing from it. The
 	// lock therefore serialises every arena allocation across all groups.
-	groupLoader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, dc.arena, dc.db)
+	groupLoader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, dc.arena, dc.db, nil)
 	groupLoader.Init(ctx, dc.info) // fresh taintedObjs; errors=nil
 
 	if fetchErr := groupLoader.ResolveFetchNode(group.Fetches); fetchErr != nil {
@@ -751,6 +781,44 @@ func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferT
 		return g.Wait()
 	}
 	return nil
+}
+
+// authorizeSubscriptionPreFetch authorizes a subscription's single protected root field before the
+// trigger is started, so an unauthorized subscription never opens (or holds) an upstream subscription.
+// It returns the response body to write and true when the subscription is unauthorized. Nested
+// protected fields are still authorized per update during resolution.
+func (r *Resolver) authorizeSubscriptionPreFetch(ctx *Context, response *GraphQLResponse) (deny []byte, denied bool, err error) {
+	if ctx.preFetchFieldAuthorizer == nil {
+		return nil, false, nil
+	}
+	if response == nil || response.Data == nil || len(response.Data.Fields) == 0 {
+		return nil, false, nil
+	}
+	rootField := response.Data.Fields[0]
+	if rootField.Info == nil || !rootField.Info.HasAuthorizationRule || len(rootField.Info.Source.IDs) == 0 {
+		return nil, false, nil
+	}
+	coordinate := GraphCoordinate{
+		TypeName:  rootField.Info.ExactParentTypeName,
+		FieldName: rootField.Info.Name,
+	}
+	decisions, err := ctx.preFetchFieldAuthorizer.AuthorizeFields(ctx, []GraphCoordinate{coordinate})
+	if err != nil {
+		return nil, false, err
+	}
+	// Fail closed: a wrong decision count is an authorizer bug, not an authorization grant.
+	if len(decisions) != 1 {
+		return nil, false, fmt.Errorf("pre-fetch field authorizer returned %d decisions for 1 coordinate", len(decisions))
+	}
+	if decisions[0].Allowed {
+		return nil, false, nil
+	}
+	message := fmt.Sprintf("Unauthorized to load field '%s.%s'.", coordinate.TypeName, coordinate.FieldName)
+	if decisions[0].Reason != "" {
+		message = fmt.Sprintf("Unauthorized to load field '%s.%s', Reason: %s.", coordinate.TypeName, coordinate.FieldName, decisions[0].Reason)
+	}
+	body := fmt.Sprintf(`{"errors":[{"message":%q,"extensions":{"code":%q}}],"data":null}`, message, errorcodes.UnauthorizedFieldOrType)
+	return []byte(body), true, nil
 }
 
 // trigger groups subscriptions that share a data source and input.
@@ -927,6 +995,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
+	authorization := NewFieldAuthorization(resolveCtx)
+	resolvable.SetFieldAuthorization(authorization)
 
 	if err := resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
@@ -939,11 +1009,22 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 		}
 		return
 	}
+	if err := authorization.authorizePreFetch(sub.resolve.Response); err != nil {
+		r.resolveArenaPool.Release(resolveArena)
+		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:authorization:failed:%d\n", sub.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
+		}
+		return
+	}
 
 	// The DataBuffer wraps the base tree produced by InitSubscription (the
 	// subscription event payload). The loader merges fetched data into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if err := loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
@@ -1652,6 +1733,14 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return nil
 	}
 
+	// Authorize the subscription's protected root field before starting the trigger, so an
+	// unauthorized subscription never opens an upstream subscription.
+	if body, denied, authErr := r.authorizeSubscriptionPreFetch(ctx, subscription.Response); authErr != nil {
+		return authErr
+	} else if denied {
+		return writeFlushComplete(writer, body)
+	}
+
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {
 		input, err = hook.SubscriptionOnCreate(ctx.Context(), input)
 		if err != nil {
@@ -1756,6 +1845,14 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 
 	if err := ctx.ctx.Err(); err != nil {
 		return err
+	}
+
+	// Authorize the subscription's protected root field before starting the trigger, so an
+	// unauthorized subscription never opens an upstream subscription.
+	if body, denied, authErr := r.authorizeSubscriptionPreFetch(ctx, subscription.Response); authErr != nil {
+		return authErr
+	} else if denied {
+		return writeFlushComplete(writer, body)
 	}
 
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {
