@@ -200,10 +200,14 @@ func (t *connectTransport) Invoke(ctx context.Context, methodFullName string, in
 	req := connect.NewRequest(inDyn)
 	if md, ok := metadata.FromOutgoingContext(ctx); ok {
 		for k, vs := range md {
-			// Headers ending in "-bin" carry binary values. The Go HTTP
-			// client rejects raw binary in headers, and the Connect protocol
-			// (over HTTP) does not auto-encode them, so we base64 the value
-			// before placing it on the wire to match gRPC metadata semantics.
+			// Headers ending in "-bin" carry binary values. HTTP headers
+			// cannot transport raw binary, so we base64-encode the value per
+			// the Connect binary-metadata convention. Unlike gRPC — where the
+			// server transparently decodes "-bin" metadata — a Connect handler
+			// must decode the value explicitly (e.g. via connect.DecodeBinaryHeader);
+			// this transport only guarantees the value is encoded on the wire.
+			// base64.StdEncoding (padded) is accepted by connect-go's
+			// DecodeBinaryHeader.
 			isBin := strings.HasSuffix(k, "-bin")
 			for _, v := range vs {
 				if isBin {
