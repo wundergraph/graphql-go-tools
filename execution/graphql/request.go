@@ -215,9 +215,9 @@ func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.Vari
 		r.actualCost = 0
 		return
 	}
-	r.actualCost = calc.ActualCostWithDenials(vars, resolveCtx.TypeNameStats, resolveCtx.TypeNameDenials)
+	r.actualCost = calc.ActualCost(vars, resolveCtx.TypeNameStats)
 	// Debugging of cost trees. Uncomment to debug:
-	// fmt.Println(calc.DebugPrint(vars, typeStats))
+	// fmt.Println(calc.DebugPrint(vars, resolveCtx.TypeNameStats))
 }
 
 func (r *Request) ActualCost() int {

@@ -451,19 +451,6 @@ type costInput struct {
 	isEstimation bool
 
 	ignoreImplementingTypeWeights bool
-
-	// typeNameDenials holds the field paths of fields that field authorization denied in the response.
-	// Only set for actual-cost calculation.
-	typeNameDenials map[string]struct{}
-}
-
-// isFieldDenied reports whether field authorization nulled this node's field in the response.
-func (ci *costInput) isFieldDenied(node *CostTreeNode) bool {
-	if len(ci.typeNameDenials) == 0 {
-		return false
-	}
-	_, denied := ci.typeNameDenials[node.fieldPath]
-	return denied
 }
 
 // newCostInput bundles the cost-calculation inputs.
@@ -495,6 +482,16 @@ func (ci *costInput) returnedTypeNames(fieldPath string) map[string]int {
 	return nil
 }
 
+// fieldUnreached reports whether the response walk never reached this node's field: its path
+// has no runtime-stats entry. Only meaningful in actual mode with collected stats.
+func (ci *costInput) fieldUnreached(node *CostTreeNode) bool {
+	if ci.typeStats == nil || node.fieldPath == "" || node.fieldCoords == costTreeRootNodeCoords {
+		return false
+	}
+	_, reached := ci.typeStats[node.fieldPath]
+	return !reached
+}
+
 // cost calculates the estimated/actual cost of this node and all descendants.
 //
 // For actual cost, multipliers are computed as averages (totalCount/parentCount).
@@ -502,9 +499,8 @@ func (node *CostTreeNode) cost(input *costInput) float64 {
 	if node == nil {
 		return 0
 	}
-	if input.isFieldDenied(node) {
-		// Field authorization denied this field: the client received neither the field nor
-		// anything below it, so the whole subtree costs nothing.
+	if !input.isEstimation && input.fieldUnreached(node) {
+		// Denied by authorization or its fetch was skipped.
 		return 0
 	}
 	nodeCost := node.costsAndMultiplier(input)
@@ -962,16 +958,7 @@ func (c *CostCalculator) EstimateCost(vars resolve.VariablesView) int {
 
 // ActualCost returns the actual cost of the operation that is based on the actual sizes of lists.
 func (c *CostCalculator) ActualCost(vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats) int {
-	return c.ActualCostWithDenials(vars, typeStats, nil)
-}
-
-// ActualCostWithDenials returns the actual cost of the operation, excluding fields that were
-// denied by field authorization.
-// typeDenials holds the field paths of the fields denied by authorization during resolution.
-// nil is equivalent to ActualCost.
-func (c *CostCalculator) ActualCostWithDenials(vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats, typeDenials map[string]struct{}) int {
 	input := newCostInput(false, c, vars, typeStats)
-	input.typeNameDenials = typeDenials
 	// fmt.Println(c.DebugPrint(vars, typeStats))
 	return int(math.RoundToEven(c.tree.cost(input)))
 }

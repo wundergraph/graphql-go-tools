@@ -70,7 +70,7 @@ func (v *CostVisitor) operationTypeName() string {
 // The node is filled in full in the LeaveField when fieldPlanners data is available.
 func (v *CostVisitor) EnterField(fieldRef int) {
 	if v.tree.fieldPath == "" {
-		// Seed the root with the operation type name, so every node's jsonPath matches the
+		// Seed the root with the operation type name, so every node's fieldPath matches the
 		// key convention of the resolver's runtime stats (renderFieldPath): "Query.user.secret".
 		v.tree.fieldPath = v.operationTypeName()
 	}
@@ -116,13 +116,13 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 
 	aliasOrName := v.Operation.FieldAliasOrNameString(fieldRef)
 
-	var jsonPath string
+	var fieldPath string
 	if len(v.stack) > 0 {
 		parent := v.stack[len(v.stack)-1]
 		if parent.fieldPath != "" {
-			jsonPath = parent.fieldPath + "." + aliasOrName
+			fieldPath = parent.fieldPath + "." + aliasOrName
 		} else {
-			jsonPath = aliasOrName
+			fieldPath = aliasOrName
 		}
 	}
 
@@ -138,7 +138,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 		returnsAbstractType:     isAbstractType,
 		isEnclosingTypeAbstract: isEnclosingTypeAbstract,
 		arguments:               arguments,
-		fieldPath:               jsonPath,
+		fieldPath:               fieldPath,
 	}
 
 	// Attach to the parent

@@ -58,13 +58,6 @@ type Context struct {
 	// Used to compute the actual cost.
 	TypeNameStats map[string]TypeNameStats
 
-	// TypeNameDenials is populated by the resolver after resolution completes, alongside
-	// TypeNameStats and with the same JSON-path key convention. It holds the path of every
-	// field nulled by field authorization; nil when nothing was denied. Used to exclude
-	// denied fields from the actual cost — the client never received them.
-	// Read-only for consumers.
-	TypeNameDenials map[string]struct{}
-
 	// GetDeduplicationData is called after the leader of an inbound singleflight request
 	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
 	// response headers) that should be shared with all follower requests.
@@ -351,7 +344,6 @@ func (c *Context) Free() {
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
-	c.TypeNameDenials = nil
 }
 
 func (c *Context) VariablesView() VariablesView {
