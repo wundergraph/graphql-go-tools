@@ -17,6 +17,10 @@ type anyOfSchema struct {
 	AnyOf []json.RawMessage `json:"anyOf"`
 }
 
+type allOfSchema struct {
+	AllOf []json.RawMessage `json:"allOf"`
+}
+
 type arraySchema struct {
 	Type  []string        `json:"type"`
 	Items json.RawMessage `json:"items"`
@@ -32,6 +36,11 @@ type selectedObjectSchema struct {
 type enumSchema struct {
 	Type []string `json:"type"`
 	Enum []any    `json:"enum"`
+}
+
+type constStringSchema struct {
+	Type  string `json:"type"`
+	Const string `json:"const"`
 }
 
 func schemaForTypeRef(operation, definition *ast.Document, typeRef int, selectionSetRefs []int, options *options) (json.RawMessage, error) {
@@ -68,7 +77,10 @@ func schemaForTypeRef(operation, definition *ast.Document, typeRef int, selectio
 	typeName := definition.TypeNameString(typeRef)
 	if customSchema, ok := options.customScalarMappings[typeName]; ok {
 		if !nullable {
-			return append(json.RawMessage(nil), customSchema...), nil
+			return marshalSchema(allOfSchema{AllOf: []json.RawMessage{
+				append(json.RawMessage(nil), customSchema...),
+				nonNullJSONSchema(),
+			}})
 		}
 
 		return marshalSchema(anyOfSchema{AnyOf: []json.RawMessage{
@@ -105,11 +117,24 @@ func schemaForTypeRef(operation, definition *ast.Document, typeRef int, selectio
 	switch typeDefinition.Kind {
 	case ast.NodeKindObjectTypeDefinition:
 		return selectedObjectTypeSchema(operation, definition, typeDefinition.Ref, selectionSetRefs, nullable, options)
+	case ast.NodeKindInterfaceTypeDefinition:
+		return selectedInterfaceTypeSchema(operation, definition, typeDefinition.Ref, selectionSetRefs, nullable, options)
+	case ast.NodeKindUnionTypeDefinition:
+		return selectedUnionTypeSchema(operation, definition, typeDefinition.Ref, selectionSetRefs, nullable, options)
 	case ast.NodeKindEnumTypeDefinition:
 		return accessibleEnumTypeSchema(definition, typeDefinition.Ref, nullable)
+	case ast.NodeKindScalarTypeDefinition:
+		if nullable {
+			return json.RawMessage(`{}`), nil
+		}
+		return nonNullJSONSchema(), nil
 	default:
 		return json.RawMessage(`{}`), nil
 	}
+}
+
+func nonNullJSONSchema() json.RawMessage {
+	return json.RawMessage(`{"not":{"type":"null"}}`)
 }
 
 func accessibleEnumTypeSchema(definition *ast.Document, enumTypeDefinitionRef int, nullable bool) (json.RawMessage, error) {
@@ -143,10 +168,45 @@ func selectedObjectTypeSchema(operation, definition *ast.Document, objectTypeDef
 	if err != nil {
 		return nil, err
 	}
+	fieldGroups, err = selectedFieldGroupsForRuntimeType(
+		definition,
+		fieldGroups,
+		definition.ObjectTypeDefinitionNameString(objectTypeDefinitionRef),
+	)
+	if err != nil {
+		return nil, err
+	}
 	required := make([]string, 0, len(fieldGroups))
 	for _, fieldGroup := range fieldGroups {
-		fieldRef := fieldGroup.fieldRefs[0]
+		fieldRef := fieldGroup.fields[0].ref
 		responseName := fieldGroup.responseName
+		if operation.FieldNameString(fieldRef) == "__typename" {
+			for _, repeatedField := range fieldGroup.fields[1:] {
+				if operation.FieldNameString(repeatedField.ref) != "__typename" {
+					return nil, fmt.Errorf(
+						"response property %q combines incompatible fields %q and %q",
+						responseName,
+						operation.FieldNameString(fieldRef),
+						operation.FieldNameString(repeatedField.ref),
+					)
+				}
+			}
+			propertySchema, err := marshalSchema(constStringSchema{
+				Type:  "string",
+				Const: definition.ObjectTypeDefinitionNameString(objectTypeDefinitionRef),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("build schema for response property %q: %w", responseName, err)
+			}
+			properties[responseName] = propertySchema
+			for _, field := range fieldGroup.fields {
+				if !field.conditional {
+					required = append(required, responseName)
+					break
+				}
+			}
+			continue
+		}
 		fieldDefinitionRef, ok := definition.ObjectTypeDefinitionFieldWithName(objectTypeDefinitionRef, operation.FieldNameBytes(fieldRef))
 		if !ok {
 			return nil, fmt.Errorf(
@@ -156,8 +216,10 @@ func selectedObjectTypeSchema(operation, definition *ast.Document, objectTypeDef
 			)
 		}
 
-		childSelectionSetRefs := make([]int, 0, len(fieldGroup.fieldRefs))
-		for _, repeatedFieldRef := range fieldGroup.fieldRefs {
+		childSelectionSetRefs := make([]int, 0, len(fieldGroup.fields))
+		propertyRequired := false
+		for _, repeatedField := range fieldGroup.fields {
+			repeatedFieldRef := repeatedField.ref
 			if operation.FieldNameString(repeatedFieldRef) != operation.FieldNameString(fieldRef) {
 				return nil, fmt.Errorf(
 					"response property %q combines incompatible fields %q and %q",
@@ -168,6 +230,9 @@ func selectedObjectTypeSchema(operation, definition *ast.Document, objectTypeDef
 			}
 			if operation.Fields[repeatedFieldRef].HasSelections {
 				childSelectionSetRefs = append(childSelectionSetRefs, operation.Fields[repeatedFieldRef].SelectionSet)
+			}
+			if !repeatedField.conditional {
+				propertyRequired = true
 			}
 		}
 		propertySchema, err := schemaForTypeRef(
@@ -182,7 +247,9 @@ func selectedObjectTypeSchema(operation, definition *ast.Document, objectTypeDef
 		}
 
 		properties[responseName] = propertySchema
-		required = append(required, responseName)
+		if propertyRequired {
+			required = append(required, responseName)
+		}
 	}
 	// selectedFieldGroups is sorted, but sorting here keeps this invariant local
 	// to the emitted schema.

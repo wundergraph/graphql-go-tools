@@ -2,8 +2,13 @@
 package responsejsonschema
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/santhosh-tekuri/jsonschema/v5"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -58,32 +63,92 @@ func Build(operation *ast.Document, definition *ast.Document, fieldPath []string
 	for _, option := range opts {
 		option(appliedOptions)
 	}
+	if err := validateCustomScalarMappings(definition, appliedOptions.customScalarMappings); err != nil {
+		return nil, fmt.Errorf("build response JSON schema: %w", err)
+	}
 
 	operationDefinition := operation.OperationDefinitions[0]
 	if !operationDefinition.HasSelections {
 		return nil, fmt.Errorf("build response JSON schema: operation definition has no selection set")
 	}
 
-	fieldRefs, err := fieldRefsByResponsePath(operation, operationDefinition.SelectionSet, fieldPath)
+	fieldCandidates, err := fieldCandidatesByResponsePath(operation, definition, &operationDefinition, fieldPath)
 	if err != nil {
-		return nil, fmt.Errorf("build response JSON schema: %w", err)
+		return nil, fmt.Errorf(
+			"build response JSON schema: resolve response path %q: %w",
+			strings.Join(fieldPath, "."),
+			err,
+		)
 	}
 
-	fieldDefinitionRef, err := fieldDefinitionByResponsePath(operation, definition, &operationDefinition, fieldPath)
-	if err != nil {
-		return nil, fmt.Errorf("build response JSON schema: %w", err)
+	schemas := make([]json.RawMessage, 0, len(fieldCandidates))
+	for _, candidate := range fieldCandidates {
+		var selectionSetRefs []int
+		for _, field := range candidate.fields {
+			if operation.Fields[field.ref].HasSelections {
+				selectionSetRefs = append(selectionSetRefs, operation.Fields[field.ref].SelectionSet)
+			}
+		}
+		schema, err := schemaForTypeRef(operation, definition, definition.FieldDefinitions[candidate.fieldDefinitionRef].Type, selectionSetRefs, appliedOptions)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"build response JSON schema at response path %q: %w",
+				strings.Join(fieldPath, "."),
+				err,
+			)
+		}
+		schemas = append(schemas, schema)
 	}
 
-	var selectionSetRefs []int
-	for _, fieldRef := range fieldRefs {
-		if operation.Fields[fieldRef].HasSelections {
-			selectionSetRefs = append(selectionSetRefs, operation.Fields[fieldRef].SelectionSet)
+	sort.Slice(schemas, func(left, right int) bool {
+		return bytes.Compare(schemas[left], schemas[right]) < 0
+	})
+	uniqueSchemas := schemas[:0]
+	for _, schema := range schemas {
+		if len(uniqueSchemas) == 0 || !bytes.Equal(uniqueSchemas[len(uniqueSchemas)-1], schema) {
+			uniqueSchemas = append(uniqueSchemas, schema)
 		}
 	}
-	schema, err := schemaForTypeRef(operation, definition, definition.FieldDefinitions[fieldDefinitionRef].Type, selectionSetRefs, appliedOptions)
-	if err != nil {
-		return nil, fmt.Errorf("build response JSON schema: %w", err)
+	if len(uniqueSchemas) == 1 {
+		return uniqueSchemas[0], nil
 	}
 
-	return schema, nil
+	combined, err := marshalSchema(anyOfSchema{AnyOf: uniqueSchemas})
+	if err != nil {
+		return nil, fmt.Errorf("build response JSON schema: combine mutually exclusive response schemas: %w", err)
+	}
+	return combined, nil
+}
+
+func validateCustomScalarMappings(definition *ast.Document, mappings map[string]json.RawMessage) error {
+	scalarNames := make([]string, 0, len(mappings))
+	for scalarName := range mappings {
+		scalarNames = append(scalarNames, scalarName)
+	}
+	sort.Strings(scalarNames)
+
+	for _, scalarName := range scalarNames {
+		typeNode, ok := definition.Index.FirstNodeByNameStr(scalarName)
+		if !ok || typeNode.Kind != ast.NodeKindScalarTypeDefinition {
+			return fmt.Errorf("custom scalar mapping %q does not name a defined custom scalar", scalarName)
+		}
+
+		schema := mappings[scalarName]
+		if !json.Valid(schema) {
+			return fmt.Errorf("custom scalar mapping %q is not valid JSON", scalarName)
+		}
+		var decoded any
+		if err := json.Unmarshal(schema, &decoded); err != nil {
+			return fmt.Errorf("custom scalar mapping %q is not valid JSON: %w", scalarName, err)
+		}
+		switch decoded.(type) {
+		case map[string]any, bool:
+		default:
+			return fmt.Errorf("custom scalar mapping %q is not a JSON Schema", scalarName)
+		}
+		if _, err := jsonschema.CompileString("custom-scalar-"+scalarName+".schema.json", string(schema)); err != nil {
+			return fmt.Errorf("custom scalar mapping %q is not a valid JSON Schema: %w", scalarName, err)
+		}
+	}
+	return nil
 }
