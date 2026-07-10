@@ -12,6 +12,11 @@ type FetchTreeNode struct {
 	Item            *FetchItem       `json:"item"`
 	ChildNodes      []*FetchTreeNode `json:"child_nodes"`
 	NormalizedQuery string           `json:"normalized_query"`
+
+	// deferMetadata is set only on synthetic sequence wrappers in a composite
+	// defer execution tree. It is intentionally excluded from direct FetchTreeNode
+	// JSON; QueryPlan and Trace expose their own stable representations.
+	deferMetadata *fetchTreeDeferMetadata
 }
 
 type FetchTreeNodeKind string
@@ -85,6 +90,16 @@ type FetchTreeTraceNode struct {
 	Kind     FetchTreeNodeKind     `json:"kind"`
 	Children []*FetchTreeTraceNode `json:"children,omitempty"`
 	Fetch    *FetchTraceNode       `json:"fetch,omitempty"`
+	Defer    *FetchTreeDeferTrace  `json:"defer,omitempty"`
+}
+
+// FetchTreeDeferTrace describes the deferred fragment represented by a trace
+// wrapper. Status is populated only by a request-local execution trace tree.
+type FetchTreeDeferTrace struct {
+	ID     int                  `json:"id"`
+	Label  string               `json:"label"`
+	Path   []string             `json:"path"`
+	Status DeferExecutionStatus `json:"status,omitempty"`
 }
 
 type FetchTraceNode struct {
@@ -102,6 +117,13 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 	}
 	trace := &FetchTreeTraceNode{
 		Kind: n.Kind,
+	}
+	if n.deferMetadata != nil {
+		trace.Defer = &FetchTreeDeferTrace{
+			ID:    n.deferMetadata.descriptor.ID,
+			Label: n.deferMetadata.descriptor.Label,
+			Path:  append([]string{}, n.deferMetadata.descriptor.Path...),
+		}
 	}
 	switch n.Kind {
 	case FetchTreeNodeKindSingle:
@@ -148,6 +170,7 @@ type FetchTreeQueryPlanNode struct {
 	Children        []*FetchTreeQueryPlanNode `json:"children,omitempty"`
 	Fetch           *FetchTreeQueryPlan       `json:"fetch,omitempty"`
 	NormalizedQuery string                    `json:"normalizedQuery,omitempty"`
+	Defer           *FetchTreeDeferDescriptor `json:"defer,omitempty"`
 }
 
 type FetchTreeQueryPlan struct {
@@ -193,6 +216,11 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 	queryPlan := &FetchTreeQueryPlanNode{
 		Kind:            n.Kind,
 		NormalizedQuery: n.NormalizedQuery,
+	}
+	if n.deferMetadata != nil {
+		descriptor := n.deferMetadata.descriptor
+		descriptor.Path = append([]string{}, descriptor.Path...)
+		queryPlan.Defer = &descriptor
 	}
 	switch n.Kind {
 	case FetchTreeNodeKindSingle:
@@ -277,7 +305,18 @@ func (p *PlanPrinter) Print(plan *FetchTreeQueryPlanNode) string {
 }
 
 func (p *PlanPrinter) printPlanNode(plan *FetchTreeQueryPlanNode, increaseDepth bool) {
+	if plan == nil {
+		return
+	}
 	if increaseDepth {
+		p.depth++
+	}
+	if plan.Defer != nil {
+		if plan.Defer.Label == "" {
+			p.print("Defer {")
+		} else {
+			p.print(fmt.Sprintf("Defer(label: %q) {", plan.Defer.Label))
+		}
 		p.depth++
 	}
 	switch plan.Kind {
@@ -326,6 +365,10 @@ func (p *PlanPrinter) printPlanNode(plan *FetchTreeQueryPlanNode, increaseDepth 
 		for _, child := range plan.Children {
 			p.printPlanNode(child, true)
 		}
+		p.print("}")
+	}
+	if plan.Defer != nil {
+		p.depth--
 		p.print("}")
 	}
 	if increaseDepth {
