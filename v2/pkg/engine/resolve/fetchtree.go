@@ -120,9 +120,10 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 	}
 	if n.deferMetadata != nil {
 		trace.Defer = &FetchTreeDeferTrace{
-			ID:    n.deferMetadata.descriptor.ID,
-			Label: n.deferMetadata.descriptor.Label,
-			Path:  append([]string{}, n.deferMetadata.descriptor.Path...),
+			ID:     n.deferMetadata.descriptor.ID,
+			Label:  n.deferMetadata.descriptor.Label,
+			Path:   append([]string{}, n.deferMetadata.descriptor.Path...),
+			Status: n.deferMetadata.executionStatus(),
 		}
 	}
 	switch n.Kind {
