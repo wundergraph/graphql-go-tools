@@ -5,7 +5,39 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
+
+type testFetchDataSourceFactory struct{}
+
+func (testFetchDataSourceFactory) NewDataSource(PlannedFetch) (resolve.DataSource, error) {
+	return nil, nil
+}
+
+func TestNewConfiguration_AcceptsFetchDataSourceFactoryWithoutTransport(t *testing.T) {
+	schemaConfiguration, err := NewSchemaConfiguration("type Query { hello: String }", nil)
+	require.NoError(t, err)
+
+	factory := testFetchDataSourceFactory{}
+	configuration, err := NewConfiguration(ConfigurationInput{
+		SchemaConfiguration:    schemaConfiguration,
+		FetchDataSourceFactory: factory,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, factory, configuration.fetchDataSourceFactory)
+}
+
+func TestNewConfiguration_RejectsMissingFetchCapability(t *testing.T) {
+	schemaConfiguration, err := NewSchemaConfiguration("type Query { hello: String }", nil)
+	require.NoError(t, err)
+
+	_, err = NewConfiguration(ConfigurationInput{
+		SchemaConfiguration: schemaConfiguration,
+	})
+
+	require.Error(t, err)
+}
 
 func TestNewSchemaConfiguration(t *testing.T) {
 	validSchema := `

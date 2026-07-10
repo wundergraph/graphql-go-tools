@@ -16,6 +16,7 @@ import (
 
 type ConfigurationInput struct {
 	Fetch                  *FetchConfiguration
+	FetchDataSourceFactory FetchDataSourceFactory
 	Subscription           *SubscriptionConfiguration
 	SchemaConfiguration    *SchemaConfiguration
 	CustomScalarTypeFields []SingleTypeField
@@ -25,6 +26,7 @@ type ConfigurationInput struct {
 
 type Configuration struct {
 	fetch                  *FetchConfiguration
+	fetchDataSourceFactory FetchDataSourceFactory
 	subscription           *SubscriptionConfiguration
 	schemaConfiguration    SchemaConfiguration
 	customScalarTypeFields []SingleTypeField
@@ -35,6 +37,7 @@ type Configuration struct {
 func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 	cfg := Configuration{
 		customScalarTypeFields: input.CustomScalarTypeFields,
+		fetchDataSourceFactory: input.FetchDataSourceFactory,
 	}
 
 	if input.SchemaConfiguration == nil {
@@ -46,8 +49,8 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 
 	cfg.schemaConfiguration = *input.SchemaConfiguration
 
-	if input.Fetch == nil && input.Subscription == nil && input.GRPC == nil {
-		return Configuration{}, errors.New("fetch or subscription or grpc configuration is required")
+	if input.Fetch == nil && input.Subscription == nil && input.GRPC == nil && input.FetchDataSourceFactory == nil {
+		return Configuration{}, errors.New("fetch or subscription or grpc or fetch data source factory configuration is required")
 	}
 
 	if input.Fetch != nil {
