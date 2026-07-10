@@ -208,16 +208,16 @@ func (r *Request) EstimatedCost() int {
 	return r.estimatedCost
 }
 
-func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, typeStats map[string]resolve.TypeNameStats) {
+func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, resolveCtx *resolve.Context) {
 	// typeStats is nil unless the resolver was built with ResolvableOptions.EnableCostControl;
 	// without runtime stats the actual cost cannot be computed.
-	if calc == nil || typeStats == nil {
+	if calc == nil || resolveCtx == nil || resolveCtx.TypeNameStats == nil {
 		r.actualCost = 0
 		return
 	}
-	r.actualCost = calc.ActualCost(vars, typeStats)
+	r.actualCost = calc.ActualCost(vars, resolveCtx.TypeNameStats)
 	// Debugging of cost trees. Uncomment to debug:
-	// fmt.Println(calc.DebugPrint(vars, typeStats))
+	// fmt.Println(calc.DebugPrint(vars, resolveCtx.TypeNameStats))
 }
 
 func (r *Request) ActualCost() int {
