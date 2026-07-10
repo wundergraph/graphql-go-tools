@@ -112,6 +112,10 @@ type FetchTraceNode struct {
 }
 
 func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
+	return n.trace(false)
+}
+
+func (n *FetchTreeNode) trace(suppressLoadTrace bool) *FetchTreeTraceNode {
 	if n == nil {
 		return nil
 	}
@@ -119,38 +123,58 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 		Kind: n.Kind,
 	}
 	if n.deferMetadata != nil {
+		status := n.deferMetadata.executionStatus()
 		trace.Defer = &FetchTreeDeferTrace{
 			ID:     n.deferMetadata.descriptor.ID,
 			Label:  n.deferMetadata.descriptor.Label,
 			Path:   append([]string{}, n.deferMetadata.descriptor.Path...),
-			Status: n.deferMetadata.executionStatus(),
+			Status: status,
+		}
+		// A request-local skipped branch may still point at a cached fetch node
+		// whose Trace field was populated by an earlier execution. Preserve the
+		// planned fetch metadata, but never present stale timing as work performed
+		// by this request.
+		if status == DeferExecutionStatusSkipped {
+			suppressLoadTrace = true
 		}
 	}
 	switch n.Kind {
 	case FetchTreeNodeKindSingle:
 		switch f := n.Item.Fetch.(type) {
 		case *SingleFetch:
+			loadTrace := f.Trace
+			if suppressLoadTrace {
+				loadTrace = nil
+			}
 			trace.Fetch = &FetchTraceNode{
 				Kind:       "Single",
 				SourceID:   f.Info.DataSourceID,
 				SourceName: f.Info.DataSourceName,
-				Trace:      f.Trace,
+				Trace:      loadTrace,
 				Path:       n.Item.ResponsePath,
 			}
 		case *EntityFetch:
+			loadTrace := f.Trace
+			if suppressLoadTrace {
+				loadTrace = nil
+			}
 			trace.Fetch = &FetchTraceNode{
 				Kind:       "Entity",
 				SourceID:   f.Info.DataSourceID,
 				SourceName: f.Info.DataSourceName,
-				Trace:      f.Trace,
+				Trace:      loadTrace,
 				Path:       n.Item.ResponsePath,
 			}
 		case *BatchEntityFetch:
+			loadTrace := f.Trace
+			if suppressLoadTrace {
+				loadTrace = nil
+			}
 			trace.Fetch = &FetchTraceNode{
 				Kind:       "BatchEntity",
 				SourceID:   f.Info.DataSourceID,
 				SourceName: f.Info.DataSourceName,
-				Trace:      f.Trace,
+				Trace:      loadTrace,
 				Path:       n.Item.ResponsePath,
 			}
 		default:
@@ -158,7 +182,7 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 	case FetchTreeNodeKindSequence, FetchTreeNodeKindParallel:
 		trace.Children = make([]*FetchTreeTraceNode, len(n.ChildNodes))
 		for i, c := range n.ChildNodes {
-			trace.Children[i] = c.Trace()
+			trace.Children[i] = c.trace(suppressLoadTrace)
 		}
 	}
 	return trace

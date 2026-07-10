@@ -200,6 +200,27 @@ func TestFetchTreeDeferMetadataIsOmittedFromNonDeferJSON(t *testing.T) {
 	assert.Equal(t, `{"kind":"Sequence","children":[{"kind":"Single","fetch":{"kind":"Single","path":"","source_id":"primary","source_name":"primary"}}]}`, string(trace))
 }
 
+func TestSkippedDeferTraceSuppressesStaleLoadTiming(t *testing.T) {
+	response, fetches := executionTraceResponse()
+	deferredFetch := fetches[1].Item.Fetch.(*SingleFetch)
+	deferredFetch.Trace = &DataSourceLoadTrace{DurationLoadNano: 99}
+
+	runtime := response.NewDeferExecutionTraceTree()
+	require.True(t, runtime.MarkSkipped(1))
+
+	trace := runtime.Root.Trace()
+	require.Len(t, trace.Children, 2)
+	deferredRoot := trace.Children[1]
+	require.Len(t, deferredRoot.Children, 2)
+	parentWrapper := deferredRoot.Children[0].Children[0]
+	require.NotNil(t, parentWrapper.Defer)
+	require.Equal(t, DeferExecutionStatusSkipped, parentWrapper.Defer.Status)
+	require.Len(t, parentWrapper.Children, 1)
+	require.NotNil(t, parentWrapper.Children[0].Fetch)
+	require.Nil(t, parentWrapper.Children[0].Fetch.Trace,
+		"a skipped branch must not expose timing retained on its shared planned fetch")
+}
+
 func TestGraphQLDeferResponseExecutionTreeRuntimeStatuses(t *testing.T) {
 	response, fetches := executionTraceResponse()
 
