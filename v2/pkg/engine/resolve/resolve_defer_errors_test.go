@@ -283,6 +283,7 @@ func TestDefer_ErrorWithoutDeliverableIncrementalData(t *testing.T) {
 	terminal := decodeDeferPayload(t, w.payloads[1])
 	require.Equal(t, false, terminal["hasNext"])
 	require.NotContains(t, terminal, "incremental")
+	require.NotContains(t, terminal, "pending")
 	completed := terminal["completed"].([]any)
 	require.Len(t, completed, 1)
 	completedErrors := completed[0].(map[string]any)["errors"].([]any)
@@ -299,7 +300,11 @@ func TestDefer_ErrorWithoutDeliverableIncrementalData(t *testing.T) {
 	require.True(t, w.complete)
 }
 
-func TestDefer_ErrorWithoutIncrementalItemSkipsNestedDefers(t *testing.T) {
+// TestDefer_ErrorWithoutIncrementalItemReleasesLiveRootAnchoredNestedDefer:
+// errors without a matching parent field produce completed.errors rather than
+// an empty incremental item, but that wire-shape decision must not cancel a
+// nested defer whose root anchor was already delivered in the initial response.
+func TestDefer_ErrorWithoutIncrementalItemReleasesLiveRootAnchoredNestedDefer(t *testing.T) {
 	t.Parallel()
 	r := New(t.Context(), ResolverOptions{
 		MaxConcurrency:               32,
@@ -313,7 +318,7 @@ func TestDefer_ErrorWithoutIncrementalItemSkipsNestedDefers(t *testing.T) {
 	}
 	child := &DeferFetchGroup{
 		DeferID: 2,
-		Fetches: deferExtensionFetch(3, "child", `{"data":{"child":"must not run"}}`),
+		Fetches: deferExtensionFetch(3, "child", `{"data":{"child":"did run"}}`),
 	}
 	response := &GraphQLDeferResponse{
 		DeferDescriptors: map[int]DeferDescriptor{
@@ -339,15 +344,33 @@ func TestDefer_ErrorWithoutIncrementalItemSkipsNestedDefers(t *testing.T) {
 	w := &testDeferWriter{}
 	_, err := r.ResolveGraphQLDeferResponse(deferExtensionContext(), response, w)
 	require.NoError(t, err)
-	require.Len(t, w.payloads, 2, "a defer without an incremental item cannot release nested work")
+	require.Len(t, w.payloads, 3, "a live nested defer must run even when its parent has no incremental item")
 
-	terminal := decodeDeferPayload(t, w.payloads[1])
-	require.NotContains(t, terminal, "incremental")
-	require.NotContains(t, terminal, "pending")
+	parentFrame := decodeDeferPayload(t, w.payloads[1])
+	require.NotContains(t, parentFrame, "incremental")
+	require.Equal(t, true, parentFrame["hasNext"])
+	require.Equal(t, []any{
+		map[string]any{"id": "2", "path": []any{}, "label": "Child"},
+	}, parentFrame["pending"])
+	parentCompleted := parentFrame["completed"].([]any)
+	require.Len(t, parentCompleted, 1)
+	require.Equal(t, "1", parentCompleted[0].(map[string]any)["id"])
+	require.NotEmpty(t, parentCompleted[0].(map[string]any)["errors"])
+
+	terminal := decodeDeferPayload(t, w.payloads[2])
+	require.Equal(t, false, terminal["hasNext"])
+	require.Equal(t, []any{
+		map[string]any{
+			"data": map[string]any{"child": "did run"},
+			"id":   "2",
+		},
+	}, terminal["incremental"])
+	require.Equal(t, []any{map[string]any{"id": "2"}}, terminal["completed"])
 	require.Equal(t, map[int]string{
 		1: string(DeferExecutionStatusError),
-		2: string(DeferExecutionStatusSkipped),
+		2: string(DeferExecutionStatusCompleted),
 	}, deferStatuses(t, terminal["extensions"].(map[string]any)["trace"]))
+	require.True(t, w.complete)
 }
 
 // ---- error in completed ---------------------------------------------------

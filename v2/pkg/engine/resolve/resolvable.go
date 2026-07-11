@@ -539,6 +539,7 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 	}
 
 	shouldSkipIncremental := r.deferItemDataNull
+	blockChildRelease := r.deferItemDataNull
 
 	// Second pass: render incremental data into a scratch buffer first so a
 	// render-phase error (e.g. a custom field-value renderer failing) never leaves
@@ -563,10 +564,12 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 			r.addError(r.printErr.Error(), nil)
 			r.printErr = nil
 			shouldSkipIncremental = true
+			blockChildRelease = true
 		} else if !r.deferIncrementalItemWritten && r.hasErrors() {
 			// An error can null an already-delivered nullable ancestor, leaving the
 			// scratch render without an incremental item. Complete with the errors
-			// instead of emitting an empty incremental array and releasing children.
+			// instead of emitting an empty incremental array. This alone does not
+			// suppress nested work whose anchor is still live.
 			shouldSkipIncremental = true
 		} else {
 			incrementalItems = scratch.Bytes()
@@ -574,10 +577,10 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 	}
 
 	// Direct children whose anchor survived the render are announced now (lazily)
-	// and scheduled by the caller; the rest are cancelled. When the parent's
-	// incremental item was discarded, none of its nested work can be released:
-	// the client never received the parent payload that would anchor those paths.
-	if !shouldSkipIncremental {
+	// and scheduled by the caller; the rest are cancelled. A null-propagated
+	// parent or a render failure cannot release children, but merely omitting an
+	// empty incremental item does not block children on anchors already delivered.
+	if !blockChildRelease {
 		liveChildren = r.liveChildDescriptors(r.currentDefer.ID)
 	}
 	if err := r.finishCurrentDeferTrace(r.hasErrors(), liveChildren); err != nil {
