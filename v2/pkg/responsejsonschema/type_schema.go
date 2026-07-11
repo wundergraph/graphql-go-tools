@@ -44,8 +44,17 @@ type constStringSchema struct {
 }
 
 func schemaForTypeRef(operation, definition *ast.Document, typeRef int, selectionSetRefs []int, options *options) (json.RawMessage, error) {
-	if typeRef < 0 || typeRef >= len(definition.Types) {
-		return nil, fmt.Errorf("type reference %d is out of bounds", typeRef)
+	if options == nil || options.traversal == nil {
+		return nil, fmt.Errorf("response schema traversal is unavailable")
+	}
+	leaveDepth, err := options.traversal.enterDepth("GraphQL types")
+	if err != nil {
+		return nil, err
+	}
+	defer leaveDepth()
+
+	if _, err := checkedDefinitionTypeName(definition, typeRef, "type"); err != nil {
+		return nil, err
 	}
 
 	nullable := true
@@ -74,7 +83,11 @@ func schemaForTypeRef(operation, definition *ast.Document, typeRef int, selectio
 		return nil, fmt.Errorf("unsupported GraphQL type kind %q", typeNode.TypeKind)
 	}
 
-	typeName := definition.TypeNameString(typeRef)
+	typeNameBytes, err := checkedBytes(definition, typeNode.Name, "type name")
+	if err != nil {
+		return nil, err
+	}
+	typeName := string(typeNameBytes)
 	if customSchema, ok := options.customScalarMappings[typeName]; ok {
 		if !nullable {
 			return marshalSchema(allOfSchema{AllOf: []json.RawMessage{
@@ -110,9 +123,15 @@ func schemaForTypeRef(operation, definition *ast.Document, typeRef int, selectio
 		return marshalSchema(typedSchema{Type: types})
 	}
 
-	typeDefinition, ok := definition.Index.FirstNodeByNameStr(typeName)
+	typeDefinition, ok, err := checkedIndexNode(definition, typeName)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return json.RawMessage(`{}`), nil
+	}
+	if _, err := checkedDefinitionNodeName(definition, typeDefinition); err != nil {
+		return nil, err
 	}
 	switch typeDefinition.Kind {
 	case ast.NodeKindObjectTypeDefinition:
@@ -138,12 +157,33 @@ func nonNullJSONSchema() json.RawMessage {
 }
 
 func accessibleEnumTypeSchema(definition *ast.Document, enumTypeDefinitionRef int, nullable bool) (json.RawMessage, error) {
-	values := make([]any, 0, len(definition.EnumTypeDefinitions[enumTypeDefinitionRef].EnumValuesDefinition.Refs)+1)
-	for _, enumValueDefinitionRef := range definition.EnumTypeDefinitions[enumTypeDefinitionRef].EnumValuesDefinition.Refs {
-		if _, inaccessible := definition.EnumValueDefinitionDirectiveByName(enumValueDefinitionRef, federation.InaccessibleDirectiveNameBytes); inaccessible {
+	if _, err := checkedDefinitionNodeName(definition, ast.Node{Kind: ast.NodeKindEnumTypeDefinition, Ref: enumTypeDefinitionRef}); err != nil {
+		return nil, err
+	}
+	enumValueDefinitionRefs := definition.EnumTypeDefinitions[enumTypeDefinitionRef].EnumValuesDefinition.Refs
+	values := make([]any, 0, len(enumValueDefinitionRefs)+1)
+	for _, enumValueDefinitionRef := range enumValueDefinitionRefs {
+		if err := checkedReference(enumValueDefinitionRef, len(definition.EnumValueDefinitions), "enum value definition reference"); err != nil {
+			return nil, err
+		}
+		enumValueDefinition := definition.EnumValueDefinitions[enumValueDefinitionRef]
+		inaccessible, err := checkedDefinitionDirectiveByName(
+			definition,
+			enumValueDefinition.Directives.Refs,
+			federation.InaccessibleDirectiveNameBytes,
+			"enum value directive",
+		)
+		if err != nil {
+			return nil, err
+		}
+		if inaccessible {
 			continue
 		}
-		values = append(values, definition.EnumValueDefinitionNameString(enumValueDefinitionRef))
+		name, err := checkedBytes(definition, enumValueDefinition.EnumValue, "enum value name")
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, string(name))
 	}
 
 	types := []string{"string"}
@@ -156,22 +196,31 @@ func accessibleEnumTypeSchema(definition *ast.Document, enumTypeDefinitionRef in
 }
 
 func selectedObjectTypeSchema(operation, definition *ast.Document, objectTypeDefinitionRef int, selectionSetRefs []int, nullable bool, options *options) (json.RawMessage, error) {
+	objectTypeName, err := checkedDefinitionNodeName(definition, ast.Node{Kind: ast.NodeKindObjectTypeDefinition, Ref: objectTypeDefinitionRef})
+	if err != nil {
+		return nil, err
+	}
 	if len(selectionSetRefs) == 0 {
 		return nil, fmt.Errorf(
 			"object type %q requires a selection set",
-			definition.ObjectTypeDefinitionNameString(objectTypeDefinitionRef),
+			objectTypeName,
 		)
 	}
+	leaveSelectionSets, err := options.traversal.enterSchemaSelectionSets(selectionSetRefs)
+	if err != nil {
+		return nil, err
+	}
+	defer leaveSelectionSets()
 
 	properties := make(map[string]json.RawMessage)
-	fieldGroups, err := selectedFieldGroups(operation, selectionSetRefs)
+	fieldGroups, err := selectedFieldGroups(operation, selectionSetRefs, options.traversal)
 	if err != nil {
 		return nil, err
 	}
 	fieldGroups, err = selectedFieldGroupsForRuntimeType(
 		definition,
 		fieldGroups,
-		definition.ObjectTypeDefinitionNameString(objectTypeDefinitionRef),
+		objectTypeName,
 	)
 	if err != nil {
 		return nil, err
@@ -180,20 +229,28 @@ func selectedObjectTypeSchema(operation, definition *ast.Document, objectTypeDef
 	for _, fieldGroup := range fieldGroups {
 		fieldRef := fieldGroup.fields[0].ref
 		responseName := fieldGroup.responseName
-		if operation.FieldNameString(fieldRef) == "__typename" {
+		fieldName, _, err := checkedOperationFieldNames(operation, fieldRef)
+		if err != nil {
+			return nil, err
+		}
+		if fieldName == "__typename" {
 			for _, repeatedField := range fieldGroup.fields[1:] {
-				if operation.FieldNameString(repeatedField.ref) != "__typename" {
+				repeatedFieldName, _, err := checkedOperationFieldNames(operation, repeatedField.ref)
+				if err != nil {
+					return nil, err
+				}
+				if repeatedFieldName != "__typename" {
 					return nil, fmt.Errorf(
 						"response property %q combines incompatible fields %q and %q",
 						responseName,
-						operation.FieldNameString(fieldRef),
-						operation.FieldNameString(repeatedField.ref),
+						fieldName,
+						repeatedFieldName,
 					)
 				}
 			}
 			propertySchema, err := marshalSchema(constStringSchema{
 				Type:  "string",
-				Const: definition.ObjectTypeDefinitionNameString(objectTypeDefinitionRef),
+				Const: objectTypeName,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build schema for response property %q: %w", responseName, err)
@@ -207,12 +264,19 @@ func selectedObjectTypeSchema(operation, definition *ast.Document, objectTypeDef
 			}
 			continue
 		}
-		fieldDefinitionRef, ok := definition.ObjectTypeDefinitionFieldWithName(objectTypeDefinitionRef, operation.FieldNameBytes(fieldRef))
+		fieldDefinitionRef, ok, err := checkedFieldDefinitionOnNode(
+			definition,
+			ast.Node{Kind: ast.NodeKindObjectTypeDefinition, Ref: objectTypeDefinitionRef},
+			[]byte(fieldName),
+		)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			return nil, fmt.Errorf(
 				"field %q is not defined on object type %q",
-				operation.FieldNameString(fieldRef),
-				definition.ObjectTypeDefinitionNameString(objectTypeDefinitionRef),
+				fieldName,
+				objectTypeName,
 			)
 		}
 
@@ -220,12 +284,16 @@ func selectedObjectTypeSchema(operation, definition *ast.Document, objectTypeDef
 		propertyRequired := false
 		for _, repeatedField := range fieldGroup.fields {
 			repeatedFieldRef := repeatedField.ref
-			if operation.FieldNameString(repeatedFieldRef) != operation.FieldNameString(fieldRef) {
+			repeatedFieldName, _, err := checkedOperationFieldNames(operation, repeatedFieldRef)
+			if err != nil {
+				return nil, err
+			}
+			if repeatedFieldName != fieldName {
 				return nil, fmt.Errorf(
 					"response property %q combines incompatible fields %q and %q",
 					responseName,
-					operation.FieldNameString(fieldRef),
-					operation.FieldNameString(repeatedFieldRef),
+					fieldName,
+					repeatedFieldName,
 				)
 			}
 			if operation.Fields[repeatedFieldRef].HasSelections {

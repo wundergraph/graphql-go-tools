@@ -20,12 +20,20 @@ func selectedInterfaceTypeSchema(
 	nullable bool,
 	options *options,
 ) (json.RawMessage, error) {
-	typeNames, _ := definition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceTypeDefinitionRef)
+	interfaceNode := ast.Node{Kind: ast.NodeKindInterfaceTypeDefinition, Ref: interfaceTypeDefinitionRef}
+	interfaceName, err := checkedDefinitionNodeName(definition, interfaceNode)
+	if err != nil {
+		return nil, err
+	}
+	domain, err := checkedPossibleRuntimeTypes(definition, interfaceNode)
+	if err != nil {
+		return nil, err
+	}
 	return selectedAbstractTypeSchema(
 		operation,
 		definition,
-		definition.InterfaceTypeDefinitionNameString(interfaceTypeDefinitionRef),
-		typeNames,
+		interfaceName,
+		sortedRuntimeTypeDomain(domain),
 		selectionSetRefs,
 		nullable,
 		options,
@@ -39,12 +47,20 @@ func selectedUnionTypeSchema(
 	nullable bool,
 	options *options,
 ) (json.RawMessage, error) {
-	typeNames, _ := definition.UnionTypeDefinitionMemberTypeNames(unionTypeDefinitionRef)
+	unionNode := ast.Node{Kind: ast.NodeKindUnionTypeDefinition, Ref: unionTypeDefinitionRef}
+	unionName, err := checkedDefinitionNodeName(definition, unionNode)
+	if err != nil {
+		return nil, err
+	}
+	domain, err := checkedPossibleRuntimeTypes(definition, unionNode)
+	if err != nil {
+		return nil, err
+	}
 	return selectedAbstractTypeSchema(
 		operation,
 		definition,
-		definition.UnionTypeDefinitionNameString(unionTypeDefinitionRef),
-		typeNames,
+		unionName,
+		sortedRuntimeTypeDomain(domain),
 		selectionSetRefs,
 		nullable,
 		options,
@@ -66,11 +82,25 @@ func selectedAbstractTypeSchema(
 	sort.Strings(possibleTypeNames)
 	variants := make([]json.RawMessage, 0, len(possibleTypeNames))
 	for _, typeName := range possibleTypeNames {
-		typeNode, ok := definition.Index.FirstNodeByNameStr(typeName)
+		typeNode, ok, err := checkedIndexNode(definition, typeName)
+		if err != nil {
+			return nil, err
+		}
 		if !ok || typeNode.Kind != ast.NodeKindObjectTypeDefinition {
 			return nil, fmt.Errorf("possible type %q of abstract type %q is not an object type", typeName, abstractTypeName)
 		}
-		if objectTypeIsInaccessible(definition, typeNode.Ref) {
+		checkedTypeName, err := checkedDefinitionNodeName(definition, typeNode)
+		if err != nil {
+			return nil, err
+		}
+		if checkedTypeName != typeName {
+			return nil, fmt.Errorf("possible type %q has inconsistent object type name %q", typeName, checkedTypeName)
+		}
+		inaccessible, err := checkedObjectTypeIsInaccessible(definition, typeNode.Ref, federation.InaccessibleDirectiveNameBytes)
+		if err != nil {
+			return nil, err
+		}
+		if inaccessible {
 			continue
 		}
 
@@ -96,9 +126,4 @@ func selectedAbstractTypeSchema(
 		variantSchema,
 		json.RawMessage(`{"type":"null"}`),
 	}})
-}
-
-func objectTypeIsInaccessible(definition *ast.Document, objectTypeDefinitionRef int) bool {
-	objectType := definition.ObjectTypeDefinitions[objectTypeDefinitionRef]
-	return objectType.HasDirectives && objectType.Directives.HasDirectiveByName(definition, string(federation.InaccessibleDirectiveNameBytes))
 }

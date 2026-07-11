@@ -15,6 +15,7 @@ import (
 
 type options struct {
 	customScalarMappings map[string]json.RawMessage
+	traversal            *buildTraversal
 }
 
 // Option configures response schema construction.
@@ -59,7 +60,7 @@ func Build(operation *ast.Document, definition *ast.Document, fieldPath []string
 		return nil, fmt.Errorf("build response JSON schema: operation document has no operation definition")
 	}
 
-	appliedOptions := &options{}
+	appliedOptions := &options{traversal: newBuildTraversal()}
 	for _, option := range opts {
 		option(appliedOptions)
 	}
@@ -72,7 +73,7 @@ func Build(operation *ast.Document, definition *ast.Document, fieldPath []string
 		return nil, fmt.Errorf("build response JSON schema: operation definition has no selection set")
 	}
 
-	fieldCandidates, err := fieldCandidatesByResponsePath(operation, definition, &operationDefinition, fieldPath)
+	fieldCandidates, err := fieldCandidatesByResponsePath(operation, definition, &operationDefinition, fieldPath, appliedOptions.traversal)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"build response JSON schema: resolve response path %q: %w",
@@ -83,6 +84,9 @@ func Build(operation *ast.Document, definition *ast.Document, fieldPath []string
 
 	schemas := make([]json.RawMessage, 0, len(fieldCandidates))
 	for _, candidate := range fieldCandidates {
+		if err := checkedReference(candidate.fieldDefinitionRef, len(definition.FieldDefinitions), "field definition reference"); err != nil {
+			return nil, fmt.Errorf("build response JSON schema: %w", err)
+		}
 		var selectionSetRefs []int
 		for _, field := range candidate.fields {
 			if operation.Fields[field.ref].HasSelections {
@@ -128,9 +132,19 @@ func validateCustomScalarMappings(definition *ast.Document, mappings map[string]
 	sort.Strings(scalarNames)
 
 	for _, scalarName := range scalarNames {
-		typeNode, ok := definition.Index.FirstNodeByNameStr(scalarName)
+		typeNode, ok, err := checkedIndexNode(definition, scalarName)
+		if err != nil {
+			return fmt.Errorf("custom scalar mapping %q: %w", scalarName, err)
+		}
 		if !ok || typeNode.Kind != ast.NodeKindScalarTypeDefinition {
 			return fmt.Errorf("custom scalar mapping %q does not name a defined custom scalar", scalarName)
+		}
+		checkedName, err := checkedDefinitionNodeName(definition, typeNode)
+		if err != nil {
+			return fmt.Errorf("custom scalar mapping %q: %w", scalarName, err)
+		}
+		if checkedName != scalarName {
+			return fmt.Errorf("custom scalar mapping %q resolves to inconsistent scalar name %q", scalarName, checkedName)
 		}
 
 		schema := mappings[scalarName]

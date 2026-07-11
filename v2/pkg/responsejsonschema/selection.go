@@ -12,9 +12,10 @@ import (
 
 func fieldRefsByResponsePath(operation *ast.Document, selectionSetRef int, fieldPath []string) ([]int, error) {
 	selectionSetRefs := []int{selectionSetRef}
+	traversal := newBuildTraversal()
 
 	for index, responseName := range fieldPath {
-		fieldGroup, ok, err := selectedFieldGroupByResponseName(operation, selectionSetRefs, responseName)
+		fieldGroup, ok, err := selectedFieldGroupByResponseName(operation, selectionSetRefs, responseName, traversal)
 		if err != nil {
 			return nil, err
 		}
@@ -57,20 +58,26 @@ type responseFieldCandidate struct {
 	fields             []selectedField
 }
 
-func fieldCandidatesByResponsePath(operation, definition *ast.Document, operationDefinition *ast.OperationDefinition, fieldPath []string) ([]responseFieldCandidate, error) {
+func fieldCandidatesByResponsePath(operation, definition *ast.Document, operationDefinition *ast.OperationDefinition, fieldPath []string, traversal *buildTraversal) ([]responseFieldCandidate, error) {
 	rootTypeName, err := rootTypeName(definition, operationDefinition.OperationType)
 	if err != nil {
 		return nil, err
 	}
 
-	parentNode, ok := definition.Index.FirstNodeByNameStr(rootTypeName)
+	parentNode, ok, err := checkedIndexNode(definition, rootTypeName)
+	if err != nil {
+		return nil, err
+	}
 	if !ok || parentNode.Kind != ast.NodeKindObjectTypeDefinition {
 		return nil, fmt.Errorf("root object type %q is not defined", rootTypeName)
+	}
+	if _, err := checkedDefinitionNodeName(definition, parentNode); err != nil {
+		return nil, err
 	}
 
 	selectionSetRefs := []int{operationDefinition.SelectionSet}
 	for index, responseName := range fieldPath {
-		fieldGroup, ok, err := selectedFieldGroupByResponseName(operation, selectionSetRefs, responseName)
+		fieldGroup, ok, err := selectedFieldGroupByResponseName(operation, selectionSetRefs, responseName, traversal)
 		if err != nil {
 			return nil, err
 		}
@@ -128,9 +135,23 @@ func fieldCandidatesByResponsePath(operation, definition *ast.Document, operatio
 			selectionSetRefs = append(selectionSetRefs, field.SelectionSet)
 		}
 
-		parentTypeName := definition.ResolveTypeNameString(definition.FieldDefinitions[fieldDefinitionRefs[0]].Type)
+		parentTypeName, err := checkedDefinitionTypeName(
+			definition,
+			definition.FieldDefinitions[fieldDefinitionRefs[0]].Type,
+			"field definition type",
+		)
+		if err != nil {
+			return nil, err
+		}
 		for _, fieldDefinitionRef := range fieldDefinitionRefs[1:] {
-			repeatedParentTypeName := definition.ResolveTypeNameString(definition.FieldDefinitions[fieldDefinitionRef].Type)
+			repeatedParentTypeName, err := checkedDefinitionTypeName(
+				definition,
+				definition.FieldDefinitions[fieldDefinitionRef].Type,
+				"field definition type",
+			)
+			if err != nil {
+				return nil, err
+			}
 			if repeatedParentTypeName != parentTypeName {
 				return nil, fmt.Errorf(
 					"response field %q has incompatible nested return types %q and %q while resolving path %q",
@@ -141,9 +162,15 @@ func fieldCandidatesByResponsePath(operation, definition *ast.Document, operatio
 				)
 			}
 		}
-		parentNode, ok = definition.Index.FirstNodeByNameStr(parentTypeName)
+		parentNode, ok, err = checkedIndexNode(definition, parentTypeName)
+		if err != nil {
+			return nil, err
+		}
 		if !ok || !isCompositeTypeNode(parentNode) {
 			return nil, fmt.Errorf("composite type %q is not defined", parentTypeName)
+		}
+		if _, err := checkedDefinitionNodeName(definition, parentNode); err != nil {
+			return nil, err
 		}
 	}
 
@@ -151,38 +178,46 @@ func fieldCandidatesByResponsePath(operation, definition *ast.Document, operatio
 }
 
 func selectedFieldDefinition(operation, definition *ast.Document, parentNode ast.Node, field selectedField) (int, error) {
-	fieldName := operation.FieldNameBytes(field.ref)
+	fieldNameString, _, err := checkedOperationFieldNames(operation, field.ref)
+	if err != nil {
+		return ast.InvalidRef, err
+	}
+	fieldName := []byte(fieldNameString)
 	for index := len(field.typeConditions) - 1; index >= 0; index-- {
 		typeCondition := field.typeConditions[index]
-		conditionNode, ok := definition.Index.FirstNodeByNameStr(typeCondition)
+		conditionNode, ok, err := checkedIndexNode(definition, typeCondition)
+		if err != nil {
+			return ast.InvalidRef, err
+		}
 		if !ok {
 			return ast.InvalidRef, fmt.Errorf("fragment type condition %q is not defined", typeCondition)
 		}
-		if fieldDefinitionRef, ok := fieldDefinitionOnNode(definition, conditionNode, fieldName); ok {
+		fieldDefinitionRef, ok, err := checkedFieldDefinitionOnNode(definition, conditionNode, fieldName)
+		if err != nil {
+			return ast.InvalidRef, err
+		}
+		if ok {
 			return fieldDefinitionRef, nil
 		}
 	}
 
-	if fieldDefinitionRef, ok := fieldDefinitionOnNode(definition, parentNode, fieldName); ok {
+	fieldDefinitionRef, ok, err := checkedFieldDefinitionOnNode(definition, parentNode, fieldName)
+	if err != nil {
+		return ast.InvalidRef, err
+	}
+	if ok {
 		return fieldDefinitionRef, nil
+	}
+	parentTypeName, err := checkedDefinitionNodeName(definition, parentNode)
+	if err != nil {
+		return ast.InvalidRef, err
 	}
 
 	return ast.InvalidRef, fmt.Errorf(
 		"field %q is not defined on response parent type %q",
-		operation.FieldNameString(field.ref),
-		definition.NodeNameString(parentNode),
+		fieldNameString,
+		parentTypeName,
 	)
-}
-
-func fieldDefinitionOnNode(definition *ast.Document, node ast.Node, fieldName []byte) (int, bool) {
-	switch node.Kind {
-	case ast.NodeKindObjectTypeDefinition:
-		return definition.ObjectTypeDefinitionFieldWithName(node.Ref, fieldName)
-	case ast.NodeKindInterfaceTypeDefinition:
-		return definition.InterfaceTypeDefinitionFieldWithName(node.Ref, fieldName)
-	default:
-		return ast.InvalidRef, false
-	}
 }
 
 func isCompositeTypeNode(node ast.Node) bool {
@@ -235,7 +270,10 @@ func selectedFieldRuntimeDomain(definition *ast.Document, parentNode ast.Node, f
 		return nil, err
 	}
 	for _, typeCondition := range field.typeConditions {
-		conditionNode, ok := definition.Index.FirstNodeByNameStr(typeCondition)
+		conditionNode, ok, err := checkedIndexNode(definition, typeCondition)
+		if err != nil {
+			return nil, err
+		}
 		if !ok {
 			return nil, fmt.Errorf("fragment type condition %q is not defined", typeCondition)
 		}
@@ -249,24 +287,7 @@ func selectedFieldRuntimeDomain(definition *ast.Document, parentNode ast.Node, f
 }
 
 func possibleRuntimeTypes(definition *ast.Document, node ast.Node) (runtimeTypeDomain, error) {
-	domain := make(runtimeTypeDomain)
-	switch node.Kind {
-	case ast.NodeKindObjectTypeDefinition:
-		domain[definition.ObjectTypeDefinitionNameString(node.Ref)] = struct{}{}
-	case ast.NodeKindInterfaceTypeDefinition:
-		typeNames, _ := definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
-		for _, typeName := range typeNames {
-			domain[typeName] = struct{}{}
-		}
-	case ast.NodeKindUnionTypeDefinition:
-		typeNames, _ := definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
-		for _, typeName := range typeNames {
-			domain[typeName] = struct{}{}
-		}
-	default:
-		return nil, fmt.Errorf("type %q is not a composite response type", definition.NodeNameString(node))
-	}
-	return domain, nil
+	return checkedPossibleRuntimeTypes(definition, node)
 }
 
 func intersectRuntimeTypeDomains(left, right runtimeTypeDomain) runtimeTypeDomain {
@@ -313,7 +334,10 @@ func selectedFieldGroupsForRuntimeType(definition *ast.Document, groups []select
 
 func selectedFieldAppliesToRuntimeType(definition *ast.Document, field selectedField, runtimeTypeName string) (bool, error) {
 	for _, typeCondition := range field.typeConditions {
-		conditionNode, ok := definition.Index.FirstNodeByNameStr(typeCondition)
+		conditionNode, ok, err := checkedIndexNode(definition, typeCondition)
+		if err != nil {
+			return false, err
+		}
 		if !ok {
 			return false, fmt.Errorf("fragment type condition %q is not defined", typeCondition)
 		}
@@ -363,15 +387,18 @@ type selectedField struct {
 	typeConditions []string
 }
 
-func selectedFieldGroups(operation *ast.Document, selectionSetRefs []int) ([]selectedFieldGroup, error) {
+func selectedFieldGroups(operation *ast.Document, selectionSetRefs []int, traversal *buildTraversal) ([]selectedFieldGroup, error) {
 	groupsByResponseName := make(map[string][]selectedField)
 	for _, selectionSetRef := range selectionSetRefs {
 		var fields []selectedField
-		if err := collectSelectedFields(operation, selectionSetRef, make(map[int]struct{}), false, nil, &fields); err != nil {
+		if err := collectSelectedFields(operation, selectionSetRef, make(map[int]struct{}), false, nil, &fields, traversal); err != nil {
 			return nil, err
 		}
 		for _, field := range fields {
-			responseName := operation.FieldAliasOrNameString(field.ref)
+			_, responseName, err := checkedOperationFieldNames(operation, field.ref)
+			if err != nil {
+				return nil, err
+			}
 			groupsByResponseName[responseName] = append(groupsByResponseName[responseName], field)
 		}
 	}
@@ -392,8 +419,8 @@ func selectedFieldGroups(operation *ast.Document, selectionSetRefs []int) ([]sel
 	return groups, nil
 }
 
-func selectedFieldGroupByResponseName(operation *ast.Document, selectionSetRefs []int, responseName string) (selectedFieldGroup, bool, error) {
-	fieldGroups, err := selectedFieldGroups(operation, selectionSetRefs)
+func selectedFieldGroupByResponseName(operation *ast.Document, selectionSetRefs []int, responseName string, traversal *buildTraversal) (selectedFieldGroup, bool, error) {
+	fieldGroups, err := selectedFieldGroups(operation, selectionSetRefs, traversal)
 	if err != nil {
 		return selectedFieldGroup{}, false, err
 	}
@@ -412,18 +439,31 @@ func collectSelectedFields(
 	conditional bool,
 	typeConditions []string,
 	fields *[]selectedField,
+	traversal *buildTraversal,
 ) error {
 	if selectionSetRef < 0 || selectionSetRef >= len(operation.SelectionSets) {
 		return fmt.Errorf("selection set reference %d is out of bounds", selectionSetRef)
 	}
+	leaveSelection, err := traversal.enterSelectionWalk(selectionSetRef)
+	if err != nil {
+		return err
+	}
+	defer leaveSelection()
 
 	for _, selectionRef := range operation.SelectionSets[selectionSetRef].SelectionRefs {
+		if err := checkedReference(selectionRef, len(operation.Selections), "selection reference"); err != nil {
+			return err
+		}
 		selection := operation.Selections[selectionRef]
 		switch selection.Kind {
 		case ast.SelectionKindField:
-			include, selectionConditional, err := selectionCondition(operation, operation.FieldDirectives(selection.Ref))
+			_, responseName, err := checkedOperationFieldNames(operation, selection.Ref)
 			if err != nil {
-				return fmt.Errorf("field %q: %w", operation.FieldAliasOrNameString(selection.Ref), err)
+				return err
+			}
+			include, selectionConditional, err := selectionCondition(operation, operation.Fields[selection.Ref].Directives.Refs)
+			if err != nil {
+				return fmt.Errorf("field %q: %w", responseName, err)
 			}
 			if !include {
 				continue
@@ -434,33 +474,54 @@ func collectSelectedFields(
 				typeConditions: append([]string(nil), typeConditions...),
 			})
 		case ast.SelectionKindInlineFragment:
+			if err := checkedReference(selection.Ref, len(operation.InlineFragments), "inline fragment reference"); err != nil {
+				return err
+			}
 			inlineFragment := operation.InlineFragments[selection.Ref]
-			include, selectionConditional, err := selectionCondition(operation, operation.InlineFragmentDirectives(selection.Ref))
+			var typeConditionName string
+			var err error
+			if inlineFragment.TypeCondition.Type != ast.InvalidRef {
+				typeConditionName, err = checkedOperationTypeName(operation, inlineFragment.TypeCondition.Type, "inline fragment type")
+				if err != nil {
+					return err
+				}
+			}
+			include, selectionConditional, err := selectionCondition(operation, inlineFragment.Directives.Refs)
 			if err != nil {
-				return fmt.Errorf("inline fragment on %q: %w", operation.InlineFragmentTypeConditionNameString(selection.Ref), err)
+				return fmt.Errorf("inline fragment on %q: %w", typeConditionName, err)
 			}
 			if !include {
 				continue
 			}
 			childTypeConditions := typeConditions
-			if operation.InlineFragmentHasTypeCondition(selection.Ref) {
-				childTypeConditions = appendTypeCondition(typeConditions, operation.InlineFragmentTypeConditionNameString(selection.Ref))
+			if inlineFragment.TypeCondition.Type != ast.InvalidRef {
+				childTypeConditions = appendTypeCondition(typeConditions, typeConditionName)
 			}
 			if inlineFragment.HasSelections {
-				if err := collectSelectedFields(operation, inlineFragment.SelectionSet, activeFragments, conditional || selectionConditional, childTypeConditions, fields); err != nil {
+				if err := collectSelectedFields(operation, inlineFragment.SelectionSet, activeFragments, conditional || selectionConditional, childTypeConditions, fields, traversal); err != nil {
 					return err
 				}
 			}
 		case ast.SelectionKindFragmentSpread:
-			include, selectionConditional, err := selectionCondition(operation, operation.FragmentSpreads[selection.Ref].Directives.Refs)
+			if err := checkedReference(selection.Ref, len(operation.FragmentSpreads), "fragment spread reference"); err != nil {
+				return err
+			}
+			fragmentSpread := operation.FragmentSpreads[selection.Ref]
+			fragmentName, err := checkedBytes(operation, fragmentSpread.FragmentName, "fragment spread name")
 			if err != nil {
-				return fmt.Errorf("fragment spread %q: %w", operation.FragmentSpreadNameString(selection.Ref), err)
+				return err
+			}
+			include, selectionConditional, err := selectionCondition(operation, fragmentSpread.Directives.Refs)
+			if err != nil {
+				return fmt.Errorf("fragment spread %q: %w", fragmentName, err)
 			}
 			if !include {
 				continue
 			}
-			fragmentName := operation.FragmentSpreadNameBytes(selection.Ref)
-			fragmentDefinitionRef, ok := operation.FragmentDefinitionRef(fragmentName)
+			fragmentDefinitionRef, ok, err := checkedFragmentDefinitionRef(operation, fragmentName)
+			if err != nil {
+				return err
+			}
 			if !ok {
 				return fmt.Errorf("fragment %q is not defined", fragmentName)
 			}
@@ -471,12 +532,18 @@ func collectSelectedFields(
 			if !fragmentDefinition.HasSelections {
 				continue
 			}
-			childTypeConditions := appendTypeCondition(typeConditions, operation.FragmentDefinitionTypeNameString(fragmentDefinitionRef))
+			fragmentTypeName, err := checkedOperationTypeName(operation, fragmentDefinition.TypeCondition.Type, "fragment definition type")
+			if err != nil {
+				return err
+			}
+			childTypeConditions := appendTypeCondition(typeConditions, fragmentTypeName)
 			activeFragments[fragmentDefinitionRef] = struct{}{}
-			if err := collectSelectedFields(operation, fragmentDefinition.SelectionSet, activeFragments, conditional || selectionConditional, childTypeConditions, fields); err != nil {
+			if err := collectSelectedFields(operation, fragmentDefinition.SelectionSet, activeFragments, conditional || selectionConditional, childTypeConditions, fields, traversal); err != nil {
 				return err
 			}
 			delete(activeFragments, fragmentDefinitionRef)
+		default:
+			return fmt.Errorf("selection reference %d has unsupported kind %q", selectionRef, selection.Kind)
 		}
 	}
 	return nil
@@ -491,27 +558,76 @@ func appendTypeCondition(typeConditions []string, typeCondition string) []string
 func selectionCondition(operation *ast.Document, directiveRefs []int) (include, conditional bool, err error) {
 	include = true
 	for _, directiveRef := range directiveRefs {
-		directiveName := operation.DirectiveNameBytes(directiveRef)
+		if err := checkedReference(directiveRef, len(operation.Directives), "directive reference"); err != nil {
+			return false, false, err
+		}
+		directive := operation.Directives[directiveRef]
+		directiveName, err := checkedBytes(operation, directive.Name, "directive name")
+		if err != nil {
+			return false, false, err
+		}
 		if !bytes.Equal(directiveName, literal.INCLUDE) && !bytes.Equal(directiveName, literal.SKIP) {
 			continue
 		}
 
-		condition, ok := operation.DirectiveArgumentValueByName(directiveRef, literal.IF)
+		condition, ok, err := checkedDirectiveCondition(operation, directive.Arguments.Refs)
+		if err != nil {
+			return false, false, err
+		}
 		if !ok {
 			return false, false, fmt.Errorf("@%s directive is missing its if condition", directiveName)
 		}
 		switch condition.Kind {
 		case ast.ValueKindBoolean:
-			conditionValue := bool(operation.BooleanValue(condition.Ref))
+			if err := checkedReference(condition.Ref, len(operation.BooleanValues), "boolean value reference"); err != nil {
+				return false, false, err
+			}
+			conditionValue := bool(operation.BooleanValues[condition.Ref])
 			if bytes.Equal(directiveName, literal.INCLUDE) && !conditionValue ||
 				bytes.Equal(directiveName, literal.SKIP) && conditionValue {
 				include = false
 			}
 		case ast.ValueKindVariable:
+			if err := checkedReference(condition.Ref, len(operation.VariableValues), "variable value reference"); err != nil {
+				return false, false, err
+			}
+			if _, err := checkedBytes(operation, operation.VariableValues[condition.Ref].Name, "variable name"); err != nil {
+				return false, false, err
+			}
 			conditional = true
 		default:
 			return false, false, fmt.Errorf("@%s directive has invalid if condition kind %q", directiveName, condition.Kind)
 		}
 	}
 	return include, conditional, nil
+}
+
+func checkedFragmentDefinitionRef(operation *ast.Document, fragmentName []byte) (int, bool, error) {
+	for fragmentDefinitionRef := range operation.FragmentDefinitions {
+		name, err := checkedBytes(operation, operation.FragmentDefinitions[fragmentDefinitionRef].Name, "fragment definition name")
+		if err != nil {
+			return ast.InvalidRef, false, err
+		}
+		if bytes.Equal(fragmentName, name) {
+			return fragmentDefinitionRef, true, nil
+		}
+	}
+	return ast.InvalidRef, false, nil
+}
+
+func checkedDirectiveCondition(operation *ast.Document, argumentRefs []int) (ast.Value, bool, error) {
+	for _, argumentRef := range argumentRefs {
+		if err := checkedReference(argumentRef, len(operation.Arguments), "argument reference"); err != nil {
+			return ast.Value{}, false, err
+		}
+		argument := operation.Arguments[argumentRef]
+		name, err := checkedBytes(operation, argument.Name, "argument name")
+		if err != nil {
+			return ast.Value{}, false, err
+		}
+		if bytes.Equal(name, literal.IF) {
+			return argument.Value, true, nil
+		}
+	}
+	return ast.Value{}, false, nil
 }
