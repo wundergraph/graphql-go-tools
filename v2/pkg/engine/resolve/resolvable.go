@@ -563,6 +563,11 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 			r.addError(r.printErr.Error(), nil)
 			r.printErr = nil
 			shouldSkipIncremental = true
+		} else if !r.deferIncrementalItemWritten && r.hasErrors() {
+			// An error can null an already-delivered nullable ancestor, leaving the
+			// scratch render without an incremental item. Complete with the errors
+			// instead of emitting an empty incremental array and releasing children.
+			shouldSkipIncremental = true
 		} else {
 			incrementalItems = scratch.Bytes()
 		}
