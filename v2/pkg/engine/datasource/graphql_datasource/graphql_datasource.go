@@ -321,8 +321,8 @@ func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
-	if p.config.fetch == nil && p.config.grpc == nil {
-		p.stopWithError(errors.WithStack(errors.New("ConfigureFetch: fetch and grpc configuration is empty")))
+	if p.config.fetch == nil && p.config.grpc == nil && p.config.fetchDataSourceFactory == nil {
+		p.stopWithError(errors.WithStack(errors.New("ConfigureFetch: fetch, grpc, and fetch data source factory configuration is empty")))
 		return resolve.FetchConfiguration{}
 	}
 
@@ -345,19 +345,40 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	postProcessing := DefaultPostProcessingConfiguration
 	requiresEntityFetch := p.requiresEntityFetch()
 	requiresEntityBatchFetch := p.requiresEntityBatchFetch()
+	fetchMode := FetchModeSingle
 
 	switch {
-	case requiresEntityFetch:
-		postProcessing = SingleEntityPostProcessingConfiguration
 	case requiresEntityBatchFetch:
 		postProcessing = EntitiesPostProcessingConfiguration
+		fetchMode = FetchModeEntityBatch
+	case requiresEntityFetch:
+		postProcessing = SingleEntityPostProcessingConfiguration
+		fetchMode = FetchModeEntity
 	}
 
 	var dataSource resolve.DataSource
 
-	dataSource = &Source{httpClient: p.fetchClient}
-
-	if p.config.grpc != nil {
+	switch {
+	case p.config.fetchDataSourceFactory != nil:
+		var err error
+		dataSource, err = p.config.fetchDataSourceFactory.NewDataSource(PlannedFetch{
+			Operation:      p.upstreamOperation,
+			Definition:     p.config.schemaConfiguration.upstreamSchemaAst,
+			Variables:      p.variables,
+			FetchMode:      fetchMode,
+			PostProcessing: postProcessing,
+			RequiredFields: p.dataSourcePlannerConfig.RequiredFields,
+			QueryPlan:      p.queryPlan,
+		})
+		if err != nil {
+			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to create fetch data source: %w", err)))
+			return resolve.FetchConfiguration{}
+		}
+		if dataSource == nil {
+			p.stopWithError(errors.WithStack(errors.New("ConfigureFetch: fetch data source factory returned a nil data source")))
+			return resolve.FetchConfiguration{}
+		}
+	case p.config.grpc != nil:
 		var err error
 
 		opDocument, opReport := astparser.ParseGraphqlDocumentBytes(operation)
@@ -381,6 +402,8 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			p.stopWithError(errors.WithStack(fmt.Errorf("failed to create gRPC datasource: %w", err)))
 			return resolve.FetchConfiguration{}
 		}
+	default:
+		dataSource = &Source{httpClient: p.fetchClient}
 	}
 
 	return resolve.FetchConfiguration{
