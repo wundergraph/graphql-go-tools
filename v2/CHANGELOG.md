@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.10.0...v2.11.0) (2026-07-13)
+
+
+### Features
+
+* **grpc_datasource:** add ConnectRPC transport implementation ([#1509](https://github.com/wundergraph/graphql-go-tools/issues/1509)) ([a2038d2](https://github.com/wundergraph/graphql-go-tools/commit/a2038d2b3585204468ab218d6d15b863c841e249))
+
 ## [2.10.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.2...v2.10.0) (2026-07-09)
 
 

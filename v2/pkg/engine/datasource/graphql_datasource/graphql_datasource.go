@@ -91,8 +91,8 @@ type Planner[T Configuration] struct {
 
 	minifier *astminify.Minifier
 
-	// gRPC
-	grpcClient grpc.ClientConnInterface
+	// gRPC / Connect
+	rpcTransport grpcdatasource.RPCTransport
 
 	printKitPool *sync.Pool
 }
@@ -366,7 +366,12 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			return resolve.FetchConfiguration{}
 		}
 
-		dataSource, err = grpcdatasource.NewDataSource(grpcdatasource.NewGRPCTransport(p.grpcClient), grpcdatasource.DataSourceConfig{
+		if p.rpcTransport == nil {
+			p.stopWithError(errors.WithStack(errors.New("grpc / connect configuration requires an rpc transport")))
+			return resolve.FetchConfiguration{}
+		}
+
+		dataSource, err = grpcdatasource.NewDataSource(p.rpcTransport, grpcdatasource.DataSourceConfig{
 			Operation:         &opDocument,
 			Definition:        p.config.schemaConfiguration.upstreamSchemaAst,
 			Mapping:           p.config.grpc.Mapping,
@@ -378,7 +383,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			SubgraphName: p.dataSourceConfig.Name(),
 		})
 		if err != nil {
-			p.stopWithError(errors.WithStack(fmt.Errorf("failed to create gRPC datasource: %w", err)))
+			p.stopWithError(errors.WithStack(fmt.Errorf("failed to create datasource: %w", err)))
 			return resolve.FetchConfiguration{}
 		}
 	}
@@ -1737,12 +1742,12 @@ func getRelaxedPrintKitPool() *sync.Pool {
 }
 
 type Factory[T Configuration] struct {
-	executionContext   context.Context
-	httpClient         *http.Client
-	grpcClient         grpc.ClientConnInterface
-	grpcClientProvider func() grpc.ClientConnInterface
-	subscriptionClient GraphQLSubscriptionClient
-	printKitPool       *sync.Pool
+	executionContext     context.Context
+	httpClient           *http.Client
+	rpcTransport         grpcdatasource.RPCTransport
+	rpcTransportProvider func() grpcdatasource.RPCTransport
+	subscriptionClient   GraphQLSubscriptionClient
+	printKitPool         *sync.Pool
 }
 
 // NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
@@ -1780,7 +1785,7 @@ func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConn
 
 	return &Factory[Configuration]{
 		executionContext: executionContext,
-		grpcClient:       grpcClient,
+		rpcTransport:     grpcdatasource.NewGRPCTransport(grpcClient),
 	}, nil
 }
 
@@ -1798,9 +1803,34 @@ func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvid
 		return nil, fmt.Errorf("provider function is required")
 	}
 
+	transportProvider := func() grpcdatasource.RPCTransport {
+		client := clientProvider()
+		if client == nil {
+			return nil
+		}
+		return grpcdatasource.NewGRPCTransport(client)
+	}
+
 	return &Factory[Configuration]{
-		executionContext:   executionContext,
-		grpcClientProvider: clientProvider,
+		executionContext:     executionContext,
+		rpcTransportProvider: transportProvider,
+	}, nil
+}
+
+// NewFactoryRPCTransport creates an RPC transport factory for the GraphQL
+// datasource planner. Callers can provide either a gRPC or Connect RPCTransport.
+func NewFactoryRPCTransport(executionContext context.Context, rpcTransport grpcdatasource.RPCTransport) (*Factory[Configuration], error) {
+	if executionContext == nil {
+		return nil, fmt.Errorf("execution context is required")
+	}
+
+	if rpcTransport == nil {
+		return nil, fmt.Errorf("rpc transport is required")
+	}
+
+	return &Factory[Configuration]{
+		executionContext: executionContext,
+		rpcTransport:     rpcTransport,
 	}, nil
 }
 
@@ -1838,14 +1868,14 @@ func (f *Factory[T]) getPrintKitPool() *sync.Pool {
 }
 
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
-	grpcClient := f.grpcClient
-	if f.grpcClientProvider != nil {
-		grpcClient = f.grpcClientProvider()
+	rpcTransport := f.rpcTransport
+	if f.rpcTransportProvider != nil {
+		rpcTransport = f.rpcTransportProvider()
 	}
 
 	return &Planner[T]{
 		fetchClient:        f.httpClient,
-		grpcClient:         grpcClient,
+		rpcTransport:       rpcTransport,
 		subscriptionClient: f.subscriptionClient,
 		printKitPool:       f.getPrintKitPool(),
 	}
@@ -1871,7 +1901,7 @@ func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
 		MergeAliasedRootNodes:      true,
 		OverrideFieldPathFromAlias: true,
 		AllowPlanningTypeName:      true,
-		AlwaysFlattenFragments:     f.grpcClient != nil || f.grpcClientProvider != nil,
+		AlwaysFlattenFragments:     f.rpcTransport != nil || f.rpcTransportProvider != nil,
 	}
 	return b
 }
