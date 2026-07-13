@@ -311,13 +311,15 @@ func (v *Visitor) EnterField(ref int) {
 	if !v.Config.DisableIncludeFieldDependencies {
 		v.fieldEnclosingTypeNames[ref] = strings.Clone(v.Walker.EnclosingTypeDefinition.NameString(v.Definition))
 	}
+
+	fieldName := v.Operation.FieldNameBytes(ref)
+
 	// check if we have to skip the field in the response
 	// it means it was requested by the planner not the user
 	if v.skipField(ref) {
 		return
 	}
 
-	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
 
 	fieldDefinition, ok := v.Walker.FieldDefinition(ref)

@@ -811,7 +811,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
 
 	c.updateFieldDependsOn(result.changedFieldRefs)
-	c.updateSkipFieldRefs(result.changedFieldRefs)
+	c.updateSkipFieldRefs(result.fieldRefOrigins)
 
 	// skip walking into a rewritten field instead of stoping the whole visitor
 	// should allow to do fewer walks over the operation
@@ -858,10 +858,51 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 	}
 }
 
-func (c *nodeSelectionVisitor) updateSkipFieldRefs(changedFieldRefs map[int][]int) {
+// updateSkipFieldRefs updates the skipFieldsRefs list after a rewrite of an abstract field selection set.
+// A field ref present after the rewrite should be skipped only when all original field refs
+// occupying the same response position were skipped.
+// When at least one origin is a user-requested field, the field must stay in the response -
+// including the case when a previously skipped ref survived a merge with a user-requested duplicate.
+func (c *nodeSelectionVisitor) updateSkipFieldRefs(fieldRefOrigins map[int][]int) {
+	if len(fieldRefOrigins) == 0 {
+		return
+	}
+
+	skipped := make(map[int]struct{}, len(c.skipFieldsRefs))
 	for _, fieldRef := range c.skipFieldsRefs {
-		if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
-			c.skipFieldsRefs = append(c.skipFieldsRefs, newRefs...)
+		skipped[fieldRef] = struct{}{}
+	}
+
+	var unskipFieldRefs map[int]struct{}
+
+	for fieldRef, originRefs := range fieldRefOrigins {
+		allOriginsSkipped := true
+		for _, originRef := range originRefs {
+			if _, ok := skipped[originRef]; !ok {
+				allOriginsSkipped = false
+				break
+			}
 		}
+
+		if allOriginsSkipped {
+			if _, ok := skipped[fieldRef]; !ok {
+				c.skipFieldsRefs = append(c.skipFieldsRefs, fieldRef)
+			}
+			continue
+		}
+
+		if _, ok := skipped[fieldRef]; ok {
+			if unskipFieldRefs == nil {
+				unskipFieldRefs = make(map[int]struct{})
+			}
+			unskipFieldRefs[fieldRef] = struct{}{}
+		}
+	}
+
+	if len(unskipFieldRefs) > 0 {
+		c.skipFieldsRefs = slices.DeleteFunc(c.skipFieldsRefs, func(fieldRef int) bool {
+			_, ok := unskipFieldRefs[fieldRef]
+			return ok
+		})
 	}
 }

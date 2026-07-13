@@ -72,7 +72,8 @@ type fieldSelectionRewriter struct {
 
 type RewriteResult struct {
 	rewritten        bool
-	changedFieldRefs map[int][]int // map[fieldRef][]fieldRef - for each original fieldRef list of new fieldRefs
+	changedFieldRefs map[int][]int // map[fieldRef][]fieldRef - for each original fieldRef list of new fieldRefs; identity mappings are omitted
+	fieldRefOrigins  map[int][]int // map[fieldRef][]fieldRef - for each fieldRef present after the rewrite, all original fieldRefs occupying the same response position, including itself
 }
 
 var resultNotRewritten = RewriteResult{}
@@ -167,7 +168,7 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		return resultNotRewritten, nil
 	}
 
-	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
+	fieldPaths, err := collectFieldPaths(r.operation, r.definition, fieldRef)
 	if err != nil {
 		return resultNotRewritten, err
 	}
@@ -177,7 +178,7 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		return resultNotRewritten, err
 	}
 
-	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
+	changedRefs, originRefs, err := r.collectChangedRefs(fieldRef, fieldPaths)
 	if err != nil {
 		return resultNotRewritten, err
 	}
@@ -185,6 +186,7 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 	return RewriteResult{
 		rewritten:        true,
 		changedFieldRefs: changedRefs,
+		fieldRefOrigins:  originRefs,
 	}, nil
 }
 
@@ -343,7 +345,7 @@ func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefR
 		return resultNotRewritten, nil
 	}
 
-	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
+	fieldPaths, err := collectFieldPaths(r.operation, r.definition, fieldRef)
 	if err != nil {
 		return resultNotRewritten, err
 	}
@@ -353,7 +355,7 @@ func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefR
 		return resultNotRewritten, err
 	}
 
-	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
+	changedRefs, originRefs, err := r.collectChangedRefs(fieldRef, fieldPaths)
 	if err != nil {
 		return resultNotRewritten, err
 	}
@@ -361,6 +363,7 @@ func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefR
 	return RewriteResult{
 		rewritten:        true,
 		changedFieldRefs: changedRefs,
+		fieldRefOrigins:  originRefs,
 	}, nil
 }
 
@@ -425,7 +428,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		return resultNotRewritten, nil
 	}
 
-	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
+	fieldPaths, err := collectFieldPaths(r.operation, r.definition, fieldRef)
 	if err != nil {
 		return resultNotRewritten, err
 	}
@@ -435,7 +438,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		return resultNotRewritten, err
 	}
 
-	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
+	changedRefs, originRefs, err := r.collectChangedRefs(fieldRef, fieldPaths)
 	if err != nil {
 		return resultNotRewritten, err
 	}
@@ -443,6 +446,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	return RewriteResult{
 		rewritten:        true,
 		changedFieldRefs: changedRefs,
+		fieldRefOrigins:  originRefs,
 	}, nil
 }
 
@@ -667,33 +671,105 @@ func (r *fieldSelectionRewriter) flattenFragmentOnObject(selectionSetInfo select
 	}
 }
 
-func (r *fieldSelectionRewriter) collectChangedRefs(fieldRef int, fieldRefsPaths map[int]string) (map[int][]int, error) {
-	_, pathsToRefs, err := collectPath(r.operation, r.definition, fieldRef, false)
+func (r *fieldSelectionRewriter) collectChangedRefs(fieldRef int, oldFieldPaths []collectedFieldPath) (changedFieldRefs map[int][]int, fieldRefOrigins map[int][]int, err error) {
+	newFieldPaths, err := collectFieldPaths(r.operation, r.definition, fieldRef)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	out := make(map[int][]int, len(fieldRefsPaths))
+	// group new entries by path to compare only the fields which could occupy the same response position
+	newEntriesByPath := make(map[string][]int, len(newFieldPaths))
+	for i, entry := range newFieldPaths {
+		newEntriesByPath[entry.path] = append(newEntriesByPath[entry.path], i)
+	}
 
-	for fieldRef, path := range fieldRefsPaths {
-		newRefs, ok := pathsToRefs[path]
+	changedFieldRefs = make(map[int][]int, len(oldFieldPaths))
+	fieldRefOrigins = make(map[int][]int, len(newFieldPaths))
+
+	for _, oldEntry := range oldFieldPaths {
+		newEntryIndexes, ok := newEntriesByPath[oldEntry.path]
 		if !ok {
 			// TODO: some paths could actually disappear due to rewrite
 			continue
+		}
+
+		newRefs := make([]int, 0, len(newEntryIndexes))
+		for _, i := range newEntryIndexes {
+			newEntry := newFieldPaths[i]
+			if !scopeChainsIntersect(oldEntry.scopes, newEntry.scopes) {
+				// fields with the same path but non-intersecting type condition scopes
+				// could not occupy the same response position - e.g. fragments on different concrete types
+				continue
+			}
+			newRefs = append(newRefs, newEntry.ref)
+			fieldRefOrigins[newEntry.ref] = append(fieldRefOrigins[newEntry.ref], oldEntry.ref)
 		}
 
 		if len(newRefs) == 0 {
 			continue
 		}
 
-		if len(newRefs) == 1 && newRefs[0] == fieldRef {
+		if len(newRefs) == 1 && newRefs[0] == oldEntry.ref {
 			continue
 		}
 
-		out[fieldRef] = newRefs
+		changedFieldRefs[oldEntry.ref] = newRefs
 	}
 
-	return out, nil
+	return changedFieldRefs, fieldRefOrigins, nil
+}
+
+// collectedFieldPath describes the response position of a field within the rewritten field subtree:
+// a dot-delimited path of field aliases with inline fragment names excluded,
+// and a chain of type condition scopes - one per field nesting level.
+type collectedFieldPath struct {
+	ref    int
+	path   string
+	scopes scopeChain
+}
+
+// scopeChain holds one scope per field nesting level.
+// Each scope is a list of concrete type names allowed by the inline fragment type conditions
+// enclosing the field at that level; a nil scope means the level is unconstrained.
+type scopeChain [][]string
+
+// scopeChainsIntersect reports whether two fields with an equal path could occupy
+// the same response position - e.g. whether at every nesting level
+// their type condition scopes have at least one concrete type in common.
+func scopeChainsIntersect(a, b scopeChain) bool {
+	levels := min(len(a), len(b))
+	for i := range levels {
+		if !scopesIntersect(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func scopesIntersect(a, b []string) bool {
+	if a == nil || b == nil {
+		// nil scope is unconstrained and intersects with everything
+		return true
+	}
+	return slices.ContainsFunc(a, func(typeName string) bool {
+		return slices.Contains(b, typeName)
+	})
+}
+
+func intersectScopes(a, b []string) []string {
+	if a == nil {
+		return b
+	}
+	if b == nil {
+		return a
+	}
+	out := make([]string, 0, len(a))
+	for _, typeName := range a {
+		if slices.Contains(b, typeName) {
+			out = append(out, typeName)
+		}
+	}
+	return out
 }
 
 type AbstractFieldPathCollector struct {
@@ -702,39 +778,78 @@ type AbstractFieldPathCollector struct {
 	operation  *ast.Document
 	definition *ast.Document
 
-	targetFieldRef int
-	fieldRefPaths  map[int]string
-	pathFieldRefs  map[string][]int
-	fieldToPath    bool
+	entries []collectedFieldPath
+
+	levelScopes [][]string // current type condition scope per field nesting level
+	savedScopes [][]string // restore stack for the enclosing inline fragments
 }
 
 func (v *AbstractFieldPathCollector) EnterField(ref int) {
 	parentPath := v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
-	currentFieldName := v.operation.FieldNameString(ref)
-	currentPath := parentPath + "." + currentFieldName
+	currentPath := parentPath + "." + v.operation.FieldAliasOrNameString(ref)
 
-	if v.fieldToPath {
-		v.fieldRefPaths[ref] = currentPath
-		return
-	}
+	scopes := make(scopeChain, len(v.levelScopes))
+	copy(scopes, v.levelScopes)
 
-	if _, ok := v.pathFieldRefs[currentPath]; !ok {
-		v.pathFieldRefs[currentPath] = make([]int, 0, 1)
-	}
-	v.pathFieldRefs[currentPath] = append(v.pathFieldRefs[currentPath], ref)
+	v.entries = append(v.entries, collectedFieldPath{
+		ref:    ref,
+		path:   currentPath,
+		scopes: scopes,
+	})
+
+	// selections of the current field start a new unconstrained nesting level
+	v.levelScopes = append(v.levelScopes, nil)
 }
 
-func collectPath(operation *ast.Document, definition *ast.Document, fieldRef int, fieldToPath bool) (fieldRefPaths map[int]string, pathFieldRefs map[string][]int, err error) {
+func (v *AbstractFieldPathCollector) LeaveField(ref int) {
+	v.levelScopes = v.levelScopes[:len(v.levelScopes)-1]
+}
+
+func (v *AbstractFieldPathCollector) EnterInlineFragment(ref int) {
+	current := v.levelScopes[len(v.levelScopes)-1]
+	v.savedScopes = append(v.savedScopes, current)
+	v.levelScopes[len(v.levelScopes)-1] = intersectScopes(current, v.resolveTypeCondition(ref))
+}
+
+func (v *AbstractFieldPathCollector) LeaveInlineFragment(ref int) {
+	v.levelScopes[len(v.levelScopes)-1] = v.savedScopes[len(v.savedScopes)-1]
+	v.savedScopes = v.savedScopes[:len(v.savedScopes)-1]
+}
+
+// resolveTypeCondition resolves an inline fragment type condition into a list of concrete type names.
+// Returns nil for a fragment without a type condition or with an unresolvable abstract type condition -
+// such fragments do not constrain the scope.
+func (v *AbstractFieldPathCollector) resolveTypeCondition(inlineFragmentRef int) []string {
+	typeConditionName := v.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
+	if typeConditionName == "" {
+		return nil
+	}
+
+	node, exists := v.definition.Index.FirstNodeByNameStr(typeConditionName)
+	if !exists {
+		return []string{typeConditionName}
+	}
+
+	switch node.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		typeNames, _ := v.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+		return typeNames
+	case ast.NodeKindUnionTypeDefinition:
+		typeNames, _ := v.definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+		return typeNames
+	default:
+		return []string{typeConditionName}
+	}
+}
+
+func collectFieldPaths(operation *ast.Document, definition *ast.Document, fieldRef int) ([]collectedFieldPath, error) {
 	walker := astvisitor.NewWalkerWithID(4, "AbstractFieldPathCollector")
 
 	c := &AbstractFieldPathCollector{
-		Walker:         &walker,
-		operation:      operation,
-		definition:     definition,
-		targetFieldRef: fieldRef,
-		fieldRefPaths:  make(map[int]string),
-		pathFieldRefs:  make(map[string][]int),
-		fieldToPath:    fieldToPath,
+		Walker:      &walker,
+		operation:   operation,
+		definition:  definition,
+		levelScopes: [][]string{nil},
 	}
 
 	filter := &FieldLimitedVisitor{
@@ -744,15 +859,16 @@ func collectPath(operation *ast.Document, definition *ast.Document, fieldRef int
 
 	walker.RegisterFieldVisitor(filter)
 	walker.SetVisitorFilter(filter)
-	walker.RegisterEnterFieldVisitor(c)
+	walker.RegisterFieldVisitor(c)
+	walker.RegisterInlineFragmentVisitor(c)
 
 	report := &operationreport.Report{}
-	walker.Walk(c.operation, c.definition, report)
+	walker.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return nil, nil, report
+		return nil, report
 	}
 
-	return c.fieldRefPaths, c.pathFieldRefs, nil
+	return c.entries, nil
 }
 
 type FieldLimitedVisitor struct {
