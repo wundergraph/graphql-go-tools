@@ -82,6 +82,7 @@ func decodeDeferPayload(t *testing.T, payload string) map[string]any {
 
 type signalingDeferWriter struct {
 	testDeferWriter
+
 	flushed chan struct{}
 }
 
