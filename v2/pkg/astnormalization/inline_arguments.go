@@ -35,47 +35,38 @@ type InlineArgumentsValidationOptions struct {
 	StatusCode   int
 }
 
-type InlineArgumentsValidator struct {
-	Options         InlineArgumentsValidationOptions
+// NormalizationResult carries per-run outputs of normalization beyond report errors.
+type NormalizationResult struct {
 	InlineArguments []InlineArgument
-	Disabled        bool
 }
 
-func (v *InlineArgumentsValidator) ClearInlineArguments() {
-	if v == nil {
-		return
+// RunOptions are per-call inputs to a normalization run.
+type RunOptions struct {
+	SkipInlineArguments bool
+}
+
+func registerInlineArgumentsValidation(walker *astvisitor.Walker, opts InlineArgumentsValidationOptions) *inlineArgumentsVisitor {
+	visitor := &inlineArgumentsVisitor{
+		Walker: walker,
+		opts:   opts,
 	}
-	v.InlineArguments = v.InlineArguments[:0]
-}
-
-func (v *InlineArgumentsValidator) HadInlineArguments() bool {
-	return len(v.InlineArguments) > 0
-}
-
-// InlineArgumentsRule returns a prevalidation rule that flags every argument
-// whose value is an inline literal instead of a variable, in any context: field
-// arguments, directive arguments (@skip/@include and any custom directive), and
-// introspection-field arguments. Register it via WithPrevalidationRules; results
-// land on the given validator.
-//
-// Variable-definition default values (e.g. `$x: Int = 5`) are naturally excluded
-// — they are not arguments and are never visited as one.
-func InlineArgumentsRule(validator *InlineArgumentsValidator) func(walker *astvisitor.Walker) {
-	return func(walker *astvisitor.Walker) {
-		visitor := &inlineArgumentsVisitor{
-			Walker:    walker,
-			validator: validator,
-		}
-		walker.RegisterEnterDocumentVisitor(visitor)
-		walker.RegisterEnterArgumentVisitor(visitor)
-	}
+	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterEnterArgumentVisitor(visitor)
+	return visitor
 }
 
 type inlineArgumentsVisitor struct {
 	*astvisitor.Walker
 
 	operation, definition *ast.Document
-	validator             *InlineArgumentsValidator
+	opts                  InlineArgumentsValidationOptions
+
+	// disabled is set per run (see RunOptions.SkipInlineArguments) to exempt this
+	// operation from detection/enforcement.
+	disabled bool
+	// result accumulates the findings for the current run. Reset by the normalizer
+	// at the start of each run.
+	result NormalizationResult
 }
 
 func (v *inlineArgumentsVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -84,7 +75,7 @@ func (v *inlineArgumentsVisitor) EnterDocument(operation, definition *ast.Docume
 }
 
 func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
-	if v.validator.Disabled {
+	if v.disabled {
 		return
 	}
 	valueKind := v.operation.Arguments[ref].Value.Kind
@@ -92,14 +83,14 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 		return
 	}
 
-	if v.validator.Options.Enforce {
+	if v.opts.Enforce {
 		// Reject on the first inline argument and stop the walk. A single generic
 		// error is enough to signal that the operation is non-compliant; we don't
 		// name the argument or point at its location.
 		v.StopWithExternalErr(operationreport.ExternalError{
-			Message:       v.validator.Options.ErrorMessage,
-			ExtensionCode: v.validator.Options.ErrorCode,
-			StatusCode:    v.validator.Options.StatusCode,
+			Message:       v.opts.ErrorMessage,
+			ExtensionCode: v.opts.ErrorCode,
+			StatusCode:    v.opts.StatusCode,
 		})
 		return
 	}
@@ -121,5 +112,5 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 		}
 	}
 
-	v.validator.InlineArguments = append(v.validator.InlineArguments, finding)
+	v.result.InlineArguments = append(v.result.InlineArguments, finding)
 }

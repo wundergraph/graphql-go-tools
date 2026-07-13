@@ -27,7 +27,12 @@ const inlineArgumentsTestSchema = `
 	input Filter { a: Int }
 `
 
-func runInlineArgumentsRule(t *testing.T, operation string, opts InlineArgumentsValidationOptions) (*InlineArgumentsValidator, *operationreport.Report) {
+func runInlineArgumentsRule(t *testing.T, operation string, opts InlineArgumentsValidationOptions) (*NormalizationResult, *operationreport.Report) {
+	t.Helper()
+	return runInlineArgumentsRuleWithRunOpts(t, operation, opts, RunOptions{})
+}
+
+func runInlineArgumentsRuleWithRunOpts(t *testing.T, operation string, opts InlineArgumentsValidationOptions, runOpts RunOptions) (*NormalizationResult, *operationreport.Report) {
 	t.Helper()
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(inlineArgumentsTestSchema)
@@ -36,11 +41,10 @@ func runInlineArgumentsRule(t *testing.T, operation string, opts InlineArguments
 	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := &operationreport.Report{}
 
-	validator := &InlineArgumentsValidator{Options: opts}
-	normalizer := NewWithOpts(WithPrevalidationRules(InlineArgumentsRule(validator)))
-	normalizer.NormalizeOperation(&operationDocument, &definitionDocument, report)
+	normalizer := NewWithOpts(WithInlineArgumentsValidation(opts))
+	result := normalizer.NormalizeNamedOperationWithResult(&operationDocument, &definitionDocument, nil, report, runOpts)
 
-	return validator, report
+	return result, report
 }
 
 func TestInlineArgumentsRule_Detection(t *testing.T) {
@@ -135,17 +139,18 @@ func TestInlineArgumentsRule_Detection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			validator, report := runInlineArgumentsRule(t, tt.operation, InlineArgumentsValidationOptions{Enforce: false})
+			result, report := runInlineArgumentsRule(t, tt.operation, InlineArgumentsValidationOptions{Enforce: false})
 			require.False(t, report.HasErrors(), "log-only mode must never error: %s", report.Error())
+			require.NotNil(t, result)
 
 			if len(tt.expected) == 0 {
-				assert.Empty(t, validator.InlineArguments)
+				assert.Empty(t, result.InlineArguments)
 				return
 			}
 
-			require.Len(t, validator.InlineArguments, len(tt.expected))
-			got := make([]InlineArgument, len(validator.InlineArguments))
-			for i, f := range validator.InlineArguments {
+			require.Len(t, result.InlineArguments, len(tt.expected))
+			got := make([]InlineArgument, len(result.InlineArguments))
+			for i, f := range result.InlineArguments {
 				f.Position = tt.expected[i].Position // ignore position in this comparison
 				got[i] = f
 			}
@@ -158,20 +163,21 @@ func TestInlineArgumentsRule_Position(t *testing.T) {
 	// The reported position points at the argument in the operation as parsed.
 	// `userId` starts at column 30 on line 1 of the operation below.
 	operation := `query GetUserById { userById(userId: "12345") { loginName } }`
-	validator, report := runInlineArgumentsRule(t, operation, InlineArgumentsValidationOptions{
+	result, report := runInlineArgumentsRule(t, operation, InlineArgumentsValidationOptions{
 		Enforce: false,
 	})
 	require.False(t, report.HasErrors())
-	require.Len(t, validator.InlineArguments, 1)
+	require.NotNil(t, result)
+	require.Len(t, result.InlineArguments, 1)
 
-	pos := validator.InlineArguments[0].Position
+	pos := result.InlineArguments[0].Position
 	assert.Equal(t, uint32(1), pos.LineStart)
 	assert.Equal(t, uint32(30), pos.CharStart)
 }
 
 func TestInlineArgumentsRule_Enforce(t *testing.T) {
 	t.Run("stops at the first inline argument and reports a typed error", func(t *testing.T) {
-		validator, report := runInlineArgumentsRule(t,
+		result, report := runInlineArgumentsRule(t,
 			`query { userById(userId: "12345") { loginName } field(order: ASC) }`,
 			InlineArgumentsValidationOptions{
 				Enforce:      true,
@@ -188,36 +194,47 @@ func TestInlineArgumentsRule_Enforce(t *testing.T) {
 		assert.Equal(t, "INLINE_ARGUMENT_VALUES_NOT_ALLOWED", extErr.ExtensionCode)
 		assert.Equal(t, 400, extErr.StatusCode)
 
-		// Enforce rejects on the first inline argument and stops the walk, so no
-		// findings are collected.
-		assert.Empty(t, validator.InlineArguments)
+		// Enforce rejects on the first inline argument and stops the walk, so
+		// normalization fails and no result is returned.
+		assert.Nil(t, result)
 
 		// The rejection is a generic error: no per-argument location is attached.
 		assert.Empty(t, extErr.Locations)
 	})
 
 	t.Run("compliant operation passes enforce mode", func(t *testing.T) {
-		validator, report := runInlineArgumentsRule(t,
+		result, report := runInlineArgumentsRule(t,
 			`query q($userId: ID!) { userById(userId: $userId) { loginName } }`,
 			InlineArgumentsValidationOptions{Enforce: true, ErrorMessage: "nope", ErrorCode: "CODE", StatusCode: 400},
 		)
 		require.False(t, report.HasErrors(), "compliant operation must not error: %s", report.Error())
-		assert.False(t, validator.HadInlineArguments())
+		require.NotNil(t, result)
+		assert.Empty(t, result.InlineArguments)
 	})
 
-	t.Run("disabled validator records nothing", func(t *testing.T) {
-		definitionDocument := unsafeparser.ParseGraphqlDocumentString(inlineArgumentsTestSchema)
-		require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&definitionDocument))
-		operationDocument := unsafeparser.ParseGraphqlDocumentString(`query { userById(userId: "12345") { loginName } }`)
-		report := &operationreport.Report{}
-
-		validator := &InlineArgumentsValidator{Options: InlineArgumentsValidationOptions{Enforce: true, ErrorMessage: "x", ErrorCode: "C", StatusCode: 400}}
-		validator.Disabled = true
-
-		normalizer := NewWithOpts(WithPrevalidationRules(InlineArgumentsRule(validator)))
-		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, report)
+	t.Run("SkipInlineArguments records nothing and does not enforce", func(t *testing.T) {
+		result, report := runInlineArgumentsRuleWithRunOpts(t,
+			`query { userById(userId: "12345") { loginName } }`,
+			InlineArgumentsValidationOptions{Enforce: true, ErrorMessage: "x", ErrorCode: "C", StatusCode: 400},
+			RunOptions{SkipInlineArguments: true},
+		)
 
 		require.False(t, report.HasErrors())
-		assert.False(t, validator.HadInlineArguments())
+		require.NotNil(t, result)
+		assert.Empty(t, result.InlineArguments)
 	})
+}
+
+func TestInlineArgumentsRule_OptionOffReturnsNil(t *testing.T) {
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(inlineArgumentsTestSchema)
+	require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&definitionDocument))
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(`query { userById(userId: "12345") { loginName } }`)
+	report := &operationreport.Report{}
+
+	// No WithInlineArgumentsValidation option: there is no result to produce.
+	normalizer := NewWithOpts()
+	result := normalizer.NormalizeNamedOperationWithResult(&operationDocument, &definitionDocument, nil, report, RunOptions{})
+
+	require.False(t, report.HasErrors())
+	assert.Nil(t, result)
 }
