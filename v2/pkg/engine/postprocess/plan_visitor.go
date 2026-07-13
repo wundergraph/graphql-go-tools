@@ -1,9 +1,6 @@
 package postprocess
 
 import (
-	"strings"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -69,18 +66,6 @@ func (e *PlanWalker) SetSkip(skip bool) {
 	e.skip = skip
 }
 
-func (e *PlanWalker) registerObjectVisitor(visitor PlanObjectVisitor) {
-	e.objectVisitor = visitor
-}
-
-func (e *PlanWalker) registerArrayVisitor(visitor PlanArrayVisitor) {
-	e.arrayVisitor = visitor
-}
-
-func (e *PlanWalker) registerFieldVisitor(visitor PlanFieldVisitor) {
-	e.fieldVisitor = visitor
-}
-
 func (e *PlanWalker) pushField(field *resolve.Field) {
 	e.CurrentFields = append(e.CurrentFields, field)
 }
@@ -111,29 +96,6 @@ func (e *PlanWalker) pushArrayPath() {
 
 func (e *PlanWalker) popArrayPath() {
 	e.path = e.path[:len(e.path)-1]
-}
-
-func (e *PlanWalker) renderPath() string {
-	builder := strings.Builder{}
-	if e.info != nil {
-		switch e.info.OperationType {
-		case ast.OperationTypeQuery:
-			builder.WriteString("query")
-		case ast.OperationTypeMutation:
-			builder.WriteString("mutation")
-		case ast.OperationTypeSubscription:
-			builder.WriteString("subscription")
-		case ast.OperationTypeUnknown:
-		}
-	}
-	if len(e.path) == 0 {
-		return builder.String()
-	}
-	for i := range e.path {
-		builder.WriteByte('.')
-		builder.WriteString(e.path[i])
-	}
-	return builder.String()
 }
 
 func (e *PlanWalker) Walk(data *resolve.Object, info *resolve.GraphQLResponseInfo) {
@@ -188,18 +150,6 @@ func (e *PlanWalker) walkObject(object *resolve.Object) {
 
 	for i := range object.Fields {
 		e.walkField(object.Fields[i])
-	}
-}
-
-func (e *PlanWalker) onEnterObject(object *resolve.Object) {
-	if e.objectVisitor != nil {
-		e.objectVisitor.EnterObject(object)
-	}
-}
-
-func (e *PlanWalker) onLeaveObject(object *resolve.Object) {
-	if e.objectVisitor != nil {
-		e.objectVisitor.LeaveObject(object)
 	}
 }
 

@@ -598,23 +598,6 @@ func (r *Resolvable) ResolveDeferError(out io.Writer, message string, outstandin
 	return r.printErr
 }
 
-func (r *Resolvable) renderPath() {
-	r.printBytes(lBrack)
-	for i, p := range r.path {
-		if i > 0 {
-			r.printBytes(comma)
-		}
-		if p.Name != "" {
-			r.printBytes(quote)
-			r.printBytes(unsafebytes.StringToBytes(p.Name))
-			r.printBytes(quote)
-		} else {
-			r.printBytes(unsafebytes.StringToBytes(strconv.Itoa(p.Idx)))
-		}
-	}
-	r.printBytes(rBrack)
-}
-
 // deferAnchorAlive reports whether the object a @defer fragment is mounted on
 // survived the initial render. The initial validation walk sets nullable objects
 // to null in r.data when a non-null child null-propagated, so a dead anchor reads

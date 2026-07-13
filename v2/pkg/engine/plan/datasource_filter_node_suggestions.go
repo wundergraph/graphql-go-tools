@@ -386,26 +386,6 @@ func (f *NodeSuggestions) treeNode(idx int) treeNode {
 	return treeNode
 }
 
-func (f *NodeSuggestions) duplicatesOf(idx int) (out []int) {
-	treeNode := f.treeNode(idx)
-
-	if isTreeNodeUniq(treeNode) {
-		return nil
-	}
-
-	duplicatesIndexes := treeNode.GetData()
-
-	out = make([]int, 0, len(duplicatesIndexes))
-	for _, duplicateIdx := range duplicatesIndexes {
-		if idx == duplicateIdx {
-			continue
-		}
-		out = append(out, duplicateIdx)
-	}
-
-	return
-}
-
 func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 	treeNode := f.treeNode(idx)
 	childIndexes := treeNodeChildren(treeNode)
@@ -458,16 +438,6 @@ func (f *NodeSuggestions) childNodesIdsOnOtherDS(idx int) (out []int) {
 	return
 }
 
-func (f *NodeSuggestions) withoutTypeName(in []int) (out []int) {
-	out = make([]int, 0, len(in))
-	for _, i := range in {
-		if f.items[i].FieldName != typeNameField {
-			out = append(out, i)
-		}
-	}
-	return
-}
-
 func (f *NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
 	treeNode := f.treeNode(idx)
 	siblingIndexes := treeNodeSiblings(treeNode)
@@ -505,10 +475,6 @@ func (f *NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok boo
 	}
 
 	return -1, false
-}
-
-func (f *NodeSuggestions) printNodes(msg string) {
-	f.printNodesWithFilter(msg, false)
 }
 
 func (f *NodeSuggestions) printNodesWithFilter(msg string, filterNotSelected bool) {

@@ -7,7 +7,6 @@ import (
 	"github.com/tidwall/sjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
@@ -28,7 +27,6 @@ type variablesDefaultValueExtractionVisitor struct {
 	*astvisitor.Walker
 
 	operation, definition                             *ast.Document
-	importer                                          astimport.Importer
 	operationRef                                      int
 	variablesNamesUsedInPositionsExpectingNonNullType [][]byte
 	variableRefsWithDefaultValuesDefined              []int

@@ -1324,7 +1324,6 @@ var mustString = func(str string, err error) string {
 type registerNormalizeFunc func(walker *astvisitor.Walker)
 type registerNormalizeVariablesFunc func(walker *astvisitor.Walker) *variablesExtractionVisitor
 type registerNormalizeVariablesDefaulValueFunc func(walker *astvisitor.Walker) *variablesDefaultValueExtractionVisitor
-type registerNormalizeDeleteVariablesFunc func(walker *astvisitor.Walker) *deleteUnusedVariablesVisitor
 
 var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *astvisitor.Walker), definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) {
 	t.Helper()
@@ -1438,15 +1437,6 @@ var runWithVariablesDefaultValues = func(t *testing.T, normalizeFunc registerNor
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
 }
 
-var runWithDeleteUnusedVariables = func(t *testing.T, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
-	t.Helper()
-
-	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
-		del := deleteUnusedVariables(walker)
-		detectVariableUsage(walker, del)
-	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
-}
-
 var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput, variablesInput string) {
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
@@ -1524,42 +1514,6 @@ var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, op
 	}
 
 	assert.Equal(t, want, got)
-}
-
-var runWithExpectedErrors = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, expectedError string, additionalNormalizers ...registerNormalizeFunc) {
-	t.Helper()
-
-	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
-	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
-	if err != nil {
-		panic(err)
-	}
-
-	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
-	report := operationreport.Report{}
-	walker := astvisitor.NewWalker(48)
-
-	normalizeFunc(&walker)
-
-	for _, fn := range additionalNormalizers {
-		fn(&walker)
-	}
-
-	walker.Walk(&operationDocument, &definitionDocument, &report)
-	// we run this walker twice because some normalizers may depend on other normalizers
-	// walking twice ensures that all prerequisites are met
-	// additionally, walking twice also ensures that the normalizers are idempotent
-	walker.Walk(&operationDocument, &definitionDocument, &report)
-
-	assert.True(t, report.HasErrors())
-	assert.Condition(t, func() bool {
-		for i := range report.InternalErrors {
-			if report.InternalErrors[i].Error() == expectedError {
-				return true
-			}
-		}
-		return false
-	})
 }
 
 func runMany(t *testing.T, definition, operation, expectedOutput string, normalizeFuncs ...registerNormalizeFunc) {

@@ -5688,7 +5688,6 @@ type SubscriptionRecorder struct {
 	complete atomic.Bool
 	errors   [][]byte
 	mux      sync.Mutex
-	onFlush  func(p []byte)
 }
 
 var _ SubscriptionResponseWriter = (*SubscriptionRecorder)(nil)
@@ -5788,8 +5787,6 @@ func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func
 }
 
 type messageFunc func(counter int) (message string, done bool)
-
-var fakeStreamRequestId atomic.Int32
 
 type _fakeStream struct {
 	messageFunc           messageFunc

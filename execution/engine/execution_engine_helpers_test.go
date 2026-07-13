@@ -89,7 +89,6 @@ type roundTripperTestCase struct {
 	expectedHost     string
 	expectedPath     string
 	expectedBody     string
-	expectedMethod   string
 	sendStatusCode   int
 	sendResponseBody string
 }
@@ -119,9 +118,8 @@ func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRou
 }
 
 type conditionalTestCase struct {
-	expectedHost   string
-	expectedPath   string
-	expectedMethod string
+	expectedHost string
+	expectedPath string
 
 	// responses map an expected body to the output that should be sent
 	responses map[string]sendResponse
@@ -214,31 +212,6 @@ func heroWithArgumentSchema(t *testing.T) *graphql.Schema {
 			heroes(names: [String!]!): [String!]
 		}`
 
-	schema, err := graphql.NewSchemaFromString(schemaString)
-	require.NoError(t, err)
-	return schema
-}
-
-func moviesSchema(t *testing.T) *graphql.Schema {
-	schemaString := `
-type Movie {
-  id: Int!
-  name: String!
-  year: Int!
-}
-
-type Mutation {
-  addToWatchlist(movieID: Int!): Movie
-  addToWatchlistWithInput(input: WatchlistInput!): Movie
-}
-
-type Query {
-  default: String
-}
-
-input WatchlistInput {
-  id: Int!
-}`
 	schema, err := graphql.NewSchemaFromString(schemaString)
 	require.NoError(t, err)
 	return schema
