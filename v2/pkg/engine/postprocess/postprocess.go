@@ -28,17 +28,20 @@ type Processor struct {
 }
 
 type FetchTreeProcessors struct {
-	resolveInputTemplates          *resolveInputTemplates
-	appendFetchID                  *fetchIDAppender
-	dedupe                         *deduplicateSingleFetches
-	addMissingNestedDependencies   *addMissingNestedDependencies
-	createConcreteSingleFetchTypes *createConcreteSingleFetchTypes
-	orderSequenceByDependencies    *orderSequenceByDependencies
-	createParallelNodes            *createParallelNodes
+	collectAuthorizationCoordinates *collectAuthorizationCoordinates
+	resolveInputTemplates           *resolveInputTemplates
+	appendFetchID                   *fetchIDAppender
+	dedupe                          *deduplicateSingleFetches
+	addMissingNestedDependencies    *addMissingNestedDependencies
+	createConcreteSingleFetchTypes  *createConcreteSingleFetchTypes
+	orderSequenceByDependencies     *orderSequenceByDependencies
+	createParallelNodes             *createParallelNodes
 }
 
-// processFlatFetchTree - process a flat fetch tree - single serial fetch with flat list of child fetches
-func (p *FetchTreeProcessors) processFlatFetchTree(fetches *resolve.FetchTreeNode) {
+// processFlatFetchTree - process a flat fetch tree - single serial fetch with a flat list of child fetches
+func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResponse) {
+	p.collectAuthorizationCoordinates.Process(response)
+	fetches := response.Fetches
 	p.dedupe.ProcessFetchTree(fetches)
 	// Appending fetchIDs makes query content unique, thus it should happen after "dedupe".
 	p.appendFetchID.ProcessFetchTree(fetches)
@@ -59,18 +62,19 @@ type ResponseTreeProcessors struct {
 }
 
 type processorOptions struct {
-	disableDeduplicateSingleFetches       bool
-	disableCreateConcreteSingleFetchTypes bool
-	disableOrderSequenceByDependencies    bool
-	disableMergeFields                    bool
-	disableRewriteOpNames                 bool
-	disableResolveInputTemplates          bool
-	disableExtractFetches                 bool
-	disableCreateParallelNodes            bool
-	disableAddMissingNestedDependencies   bool
-	collectDataSourceInfo                 bool
-	disableExtractDeferFetches            bool
-	disableBuildDeferTree                 bool
+	disableDeduplicateSingleFetches        bool
+	disableCreateConcreteSingleFetchTypes  bool
+	disableOrderSequenceByDependencies     bool
+	disableMergeFields                     bool
+	disableRewriteOpNames                  bool
+	disableResolveInputTemplates           bool
+	disableExtractFetches                  bool
+	disableCreateParallelNodes             bool
+	disableAddMissingNestedDependencies    bool
+	collectDataSourceInfo                  bool
+	disableExtractDeferFetches             bool
+	disableBuildDeferTree                  bool
+	disableCollectAuthorizationCoordinates bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -136,6 +140,12 @@ func DisableBuildDeferTree() ProcessorOption {
 	}
 }
 
+func DisableCollectAuthorizationCoordinates() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableCollectAuthorizationCoordinates = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
@@ -145,6 +155,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		collectDataSourceInfo: opts.collectDataSourceInfo,
 		disableExtractFetches: opts.disableExtractFetches,
 		fetchTreeProcessors: &FetchTreeProcessors{
+			collectAuthorizationCoordinates: &collectAuthorizationCoordinates{
+				disable: opts.disableCollectAuthorizationCoordinates,
+			},
 			resolveInputTemplates: &resolveInputTemplates{
 				disable: opts.disableResolveInputTemplates,
 			},
@@ -193,13 +206,13 @@ func (p *Processor) Process(pre plan.Plan) {
 		p.responseTreeProcessors.mergeFields.Process(t.Response.Data)
 		// initialize the fetch tree
 		p.createFetchTree(t.Response)
-		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Fetches)
+		p.fetchTreeProcessors.processFlatFetchTree(t.Response)
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Fetches)
 
 	case *plan.DeferResponsePlan:
 		p.responseTreeProcessors.mergeFields.Process(t.Response.Response.Data)
 		p.createFetchTree(t.Response.Response)
-		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Response.Fetches)
+		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Response)
 
 		// extract deferred fetches into their own fetch trees
 		p.extractDeferFetches.Process(t)
@@ -222,7 +235,7 @@ func (p *Processor) Process(pre plan.Plan) {
 		p.createFetchTree(t.Response.Response)
 		p.appendTriggerToFetchTree(t.Response)
 
-		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Response.Fetches)
+		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Response)
 
 		// resolve input template for the root query in the subscription trigger
 		p.fetchTreeProcessors.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)

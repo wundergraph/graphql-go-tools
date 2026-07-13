@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.11.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.10.0...v2.11.0) (2026-07-13)
+
+
+### Features
+
+* **grpc_datasource:** add ConnectRPC transport implementation ([#1509](https://github.com/wundergraph/graphql-go-tools/issues/1509)) ([a2038d2](https://github.com/wundergraph/graphql-go-tools/commit/a2038d2b3585204468ab218d6d15b863c841e249))
+
+## [2.10.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.2...v2.10.0) (2026-07-09)
+
+
+### Features
+
+* **resolve:** add opt-in pre-fetch field authorization mode ([#1561](https://github.com/wundergraph/graphql-go-tools/issues/1561)) ([eb3b142](https://github.com/wundergraph/graphql-go-tools/commit/eb3b1420a219c5ee431dc432ed5e2101a9fe57ad))
+
+
+### Bug Fixes
+
+* do not charge actual cost for denied fields ([#1582](https://github.com/wundergraph/graphql-go-tools/issues/1582)) ([00d9f66](https://github.com/wundergraph/graphql-go-tools/commit/00d9f66ff0d6af5c7b02862806b6090f77e87dd4))
+
+## [2.9.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.1...v2.9.2) (2026-07-07)
+
+
+### Bug Fixes
+
+* **grpc_datasource:** resolve context path segments across repeated message fields ([#1579](https://github.com/wundergraph/graphql-go-tools/issues/1579)) ([2fea190](https://github.com/wundergraph/graphql-go-tools/commit/2fea19098395b98b5ad4094d95a2f2fd70664d36))
+
 ## [2.9.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.9.0...v2.9.1) (2026-07-07)
 
 

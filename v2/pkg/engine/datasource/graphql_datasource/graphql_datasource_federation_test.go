@@ -1649,6 +1649,17 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						),
 						Info: &resolve.GraphQLResponseInfo{
 							OperationType: ast.OperationTypeQuery,
+							// collected by the postprocess step, which this test runs with
+							// collection enabled (it is disabled in the default test post-processor)
+							AuthorizationCoordinates: []resolve.AuthorizationCoordinate{
+								{
+									DataSourceID: "account.service",
+									Coordinate: resolve.GraphCoordinate{
+										TypeName:  "Account",
+										FieldName: "shippingInfo",
+									},
+								},
+							},
 						},
 						Data: &resolve.Object{
 							Fields: []*resolve.Field{
@@ -1761,7 +1772,15 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				planConfiguration, WithFieldInfo(), WithDefaultPostProcessor()))
+				planConfiguration,
+				WithFieldInfo(),
+				// default post-processor options, but with authorization coordinate collection enabled
+				WithDefaultCustomPostProcessor(
+					postprocess.DisableResolveInputTemplates(),
+					postprocess.DisableCreateConcreteSingleFetchTypes(),
+					postprocess.DisableCreateParallelNodes(),
+					postprocess.DisableMergeFields(),
+				)))
 		})
 
 		t.Run("composite keys variant", func(t *testing.T) {

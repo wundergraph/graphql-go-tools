@@ -41,9 +41,15 @@ type Context struct {
 
 	InlineArguments []string
 
-	authorizer    Authorizer
-	rateLimiter   RateLimiter
-	fieldRenderer FieldValueRenderer
+	authorizer Authorizer
+	// preFetchFieldAuthorizer, when non-nil, enables pre-fetch field authorization: fields protected by
+	// an authorization rule are authorized in a single batch call before any subgraph fetch executes
+	// (scope-only, independent of the returned data), instead of being filtered out of the response after
+	// the fetch. Leaving it nil keeps the default post-fetch authorization behavior. It is distinct from
+	// authorizer, which performs post-fetch field filtering and renders the authorization response extension.
+	preFetchFieldAuthorizer BatchAuthorizer
+	rateLimiter             RateLimiter
+	fieldRenderer           FieldValueRenderer
 
 	subgraphErrors map[string]error
 
@@ -188,8 +194,26 @@ type Authorizer interface {
 	RenderResponseExtension(ctx *Context, out io.Writer) error
 }
 
+// AuthorizationDecision is an explicit allow/deny decision for a single field coordinate.
+type AuthorizationDecision struct {
+	Allowed bool
+	Reason  string
+}
+
+// BatchAuthorizer authorizes field coordinates in one call before execution.
+type BatchAuthorizer interface {
+	AuthorizeFields(ctx *Context, coordinates []GraphCoordinate) (decisions []AuthorizationDecision, err error)
+}
+
 func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
+}
+
+// SetPreFetchFieldAuthorizer enables pre-fetch field authorization by supplying the batch authorizer
+// used to resolve every protected field coordinate in one call before execution. Passing a non-nil
+// authorizer turns the mode on; leaving it unset preserves the default post-fetch authorization behavior.
+func (c *Context) SetPreFetchFieldAuthorizer(authorizer BatchAuthorizer) {
+	c.preFetchFieldAuthorizer = authorizer
 }
 
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
@@ -318,6 +342,7 @@ func (c *Context) Free() {
 	c.InlineArguments = nil
 	c.subgraphErrors = nil
 	c.authorizer = nil
+	c.preFetchFieldAuthorizer = nil
 	c.LoaderHooks = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
