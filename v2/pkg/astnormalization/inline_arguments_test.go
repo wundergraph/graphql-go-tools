@@ -139,13 +139,13 @@ func TestInlineArgumentsRule_Detection(t *testing.T) {
 			require.False(t, report.HasErrors(), "log-only mode must never error: %s", report.Error())
 
 			if len(tt.expected) == 0 {
-				assert.Empty(t, validator.Findings)
+				assert.Empty(t, validator.InlineArguments)
 				return
 			}
 
-			require.Len(t, validator.Findings, len(tt.expected))
-			got := make([]InlineArgument, len(validator.Findings))
-			for i, f := range validator.Findings {
+			require.Len(t, validator.InlineArguments, len(tt.expected))
+			got := make([]InlineArgument, len(validator.InlineArguments))
+			for i, f := range validator.InlineArguments {
 				f.Position = tt.expected[i].Position // ignore position in this comparison
 				got[i] = f
 			}
@@ -162,9 +162,9 @@ func TestInlineArgumentsRule_Position(t *testing.T) {
 		Enforce: false,
 	})
 	require.False(t, report.HasErrors())
-	require.Len(t, validator.Findings, 1)
+	require.Len(t, validator.InlineArguments, 1)
 
-	pos := validator.Findings[0].Position
+	pos := validator.InlineArguments[0].Position
 	assert.Equal(t, uint32(1), pos.LineStart)
 	assert.Equal(t, uint32(30), pos.CharStart)
 }
@@ -190,7 +190,7 @@ func TestInlineArgumentsRule_Enforce(t *testing.T) {
 
 		// Enforce rejects on the first inline argument and stops the walk, so no
 		// findings are collected.
-		assert.Empty(t, validator.Findings)
+		assert.Empty(t, validator.InlineArguments)
 
 		// The rejection is a generic error: no per-argument location is attached.
 		assert.Empty(t, extErr.Locations)

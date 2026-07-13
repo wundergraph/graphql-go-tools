@@ -36,20 +36,20 @@ type InlineArgumentsValidationOptions struct {
 }
 
 type InlineArgumentsValidator struct {
-	Options  InlineArgumentsValidationOptions
-	Findings []InlineArgument
-	Disabled bool
+	Options         InlineArgumentsValidationOptions
+	InlineArguments []InlineArgument
+	Disabled        bool
 }
 
-func (v *InlineArgumentsValidator) ClearFindings() {
+func (v *InlineArgumentsValidator) ClearInlineArguments() {
 	if v == nil {
 		return
 	}
-	v.Findings = v.Findings[:0]
+	v.InlineArguments = v.InlineArguments[:0]
 }
 
 func (v *InlineArgumentsValidator) HadInlineArguments() bool {
-	return len(v.Findings) > 0
+	return len(v.InlineArguments) > 0
 }
 
 // InlineArgumentsRule returns a prevalidation rule that flags every argument
@@ -121,5 +121,5 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 		}
 	}
 
-	v.validator.Findings = append(v.validator.Findings, finding)
+	v.validator.InlineArguments = append(v.validator.InlineArguments, finding)
 }
