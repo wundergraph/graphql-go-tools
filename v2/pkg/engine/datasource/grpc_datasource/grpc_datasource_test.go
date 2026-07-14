@@ -20,6 +20,8 @@ import (
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 
+	"github.com/wundergraph/go-arena"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
@@ -220,6 +222,18 @@ func Test_DataSource_Load(t *testing.T) {
 
 	_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","variables":`+variables+`}`))
 	require.NoError(t, err)
+}
+
+func Test_DataSource_Load_NilTransport(t *testing.T) {
+	ds := &DataSource{pool: arena.NewArenaPool(), disabled: false}
+
+	out, err := ds.Load(context.Background(), nil, []byte(`{}`))
+	require.NoError(t, err)
+
+	require.Equal(t,
+		`{"errors":[{"message":"gRPC / connect configuration requires an rpc transport","extensions":{"code":"Internal"}}]}`,
+		string(out),
+	)
 }
 
 // Test_DataSource_Load_WithMockService tests the datasource.Load method with an actual gRPC server
