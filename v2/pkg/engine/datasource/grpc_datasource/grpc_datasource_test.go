@@ -228,12 +228,8 @@ func Test_DataSource_Load_NilTransport(t *testing.T) {
 	ds := &DataSource{pool: arena.NewArenaPool(), disabled: false}
 
 	out, err := ds.Load(context.Background(), nil, []byte(`{}`))
-	require.NoError(t, err)
-
-	require.Equal(t,
-		`{"errors":[{"message":"gRPC / connect configuration requires an rpc transport","extensions":{"code":"Internal"}}]}`,
-		string(out),
-	)
+	require.EqualError(t, err, "gRPC / connect configuration requires an rpc transport")
+	require.Nil(t, out)
 }
 
 // Test_DataSource_Load_WithMockService tests the datasource.Load method with an actual gRPC server
