@@ -24,6 +24,7 @@ func TestAbstractTypeValidation(t *testing.T) {
 		serviceSDL       string
 		query            string // overrides the generated single-field query when set
 		responseBody     string // overrides the generated subgraph response when set
+		expectedBody     string // asserts the exact subgraph request body when set
 		options          []executionTestOptions
 		expectedResponse string
 	}{
@@ -134,6 +135,36 @@ func TestAbstractTypeValidation(t *testing.T) {
 			expectedResponse: `{"errors":[{"message":"Subgraph 'AbstractTypes' returned an invalid value for __typename field.","path":["nullableInterface","friend"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"nullableInterface":{"__typename":"AccessibleNode","friend":null}}}`,
 		},
 		{
+			// the subgraph request must ask for the runtime type even when the
+			// client selection does not force it, so validation always has a
+			// typename to check
+			name:             "interface requests the runtime type from the subgraph",
+			fieldName:        "nullableInterface",
+			selection:        "id",
+			expectedBody:     `{"query":"{nullableInterface {__typename id}}"}`,
+			responseBody:     `{"data":{"nullableInterface":{"__typename":"AccessibleNode","id":"1"}}}`,
+			expectedResponse: `{"data":{"nullableInterface":{"id":"1"}}}`,
+		},
+		{
+			// control for the case below: identical inaccessible data, but the
+			// subgraph self-reports the typename, so redaction fires even though
+			// the client never selected __typename
+			name:             "interface redacts an inaccessible implementation when only the subgraph returns the typename",
+			fieldName:        "nullableInterface",
+			selection:        "id",
+			responseBody:     `{"data":{"nullableInterface":{"__typename":"InaccessibleNode","id":"classified-secret-42"}}}`,
+			expectedResponse: `{"errors":[{"message":"Subgraph 'AbstractTypes' returned an invalid value for __typename field.","path":["nullableInterface"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"nullableInterface":null}}`,
+		},
+		{
+			// identical response minus the __typename key: validation must not
+			// depend on the subgraph volunteering the typename
+			name:             "interface redacts an inaccessible implementation when the subgraph omits the typename",
+			fieldName:        "nullableInterface",
+			selection:        "id",
+			responseBody:     `{"data":{"nullableInterface":{"id":"classified-secret-42"}}}`,
+			expectedResponse: `{"errors":[{"message":"Subgraph 'AbstractTypes' returned an invalid value for __typename field.","path":["nullableInterface"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"nullableInterface":null}}`,
+		},
+		{
 			name:             "union rejects an unknown member with value completion",
 			fieldName:        "nullableUnion",
 			selection:        "__typename ... on AccessibleNode { id }",
@@ -165,59 +196,65 @@ func TestAbstractTypeValidation(t *testing.T) {
 			responseBody = `{"data":{"` + tt.fieldName + `":{"__typename":"` + tt.returnedTypeName + `","id":"1"}}}`
 		}
 
-		t.Run(tt.name, runWithoutError(
-			ExecutionEngineTestCase{
-				schema: schema,
-				operation: func(t *testing.T) graphql.Request {
-					return graphql.Request{
-						Query: query,
-					}
-				},
-				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfigurationWithName(
-						t,
-						"abstract-types",
-						"AbstractTypes",
-						mustFactory(t, testNetHttpClient(t, roundTripperTestCase{
-							expectedHost:     "example.com",
-							expectedPath:     "/",
-							sendResponseBody: responseBody,
-							sendStatusCode:   200,
-						})),
-						&plan.DataSourceMetadata{
-							RootNodes: []plan.TypeField{
-								{
-									TypeName:   "Query",
-									FieldNames: []string{"interface", "nullableInterface", "union", "nullableUnion", "interfaces", "requiredInterfaces"},
+		// the test case is built inside the subtest so the round tripper
+		// captures the subtest's t: require failures from the request-body
+		// assertion must fail the row, not Goexit the parent's goroutine
+		t.Run(tt.name, func(t *testing.T) {
+			runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: query,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfigurationWithName(
+							t,
+							"abstract-types",
+							"AbstractTypes",
+							mustFactory(t, testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     tt.expectedBody,
+								sendResponseBody: responseBody,
+								sendStatusCode:   200,
+							})),
+							&plan.DataSourceMetadata{
+								RootNodes: []plan.TypeField{
+									{
+										TypeName:   "Query",
+										FieldNames: []string{"interface", "nullableInterface", "union", "nullableUnion", "interfaces", "requiredInterfaces"},
+									},
+								},
+								ChildNodes: []plan.TypeField{
+									{TypeName: "Node", FieldNames: []string{"id"}},
+									{TypeName: "AccessibleNode", FieldNames: []string{"id", "friend"}},
+									{TypeName: "SecondNode", FieldNames: []string{"id", "friend"}},
+									{TypeName: "InaccessibleNode", FieldNames: []string{"id"}},
 								},
 							},
-							ChildNodes: []plan.TypeField{
-								{TypeName: "Node", FieldNames: []string{"id"}},
-								{TypeName: "AccessibleNode", FieldNames: []string{"id", "friend"}},
-								{TypeName: "SecondNode", FieldNames: []string{"id", "friend"}},
-								{TypeName: "InaccessibleNode", FieldNames: []string{"id"}},
-							},
-						},
-						mustConfiguration(t, graphql_datasource.ConfigurationInput{
-							Fetch: &graphql_datasource.FetchConfiguration{
-								URL:    "https://example.com/",
-								Method: "GET",
-							},
-							SchemaConfiguration: mustSchemaConfig(
-								t,
-								&graphql_datasource.FederationConfiguration{
-									Enabled:    true,
-									ServiceSDL: serviceSDL,
+							mustConfiguration(t, graphql_datasource.ConfigurationInput{
+								Fetch: &graphql_datasource.FetchConfiguration{
+									URL:    "https://example.com/",
+									Method: "GET",
 								},
-								serviceSDL,
-							),
-						}),
-					),
+								SchemaConfiguration: mustSchemaConfig(
+									t,
+									&graphql_datasource.FederationConfiguration{
+										Enabled:    true,
+										ServiceSDL: serviceSDL,
+									},
+									serviceSDL,
+								),
+							}),
+						),
+					},
+					expectedResponse: tt.expectedResponse,
 				},
-				expectedResponse: tt.expectedResponse,
-			},
-			tt.options...,
-		))
+				tt.options...,
+			)(t)
+		})
 	}
 }
 
