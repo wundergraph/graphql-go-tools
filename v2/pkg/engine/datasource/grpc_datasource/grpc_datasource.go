@@ -118,7 +118,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 	// If the transport is nil we will return the following error message instead
 	if d.transport == nil {
-		return builder.writeErrorBytes(fmt.Errorf("gRPC / connect configuration requires an rpc transport")), nil
+		return nil, fmt.Errorf("gRPC / connect configuration requires an rpc transport")
 	}
 
 	// convert headers to grpc metadata and attach to ctx

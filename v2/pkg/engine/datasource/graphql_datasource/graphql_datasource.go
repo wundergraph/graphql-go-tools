@@ -366,6 +366,10 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			return resolve.FetchConfiguration{}
 		}
 
+		if p.rpcTransport == nil {
+			p.stopWithError(errors.WithStack(errors.New("grpc / connect configuration requires an rpc transport")))
+			return resolve.FetchConfiguration{}
+		}
 
 		dataSource, err = grpcdatasource.NewDataSource(p.rpcTransport, grpcdatasource.DataSourceConfig{
 			Operation:         &opDocument,
