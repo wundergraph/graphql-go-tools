@@ -296,7 +296,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		// When the subgraph resolves a single (non-list) abstract field and does NOT return __typename,
 		// we must still record one occurrence for that field's path, falling back to the declared
 		// abstract type name in actual costs.
-		t.Run("single abstract field without __typename takes into account implementing types", runWithoutError(
+		t.Run("single abstract field without __typename is rejected and bills nothing", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: graphql.StarwarsSchema(t),
 				operation: func(t *testing.T) graphql.Request {
@@ -325,7 +325,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedEstimatedCost: intPtr(13), // Query.hero(13)
-				expectedActualCost:    intPtr(13), // Query.hero(13)
+				// the abstract hero value is rejected and nulled, so nothing is billed
+				expectedActualCost: intPtr(0),
 			},
 			computeCosts(),
 		))
@@ -778,7 +779,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						customConfig,
 					),
 				},
-				expectedResponse: `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
+				// friends items carry no __typename, so they are rejected and nulled
+				expectedResponse: `{"errors":[{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["hero","friends",0],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"hero":{"name":"Luke","friends":[null]}}}`,
 				// Cost calculation:
 				// Query.hero: 2
 				// Character.name: max(Human.name=3, Droid.name=5) = 5
@@ -787,8 +789,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//   name: max(Human.name=3, Droid.name=5) = 5
 				expectedEstimatedCost: intPtr(55), // 2 + 1*(5 + 6*(3 + 1*5))
 				// hero returned __typename Human, so its name is billed at Human.name (3).
-				// friends items carry no __typename, so their type weight and name keep the max (3, 5).
-				expectedActualCost: intPtr(13), // 2 + 1*(3 + 1*(3 + 1*5))
+				// The rejected friends element is nulled: its max type weight is still
+				// counted for the returned element, but no field weights are billed.
+				expectedActualCost: intPtr(8), // 2 + 1*(3 + 1*3)
 			},
 			computeCosts(),
 		))
@@ -1313,7 +1316,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 							customConfig,
 						),
 					},
-					expectedResponse:      `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
+					// friends items carry no __typename, so they are rejected and nulled
+					expectedResponse:      `{"errors":[{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["hero","friends",0],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"hero":{"name":"Luke","friends":[null]}}}`,
 					expectedEstimatedCost: intPtr(20), // 2 + 1*(0 + 6*(3 + 1*0))
 					expectedActualCost:    intPtr(5),  // 2 + 1*(0 + 1*(3 + 1*0))
 				},
@@ -7473,7 +7477,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			computeCosts(),
 		))
 
-		t.Run("without typenames keeps max weight", runWithoutError(
+		t.Run("without typenames rejects the values and bills nothing for them", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
@@ -7498,13 +7502,15 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				fields: []plan.FieldConfiguration{},
-				expectedResponse: `{"data":{"items":[` +
-					`{"hero":{"name":"Luke"}},` +
-					`{"hero":{"name":"Han"}},` +
-					`{"hero":{"name":"R2D2"}}]}}`,
+				// Abstract values without a __typename are rejected and nulled,
+				// so the actual cost bills nothing for them.
+				expectedResponse: `{"errors":[` +
+					`{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["items",0,"hero"],"extensions":{"code":"INVALID_GRAPHQL"}},` +
+					`{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["items",1,"hero"],"extensions":{"code":"INVALID_GRAPHQL"}},` +
+					`{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["items",2,"hero"],"extensions":{"code":"INVALID_GRAPHQL"}}],` +
+					`"data":{"items":[{"hero":null},{"hero":null},{"hero":null}]}}`,
 				expectedEstimatedCost: intPtr(170), // 10 * (0 + (0 + max(7, 17)))
-				// Subgraph returned no __typename for hero: no per-type info, keep the max.
-				expectedActualCost: intPtr(51), // 3 * 17
+				expectedActualCost:    intPtr(0),
 			},
 			computeCosts(),
 		))

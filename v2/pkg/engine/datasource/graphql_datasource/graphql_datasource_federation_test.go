@@ -11328,7 +11328,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{account {some {__typename id}}}"}}`,
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename some {__typename id}}}"}}`,
 										PostProcessing: DefaultPostProcessingConfiguration,
 										DataSource:     &Source{},
 									},

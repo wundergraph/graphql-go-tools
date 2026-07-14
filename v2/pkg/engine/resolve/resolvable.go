@@ -1314,6 +1314,22 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 	}
 
 	typeName := value.GetStringBytes("__typename")
+	if typeName == nil && obj.isAbstract() {
+		// an abstract value without a runtime type cannot be validated against
+		// the contract, so it must be rejected
+		if !r.render() {
+			if r.options.ApolloCompatibilityValueCompletionInExtensions {
+				r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), errorcodes.InvalidGraphql)
+			} else {
+				r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned an invalid value for __typename field.", obj.SourceName), errorcodes.InvalidGraphql)
+			}
+			if !obj.Nullable {
+				return r.err()
+			}
+			return false
+		}
+		return r.walkNull()
+	}
 	if typeName != nil && len(obj.PossibleTypes) > 0 {
 		// when we have a typename field present in a json object, we need to check if the type is valid
 

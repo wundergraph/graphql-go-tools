@@ -110,7 +110,7 @@ func createTestRoundTripper(t *testing.T, testCase roundTripperTestCase) testRou
 				receivedBodyBytes, err = io.ReadAll(req.Body)
 				require.NoError(t, err)
 			}
-			require.Equal(t, testCase.expectedBody, string(receivedBodyBytes), "roundTripperTestCase received unexpected body")
+			assert.Equal(t, testCase.expectedBody, string(receivedBodyBytes), "roundTripperTestCase received unexpected body")
 		}
 
 		body := bytes.NewBuffer([]byte(testCase.sendResponseBody))
