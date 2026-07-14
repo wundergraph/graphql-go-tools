@@ -366,7 +366,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			return resolve.FetchConfiguration{}
 		}
 
-		if p.rpcTransport == nil {
+		if p.rpcTransport == nil && !p.config.grpc.Disabled {
 			p.stopWithError(errors.WithStack(errors.New("grpc / connect configuration requires an rpc transport")))
 			return resolve.FetchConfiguration{}
 		}
