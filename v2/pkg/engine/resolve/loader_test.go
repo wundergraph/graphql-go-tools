@@ -1634,7 +1634,7 @@ func TestRewriteErrorPaths(t *testing.T) {
 			}
 
 			// Call the function under test
-			rewriteErrorPaths(nil, fetchItem, values)
+			rewriteErrorPaths(nil, fetchItem, values, "_entities")
 
 			// Compare the results
 			assert.Equal(t, len(tc.expectedErrors), len(values),

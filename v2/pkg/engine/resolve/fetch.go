@@ -14,6 +14,7 @@ const (
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindEntity
 	FetchKindEntityBatch
+	FetchKindMultiEntity
 )
 
 type Fetch interface {
@@ -278,6 +279,11 @@ type FetchConfiguration struct {
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
+
+	// MergeableOperation carries planner artifacts consumed by the postprocess
+	// MultiFetch stage; it is cleared during postprocessing and never reaches
+	// the executable plan. Nil unless plan.Configuration.EnableMultiFetch is set.
+	MergeableOperation *MergeableOperation
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -481,4 +487,5 @@ var (
 	_ Fetch = (*SingleFetch)(nil)
 	_ Fetch = (*BatchEntityFetch)(nil)
 	_ Fetch = (*EntityFetch)(nil)
+	_ Fetch = (*MultiEntityFetch)(nil)
 )

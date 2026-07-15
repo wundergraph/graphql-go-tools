@@ -20,6 +20,7 @@ type plannerConfiguration[T any] struct {
 
 type plannerConfigurationOptions struct {
 	EnableOperationNamePropagation bool
+	EnableMultiFetch               bool
 }
 
 type PlannerConfiguration interface {
