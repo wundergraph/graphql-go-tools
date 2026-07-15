@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.11.0...v2.12.0) (2026-07-15)
+
+
+### Features
+
+* add new visitor for inline arguments validation ([#1577](https://github.com/wundergraph/graphql-go-tools/issues/1577)) ([fce54b2](https://github.com/wundergraph/graphql-go-tools/commit/fce54b27473aee1b7d03d7a86a14b083543632b7))
+
 ## [2.11.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.10.0...v2.11.0) (2026-07-13)
 
 
