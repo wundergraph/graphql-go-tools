@@ -13,6 +13,7 @@ type InlineArgument struct {
 	ArgumentName string
 	AncestorName string
 	AncestorKind ast.NodeKind
+	Path         string
 	ValueKind    ast.ValueKind
 	Position     position.Position
 }
@@ -20,9 +21,9 @@ type InlineArgument struct {
 func (a InlineArgument) QualifiedName() string {
 	switch a.AncestorKind {
 	case ast.NodeKindField:
-		return a.AncestorName + "." + a.ArgumentName
+		return a.Path + "#" + a.ArgumentName
 	case ast.NodeKindDirective:
-		return "@" + a.AncestorName + "." + a.ArgumentName
+		return a.Path + "@" + a.AncestorName + "#" + a.ArgumentName
 	default:
 		return a.ArgumentName
 	}
@@ -99,6 +100,7 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 		ArgumentName: v.operation.ArgumentNameString(ref),
 		ValueKind:    valueKind,
 		Position:     v.operation.Arguments[ref].Position,
+		Path:         v.Path.DotDelimitedString(),
 	}
 
 	if len(v.Ancestors) > 0 {
@@ -106,7 +108,7 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 		finding.AncestorKind = parent.Kind
 		switch parent.Kind {
 		case ast.NodeKindField:
-			finding.ArgumentName = v.operation.FieldNameString(parent.Ref)
+			finding.AncestorName = v.operation.FieldNameString(parent.Ref)
 		case ast.NodeKindDirective:
 			finding.AncestorName = v.operation.DirectiveNameString(parent.Ref)
 		}

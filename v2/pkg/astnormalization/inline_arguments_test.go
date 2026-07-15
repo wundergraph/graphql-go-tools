@@ -152,7 +152,51 @@ func TestInlineArgumentsRule_Detection(t *testing.T) {
 			got := make([]InlineArgument, len(result.InlineArguments))
 			for i, f := range result.InlineArguments {
 				f.Position = tt.expected[i].Position // ignore position in this comparison
+				f.Path = tt.expected[i].Path         // path is asserted via QualifiedName instead
 				got[i] = f
+			}
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestInlineArgumentsRule_QualifiedName(t *testing.T) {
+	tests := []struct {
+		name      string
+		operation string
+		expected  []string
+	}{
+		{
+			name:      "top-level field argument",
+			operation: `query { userById(userId: "12345") { loginName } }`,
+			expected:  []string{"query.userById#userId"},
+		},
+		{
+			name:      "nested field argument carries the full query path",
+			operation: `query { userById(userId: "12345") { posts(first: 10) } }`,
+			expected:  []string{"query.userById#userId", "query.userById.posts#first"},
+		},
+		{
+			name:      "field alias is used in the path",
+			operation: `query { u: userById(userId: "12345") { p: posts(first: 10) } }`,
+			expected:  []string{"query.u#userId", "query.u.p#first"},
+		},
+		{
+			name:      "directive argument names the enclosing field and directive",
+			operation: `query { userById(userId: "x") @include(if: true) { loginName } }`,
+			expected:  []string{"query.userById#userId", "query.userById@include#if"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, report := runInlineArgumentsRule(t, tt.operation, InlineArgumentsValidationOptions{Enforce: false})
+			require.False(t, report.HasErrors(), "log-only mode must never error: %s", report.Error())
+			require.NotNil(t, result)
+
+			got := make([]string, len(result.InlineArguments))
+			for i, f := range result.InlineArguments {
+				got[i] = f.QualifiedName()
 			}
 			assert.Equal(t, tt.expected, got)
 		})
