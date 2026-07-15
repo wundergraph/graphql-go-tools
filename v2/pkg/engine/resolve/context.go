@@ -39,6 +39,8 @@ type Context struct {
 	Extensions       []byte
 	LoaderHooks      LoaderHooks
 
+	InlineArguments []string
+
 	authorizer Authorizer
 	// preFetchFieldAuthorizer, when non-nil, enables pre-fetch field authorization: fields protected by
 	// an authorization rule are authorized in a single batch call before any subgraph fetch executes
@@ -314,6 +316,7 @@ func (c *Context) clone(ctx context.Context) *Context {
 	cpy.Files = append([]*httpclient.FileUpload(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
+	cpy.InlineArguments = append([]string(nil), c.InlineArguments...)
 
 	if c.RemapVariables != nil {
 		cpy.RemapVariables = make(map[string]string, len(c.RemapVariables))
@@ -337,6 +340,7 @@ func (c *Context) Free() {
 	c.RemapVariables = nil
 	c.TracingOptions.DisableAll()
 	c.Extensions = nil
+	c.InlineArguments = nil
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.preFetchFieldAuthorizer = nil

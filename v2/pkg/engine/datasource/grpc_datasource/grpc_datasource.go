@@ -113,7 +113,12 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	builder := newJSONBuilder(item.Arena, d.mapping, variables)
 
 	if d.disabled {
-		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
+		return builder.writeErrorBytes(fmt.Errorf("gRPC / connect datasource needs to be enabled to be used")), nil
+	}
+
+	// If the transport is nil we will return the following error message instead
+	if d.transport == nil {
+		return nil, fmt.Errorf("gRPC / connect configuration requires an rpc transport")
 	}
 
 	// convert headers to grpc metadata and attach to ctx

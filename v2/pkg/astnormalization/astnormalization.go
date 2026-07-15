@@ -109,6 +109,7 @@ type OperationNormalizer struct {
 
 	removeOperationDefinitionsVisitor *removeOperationDefinitionsVisitor
 	inlineDeferVisitor                *deferExpandIntoInternalVisitor
+	inlineArgumentsVisitor            *inlineArgumentsVisitor
 
 	options              options
 	definitionNormalizer *DefinitionNormalizer
@@ -155,6 +156,7 @@ type options struct {
 	ignoreSkipInclude                     bool
 	enableDefer                           bool
 	prevalidationRules                    []func(walker *astvisitor.Walker)
+	inlineArgumentsValidation             *InlineArgumentsValidationOptions
 }
 
 type Option func(options *options)
@@ -213,6 +215,17 @@ func WithPrevalidationRules(rules ...func(walker *astvisitor.Walker)) Option {
 	}
 }
 
+// WithInlineArgumentsValidation enables detection of arguments whose values are
+// supplied inline (as literals) instead of as variables. Findings are returned
+// from NormalizeNamedOperationWithResult as a NormalizationResult. When opts.Enforce
+// is set, normalization aborts on the first inline argument and surfaces the error
+// via the report instead of collecting findings.
+func WithInlineArgumentsValidation(opts InlineArgumentsValidationOptions) Option {
+	return func(options *options) {
+		options.inlineArgumentsValidation = &opts
+	}
+}
+
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 9)
 
@@ -238,6 +251,10 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		for _, rule := range o.options.prevalidationRules {
 			rule(&directivesIncludeSkip)
 		}
+	}
+
+	if o.options.inlineArgumentsValidation != nil {
+		o.inlineArgumentsVisitor = registerInlineArgumentsValidation(&directivesIncludeSkip, *o.options.inlineArgumentsValidation)
 	}
 
 	cleanup := astvisitor.NewWalkerWithID(8, "Cleanup")
@@ -384,12 +401,25 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 	}
 }
 
-// NormalizeNamedOperation applies all registered rules to one specific named operation in the AST
 func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast.Document, operationName []byte, report *operationreport.Report) {
+	o.NormalizeNamedOperationWithResult(operation, definition, operationName, report, RunOptions{})
+}
+
+func (o *OperationNormalizer) NormalizeNamedOperationWithResult(
+	operation, definition *ast.Document,
+	operationName []byte,
+	report *operationreport.Report,
+	runOpts RunOptions,
+) *NormalizationResult {
+	if o.inlineArgumentsVisitor != nil {
+		o.inlineArgumentsVisitor.disabled = runOpts.SkipInlineArguments
+		o.inlineArgumentsVisitor.result.InlineArguments = o.inlineArgumentsVisitor.result.InlineArguments[:0]
+	}
+
 	if o.options.normalizeDefinition {
 		o.prepareDefinition(definition, report)
 		if report.HasErrors() {
-			return
+			return nil
 		}
 	}
 
@@ -403,7 +433,7 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
 		if report.HasErrors() {
-			return
+			return nil
 		}
 
 		// NOTE: debug code - do not remove
@@ -412,6 +442,11 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 		// fmt.Println(printed)
 		// fmt.Println("variables:", string(operation.Input.Variables))
 	}
+
+	if o.inlineArgumentsVisitor != nil {
+		return &o.inlineArgumentsVisitor.result
+	}
+	return nil
 }
 
 type VariablesNormalizer struct {

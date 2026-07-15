@@ -911,6 +911,14 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
+	if len(r.ctx.InlineArguments) > 0 {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		r.printInlineArgumentsExtension()
+	}
+
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		if writeComma {
 			r.printBytes(comma)
@@ -1021,6 +1029,36 @@ func getDefaultReservedExtensions() map[string]struct{} {
 	}
 }
 
+func (r *Resolvable) printInlineArgumentsExtension() {
+	r.printBytes(quote)
+	r.printBytes(literalInlineArguments)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+
+	r.printBytes(quote)
+	r.printBytes(literalCount)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(strconv.AppendInt(nil, int64(len(r.ctx.InlineArguments)), 10))
+	r.printBytes(comma)
+
+	r.printBytes(quote)
+	r.printBytes(literalArguments)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrack)
+	for i, name := range r.ctx.InlineArguments {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		r.printBytes(strconv.AppendQuote(nil, name))
+	}
+	r.printBytes(rBrack)
+
+	r.printBytes(rBrace)
+}
+
 func (r *Resolvable) hasExtensions() bool {
 	// Apply the filter first to avoid missing extensions or applying empty extensions.
 	if r.filterAllowedSubgraphExtensions(getDefaultReservedExtensions()) {
@@ -1036,6 +1074,9 @@ func (r *Resolvable) hasExtensions() bool {
 		return true
 	}
 	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+		return true
+	}
+	if len(r.ctx.InlineArguments) > 0 {
 		return true
 	}
 	if !r.skipValueCompletion && r.valueCompletion != nil {
