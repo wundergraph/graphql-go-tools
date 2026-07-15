@@ -284,6 +284,7 @@ func TestInlineArgumentsRule_FindingOwnsItsBytes(t *testing.T) {
 
 	fieldArg := result.InlineArguments[0]
 	require.Equal(t, "obj", fieldArg.ArgumentName)
+	require.Equal(t, "field", fieldArg.AncestorName)
 	require.Equal(t, ast.NodeKindField, fieldArg.AncestorKind)
 
 	directiveArg := result.InlineArguments[1]
@@ -300,6 +301,8 @@ func TestInlineArgumentsRule_FindingOwnsItsBytes(t *testing.T) {
 
 	assert.Equal(t, "obj", result.InlineArguments[0].ArgumentName,
 		"field ArgumentName must own its bytes, not alias the operation input buffer")
+	assert.Equal(t, "field", result.InlineArguments[0].AncestorName,
+		"field AncestorName must own its bytes, not alias the operation input buffer")
 	assert.Equal(t, "if", result.InlineArguments[1].ArgumentName,
 		"directive ArgumentName must own its bytes, not alias the operation input buffer")
 	assert.Equal(t, "include", result.InlineArguments[1].AncestorName,
