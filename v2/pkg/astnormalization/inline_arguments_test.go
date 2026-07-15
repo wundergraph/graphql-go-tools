@@ -269,6 +269,43 @@ func TestInlineArgumentsRule_Enforce(t *testing.T) {
 	})
 }
 
+// TestInlineArgumentsRule_FindingOwnsItsBytes is a regression test for a bug
+// where an inline-argument finding's string fields aliased the operation
+// document's input buffer instead of owning their own bytes. The router pools
+// operation documents and reuses their input buffers after normalization, so an
+// aliasing string would later read stale/overwritten bytes. This surfaced as a
+// garbled argument name in responses, e.g. the argument "criteria" on
+// findEmployees(criteria: {...}) reported as "query.findEmployees#indEmplo"
+// ("indEmplo" being 8 bytes read from the middle of the recycled field name
+// "findEmployees" — the correct length of "criteria", wrong offset).
+func TestInlineArgumentsRule_FindingOwnsItsBytes(t *testing.T) {
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(inlineArgumentsTestSchema)
+	require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&definitionDocument))
+
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(`query GetField { field(obj: { a: 1 }) }`)
+	report := &operationreport.Report{}
+
+	normalizer := NewWithOpts(WithInlineArgumentsValidation(InlineArgumentsValidationOptions{Enforce: false}))
+	result := normalizer.NormalizeNamedOperationWithResult(&operationDocument, &definitionDocument, nil, report, RunOptions{})
+
+	require.False(t, report.HasErrors())
+	require.Len(t, result.InlineArguments, 1)
+	require.Equal(t, "obj", result.InlineArguments[0].ArgumentName)
+	require.Equal(t, "field", result.InlineArguments[0].AncestorName)
+
+	// Simulate the operation document being recycled from the pool: scribble over
+	// its input buffer. A finding that owns its bytes is unaffected; one that
+	// aliases the input buffer is corrupted.
+	for i := range operationDocument.Input.RawBytes {
+		operationDocument.Input.RawBytes[i] = 'x'
+	}
+
+	assert.Equal(t, "obj", result.InlineArguments[0].ArgumentName,
+		"ArgumentName must own its bytes, not alias the operation input buffer")
+	assert.Equal(t, "field", result.InlineArguments[0].AncestorName,
+		"AncestorName must own its bytes, not alias the operation input buffer")
+}
+
 func TestInlineArgumentsRule_OptionOffReturnsNil(t *testing.T) {
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(inlineArgumentsTestSchema)
 	require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&definitionDocument))
