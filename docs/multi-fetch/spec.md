@@ -670,7 +670,9 @@ lock:
 1. Transport-level failures once per entry for client-visible parity:
    `res.err` / empty body / unparseable body / status fallback →
    `renderErrorsFailedToFetch`-family with each entry's `FetchItem` (N errors
-   at N paths, as N separate fetches would produce). Dependent-fetch skipping
+   at N paths, as N separate fetches would produce) — EXCEPT entries excluded
+   at prepare time, which get no transport/rate-limit error (their unmerged
+   counterparts were never sent). Dependent-fetch skipping
    applies **only** to the `res.err` case (`loadPhase` recorded the surviving
    ID); invalid-response shapes do not cascade — same as unmerged.
 2. Parse the response body **once**; collect response `extensions` into
