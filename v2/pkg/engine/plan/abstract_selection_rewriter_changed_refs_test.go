@@ -11,11 +11,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 )
 
-// TestFieldSelectionRewriter_ChangedFieldRefs verifies that after a rewrite the mapping
-// between original and new field refs respects inline fragment type condition scopes.
-// Fields with the same name at the same query depth but under non-intersecting type conditions
-// must not be mapped to each other - otherwise a planner-added (skipped) field and
-// a user-requested field are conflated and skip status propagates to the wrong refs.
+// TestFieldSelectionRewriter_ChangedFieldRefs verifies the exact provenance mapping
+// between original and new field refs produced by a rewrite.
+// A planner-added (skipped) field and a user-requested field with the same name
+// under different type conditions must map to distinct new refs - otherwise
+// skip status propagates to the wrong refs.
 func TestFieldSelectionRewriter_ChangedFieldRefs(t *testing.T) {
 	definition := `
 		interface Node {
@@ -124,7 +124,6 @@ func TestFieldSelectionRewriter_ChangedFieldRefs(t *testing.T) {
 				// ref 3 disappeared together with the fragment on C
 			},
 			map[int][]int{
-				4: {4},
 				5: {0}, // id in A originates only from the user field - must not inherit skip status from ref 2
 				6: {1},
 				7: {2}, // id in B originates only from the planner field - stays skipped
@@ -155,7 +154,6 @@ func TestFieldSelectionRewriter_ChangedFieldRefs(t *testing.T) {
 				2: {6},
 			},
 			map[int][]int{
-				4: {4},
 				5: {0},
 				6: {0, 2}, // merged user and planner fields - user field wins, must stay in the response
 				7: {1},
@@ -187,7 +185,6 @@ func TestFieldSelectionRewriter_ChangedFieldRefs(t *testing.T) {
 				2: {8},
 			},
 			map[int][]int{
-				4: {4},
 				5: {0},
 				6: {0},
 				7: {1},
@@ -213,4 +210,104 @@ func TestNodeSelectionVisitor_UpdateSkipFieldRefs(t *testing.T) {
 	})
 
 	assert.ElementsMatch(t, []int{2, 7}, c.skipFieldsRefs)
+}
+
+// TestFieldSelectionRewriter_ChangedFieldRefs_UnionTypename verifies that an explicitly
+// requested __typename recreated by a union rewrite keeps its provenance -
+// a planner-added skipped __typename must stay skipped after a rewrite recreates it.
+func TestFieldSelectionRewriter_ChangedFieldRefs_UnionTypename(t *testing.T) {
+	definition := `
+		type A {
+			id: ID!
+		}
+
+		type B {
+			id: ID!
+		}
+
+		type C {
+			id: ID!
+		}
+
+		union Nodes = A | B | C
+
+		type Query {
+			unodes: Nodes
+		}
+	`
+
+	// type C is not a member of the union in the upstream schema - a fragment on C triggers the rewrite
+	upstreamDefinition := `
+		type A @key(fields: "id") {
+			id: ID!
+		}
+
+		type B @key(fields: "id") {
+			id: ID!
+		}
+
+		union Nodes = A | B
+
+		type Query {
+			unodes: Nodes
+		}
+	`
+
+	// refs before: 0 - __typename, 1 - id in B, 2 - id in C, 3 - unodes
+	// refs after: 4 - recreated __typename, 5 - id in B
+	operation := `query { unodes { __typename ... on B { id } ... on C { id } } }`
+	expectedOperation := `query {
+		unodes {
+			__typename
+			... on B {
+				id
+			}
+		}
+	}`
+
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
+	def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definition)
+
+	fieldRef := ast.InvalidRef
+	for ref := range op.Fields {
+		if op.FieldNameString(ref) == "unodes" {
+			fieldRef = ref
+			break
+		}
+	}
+	require.NotEqual(t, ast.InvalidRef, fieldRef)
+
+	ds := dsb().
+		RootNode("Query", "unodes").
+		RootNode("A", "id").
+		RootNode("B", "id").
+		KeysMetadata(FederationFieldConfigurations{
+			{TypeName: "A", SelectionSet: "id"},
+			{TypeName: "B", SelectionSet: "id"},
+		}).
+		SchemaMergedWithBase(upstreamDefinition).
+		DS()
+
+	node, _ := def.Index.FirstNodeByNameStr("Query")
+
+	rewriter, err := newFieldSelectionRewriter(&op, &def, ds)
+	require.NoError(t, err)
+
+	result, err := rewriter.RewriteFieldSelection(fieldRef, node)
+	require.NoError(t, err)
+	require.True(t, result.rewritten)
+
+	assert.Equal(t, unsafeprinter.Prettify(expectedOperation), unsafeprinter.PrettyPrint(&op))
+	assert.Equal(t, map[int][]int{
+		0: {4},
+		1: {5},
+	}, result.changedFieldRefs)
+	assert.Equal(t, map[int][]int{
+		4: {0}, // recreated __typename inherits the origin of the original __typename
+		5: {1},
+	}, result.fieldRefOrigins)
+
+	// the provenance hooks must not outlive the rewrite
+	assert.Nil(t, op.OnCopyField)
+	assert.Nil(t, op.OnMergeFields)
 }

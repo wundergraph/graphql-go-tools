@@ -455,7 +455,11 @@ func (r *fieldSelectionRewriter) preserveTypeNameSelection(selectionSetInfo sele
 		return
 	}
 
-	selectionRef, _ := r.typeNameSelection(selectionSetInfo.typenameFieldDeferId)
+	selectionRef, fieldRef := r.typeNameSelection(selectionSetInfo.typenameFieldDeferId)
+	if selectionSetInfo.typenameFieldRef != ast.InvalidRef {
+		// the recreated __typename replaces the original one - record it as a copy
+		r.copyLog = append(r.copyLog, refPair{from: selectionSetInfo.typenameFieldRef, to: fieldRef})
+	}
 	*selectionRefs = append(*selectionRefs, selectionRef)
 }
 
