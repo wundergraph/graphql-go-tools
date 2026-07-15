@@ -96,12 +96,6 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 		return
 	}
 
-	// The finding outlives the operation document: it is retained on the parsed
-	// operation and copied into the resolve context (and per-subgraph clones),
-	// while the router pools and reuses the document's input buffer. The name
-	// accessors return strings that alias that buffer, so we copy the bytes here
-	// (string(...)) to give the finding ownership; otherwise a recycled buffer
-	// corrupts the retained names. Path is already a freshly built string.
 	finding := InlineArgument{
 		ArgumentName: string(v.operation.ArgumentNameBytes(ref)),
 		ValueKind:    valueKind,
