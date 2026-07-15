@@ -21,12 +21,14 @@ func TestAbstractTypeValidation(t *testing.T) {
 		fieldName        string
 		selection        string
 		returnedTypeName string
+		clientSDL        string // overrides the shared client schema when set
 		serviceSDL       string
 		query            string // overrides the generated single-field query when set
 		responseBody     string // overrides the generated subgraph response when set
 		expectedBody     string // asserts the exact subgraph request body when set
 		options          []executionTestOptions
 		expectedResponse string
+		expectedError    string // expects Execute to fail before resolving when set
 	}{
 		{
 			name:             "interface accepts an implementation",
@@ -165,6 +167,46 @@ func TestAbstractTypeValidation(t *testing.T) {
 			expectedResponse: `{"errors":[{"message":"Subgraph 'AbstractTypes' returned an invalid value for __typename field.","path":["nullableInterface"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"nullableInterface":null}}`,
 		},
 		{
+			// unions have no shared fields, so the injected __typename is the
+			// only way to match fragments and validate the runtime type
+			name:             "union requests the runtime type from the subgraph",
+			fieldName:        "nullableUnion",
+			selection:        "... on AccessibleNode { id }",
+			expectedBody:     `{"query":"{nullableUnion {__typename ... on AccessibleNode {id}}}"}`,
+			responseBody:     `{"data":{"nullableUnion":{"__typename":"AccessibleNode","id":"1"}}}`,
+			expectedResponse: `{"data":{"nullableUnion":{"id":"1"}}}`,
+		},
+		{
+			// the suggested "data returns ObjectBs among the As" case: the client
+			// only fragments on the accessible member, never selects __typename,
+			// and the subgraph returns an inaccessible member
+			name:             "union redacts an inaccessible member when the client omits the typename",
+			fieldName:        "nullableUnion",
+			selection:        "... on AccessibleNode { id }",
+			responseBody:     `{"data":{"nullableUnion":{"__typename":"InaccessibleNode","id":"classified-secret-42"}}}`,
+			expectedResponse: `{"errors":[{"message":"Subgraph 'AbstractTypes' returned an invalid value for __typename field.","path":["nullableUnion"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"nullableUnion":null}}`,
+		},
+		{
+			// list elements are validated purely on the injected typename when
+			// the client selection is answerable from the interface alone
+			name:             "list redacts an inaccessible element when the client omits the typename",
+			fieldName:        "interfaces",
+			selection:        "id",
+			expectedBody:     `{"query":"{interfaces {__typename id}}"}`,
+			responseBody:     `{"data":{"interfaces":[{"__typename":"AccessibleNode","id":"1"},{"__typename":"InaccessibleNode","id":"2"}]}}`,
+			expectedResponse: `{"errors":[{"message":"Subgraph 'AbstractTypes' returned an invalid value for __typename field.","path":["interfaces",1],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"interfaces":[{"id":"1"},null]}}`,
+		},
+		{
+			// in a contract deployment the client-facing schema no longer contains
+			// inaccessible types at all, so naming one in a fragment must fail
+			// validation before any subgraph is contacted
+			name:          "fragment on an inaccessible type is rejected before execution",
+			fieldName:     "nullableUnion",
+			clientSDL:     abstractTypeValidationContractSDL,
+			query:         `query { nullableUnion { ... on AccessibleNode { id } ... on InaccessibleNode { id } } }`,
+			expectedError: `Unknown type "InaccessibleNode"., locations: [], path: [query,nullableUnion,$1InaccessibleNode]`,
+		},
+		{
 			name:             "union rejects an unknown member with value completion",
 			fieldName:        "nullableUnion",
 			selection:        "__typename ... on AccessibleNode { id }",
@@ -183,6 +225,12 @@ func TestAbstractTypeValidation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		clientSchema := schema
+		if tt.clientSDL != "" {
+			var err error
+			clientSchema, err = graphql.NewSchemaFromString(tt.clientSDL)
+			require.NoError(t, err)
+		}
 		serviceSDL := tt.serviceSDL
 		if serviceSDL == "" {
 			serviceSDL = abstractTypeValidationSDL
@@ -196,12 +244,19 @@ func TestAbstractTypeValidation(t *testing.T) {
 			responseBody = `{"data":{"` + tt.fieldName + `":{"__typename":"` + tt.returnedTypeName + `","id":"1"}}}`
 		}
 
+		runner := func(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
+			if tt.expectedError != "" {
+				return runWithAndCompareError(testCase, tt.expectedError, options...)
+			}
+			return runWithoutError(testCase, options...)
+		}
+
 		// the test case is built inside the subtest so the round tripper
 		// captures the subtest's t: require failures from the request-body
 		// assertion must fail the row, not Goexit the parent's goroutine
-		t.Run(tt.name, runWithoutError(
+		t.Run(tt.name, runner(
 			ExecutionEngineTestCase{
-				schema: schema,
+				schema: clientSchema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
 						Query: query,
@@ -285,6 +340,35 @@ const abstractTypeValidationSDL = `
 	}
 
 	union Result = AccessibleNode | InaccessibleNode
+`
+
+// abstractTypeValidationSDL as a client would see it in a contract deployment:
+// the inaccessible type is removed entirely rather than marked with a directive
+const abstractTypeValidationContractSDL = `
+	type Query {
+		interface: Node!
+		nullableInterface: Node
+		union: Result!
+		nullableUnion: Result
+		interfaces: [Node]
+		requiredInterfaces: [Node!]
+	}
+
+	interface Node {
+		id: ID!
+	}
+
+	type AccessibleNode implements Node {
+		id: ID!
+		friend: Node
+	}
+
+	type SecondNode implements Node {
+		id: ID!
+		friend: Node
+	}
+
+	union Result = AccessibleNode
 `
 
 const abstractTypeValidationSubgraphSDL = abstractTypeValidationSDL + `
