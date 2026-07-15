@@ -57,7 +57,7 @@ func TestInlineArgumentsRule_Detection(t *testing.T) {
 			name:      "inline string field argument",
 			operation: `query GetUserById { userById(userId: "12345") { loginName } }`,
 			expected: []InlineArgument{
-				{ArgumentName: "userId", EnclosingName: "userById", EnclosingKind: ast.NodeKindField, ValueKind: ast.ValueKindString},
+				{ArgumentName: "userId", AncestorName: "userById", AncestorKind: ast.NodeKindField, ValueKind: ast.ValueKindString},
 			},
 		},
 		{
@@ -69,42 +69,42 @@ func TestInlineArgumentsRule_Detection(t *testing.T) {
 			name:      "inline enum argument",
 			operation: `query { field(order: ASC) }`,
 			expected: []InlineArgument{
-				{ArgumentName: "order", EnclosingName: "field", EnclosingKind: ast.NodeKindField, ValueKind: ast.ValueKindEnum},
+				{ArgumentName: "order", AncestorName: "field", AncestorKind: ast.NodeKindField, ValueKind: ast.ValueKindEnum},
 			},
 		},
 		{
 			name:      "inline null argument",
 			operation: `query { field(flag: null) }`,
 			expected: []InlineArgument{
-				{ArgumentName: "flag", EnclosingName: "field", EnclosingKind: ast.NodeKindField, ValueKind: ast.ValueKindNull},
+				{ArgumentName: "flag", AncestorName: "field", AncestorKind: ast.NodeKindField, ValueKind: ast.ValueKindNull},
 			},
 		},
 		{
 			name:      "inline list argument recorded once",
 			operation: `query { field(by: [1, 2, 3]) }`,
 			expected: []InlineArgument{
-				{ArgumentName: "by", EnclosingName: "field", EnclosingKind: ast.NodeKindField, ValueKind: ast.ValueKindList},
+				{ArgumentName: "by", AncestorName: "field", AncestorKind: ast.NodeKindField, ValueKind: ast.ValueKindList},
 			},
 		},
 		{
 			name:      "inline object argument recorded once",
 			operation: `query { field(obj: { a: 1 }) }`,
 			expected: []InlineArgument{
-				{ArgumentName: "obj", EnclosingName: "field", EnclosingKind: ast.NodeKindField, ValueKind: ast.ValueKindObject},
+				{ArgumentName: "obj", AncestorName: "field", AncestorKind: ast.NodeKindField, ValueKind: ast.ValueKindObject},
 			},
 		},
 		{
 			name:      "mixed variable and literal flags only the literal",
 			operation: `query q($flag: Boolean) { field(flag: $flag, order: DESC) }`,
 			expected: []InlineArgument{
-				{ArgumentName: "order", EnclosingName: "field", EnclosingKind: ast.NodeKindField, ValueKind: ast.ValueKindEnum},
+				{ArgumentName: "order", AncestorName: "field", AncestorKind: ast.NodeKindField, ValueKind: ast.ValueKindEnum},
 			},
 		},
 		{
 			name:      "inline directive argument (@include)",
 			operation: `query q($userId: ID!) { userById(userId: $userId) @include(if: true) { loginName } }`,
 			expected: []InlineArgument{
-				{ArgumentName: "if", EnclosingName: "include", EnclosingKind: ast.NodeKindDirective, ValueKind: ast.ValueKindBoolean},
+				{ArgumentName: "if", AncestorName: "include", AncestorKind: ast.NodeKindDirective, ValueKind: ast.ValueKindBoolean},
 			},
 		},
 		{
@@ -116,7 +116,7 @@ func TestInlineArgumentsRule_Detection(t *testing.T) {
 			name:      "introspection field argument",
 			operation: `query { __type(name: "User") { name } }`,
 			expected: []InlineArgument{
-				{ArgumentName: "name", EnclosingName: "__type", EnclosingKind: ast.NodeKindField, ValueKind: ast.ValueKindString},
+				{ArgumentName: "name", AncestorName: "__type", AncestorKind: ast.NodeKindField, ValueKind: ast.ValueKindString},
 			},
 		},
 		{
@@ -126,8 +126,8 @@ func TestInlineArgumentsRule_Detection(t *testing.T) {
 			name:      "argument under a @skip(if:true)-removed node still flagged",
 			operation: `query q($userId: ID!) { user @skip(if: true) { posts(first: 10) } userById(userId: $userId) { loginName } }`,
 			expected: []InlineArgument{
-				{ArgumentName: "if", EnclosingName: "skip", EnclosingKind: ast.NodeKindDirective, ValueKind: ast.ValueKindBoolean},
-				{ArgumentName: "first", EnclosingName: "posts", EnclosingKind: ast.NodeKindField, ValueKind: ast.ValueKindInteger},
+				{ArgumentName: "if", AncestorName: "skip", AncestorKind: ast.NodeKindDirective, ValueKind: ast.ValueKindBoolean},
+				{ArgumentName: "first", AncestorName: "posts", AncestorKind: ast.NodeKindField, ValueKind: ast.ValueKindInteger},
 			},
 		},
 		{

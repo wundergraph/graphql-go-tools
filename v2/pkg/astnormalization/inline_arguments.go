@@ -10,19 +10,19 @@ import (
 // InlineArgument describes a single argument in an operation whose value was
 // supplied inline (a literal) instead of as a variable.
 type InlineArgument struct {
-	ArgumentName  string
-	EnclosingName string
-	EnclosingKind ast.NodeKind
-	ValueKind     ast.ValueKind
-	Position      position.Position
+	ArgumentName string
+	AncestorName string
+	AncestorKind ast.NodeKind
+	ValueKind    ast.ValueKind
+	Position     position.Position
 }
 
 func (a InlineArgument) QualifiedName() string {
-	switch a.EnclosingKind {
+	switch a.AncestorKind {
 	case ast.NodeKindField:
-		return a.EnclosingName + "." + a.ArgumentName
+		return a.AncestorName + "." + a.ArgumentName
 	case ast.NodeKindDirective:
-		return "@" + a.EnclosingName + "." + a.ArgumentName
+		return "@" + a.AncestorName + "." + a.ArgumentName
 	default:
 		return a.ArgumentName
 	}
@@ -103,12 +103,12 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 
 	if len(v.Ancestors) > 0 {
 		parent := v.Ancestors[len(v.Ancestors)-1]
-		finding.EnclosingKind = parent.Kind
+		finding.AncestorKind = parent.Kind
 		switch parent.Kind {
 		case ast.NodeKindField:
-			finding.EnclosingName = v.operation.FieldNameString(parent.Ref)
+			finding.ArgumentName = v.operation.FieldNameString(parent.Ref)
 		case ast.NodeKindDirective:
-			finding.EnclosingName = v.operation.DirectiveNameString(parent.Ref)
+			finding.AncestorName = v.operation.DirectiveNameString(parent.Ref)
 		}
 	}
 
