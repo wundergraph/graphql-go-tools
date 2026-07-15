@@ -65,6 +65,9 @@ type Planner[T Configuration] struct {
 	config                             Configuration
 	upstreamOperation                  *ast.Document
 	upstreamVariables                  []byte
+	upstreamVariablesList              []resolve.NamedVariableFragment
+	recordUpstreamVariables            bool
+	upstreamVariableCollision          bool
 	nodes                              []ast.Node
 	variables                          resolve.Variables
 	lastFieldEnclosingTypeName         string
@@ -244,7 +247,7 @@ func (p *Planner[T]) addDirectiveToNode(directiveRef int, node ast.Node) {
 			}
 
 			// And finally add the variable to the upstream variables JSON.
-			p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, string(variableName), []byte(contextVariableName))
+			p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, string(variableName), []byte(contextVariableName))
 		}
 	}
 }
@@ -302,9 +305,9 @@ func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
 	if opVarsBytes != nil {
 		err := jsonparser.ObjectEach(opVarsBytes, func(key, value []byte, dataType jsonparser.ValueType, offset int) (err error) {
 			if dataType == jsonparser.String {
-				upstreamVariables, err = sjson.SetRawBytes(upstreamVariables, string(key), quotes.WrapBytes(value))
+				upstreamVariables, err = p.setUpstreamVariable(upstreamVariables, string(key), quotes.WrapBytes(value))
 			} else {
-				upstreamVariables, err = sjson.SetRawBytes(upstreamVariables, string(key), value)
+				upstreamVariables, err = p.setUpstreamVariable(upstreamVariables, string(key), value)
 			}
 			return err
 		})
@@ -318,6 +321,32 @@ func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
 	input = httpclient.SetInputBodyWithPath(input, opBytes, "query")
 
 	return input, opBytes
+}
+
+// setUpstreamVariable writes a top-level body.variables entry and, when
+// MultiFetch recording is on, mirrors it into upstreamVariablesList in write
+// order with replace-in-slot semantics on duplicate names. A duplicate write
+// to the "representations" slot marks the fetch as non-mergeable.
+func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte) ([]byte, error) {
+	out, err := sjson.SetRawBytes(target, name, raw)
+	if err != nil {
+		return out, err
+	}
+	if p.recordUpstreamVariables {
+		value := make([]byte, len(raw))
+		copy(value, raw)
+		for i := range p.upstreamVariablesList {
+			if p.upstreamVariablesList[i].Name == name {
+				if name == "representations" {
+					p.upstreamVariableCollision = true
+				}
+				p.upstreamVariablesList[i].Value = value
+				return out, nil
+			}
+		}
+		p.upstreamVariablesList = append(p.upstreamVariablesList, resolve.NamedVariableFragment{Name: name, Value: value})
+	}
+	return out, nil
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
@@ -383,6 +412,15 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 	}
 
+	var mergeableOperation *resolve.MergeableOperation
+	if p.recordUpstreamVariables && !p.upstreamVariableCollision && (requiresEntityFetch || requiresEntityBatchFetch) {
+		mergeableOperation = &resolve.MergeableOperation{
+			Document:  p.upstreamOperation,
+			Variables: p.upstreamVariablesList,
+		}
+		p.upstreamOperation = nil
+	}
+
 	return resolve.FetchConfiguration{
 		Input:                                 string(input),
 		DataSource:                            dataSource,
@@ -393,6 +431,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 		QueryPlan:                             p.queryPlan,
 		OperationName:                         p.propagatedOperationName,
+		MergeableOperation:                    mergeableOperation,
 	}
 }
 
@@ -807,6 +846,9 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.nodes = p.nodes[:0]
 	p.parentTypeNodes = p.parentTypeNodes[:0]
 	p.upstreamVariables = nil
+	p.upstreamVariablesList = nil
+	p.recordUpstreamVariables = p.dataSourcePlannerConfig.Options.EnableMultiFetch && p.config.grpc == nil
+	p.upstreamVariableCollision = false
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false
 	p.queryPlan = nil
@@ -839,7 +881,7 @@ func (p *Planner[T]) addRepresentationsVariable() {
 
 	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
 
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", fmt.Appendf(nil, "[%s]", variable))
+	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, "representations", fmt.Appendf(nil, "[%s]", variable))
 }
 
 func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
@@ -1147,7 +1189,7 @@ func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFi
 		}
 	}
 
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
+	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
 // applyInlineFieldArgument - configures arguments for a complex argument of a list or input object type
@@ -1231,7 +1273,7 @@ func (p *Planner[T]) addVariableDefinitionsRecursively(value ast.Value, sourcePa
 	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation, variableDefinitionTypeName)
 	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
 
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
+	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
 // configureObjectFieldSource - configures source of a field when it has variables coming from current object
@@ -1276,7 +1318,7 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 
 	objectVariableName, exists := p.variables.AddVariable(variable)
 	if !exists {
-		p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, string(variableName), []byte(objectVariableName))
+		p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, string(variableName), []byte(objectVariableName))
 	}
 }
 

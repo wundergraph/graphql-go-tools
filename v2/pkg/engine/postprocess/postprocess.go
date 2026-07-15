@@ -33,6 +33,7 @@ type FetchTreeProcessors struct {
 	appendFetchID                   *fetchIDAppender
 	dedupe                          *deduplicateSingleFetches
 	addMissingNestedDependencies    *addMissingNestedDependencies
+	createMultiFetch                *createMultiFetch
 	createConcreteSingleFetchTypes  *createConcreteSingleFetchTypes
 	orderSequenceByDependencies     *orderSequenceByDependencies
 	createParallelNodes             *createParallelNodes
@@ -45,8 +46,13 @@ func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResp
 	p.dedupe.ProcessFetchTree(fetches)
 	// Appending fetchIDs makes query content unique, thus it should happen after "dedupe".
 	p.appendFetchID.ProcessFetchTree(fetches)
-	p.resolveInputTemplates.ProcessFetchTree(fetches)
+	// addMissingNestedDependencies reads only paths and dependency fields and must run while every
+	// child is still a SingleFetch, so it runs before resolveInputTemplates.
 	p.addMissingNestedDependencies.ProcessFetchTree(fetches)
+	// createMultiFetch runs unconditionally: it merges when enabled and always clears the
+	// planner MergeableOperation artifacts so no AST survives postprocessing.
+	p.createMultiFetch.ProcessFetchTree(fetches)
+	p.resolveInputTemplates.ProcessFetchTree(fetches)
 	p.createConcreteSingleFetchTypes.ProcessFetchTree(fetches)
 }
 
@@ -75,6 +81,7 @@ type processorOptions struct {
 	disableExtractDeferFetches             bool
 	disableBuildDeferTree                  bool
 	disableCollectAuthorizationCoordinates bool
+	enableMultiFetch                       bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -146,11 +153,23 @@ func DisableCollectAuthorizationCoordinates() ProcessorOption {
 	}
 }
 
+// EnableMultiFetch activates the MultiFetch stage, which merges same-subgraph
+// entity fetches executing in the same wave into a single MultiEntityFetch.
+// It has no effect when DisableResolveInputTemplates is also set.
+func EnableMultiFetch() ProcessorOption {
+	return func(o *processorOptions) {
+		o.enableMultiFetch = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
 		o(opts)
 	}
+	// A merged fetch has no Input string, so it cannot coexist with the readable-Input
+	// mode used by plan tests; DisableResolveInputTemplates forces the stage off.
+	enableMultiFetch := opts.enableMultiFetch && !opts.disableResolveInputTemplates
 	return &Processor{
 		collectDataSourceInfo: opts.collectDataSourceInfo,
 		disableExtractFetches: opts.disableExtractFetches,
@@ -170,6 +189,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			// this must go first, as we need to deduplicate fetches so that subsequent processors can work correctly
 			addMissingNestedDependencies: &addMissingNestedDependencies{
 				disable: opts.disableAddMissingNestedDependencies,
+			},
+			createMultiFetch: &createMultiFetch{
+				disable: !enableMultiFetch,
 			},
 			// this must go after deduplication because it relies on the existence of a "sequence" fetch node in the root
 			createConcreteSingleFetchTypes: &createConcreteSingleFetchTypes{

@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -8,6 +9,56 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
+
+func multiEntityTestNode() *FetchTreeNode {
+	return &FetchTreeNode{
+		Kind: FetchTreeNodeKindSingle,
+		Item: &FetchItem{
+			Fetch: &MultiEntityFetch{
+				FetchDependencies: FetchDependencies{
+					FetchID:           1,
+					DependsOnFetchIDs: []int{0},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "products-id",
+					DataSourceName: "products",
+					QueryPlan: &QueryPlan{
+						Query: "query {...}",
+					},
+				},
+				MergedFetchIDs: []int{1, 2},
+				Input: MultiEntityInput{
+					Entries: []MultiEntityFetchEntry{
+						{Alias: "f1", Item: &FetchItem{ResponsePath: "employees.products"}},
+						{Alias: "f2", Item: &FetchItem{ResponsePath: "employee"}},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFetchTreeNode_Trace_MultiEntity(t *testing.T) {
+	node := multiEntityTestNode()
+	data, err := json.Marshal(node.Trace())
+	assert.NoError(t, err)
+	out := string(data)
+	assert.Contains(t, out, `"kind":"MultiEntity"`)
+	assert.Contains(t, out, `"entries":[{"alias":"f1","path":"employees.products"},{"alias":"f2","path":"employee"}]`)
+	assert.Contains(t, out, `"source_id":"products-id"`)
+	assert.Contains(t, out, `"source_name":"products"`)
+}
+
+func TestFetchTreeNode_QueryPlan_MultiEntity(t *testing.T) {
+	node := multiEntityTestNode()
+	data, err := json.Marshal(node.QueryPlan())
+	assert.NoError(t, err)
+	out := string(data)
+	assert.Contains(t, out, `"kind":"MultiEntity"`)
+	assert.Contains(t, out, `"entries":[{"alias":"f1","path":"employees.products"},{"alias":"f2","path":"employee"}]`)
+	assert.Contains(t, out, `"mergedFetchIds":[1,2]`)
+	assert.Contains(t, out, `"query":"query {...}"`)
+}
 
 func TestFetchTreeQueryPlanNode_PrettyPrint_Trigger(t *testing.T) {
 	t.Run("just a trigger", func(t *testing.T) {

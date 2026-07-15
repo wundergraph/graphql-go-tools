@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"sync"
@@ -21,11 +22,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
 
@@ -10841,3 +10847,243 @@ const petSchema = `
 		pets: [Pet!]!
 	}
 `
+
+// planMergeableOperationTest normalizes, validates and plans an operation
+// without postprocessing, returning the synchronous response plan so its
+// RawFetches can be inspected for MergeableOperation artifacts.
+func planMergeableOperationTest(t *testing.T, definition, operation, operationName string, config plan.Configuration) *plan.SynchronousResponsePlan {
+	t.Helper()
+
+	def := unsafeparser.ParseGraphqlDocumentString(definition)
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
+
+	require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
+
+	norm := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveUnusedVariables(),
+	)
+	var report operationreport.Report
+	norm.NormalizeOperation(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	astvalidation.DefaultOperationValidator().Validate(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	p, err := plan.NewPlanner(config)
+	require.NoError(t, err)
+
+	actualPlan := p.Plan(&op, &def, operationName, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	syncPlan, ok := actualPlan.(*plan.SynchronousResponsePlan)
+	require.True(t, ok)
+	return syncPlan
+}
+
+func TestConfigureFetch_MergeableOperation(t *testing.T) {
+	definition := `
+		type Query {
+			obj: Object
+		}
+		type Object {
+			id: ID!
+			name(x: String): String!
+			field: String!
+		}`
+
+	sub1 := `
+		type Query {
+			obj: Object
+		}
+		type Object @key(fields: "id") {
+			id: ID!
+			field: String!
+		}`
+
+	sub2 := `
+		type Object @key(fields: "id") {
+			id: ID!
+			name(x: String): String!
+		}`
+
+	newConfig := func(enableMultiFetch bool) plan.Configuration {
+		return plan.Configuration{
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{TypeName: "Query", FieldNames: []string{"obj"}},
+							{TypeName: "Object", FieldNames: []string{"id", "field"}},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{TypeName: "Object", SelectionSet: "id"},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch:               &FetchConfiguration{URL: "https://example.com/graphql"},
+						SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: sub1}, sub1),
+					}),
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{TypeName: "Object", FieldNames: []string{"id", "name"}},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{TypeName: "Object", SelectionSet: "id"},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch:               &FetchConfiguration{URL: "https://example-2.com/graphql"},
+						SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: sub2}, sub2),
+					}),
+				),
+			},
+			DisableResolveFieldPositions: true,
+			Fields: plan.FieldConfigurations{
+				{
+					TypeName:  "Object",
+					FieldName: "name",
+					Arguments: plan.ArgumentsConfigurations{
+						{Name: "x", SourceType: plan.FieldArgumentSource},
+					},
+				},
+			},
+			EnableMultiFetch: enableMultiFetch,
+		}
+	}
+
+	repsFragmentPattern := regexp.MustCompile(`^\[\$\$\d+\$\$\]$`)
+
+	findFragment := func(vars []resolve.NamedVariableFragment, name string) (resolve.NamedVariableFragment, bool) {
+		for _, v := range vars {
+			if v.Name == name {
+				return v, true
+			}
+		}
+		return resolve.NamedVariableFragment{}, false
+	}
+
+	singleFetches := func(syncPlan *plan.SynchronousResponsePlan) (root, entity *resolve.SingleFetch) {
+		for _, item := range syncPlan.Response.RawFetches {
+			sf, ok := item.Fetch.(*resolve.SingleFetch)
+			require.True(t, ok)
+			if sf.RequiresEntityFetch || sf.RequiresEntityBatchFetch {
+				entity = sf
+			} else {
+				root = sf
+			}
+		}
+		return root, entity
+	}
+
+	t.Run("entity fetch records mergeable operation", func(t *testing.T) {
+		syncPlan := planMergeableOperationTest(t, definition, `query { obj { field name } }`, "", newConfig(true))
+		_, entity := singleFetches(syncPlan)
+		require.NotNil(t, entity)
+		require.NotNil(t, entity.MergeableOperation)
+
+		reps, ok := findFragment(entity.MergeableOperation.Variables, "representations")
+		require.True(t, ok, "representations fragment recorded in write order")
+		require.Regexp(t, repsFragmentPattern, string(reps.Value))
+
+		printed, err := astprinter.PrintString(entity.MergeableOperation.Document)
+		require.NoError(t, err)
+		require.Contains(t, printed, "_entities")
+	})
+
+	t.Run("root fetch does not record mergeable operation", func(t *testing.T) {
+		syncPlan := planMergeableOperationTest(t, definition, `query { obj { field name } }`, "", newConfig(true))
+		root, _ := singleFetches(syncPlan)
+		require.NotNil(t, root)
+		require.Nil(t, root.MergeableOperation)
+	})
+
+	t.Run("flag off yields nil artifacts and byte-identical inputs", func(t *testing.T) {
+		op := `query { obj { field name } }`
+		onPlan := planMergeableOperationTest(t, definition, op, "", newConfig(true))
+		offPlan := planMergeableOperationTest(t, definition, op, "", newConfig(false))
+
+		require.Len(t, offPlan.Response.RawFetches, len(onPlan.Response.RawFetches))
+		for i := range offPlan.Response.RawFetches {
+			offSF, ok := offPlan.Response.RawFetches[i].Fetch.(*resolve.SingleFetch)
+			require.True(t, ok)
+			onSF, ok := onPlan.Response.RawFetches[i].Fetch.(*resolve.SingleFetch)
+			require.True(t, ok)
+			require.Nil(t, offSF.MergeableOperation)
+			require.Equal(t, onSF.Input, offSF.Input)
+		}
+	})
+
+	// A client variable literally named "representations" that reaches an entity
+	// fetch's upstream operation makes the planner emit two $representations
+	// definitions, which fails upstream validation and yields a nil plan
+	// (pre-existing defect). The collision guard therefore cannot be observed
+	// through a successful plan, so its mechanism is exercised directly here.
+	t.Run("representations collision guard suppresses recording", func(t *testing.T) {
+		p := &Planner[Configuration]{recordUpstreamVariables: true}
+
+		out, err := p.setUpstreamVariable(nil, "first", []byte("$$0$$"))
+		require.NoError(t, err)
+		out, err = p.setUpstreamVariable(out, "representations", []byte("[$$1$$]"))
+		require.NoError(t, err)
+		require.False(t, p.upstreamVariableCollision)
+		require.Len(t, p.upstreamVariablesList, 2)
+
+		// A duplicate write to the representations slot marks the collision and
+		// replaces the value in place without growing the list.
+		_, err = p.setUpstreamVariable(out, "representations", []byte("[$$2$$]"))
+		require.NoError(t, err)
+		require.True(t, p.upstreamVariableCollision)
+		require.Len(t, p.upstreamVariablesList, 2)
+
+		reps, ok := findFragment(p.upstreamVariablesList, "representations")
+		require.True(t, ok)
+		require.Equal(t, "[$$2$$]", string(reps.Value))
+	})
+
+	t.Run("recording off leaves list untouched", func(t *testing.T) {
+		p := &Planner[Configuration]{recordUpstreamVariables: false}
+		_, err := p.setUpstreamVariable(nil, "representations", []byte("[$$0$$]"))
+		require.NoError(t, err)
+		require.Nil(t, p.upstreamVariablesList)
+		require.False(t, p.upstreamVariableCollision)
+	})
+
+	// The broken plan is pre-existing and independent of the flag: it fails
+	// upstream validation regardless of EnableMultiFetch.
+	t.Run("representations collision fixture fails to plan regardless of flag", func(t *testing.T) {
+		op := `query($representations: String) { obj { field name(x: $representations) } }`
+		for _, enabled := range []bool{true, false} {
+			def := unsafeparser.ParseGraphqlDocumentString(definition)
+			clientOp := unsafeparser.ParseGraphqlDocumentString(op)
+			require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
+
+			norm := astnormalization.NewWithOpts(
+				astnormalization.WithExtractVariables(),
+				astnormalization.WithInlineFragmentSpreads(),
+				astnormalization.WithRemoveFragmentDefinitions(),
+				astnormalization.WithRemoveUnusedVariables(),
+			)
+			var report operationreport.Report
+			norm.NormalizeOperation(&clientOp, &def, &report)
+			require.False(t, report.HasErrors(), report.Error())
+
+			pl, err := plan.NewPlanner(newConfig(enabled))
+			require.NoError(t, err)
+			pl.Plan(&clientOp, &def, "", &report)
+			require.True(t, report.HasErrors())
+		}
+	})
+}
