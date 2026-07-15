@@ -511,7 +511,11 @@ other members are removed. Bookkeeping mirrors `deduplicateSingleFetches`
 - `FetchDependencies`: `FetchID` = lowest member ID; `DependsOnFetchIDs` =
   union of member dependencies minus member IDs (duplicates tolerated);
   `DeferID` = shared value.
-- `replaceDependsOnFetchId(root, removedID, survivorID)` per removed member.
+- `replaceDependsOnFetchId(root, memberID, multi.FetchID)` for **every**
+  member ID ≠ the surviving FetchID — including the first member's original
+  ID when it is not the group minimum (wave order sorts by dependency count,
+  so the first member need not carry the lowest ID; a dependent referencing
+  its vanished ID would otherwise break ordering and the skip cascade).
 - `DataSource` and `DataSourceIdentifier` are taken from s1 (matching the
   envelope choice).
 - Merged `FetchInfo`: same `DataSourceID`/`DataSourceName`;
