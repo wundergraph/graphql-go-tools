@@ -11,10 +11,11 @@
 ## Global Constraints
 
 - The spec is the source of truth: `docs/multi-fetch/spec.md`. Read it before starting any task. Section references below (e.g. "spec 4.6") point there.
-- Default off. `plan.Configuration.EnableMultiFetch=false` and no `postprocess.EnableMultiFetch()` option ⇒ byte-identical plans and zero behavior change.
-- Never "fix" pre-existing quirks in passing: unescaped query embedding, blind `$$` alternation, `replaceDependsOnFetchId` duplicate-ID tolerance are replicated, not repaired.
+- Default off. `plan.Configuration.EnableMultiFetch=false` and no `postprocess.EnableMultiFetch()` option ⇒ byte-identical plans and zero behavior change. This includes error paths: never remove or weaken an existing error check while routing code through a helper.
+- **Fetch input shape (critical, spec 3.1):** this repo's `go.work` pins sjson v1.0.4, which PREPENDS keys, so fetch inputs here look like `{"method":"POST","url":"...",["header":{...},]"body":{"query":"...","variables":{...}}}` — envelope first, query before variables (see the golden at `graphql_datasource_federation_test.go` and the BatchEntityFetch templates in `loader_test.go`). Downstream consumers resolve sjson v1.2.5+ (append), giving the mirrored `{"body":{"variables":{...},"query":"..."},...}`. Code that locates the two ranges must handle both shapes and bail otherwise.
+- Never "fix" pre-existing quirks in passing: unescaped query embedding, blind `$$` alternation, `replaceDependsOnFetchId` duplicate-ID tolerance, v1.0.4 blob-overwrite corruption are replicated or tolerated, not repaired.
 - Naming: feature = MultiFetch (flags, stage); resolve types = `MultiEntity*`; synthetic include variables = `includeF<k>` (never `include_f<k>` — collision rules, spec 4.4 step 4); aliases = `f1..fn`.
-- Run tests with `gotestsum --format=short -- ./path/... -run TestName` (never bare `go test`).
+- Run tests with `gotestsum --format=short -- ./path/... -run TestName` (never bare `go test`), from `v2/`.
 - Go files use tabs; run `gofmt -w` on every touched file after editing.
 - Comments: small, meaningful, ≤2-3 sentences, no implementation-plan leakage, no "why this change is correct" narration.
 - No git add/commit steps inside tasks — the orchestrator handles commits between tasks.
@@ -26,10 +27,10 @@
 
 **Files:**
 - Modify: `v2/pkg/astimport/astimport.go`
-- Test: `v2/pkg/astimport/astimport_test.go` (extend; the file exists and uses a table-driven `runTestCase` style — follow it or add standalone tests in the same style as the existing ones)
+- Test: `v2/pkg/astimport/astimport_test.go` (extend; the file has no shared helper — existing tests use inline tables or per-test closures. Write the new tests standalone: parse `from` with `astparser.ParseGraphqlDocumentString`, import into `ast.NewSmallDocument()` plus one added query operation definition, print with `astprinter.PrintString`, assert on the printed golden. Do NOT hand-build expected `ast.Document` structs the way `TestImporter_ImportVariableDefinitions` does.)
 
 **Interfaces:**
-- Consumes: existing `Importer` methods (`ImportType`, `ImportArguments`, `ImportValue`), `ast.Document` mutators.
+- Consumes: existing `Importer` methods (`ImportType`, `ImportArguments`, `ImportValue`), `ast.Document` mutators. Note `ast.Document.AddField` returns `ast.Node` — use `.Ref`.
 - Produces (used by Task 6):
   - `func (i *Importer) ImportVariableDefinitionWithVariableNameRename(ref int, from, to *ast.Document, newName string) int`
   - `func (i *Importer) ImportSelectionSetWithVariableRename(ref int, from, to *ast.Document, rename map[string]string) (int, error)`
@@ -41,10 +42,10 @@ Behavior contract (spec 4.9):
   - fields: name, alias (verbatim), arguments (values through the rename-aware value path), directives, nested selection sets;
   - inline fragments: type condition (via `ImportType`), directives, nested selection sets;
   - fragment spreads: return `fmt.Errorf("astimport: fragment spreads are not supported")` — upstream operations never contain them (spec 3.1).
-- Rename-aware value path: a private `importValueWithRename(fromValue ast.Value, from, to *ast.Document, rename map[string]string) ast.Value` that duplicates `ImportValue`'s switch, except `ast.ValueKindVariable` looks the source name up in `rename` (miss ⇒ keep original name) and recurses through list/object values with the map. `ImportValue` becomes `importValueWithRename(..., nil)`.
-- Rename-aware argument/directive imports: private `importArgumentsWithRename`, `importDirectivesWithRename` used by the recursive copy (public `ImportArgument(s)`/`ImportDirective` delegate with nil map).
+- Rename-aware value path: a private `importValueWithRename(fromValue ast.Value, from, to *ast.Document, rename map[string]string) ast.Value` duplicating `ImportValue`'s switch, except `ast.ValueKindVariable` looks the source name up in `rename` (miss ⇒ keep original name) and list/object values recurse with the map. `ImportValue` delegates with a nil map.
+- Rename-aware argument/directive imports: private `importArgumentsWithRename`, `importDirectivesWithRename` used by the recursive copy (public `ImportArgument(s)`/`ImportDirective` delegate with nil map). These stay private — Task 6 reaches them only through `ImportSelectionSetWithVariableRename`.
 
-Implementation skeleton for the recursive copy (follow `ast.Document.CopySelectionSet`/`CopySelection`/`CopyField` in `v2/pkg/ast/ast_selection.go:32-117` for the traversal shape, but write into `to`):
+Implementation skeleton for the recursive copy (follow the traversal shape of `ast.Document.CopySelectionSet`/`CopySelection`/`CopyField` in `v2/pkg/ast/ast_selection.go`, but write into `to`):
 
 ```go
 func (i *Importer) ImportSelectionSetWithVariableRename(ref int, from, to *ast.Document, rename map[string]string) (int, error) {
@@ -60,23 +61,23 @@ func (i *Importer) ImportSelectionSetWithVariableRename(ref int, from, to *ast.D
 }
 ```
 
-with `importSelection` switching on `from.Selections[selectionRef].Kind`, building `ast.Field{...}`/`ast.InlineFragment{...}` values, appending via `to.AddSelectionToDocument` (check exact helper names in `ast_selection.go`; `AddSelectionToDocument` exists at `ast_selection.go:134`), and setting `HasSelections`/`SelectionSet: -1` correctly for leaf fields.
+with `importSelection` switching on `from.Selections[selectionRef].Kind`, building `ast.Field{...}`/`ast.InlineFragment{...}` values, appending via the document's selection helpers (`AddSelectionToDocument` in `ast_selection.go`), and setting `HasSelections`/`SelectionSet: -1` correctly for leaf fields.
 
-- [ ] **Step 1: Write failing tests.** In `astimport_test.go` add `TestImportSelectionSetWithVariableRename` parsing a `from` operation with `astparser.ParseGraphqlDocumentString`:
+- [ ] **Step 1: Write failing tests.** `TestImportSelectionSetWithVariableRename` parses this `from` operation:
 
 ```graphql
 query($representations: [_Any!]!, $first: Int) {
   _entities(representations: $representations) {
-    ... on Employee { __typename products(first: $first) @custom(arg: $first) { upc nested { id } } }
+    ... on Employee { __typename p: products(first: $first) @custom(arg: $first) { upc nested { id } } }
   }
 }
 ```
 
-  Import the root field's enclosing selection set of `_entities` (locate the operation's selection set ref: `from.OperationDefinitions[0].SelectionSet`) into a fresh `ast.NewSmallDocument()` that has one query operation definition added; rename map `{"representations": "representations_f1", "first": "first_f1"}`. Attach the imported set to the operation and print with `astprinter.PrintString`; assert the golden string contains `_entities(representations: $representations_f1)`, `products(first: $first_f1)`, `@custom(arg: $first_f1)`, `... on Employee`, `nested {id}`. Add `TestImportSelectionSetFragmentSpreadError` (a doc with a spread → error). Add `TestImportVariableDefinitionWithVariableNameRename`: import the `$representations` definition with new name `representations_f1`, attach via `AddImportedVariableDefinitionToOperationDefinition`, print, assert `query($representations_f1: [_Any!]!)`.
+  Import the operation's root selection set (`from.OperationDefinitions[0].SelectionSet`) into a fresh target with rename map `{"representations": "representations_f1", "first": "first_f1"}`; attach to the target operation; print. Assert the golden contains `_entities(representations: $representations_f1)`, `p: products(first: $first_f1)`, `@custom(arg: $first_f1)`, `... on Employee`, `nested {id}` (the alias `p:` covers the alias-verbatim path). Add `TestImportSelectionSetFragmentSpreadError` (a doc with a spread → error). Add `TestImportVariableDefinitionWithVariableNameRename`: import the `$representations` definition with new name `representations_f1`, attach via `AddImportedVariableDefinitionToOperationDefinition`, print, assert `query($representations_f1: [_Any!]!)`.
 - [ ] **Step 2: Run to verify failure.** `gotestsum --format=short -- ./pkg/astimport/... -run 'TestImportSelectionSet|TestImportVariableDefinitionWithVariableNameRename'` — expect compile errors (methods undefined).
-- [ ] **Step 3: Implement** the methods per the contract above.
-- [ ] **Step 4: Run tests to green**, then run the whole package: `gotestsum --format=short -- ./pkg/astimport/...`.
-- [ ] **Step 5: gofmt** `gofmt -w v2/pkg/astimport/astimport.go v2/pkg/astimport/astimport_test.go`.
+- [ ] **Step 3: Implement** per the contract above.
+- [ ] **Step 4: Run to green**, then the whole package: `gotestsum --format=short -- ./pkg/astimport/...`.
+- [ ] **Step 5: gofmt** touched files.
 
 ---
 
@@ -85,16 +86,16 @@ query($representations: [_Any!]!, $first: Int) {
 **Files:**
 - Modify: `v2/pkg/engine/postprocess/postprocess.go` (reorder `processFlatFetchTree`)
 - Modify: `v2/pkg/engine/postprocess/resolve_input_templates.go` (checked type switch + promote helper)
-- Modify: `v2/pkg/engine/postprocess/deduplicate_single_fetches.go` (promote `replaceDependsOnFetchId` to a package-level function)
-- Test: existing package tests must stay green; add reorder-safety test in `v2/pkg/engine/postprocess/postprocess_test.go`
+- Modify: `v2/pkg/engine/postprocess/deduplicate_single_fetches.go` (promote `replaceDependsOnFetchId`)
+- Test: `v2/pkg/engine/postprocess/postprocess_test.go` (behavior-lock test)
 
 **Interfaces:**
 - Produces (used by Tasks 5-7):
-  - `func resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate)` — package-level, extracted verbatim from the method (`resolve_input_templates.go:57-89`); the method delegates to it.
+  - `func resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate)` — package-level, body moved verbatim from the method (`resolve_input_templates.go:57-89`); the method delegates. It fills the out-param and returns nothing.
   - `func replaceDependsOnFetchID(root *resolve.FetchTreeNode, oldID, newID int)` — package-level, body moved verbatim from `deduplicateSingleFetches.replaceDependsOnFetchId` (`deduplicate_single_fetches.go:40-66`); the method callsite updated.
 
 Changes:
-1. In `processFlatFetchTree` (`postprocess.go:42-51`) move `p.addMissingNestedDependencies.ProcessFetchTree(fetches)` to directly after `p.appendFetchID.ProcessFetchTree(fetches)` (i.e. before `resolveInputTemplates`). Safe per spec 4.1: it reads only ResponsePath/MergePath/FetchDependencies.
+1. In `processFlatFetchTree` (`postprocess.go:42-51`) move `p.addMissingNestedDependencies.ProcessFetchTree(fetches)` to directly after `p.appendFetchID.ProcessFetchTree(fetches)` (before `resolveInputTemplates`). Safe per spec 4.1.
 2. In `resolveInputTemplates.traverseNode` (`resolve_input_templates.go:36-37`) replace the unchecked cast:
 
 ```go
@@ -104,10 +105,10 @@ Changes:
 		}
 ```
 
-- [ ] **Step 1: Write the reorder-safety test** in `postprocess_test.go`: construct a `plan.SynchronousResponsePlan` whose `RawFetches` contain a root fetch (`FetchID: 0`, `ResponsePath: ""`, `PostProcessing.MergePath: nil`) and a nested fetch (`FetchID: 1`, empty `DependsOnFetchIDs`, `ResponsePath: "user"`, root provides path `user` via `MergePath: []string{"user"}`), run `NewProcessor().Process`, and assert the nested fetch ends up with `DependsOnFetchIDs: []int{0}` and the tree is `Sequence(Single(0), Single(1))`. (This locks the moved stage still fires; mirror existing test style in that file.)
-- [ ] **Step 2: Run the new test and the full package**: `gotestsum --format=short -- ./pkg/engine/postprocess/...` — expect the new test to pass only after the changes; existing tests green before and after (the reorder must not change any golden).
-- [ ] **Step 3: Apply the three modifications.** Extract the two package-level functions with bodies moved verbatim; keep the methods as one-line delegates so existing callers are untouched.
-- [ ] **Step 4: Full package run**: `gotestsum --format=short -- ./pkg/engine/postprocess/...` — all green.
+- [ ] **Step 1: Write the behavior-lock test** in `postprocess_test.go`: a `plan.SynchronousResponsePlan` whose `RawFetches` contain a root fetch (`FetchID: 0`, `ResponsePath: ""`, `PostProcessing.MergePath: []string{"user"}`) and a nested fetch (`FetchID: 1`, empty `DependsOnFetchIDs`, `ResponsePath: "user"`); run `NewProcessor().Process`; assert the nested fetch gained `DependsOnFetchIDs: []int{0}` and the tree is `Sequence(Single(0), Single(1))`.
+- [ ] **Step 2: Run it BEFORE any change** — it must already PASS (this is a lock, not red-green: `addMissingNestedDependencies` already runs today, merely later in the pipeline). Also run the full package green: `gotestsum --format=short -- ./pkg/engine/postprocess/...`.
+- [ ] **Step 3: Apply the three modifications.** Bodies move verbatim; methods become one-line delegates so existing callers are untouched.
+- [ ] **Step 4: Run the lock test and full package again** — identical results, zero golden changes.
 - [ ] **Step 5: gofmt** touched files.
 
 ---
@@ -134,7 +135,7 @@ Changes:
 
 `FetchConfiguration.Equals` is NOT changed (spec 4.3). Add `_ Fetch = (*MultiEntityFetch)(nil)` to the assertion block.
 
-`fetch_multi.go` — full content (plus package/imports):
+`fetch_multi.go` — full content (plus package clause and imports):
 
 ```go
 // MergeableOperation is the planner hand-off for MultiFetch merging.
@@ -142,9 +143,10 @@ type MergeableOperation struct {
 	// Document is the normalized and validated upstream operation. Ownership
 	// transfers to the plan; the planner nils its own reference after storing.
 	Document *ast.Document
-	// Variables lists the top-level body.variables entries in blob order.
-	// Values are raw fragments that may contain $$N$$ placeholders referring
-	// to FetchConfiguration.Variables.
+	// Variables lists the top-level body.variables entries in write order
+	// (value replaced in place on duplicate name). Values are raw fragments
+	// that may contain $$N$$ placeholders referring to
+	// FetchConfiguration.Variables.
 	Variables []NamedVariableFragment
 }
 
@@ -169,7 +171,10 @@ type MultiEntityFetch struct {
 	DataSource           DataSource
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
-	Info                 *FetchInfo
+	// MergedFetchIDs are the original fetch IDs merged into this fetch, in
+	// wave order; surfaced in query-plan output.
+	MergedFetchIDs []int
+	Info           *FetchInfo
 }
 
 func (m *MultiEntityFetch) Dependencies() *FetchDependencies { return &m.FetchDependencies }
@@ -245,12 +250,12 @@ type QueryPlanEntry struct {
 }
 ```
 
-- In `queryPlan()`'s inner switch add a `*MultiEntityFetch` case mirroring the `*BatchEntityFetch` case (`Kind: "MultiEntity"`), plus `MergedFetchIDs` (populated by Task 7 from the original fetch IDs stored on entries — carry them as `MergedFetchIDs []int` on `MultiEntityFetch`; add that field: `MergedFetchIDs []int` next to `Info`) and `Entries` built from `Input.Entries` aliases/paths. Per-entry QueryPlans are NOT rendered (spec 4.8).
+- In `queryPlan()`'s inner switch add a `*MultiEntityFetch` case mirroring the `*BatchEntityFetch` case with `Kind: "MultiEntity"`, `MergedFetchIDs: f.MergedFetchIDs`, and `Entries` built from `f.Input.Entries` (alias + `e.Item.ResponsePath`). Per-entry QueryPlans are NOT rendered (spec 4.8).
 
-- [ ] **Step 1: Write failing tests** `TestFetchTreeNode_Trace_MultiEntity` and `TestFetchTreeNode_QueryPlan_MultiEntity` in `fetchtree_test.go`: build a `Single`-kind node whose `Item.Fetch` is a `*MultiEntityFetch` with two entries (`f1`/`employees.products`, `f2`/`employee`), `Info: &FetchInfo{DataSourceID: "products-id", DataSourceName: "products", QueryPlan: &QueryPlan{Query: "query {...}"}}`, `MergedFetchIDs: []int{1, 2}`, `FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}}`. Marshal `node.Trace()` and `node.QueryPlan()` to JSON and assert golden strings (exact tags: `"kind":"MultiEntity"`, `"entries":[{"alias":"f1","path":"employees.products"}...]`, `"mergedFetchIds":[1,2]`).
+- [ ] **Step 1: Write failing tests** `TestFetchTreeNode_Trace_MultiEntity` and `TestFetchTreeNode_QueryPlan_MultiEntity`: a `Single`-kind node whose `Item.Fetch` is a `*MultiEntityFetch` with two entries (`f1`/`employees.products`, `f2`/`employee`), `Info: &FetchInfo{DataSourceID: "products-id", DataSourceName: "products", QueryPlan: &QueryPlan{Query: "query {...}"}}`, `MergedFetchIDs: []int{1, 2}`, `FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}}`. Marshal `node.Trace()` / `node.QueryPlan()` to JSON; assert goldens contain `"kind":"MultiEntity"`, `"entries":[{"alias":"f1","path":"employees.products"},{"alias":"f2","path":"employee"}]`, `"mergedFetchIds":[1,2]`.
 - [ ] **Step 2: Run to verify failure** (compile errors): `gotestsum --format=short -- ./pkg/engine/resolve/... -run 'TestFetchTreeNode_Trace_MultiEntity|TestFetchTreeNode_QueryPlan_MultiEntity'`.
-- [ ] **Step 3: Implement** all type/field additions above.
-- [ ] **Step 4: Green** the two tests, then full package: `gotestsum --format=short -- ./pkg/engine/resolve/...`.
+- [ ] **Step 3: Implement** all additions above.
+- [ ] **Step 4: Green**, then full package: `gotestsum --format=short -- ./pkg/engine/resolve/...`.
 - [ ] **Step 5: gofmt** touched files.
 
 ---
@@ -269,36 +274,43 @@ type QueryPlanEntry struct {
 - Produces: `FetchConfiguration.MergeableOperation` populated for entity fetches when the flag is on.
 
 Datasource changes (spec 4.3):
-1. Planner fields: `upstreamVariablesList []resolve.NamedVariableFragment` (nil unless recording) plus `recordUpstreamVariables bool`, reset in `EnterDocument`. `recordUpstreamVariables = p.dataSourcePlannerConfig.Options.EnableMultiFetch && p.config.grpc == nil` (set in `Register` or `EnterDocument`).
-2. Recording helper on the planner:
+1. Planner fields, reset in `EnterDocument`: `upstreamVariablesList []resolve.NamedVariableFragment`, `recordUpstreamVariables bool`, `upstreamVariableCollision bool`. Set `recordUpstreamVariables = p.dataSourcePlannerConfig.Options.EnableMultiFetch && p.config.grpc == nil` (in `EnterDocument`, after config is available; `Register` stores the config first).
+2. Recording helper — note the error return so existing error handling is preserved:
 
 ```go
 // setUpstreamVariable writes a top-level body.variables entry and, when
-// MultiFetch recording is on, mirrors it into upstreamVariablesList with
-// replace-in-slot semantics so the slice reproduces the blob's key order.
-func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte) []byte {
-	out, _ := sjson.SetRawBytes(target, name, raw)
+// MultiFetch recording is on, mirrors it into upstreamVariablesList in write
+// order with replace-in-slot semantics on duplicate names. A duplicate write
+// to the "representations" slot marks the fetch as non-mergeable.
+func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte) ([]byte, error) {
+	out, err := sjson.SetRawBytes(target, name, raw)
+	if err != nil {
+		return out, err
+	}
 	if p.recordUpstreamVariables {
 		value := make([]byte, len(raw))
 		copy(value, raw)
 		for i := range p.upstreamVariablesList {
 			if p.upstreamVariablesList[i].Name == name {
+				if name == "representations" {
+					p.upstreamVariableCollision = true
+				}
 				p.upstreamVariablesList[i].Value = value
-				return out
+				return out, nil
 			}
 		}
 		p.upstreamVariablesList = append(p.upstreamVariablesList, resolve.NamedVariableFragment{Name: name, Value: value})
 	}
-	return out
+	return out, nil
 }
 ```
 
-3. Route all six write sites through it (spec 3.1): `addRepresentationsVariable` (:849), `configureFieldArgumentSource` (:1157 — note it writes with `sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))`), `addVariableDefinitionsRecursively` (:1241), `configureObjectFieldSource` (:1286), `addDirectiveToNode` (:247), and the opVars merge loop in `createInputForQuery` (:302-315 — it writes to the local `upstreamVariables`; pass that local as `target`). Keep the quote-wrapping logic for string values exactly as-is, applied before calling the helper.
-4. In `ConfigureFetch`, after `createInputForQuery` and before returning, when `p.recordUpstreamVariables && (requiresEntityFetch || requiresEntityBatchFetch)`:
+3. Route all six write sites through it, preserving each site's current error handling exactly: `addRepresentationsVariable` (graphql_datasource.go:849), `configureFieldArgumentSource` (:1157), `addVariableDefinitionsRecursively` (:1241), `configureObjectFieldSource` (:1286), `addDirectiveToNode` (:247) currently discard the error (`p.upstreamVariables, _ = ...` → `p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, name, raw)`); the opVars merge loop in `createInputForQuery` (:302-315) currently propagates the error into `stopWithError` — keep that: `upstreamVariables, err = p.setUpstreamVariable(upstreamVariables, string(key), value)` (it writes to the LOCAL copy; pass that local as `target`). Keep the existing quote-wrapping for string values, applied before the call.
+4. In `ConfigureFetch`, after `createInputForQuery` and before building the return value:
 
 ```go
 	var mergeableOperation *resolve.MergeableOperation
-	if p.recordUpstreamVariables && (requiresEntityFetch || requiresEntityBatchFetch) {
+	if p.recordUpstreamVariables && !p.upstreamVariableCollision && (requiresEntityFetch || requiresEntityBatchFetch) {
 		mergeableOperation = &resolve.MergeableOperation{
 			Document:  p.upstreamOperation,
 			Variables: p.upstreamVariablesList,
@@ -307,12 +319,16 @@ func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte)
 	}
 ```
 
-   and set `MergeableOperation: mergeableOperation` in the returned `resolve.FetchConfiguration`. (Nil-ing `p.upstreamOperation` transfers ownership; `EnterDocument` allocates fresh on any reuse.)
+   and set `MergeableOperation: mergeableOperation` on the returned `resolve.FetchConfiguration`. (Nil-ing `p.upstreamOperation` transfers ownership; `EnterDocument` allocates fresh on any reuse.)
 
-- [ ] **Step 1: Write failing test** `TestConfigureFetch_MergeableOperation` (place near other planner unit tests; if the harness makes direct ConfigureFetch testing awkward, use the plan-level path: run `plan.NewPlanner` over a small federation config from an existing federation test with `Configuration.EnableMultiFetch: true`, take the produced `SynchronousResponsePlan` BEFORE postprocessing, and inspect `RawFetches`): assert the entity fetch's `FetchConfiguration.MergeableOperation != nil`, its `Variables` names equal `["representations"]` (plus any context variables in the chosen query, in blob order), the representations value is `[$$0$$]`-shaped (regex `^\[\$\$\d+\$\$\]$`), and `astprinter.PrintString(Document)` prints an `_entities` query. Also assert: flag off ⇒ `MergeableOperation == nil`; root (non-entity) fetch ⇒ nil; and the fetch `Input` string is byte-identical with the flag on vs off.
+- [ ] **Step 1: Write failing tests.** Drive the plan-level path: pick an existing federation planning test fixture in this package (one that plans an entity fetch), run `plan.NewPlanner` with `Configuration.EnableMultiFetch: true`, take the produced `*plan.SynchronousResponsePlan` WITHOUT postprocessing, and inspect `Response.RawFetches`:
+  - entity fetch ⇒ `MergeableOperation != nil`; `Variables` names in write order include `representations`; that fragment matches `^\[\$\$\d+\$\$\]$`; `astprinter.PrintString(Document)` contains `_entities`;
+  - root fetch ⇒ `MergeableOperation == nil`;
+  - flag off ⇒ nil everywhere AND every fetch `Input` string byte-identical to the flag-on run;
+  - collision: a fixture whose client operation declares `$representations` used as an ordinary field argument on the entity path ⇒ `MergeableOperation == nil` (the `upstreamVariableCollision` guard).
 - [ ] **Step 2: Run to verify failure**: `gotestsum --format=short -- ./pkg/engine/datasource/graphql_datasource/... -run TestConfigureFetch_MergeableOperation`.
-- [ ] **Step 3: Implement** items 1-4 plus the plan-package threading (three small edits mirroring `EnableOperationNamePropagation`).
-- [ ] **Step 4: Green** the test; then the datasource package: `gotestsum --format=short -- ./pkg/engine/datasource/graphql_datasource/...` (slow; run once) and `gotestsum --format=short -- ./pkg/engine/plan/...`.
+- [ ] **Step 3: Implement** items 1-4 plus the plan-package threading (three edits mirroring `EnableOperationNamePropagation`).
+- [ ] **Step 4: Green**; then `gotestsum --format=short -- ./pkg/engine/datasource/graphql_datasource/...` (slow; once) and `gotestsum --format=short -- ./pkg/engine/plan/...`.
 - [ ] **Step 5: gofmt** touched files.
 
 ---
@@ -326,9 +342,9 @@ func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte)
 
 **Interfaces:**
 - Consumes: `replaceDependsOnFetchID`, `resolveInputTemplate` (Task 2), resolve types (Task 3).
-- Produces (Tasks 6-7 fill in): `createMultiFetch` struct with `ProcessFetchTree`, private `collectGroups(root *resolve.FetchTreeNode) [][]*resolve.FetchTreeNode`, `clearMergeableOperations(root *resolve.FetchTreeNode)`.
+- Produces (Tasks 6-7 fill in): `createMultiFetch` struct with `ProcessFetchTree`, private `collectGroups(root *resolve.FetchTreeNode) [][]*resolve.FetchTreeNode`, `clearMergeableOperations(root *resolve.FetchTreeNode)`, `partitionByDeferID(children []*resolve.FetchTreeNode) [][]*resolve.FetchTreeNode`.
 
-Wiring (spec 4.2): `processorOptions.enableMultiFetch bool`; option
+Wiring (spec 4.2): add `enableMultiFetch bool` to `processorOptions`; option
 
 ```go
 func EnableMultiFetch() ProcessorOption {
@@ -338,7 +354,11 @@ func EnableMultiFetch() ProcessorOption {
 }
 ```
 
-`DisableResolveInputTemplates()` additionally sets `o.enableMultiFetch = false`... it runs before/after other options in caller order, so instead enforce at `NewProcessor`: `enableMultiFetch = opts.enableMultiFetch && !opts.disableResolveInputTemplates`. Stage field `createMultiFetch *createMultiFetch` in `FetchTreeProcessors`, constructed with `disable: !enableMultiFetch`; invoked in `processFlatFetchTree` between `addMissingNestedDependencies` and `resolveInputTemplates`.
+Do NOT touch `DisableResolveInputTemplates()`. Enforce the interaction once in `NewProcessor`: `enableMultiFetch := opts.enableMultiFetch && !opts.disableResolveInputTemplates`; construct the stage with `disable: !enableMultiFetch`. Stage field `createMultiFetch *createMultiFetch` in `FetchTreeProcessors`; invoke in `processFlatFetchTree` between `addMissingNestedDependencies` and `resolveInputTemplates` — UNCONDITIONALLY (the stage itself handles `disable`; clearing must always run):
+
+```go
+	p.createMultiFetch.ProcessFetchTree(fetches)
+```
 
 Stage skeleton:
 
@@ -354,16 +374,18 @@ type createMultiFetch struct {
 func (c *createMultiFetch) ProcessFetchTree(root *resolve.FetchTreeNode) {
 	if !c.disable {
 		for _, group := range c.collectGroups(root) {
-			c.mergeGroup(root, group) // Task 6/7
+			c.mergeGroup(root, group) // Tasks 6-7
 		}
 	}
 	c.clearMergeableOperations(root)
 }
 ```
 
-Candidate predicate (spec 4.4): fetch is `*resolve.SingleFetch`; `RequiresEntityFetch || RequiresEntityBatchFetch`; `MergeableOperation != nil`; `Info != nil`; variables record well-formed: no duplicate `Name`s, and exactly one fragment whose `Value` contains a `$$N$$` token whose `Variables[N]` is a `*resolve.ResolvableObjectVariable` (helper `representationsFragmentIndex(fetch) int` returning -1 when malformed).
+Candidate predicate (spec 4.4): fetch is `*resolve.SingleFetch`; `RequiresEntityFetch || RequiresEntityBatchFetch`; `MergeableOperation != nil`; `Info != nil`; well-formed record: no duplicate `Name`s and exactly one fragment whose `Value` contains a `$$N$$` token with `Variables[N]` being a `*resolve.ResolvableObjectVariable` (helper `representationsFragmentIndex(fetch *resolve.SingleFetch) int`, -1 when malformed; parse the token with the same blind `$$`-alternation as `resolveInputTemplate`).
 
-Wave computation (spec 4.4) — reuse the real stages on a scratch tree per DeferID partition, zero drift:
+`partitionByDeferID(children)`: buckets keyed by `Item.Fetch.Dependencies().DeferID`, buckets emitted in first-seen order, nodes inside each bucket preserving original child order.
+
+Wave computation — reuse the real stages on a scratch tree per partition (zero drift):
 
 ```go
 func (c *createMultiFetch) wavesByFetchID(root *resolve.FetchTreeNode) map[int]int {
@@ -389,20 +411,23 @@ func (c *createMultiFetch) wavesByFetchID(root *resolve.FetchTreeNode) map[int]i
 }
 ```
 
-(The stages only mutate the scratch root's ChildNodes slice, never the nodes; partitions preserve original slice order.) Groups = candidates bucketed by `(Info.DataSourceID, DeferID, wave)`, keeping only buckets with ≥2 members, members in wave order (the order they appear in the scratch parallel group).
+(The stages only mutate the scratch root's ChildNodes slice, never the nodes.) Groups = candidates bucketed by `(Info.DataSourceID, DeferID, wave)`; keep buckets with ≥2 members, members in the order they appear inside the scratch wave.
 
-`clearMergeableOperations` walks `root.ChildNodes`, and for every `*resolve.SingleFetch` sets `fetch.MergeableOperation = nil`.
+`clearMergeableOperations` walks `root.ChildNodes` and nils `MergeableOperation` on every `*resolve.SingleFetch`.
 
-- [ ] **Step 1: Write failing tests** in `create_multi_fetch_test.go` for grouping/clearing only (stub `mergeGroup` not yet doing anything — make Step 1 tests target `collectGroups` and `clearMergeableOperations` directly, package-internal). Test table (build flat Sequence trees out of `resolve.Single(&resolve.SingleFetch{...})` nodes like `create_parallel_nodes` tests do; give candidates `FetchConfiguration{RequiresEntityFetch: true, MergeableOperation: &resolve.MergeableOperation{...minimal valid: Variables: []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}}...}, Variables: resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}))}` and `Info: &resolve.FetchInfo{DataSourceID: "ds1"}`):
-  1. two same-ds entity fetches, same deps `{0}` ⇒ one group of 2;
-  2. different DataSourceID ⇒ no group;
-  3. one depends on the other ⇒ no group (different waves);
-  4. different DeferID ⇒ no group;
-  5. nil Info / nil MergeableOperation / non-entity ⇒ not candidates;
-  6. duplicate fragment names ⇒ not a candidate;
-  7. `clearMergeableOperations` nils artifacts on every fetch with the stage disabled (`ProcessFetchTree` with `disable: true`).
+- [ ] **Step 1: Write failing tests** targeting `collectGroups`/`clearMergeableOperations` directly (package-internal), plus two pipeline-level tests. Build flat Sequence trees of `resolve.Single(&resolve.SingleFetch{...})` nodes in the style of `create_parallel_nodes_test.go`. IMPORTANT: every grouping tree also contains a non-candidate root node `FetchID: 0` (empty `DependsOnFetchIDs`, no MergeableOperation) so that candidate dependencies `{0}` are actually provided in the wave simulation. Candidate template: `FetchConfiguration{RequiresEntityBatchFetch: true, MergeableOperation: &resolve.MergeableOperation{Variables: []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}}}, Variables: resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}))}` with `Info: &resolve.FetchInfo{DataSourceID: "ds1"}`. Cases:
+  1. root 0 + two same-ds candidates (deps `{0}`) ⇒ one group of 2;
+  2. two candidates with empty deps (no root needed) ⇒ one group (wave 0);
+  3. different DataSourceID ⇒ no group;
+  4. candidate 2 depends on candidate 1 ⇒ no group (different waves);
+  5. per-DeferID partition: root 0 (DeferID 0), candidates 1,2 (DeferID 0, deps {0}), candidates 3,4 (DeferID 7, deps {0}) ⇒ two groups {1,2} and {3,4} (waves computed inside each partition);
+  6. nil Info / nil MergeableOperation / non-entity ⇒ not candidates;
+  7. malformed record (duplicate names; or fragment token pointing at a non-ResolvableObject variable) ⇒ not a candidate;
+  8. `clearMergeableOperations` via `(&createMultiFetch{disable: true}).ProcessFetchTree(tree)` ⇒ artifacts nil'd;
+  9. pipeline-level unconditional clearing: `postprocess.NewProcessor()` (NO EnableMultiFetch) over a plan whose RawFetches carry MergeableOperation ⇒ after `Process`, every fetch's artifact is nil;
+  10. `NewProcessor(EnableMultiFetch(), DisableResolveInputTemplates())` over two valid candidates ⇒ no `MultiEntityFetch` emitted, fetches keep readable `Input` strings, artifacts still cleared.
 - [ ] **Step 2: Run to verify failure**: `gotestsum --format=short -- ./pkg/engine/postprocess/... -run TestCreateMultiFetch`.
-- [ ] **Step 3: Implement** skeleton + wiring (with `mergeGroup` as a no-op placeholder that only Task 6/7 fills — acceptable here because Tasks 5-7 land as one reviewed sequence and the stage is dark until `EnableMultiFetch()` is used; the no-op must be replaced within this plan).
+- [ ] **Step 3: Implement** skeleton + wiring, with `mergeGroup` a temporary no-op (filled by Tasks 6-7; the stage stays dark until the option is used, and Tasks 5-7 land as one reviewed sequence).
 - [ ] **Step 4: Green** new tests + full package.
 - [ ] **Step 5: gofmt.**
 
@@ -415,8 +440,8 @@ func (c *createMultiFetch) wavesByFetchID(root *resolve.FetchTreeNode) map[int]i
 - Test: extend `v2/pkg/engine/postprocess/create_multi_fetch_test.go`
 
 **Interfaces:**
-- Consumes: Task 1 astimport methods.
-- Produces (used by Task 7):
+- Consumes: Task 1 astimport methods (public surface only).
+- Produces (used by Task 7, exact signature — member fetch IDs come from `members[i].FetchDependencies.FetchID`):
 
 ```go
 // buildMergedOperation merges the group members' stored documents into one
@@ -425,33 +450,36 @@ func (c *createMultiFetch) wavesByFetchID(root *resolve.FetchTreeNode) map[int]i
 func buildMergedOperation(members []*resolve.SingleFetch) (compact string, pretty string, err error)
 ```
 
-Algorithm (spec 4.4 steps 1-6), per member k (1-based):
-1. `merged := ast.NewSmallDocument()`; add operation definition: `ast.OperationDefinition{OperationType: ast.OperationTypeQuery, HasSelections: true, SelectionSet: <fresh set>}` via `merged.AddOperationDefinitionToRootNodes`. Name it `<OperationName>__multi_<id1>_<id2>...` iff every member's `FetchConfiguration.OperationName` is equal and non-empty (name bytes via `merged.Input.AppendInputString`; set `Name` on the op def); otherwise anonymous.
-2. Rename map for member k: for every variable definition name in `member.MergeableOperation.Document` (operation's `VariableDefinitions`, name via `doc.VariableDefinitionNameString`) AND every `NamedVariableFragment.Name`: `rename[name] = name + "_f" + strconv.Itoa(k)`.
-3. Import each variable definition with `ImportVariableDefinitionWithVariableNameRename(ref, doc, merged, rename[origName])`, attach with `merged.AddImportedVariableDefinitionToOperationDefinition(opRef, importedRef)`.
-4. Add the include variable: named type `Boolean` (`merged.AddNamedType([]byte("Boolean"))`), `merged.AddNonNullType(...)`, variable value `merged.ImportVariableValue([]byte("includeF"+strconv.Itoa(k)))`, `merged.AddVariableDefinitionToOperationDefinition(opRef, variableValueRef, nonNullBooleanRef)`.
-5. Locate the member's root `_entities` field: the sub operation's selection set has exactly one selection, a field named `_entities` (assert; bail with error otherwise). Import it manually (do not use `ImportField` — it drops selections): build `ast.Field` with name `_entities` appended to merged input, `Alias: ast.Alias{IsDefined: true, Name: merged.Input.AppendInputString("f"+strconv.Itoa(k))}` (pattern of `required_fields_visitor.go:568`), arguments via the rename-aware argument import, selection set via `ImportSelectionSetWithVariableRename(subFieldSelectionSetRef, doc, merged, rename)`, plus an `@include` directive:
+Algorithm (spec 4.4 steps 1-6), per member k (1-based; `kStr := strconv.Itoa(k)`):
+1. `merged := ast.NewSmallDocument()` (a zero-value `ast.Document` panics in the Add* helpers). Add the operation: fresh selection set via `merged.AddSelectionSet()` (returns `ast.Node`; keep its `.Ref`), then `merged.AddOperationDefinitionToRootNodes(ast.OperationDefinition{OperationType: ast.OperationTypeQuery, HasSelections: true, SelectionSet: opSetRef})` and keep the operation ref. Name it `<OperationName>__multi_<id1>_<id2>...` iff every member's `FetchConfiguration.OperationName` is equal and non-empty (IDs from `members[i].FetchDependencies.FetchID`; name bytes via `merged.Input.AppendInputString`, set `Name` on the op def); otherwise anonymous.
+2. Rename map for member k over the UNION of (a) the member document's operation variable-definition names (`doc.VariableDefinitionNameString`) and (b) every `NamedVariableFragment.Name` (the blob can contain stale keys absent from the document, spec 3.1): `rename[name] = name + "_f" + kStr`.
+3. Import each of the member document's variable definitions: `importedRef := importer.ImportVariableDefinitionWithVariableNameRename(ref, doc, merged, rename[origName])`; attach with `merged.AddImportedVariableDefinitionToOperationDefinition(opRef, importedRef)`.
+4. Add the include variable: `boolType := merged.AddNamedType([]byte("Boolean"))`; `nonNullBool := merged.AddNonNullType(boolType)`; `includeVar := merged.ImportVariableValue([]byte("includeF" + kStr))`; `merged.AddVariableDefinitionToOperationDefinition(opRef, includeVar, nonNullBool)`.
+5. Import the member's root field USING ONLY THE PUBLIC API: `importedSetRef, err := importer.ImportSelectionSetWithVariableRename(doc.OperationDefinitions[0].SelectionSet, doc, merged, rename)`. Then assert the imported set has exactly one selection of kind Field whose name is `_entities` (else return an error — the member is malformed). Take `fieldRef := merged.Selections[merged.SelectionSets[importedSetRef].SelectionRefs[0]].Ref` and mutate the imported field in place:
 
 ```go
-	includeArgValue := ast.Value{Kind: ast.ValueKindVariable, Ref: merged.AddVariableValue(ast.VariableValue{Name: merged.Input.AppendInputString("includeF" + strconv.Itoa(k))})}
+	merged.Fields[fieldRef].Alias = ast.Alias{IsDefined: true, Name: merged.Input.AppendInputString("f" + kStr)}
+	includeArgValue := ast.Value{Kind: ast.ValueKindVariable, Ref: merged.AddVariableValue(ast.VariableValue{Name: merged.Input.AppendInputString("includeF" + kStr)})}
 	includeArg := merged.AddArgument(ast.Argument{Name: merged.Input.AppendInputString("if"), Value: includeArgValue})
 	directiveRef := merged.AddDirective(ast.Directive{Name: merged.Input.AppendInputString("include"), HasArguments: true, Arguments: ast.ArgumentList{Refs: []int{includeArg}}})
+	merged.Fields[fieldRef].HasDirectives = true
+	merged.Fields[fieldRef].Directives.Refs = append(merged.Fields[fieldRef].Directives.Refs, directiveRef)
 ```
 
-   set `HasDirectives: true, Directives: ast.DirectiveList{Refs: [...existing imported directives..., directiveRef]}` on the field, `merged.AddField(...)`, and append the selection to the operation's selection set (`merged.AddSelection(opSelectionSetRef, ast.Selection{Kind: ast.SelectionKindField, Ref: fieldRef})`).
-6. Print: `compact, err := astprinter.PrintString(merged)`; `pretty, err := astprinter.PrintStringIndent(merged, "  ")`.
+   then append the selection to the operation's set: `merged.AddSelection(opSetRef, ast.Selection{Kind: ast.SelectionKindField, Ref: fieldRef})`. (Note: the field arrives inside `importedSetRef`; only the field ref is re-attached to the operation's own selection set — the imported wrapper set is simply left unused.)
+6. Print: `compact, err := astprinter.PrintString(merged)`; `pretty, err := astprinter.PrintStringIndent(merged, "  ")`. No re-normalization/re-validation (spec 4.4).
 
-- [ ] **Step 1: Write failing test** `TestBuildMergedOperation`: two members whose `MergeableOperation.Document`s are parsed with `astparser.ParseGraphqlDocumentString` from
-  - `query($representations: [_Any!]!){_entities(representations: $representations){... on Employee {__typename products {upc}}}}`
-  - `query($representations: [_Any!]!, $first: Int){_entities(representations: $representations){... on Employee {__typename notes(first: $first)}}}`
+- [ ] **Step 1: Write failing test** `TestBuildMergedOperation`. Member documents parsed with `astparser.ParseGraphqlDocumentString` from — note BOTH declare `$first` (cross-member same-name coverage):
+  - m1: `query($representations: [_Any!]!, $first: Int){_entities(representations: $representations){... on Employee {__typename products(first: $first) {upc}}}}`
+  - m2: `query($representations: [_Any!]!, $first: Int){_entities(representations: $representations){... on Employee {__typename notes(first: $first)}}}`
 
-  and `NamedVariableFragment` records `[{representations,[$$0$$]}]` / `[{representations,[$$0$$]},{first,$$1$$}]`. Expected compact golden (single line, printer spacing — adjust to actual printer output on first run, then freeze):
-
-  `query($representations_f1: [_Any!]!, $includeF1: Boolean!, $representations_f2: [_Any!]!, $first_f2: Int, $includeF2: Boolean!){f1: _entities(representations: $representations_f1) @include(if: $includeF1){... on Employee {__typename products {upc}}} f2: _entities(representations: $representations_f2) @include(if: $includeF2){... on Employee {__typename notes(first: $first_f2)}}}`
-
-  Plus: named-operation case (both members `OperationName: "Q"`, IDs 3 and 5 ⇒ `query Q__multi_3_5(...)`); error case (member root selection is not a single `_entities` field ⇒ error).
+  Fragments: m1 `[{representations,[$$0$$]},{first,$$1$$},{stale,1}]` (the `stale` name has NO matching variable definition — stale-key coverage); m2 `[{representations,[$$0$$]},{first,$$1$$}]`. Members are `&resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{MergeableOperation: ..., OperationName: ""}, FetchDependencies: resolve.FetchDependencies{FetchID: 3 /* and 5 */}}`. Assertions on `compact`:
+  - declares `$representations_f1: [_Any!]!`, `$first_f1: Int`, `$includeF1: Boolean!`, `$representations_f2`, `$first_f2`, `$includeF2` — and does NOT declare `$stale_f1` (stale keys get no definition);
+  - contains `f1: _entities(representations: $representations_f1) @include(if: $includeF1)` and `f2: _entities(representations: $representations_f2) @include(if: $includeF2)`;
+  - m1's subtree references `$first_f1`, m2's references `$first_f2`.
+  Freeze the full golden on first green run (printer spacing), then assert equality. Second case: both members `OperationName: "Q"` ⇒ compact starts `query Q__multi_3_5(`. Third case: member root selection not a single `_entities` field ⇒ error.
 - [ ] **Step 2: Run to verify failure.**
-- [ ] **Step 3: Implement** `buildMergedOperation` (parameterize member fetch IDs — signature may take `ids []int`; keep the Produces signature updated here and in Task 7 if changed — final: `buildMergedOperation(members []*resolve.SingleFetch, ids []int) (compact, pretty string, err error)` where `ids[i]` is member i's FetchID).
+- [ ] **Step 3: Implement** `buildMergedOperation` exactly with the Produces signature.
 - [ ] **Step 4: Green**; full package run.
 - [ ] **Step 5: gofmt.**
 
@@ -465,32 +493,38 @@ Algorithm (spec 4.4 steps 1-6), per member k (1-based):
 - Test: extend `v2/pkg/engine/postprocess/create_multi_fetch_test.go`
 
 **Interfaces:**
-- Consumes: Tasks 2, 3, 6.
-- Produces: the complete stage; loader consumes the emitted `*resolve.MultiEntityFetch`.
+- Consumes: Tasks 2, 3, 6 (`buildMergedOperation(members)`).
+- Produces: the complete stage; the loader consumes the emitted `*resolve.MultiEntityFetch`.
 
-`create_multi_fetch_input.go`:
+`create_multi_fetch_input.go` — the scanner supports BOTH input shapes (Global Constraints; spec 3.1/4.4):
 
 ```go
-// fetchInputSplit locates the body.variables object and body.query string
-// values inside a fetch input of the deterministic shape
-// {"body":{"variables":{...},"query":"..."},...envelope}. ok is false when
-// the input deviates; such fetches are left unmerged.
+// fetchInputSplit locates the body.query string value and the body.variables
+// object value inside a fetch input, supporting both sjson key orders:
+// repo shape   {"method":...,["header":...,]"body":{"query":"...","variables":{...}}}
+// append shape {"body":{"variables":{...},"query":"..."},...}
+// ok is false when the input matches neither; such groups are not merged.
 type fetchInputSplit struct {
-	variablesStart, variablesEnd int // the {...} object value byte range
-	queryStart, queryEnd         int // the string value content byte range (between the quotes)
+	queryStart, queryEnd         int // query string value content range (between the quotes)
+	variablesStart, variablesEnd int // variables object value range including braces
 }
 
 func splitEntityFetchInput(input string) (s fetchInputSplit, ok bool)
 ```
 
-Algorithm: require prefix `{"body":{"variables":` (else `ok=false`); brace-balanced, quote-and-escape-aware scan for the variables object end (raw `$$N$$` tokens contain neither braces nor quotes; literal fragments are valid JSON); require the following bytes to be `,"query":"`; for the query end, scan from the END of the input for the last occurrence of `"}` whose following byte is `,` or the final `}` — take that as queryEnd/body-close; round-trip check: `input[s.queryEnd:s.queryEnd+2] == "\"}"`. Suffix = `input[s.queryEnd+2:]` (envelope tail), prefix-envelope = `input[:len("{\"body\":{\"variables\":")]`.
+Algorithm:
+- **Repo shape** (input does NOT start with `{"body":`): find the anchor `"body":{"query":"` (first occurrence; header values are JSON-escaped and cannot contain it raw). `queryStart` = end of anchor. The variables object is at the very end: require the input to end with `}}}`; backward brace-balanced, quote-aware scan starting at the `}` at `len(input)-3` to find the variables object start (the object contains only `$$N$$` tokens and well-formed literal JSON — safe to scan). Require the bytes immediately before `variablesStart` to be `,"variables":`; `queryEnd` = start of that marker minus 1 (the query's closing quote). Round-trip: `input[queryEnd] == '"'`.
+- **Append shape** (input starts with `{"body":{"variables":`): `variablesStart` = position of that `{`; forward brace-balanced quote-aware scan for `variablesEnd`; require `,"query":"` next; `queryStart` after it; `queryEnd` = the greatest q such that `input[q:q+2] == "\"}"` AND `q+2 < len(input)` AND `input[q+2] == ','` (envelope keys always follow the body in this shape, so a trailing `"POST"}` at EOF never matches; earlier `"}`+`,` sequences inside the query are skipped by taking the greatest q).
+- Anything else ⇒ `ok = false`.
 
-`mergeGroup(root, group)` (spec 4.4 "Merged input assembly" + "The fetch node"):
-1. Members `s1..sn` = the group's `*resolve.SingleFetch`s, `ids` their FetchIDs. Split every member's `Input`; any `!ok` ⇒ abort merge for the group (leave nodes untouched). Envelope precondition: for all members, `input[queryEnd+2:]` byte-equal to s1's and every `$$K$$` token inside that suffix must reference `.Equals()`-equal variables across members (split the suffix with the blind `$$` alternation; on numeric segments compare `si.Variables[K].Equals(s1.Variables[K])`); else abort.
-2. `compact, pretty, err := buildMergedOperation(members, ids)`; error ⇒ abort.
-3. Header template: `resolveInputTemplate(s1.Variables, s1.Input[:variablesStart] + "{", &header)` — the prefix through `"variables":` plus the object opener.
-4. Footer template: `resolveInputTemplate(s1.Variables, "}" + s1.Input[variablesEnd:queryStart] + compact + s1.Input[queryEnd:], &footer)` — closes the variables object, re-emits `,"query":"`, the merged operation (raw, unescaped — parity), and the envelope tail.
-5. Entries, per member k: origin from `RequiresEntityFetch` (single) / `RequiresEntityBatchFetch` (batch); `alias := "f"+strconv.Itoa(k)`. Representations fragment index via `representationsFragmentIndex`; build `Representations` by `resolveInputTemplate(sk.Variables, "<inner of the [...] fragment>", &tpl)` — the fragment is `[$$N$$]`; strip the surrounding brackets and resolve; set `tpl.SetTemplateOutputToNullOnVariableNull = true`. Prefixes:
+`mergeGroup(root, group)` (spec 4.4):
+1. Members `s1..sn` (`*resolve.SingleFetch`), `ids[i] = members[i].FetchID`. Split every member's `Input`; any `!ok` ⇒ abort (leave nodes untouched). Envelope precondition: for each member, the "envelope remainder" = its Input with the two ranges cut out (`input[:queryStart] + input[queryEnd:variablesStart] + input[variablesEnd:]`) must be byte-equal to s1's; additionally every `$$K$$` token inside that remainder must satisfy `si.Variables[K].Equals(s1.Variables[K])` (split the remainder with the blind `$$` alternation); else abort.
+2. `compact, pretty, err := buildMergedOperation(members)`; error ⇒ abort.
+3. Header/Footer templates from s1's split, replacing the query range with `compact` and splitting at the variables object:
+   - repo shape (query before variables): Header source = `s1.Input[:queryStart] + compact + s1.Input[queryEnd:variablesStart] + "{"`; Footer source = `"}" + s1.Input[variablesEnd:]` (i.e. `}}}` tail).
+   - append shape (variables before query): Header source = `s1.Input[:variablesStart] + "{"`; Footer source = `"}" + s1.Input[variablesEnd:queryStart] + compact + s1.Input[queryEnd:]`.
+   Resolve both with `var header resolve.InputTemplate; resolveInputTemplate(s1.Variables, headerSource, &header)` (out-param; returns nothing) and likewise for the footer — envelope `$$K$$` header tokens become proper segments.
+4. Entries, per member k: `alias := "f" + kStr`; `OriginKind` from `RequiresEntityFetch` (single) / `RequiresEntityBatchFetch` (batch). Representations: fragment at `representationsFragmentIndex`; its value is `[$$N$$]` — strip the surrounding brackets and resolve the inner token: `var reps resolve.InputTemplate; resolveInputTemplate(sk.Variables, inner, &reps); reps.SetTemplateOutputToNullOnVariableNull = true`. Prefixes:
 
 ```go
 	prefix := `"representations_f` + kStr + `":[`
@@ -500,30 +534,47 @@ Algorithm: require prefix `{"body":{"variables":` (else `ok=false`); brace-balan
 	includePrefix := `],"includeF` + kStr + `":`
 ```
 
-   Other variables: every other `NamedVariableFragment` ⇒ `MultiEntityFetchVariable{KeyPrefix: []byte(`,"` + frag.Name + "_f" + kStr + `":`), Value: resolveInputTemplate(sk.Variables, string(frag.Value), ...)}` (no null-flag). Skip flags all true. `PostProcessing`: `SelectResponseDataPath: []string{"data", alias}`, `SelectResponseErrorsPath: []string{"errors"}`, `MergePath: sk.PostProcessing.MergePath`. `Item`: copy of the member node's `*resolve.FetchItem` with `Fetch` repointed to the multi (set after constructing it). `Info: sk.Info`.
-6. The fetch:
+   Other variables — every non-representations fragment, in record order:
+
+```go
+	var tpl resolve.InputTemplate
+	resolveInputTemplate(sk.Variables, string(frag.Value), &tpl)
+	variables = append(variables, resolve.MultiEntityFetchVariable{
+		KeyPrefix: []byte(`,"` + frag.Name + "_f" + kStr + `":`),
+		Value:     tpl,
+	})
+```
+
+   (no null-flag on these — spec 4.4). Skip flags all true. `PostProcessing`: `SelectResponseDataPath: []string{"data", alias}`, `SelectResponseErrorsPath: []string{"errors"}`, `MergePath: sk.PostProcessing.MergePath`. `Item`: copy of the member node's `*resolve.FetchItem` (same FetchPath/ResponsePath/ResponsePathElements) — its `Fetch` field is set to the multi after construction. `Info: sk.Info`.
+5. The fetch:
 
 ```go
 	multi := &resolve.MultiEntityFetch{
 		FetchDependencies: resolve.FetchDependencies{
 			FetchID:           minID(ids),
-			DependsOnFetchIDs: unionDependencies(members, ids), // union minus member IDs; duplicates tolerated
-			DeferID:           members[0].DeferID,
+			DependsOnFetchIDs: unionDependencies(members, ids), // union of members' DependsOnFetchIDs minus member IDs; duplicates tolerated
+			DeferID:           members[0].FetchDependencies.DeferID,
 		},
 		Input:                resolve.MultiEntityInput{Header: header, Entries: entries, Footer: footer},
 		DataSource:           members[0].DataSource,
 		DataSourceIdentifier: members[0].DataSourceIdentifier,
 		MergedFetchIDs:       ids,
-		Info:                 mergedInfo, // spec 4.4: union RootFields (dedup), concat CoordinateDependencies/FetchReasons/PropagatedFetchReasons, OperationType Query, QueryPlan{Query: pretty, DependsOnFields: union} iff all members have QueryPlan
+		Info:                 mergedInfo,
 	}
 ```
 
-7. Tree surgery: replace the first member's node with `&resolve.FetchTreeNode{Kind: Single, Item: &resolve.FetchItem{Fetch: multi}}` (FetchPath nil, ResponsePath ""); delete the other member nodes from `root.ChildNodes`; for every removed id ≠ survivor: `replaceDependsOnFetchID(root, removedID, multi.FetchID)`.
+   `mergedInfo` (spec 4.4): `DataSourceID`/`DataSourceName` from s1; `OperationType: ast.OperationTypeQuery`; `RootFields` = deduplicated union; `CoordinateDependencies`/`FetchReasons`/`PropagatedFetchReasons` = concatenations; `QueryPlan: &resolve.QueryPlan{Query: pretty, DependsOnFields: <concat of members' Info.QueryPlan.DependsOnFields>}` iff every member's `Info.QueryPlan != nil`, else nil. Then repoint every entry: `entries[i].Item.Fetch = multi`.
+6. Tree surgery: replace the first member's node with `&resolve.FetchTreeNode{Kind: resolve.FetchTreeNodeKindSingle, Item: &resolve.FetchItem{Fetch: multi}}`; remove the other member nodes from `root.ChildNodes`; for each removed id: `replaceDependsOnFetchID(root, removedID, multi.FetchID)`.
 
 - [ ] **Step 1: Write failing tests.**
-  - `TestSplitEntityFetchInput` table: the canonical shape `{"body":{"variables":{"representations":[$$0$$],"a":$$1$$},"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename}}"},"header":{"Auth":["$$2$$"]},"url":"http://x","method":"POST"}` ⇒ correct ranges (assert extracted variables object and query text); deviant inputs (`{"method":...` first; no variables key) ⇒ `ok=false`.
-  - `TestCreateMultiFetch_MergeGroup`: build a flat tree with fetch 0 (root SingleFetch, non-candidate) and fetches 1, 2 (entity candidates, `DependsOnFetchIDs: []int{0}`, same ds, well-formed Inputs as above, documents parsed from the Task 6 goldens' sources, distinct `MergePath`s `["a"]`/`["b"]`, distinct ResponsePaths `employees.@`/`employee`); fetch 3 (`DependsOnFetchIDs: []int{2}`). Run the full `Processor.Process` with `EnableMultiFetch()`. Assert: tree is `Sequence(Single(0), Single(multi), Single(3))` (before organize — assert post-organize final shape `Sequence(Single(0), Single(multi), Single(3))`); `multi.FetchID == 1`, `multi.MergedFetchIDs == [1,2]`; fetch 3 now `DependsOnFetchIDs: []int{1}`; entries have aliases f1/f2, prefixes exactly `"representations_f1":[` and `,"representations_f2":[`, include prefixes `],"includeF1":`/`],"includeF2":`, entry PostProcessing paths `["data","f1"]`/`["data","f2"]`, origins single/batch as configured; Header template's first static segment starts with `{"body":{"variables":{`; Footer's static contains `,"query":"query(` and the envelope tail; every fetch's `MergeableOperation == nil` afterwards.
-  - Abort cases: envelope mismatch (different `url`) ⇒ nodes untouched; malformed input ⇒ untouched.
+  - `TestSplitEntityFetchInput` table — repo shape canonical: `{"method":"POST","url":"http://x","header":{"Auth":["$$2$$"]},"body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename}}","variables":{"representations":[$$0$$],"a":$$1$$}}}` ⇒ assert the extracted query text and variables object; append shape: `{"body":{"variables":{"representations":[$$0$$],"a":$$1$$},"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename}}"},"header":{"Auth":["$$2$$"]},"url":"http://x","method":"POST"}` ⇒ same extractions; deviants (no body.query anchor; input not ending `}}}` in repo shape; truncated input) ⇒ `ok=false`.
+  - `TestCreateMultiFetch_MergeGroup` with EXACT member fixtures (repo shape, token-free envelope for the happy path):
+    - m1 Input: `{"method":"POST","url":"http://x","body":{"query":"<m1 source from Task 6>","variables":{"representations":[$$0$$]}}}`, `Variables: resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}))`, fragments `[{representations,[$$0$$]}]`, `MergePath: ["a"]`, ResponsePath `employees.@`, `FetchID: 1`, deps `{0}`, `RequiresEntityBatchFetch: true`;
+    - m2 Input: `{"method":"POST","url":"http://x","body":{"query":"<m2 source from Task 6>","variables":{"representations":[$$0$$],"first":$$1$$}}}`, `Variables: resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"first"}, Renderer: resolve.NewJSONVariableRenderer()})`, fragments `[{representations,[$$0$$]},{first,$$1$$}]`, `MergePath: ["b"]`, ResponsePath `employee`, `FetchID: 2`, deps `{0}`, `RequiresEntityFetch: true`;
+    - root fetch 0 (non-candidate) and fetch 3 with deps `{2}`.
+    Run the full `Processor.Process` with `EnableMultiFetch()`. Assert: final tree `Sequence(Single(0), Single(multi), Single(3))`; `multi.FetchID == 1`, `MergedFetchIDs == [1,2]`; fetch 3 deps now `{1}`; entries: aliases f1/f2, `RepresentationsPrefix` exactly `"representations_f1":[` and `,"representations_f2":[`, `IncludePrefix` `],"includeF1":`/`],"includeF2":`, PostProcessing data paths `["data","f1"]`/`["data","f2"]`, origins batch/single, m2's entry has one variable with KeyPrefix `,"first_f2":`; Header's first static segment starts `{"method":"POST"` and contains `"query":"query(` (the merged compact operation) and ends with `"variables":{`; Footer static is `}}}`; every fetch's `MergeableOperation == nil` afterwards.
+  - Three-member group variant: add m3 (same shape as m1, `FetchID: 4`, deps `{0}`, ResponsePath `contractors.@`, MergePath `["c"]`) ⇒ one multi with entries f1/f2/f3, `,"representations_f3":[` prefix, `],"includeF3":` and `MergedFetchIDs == [1,2,4]`.
+  - Abort cases: different `url` envelope ⇒ untouched; same envelope BYTES with a `$$2$$` header token but `s2.Variables[2]` a `HeaderVariable` with a different path than s1's ⇒ untouched (token cross-check); malformed input ⇒ untouched.
 - [ ] **Step 2: Run to verify failure.**
 - [ ] **Step 3: Implement** scanner + `mergeGroup`.
 - [ ] **Step 4: Green**; full postprocess package.
@@ -535,24 +586,30 @@ Algorithm: require prefix `{"body":{"variables":` (else `ok=false`); brace-balan
 
 **Files:**
 - Create: `v2/pkg/engine/resolve/loader_multi_entity.go`
-- Modify: `v2/pkg/engine/resolve/loader.go` (`preparePhase` case; `preparedFetch.multiEntries` field; `batchEntityTools.clearDedupState()` helper)
+- Modify: `v2/pkg/engine/resolve/loader.go` (`preparePhase` case; `preparedFetch.multiEntries` field; `batchEntityTools.clearDedupState()` method)
 - Test: `v2/pkg/engine/resolve/loader_multi_entity_test.go`
 
 **Interfaces:**
-- Consumes: Task 3 types; existing loader internals (`selectItemsForPath`, `isFetchAuthorized`, `rateLimitFetch`, `batchEntityToolPool`, `setTracingInput`).
+- Consumes: Task 3 types; loader internals (`selectItemsForPath`, `isFetchAuthorized`, `rateLimitFetch`, `batchEntityToolPool`, `setTracingInput`).
 - Produces (Task 9 consumes):
 
 ```go
 type preparedMultiEntry struct {
 	entry *MultiEntityFetchEntry
-	items []*astjson.Value // heap-copied merge targets
+	items []*astjson.Value // merge targets from selectItemsForPath (jsonArena-backed, same lifecycle as preparedFetch.items — no copy needed)
 	res   *result          // per-entry view; init(entry.PostProcessing, entry.Info)
 }
 ```
 
-  `preparedFetch` gains `multiEntries []preparedMultiEntry`.
+  `preparedFetch` gains `multiEntries []preparedMultiEntry`. `batchEntityTools` gains:
 
-`prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntityFetch, res *result, prepared *preparedFetch) error` — called from the new `preparePhase` case (note: the generic `items := l.selectItemsForPath(item.FetchPath)` at loader.go:332 runs first and harmlessly selects the root; ignore it):
+```go
+// clearDedupState resets the per-entry dedup scope without touching the
+// arena, whose buffers must survive until final input assembly.
+func (b *batchEntityTools) reset... // name it clearDedupState: keyGen.Reset() + delete all batchHashToIndex keys; do NOT call a.Reset()
+```
+
+`preparePhase` new case:
 
 ```go
 	case *MultiEntityFetch:
@@ -560,26 +617,29 @@ type preparedMultiEntry struct {
 		return prepared, err
 ```
 
-Algorithm (spec 4.6, exact order):
-1. `res.init(PostProcessingConfiguration{SelectResponseErrorsPath: []string{"errors"}}, fetch.Info)`; tracing: `fetch.Trace = &DataSourceLoadTrace{}` when enabled; `res.tools = batchEntityToolPool.Get(...)` ONCE on the shared result (per-entry results keep `tools == nil`; the existing `resolveSingle` defer returns it).
-2. Per entry k: per-entry `result` with `init(entry.PostProcessing, entry.Info)`; `items := l.selectItemsForPath(entry.Item.FetchPath)`; authorization: `allowed, err := l.isFetchAuthorized(nil, entry.Info, entryRes)` (input-free — unreachable authorizer path for query-typed entries, spec Q2); denied ⇒ excluded.
-3. Representations rendering for non-excluded entries into a per-entry arena buffer (`arena.NewArenaBuffer(res.tools.a)`): mirror `prepareBatchEntityFetch`'s item loop (loader.go:1696-1744) — render `entry.Representations` per item, skip flags, xxhash dedup via `res.tools`, `,` separators, arena `batchStats`. Between entries call `res.tools.clearDedupState()` (new method: `keyGen.Reset()` + clear `batchHashToIndex`; NEVER `a.Reset()`), and copy the entry's batchStats to heap (`entryRes.batchStats`) immediately (mirror loader.go:1768-1773). Zero unique items ⇒ excluded.
-4. Assembly into a single `bytes.Buffer` (heap; the merged input escapes prepare):
-   - `fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf, &undefined)` (undefined stays empty — no context vars, spec 4.4);
-   - per entry: `buf.Write(entry.RepresentationsPrefix)`; included ⇒ the entry's rendered representations bytes; `buf.Write(entry.IncludePrefix)`; `true`/`false`;
-   - per entry variable: render `v.Value` into a scratch arena buffer with `RenderAndCollectUndefinedVariables(l.ctx, nil, scratch, &entryUndefined)`; omit the pair iff `bytes.Equal(scratch.Bytes(), null) && len(entryUndefined) > entryUndefinedBefore` (undefined collected during THIS render — spec 4.6 step 5); else `buf.Write(v.KeyPrefix); buf.Write(scratch.Bytes())`;
-   - `fetch.Input.Footer.RenderAndCollectUndefinedVariables(...)`. No `SetInputUndefinedVariables` call.
-5. All entries excluded ⇒ `res.fetchSkipped = true; prepared.skipLoad = true`; tracing input recorded via `l.setTracingInput(fetchItem, buf.Bytes(), fetch.Trace)` when enabled (mirror batch, loader.go:1775-1779). Per-entry excluded state: `entryRes.fetchSkipped = true`.
-6. Rate limit once: `allowed, err := l.rateLimitFetch(buf.Bytes(), fetch.Info, res)`; `!allowed` ⇒ `prepared.skipLoad = true` (flags land on the shared res; Task 9 fans out).
-7. `prepared.source, prepared.input, prepared.trace = fetch.DataSource, buf.Bytes(), fetch.Trace`; `prepared.multiEntries = entries`.
-8. Tracing `RawInputData` when enabled: `{"f1":<itemsData(entry1.items)>,...}` built with `MarshalTo` per alias.
+(The generic `selectItemsForPath(item.FetchPath)` above the switch harmlessly selects the root; ignore its result for multi.)
 
-- [ ] **Step 1: Write failing tests** (loader tests in this package build a `Loader` via existing helpers — mirror `TestLoader_*` setup in `loader_test.go`, using a stub `DataSource` and a seeded `dataBuffer`; keep entries' `FetchPath`s pointing at seeded objects):
-  - `TestPrepareMultiEntityFetch_Assembly`: two entries over seeded data (`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}], "employee":{"__typename":"Employee","id":9}}` — note employees[2] duplicates employees[0] for dedup); entry1 batch over `employees` (ObjectVariable renderer on `id`), entry2 single over `employee`; a context variable `$first_f2` present (`ctx.Variables = {"first": 10}`). Assert the assembled input golden: header, `"representations_f1":[{...1},{...2}]` (deduped, 2 uniques; batchStats `[[e0,e2],[e1]]`), `],"includeF1":true`, `,"representations_f2":[{...9}]`, `],"includeF2":true`, `,"first_f2":10`, footer.
-  - `TestPrepareMultiEntityFetch_EmptyEntry`: entry2's parent object null ⇒ `"representations_f2":[],"includeF2":false`, entry2 res.fetchSkipped.
-  - `TestPrepareMultiEntityFetch_AllExcluded`: both empty ⇒ `prepared.skipLoad`, `res.fetchSkipped`.
-  - `TestPrepareMultiEntityFetch_UndefinedVariable`: `$first` absent from ctx.Variables ⇒ `,"first_f2":10` pair omitted entirely; explicit `{"first":null}` ⇒ `,"first_f2":null` kept.
-  - `TestPrepareMultiEntityFetch_DedupStateIsolation`: identical representation bytes in entry1 and entry2 ⇒ NOT cross-deduped (each entry's array contains it).
+`prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntityFetch, res *result, prepared *preparedFetch) error` (spec 4.6, exact order):
+1. `res.init(PostProcessingConfiguration{SelectResponseErrorsPath: []string{"errors"}}, fetch.Info)`; when tracing: `fetch.Trace = &DataSourceLoadTrace{}`. `res.tools = batchEntityToolPool.Get(...)` ONCE on the shared result (per-entry results keep `tools == nil`; the existing `resolveSingle` defer returns the shared one).
+2. Per entry k: `entryRes := &result{}; entryRes.init(entry.PostProcessing, entry.Info)`; `items := l.selectItemsForPath(entry.Item.FetchPath)`. Authorization first (input-free — the authorizer path is unreachable for query-typed entries, spec Q2): `allowed, err := l.isFetchAuthorized(nil, entry.Info, entryRes)`; err ⇒ return; `!allowed` ⇒ entry excluded (entryRes now carries fetchSkipped and/or authorizationRejected exactly as the helper set them).
+3. Representations for non-excluded entries into a per-entry arena buffer (`arena.NewArenaBuffer(res.tools.a)`): mirror `prepareBatchEntityFetch`'s loop (loader.go:1696-1744) — render `entry.Representations` per item honoring `SkipNullItems`/`SkipEmptyObjectItems`/`SkipErrItems`, xxhash dedup via `res.tools`, `,` between unique items, arena batchStats. After EACH entry: copy its batchStats to the heap into `entryRes.batchStats` (mirror loader.go:1768-1773) and call `res.tools.clearDedupState()`. Zero unique items ⇒ excluded (`entryRes.fetchSkipped = true`).
+4. `include_k = !excluded`. Excluded entries contribute `[]` representations (a denied entry's rendered bytes are discarded — never sent) but their non-representations variables are STILL rendered (variable coercion precedes @include on the subgraph, spec 4.6 step 4).
+5. Assemble once into a `bytes.Buffer`:
+   - `fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf, &undefined)`;
+   - per entry: `buf.Write(entry.RepresentationsPrefix)`; included ⇒ the entry's representations bytes; `buf.Write(entry.IncludePrefix)`; `true`/`false`;
+   - per entry variable: render `v.Value` into a scratch arena buffer with a FRESH undefined slice; omit the whole pair iff the rendered bytes equal `null` AND the fresh slice is non-empty (undefined collected during THIS render; explicit client null renders null with an empty slice ⇒ kept); else `buf.Write(v.KeyPrefix); buf.Write(scratch.Bytes())`;
+   - `fetch.Input.Footer.RenderAndCollectUndefinedVariables(...)`. No `SetInputUndefinedVariables` call (Header/Footer collect nothing; entry pairs were stripped inline).
+6. All entries excluded ⇒ `res.fetchSkipped = true; prepared.skipLoad = true`; when tracing, `l.setTracingInput(fetchItem, buf.Bytes(), fetch.Trace)` (mirror batch, loader.go:1775-1779).
+7. Rate limit once: `allowed, err := l.rateLimitFetch(buf.Bytes(), fetch.Info, res)`; `!allowed` ⇒ `prepared.skipLoad = true` (flags on the shared res; Task 9 fans out).
+8. `prepared.source, prepared.input, prepared.trace = fetch.DataSource, buf.Bytes(), fetch.Trace`; `prepared.multiEntries = ...`; when tracing and `!ExcludeRawInputData`: `fetch.Trace.RawInputData` = `{"f1":<itemsData(entry1 items)>,"f2":...}` marshaled per alias.
+
+- [ ] **Step 1: Write failing tests** (mirror the Loader/Context/dataBuffer construction used by existing `TestLoader_*` tests in `loader_test.go`; seed the data buffer with `{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}` — employees[2] duplicates employees[0]):
+  - `TestPrepareMultiEntityFetch_Assembly`: entry1 batch over `ArrayPath("employees")` with a representations renderer over `{__typename, id}`; entry2 single over `ObjectPath("employee")`; entry2 has one variable `{KeyPrefix: ",\"first_f2\":", Value: <ContextVariable path ["first"] template>}` and `ctx.Variables = {"first": 10}`. Assert the assembled input: Header statics, `"representations_f1":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2}]` (deduped to 2 uniques; `entryRes.batchStats == [[e0,e2],[e1]]`), `],"includeF1":true`, `,"representations_f2":[{"__typename":"Employee","id":9}]`, `],"includeF2":true`, `,"first_f2":10`, Footer statics.
+  - `TestPrepareMultiEntityFetch_EmptyEntry`: `employee` null in seeded data ⇒ `,"representations_f2":[],"includeF2":false`, entry2 `fetchSkipped`, entry2's `first_f2` variable still rendered.
+  - `TestPrepareMultiEntityFetch_DeniedEntry`: loader with the pre-fetch field-authorization cache seeded to deny ALL of entry2's `Info.RootFields` (mirror existing FieldAuthorization tests for construction) ⇒ entry2 excluded: `"representations_f2":[]`, `includeF2":false`, `fetchSkipped` on entry2's res, NO authorizationRejected error rendering expected, entry1 unaffected.
+  - `TestPrepareMultiEntityFetch_AllExcluded`: both entries empty ⇒ `prepared.skipLoad`, shared `res.fetchSkipped`.
+  - `TestPrepareMultiEntityFetch_UndefinedVariable`: `$first` ABSENT from ctx.Variables ⇒ the `"first_f2"` key/value pair omitted entirely (no comma, no key); explicit `ctx.Variables = {"first": null}` ⇒ `,"first_f2":null` kept.
+  - `TestPrepareMultiEntityFetch_DedupStateIsolation`: identical representation bytes reachable from entry1 and entry2 ⇒ each entry's array still contains it (no cross-entry dedup).
 - [ ] **Step 2: Run to verify failure**: `gotestsum --format=short -- ./pkg/engine/resolve/... -run TestPrepareMultiEntityFetch`.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Green** + full resolve package.
@@ -590,15 +650,16 @@ Algorithm (spec 4.6, exact order):
 ### Task 9: loader — mergeResult refactor + mergeMultiEntityResult
 
 **Files:**
-- Modify: `v2/pkg/engine/resolve/loader.go` (`result` fields, `mergeResult` injection points, `mergePhase` multi branch, `isEmptyEntityFetch`, `rewriteErrorPaths`, `mergeErrors` signature pass-through)
-- Modify: `v2/pkg/engine/resolve/tainted_objects.go` (`getTaintedIndices` parameterization)
-- Create/extend: `v2/pkg/engine/resolve/loader_multi_entity.go` (merge half) and `loader_multi_entity_test.go`
+- Modify: `v2/pkg/engine/resolve/loader.go` (`result` field, `mergeResult` injection points, `mergePhase` multi branch, `rewriteErrorPaths`/`mergeErrors` root-name handling)
+- Modify: `v2/pkg/engine/resolve/tainted_objects.go` (`getTaintedIndices` signature)
+- Modify: `v2/pkg/engine/resolve/tainted_objects_test.go` (mechanical: direct `getTaintedIndices` callsites get the new signature, passing `fetch.FetchInfo(), "_entities"`)
+- Extend: `v2/pkg/engine/resolve/loader_multi_entity.go` + `loader_multi_entity_test.go`
 
 **Interfaces:**
 - Consumes: Task 8's `preparedFetch.multiEntries`.
 - Produces: complete runtime path.
 
-`result` gains a multi-entry view config:
+`result` gains:
 
 ```go
 	// multi is set on per-entry result views during MultiEntityFetch merging.
@@ -607,22 +668,21 @@ Algorithm (spec 4.6, exact order):
 type multiEntryMergeConfig struct {
 	alias        string
 	originSingle bool
-	info         *FetchInfo      // taint-info source
-	response     *astjson.Value  // pre-parsed shared response
-	errors       *astjson.Value  // pre-partitioned errors for this entry (nil = none)
+	info         *FetchInfo     // taint-info source
+	response     *astjson.Value // pre-parsed shared response
+	errors       *astjson.Value // pre-partitioned errors array for this entry (nil = none)
 }
 ```
 
-`mergeResult` injection points (each a small, behavior-preserving branch):
+`mergeResult` injection points (each a small, behavior-preserving branch; `isEmptyEntityFetch` is NOT touched — its kind check already returns false for multi entries, which is correct: a null `data.<alias>` follows the existing null-data fallthrough, and the empty-array case never reaches it):
 - parse (loader.go:634): `if res.multi != nil && res.multi.response != nil { response = res.multi.response } else { parse as today }`;
-- extensions collection (643-649): skip when `res.multi != nil` (parent collects once);
-- errors (662-686): when `res.multi != nil`, use `res.multi.errors` directly instead of `response.Get(SelectResponseErrorsPath...)`;
-- taint (670): `getTaintedIndices(taintInfoFor(res, fetchItem), entityRootNameFor(res), responseData, responseErrors)` — signature change to `getTaintedIndices(info *FetchInfo, rootName string, data, errors *astjson.Value)`; existing callsite passes `fetchItem.Fetch.FetchInfo(), "_entities"`; multi passes `res.multi.info, res.multi.alias`;
-- `rewriteErrorPaths` (859): signature gains `rootName string`; existing caller passes `"_entities"`. For multi entries, alias hiding is unconditional (spec 4.7): in `mergeErrors`, when `res.multi != nil` and `l.rewriteSubgraphErrorPaths` is false, still rewrite ONLY the alias root element: replace a leading path element equal to the alias with `"_entities"` (a tiny helper `hideAliasInErrorPaths(a, alias, values)`); when the option is true, run the full `rewriteErrorPaths` with `rootName = alias`;
-- empty-array single-origin edge (before the batch fan-out at 743): `if res.multi != nil && res.multi.originSingle { if batch := responseData.GetArray(); batch != nil && len(batch) == 0 { return nil } }`;
-- `isEmptyEntityFetch` (794): add `if fetchItem.Fetch.FetchKind() == FetchKindMultiEntity { ... }` — for a multi entry (detected via the res.multi config passed alongside; simplest: fold the check into mergeResult's null-data branch: `if res.multi != nil { if v := response.Get("data", res.multi.alias); astjson.ValueIsNonNull(v) && v.Type() == astjson.TypeArray { return nil } }` before calling `isEmptyEntityFetch`).
+- extensions collection (643-649): skip when `res.multi != nil` (the parent collects once);
+- errors (662-686): when `res.multi != nil`, use `res.multi.errors` in place of `response.Get(SelectResponseErrorsPath...)`;
+- taint (670): new signature `getTaintedIndices(info *FetchInfo, rootName string, data, errors *astjson.Value) []int`; existing callsite passes `fetchItem.Fetch.FetchInfo(), "_entities"`; multi entries pass `res.multi.info, res.multi.alias`;
+- error-path rewriting inside `mergeErrors`: `rewriteErrorPaths` gains a `rootName string` parameter (existing caller passes `"_entities"`). For multi entries: when `l.rewriteSubgraphErrorPaths` is true, call it with `rootName = res.multi.alias`; when false, still call a new tiny helper `hideAliasInErrorPaths(a arena.Arena, alias string, values []*astjson.Value)` that replaces a LEADING path element equal to the alias with the string `"_entities"` (pass-through mode must never leak internal aliases, spec 4.7);
+- empty-array single-origin edge, immediately before the batch fan-out (743): `if res.multi != nil && res.multi.originSingle { if batch := responseData.GetArray(); batch != nil && len(batch) == 0 { return nil } }`.
 
-`mergePhase` (loader.go:366-385) gains, before the existing paths:
+`mergePhase` (loader.go:366-385) gains, first:
 
 ```go
 	if prepared.multiEntries != nil {
@@ -630,23 +690,28 @@ type multiEntryMergeConfig struct {
 	}
 ```
 
-`mergeMultiEntityResult(prepared *preparedFetch)` (spec 4.7):
-1. Shared res flags fan-out: if `res.err != nil || res.authorizationRejected || res.rateLimitRejected || len(res.out) == 0` (and not fetchSkipped-everything) — copy `err/statusCode/ds/rateLimitRejected(+reason)/out`-emptiness onto every entry res and run step 4's loop (each entry renders its own failed-to-fetch / rate-limit errors at its own path via `mergeResult`'s existing guards); `fetchSkipped` on the shared res (all excluded) ⇒ return nil.
-2. Otherwise parse once: `response, err := astjson.ParseBytesWithArena(l.jsonArena, res.out)`; unparseable ⇒ per-entry status-fallback/failed-to-fetch fan-out exactly like today's single-fetch behavior but per entry (set per-entry `res.out = parent out` + statusCode and let `mergeResult` parse-fail per entry — simplest parity: give each entry res the parent's `out` and no `multi.response`, so each replays today's guards; only on successful parse do entries get `multi.response`). Collect extensions once (copy of loader.go:643-649 against the parsed response).
-3. Partition `response.Get("errors")` array by first path element into per-alias buckets + an unmatched bucket. Unmatched non-empty ⇒ `l.mergeErrors(res, prepared.item, unmatchedValue)` once (parent fetchItem, ResponsePath "").
-4. Per entry: populate `entryRes.multi = &multiEntryMergeConfig{alias, originSingle, entry.Info, response, entryErrors}`, copy `statusCode/ds/out/httpResponseContext` from parent, then `err := l.mergeResult(entry.Item, entryRes, prepared.multiEntries[i].items)`; join `entryRes.subgraphError` into `res.subgraphError`.
-5. `l.callOnFinished(res)` once; return first error.
+`mergeMultiEntityResult(prepared *preparedFetch) error` (spec 4.7; res = prepared.res):
+1. Ordered short-circuits:
+   - `if res.fetchSkipped && !res.rateLimitRejected { return nil }` — the all-excluded case;
+   - `if res.err != nil || res.authorizationRejected || res.rateLimitRejected || len(res.out) == 0`: copy `err`, `statusCode`, `ds`, `out`, `rateLimitRejected(+Reason)`, `authorizationRejected(+Reasons)` onto every entry res, leave `entryRes.multi = nil`, and jump straight to the step-4 loop (each entry's `mergeResult` guards render failed-to-fetch / rate-limit errors at that entry's path); skip steps 2-3. (loadPhase already recorded `erroredFetchIDs` for `res.err` only — invalid responses must NOT cascade, spec 4.7 step 1.)
+2. Parse once: `response, err := astjson.ParseBytesWithArena(l.jsonArena, res.out)`; on parse failure, copy `out`/`statusCode`/`ds` to entries with `multi = nil` and run the step-4 loop (per-entry status-fallback/invalid-JSON errors, exactly today's guards). On success: collect response extensions once (replicate loader.go:643-649 against `response`).
+3. Partition `response.Get("errors")` by first path element matching an entry alias; errors with no alias-shaped first element go to an `unmatched` array; if non-empty, `l.mergeErrors(res, prepared.item, unmatchedValue)` once (parent fetchItem, empty ResponsePath).
+4. Per entry i: `entryRes.multi = &multiEntryMergeConfig{alias, originSingle, entry.Info, response, entryErrors}` (nil response/errors in the fan-out paths above); copy `statusCode`, `ds`, `httpResponseContext` from res; `err := l.mergeResult(prepared.multiEntries[i].entry.Item, entryRes, prepared.multiEntries[i].items)`; join `entryRes.subgraphError` into `res.subgraphError`; remember the first error.
+5. `l.callOnFinished(res)` once; return the first error.
 
-- [ ] **Step 1: Write failing tests** (`loader_multi_entity_test.go`), stub DataSource returning canned bodies:
-  - `TestMergeMultiEntityResult_FanOut`: response `{"data":{"f1":[{"products":[{"upc":"1"}]},{"products":[{"upc":"2"}]}],"f2":[{"notes":"n"}]}}` with entry1 batchStats `[[e0,e2],[e1]]` ⇒ e0 and e2 get products upc 1, e1 upc 2, employee gets notes; final resolvable JSON golden.
-  - `TestMergeMultiEntityResult_ErrorPartitioning`: errors `[{"message":"a","path":["f1",0,"products"]},{"message":"b","path":["f2"]},{"message":"c"}]` in wrap mode ⇒ error "a" attributed at entry1's response path (rewritten, alias hidden), "b" at entry2's, "c" once at the multi; pass-through mode with `rewriteSubgraphErrorPaths=false` ⇒ paths contain `_entities`, never `f1`.
-  - `TestMergeMultiEntityResult_EmptyArraySingleOrigin`: `{"data":{"f2":[]}}` for a single-origin entry ⇒ no error, no merge; same shape for batch-origin with 1 representation ⇒ `invalidBatchItemCount` failed-to-fetch error.
-  - `TestMergeMultiEntityResult_TransportError`: `res.err` set ⇒ one failed-to-fetch error PER entry path; `erroredFetchIDs` contains the multi's FetchID.
-  - `TestMergeMultiEntityResult_ExtensionsOnce`: response with `extensions` and `allowCustomExtensionProperties` ⇒ exactly one entry in `l.subgraphExtensions`.
-  - `TestMergeMultiEntityResult_HooksOnce`: LoaderHooks recording ⇒ one OnLoad, one OnFinished.
-  - `TestMergeMultiEntityResult_ExcludedEntry`: entry2 excluded at prepare ⇒ its data absent, no error, entry1 merged normally.
+- [ ] **Step 1: Write failing tests** (stub DataSource returning canned bodies; drive through `resolveSingle` on a hand-built multi FetchItem so prepare+load+merge all run):
+  - `TestMergeMultiEntityResult_FanOut`: response `{"data":{"f1":[{"products":[{"upc":"1"}]},{"products":[{"upc":"2"}]}],"f2":[{"notes":"n"}]}}` with entry1 batchStats `[[e0,e2],[e1]]` ⇒ e0/e2 get upc 1, e1 upc 2, employee gets notes; final data-buffer JSON golden.
+  - `TestMergeMultiEntityResult_ErrorPartitioning`: errors `[{"message":"a","path":["f1",0,"products"]},{"message":"b","path":["f2"]},{"message":"c"}]` — wrap mode: "a" at entry1's response path (index dropped), "b" at entry2's, "c" once at the multi; pass-through mode with `rewriteSubgraphErrorPaths=false`: emitted paths contain `_entities`, never `f1`/`f2`.
+  - `TestMergeMultiEntityResult_EmptyArraySingleOrigin`: `{"data":{"f2":[]}}` single-origin ⇒ no error, no merge; batch-origin with 1 representation ⇒ `invalidBatchItemCount` failed-to-fetch error.
+  - `TestMergeMultiEntityResult_TransportError`: stub returns error ⇒ one failed-to-fetch error PER entry path; `erroredFetchIDs` contains the multi's FetchID.
+  - `TestMergeMultiEntityResult_InvalidResponse`: body `not json` ⇒ per-entry failed-to-fetch errors AND `erroredFetchIDs` does NOT contain the multi's FetchID (dependents still run).
+  - `TestMergeMultiEntityResult_RateLimitRejected`: rate limiter rejects at prepare ⇒ NO Load call, one rate-limit error at EACH entry's response path.
+  - `TestMergeMultiEntityResult_TaintPerEntry`: `validateRequiredExternalFields` on; entry1.Info.FetchReasons has an `IsRequires`+`Nullable` coordinate; response error path `["f1",0,"<field>"]` with the field null in data ⇒ only entry1's matching target lands in `taintedObjs`.
+  - `TestMergeMultiEntityResult_ExtensionsOnce`: response with `extensions` + `allowCustomExtensionProperties` ⇒ exactly one entry in `l.subgraphExtensions`.
+  - `TestMergeMultiEntityResult_HooksOnce`: recording LoaderHooks ⇒ one OnLoad, one OnFinished.
+  - `TestMergeMultiEntityResult_ExcludedEntry`: entry2 excluded at prepare (`data` has only `f1`) ⇒ entry2 merges nothing, no error, entry1 normal.
 - [ ] **Step 2: Run to verify failure**: `gotestsum --format=short -- ./pkg/engine/resolve/... -run TestMergeMultiEntityResult`.
-- [ ] **Step 3: Implement** the refactor + branch. Run the FULL resolve package after the `mergeResult`/`getTaintedIndices`/`rewriteErrorPaths` signature changes — they have existing tests.
+- [ ] **Step 3: Implement.** After the `getTaintedIndices`/`rewriteErrorPaths` signature changes, run the FULL resolve package — both have existing direct tests.
 - [ ] **Step 4: Green** + full package.
 - [ ] **Step 5: gofmt.**
 
@@ -655,15 +720,17 @@ type multiEntryMergeConfig struct {
 ### Task 10: end-to-end — datasource plan tests + resolve integration
 
 **Files:**
-- Test: `v2/pkg/engine/datasource/graphql_datasource/graphql_datasource_federation_test.go` (extend) or a new `graphql_datasource_multi_fetch_test.go`
-- Test: `v2/pkg/engine/resolve/loader_multi_entity_test.go` (integration case)
+- Test: `v2/pkg/engine/datasource/graphql_datasource/graphql_datasource_multi_fetch_test.go` (new)
+- Test: `v2/pkg/engine/resolve/loader_multi_entity_test.go` (integration cases)
 
 **Interfaces:** none new — verification only.
 
-- [ ] **Step 1: Plan-level test** `TestGraphQLDataSourceFederation_MultiFetch`: reuse an existing federation test schema where two fields resolve entities from one subgraph at the same wave (pattern: `employees { id products }` + `employee(id: 1) { id products }` from the issue; adapt to an existing test schema with a list + single entity extension — if none fits, add a minimal 2-subgraph config modeled on the existing `TestGraphQLDataSourceFederation` fixtures). Drive `plan.NewPlanner` with `EnableMultiFetch: true`, postprocess with `postprocess.NewProcessor(postprocess.EnableMultiFetch(), postprocess.CollectDataSourceInfo())`, then assert on `response.Fetches.QueryPlan().PrettyPrint()` golden: exactly one Fetch(service: products) node of kind MultiEntity containing both aliased `_entities` fields with `@include(if: $includeF1)` / `@include(if: $includeF2)` and renamed representations variables. Also: same query with `EnableMultiFetch: false` ⇒ two separate entity fetch nodes (golden), asserting flag-off parity.
-- [ ] **Step 2: Wave-separation test**: a query where the second entity fetch depends on the first's output (different waves) ⇒ no merge (two fetch nodes remain).
-- [ ] **Step 3: Subscription test**: subscription response tree with two same-wave entity fetches ⇒ merged (assert via QueryPlan of the subscription response fetches).
-- [ ] **Step 4: Resolve integration** `TestLoadGraphQLResponseData_MultiEntity`: hand-built post-postprocess tree (root SingleFetch stub datasource returning the parent data, then a MultiEntityFetch whose stub records the received input and returns per-alias data). Assert exactly ONE Load call for the multi, the received input equals the assembly golden from Task 8, and the final `resolvable` data equals the equivalent unmerged run (construct the same tree with the two original Entity/Batch fetches and diff the JSON byte-for-byte).
+Harness requirements (critical): `datasourcetesting.RunTest` force-sets `DisableIncludeInfo = true` unless a field-info option is used — with nil `Info`, NO fetch is a merge candidate and the merge silently never happens. Inspect `v2/pkg/engine/datasourcetesting/datasourcetesting.go` for the current option names; as of this plan: use the print-plan/field-info option (`WithPrintPlan()`-style, which also populates `Info.QueryPlan`) plus a custom post-processor option that passes `postprocess.EnableMultiFetch()` and `postprocess.CollectDataSourceInfo()` — `WithDefaultPostProcessor` CANNOT be used (it sets `DisableResolveInputTemplates`, which force-disables the multi stage). If no harness option accepts custom processor options, write the test hand-rolled: build the plan config with `EnableMultiFetch: true` and `DisableIncludeInfo: false`, plan via `plan.NewPlanner` + `p.Plan(..., plan.IncludeQueryPlanInResponse())` (see planner.go — this is what populates `Info.QueryPlan`), then `postprocess.NewProcessor(postprocess.EnableMultiFetch()).Process(plan)`.
+
+- [ ] **Step 1: Two-fetch merge test** `TestGraphQLDataSourceFederation_MultiFetch`: a federation config where a list field and a single-entity field both extend types from one subgraph at the same wave (the issue's `employees { id products }` + `employee(id: 1) { id notes }` pattern — reuse/adapt an existing federation fixture in this package). Assert on `response.Fetches.QueryPlan().PrettyPrint()` golden: exactly one Fetch of kind MultiEntity for the products subgraph, whose query contains `f1: _entities(representations: $representations_f1) @include(if: $includeF1)` and `f2: ...`, plus `mergedFetchIds`. Then the SAME query with `EnableMultiFetch: false` ⇒ two separate entity fetch nodes (golden) — flag-off parity (invariant 5).
+- [ ] **Step 2: Wave-separation test**: a query where the second entity fetch depends on the first's output ⇒ no merge (two fetch nodes remain).
+- [ ] **Step 3: Three-fetch group + subscription.** (a) Three same-wave entity fetches to one subgraph ⇒ one MultiEntity fetch with `f1`/`f2`/`f3` and `$includeF3`; (b) a subscription whose response tree contains two same-wave entity fetches ⇒ merged (assert via the subscription response's fetch-tree QueryPlan).
+- [ ] **Step 4: Resolve integration** `TestLoadGraphQLResponseData_MultiEntity`: hand-built post-postprocess tree — root SingleFetch (stub returns parent data) then a MultiEntityFetch (stub records received input, returns per-alias data). Assert exactly ONE Load call for the multi; the received input equals Task 8's assembly golden; and the final data-buffer JSON is byte-identical to an equivalent UNMERGED run (same tree with the two original Entity/Batch fetches). Build the unmerged comparison tree as a Sequence (serial merges ⇒ deterministic bytes) and keep fixtures targeting disjoint merge paths. Also assert single-flight compatibility: with subgraph request deduplication enabled, `singleFlightAllowed` treats the multi FetchItem as a query (merged `Info.OperationType == ast.OperationTypeQuery`) — two concurrent identical multi loads share one request (mirror the existing single-flight loader test setup).
 - [ ] **Step 5: Run everything**: `gotestsum --format=short -- ./pkg/engine/... ./pkg/astimport/...` — all green.
 
 ---
@@ -671,6 +738,6 @@ type multiEntryMergeConfig struct {
 ### Task 11: lint, fmt, full sweep
 
 - [ ] **Step 1:** `gofmt -l v2/pkg` — expect empty output; fix anything listed.
-- [ ] **Step 2:** Run the repo linter: `cd v2 && make lint-fix` if `v2/Makefile` has the target, else `make lint-fix` at the repo root (inspect `Makefile` first; the user's requirement is "run a linter with a make lint-fix"). Fix all reported issues in touched files.
-- [ ] **Step 3:** Full test sweep: `gotestsum --format=short -- ./pkg/... -count=1` from `v2/` (long; run once). All green, including pre-existing tests.
+- [ ] **Step 2:** Run the repo linter: inspect the Makefile locations first (`v2/Makefile`, root `Makefile`) and run the `lint-fix` target from the right directory (the user's requirement is "run a linter with a make lint-fix"). Fix all reported issues in touched files.
+- [ ] **Step 3:** Full test sweep from `v2/`: `gotestsum --format=short -- ./pkg/... -count=1` (long; run once). All green, including pre-existing tests.
 - [ ] **Step 4:** Re-read every new/modified comment against the Global Constraints comment rules; delete narration.
