@@ -112,10 +112,20 @@ On `ConfigureFetch()` (graphql_datasource.go:323):
   values extracted by the normalizer) as `variablesBytes`, validates, prints,
   and optionally **minifies the printed bytes** (`SortAST: true`; the document
   itself is not mutated by minification).
-- The final input template is a JSON-shaped string
-  `{"body":{"variables":{...},"query":"..."},"header":...,"url":...,"method":...}`
-  (body first — `createInputForQuery` runs before the header/url/method
-  setters; within body, `variables` precedes `query`). `body.variables` is a
+- The final input template is a JSON-shaped string whose **top-level key
+  order depends on the effective sjson version**: this repo's `go.work` pins
+  `sjson v1.0.4` (a `replace` directive), which **prepends** new keys, so
+  inputs here look like
+  `{"method":"POST","url":...,["header":...,]"body":{"query":"...","variables":{...}}}`
+  (envelope first; inside body, `query` precedes `variables` — verified
+  against committed goldens, e.g.
+  graphql_datasource_federation_test.go:459, and the BatchEntityFetch
+  templates in loader_test.go, whose Header contains envelope+query and whose
+  representations sit at the end). Downstream module consumers are NOT
+  subject to the go.work replace and resolve sjson v1.2.5+ (append order),
+  yielding the mirrored shape `{"body":{"variables":{...},"query":"..."},...}`.
+  Any code locating the query/variables ranges must therefore handle **both
+  shapes** and bail (skip merging) on anything else. `body.variables` is a
   **flat, one-level object**: each key is an upstream variable name, each
   value is a raw `$$N$$` token, the representations form `[$$N$$]`, or a
   literal JSON value (normalizer-extracted). `$$N$$` is a positional index
@@ -333,10 +343,12 @@ type MergeableOperation struct {
     // transfers to the plan: ConfigureFetch nils the planner's reference
     // after storing, so no later planner activity can mutate it.
     Document *ast.Document
-    // Variables lists the top-level body.variables entries in blob order.
-    // Values are raw fragments that may contain $$N$$ placeholders referring
-    // to FetchConfiguration.Variables (and, in literal fragments, incidental
-    // "$$" bytes — see 3.1).
+    // Variables lists the top-level body.variables entries in write order
+    // (replace value in place on duplicate name). Write order is NOT the
+    // blob's key order under sjson v1.0.4, which prepends new keys; nothing
+    // downstream depends on blob order. Values are raw fragments that may
+    // contain $$N$$ placeholders referring to FetchConfiguration.Variables
+    // (and, in literal fragments, incidental "$$" bytes — see 3.1).
     Variables []NamedVariableFragment
 }
 
@@ -356,13 +368,18 @@ member's document and responses are demuxed by alias.
 Datasource changes:
 
 - The variables-blob write sites (3.1) go through a helper that both performs
-  `sjson.SetRawBytes` and records `(name, raw)` in the ordered slice with
-  **replace-in-existing-slot** semantics on duplicate names (mirroring sjson's
-  in-place update so the slice reproduces the blob's key order byte-for-byte).
-  The `createInputForQuery` opVars merge — which writes to a local copy —
-  records through the same mechanism (safe: `createInputForQuery` runs once
-  per planner). Recording is active only when the flag is on; the blob write
-  path is byte-identical with the flag off.
+  `sjson.SetRawBytes` (propagating the error where today's code checks it)
+  and records `(name, raw)` in the ordered slice with
+  **replace-in-existing-slot** semantics on duplicate names. The recorded
+  value on a duplicate is the last-written clean fragment even where the
+  v1.0.4 blob overwrite corrupts token-bearing values in the blob itself
+  (pre-existing quirk; the blob write path stays byte-identical with the
+  flag off). The `createInputForQuery` opVars merge — which writes to a
+  local copy — records through the same mechanism (safe:
+  `createInputForQuery` runs once per planner). A duplicate write to the
+  `representations` slot marks the planner's fetch as non-mergeable (a client
+  variable literally named `representations` collides with the synthetic key
+  — pre-existing planner defect; `MergeableOperation` is not stored).
 - `ConfigureFetch` stores `p.upstreamOperation` (post-normalization,
   post-validation) into `MergeableOperation.Document` and then sets
   `p.upstreamOperation = nil`, making later mutation structurally impossible
@@ -377,14 +394,13 @@ Runs on the flat tree (root Sequence, all children Single/SingleFetch).
 
 **Candidate selection.** A child is a candidate iff its fetch is a
 `*resolve.SingleFetch` with (`RequiresEntityFetch || RequiresEntityBatchFetch`),
-`MergeableOperation != nil`, `Info != nil` (with `plan.DisableIncludeInfo` the
-feature silently disables — grouping and per-entry auth need FetchInfo), and a
-well-formed variables record: exactly one recorded fragment containing the
-`ResolvableObjectVariableKind` token (the representations entry) and no
-duplicate recorded names. (A client variable literally named
-`representations` already collides with the synthetic key today — a
-pre-existing planner defect; such fetches are left unmerged rather than
-merged bug-for-bug.)
+`MergeableOperation != nil` (the planner already refuses to store it on a
+`representations` name collision — see 4.3), `Info != nil` (with
+`plan.DisableIncludeInfo` the feature silently disables — grouping and
+per-entry auth need FetchInfo), and a well-formed variables record: exactly
+one recorded fragment containing a `$$N$$` token whose variable is the
+`ResolvableObjectVariable` (structural defense-in-depth on top of the
+record-time guard).
 
 **Grouping.** Candidates are partitioned by
 `(FetchInfo.DataSourceID, FetchDependencies.DeferID, wave)`. Waves are
@@ -440,9 +456,16 @@ surviving member's post-visitor `Input` string via a small quote-aware scanner
 (handles `$$N$$` tokens transparently — tokens contain no braces or quotes):
 
 - Locate the `body.variables` **object value** byte range and the
-  `body.query` **string value** byte range in `s1.Input` (deterministic shape:
-  `body` first, `variables` before `query` — asserted; a candidate whose input
-  deviates is left unmerged).
+  `body.query` **string value** byte range in `s1.Input`, supporting **both**
+  key orders (3.1): the repo shape (envelope first, `"body":{"query":"...",
+  "variables":{...}}` at the end — variables object found by a backward
+  brace-balanced scan from the input tail, query anchored by
+  `"body":{"query":"`) and the append shape (`{"body":{"variables":{...},
+  "query":"..."},...}` — variables found by a forward balanced scan, query
+  end located by the last `"}` followed by `,`). The raw, unescaped query
+  string is never scanned through — both shapes bound it by its neighbors.
+  A candidate whose input fails these anchors or a round-trip check is left
+  unmerged.
 - Replace the query value with the printed merged operation (embedded raw,
   matching today's unescaped embedding) and the variables object with the
   authored per-entry material below.
@@ -668,8 +691,11 @@ lock:
      a benign empty entity fetch (return nil — preserves today's EntityFetch
      behavior where `["data","_entities","0"]` selects null); batch-origin
      entries keep the `invalidBatchItemCount` error on count mismatch.
-     `isEmptyEntityFetch` remains for the null-data branch, generalized to
-     check `data.<alias>`.
+     `isEmptyEntityFetch` itself needs **no** multi case: an entry's
+     `SelectResponseDataPath` has no trailing index, so the empty-array case
+     arrives as non-null `[]` (handled by the pre-fan-out edge), and a null
+     `data.<alias>` follows the existing null-data fallthrough, matching
+     unmerged behavior.
    All existing machinery is thereby reused per entry: skip/auth guards,
    `setSkipErrors`, batch fan-out, taint marking, wrap/pass-through error
    modes, status fallbacks.
