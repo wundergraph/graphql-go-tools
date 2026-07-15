@@ -526,9 +526,12 @@ other members are removed. Bookkeeping mirrors `deduplicateSingleFetches`
   original FetchInfo (whose `QueryPlan.Query` was already `__<fetchID>`-
   suffixed by `fetchIDAppender`; per-entry query plans are **not** rendered in
   query-plan output — only the merged one, see 4.8).
-- Entry `Item` = the sub's original `FetchItem` with `Item.Fetch` set to the
-  **parent MultiEntityFetch** (nil-safety for every `fetchItem.Fetch` consumer
-  on the per-entry merge path).
+- Entry `Item` = a copy of the sub's original `FetchItem` with `Item.Fetch`
+  set to **nil**: a backpointer to the multi would make the plan cyclic
+  (breaking structural plan comparison in tests), and retaining the replaced
+  member fetch would keep its `MergeableOperation` document alive inside the
+  cached plan. The only `fetchItem.Fetch` consumer on the per-entry merge
+  path (`isEmptyEntityFetch`) is skipped for multi entries (see 4.7).
 
 **Document clearing.** Final step (and only step when disabled): set
 `MergeableOperation = nil` on every `SingleFetch` in the tree.
@@ -561,7 +564,7 @@ type MultiEntityInput struct {
 // body.variables. It has no rendered input of its own.
 type MultiEntityFetchEntry struct {
     Alias string                    // "f1"
-    Item  *FetchItem                 // original FetchPath/ResponsePath; Fetch = parent multi
+    Item  *FetchItem                 // original FetchPath/ResponsePath; Fetch stays nil (no cycles)
     Info  *FetchInfo                 // original fetch's info (auth, taint checks)
     PostProcessing PostProcessingConfiguration // SelectResponseDataPath: ["data", Alias];
                                                // SelectResponseErrorsPath: ["errors"];

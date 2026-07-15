@@ -679,7 +679,7 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 		require.Equal(t, []string{"a"}, e1.PostProcessing.MergePath)
 		require.Equal(t, resolve.EntityFetchOriginBatch, e1.OriginKind)
 		require.True(t, e1.Representations.SetTemplateOutputToNullOnVariableNull)
-		require.Same(t, multi, e1.Item.Fetch)
+		require.Nil(t, e1.Item.Fetch, "entry items must not point back at the multi fetch (cyclic plans break structural comparison)")
 		require.Len(t, e1.Variables, 1)
 		require.Equal(t, `,"stale_f1":`, string(e1.Variables[0].KeyPrefix))
 		require.Equal(t, "1", staticData(t, e1.Variables[0].Value))
