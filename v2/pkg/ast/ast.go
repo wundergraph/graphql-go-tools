@@ -57,6 +57,8 @@ type Document struct {
 	Index                        Index
 
 	// OnCopyField, when set, is called by CopyField with the source field ref and the new field ref.
+	// CopyField is recursive: the hook fires once for every field copied, including fields nested
+	// in copied selection sets, children before their parent.
 	OnCopyField func(fieldRef, copyRef int)
 	// OnMergeFields, when set, is called by MergeFieldsDefer with the surviving (left)
 	// and the removed (right) field ref when two fields are merged.

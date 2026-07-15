@@ -129,15 +129,20 @@ collector) disappears.
 
 ### Component 4: consumer simplification
 
-`nodeSelectionVisitor.updateSkipFieldRefs` drops its unskip branch. Field refs
-created by a rewrite are fresh (`Fields` is append-only, refs are never
-reused), so a new ref can never already be in `skipFieldsRefs` — the
-"previously skipped ref survived a merge" case is impossible by construction:
+`nodeSelectionVisitor.updateSkipFieldRefs` consumes `fieldRefOrigins` directly.
+Field refs created by a rewrite are fresh (`Fields` is append-only), so a key of
+`fieldRefOrigins` is never a pre-rewrite skipped ref. However, a fresh ref CAN
+already be in `skipFieldsRefs`: the rewriter pre-registers its synthesized
+skipped `__typename` (interface-object case), and normalization can dedup-merge
+a preserved user-requested `__typename` into it. The unskip branch covers
+exactly that case:
 
 ```go
 for newRef, originRefs := range fieldRefOrigins {
     if all originRefs are in skipFieldsRefs {
-        skipFieldsRefs = append(skipFieldsRefs, newRef)
+        add newRef to skipFieldsRefs (if not already present)
+    } else if newRef is in skipFieldsRefs {
+        remove newRef from skipFieldsRefs
     }
 }
 ```

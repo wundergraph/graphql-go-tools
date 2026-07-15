@@ -24,7 +24,9 @@ func buildRefMappings(copyLog, mergeLog []refPair) (changedFieldRefs, fieldRefOr
 		fieldRefOrigins[c.to] = appendUniqueRef(fieldRefOrigins[c.to], c.from)
 	}
 
-	// a removed field transfers its origins to the survivor
+	// a removed field transfers its origins to the survivor.
+	// The merge log is acyclic: a removed field leaves the selection set and can never
+	// participate in a later merge, so the redirect chain below always terminates.
 	redirects := make(map[int]int, len(mergeLog))
 	for _, m := range mergeLog {
 		for _, originRef := range fieldRefOrigins[m.from] {

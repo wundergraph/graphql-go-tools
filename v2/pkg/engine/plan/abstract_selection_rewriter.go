@@ -67,6 +67,8 @@ type fieldSelectionRewriter struct {
 	skipFieldRefs []int
 	alwaysRewrite bool
 
+	// copyLog and mergeLog are never reset - the rewriter is single-use:
+	// construct a fresh instance per RewriteFieldSelection call.
 	copyLog  []refPair // (original field ref -> new field ref) for each field created during the rewrite
 	mergeLog []refPair // (removed field ref -> surviving field ref) for each field merged away during the post-rewrite normalization, chronological
 }
@@ -579,6 +581,9 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection && fieldInfo.hasInlineFragmentsOnObjects {
 		deferID, _ := r.operation.FieldInternalDeferID(fieldRef)
 		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection(deferID)
+		// the synthesized __typename intentionally has no copyLog entry - it has no original field.
+		// It is pre-registered as skipped; if normalization later dedup-merges a preserved
+		// user-requested __typename into it, updateSkipFieldRefs unskips it via its recorded origins.
 		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}

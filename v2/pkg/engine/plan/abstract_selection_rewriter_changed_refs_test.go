@@ -195,9 +195,9 @@ func TestFieldSelectionRewriter_ChangedFieldRefs(t *testing.T) {
 }
 
 // TestNodeSelectionVisitor_UpdateSkipFieldRefs verifies the skip propagation semantics:
-// a field ref created by a rewrite is skipped only when all original refs
-// it represents were skipped. Refs created by a rewrite are always fresh,
-// so an already skipped ref can never appear among the keys.
+// a field ref created by a rewrite is skipped only when all original refs it represents
+// were skipped. A fresh ref pre-registered as skipped (the rewriter's synthesized __typename)
+// that absorbed a user-requested field during a dedup merge must be unskipped.
 func TestNodeSelectionVisitor_UpdateSkipFieldRefs(t *testing.T) {
 	c := &nodeSelectionVisitor{
 		skipFieldsRefs: []int{2, 9},
@@ -207,9 +207,10 @@ func TestNodeSelectionVisitor_UpdateSkipFieldRefs(t *testing.T) {
 		5: {0},    // origin is a user field - stays visible
 		6: {0, 2}, // user and planner fields merged - stays visible
 		7: {2},    // origin is a planner field - becomes skipped
+		9: {0},    // synthesized skipped __typename absorbed a preserved user __typename - must be unskipped
 	})
 
-	assert.ElementsMatch(t, []int{2, 9, 7}, c.skipFieldsRefs)
+	assert.ElementsMatch(t, []int{2, 7}, c.skipFieldsRefs)
 }
 
 // TestFieldSelectionRewriter_ChangedFieldRefs_UnionTypename verifies that an explicitly
