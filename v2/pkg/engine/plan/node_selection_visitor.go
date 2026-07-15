@@ -859,12 +859,12 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 }
 
 // updateSkipFieldRefs updates the skipFieldsRefs list after a rewrite of an abstract field selection set.
-// A field ref present after the rewrite should be skipped only when all original field refs
-// occupying the same response position were skipped.
-// When at least one origin is a user-requested field, the field must stay in the response -
-// including the case when a previously skipped ref survived a merge with a user-requested duplicate.
+// A field ref created by the rewrite should be skipped only when all original field refs
+// it represents were skipped. When at least one origin is a user-requested field,
+// the field must stay in the response.
+// Field refs created by a rewrite are always fresh, so they are never present in skipFieldsRefs.
 func (c *nodeSelectionVisitor) updateSkipFieldRefs(fieldRefOrigins map[int][]int) {
-	if len(fieldRefOrigins) == 0 {
+	if len(fieldRefOrigins) == 0 || len(c.skipFieldsRefs) == 0 {
 		return
 	}
 
@@ -872,8 +872,6 @@ func (c *nodeSelectionVisitor) updateSkipFieldRefs(fieldRefOrigins map[int][]int
 	for _, fieldRef := range c.skipFieldsRefs {
 		skipped[fieldRef] = struct{}{}
 	}
-
-	var unskipFieldRefs map[int]struct{}
 
 	for fieldRef, originRefs := range fieldRefOrigins {
 		allOriginsSkipped := true
@@ -885,24 +883,7 @@ func (c *nodeSelectionVisitor) updateSkipFieldRefs(fieldRefOrigins map[int][]int
 		}
 
 		if allOriginsSkipped {
-			if _, ok := skipped[fieldRef]; !ok {
-				c.skipFieldsRefs = append(c.skipFieldsRefs, fieldRef)
-			}
-			continue
+			c.skipFieldsRefs = append(c.skipFieldsRefs, fieldRef)
 		}
-
-		if _, ok := skipped[fieldRef]; ok {
-			if unskipFieldRefs == nil {
-				unskipFieldRefs = make(map[int]struct{})
-			}
-			unskipFieldRefs[fieldRef] = struct{}{}
-		}
-	}
-
-	if len(unskipFieldRefs) > 0 {
-		c.skipFieldsRefs = slices.DeleteFunc(c.skipFieldsRefs, func(fieldRef int) bool {
-			_, ok := unskipFieldRefs[fieldRef]
-			return ok
-		})
 	}
 }
