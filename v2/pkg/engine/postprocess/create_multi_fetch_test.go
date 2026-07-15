@@ -2,7 +2,6 @@ package postprocess
 
 import (
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -419,31 +418,34 @@ func TestBuildMergedOperation(t *testing.T) {
 		}
 	}
 
+	const mergedBody = `query($representations_f1: [_Any!]!, $first_f1: Int, $includeF1: Boolean!, $representations_f2: [_Any!]!, $first_f2: Int, $includeF2: Boolean!){f1: _entities(representations: $representations_f1)@include(if: $includeF1) {... on Employee {__typename products(first: $first_f1){upc}}} f2: _entities(representations: $representations_f2)@include(if: $includeF2) {... on Employee {__typename notes(first: $first_f2)}}}`
+
 	t.Run("anonymous with renamed variables and stale key", func(t *testing.T) {
 		compact, pretty, err := buildMergedOperation(newMembers(""))
 		require.NoError(t, err)
-		require.NotEmpty(t, pretty)
-
-		require.Contains(t, compact, "$representations_f1: [_Any!]!")
-		require.Contains(t, compact, "$first_f1: Int")
-		require.Contains(t, compact, "$includeF1: Boolean!")
-		require.Contains(t, compact, "$representations_f2")
-		require.Contains(t, compact, "$first_f2")
-		require.Contains(t, compact, "$includeF2")
-		require.NotContains(t, compact, "$stale_f1")
-
-		require.Contains(t, compact, "f1: _entities(representations: $representations_f1)@include(if: $includeF1)")
-		require.Contains(t, compact, "f2: _entities(representations: $representations_f2)@include(if: $includeF2)")
-		require.Contains(t, compact, "products(first: $first_f1)")
-		require.Contains(t, compact, "notes(first: $first_f2)")
-
-		require.Equal(t, `query($representations_f1: [_Any!]!, $first_f1: Int, $includeF1: Boolean!, $representations_f2: [_Any!]!, $first_f2: Int, $includeF2: Boolean!){f1: _entities(representations: $representations_f1)@include(if: $includeF1) {... on Employee {__typename products(first: $first_f1){upc}}} f2: _entities(representations: $representations_f2)@include(if: $includeF2) {... on Employee {__typename notes(first: $first_f2)}}}`, compact)
+		require.Equal(t, mergedBody, compact)
+		require.Equal(t, `query($representations_f1: [_Any!]!, $first_f1: Int, $includeF1: Boolean!, $representations_f2: [_Any!]!, $first_f2: Int, $includeF2: Boolean!){
+  f1: _entities(representations: $representations_f1)@include(if: $includeF1) {
+    ... on Employee {
+      __typename
+      products(first: $first_f1){
+        upc
+      }
+    }
+  }
+  f2: _entities(representations: $representations_f2)@include(if: $includeF2) {
+    ... on Employee {
+      __typename
+      notes(first: $first_f2)
+    }
+  }
+}`, pretty)
 	})
 
 	t.Run("shared operation name yields multi name", func(t *testing.T) {
 		compact, _, err := buildMergedOperation(newMembers("Q"))
 		require.NoError(t, err)
-		require.True(t, strings.HasPrefix(compact, "query Q__multi_3_5("), "got: %s", compact)
+		require.Equal(t, "query Q__multi_3_5"+mergedBody[len("query"):], compact)
 	})
 
 	t.Run("root selection not a single _entities field is an error", func(t *testing.T) {
@@ -468,6 +470,9 @@ func TestBuildMergedOperation(t *testing.T) {
 const (
 	mergeM1Source = `query($representations: [_Any!]!){_entities(representations: $representations){... on Employee {__typename products {upc}}}}`
 	mergeM2Source = `query($representations: [_Any!]!, $first: Int){_entities(representations: $representations){... on Employee {__typename notes(first: $first)}}}`
+	// mergeGroupMergedOperation is the merged operation buildMergedOperation
+	// produces for the two-member fixtures above.
+	mergeGroupMergedOperation = `query($representations_f1: [_Any!]!, $includeF1: Boolean!, $representations_f2: [_Any!]!, $first_f2: Int, $includeF2: Boolean!){f1: _entities(representations: $representations_f1)@include(if: $includeF1) {... on Employee {__typename products {upc}}} f2: _entities(representations: $representations_f2)@include(if: $includeF2) {... on Employee {__typename notes(first: $first_f2)}}}`
 )
 
 func TestSplitEntityFetchInput(t *testing.T) {
@@ -694,10 +699,7 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 		require.Equal(t, `,"first_f2":`, string(e2.Variables[0].KeyPrefix))
 		require.Contains(t, segmentKinds(e2.Variables[0].Value), resolve.VariableSegmentType)
 
-		header := staticData(t, multi.Input.Header)
-		require.True(t, strings.HasPrefix(header, `{"method":"POST"`))
-		require.Contains(t, header, `"query":"query(`)
-		require.True(t, strings.HasSuffix(header, `"variables":{`))
+		require.Equal(t, `{"method":"POST","url":"http://x","body":{"query":"`+mergeGroupMergedOperation+`","variables":{`, staticData(t, multi.Input.Header))
 		require.Equal(t, `}}}`, staticData(t, multi.Input.Footer))
 
 		var fetches []*resolve.SingleFetch
@@ -736,9 +738,7 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 		multi := findMultiEntityFetch(p.Response.Fetches)
 		require.NotNil(t, multi)
 		require.Equal(t, `{"body":{"variables":{`, staticData(t, multi.Input.Header))
-		footer := staticData(t, multi.Input.Footer)
-		require.True(t, strings.HasPrefix(footer, `},"query":"query(`), "got: %s", footer)
-		require.True(t, strings.HasSuffix(footer, `"},"url":"http://x","method":"POST"}`), "got: %s", footer)
+		require.Equal(t, `},"query":"`+mergeGroupMergedOperation+`"},"url":"http://x","method":"POST"}`, staticData(t, multi.Input.Footer))
 	})
 
 	t.Run("three members", func(t *testing.T) {
