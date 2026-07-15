@@ -199,62 +199,60 @@ func TestAbstractTypeValidation(t *testing.T) {
 		// the test case is built inside the subtest so the round tripper
 		// captures the subtest's t: require failures from the request-body
 		// assertion must fail the row, not Goexit the parent's goroutine
-		t.Run(tt.name, func(t *testing.T) {
-			runWithoutError(
-				ExecutionEngineTestCase{
-					schema: schema,
-					operation: func(t *testing.T) graphql.Request {
-						return graphql.Request{
-							Query: query,
-						}
-					},
-					dataSources: []plan.DataSource{
-						mustGraphqlDataSourceConfigurationWithName(
-							t,
-							"abstract-types",
-							"AbstractTypes",
-							mustFactory(t, testNetHttpClient(t, roundTripperTestCase{
-								expectedHost:     "example.com",
-								expectedPath:     "/",
-								expectedBody:     tt.expectedBody,
-								sendResponseBody: responseBody,
-								sendStatusCode:   200,
-							})),
-							&plan.DataSourceMetadata{
-								RootNodes: []plan.TypeField{
-									{
-										TypeName:   "Query",
-										FieldNames: []string{"interface", "nullableInterface", "union", "nullableUnion", "interfaces", "requiredInterfaces"},
-									},
-								},
-								ChildNodes: []plan.TypeField{
-									{TypeName: "Node", FieldNames: []string{"id"}},
-									{TypeName: "AccessibleNode", FieldNames: []string{"id", "friend"}},
-									{TypeName: "SecondNode", FieldNames: []string{"id", "friend"}},
-									{TypeName: "InaccessibleNode", FieldNames: []string{"id"}},
+		t.Run(tt.name, runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: query,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfigurationWithName(
+						t,
+						"abstract-types",
+						"AbstractTypes",
+						mustFactory(t, testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     tt.expectedBody,
+							sendResponseBody: responseBody,
+							sendStatusCode:   200,
+						})),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"interface", "nullableInterface", "union", "nullableUnion", "interfaces", "requiredInterfaces"},
 								},
 							},
-							mustConfiguration(t, graphql_datasource.ConfigurationInput{
-								Fetch: &graphql_datasource.FetchConfiguration{
-									URL:    "https://example.com/",
-									Method: "GET",
+							ChildNodes: []plan.TypeField{
+								{TypeName: "Node", FieldNames: []string{"id"}},
+								{TypeName: "AccessibleNode", FieldNames: []string{"id", "friend"}},
+								{TypeName: "SecondNode", FieldNames: []string{"id", "friend"}},
+								{TypeName: "InaccessibleNode", FieldNames: []string{"id"}},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: serviceSDL,
 								},
-								SchemaConfiguration: mustSchemaConfig(
-									t,
-									&graphql_datasource.FederationConfiguration{
-										Enabled:    true,
-										ServiceSDL: serviceSDL,
-									},
-									serviceSDL,
-								),
-							}),
-						),
-					},
-					expectedResponse: tt.expectedResponse,
+								serviceSDL,
+							),
+						}),
+					),
 				},
-				tt.options...,
-			)(t)
-		})
+				expectedResponse: tt.expectedResponse,
+			},
+			tt.options...,
+		))
 	}
 }
 
