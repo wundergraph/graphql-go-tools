@@ -103,15 +103,13 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 		Path:         v.Path.DotDelimitedString(),
 	}
 
-	if len(v.Ancestors) > 0 {
-		parent := v.Ancestors[len(v.Ancestors)-1]
-		finding.AncestorKind = parent.Kind
-		switch parent.Kind {
-		case ast.NodeKindField:
-			finding.AncestorName = v.operation.FieldNameString(parent.Ref)
-		case ast.NodeKindDirective:
-			finding.AncestorName = v.operation.DirectiveNameString(parent.Ref)
-		}
+	parent := v.Ancestor()
+	finding.AncestorKind = parent.Kind
+	switch parent.Kind {
+	case ast.NodeKindField:
+		finding.AncestorName = v.operation.FieldNameString(parent.Ref)
+	case ast.NodeKindDirective:
+		finding.AncestorName = v.operation.DirectiveNameString(parent.Ref)
 	}
 
 	v.result.InlineArguments = append(v.result.InlineArguments, finding)
