@@ -97,7 +97,7 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 	}
 
 	finding := InlineArgument{
-		ArgumentName: v.operation.ArgumentNameString(ref),
+		ArgumentName: string(v.operation.ArgumentNameBytes(ref)),
 		ValueKind:    valueKind,
 		Position:     v.operation.Arguments[ref].Position,
 		Path:         v.Path.DotDelimitedString(),
@@ -107,9 +107,9 @@ func (v *inlineArgumentsVisitor) EnterArgument(ref int) {
 	finding.AncestorKind = parent.Kind
 	switch parent.Kind {
 	case ast.NodeKindField:
-		finding.AncestorName = v.operation.FieldNameString(parent.Ref)
+		finding.AncestorName = string(v.operation.FieldNameBytes(parent.Ref))
 	case ast.NodeKindDirective:
-		finding.AncestorName = v.operation.DirectiveNameString(parent.Ref)
+		finding.AncestorName = string(v.operation.DirectiveNameBytes(parent.Ref))
 	}
 
 	v.result.InlineArguments = append(v.result.InlineArguments, finding)
