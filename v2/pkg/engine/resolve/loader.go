@@ -719,7 +719,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
 		// First check if this is actually an entity null fetch, instead of a data null fetch.
 		// In this case we return early to avoid adding subgraph errors or merging this into items.
-		if isEmptyEntityFetch(fetchItem, response) {
+		// Multi-entity entry items carry no Fetch (nil) and have no trailing index in their
+		// data path, so the check does not apply to them.
+		if res.multi == nil && isEmptyEntityFetch(fetchItem, response) {
 			return nil
 		}
 

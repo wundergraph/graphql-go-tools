@@ -2,6 +2,7 @@ package postprocess
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -100,6 +101,12 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 		repValue := m.MergeableOperation.Variables[repIndex].Value
 		var reps resolve.InputTemplate
 		resolveInputTemplate(m.Variables, string(repValue[1:len(repValue)-1]), &reps)
+		// The fragment is exactly one $$N$$ token; drop the empty static segments
+		// the blind splitter produces around it so the template matches the shape
+		// of a batch entity fetch item.
+		reps.Segments = slices.DeleteFunc(reps.Segments, func(s resolve.TemplateSegment) bool {
+			return s.SegmentType == resolve.StaticSegmentType && len(s.Data) == 0
+		})
 		reps.SetTemplateOutputToNullOnVariableNull = true
 
 		repPrefix := `"representations_f` + kStr + `":[`
@@ -122,6 +129,10 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 		}
 
 		itemCopy := *group[i].Item
+		// The copied item must not retain the replaced member fetch: it would keep
+		// the merged-away SingleFetch (and its MergeableOperation document) alive
+		// inside the cached plan, and a multi backpointer would make the plan cyclic.
+		itemCopy.Fetch = nil
 		entries[i] = resolve.MultiEntityFetchEntry{
 			Alias: alias,
 			Item:  &itemCopy,
@@ -154,9 +165,9 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 		MergedFetchIDs:       ids,
 		Info:                 mergedFetchInfo(members, pretty),
 	}
-	for i := range entries {
-		entries[i].Item.Fetch = multi
-	}
+	// Entry items deliberately keep a nil Fetch: a backpointer to the multi
+	// would make the plan cyclic (breaking structural plan comparison), and
+	// the per-entry merge path never dereferences it.
 
 	// Replace the first member's node with the multi node, drop the rest, then
 	// repoint dependents from every merged member ID onto the survivor.
@@ -237,12 +248,17 @@ func unionDependencies(members []*resolve.SingleFetch, ids []int) []int {
 	for _, id := range ids {
 		memberSet[id] = struct{}{}
 	}
+	seen := make(map[int]struct{})
 	var deps []int
 	for _, m := range members {
 		for _, dep := range m.DependsOnFetchIDs {
 			if _, isMember := memberSet[dep]; isMember {
 				continue
 			}
+			if _, dup := seen[dep]; dup {
+				continue
+			}
+			seen[dep] = struct{}{}
 			deps = append(deps, dep)
 		}
 	}
