@@ -316,6 +316,7 @@ func (c *Context) clone(ctx context.Context) *Context {
 	cpy.Files = append([]*httpclient.FileUpload(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
+	cpy.InlineArguments = append([]string(nil), c.InlineArguments...)
 
 	if c.RemapVariables != nil {
 		cpy.RemapVariables = make(map[string]string, len(c.RemapVariables))
