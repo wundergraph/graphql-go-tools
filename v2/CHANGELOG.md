@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.12.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.12.0...v2.12.1) (2026-07-15)
+
+
+### Bug Fixes
+
+* resolve buffer not been cleared ([#1590](https://github.com/wundergraph/graphql-go-tools/issues/1590)) ([9b86c3d](https://github.com/wundergraph/graphql-go-tools/commit/9b86c3df092d457ade573dda6ae115ebddf9f5bb))
+
 ## [2.12.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.11.0...v2.12.0) (2026-07-15)
 
 
