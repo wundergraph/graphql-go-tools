@@ -511,7 +511,7 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 		// into a single fragment or just a flattened query.
 		// So it should be safe to rewrite a field.
 		if selectionSetInfo.isInterfaceObject {
-			return !selectionSetInfo.hasTypeNameSelection
+			return !selectionSetInfo.hasTypeNameSelection()
 		}
 	}
 
@@ -578,7 +578,7 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	// When interface is an interface object
 	// When we have fragments on concrete types,
 	// And we do not have __typename selection - we are adding it
-	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection && fieldInfo.hasInlineFragmentsOnObjects {
+	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection() && fieldInfo.hasInlineFragmentsOnObjects {
 		deferID, _ := r.operation.FieldInternalDeferID(fieldRef)
 		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection(deferID)
 		// This branch runs only when the user has no __typename selection on this level

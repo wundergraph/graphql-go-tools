@@ -451,16 +451,13 @@ func (r *fieldSelectionRewriter) typeNameSelection(deferID int) (selectionRef in
 
 func (r *fieldSelectionRewriter) preserveTypeNameSelection(selectionSetInfo selectionSetInfo, selectionRefs *[]int) {
 	// we should preserve __typename if it was in the original query as it is explicitly requested
-	if !selectionSetInfo.hasTypeNameSelection {
+	if !selectionSetInfo.hasTypeNameSelection() {
 		return
 	}
 
-	selectionRef, fieldRef := r.typeNameSelection(selectionSetInfo.typenameFieldDeferId)
-	if selectionSetInfo.typenameFieldRef != ast.InvalidRef {
-		// the recreated __typename replaces the original one - record it as a copy
-		r.copyLog = append(r.copyLog, refPair{from: selectionSetInfo.typenameFieldRef, to: fieldRef})
-	}
-	*selectionRefs = append(*selectionRefs, selectionRef)
+	// copying the original selection preserves its directives (e.g. defer) and
+	// records provenance automatically via the OnCopyField hook
+	*selectionRefs = append(*selectionRefs, r.operation.CopySelection(selectionSetInfo.typenameSelectionRef))
 }
 
 func (r *fieldSelectionRewriter) fieldTypeNameFromUpstreamSchema(fieldRef int, enclosingTypeName ast.ByteSlice) (typeName string, ok bool) {

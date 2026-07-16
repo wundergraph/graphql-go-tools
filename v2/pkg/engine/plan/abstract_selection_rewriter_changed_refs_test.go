@@ -218,7 +218,7 @@ func TestNodeSelectionVisitor_UpdateSkipFieldRefs(t *testing.T) {
 }
 
 // TestFieldSelectionRewriter_ChangedFieldRefs_UnionTypename verifies that an explicitly
-// requested __typename recreated by a union rewrite keeps its provenance -
+// requested __typename copied by a union rewrite keeps its provenance -
 // a planner-added skipped __typename must stay skipped after a rewrite recreates it.
 func TestFieldSelectionRewriter_ChangedFieldRefs_UnionTypename(t *testing.T) {
 	definition := `
@@ -259,7 +259,7 @@ func TestFieldSelectionRewriter_ChangedFieldRefs_UnionTypename(t *testing.T) {
 	`
 
 	// refs before: 0 - __typename, 1 - id in B, 2 - id in C, 3 - unodes
-	// refs after: 4 - recreated __typename, 5 - id in B
+	// refs after: 4 - copied __typename, 5 - id in B
 	operation := `query { unodes { __typename ... on B { id } ... on C { id } } }`
 	expectedOperation := `query {
 		unodes {
@@ -308,7 +308,7 @@ func TestFieldSelectionRewriter_ChangedFieldRefs_UnionTypename(t *testing.T) {
 		1: {5},
 	}, result.changedFieldRefs)
 	assert.Equal(t, map[int][]int{
-		4: {0}, // recreated __typename inherits the origin of the original __typename: here ref 0 is user-requested, so ref 4 stays visible; had ref 0 been a planner-added skipped field, ref 4 would become skipped
+		4: {0}, // copied __typename inherits the origin of the original __typename: here ref 0 is user-requested, so ref 4 stays visible; had ref 0 been a planner-added skipped field, ref 4 would become skipped
 		5: {1},
 	}, result.fieldRefOrigins)
 

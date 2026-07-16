@@ -41,11 +41,10 @@ the origin is locally known:
 1. **Copy.** `createFragmentSelection` copies original selections via
    `ast.Document.CopySelection`, which funnels every field through
    `Document.CopyField` — a single choke point. The (originalRef, copyRef)
-   pair is exact at that moment.
-2. **Recreate.** `preserveTypeNameSelection` re-creates an explicitly requested
-   `__typename` as a fresh field. The original `__typename` field ref is known
-   at the call site.
-3. **Synthesize.** `typeNameSelection` creates a `__typename` with no original
+   pair is exact at that moment. `preserveTypeNameSelection` copies an
+   explicitly requested `__typename` through the same choke point, which also
+   preserves its directives (e.g. defer) verbatim.
+2. **Synthesize.** `typeNameSelection` creates a `__typename` with no original
    (empty selection set fallback, interface-object case). The rewriter already
    appends these to `skipFieldRefs` itself; no mapping is needed.
 
@@ -87,7 +86,7 @@ callbacks are nil outside the rewriter's window.
 `fieldSelectionRewriter` gains two logs:
 
 ```go
-copyLog  []refPair // (originalRef -> newRef): CopyField hook + preserveTypeNameSelection
+copyLog  []refPair // (originalRef -> newRef): CopyField hook, chronological
 mergeLog []refPair // (removedRef -> survivorRef): MergeFieldsDefer hook, chronological
 ```
 
@@ -95,10 +94,11 @@ mergeLog []refPair // (removedRef -> survivorRef): MergeFieldsDefer hook, chrono
   them with `defer`. (Copies happen during `rewriteXxxSelection`; merges happen
   during the normalizer run inside `replaceFieldSelections` — both inside the
   window. The needs-rewrite checks perform neither.)
-- `preserveTypeNameSelection` appends `(originalTypenameFieldRef, newFieldRef)`
-  to `copyLog` directly. To know the original ref, `selectionSetInfo` gains
-  `typenameFieldRef int` (populated in `selectionSetFieldSelections`,
-  `ast.InvalidRef` when absent).
+- `preserveTypeNameSelection` copies the original `__typename` selection via
+  `CopySelection`, so its provenance is recorded by the hook like any other
+  copy and its directives survive verbatim. To know what to copy,
+  `selectionSetInfo` gains `typenameSelectionRef int` (populated in
+  `selectionSetFieldSelections`, `ast.InvalidRef` when absent).
 
 Copies always source from pre-rewrite refs (selection infos are collected
 before any mutation), so the copy log never chains. Merges can chain
