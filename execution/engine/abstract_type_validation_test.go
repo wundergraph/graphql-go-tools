@@ -21,14 +21,12 @@ func TestAbstractTypeValidation(t *testing.T) {
 		fieldName        string
 		selection        string
 		returnedTypeName string
-		clientSDL        string // overrides the shared client schema when set
 		serviceSDL       string
 		query            string // overrides the generated single-field query when set
 		responseBody     string // overrides the generated subgraph response when set
 		expectedBody     string // asserts the exact subgraph request body when set
 		options          []executionTestOptions
 		expectedResponse string
-		expectedError    string // expects Execute to fail before resolving when set
 	}{
 		{
 			name:             "interface accepts an implementation",
@@ -197,16 +195,6 @@ func TestAbstractTypeValidation(t *testing.T) {
 			expectedResponse: `{"errors":[{"message":"Subgraph 'AbstractTypes' returned an invalid value for __typename field.","path":["interfaces",1],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"interfaces":[{"id":"1"},null]}}`,
 		},
 		{
-			// in a contract deployment the client-facing schema no longer contains
-			// inaccessible types at all, so naming one in a fragment must fail
-			// validation before any subgraph is contacted
-			name:          "fragment on an inaccessible type is rejected before execution",
-			fieldName:     "nullableUnion",
-			clientSDL:     abstractTypeValidationContractSDL,
-			query:         `query { nullableUnion { ... on AccessibleNode { id } ... on InaccessibleNode { id } } }`,
-			expectedError: `Unknown type "InaccessibleNode"., locations: [], path: [query,nullableUnion,$1InaccessibleNode]`,
-		},
-		{
 			name:             "union rejects an unknown member with value completion",
 			fieldName:        "nullableUnion",
 			selection:        "__typename ... on AccessibleNode { id }",
@@ -225,12 +213,6 @@ func TestAbstractTypeValidation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		clientSchema := schema
-		if tt.clientSDL != "" {
-			var err error
-			clientSchema, err = graphql.NewSchemaFromString(tt.clientSDL)
-			require.NoError(t, err)
-		}
 		serviceSDL := tt.serviceSDL
 		if serviceSDL == "" {
 			serviceSDL = abstractTypeValidationSDL
@@ -244,74 +226,98 @@ func TestAbstractTypeValidation(t *testing.T) {
 			responseBody = `{"data":{"` + tt.fieldName + `":{"__typename":"` + tt.returnedTypeName + `","id":"1"}}}`
 		}
 
-		runner := func(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
-			if tt.expectedError != "" {
-				return runWithAndCompareError(testCase, tt.expectedError, options...)
-			}
-			return runWithoutError(testCase, options...)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		// the test case is built inside the subtest so the round tripper
-		// captures the subtest's t: require failures from the request-body
-		// assertion must fail the row, not Goexit the parent's goroutine
-		t.Run(tt.name, runner(
-			ExecutionEngineTestCase{
-				schema: clientSchema,
+			tc := ExecutionEngineTestCase{
+				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
 						Query: query,
 					}
 				},
 				dataSources: []plan.DataSource{
-					mustGraphqlDataSourceConfigurationWithName(
-						t,
-						"abstract-types",
-						"AbstractTypes",
-						mustFactory(t, testNetHttpClient(t, roundTripperTestCase{
-							expectedHost:     "example.com",
-							expectedPath:     "/",
-							expectedBody:     tt.expectedBody,
-							sendResponseBody: responseBody,
-							sendStatusCode:   200,
-						})),
-						&plan.DataSourceMetadata{
-							RootNodes: []plan.TypeField{
-								{
-									TypeName:   "Query",
-									FieldNames: []string{"interface", "nullableInterface", "union", "nullableUnion", "interfaces", "requiredInterfaces"},
-								},
-							},
-							ChildNodes: []plan.TypeField{
-								{TypeName: "Node", FieldNames: []string{"id"}},
-								{TypeName: "AccessibleNode", FieldNames: []string{"id", "friend"}},
-								{TypeName: "SecondNode", FieldNames: []string{"id", "friend"}},
-								{TypeName: "InaccessibleNode", FieldNames: []string{"id"}},
-							},
-						},
-						mustConfiguration(t, graphql_datasource.ConfigurationInput{
-							Fetch: &graphql_datasource.FetchConfiguration{
-								URL:    "https://example.com/",
-								Method: "GET",
-							},
-							SchemaConfiguration: mustSchemaConfig(
-								t,
-								&graphql_datasource.FederationConfiguration{
-									Enabled:    true,
-									ServiceSDL: serviceSDL,
-								},
-								serviceSDL,
-							),
-						}),
-					),
+					abstractTypeValidationDataSource(t, serviceSDL, tt.expectedBody, responseBody),
 				},
 				expectedResponse: tt.expectedResponse,
-			},
-			tt.options...,
-		))
+			}
+
+			runWithoutError(tc, tt.options...)(t)
+		})
 	}
+
+	// in a contract deployment the client-facing schema no longer contains
+	// inaccessible types at all, so naming one in a fragment must fail
+	// validation before any subgraph is contacted; the subgraph SDL still
+	// defines the type, proving the operation is checked against the contract
+	// schema rather than the subgraph schema
+	t.Run("fragment on an inaccessible type is rejected before execution", func(t *testing.T) {
+		t.Parallel()
+
+		contractSchema, err := graphql.NewSchemaFromString(abstractTypeValidationContractSDL)
+		require.NoError(t, err)
+
+		runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: contractSchema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query { nullableUnion { ... on AccessibleNode { id } ... on InaccessibleNode { id } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					abstractTypeValidationDataSource(t, abstractTypeValidationSDL, "", ""),
+				},
+			},
+			`Unknown type "InaccessibleNode"., locations: [], path: [query,nullableUnion,$1InaccessibleNode]`,
+		)(t)
+	})
 }
 
-const abstractTypeValidationSDL = `
+func abstractTypeValidationDataSource(t *testing.T, serviceSDL, expectedBody, responseBody string) plan.DataSource {
+	return mustGraphqlDataSourceConfigurationWithName(
+		t,
+		"abstract-types",
+		"AbstractTypes",
+		mustFactory(t, testNetHttpClient(t, roundTripperTestCase{
+			expectedHost:     "example.com",
+			expectedPath:     "/",
+			expectedBody:     expectedBody,
+			sendResponseBody: responseBody,
+			sendStatusCode:   200,
+		})),
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"interface", "nullableInterface", "union", "nullableUnion", "interfaces", "requiredInterfaces"},
+				},
+			},
+			ChildNodes: []plan.TypeField{
+				{TypeName: "Node", FieldNames: []string{"id"}},
+				{TypeName: "AccessibleNode", FieldNames: []string{"id", "friend"}},
+				{TypeName: "SecondNode", FieldNames: []string{"id", "friend"}},
+				{TypeName: "InaccessibleNode", FieldNames: []string{"id"}},
+			},
+		},
+		mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(
+				t,
+				&graphql_datasource.FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: serviceSDL,
+				},
+				serviceSDL,
+			),
+		}),
+	)
+}
+
+const abstractTypeValidationBaseSDL = `
 	type Query {
 		interface: Node!
 		nullableInterface: Node
@@ -334,7 +340,9 @@ const abstractTypeValidationSDL = `
 		id: ID!
 		friend: Node
 	}
+`
 
+const abstractTypeValidationSDL = abstractTypeValidationBaseSDL + `
 	type InaccessibleNode implements Node @inaccessible {
 		id: ID!
 	}
@@ -344,30 +352,7 @@ const abstractTypeValidationSDL = `
 
 // abstractTypeValidationSDL as a client would see it in a contract deployment:
 // the inaccessible type is removed entirely rather than marked with a directive
-const abstractTypeValidationContractSDL = `
-	type Query {
-		interface: Node!
-		nullableInterface: Node
-		union: Result!
-		nullableUnion: Result
-		interfaces: [Node]
-		requiredInterfaces: [Node!]
-	}
-
-	interface Node {
-		id: ID!
-	}
-
-	type AccessibleNode implements Node {
-		id: ID!
-		friend: Node
-	}
-
-	type SecondNode implements Node {
-		id: ID!
-		friend: Node
-	}
-
+const abstractTypeValidationContractSDL = abstractTypeValidationBaseSDL + `
 	union Result = AccessibleNode
 `
 
