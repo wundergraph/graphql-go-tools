@@ -581,9 +581,11 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection && fieldInfo.hasInlineFragmentsOnObjects {
 		deferID, _ := r.operation.FieldInternalDeferID(fieldRef)
 		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection(deferID)
-		// the synthesized __typename intentionally has no copyLog entry - it has no original field.
-		// It is pre-registered as skipped; if normalization later dedup-merges a preserved
-		// user-requested __typename into it, updateSkipFieldRefs unskips it via its recorded origins.
+		// This branch runs only when the user has no __typename selection on this level
+		// (hasTypeNameSelection is false), so there is no original field to preserve -
+		// the synthesized __typename intentionally has no copyLog entry.
+		// It is pre-registered as skipped; if normalization later dedup-merges into it a user-requested
+		// __typename preserved from a nested fragment, updateSkipFieldRefs unskips it via its recorded origins.
 		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}

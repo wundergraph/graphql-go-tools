@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Working directory for all commands: `/Users/neyasut/projects/wundergraph/gqt-router152/v2` (git worktree, branch `sergiy/router-152-fix-override-of-response-fields-with-a-skipped-fields`).
+- Working directory for all commands: the repository root (branch `sergiy/router-152-fix-override-of-response-fields-with-a-skipped-fields`); test commands run from the `v2/` module directory.
 - **Use the Edit/Write tools for ALL file modifications. Never use python, sed, awk, or any script to edit files.**
 - Go files use tabs. When an Edit fails with "String not found", re-read the exact lines first; start `old_string` from within a line (after leading whitespace) when anchoring. Run `gofmt -w <file>` after editing a file if indentation of inserted code used spaces.
 - Run tests with `gotestsum --format=short -- <packages> -run <TestName>` — never bare `go test`.
@@ -108,7 +108,7 @@ func TestDocumentFieldHooks(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/ast/... -run TestDocumentFieldHooks`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/ast/... -run TestDocumentFieldHooks`
 Expected: compile FAIL — `doc.OnCopyField undefined`.
 
 - [ ] **Step 3: Add the callback fields to Document**
@@ -216,18 +216,18 @@ func (d *Document) MergeFieldsDefer(left, right int) {
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/ast/... -run TestDocumentFieldHooks`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/ast/... -run TestDocumentFieldHooks`
 Expected: PASS (4 subtests).
 
 - [ ] **Step 6: Run the whole ast package**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/ast/...`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/ast/...`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/neyasut/projects/wundergraph/gqt-router152 && git add v2/pkg/ast/ast.go v2/pkg/ast/ast_field.go v2/pkg/ast/ast_field_hooks_test.go && git commit -m "feat(ast): add OnCopyField and OnMergeFields observation hooks to Document"
+git add v2/pkg/ast/ast.go v2/pkg/ast/ast_field.go v2/pkg/ast/ast_field_hooks_test.go && git commit -m "feat(ast): add OnCopyField and OnMergeFields observation hooks to Document"
 ```
 
 ---
@@ -317,7 +317,7 @@ func TestBuildRefMappings(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run TestBuildRefMappings`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run TestBuildRefMappings`
 Expected: compile FAIL — `undefined: buildRefMappings` / `undefined: refPair`.
 
 - [ ] **Step 3: Write the implementation**
@@ -387,13 +387,13 @@ func appendUniqueRef(refs []int, ref int) []int {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run TestBuildRefMappings`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run TestBuildRefMappings`
 Expected: PASS (6 subtests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/neyasut/projects/wundergraph/gqt-router152 && git add v2/pkg/engine/plan/abstract_selection_rewriter_provenance.go v2/pkg/engine/plan/abstract_selection_rewriter_provenance_test.go && git commit -m "feat(plan): add provenance log composition for the abstract selection rewriter"
+git add v2/pkg/engine/plan/abstract_selection_rewriter_provenance.go v2/pkg/engine/plan/abstract_selection_rewriter_provenance_test.go && git commit -m "feat(plan): add provenance log composition for the abstract selection rewriter"
 ```
 
 ---
@@ -605,7 +605,7 @@ func TestFieldSelectionRewriter_ChangedFieldRefs_UnionTypename(t *testing.T) {
 
 - [ ] **Step 2: Run the test to verify current expectations fail**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run 'TestFieldSelectionRewriter_ChangedFieldRefs'`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run 'TestFieldSelectionRewriter_ChangedFieldRefs'`
 Expected: FAIL — the three updated subtests fail on the removed `4: {4}` entries (old implementation still emits them); the union test may fail on maps.
 
 - [ ] **Step 3: Add provenance logs to the rewriter struct**
@@ -873,26 +873,26 @@ func (r *fieldSelectionRewriter) preserveTypeNameSelection(selectionSetInfo sele
 
 - [ ] **Step 9: Build and run the rewriter tests**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && go build ./... && go vet ./pkg/engine/plan/ ./pkg/ast/`
+Run: `cd v2 && go build ./... && go vet ./pkg/engine/plan/ ./pkg/ast/`
 Expected: clean build. If imports were over- or under-trimmed in Step 6, fix them now.
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run 'TestFieldSelectionRewriter'`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run 'TestFieldSelectionRewriter'`
 Expected: PASS, including all `TestFieldSelectionRewriter_ChangedFieldRefs*` tests.
 
 - [ ] **Step 10: Run the full plan package**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/plan/...`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/plan/...`
 Expected: PASS. `TestNodeSelectionVisitor_UpdateSkipFieldRefs` still passes — the current visitor code handles the new maps (the unskip branch just never triggers); it is simplified in Task 4.
 
 - [ ] **Step 11: gofmt and commit**
 
 ```bash
-cd /Users/neyasut/projects/wundergraph/gqt-router152 && gofmt -l v2/pkg/engine/plan/ v2/pkg/ast/
+gofmt -l v2/pkg/engine/plan/ v2/pkg/ast/
 ```
 Expected: no output (fix any listed file with `gofmt -w`).
 
 ```bash
-cd /Users/neyasut/projects/wundergraph/gqt-router152 && git add -A v2/pkg/engine/plan/ && git commit -m "refactor(plan): replace path-matching ref tracking with copy/merge provenance in the abstract rewriter"
+git add -A v2/pkg/engine/plan/ && git commit -m "refactor(plan): replace path-matching ref tracking with copy/merge provenance in the abstract rewriter"
 ```
 
 ---
@@ -954,7 +954,7 @@ func TestNodeSelectionVisitor_UpdateSkipFieldRefs(t *testing.T) {
 
 - [ ] **Step 2: Run the test to confirm it passes against the current implementation**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run TestNodeSelectionVisitor_UpdateSkipFieldRefs`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run TestNodeSelectionVisitor_UpdateSkipFieldRefs`
 Expected: PASS (this is a behavior-preserving simplification for the reachable inputs; the test pins the contract before the code shrinks).
 
 - [ ] **Step 3: Simplify the implementation**
@@ -1050,13 +1050,13 @@ func (c *nodeSelectionVisitor) updateSkipFieldRefs(fieldRefOrigins map[int][]int
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run TestNodeSelectionVisitor_UpdateSkipFieldRefs`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/plan/... -run TestNodeSelectionVisitor_UpdateSkipFieldRefs`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/neyasut/projects/wundergraph/gqt-router152 && git add v2/pkg/engine/plan/node_selection_visitor.go v2/pkg/engine/plan/abstract_selection_rewriter_changed_refs_test.go && git commit -m "refactor(plan): drop the impossible unskip branch from updateSkipFieldRefs"
+git add v2/pkg/engine/plan/node_selection_visitor.go v2/pkg/engine/plan/abstract_selection_rewriter_changed_refs_test.go && git commit -m "refactor(plan): drop the impossible unskip branch from updateSkipFieldRefs"
 ```
 
 ---
@@ -1067,28 +1067,28 @@ cd /Users/neyasut/projects/wundergraph/gqt-router152 && git add v2/pkg/engine/pl
 
 - [ ] **Step 1: Run the full plan, ast, astnormalization packages**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/plan/... ./pkg/ast/... ./pkg/astnormalization/...`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/plan/... ./pkg/ast/... ./pkg/astnormalization/...`
 Expected: PASS.
 
 - [ ] **Step 2: Run the graphql datasource federation suite (contains the ROUTER-152 regression tests added on this branch)**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/datasource/graphql_datasource/...`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/datasource/graphql_datasource/...`
 Expected: PASS.
 
 - [ ] **Step 3: Run the remaining engine packages for regressions**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152/v2 && gotestsum --format=short -- ./pkg/engine/... ./pkg/astminify/...`
+Run: `cd v2 && gotestsum --format=short -- ./pkg/engine/... ./pkg/astminify/...`
 Expected: PASS (pre-existing failures on master are acceptable only if reproducible with `git stash` — none are known on this branch).
 
 - [ ] **Step 4: gofmt check over all touched packages**
 
-Run: `cd /Users/neyasut/projects/wundergraph/gqt-router152 && gofmt -l v2/pkg/ast/ v2/pkg/engine/plan/`
+Run: `gofmt -l v2/pkg/ast/ v2/pkg/engine/plan/`
 Expected: no output.
 
 - [ ] **Step 5: Commit any remaining changes (design doc supersession)**
 
 ```bash
-cd /Users/neyasut/projects/wundergraph/gqt-router152 && git add docs/superpowers/ && git commit -m "docs: supersede scope-chain design with ref provenance design"
+git add docs/superpowers/ && git commit -m "docs: supersede scope-chain design with ref provenance design"
 ```
 
 Do NOT push.

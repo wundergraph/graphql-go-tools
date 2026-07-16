@@ -126,13 +126,17 @@ func TestFieldSelectionRewriter_ChangedFieldRefs(t *testing.T) {
 			map[int][]int{
 				5: {0}, // id in A originates only from the user field - must not inherit skip status from ref 2
 				6: {1},
-				7: {2}, // id in B originates only from the planner field - stays skipped
+				7: {2}, // the new id inside the fragment on B originates only from the planner-added id (old ref 2) - stays skipped
 			},
 		)
 	})
 
 	t.Run("user field on interface level - duplicated field in fragment", func(t *testing.T) {
-		// simulates: user requested id for all nodes; planner added a skipped key id inside the B fragment.
+		// simulates: user requested id for all nodes; planner added a skipped required id inside the B fragment.
+		// Such a duplicate comes from a @requires fieldset with inline fragments
+		// (see TestGraphQLDataSourceFederation_RequiresWithAbstractFragments): the required field is added
+		// inside the fragment on B - a different selection set than the user's interface level id,
+		// so required fields duplicate tracking does not collapse them.
 		// refs before: 0 - id on interface level, 1 - externalField in B, 2 - id in B, 3 - id in C, 4 - nodes
 		// refs after: 5 - id in A, 6 - id in B, 7 - externalField in B
 		run(t,
@@ -304,7 +308,7 @@ func TestFieldSelectionRewriter_ChangedFieldRefs_UnionTypename(t *testing.T) {
 		1: {5},
 	}, result.changedFieldRefs)
 	assert.Equal(t, map[int][]int{
-		4: {0}, // recreated __typename inherits the origin of the original __typename
+		4: {0}, // recreated __typename inherits the origin of the original __typename: here ref 0 is user-requested, so ref 4 stays visible; had ref 0 been a planner-added skipped field, ref 4 would become skipped
 		5: {1},
 	}, result.fieldRefOrigins)
 

@@ -859,9 +859,11 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 }
 
 // updateSkipFieldRefs updates the skipFieldsRefs list after a rewrite of an abstract field selection set.
-// A field ref created by the rewrite should be skipped only when all original field refs
-// it represents were skipped. When at least one origin is a user-requested field,
-// the field must stay in the response.
+// Several original fields can collapse into a single rewritten field: e.g. a user-requested id on the
+// interface level and a planner-added skipped id inside a fragment on B are both copied into the fragment
+// on B and dedup-merged into one field ref during normalization. Such a field ref should be skipped only
+// when ALL original field refs it represents were skipped - when at least one origin is a user-requested
+// field, the field must stay in the response.
 // Keys of fieldRefOrigins are always freshly created field refs, but a fresh ref can already be
 // present in skipFieldsRefs: the rewriter pre-registers its synthesized skipped __typename, and
 // during normalization such a ref can absorb a preserved user-requested __typename via a dedup
