@@ -29,6 +29,11 @@ package graphql_datasource
 // behind a ProcessorOption, add that option in `router62TestProcessor`.
 
 import (
+	"bytes"
+	"context"
+	"io"
+	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,6 +42,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -50,9 +56,14 @@ const (
 	router62ReviewsService  = "reviews.service"  // extends Employee (rating)
 )
 
-func TestGraphQLDataSourceFederation_BatchEntityResolution_ROUTER62(t *testing.T) {
+// router62Fixture builds the shared 3-subgraph federation setup (accounts /
+// products / reviews) used by every ROUTER-62 test. products is the "shared"
+// provider subgraph the merge feature must not call more than once.
+func router62Fixture(t *testing.T) (definition string, config plan.Configuration) {
+	t.Helper()
+
 	// Supergraph schema (what the client sees).
-	definition := `
+	definition = `
 		type Query {
 			employees: [Employee!]!
 			firstEmployee: Employee
@@ -170,10 +181,14 @@ func TestGraphQLDataSourceFederation_BatchEntityResolution_ROUTER62(t *testing.T
 		}),
 	)
 
-	planConfiguration := plan.Configuration{
+	return definition, plan.Configuration{
 		DataSources:                  []plan.DataSource{accountsDS, productsDS, reviewsDS},
 		DisableResolveFieldPositions: true,
 	}
+}
+
+func TestGraphQLDataSourceFederation_BatchEntityResolution_ROUTER62(t *testing.T) {
+	definition, planConfiguration := router62Fixture(t)
 
 	cases := []struct {
 		name          string
@@ -319,10 +334,10 @@ func TestGraphQLDataSourceFederation_BatchEntityResolution_ROUTER62(t *testing.T
 	}
 }
 
-// planFederationFetchTree runs the same plan+post-process pipeline the router
-// uses and returns the resulting fetch tree. Fetch info is enabled so each
-// fetch can be attributed to its subgraph.
-func planFederationFetchTree(t *testing.T, definition, operation, operationName, variables string, config plan.Configuration) *resolve.FetchTreeNode {
+// planFederationSyncPlan runs the same plan+post-process pipeline the router
+// uses and returns the full synchronous response plan. Fetch info is enabled so
+// each fetch can be attributed to its subgraph.
+func planFederationSyncPlan(t *testing.T, definition, operation, operationName, variables string, config plan.Configuration) *plan.SynchronousResponsePlan {
 	t.Helper()
 
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
@@ -359,7 +374,14 @@ func planFederationFetchTree(t *testing.T, definition, operation, operationName,
 
 	syncPlan, ok := rawPlan.(*plan.SynchronousResponsePlan)
 	require.Truef(t, ok, "expected *plan.SynchronousResponsePlan, got %T", rawPlan)
-	return syncPlan.Response.Fetches
+	return syncPlan
+}
+
+// planFederationFetchTree returns just the post-processed fetch tree, for the
+// node-counting tests.
+func planFederationFetchTree(t *testing.T, definition, operation, operationName, variables string, config plan.Configuration) *resolve.FetchTreeNode {
+	t.Helper()
+	return planFederationSyncPlan(t, definition, operation, operationName, variables, config).Response.Fetches
 }
 
 // router62TestProcessor is the single edit point for wiring the merge step.
@@ -418,4 +440,201 @@ func fetchSubgraphName(item *resolve.FetchItem) string {
 		return info.DataSourceName
 	}
 	return ""
+}
+
+// ROUTER-62 — end-to-end guard for the merged-request ASSEMBLY.
+//
+// The node-counting tests above (countRequestsPerSubgraph) prove the planner
+// DECIDES to merge, but a post-processor that only collapses node structure
+// (correct FetchInfo, rewired dependency IDs) would satisfy them without ever
+// rendering a merged request. The resolve-layer tests
+// (resolve_federation_batch_entity_resolution_test.go) prove the loader can
+// demultiplex a merged node, but they feed it HAND-AUTHORED request bytes.
+//
+// Nothing connects the two: the risky part — assembling ONE aliased _entities
+// document (f1:/f2:) with isolated per-alias representation variables out of N
+// independently-planned _entities query strings (each baked as static text in
+// FetchConfiguration.Input) — is unguarded. This test closes that seam. It
+// plans + post-processes a real operation, then EXECUTES the planner-produced
+// tree through the resolver with each subgraph's DataSource swapped for a
+// recorder, and asserts the exact request bytes the shared subgraph receives.
+//
+// RED until both the merge post-processor and the loader's FetchKindMultiEntity
+// handling exist: today products gets two separate _entities requests, so the
+// "exactly one request" assertion fails. Green only when the assembled bytes
+// are byte-correct — the guarantee node-counting cannot give.
+func TestGraphQLDataSourceFederation_BatchEntityResolution_ROUTER62_MergedRequestBytes(t *testing.T) {
+	definition, planConfiguration := router62Fixture(t)
+
+	// Cross-type: firstEmployee.products (Employee) + store.reviewScore (Store),
+	// both resolved by products -> must become ONE aliased _entities request.
+	const operation = `query CrossType { firstEmployee { products } store { reviewScore } }`
+
+	// Canned per-subgraph responses. accounts is the root fetch (plain data);
+	// products is the merged, aliased shape the single request must return.
+	cannedResponses := map[string]string{
+		router62AccountsService: `{"data":{"firstEmployee":{"__typename":"Employee","id":"1"},"store":{"__typename":"Store","id":"s1"}}}`,
+		router62ProductsService: `{"data":{"f1":[{"__typename":"Employee","products":["p1","p2"]}],"f2":[{"__typename":"Store","reviewScore":5}]}}`,
+	}
+
+	output, requestsBySubgraph := resolveFederationPlan(t, definition, operation, "CrossType", "", planConfiguration, cannedResponses)
+
+	// TARGET (best-guess) merged request the products subgraph must receive: one
+	// aliased _entities document with isolated representation variables. The
+	// alias/variable naming (f1 / representations_f1) is a guess — adjust to the
+	// scheme the merge step emits. The INVARIANTS are the request COUNT (one) and
+	// the resolved OUTPUT below, plus that the single request is one aliased
+	// _entities document covering BOTH selections.
+	// (Per-fragment __typename mirrors the real planned selection sets the harness
+	// captures for the un-merged case: `... on Employee {__typename products}`.)
+	const wantMergedRequest = `{"method":"POST","url":"http://products.service","body":{` +
+		`"query":"query($representations_f1: [_Any!]!, $representations_f2: [_Any!]!){` +
+		`f1: _entities(representations: $representations_f1){... on Employee {__typename products}} ` +
+		`f2: _entities(representations: $representations_f2){... on Store {__typename reviewScore}}}",` +
+		`"variables":{` +
+		`"representations_f1":[{"__typename":"Employee","id":"1"}],` +
+		`"representations_f2":[{"__typename":"Store","id":"s1"}]}}}`
+
+	const wantOutput = `{"data":{"firstEmployee":{"products":["p1","p2"]},"store":{"reviewScore":5}}}`
+
+	productsRequests := requestsBySubgraph[router62ProductsService]
+
+	// (1) Design-agnostic invariant: AC1 measured at the WIRE, not by counting
+	// nodes. This is what the count-only tests cannot see and what fails RED today.
+	require.Lenf(t, productsRequests, 1,
+		"products must receive exactly ONE merged request; got %d:\n%v",
+		len(productsRequests), productsRequests)
+
+	// (2) The precise query-assembly guard: the single request's bytes.
+	assert.Equal(t, wantMergedRequest, productsRequests[0],
+		"the merged request must be one aliased _entities document with isolated per-alias variables")
+
+	// (3) End-to-end demultiplex correctness.
+	assert.Equal(t, wantOutput, output)
+}
+
+// resolveFederationPlan plans + post-processes the operation exactly like
+// planFederationFetchTree, then EXECUTES the planner-produced response tree
+// through the resolver. Every request-producing fetch has its DataSource
+// swapped for a recorder, so the exact upstream request bytes the loader renders
+// are captured per subgraph (no HTTP, deterministic). Returns the resolved
+// client output plus, keyed by subgraph name, every request body that subgraph
+// received.
+//
+// This is the only harness that connects the post-processor's output to the
+// loader's input — the assembly of the request is done by the loader rendering
+// the post-processor's InputTemplate, which is exactly what this captures.
+func resolveFederationPlan(t *testing.T, definition, operation, operationName, variables string, config plan.Configuration, cannedResponses map[string]string) (output string, requestsBySubgraph map[string][]string) {
+	t.Helper()
+
+	syncPlan := planFederationSyncPlan(t, definition, operation, operationName, variables, config)
+
+	rec := &recordingDataSources{responses: cannedResponses, requests: map[string][]string{}}
+	swapFetchDataSources(t, syncPlan.Response.Fetches, rec)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	r := resolve.New(ctx, resolve.ResolverOptions{
+		MaxConcurrency:          1024,
+		PropagateSubgraphErrors: true,
+		AsyncErrorWriter:        noopAsyncErrorWriter{},
+	})
+
+	buf := &bytes.Buffer{}
+	_, err := r.ResolveGraphQLResponse(resolve.NewContext(ctx), syncPlan.Response, nil, buf)
+	// Non-fatal: in the RED state the entity fetches receive a merged-shaped
+	// response they cannot parse, which surfaces as field errors, not a Go error.
+	// Keep going so the request-count assertion (the intended RED signal) is reached.
+	assert.NoError(t, err)
+
+	return buf.String(), rec.snapshot()
+}
+
+// swapFetchDataSources replaces the DataSource of every request-producing fetch
+// in the tree with a recorder for that fetch's subgraph.
+func swapFetchDataSources(t *testing.T, root *resolve.FetchTreeNode, rec *recordingDataSources) {
+	t.Helper()
+	var walk func(n *resolve.FetchTreeNode)
+	walk = func(n *resolve.FetchTreeNode) {
+		if n == nil {
+			return
+		}
+		if n.Item != nil && n.Item.Fetch != nil {
+			setFetchDataSource(t, n.Item.Fetch, rec.dataSourceFor(fetchSubgraphName(n.Item)))
+		}
+		for _, c := range n.ChildNodes {
+			walk(c)
+		}
+	}
+	walk(root)
+}
+
+// setFetchDataSource points a fetch at the given DataSource. The field location
+// differs per fetch kind. An unhandled kind is fatal so a future request-
+// producing node can't silently escape recording (and skew the request count).
+func setFetchDataSource(t *testing.T, fetch resolve.Fetch, ds resolve.DataSource) {
+	t.Helper()
+	switch f := fetch.(type) {
+	case *resolve.SingleFetch:
+		f.FetchConfiguration.DataSource = ds
+	case *resolve.EntityFetch:
+		f.DataSource = ds
+	case *resolve.BatchEntityFetch:
+		f.DataSource = ds
+	case *resolve.MultiEntityFetch:
+		f.DataSource = ds
+	default:
+		t.Fatalf("router62: unhandled fetch kind %T in resolveFederationPlan; add a DataSource-swap case", fetch)
+	}
+}
+
+// recordingDataSources hands out per-subgraph recorders and collects every
+// request body each subgraph receives. Concurrency-safe: parallel fetch nodes
+// call Load concurrently.
+type recordingDataSources struct {
+	mu        sync.Mutex
+	responses map[string]string
+	requests  map[string][]string
+}
+
+func (r *recordingDataSources) dataSourceFor(name string) resolve.DataSource {
+	return &recordingDataSource{parent: r, name: name}
+}
+
+func (r *recordingDataSources) record(name string, input []byte) []byte {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests[name] = append(r.requests[name], string(input))
+	return []byte(r.responses[name])
+}
+
+func (r *recordingDataSources) snapshot() map[string][]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make(map[string][]string, len(r.requests))
+	for k, v := range r.requests {
+		out[k] = append([]string(nil), v...)
+	}
+	return out
+}
+
+type recordingDataSource struct {
+	parent *recordingDataSources
+	name   string
+}
+
+func (d *recordingDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	return d.parent.record(d.name, input), nil
+}
+
+func (d *recordingDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return d.parent.record(d.name, input), nil
+}
+
+// noopAsyncErrorWriter satisfies resolve.ResolverOptions.AsyncErrorWriter for
+// the synchronous execution path exercised here.
+type noopAsyncErrorWriter struct{}
+
+func (noopAsyncErrorWriter) WriteError(ctx *resolve.Context, err error, res *resolve.GraphQLResponse, w io.Writer) {
 }
