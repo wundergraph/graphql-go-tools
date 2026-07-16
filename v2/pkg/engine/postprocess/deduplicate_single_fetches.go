@@ -30,14 +30,17 @@ func (d *deduplicateSingleFetches) ProcessFetchTree(root *resolve.FetchTreeNode)
 
 				// when we merge duplicated fetches, we need to update the dependencies of the other fetches
 				// because they might depend on the fetch that we are removing
-				d.replaceDependsOnFetchId(root, oldId, newId)
+				replaceDependsOnFetchID(root, oldId, newId)
 			}
 		}
 	}
 }
 
-// replaceDependsOnFetchId replaces all occurrences of oldId with newId in the dependencies of the fetch tree.
-func (d *deduplicateSingleFetches) replaceDependsOnFetchId(root *resolve.FetchTreeNode, oldId, newId int) {
+// replaceDependsOnFetchID replaces all occurrences of oldId with newId in the
+// DependsOnFetchIDs and FetchInfo.CoordinateDependencies of every fetch in the
+// (flat) fetch tree. It is shared by deduplicateSingleFetches and
+// mergeEntityFetches, both of which collapse several fetch IDs into one.
+func replaceDependsOnFetchID(root *resolve.FetchTreeNode, oldId, newId int) {
 	for i := range root.ChildNodes {
 		replaced := false
 		for j := range root.ChildNodes[i].Item.Fetch.Dependencies().DependsOnFetchIDs {

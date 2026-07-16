@@ -15,19 +15,11 @@ package resolve
 //   #4 merge queries of the same/different types with different field selections
 //      and aliases into one correctly-formed request.
 //
-// STATUS: RED. The merged node type (MultiEntityFetch, see fetch.go) now exists,
-// so these build a hand-crafted fetch tree and run — but the loader has no case
-// for FetchKindMultiEntity yet, so the merged request is never issued: the mocked
-// data source's Times(1) expectation goes unmet and the entity fields resolve to
-// null. Both failures are expected until the loader learns to multiplex/demux the
-// merged node. Each test pins the exact target wire contract (root response,
-// merged request, canned merged response, resolved output).
-//
-// The alias/variable naming below (f1 / representations_f1) mirrors the intended
-// aliased-_entities shape; adjust the mergedRequest constants to whatever scheme
-// the merged fetch actually emits once the loader is implemented — but the NUMBER
-// of upstream requests (one, via mockedDS Times(1)) and the resolved OUTPUT are
-// the invariants that must hold regardless of scheme.
+// Each MultiEntityFetch tree renders the exact target wire contract: a shared
+// request envelope (Header/Footer) plus, per aliased sub-fetch, an isolated
+// representation variable rendered from that sub-fetch's FetchPath (repRenderer).
+// mockedDS byte-matches the rendered request (Times(1)) and the resolved OUTPUT is
+// asserted via testFn.
 
 import (
 	"context"
@@ -67,6 +59,12 @@ func TestResolveGraphQLResponse_ROUTER62_MultiplexDemux_DifferentTypes(t *testin
 		// Each alias's data must land on its own response path.
 		const want = `{"data":{"employee":{"products":["p1","p2"]},"store":{"reviewScore":5}}}`
 
+		const header = `{"method":"POST","url":"http://products.service","body":{` +
+			`"query":"query($representations_f1: [_Any!]!, $representations_f2: [_Any!]!){` +
+			`f1: _entities(representations: $representations_f1){... on Employee {products}} ` +
+			`f2: _entities(representations: $representations_f2){... on Store {reviewScore}}}",` +
+			`"variables":{`
+
 		return &GraphQLResponse{
 			Fetches: Sequence(
 				SingleWithPath(&SingleFetch{
@@ -81,6 +79,8 @@ func TestResolveGraphQLResponse_ROUTER62_MultiplexDemux_DifferentTypes(t *testin
 				SingleWithPath(&MultiEntityFetch{
 					// One upstream request; Times(1) fails until the loader issues it.
 					DataSource: mockedDS(t, ctrl, mergedRequest, mergedResponse),
+					Header:     staticSegment(header),
+					Footer:     staticSegment(`}}}`),
 					Fetches: []*MultiEntitySubFetch{
 						{
 							Alias:        "f1",
@@ -88,7 +88,10 @@ func TestResolveGraphQLResponse_ROUTER62_MultiplexDemux_DifferentTypes(t *testin
 							ResponsePath: "query.employee",
 							Batch:        false,
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Employee","id":"1"}`)},
+								Header:    staticSegment(`"representations_f1":[`),
+								Items:     []InputTemplate{repRenderer("Employee", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f1", "0"},
@@ -100,7 +103,10 @@ func TestResolveGraphQLResponse_ROUTER62_MultiplexDemux_DifferentTypes(t *testin
 							ResponsePath: "query.store",
 							Batch:        false,
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Store","id":"s1"}`)},
+								Header:    staticSegment(`,"representations_f2":[`),
+								Items:     []InputTemplate{repRenderer("Store", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f2", "0"},
@@ -181,6 +187,10 @@ func TestResolveGraphQLResponse_ROUTER62_BatchNullRepresentationFiltering(t *tes
 			`null,` +
 			`{"products":["p3"]}]}}`
 
+		const header = `{"method":"POST","url":"http://products.service","body":{` +
+			`"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Employee {products}}}",` +
+			`"variables":{`
+
 		return &GraphQLResponse{
 			Fetches: Sequence(
 				SingleWithPath(&SingleFetch{
@@ -194,13 +204,18 @@ func TestResolveGraphQLResponse_ROUTER62_BatchNullRepresentationFiltering(t *tes
 				}, "query"),
 				SingleWithPath(&MultiEntityFetch{
 					DataSource: mockedDS(t, ctrl, mergedRequest, mergedResponse),
+					Header:     staticSegment(header),
+					Footer:     staticSegment(`}}}`),
 					Fetches: []*MultiEntitySubFetch{
 						{
 							FetchPath:    []FetchItemPathElement{ArrayPath("employees")},
 							ResponsePath: "query.employees",
 							Batch:        true,
 							Input: BatchInput{
-								Items:         []InputTemplate{staticItem(`{"__typename":"Employee","id":"1"}`)},
+								Header:        staticSegment(`"representations":[`),
+								Items:         []InputTemplate{repRenderer("Employee", "id")},
+								Separator:     staticSegment(`,`),
+								Footer:        staticSegment(`]`),
 								SkipNullItems: true,
 							},
 							PostProcessing: PostProcessingConfiguration{
@@ -266,6 +281,12 @@ func TestResolveGraphQLResponse_ROUTER62_MergeSameTypeDifferentSelections(t *tes
 
 		const want = `{"data":{"a":{"skillA":"go"},"b":{"skillB":"rust"}}}`
 
+		const header = `{"method":"POST","url":"http://products.service","body":{` +
+			`"query":"query($representations_f1: [_Any!]!, $representations_f2: [_Any!]!){` +
+			`f1: _entities(representations: $representations_f1){... on Employee {skillA}} ` +
+			`f2: _entities(representations: $representations_f2){... on Employee {skillB}}}",` +
+			`"variables":{`
+
 		return &GraphQLResponse{
 			Fetches: Sequence(
 				SingleWithPath(&SingleFetch{
@@ -279,6 +300,8 @@ func TestResolveGraphQLResponse_ROUTER62_MergeSameTypeDifferentSelections(t *tes
 				}, "query"),
 				SingleWithPath(&MultiEntityFetch{
 					DataSource: mockedDS(t, ctrl, mergedRequest, mergedResponse),
+					Header:     staticSegment(header),
+					Footer:     staticSegment(`}}}`),
 					Fetches: []*MultiEntitySubFetch{
 						{
 							Alias:        "f1",
@@ -286,7 +309,10 @@ func TestResolveGraphQLResponse_ROUTER62_MergeSameTypeDifferentSelections(t *tes
 							ResponsePath: "query.a",
 							Batch:        false,
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Employee","id":"1"}`)},
+								Header:    staticSegment(`"representations_f1":[`),
+								Items:     []InputTemplate{repRenderer("Employee", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f1", "0"},
@@ -298,7 +324,10 @@ func TestResolveGraphQLResponse_ROUTER62_MergeSameTypeDifferentSelections(t *tes
 							ResponsePath: "query.b",
 							Batch:        false,
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Employee","id":"1"}`)},
+								Header:    staticSegment(`,"representations_f2":[`),
+								Items:     []InputTemplate{repRenderer("Employee", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f2", "0"},
@@ -371,6 +400,12 @@ func TestResolveGraphQLResponse_ROUTER62_MixedBatchAndSingleShapes(t *testing.T)
 
 		const want = `{"data":{"employees":[{"products":["p1"]},{"products":["p2"]}],"store":{"reviewScore":5}}}`
 
+		const header = `{"method":"POST","url":"http://products.service","body":{` +
+			`"query":"query($representations_f1: [_Any!]!, $representations_f2: [_Any!]!){` +
+			`f1: _entities(representations: $representations_f1){... on Employee {products}} ` +
+			`f2: _entities(representations: $representations_f2){... on Store {reviewScore}}}",` +
+			`"variables":{`
+
 		return &GraphQLResponse{
 			Fetches: Sequence(
 				SingleWithPath(&SingleFetch{
@@ -384,6 +419,8 @@ func TestResolveGraphQLResponse_ROUTER62_MixedBatchAndSingleShapes(t *testing.T)
 				}, "query"),
 				SingleWithPath(&MultiEntityFetch{
 					DataSource: mockedDS(t, ctrl, mergedRequest, mergedResponse),
+					Header:     staticSegment(header),
+					Footer:     staticSegment(`}}}`),
 					Fetches: []*MultiEntitySubFetch{
 						{
 							Alias:        "f1",
@@ -391,10 +428,10 @@ func TestResolveGraphQLResponse_ROUTER62_MixedBatchAndSingleShapes(t *testing.T)
 							ResponsePath: "query.employees",
 							Batch:        true,
 							Input: BatchInput{
-								Items: []InputTemplate{
-									staticItem(`{"__typename":"Employee","id":"1"}`),
-									staticItem(`{"__typename":"Employee","id":"2"}`),
-								},
+								Header:    staticSegment(`"representations_f1":[`),
+								Items:     []InputTemplate{repRenderer("Employee", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f1"},
@@ -406,7 +443,10 @@ func TestResolveGraphQLResponse_ROUTER62_MixedBatchAndSingleShapes(t *testing.T)
 							ResponsePath: "query.store",
 							Batch:        false,
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Store","id":"s1"}`)},
+								Header:    staticSegment(`,"representations_f2":[`),
+								Items:     []InputTemplate{repRenderer("Store", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f2", "0"},
@@ -478,6 +518,10 @@ func TestResolveGraphQLResponse_ROUTER62_BatchDuplicateKeyDedup(t *testing.T) {
 		// The single entity is fanned out to both list positions.
 		const want = `{"data":{"employees":[{"products":["p1"]},{"products":["p1"]}]}}`
 
+		const header = `{"method":"POST","url":"http://products.service","body":{` +
+			`"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Employee {products}}}",` +
+			`"variables":{`
+
 		return &GraphQLResponse{
 			Fetches: Sequence(
 				SingleWithPath(&SingleFetch{
@@ -491,13 +535,18 @@ func TestResolveGraphQLResponse_ROUTER62_BatchDuplicateKeyDedup(t *testing.T) {
 				}, "query"),
 				SingleWithPath(&MultiEntityFetch{
 					DataSource: mockedDS(t, ctrl, mergedRequest, mergedResponse),
+					Header:     staticSegment(header),
+					Footer:     staticSegment(`}}}`),
 					Fetches: []*MultiEntitySubFetch{
 						{
 							FetchPath:    []FetchItemPathElement{ArrayPath("employees")},
 							ResponsePath: "query.employees",
 							Batch:        true,
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Employee","id":"1"}`)},
+								Header:    staticSegment(`"representations":[`),
+								Items:     []InputTemplate{repRenderer("Employee", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "_entities"},
@@ -564,6 +613,12 @@ func TestResolveGraphQLResponse_ROUTER62_PerAliasBatchNullFiltering(t *testing.T
 			`"employeesA":[{"skillA":"a1"},null,{"skillA":"a3"}],` +
 			`"employeesB":[null,{"skillB":"b5"}]}}`
 
+		const header = `{"method":"POST","url":"http://products.service","body":{` +
+			`"query":"query($representations_f1: [_Any!]!, $representations_f2: [_Any!]!){` +
+			`f1: _entities(representations: $representations_f1){... on Employee {skillA}} ` +
+			`f2: _entities(representations: $representations_f2){... on Employee {skillB}}}",` +
+			`"variables":{`
+
 		return &GraphQLResponse{
 			Fetches: Sequence(
 				SingleWithPath(&SingleFetch{
@@ -577,6 +632,8 @@ func TestResolveGraphQLResponse_ROUTER62_PerAliasBatchNullFiltering(t *testing.T
 				}, "query"),
 				SingleWithPath(&MultiEntityFetch{
 					DataSource: mockedDS(t, ctrl, mergedRequest, mergedResponse),
+					Header:     staticSegment(header),
+					Footer:     staticSegment(`}}}`),
 					Fetches: []*MultiEntitySubFetch{
 						{
 							Alias:        "f1",
@@ -584,10 +641,10 @@ func TestResolveGraphQLResponse_ROUTER62_PerAliasBatchNullFiltering(t *testing.T
 							ResponsePath: "query.employeesA",
 							Batch:        true,
 							Input: BatchInput{
-								Items: []InputTemplate{
-									staticItem(`{"__typename":"Employee","id":"1"}`),
-									staticItem(`{"__typename":"Employee","id":"3"}`),
-								},
+								Header:        staticSegment(`"representations_f1":[`),
+								Items:         []InputTemplate{repRenderer("Employee", "id")},
+								Separator:     staticSegment(`,`),
+								Footer:        staticSegment(`]`),
 								SkipNullItems: true,
 							},
 							PostProcessing: PostProcessingConfiguration{
@@ -600,7 +657,10 @@ func TestResolveGraphQLResponse_ROUTER62_PerAliasBatchNullFiltering(t *testing.T
 							ResponsePath: "query.employeesB",
 							Batch:        true,
 							Input: BatchInput{
-								Items:         []InputTemplate{staticItem(`{"__typename":"Employee","id":"5"}`)},
+								Header:        staticSegment(`,"representations_f2":[`),
+								Items:         []InputTemplate{repRenderer("Employee", "id")},
+								Separator:     staticSegment(`,`),
+								Footer:        staticSegment(`]`),
 								SkipNullItems: true,
 							},
 							PostProcessing: PostProcessingConfiguration{
@@ -651,10 +711,8 @@ func TestResolveGraphQLResponse_ROUTER62_PerAliasBatchNullFiltering(t *testing.T
 // When the single upstream request errors (transport/HTTP failure), both merged
 // paths (employee.products, store.reviewScore) must surface the standard
 // "Failed to fetch from Subgraph" error, exactly as they would if issued
-// separately. NOTE: the precise error shape for a merged failure (one error at
-// the shared fetch path vs. one per alias) is a design decision — adjust `want`
-// to the scheme the loader adopts; the invariant is that the failure is not
-// silently swallowed.
+// separately. The failure is reported once at the shared fetch path ("query")
+// and every participating field stays null.
 func TestResolveGraphQLResponse_ROUTER62_WholeRequestFailure(t *testing.T) {
 	testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		const rootResponse = `{"data":{"employee":{"__typename":"Employee","id":"1"},"store":{"__typename":"Store","id":"s1"}}}`
@@ -670,6 +728,12 @@ func TestResolveGraphQLResponse_ROUTER62_WholeRequestFailure(t *testing.T) {
 		const want = `{"errors":[{"message":"Failed to fetch from Subgraph 'products' at Path 'query'."}],` +
 			`"data":{"employee":{"products":null},"store":{"reviewScore":null}}}`
 
+		const header = `{"method":"POST","url":"http://products.service","body":{` +
+			`"query":"query($representations_f1: [_Any!]!, $representations_f2: [_Any!]!){` +
+			`f1: _entities(representations: $representations_f1){... on Employee {products}} ` +
+			`f2: _entities(representations: $representations_f2){... on Store {reviewScore}}}",` +
+			`"variables":{`
+
 		return &GraphQLResponse{
 			Fetches: Sequence(
 				SingleWithPath(&SingleFetch{
@@ -683,6 +747,8 @@ func TestResolveGraphQLResponse_ROUTER62_WholeRequestFailure(t *testing.T) {
 				}, "query"),
 				SingleWithPath(&MultiEntityFetch{
 					DataSource: failingDS,
+					Header:     staticSegment(header),
+					Footer:     staticSegment(`}}}`),
 					PostProcessing: PostProcessingConfiguration{
 						SelectResponseErrorsPath: []string{"errors"},
 					},
@@ -692,7 +758,10 @@ func TestResolveGraphQLResponse_ROUTER62_WholeRequestFailure(t *testing.T) {
 							FetchPath:    []FetchItemPathElement{ObjectPath("employee")},
 							ResponsePath: "query.employee",
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Employee","id":"1"}`)},
+								Header:    staticSegment(`"representations_f1":[`),
+								Items:     []InputTemplate{repRenderer("Employee", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f1", "0"},
@@ -703,7 +772,10 @@ func TestResolveGraphQLResponse_ROUTER62_WholeRequestFailure(t *testing.T) {
 							FetchPath:    []FetchItemPathElement{ObjectPath("store")},
 							ResponsePath: "query.store",
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Store","id":"s1"}`)},
+								Header:    staticSegment(`,"representations_f2":[`),
+								Items:     []InputTemplate{repRenderer("Store", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f2", "0"},
@@ -745,11 +817,11 @@ func TestResolveGraphQLResponse_ROUTER62_WholeRequestFailure(t *testing.T) {
 // path back to the real response path, and unaffected aliases still resolve.
 //
 // The merged response carries data for f1 (employee.products) but an error for
-// f2 (store.reviewScore). The loader must demultiplex f1's data normally AND
-// rewrite the subgraph error's alias-prefixed path (["f2", 0, ...]) to the real
-// response path (["store", ...]). NOTE: the exact error-path remapping scheme is
-// the key AC3 contract this pins — adjust `want` to the loader's actual scheme;
-// the invariant is that f1 succeeds and f2's error is attributed to store.
+// f2 (store.reviewScore). The loader demultiplexes f1's data normally AND rewrites
+// the subgraph error's alias-prefixed path (["f2", 0, "reviewScore"]) to the real
+// data path (["store", "reviewScore"]). The resolver runs in the default wrapped
+// error-propagation mode, so the remapped subgraph error nests under
+// extensions.errors of a wrapped "Failed to fetch" error attributed to store.
 func TestResolveGraphQLResponse_ROUTER62_PartialPerAliasError(t *testing.T) {
 	testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		const rootResponse = `{"data":{"employee":{"__typename":"Employee","id":"1"},"store":{"__typename":"Store","id":"s1"}}}`
@@ -768,9 +840,17 @@ func TestResolveGraphQLResponse_ROUTER62_PartialPerAliasError(t *testing.T) {
 			`"f2":[null]},` +
 			`"errors":[{"message":"store unavailable","path":["f2",0,"reviewScore"]}]}`
 
-		// f1 demultiplexed to employee.products; f2's error remapped to store.reviewScore.
-		const want = `{"errors":[{"message":"store unavailable","path":["store","reviewScore"]}],` +
+		// f1 demultiplexed to employee.products; f2's error remapped to store.reviewScore
+		// and wrapped (default propagation mode).
+		const want = `{"errors":[{"message":"Failed to fetch from Subgraph 'products' at Path 'store'.",` +
+			`"extensions":{"errors":[{"message":"store unavailable","path":["store","reviewScore"]}]}}],` +
 			`"data":{"employee":{"products":["p1","p2"]},"store":{"reviewScore":null}}}`
+
+		const header = `{"method":"POST","url":"http://products.service","body":{` +
+			`"query":"query($representations_f1: [_Any!]!, $representations_f2: [_Any!]!){` +
+			`f1: _entities(representations: $representations_f1){... on Employee {products}} ` +
+			`f2: _entities(representations: $representations_f2){... on Store {reviewScore}}}",` +
+			`"variables":{`
 
 		return &GraphQLResponse{
 			Fetches: Sequence(
@@ -785,6 +865,8 @@ func TestResolveGraphQLResponse_ROUTER62_PartialPerAliasError(t *testing.T) {
 				}, "query"),
 				SingleWithPath(&MultiEntityFetch{
 					DataSource: mockedDS(t, ctrl, mergedRequest, mergedResponse),
+					Header:     staticSegment(header),
+					Footer:     staticSegment(`}}}`),
 					PostProcessing: PostProcessingConfiguration{
 						SelectResponseErrorsPath: []string{"errors"},
 					},
@@ -794,7 +876,10 @@ func TestResolveGraphQLResponse_ROUTER62_PartialPerAliasError(t *testing.T) {
 							FetchPath:    []FetchItemPathElement{ObjectPath("employee")},
 							ResponsePath: "query.employee",
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Employee","id":"1"}`)},
+								Header:    staticSegment(`"representations_f1":[`),
+								Items:     []InputTemplate{repRenderer("Employee", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f1", "0"},
@@ -805,7 +890,10 @@ func TestResolveGraphQLResponse_ROUTER62_PartialPerAliasError(t *testing.T) {
 							FetchPath:    []FetchItemPathElement{ObjectPath("store")},
 							ResponsePath: "query.store",
 							Input: BatchInput{
-								Items: []InputTemplate{staticItem(`{"__typename":"Store","id":"s1"}`)},
+								Header:    staticSegment(`,"representations_f2":[`),
+								Items:     []InputTemplate{repRenderer("Store", "id")},
+								Separator: staticSegment(`,`),
+								Footer:    staticSegment(`]`),
 							},
 							PostProcessing: PostProcessingConfiguration{
 								SelectResponseDataPath: []string{"data", "f2", "0"},
@@ -843,16 +931,46 @@ func TestResolveGraphQLResponse_ROUTER62_PartialPerAliasError(t *testing.T) {
 	})(t)
 }
 
-// staticItem builds an InputTemplate that renders a fixed representation object.
-// The real merged fetch will render representations from each sub-fetch's
-// FetchPath; these fixed items document the exact representation each alias must
-// contribute to the merged request.
-func staticItem(data string) InputTemplate {
+// staticSegment builds an InputTemplate that renders a fixed static string. It is
+// used for the shared request envelope (Header/Footer) and the per-alias variable
+// header/separator/footer around the rendered representations.
+func staticSegment(data string) InputTemplate {
 	return InputTemplate{
 		Segments: []TemplateSegment{
 			{
 				Data:        []byte(data),
 				SegmentType: StaticSegmentType,
+			},
+		},
+	}
+}
+
+// repRenderer builds a representation-variable InputTemplate that renders
+// {"__typename":"<typeName>","<key>":"<value>",...} from each item selected at the
+// sub-fetch's FetchPath, mirroring the planner-generated batch representation
+// template. A null source item renders as JSON null (dropped when SkipNullItems is
+// set), which drives the per-alias null-filtering behavior.
+func repRenderer(typeName string, keys ...string) InputTemplate {
+	fields := make([]*Field, 0, len(keys)+1)
+	fields = append(fields, &Field{
+		Name:        []byte("__typename"),
+		Value:       &String{Path: []string{"__typename"}},
+		OnTypeNames: [][]byte{[]byte(typeName)},
+	})
+	for _, k := range keys {
+		fields = append(fields, &Field{
+			Name:        []byte(k),
+			Value:       &String{Path: []string{k}},
+			OnTypeNames: [][]byte{[]byte(typeName)},
+		})
+	}
+	return InputTemplate{
+		SetTemplateOutputToNullOnVariableNull: true,
+		Segments: []TemplateSegment{
+			{
+				SegmentType:  VariableSegmentType,
+				VariableKind: ResolvableObjectVariableKind,
+				Renderer:     NewGraphQLVariableResolveRenderer(&Object{Nullable: true, Fields: fields}),
 			},
 		},
 	}
