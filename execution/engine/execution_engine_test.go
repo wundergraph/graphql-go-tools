@@ -63,7 +63,6 @@ func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[grap
 
 func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return func(t *testing.T) {
-		t.Parallel()
 		t.Helper()
 
 		if testCase.skipReason != "" {
