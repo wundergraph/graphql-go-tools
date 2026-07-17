@@ -21,6 +21,7 @@ Simply releasing the mutex before resolution is insufficient. If ordering is est
 5. The first completion or terminal error wins. Once admitted, later data, heartbeat, completion, and error frames are suppressed so nothing is delivered after a terminal frame.
 6. `subscriptionUpdater.Done` waits for admitted updates before detaching the trigger. Direct resolver unsubscribe and shutdown paths retain their existing removal-based behavior described below.
 7. A panic in one admitted update releases its lane and in-flight accounting before propagating, so later lifecycle operations cannot deadlock.
+8. Once `Complete`, `Error`, or `Done` begins, the trigger rejects new subscribers. A subscriber registered before `Complete` or `Error` is included in terminal-frame delivery; one registered before `Done` is included in cleanup and detachment. A subscriber arriving after any of those transitions is not attached.
 
 ## Architecture
 
@@ -56,6 +57,8 @@ The wait-group invariant is: every positive `Add` occurs while holding the lifec
 
 The terminal state is distinct from `done`: `Complete` and `Error` stop new data admissions but leave cleanup to the required final `Done` call.
 
+Terminal operations also atomically publish that the trigger is no longer accepting subscribers before taking a terminal snapshot or detaching it. Existing-trigger subscription admission observes that state while holding the trigger subscription lock at the registration linearization point. Admission that wins first is visible to the later terminal snapshot; terminal publication that wins first causes the add to return an internal error without changing trigger or resolver indexes, counters, or startup hooks. This observation does not acquire the updater lifecycle mutex while the resolver mutex is held, preserving lock order.
+
 `CloseSubscription` deliberately waits for all currently admitted per-subscriber updates rather than only the target lane. This preserves the existing trigger-wide ordering of public updater calls and keeps this short-term change small. Closing a subscription is exceptional, so an unrelated slow subscriber delaying close is accepted here; a keyed lifecycle barrier belongs in a larger rewrite.
 
 ### Terminal operation matrix
@@ -73,6 +76,8 @@ Each `subscriptionState` also records whether its downstream terminal frame has 
 The resolver heartbeat loop calls `heartbeatTriggerSubscriptions` directly. It does not participate in updater admission and may run while an update is fetching, as it does today. `subscriptionState.writeMu` continues to make the eventual heartbeat or data write atomic, and the per-subscription terminal state prevents a heartbeat after a terminal frame. A heartbeat may still precede an update whose fetch is in flight; heartbeat-versus-in-flight-data ordering before termination is not part of this fix's data-ordering guarantee.
 
 Direct unsubscribe, resolver shutdown, startup failure, and unsubscribe-on-flush-failure also bypass the updater barrier. They retain the existing removal protocol: removal marks `subscriptionState.removed`, detaches it from resolver indexes, and prevents an in-flight resolution from writing after removal. They must not wait on the updater in-flight group because unsubscribe-on-flush-failure can originate inside an admitted update and would deadlock by waiting for itself.
+
+The post-load write phase holds `subscriptionState.writeMu` only inside a defer-unlock critical section. Resolve, writer, flush, and error-formatter panics therefore release the write lock while continuing to propagate. Resolve-arena ownership uses an idempotent release function with a deferred panic fallback, while normal paths return the arena before error formatting or flushing so slow downstream writers do not retain it. Flush-failure unsubscribe remains outside the write lock.
 
 ## Ordering Guarantee and Limitation
 
@@ -104,7 +109,10 @@ The tests will verify:
 8. A panic releases its lane and in-flight accounting before propagating.
 9. Direct unsubscribe during an in-flight update prevents the late write without waiting on the updater barrier.
 10. Completed lane tails are removed after both single and overlapping same-subscriber updates.
-11. Focused tests pass under the Go race detector.
+11. Late subscriber admission is rejected after `Complete`, `Error`, or `Done` publication without launching startup hooks or changing indexes and counters. Existing subscribers receive the terminal frame for `Complete` or `Error`, while `Done` detaches them and completes cleanup.
+12. Panics from writing, flushing, or formatting a writer error release the write critical section so `Done` can complete.
+13. Concurrent subscribers with identical query fetches share one physical single-flight load while rendering their own logical responses.
+14. Focused tests pass under the Go race detector.
 
 ## Non-Goals
 
