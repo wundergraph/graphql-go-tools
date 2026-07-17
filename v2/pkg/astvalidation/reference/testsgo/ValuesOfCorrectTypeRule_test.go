@@ -1010,9 +1010,13 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
           $a: Int = 1,
           $b: String = "ok",
           $c: ComplexInput = { requiredField: true, intField: 3 }
-          $d: Int! = 123
+          $d: Int! = 123,
+          $values: [String!] = []
         ) {
           dog { name }
+          complicatedArgs {
+            stringListNonNullArgField(stringListNonNullArg: $values)
+          }
         }
       `)
 			})
@@ -1059,7 +1063,8 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
         query InvalidDefaultValues(
           $a: Int = "one",
           $b: String = 4,
-          $c: ComplexInput = "NotVeryComplex"
+          $c: ComplexInput = "NotVeryComplex",
+          $commands: [DogCommand!] = [INVALID]
         ) {
           dog { name }
         }
@@ -1075,6 +1080,10 @@ func TestValuesOfCorrectTypeRule(t *testing.T) {
 					{
 						message:   `Expected value of type "ComplexInput", found "NotVeryComplex".`,
 						locations: []Loc{{line: 5, column: 30}},
+					},
+					{
+						message:   `Value "INVALID" does not exist in "DogCommand" enum.`,
+						locations: []Loc{{line: 6, column: 39}},
 					},
 				})
 			})
