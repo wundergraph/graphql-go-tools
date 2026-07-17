@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.13.1...v2.13.2) (2026-07-17)
+
+
+### Bug Fixes
+
+* accept empty lists for non-null list items ([#1600](https://github.com/wundergraph/graphql-go-tools/issues/1600)) ([bd86537](https://github.com/wundergraph/graphql-go-tools/commit/bd8653780bdc702fdcd11a449a254509c62c2b5e))
+
 ## [2.13.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.13.0...v2.13.1) (2026-07-17)
 
 
