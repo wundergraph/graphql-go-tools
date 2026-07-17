@@ -814,13 +814,17 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			case ast.NodeKindInterfaceTypeDefinition:
 				objectTypesImplementingInterface, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(typeDefinitionNode.Ref)
 				for _, implementingTypeName := range objectTypesImplementingInterface {
-					// exlude inaccessible types from possible types
+					// inaccessible types are recorded separately so the resolver can
+					// reject them without leaking the typename in the error
 					if v.isInaccesibleType(implementingTypeName) {
+						if object.InaccessibleTypes == nil {
+							object.InaccessibleTypes = map[string]struct{}{}
+						}
+						object.InaccessibleTypes[implementingTypeName] = struct{}{}
 						continue
 					}
 
 					object.PossibleTypes[implementingTypeName] = struct{}{}
-
 				}
 
 				if slices.Contains(v.Config.EntityInterfaceNames, typeName) {
@@ -830,8 +834,13 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			case ast.NodeKindUnionTypeDefinition:
 				if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(typeDefinitionNode.Ref); ok {
 					for _, unionMember := range unionMembers {
-						// exlude inaccessible types from possible types
+						// inaccessible types are recorded separately so the resolver can
+						// reject them without leaking the typename in the error
 						if v.isInaccesibleType(unionMember) {
+							if object.InaccessibleTypes == nil {
+								object.InaccessibleTypes = map[string]struct{}{}
+							}
+							object.InaccessibleTypes[unionMember] = struct{}{}
 							continue
 						}
 						object.PossibleTypes[unionMember] = struct{}{}
