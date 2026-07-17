@@ -1907,8 +1907,11 @@ func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscrip
 type subscriptionUpdater struct {
 	// mu serves two roles:
 	//
-	// 1. Event serialization gate -- held across the entire Update() call including
-	//    wg.Wait(), ensuring event A fully completes before event B begins.
+	// 1. Event serialization gate -- Update() (broadcast) holds it across the entire call
+	//    including wg.Wait(), ensuring event A fully completes before event B begins.
+	//    UpdateSubscription() is the deliberate exception: it takes the lock only for the
+	//    lifecycle check and resolves outside it, so per-subscriber deliveries for one event
+	//    run concurrently rather than serializing on this lock (see UpdateSubscription).
 	//
 	// 2. Lifecycle guard -- the done flag prevents callbacks after Done() has torn down
 	//    the trigger. Every method checks done || ctx.Err() under the lock before proceeding.
@@ -1943,11 +1946,31 @@ func (s *subscriptionUpdater) Heartbeat() {
 }
 
 func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
+	// Take the lock only for the lifecycle check, then release it before resolving.
+	//
+	// Unlike Update() (broadcast), which holds s.mu across a single wg.Go fan-out for one
+	// event, UpdateSubscription is invoked once per subscriber. Holding s.mu across
+	// handleUpdateSubscription would serialize every subscriber on a trigger behind one
+	// lock, so a single event fanned out to N subscribers would resolve N subgraph fetches
+	// sequentially instead of concurrently. Resolving outside the lock lets per-subscriber
+	// deliveries for the same event run in parallel.
+	//
+	// This is safe:
+	//   - Event ordering (event A fully before event B) is enforced by the caller, which
+	//     blocks between events (it waits on its own WaitGroup before delivering the next
+	//     event), not by holding s.mu across the resolve here.
+	//   - The lifecycle guard (done/ctx) is still checked under the lock. If Done() runs
+	//     after we release, handleUpdateSubscription's getTrigger returns a torn-down
+	//     trigger and no-ops.
+	//   - The per-subscription write path is independently guarded by
+	//     subscriptionState.writeMu and the removed flag, so concurrent resolves and
+	//     teardown (Done/UnsubscribeSubscription) remain correct.
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
+		s.mu.Unlock()
 		return
 	}
+	s.mu.Unlock()
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
