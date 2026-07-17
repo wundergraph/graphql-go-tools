@@ -918,6 +918,17 @@ type subscriptionState struct {
 	id        SubscriptionIdentifier
 	heartbeat bool
 	completed chan struct{}
+	// resolveMu serializes executeSubscriptionUpdate for THIS subscription so that
+	// consecutive events for the same SubscriptionIdentifier resolve and write in
+	// order. Different subscriptions have different resolveMu instances, so updates
+	// to distinct subscribers on a trigger still run concurrently.
+	//
+	// This preserves per-subscription event ordering even when the pubsub layer
+	// abandons an event's in-flight goroutines on handler_timeout and starts the
+	// next event: the next event's update for this subscription queues behind the
+	// previous one here rather than racing it (writeMu only orders the final write,
+	// not by event).
+	resolveMu sync.Mutex
 	// writeMu protects all writes to writer (Complete, Error, Write, Flush, Heartbeat).
 	// Paired with the removed atomic to prevent writes after removal.
 	writeMu sync.Mutex
@@ -980,6 +991,14 @@ func (s *subscriptionState) sendHeartbeat() error {
 }
 
 func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) {
+	// Serialize resolves for THIS subscription so consecutive events for the same
+	// SubscriptionIdentifier keep their order. Distinct subscriptions hold distinct
+	// resolveMu instances, so a single event still resolves all of its subscribers
+	// concurrently; only same-subscription events (e.g. an event that overlaps a
+	// prior one abandoned on handler_timeout) queue here.
+	sub.resolveMu.Lock()
+	defer sub.resolveMu.Unlock()
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
