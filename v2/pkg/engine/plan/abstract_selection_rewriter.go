@@ -8,8 +8,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 var (
@@ -68,11 +66,17 @@ type fieldSelectionRewriter struct {
 
 	skipFieldRefs []int
 	alwaysRewrite bool
+
+	// copyLog and mergeLog are never reset - the rewriter is single-use:
+	// construct a fresh instance per RewriteFieldSelection call.
+	copyLog  []refPair // (original field ref -> new field ref) for each field created during the rewrite
+	mergeLog []refPair // (removed field ref -> surviving field ref) for each field merged away during the post-rewrite normalization, chronological
 }
 
 type RewriteResult struct {
 	rewritten        bool
-	changedFieldRefs map[int][]int // map[fieldRef][]fieldRef - for each original fieldRef list of new fieldRefs
+	changedFieldRefs map[int][]int // map[originalFieldRef][]newFieldRef - for each original field ref, the new field refs it was rewritten into
+	fieldRefOrigins  map[int][]int // map[newFieldRef][]originalFieldRef - for each field ref created by the rewrite, the original field refs it represents
 }
 
 var resultNotRewritten = RewriteResult{}
@@ -115,6 +119,21 @@ func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNo
 	if !ok {
 		return resultNotRewritten, nil
 	}
+
+	// Record provenance of field refs touched by the rewrite. Every new field is copied
+	// from an original field (createFragmentSelection) or recreated from one
+	// (preserveTypeNameSelection, which appends to copyLog directly). Fields merged away
+	// during the post-rewrite normalization transfer their origins to the surviving field.
+	r.operation.OnCopyField = func(originalFieldRef, copyRef int) {
+		r.copyLog = append(r.copyLog, refPair{from: originalFieldRef, to: copyRef})
+	}
+	r.operation.OnMergeFields = func(survivorRef, removedRef int) {
+		r.mergeLog = append(r.mergeLog, refPair{from: removedRef, to: survivorRef})
+	}
+	defer func() {
+		r.operation.OnCopyField = nil
+		r.operation.OnMergeFields = nil
+	}()
 
 	enclosingTypeName := r.definition.NodeNameBytes(enclosingNode)
 
@@ -167,24 +186,17 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		return resultNotRewritten, nil
 	}
 
-	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
-	if err != nil {
-		return resultNotRewritten, err
-	}
-
 	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, unionTypeNames)
 	if err != nil {
 		return resultNotRewritten, err
 	}
 
-	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
-	if err != nil {
-		return resultNotRewritten, err
-	}
+	changedRefs, originRefs := buildRefMappings(r.copyLog, r.mergeLog)
 
 	return RewriteResult{
 		rewritten:        true,
 		changedFieldRefs: changedRefs,
+		fieldRefOrigins:  originRefs,
 	}, nil
 }
 
@@ -343,24 +355,17 @@ func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefR
 		return resultNotRewritten, nil
 	}
 
-	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
-	if err != nil {
-		return resultNotRewritten, err
-	}
-
 	err = r.rewriteObjectSelection(fieldRef, selectionSetInfo, fieldTypeNameStr)
 	if err != nil {
 		return resultNotRewritten, err
 	}
 
-	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
-	if err != nil {
-		return resultNotRewritten, err
-	}
+	changedRefs, originRefs := buildRefMappings(r.copyLog, r.mergeLog)
 
 	return RewriteResult{
 		rewritten:        true,
 		changedFieldRefs: changedRefs,
+		fieldRefOrigins:  originRefs,
 	}, nil
 }
 
@@ -425,24 +430,17 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		return resultNotRewritten, nil
 	}
 
-	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
-	if err != nil {
-		return resultNotRewritten, err
-	}
-
 	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, interfaceTypeNames)
 	if err != nil {
 		return resultNotRewritten, err
 	}
 
-	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
-	if err != nil {
-		return resultNotRewritten, err
-	}
+	changedRefs, originRefs := buildRefMappings(r.copyLog, r.mergeLog)
 
 	return RewriteResult{
 		rewritten:        true,
 		changedFieldRefs: changedRefs,
+		fieldRefOrigins:  originRefs,
 	}, nil
 }
 
@@ -513,7 +511,7 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 		// into a single fragment or just a flattened query.
 		// So it should be safe to rewrite a field.
 		if selectionSetInfo.isInterfaceObject {
-			return !selectionSetInfo.hasTypeNameSelection
+			return !selectionSetInfo.hasTypeNameSelection()
 		}
 	}
 
@@ -580,9 +578,14 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	// When interface is an interface object
 	// When we have fragments on concrete types,
 	// And we do not have __typename selection - we are adding it
-	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection && fieldInfo.hasInlineFragmentsOnObjects {
+	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection() && fieldInfo.hasInlineFragmentsOnObjects {
 		deferID, _ := r.operation.FieldInternalDeferID(fieldRef)
 		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection(deferID)
+		// This branch runs only when the user has no __typename selection on this level
+		// (hasTypeNameSelection is false), so there is no original field to preserve -
+		// the synthesized __typename intentionally has no copyLog entry.
+		// It is pre-registered as skipped; if normalization later dedup-merges into it a user-requested
+		// __typename preserved from a nested fragment, updateSkipFieldRefs unskips it via its recorded origins.
 		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}
@@ -664,122 +667,5 @@ func (r *fieldSelectionRewriter) flattenFragmentOnObject(selectionSetInfo select
 		// in case of unions the only thing which is matter is an interception of implementing types
 		// and parent allowed types
 		r.flattenFragmentOnUnion(inlineFragmentInfo.selectionSetInfo, []string{typeName}, selectionRefs)
-	}
-}
-
-func (r *fieldSelectionRewriter) collectChangedRefs(fieldRef int, fieldRefsPaths map[int]string) (map[int][]int, error) {
-	_, pathsToRefs, err := collectPath(r.operation, r.definition, fieldRef, false)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make(map[int][]int, len(fieldRefsPaths))
-
-	for fieldRef, path := range fieldRefsPaths {
-		newRefs, ok := pathsToRefs[path]
-		if !ok {
-			// TODO: some paths could actually disappear due to rewrite
-			continue
-		}
-
-		if len(newRefs) == 0 {
-			continue
-		}
-
-		if len(newRefs) == 1 && newRefs[0] == fieldRef {
-			continue
-		}
-
-		out[fieldRef] = newRefs
-	}
-
-	return out, nil
-}
-
-type AbstractFieldPathCollector struct {
-	*astvisitor.Walker
-
-	operation  *ast.Document
-	definition *ast.Document
-
-	targetFieldRef int
-	fieldRefPaths  map[int]string
-	pathFieldRefs  map[string][]int
-	fieldToPath    bool
-}
-
-func (v *AbstractFieldPathCollector) EnterField(ref int) {
-	parentPath := v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
-	currentFieldName := v.operation.FieldNameString(ref)
-	currentPath := parentPath + "." + currentFieldName
-
-	if v.fieldToPath {
-		v.fieldRefPaths[ref] = currentPath
-		return
-	}
-
-	if _, ok := v.pathFieldRefs[currentPath]; !ok {
-		v.pathFieldRefs[currentPath] = make([]int, 0, 1)
-	}
-	v.pathFieldRefs[currentPath] = append(v.pathFieldRefs[currentPath], ref)
-}
-
-func collectPath(operation *ast.Document, definition *ast.Document, fieldRef int, fieldToPath bool) (fieldRefPaths map[int]string, pathFieldRefs map[string][]int, err error) {
-	walker := astvisitor.NewWalkerWithID(4, "AbstractFieldPathCollector")
-
-	c := &AbstractFieldPathCollector{
-		Walker:         &walker,
-		operation:      operation,
-		definition:     definition,
-		targetFieldRef: fieldRef,
-		fieldRefPaths:  make(map[int]string),
-		pathFieldRefs:  make(map[string][]int),
-		fieldToPath:    fieldToPath,
-	}
-
-	filter := &FieldLimitedVisitor{
-		Walker:         &walker,
-		targetFieldRef: fieldRef,
-	}
-
-	walker.RegisterFieldVisitor(filter)
-	walker.SetVisitorFilter(filter)
-	walker.RegisterEnterFieldVisitor(c)
-
-	report := &operationreport.Report{}
-	walker.Walk(c.operation, c.definition, report)
-	if report.HasErrors() {
-		return nil, nil, report
-	}
-
-	return c.fieldRefPaths, c.pathFieldRefs, nil
-}
-
-type FieldLimitedVisitor struct {
-	*astvisitor.Walker
-
-	targetFieldRef int
-	allow          bool
-}
-
-func (v *FieldLimitedVisitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
-	if visitor == v {
-		return true
-	}
-
-	return v.allow
-}
-
-func (v *FieldLimitedVisitor) EnterField(ref int) {
-	if ref == v.targetFieldRef {
-		v.allow = true
-		return
-	}
-}
-
-func (v *FieldLimitedVisitor) LeaveField(ref int) {
-	if ref == v.targetFieldRef {
-		v.allow = false
-		v.Stop()
 	}
 }

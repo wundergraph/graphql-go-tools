@@ -811,7 +811,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
 
 	c.updateFieldDependsOn(result.changedFieldRefs)
-	c.updateSkipFieldRefs(result.changedFieldRefs)
+	c.updateSkipFieldRefs(result.fieldRefOrigins)
 
 	// skip walking into a rewritten field instead of stoping the whole visitor
 	// should allow to do fewer walks over the operation
@@ -858,10 +858,56 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 	}
 }
 
-func (c *nodeSelectionVisitor) updateSkipFieldRefs(changedFieldRefs map[int][]int) {
+// updateSkipFieldRefs updates the skipFieldsRefs list after a rewrite of an abstract field selection set.
+// Several original fields can collapse into a single rewritten field: e.g. a user-requested id on the
+// interface level and a planner-added skipped id inside a fragment on B are both copied into the fragment
+// on B and dedup-merged into one field ref during normalization. Such a field ref should be skipped only
+// when ALL original field refs it represents were skipped - when at least one origin is a user-requested
+// field, the field must stay in the response.
+// Keys of fieldRefOrigins are always freshly created field refs, but a fresh ref can already be
+// present in skipFieldsRefs: the rewriter pre-registers its synthesized skipped __typename, and
+// during normalization such a ref can absorb a preserved user-requested __typename via a dedup
+// merge. When that happens, the ref gains a user origin and must be removed from skipFieldsRefs.
+func (c *nodeSelectionVisitor) updateSkipFieldRefs(fieldRefOrigins map[int][]int) {
+	if len(fieldRefOrigins) == 0 || len(c.skipFieldsRefs) == 0 {
+		return
+	}
+
+	skipped := make(map[int]struct{}, len(c.skipFieldsRefs))
 	for _, fieldRef := range c.skipFieldsRefs {
-		if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
-			c.skipFieldsRefs = append(c.skipFieldsRefs, newRefs...)
+		skipped[fieldRef] = struct{}{}
+	}
+
+	var unskipFieldRefs map[int]struct{}
+
+	for fieldRef, originRefs := range fieldRefOrigins {
+		allOriginsSkipped := true
+		for _, originRef := range originRefs {
+			if _, ok := skipped[originRef]; !ok {
+				allOriginsSkipped = false
+				break
+			}
 		}
+
+		if allOriginsSkipped {
+			if _, ok := skipped[fieldRef]; !ok {
+				c.skipFieldsRefs = append(c.skipFieldsRefs, fieldRef)
+			}
+			continue
+		}
+
+		if _, ok := skipped[fieldRef]; ok {
+			if unskipFieldRefs == nil {
+				unskipFieldRefs = make(map[int]struct{})
+			}
+			unskipFieldRefs[fieldRef] = struct{}{}
+		}
+	}
+
+	if len(unskipFieldRefs) > 0 {
+		c.skipFieldsRefs = slices.DeleteFunc(c.skipFieldsRefs, func(fieldRef int) bool {
+			_, ok := unskipFieldRefs[fieldRef]
+			return ok
+		})
 	}
 }
