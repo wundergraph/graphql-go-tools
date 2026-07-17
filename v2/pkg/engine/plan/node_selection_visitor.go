@@ -46,6 +46,7 @@ type nodeSelectionVisitor struct {
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 
 	rewrittenFieldRefs          []int            // rewrittenFieldRefs holds field refs which had their selection sets rewritten during the current walk
+	aliasedFieldRefs            []int            // aliasedFieldRefs holds field refs which had member fields aliased (without a rewrite) during the current walk
 	persistedRewrittenFieldRefs map[int]struct{} // persistedRewrittenFieldRefs holds field refs which had their selection sets rewritten during any of the walks
 
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
@@ -53,6 +54,21 @@ type nodeSelectionVisitor struct {
 	addTypenameInNestedSelections bool
 
 	newFieldRefs map[int]struct{} // newFieldRefs is a set of field refs which were added by the visitor or was modified by a rewrite
+
+	// unfetchableFieldRefs is a set of field refs which are kept in the operation
+	// to preserve the response shape, but must not be planned on any datasource -
+	// they resolve to null. E.g. fields of the union members outside the intersection
+	// of the union members across the candidate datasources.
+	unfetchableFieldRefs map[int]struct{}
+
+	// unresolvableFieldRefs is a set of field refs whose selection sets were dropped
+	// during a rewrite because the abstract type has no possible runtime types
+	// able to provide the requested fields. Resolving such fields is always an error.
+	unresolvableFieldRefs map[int]struct{}
+
+	// fieldMergingAliasRefs maps field refs holding a planner generated alias
+	// (see upstreamFieldMergingAliasPrefix) to the original client-visible response name.
+	fieldMergingAliasRefs map[int][]byte
 }
 
 func (c *nodeSelectionVisitor) addNewSkipFieldRefs(fieldRefs ...int) {
@@ -67,6 +83,41 @@ func (c *nodeSelectionVisitor) addSkipFieldRefs(fieldRefs ...int) {
 func (c *nodeSelectionVisitor) addNewFieldRefs(fieldRefs ...int) {
 	for _, fieldRef := range fieldRefs {
 		c.newFieldRefs[fieldRef] = struct{}{}
+	}
+}
+
+// pruneStaleFieldRequirements removes field requirements recorded for (field, datasource) pairs
+// which are no longer selected. When fallback key jumps get enabled, the datasources are
+// refiltered from scratch, and fields may land on different datasources than on the previous runs.
+// Requirements of the de-selected pairs would otherwise remain in the dependency maps
+// and produce dependencies on fetches which will never happen.
+func (c *nodeSelectionVisitor) pruneStaleFieldRequirements() {
+	if len(c.fieldDependsOn) == 0 {
+		return
+	}
+
+	for fieldKey, deps := range c.fieldDependsOn {
+		if c.nodeSuggestions.hasSelectedSuggestionForFieldRefOnDataSource(fieldKey.fieldRef, fieldKey.dsHash) {
+			continue
+		}
+
+		delete(c.fieldDependsOn, fieldKey)
+		delete(c.fieldRequirementsConfigs, fieldKey)
+		delete(c.visitedFieldsKeyChecks, fieldKey)
+		delete(c.visitedFieldsRequiresChecks, fieldKey)
+		for _, dep := range deps {
+			delete(c.fieldDependencyKind, fieldDependencyKey{field: fieldKey.fieldRef, dependsOn: dep})
+		}
+	}
+
+	c.fieldRefDependsOn = make(map[int][]int, len(c.fieldDependsOn))
+	for fieldKey, deps := range c.fieldDependsOn {
+		for _, dep := range deps {
+			if slices.Contains(c.fieldRefDependsOn[fieldKey.fieldRef], dep) {
+				continue
+			}
+			c.fieldRefDependsOn[fieldKey.fieldRef] = append(c.fieldRefDependsOn[fieldKey.fieldRef], dep)
+		}
 	}
 }
 
@@ -146,6 +197,7 @@ func (c *nodeSelectionVisitor) debugPrint(args ...any) {
 func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.hasNewFields = false
 	c.rewrittenFieldRefs = c.rewrittenFieldRefs[:0]
+	c.aliasedFieldRefs = c.aliasedFieldRefs[:0]
 
 	if c.selectionSetRefs == nil {
 		c.selectionSetRefs = make([]int, 0, 8)
@@ -759,7 +811,27 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 			}
 		}
 
-		for _, requiredFieldRef := range currentFieldRefs {
+		// Record which datasource each required key field should be fetched from.
+		// For a regular jump the source datasource provides the whole key.
+		// For a fallback jump (sourcePathSet is not empty) the source provides
+		// only a subset of the target compound key: key members present in the
+		// source key land on the jump source, while each missing member has to be
+		// gathered from some other datasource (the gather hop of the fallback jump).
+		sourcePathSet := keyJumpSourcePathSet(jump)
+		for i, requiredFieldRef := range currentFieldRefs {
+			if len(sourcePathSet) != 0 {
+				if i >= len(jump.FieldPaths) {
+					continue
+				}
+				if _, ok := sourcePathSet[jump.FieldPaths[i].Path]; ok {
+					c.fieldLandedTo[requiredFieldRef] = jump.From
+					continue
+				}
+				if dsHash, ok := c.nodeSuggestions.firstNonTargetSuggestionForFieldRef(requiredFieldRef, jump.To); ok {
+					c.fieldLandedTo[requiredFieldRef] = dsHash
+				}
+				continue
+			}
 			c.fieldLandedTo[requiredFieldRef] = jump.From
 		}
 
@@ -767,6 +839,20 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 	}
 
 	c.hasNewFields = true
+}
+
+// keyJumpSourcePathSet returns the set of key field paths which the jump source datasource
+// can provide by itself. Non-empty only for fallback jumps (see KeyJump.SourcePaths).
+func keyJumpSourcePathSet(jump KeyJump) map[string]struct{} {
+	if len(jump.SourcePaths) == 0 {
+		return nil
+	}
+
+	out := make(map[string]struct{}, len(jump.SourcePaths))
+	for _, path := range jump.SourcePaths {
+		out[path.Path] = struct{}{}
+	}
+	return out
 }
 
 func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldRef int, ds DataSource) {
@@ -781,12 +867,40 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	}
 
 	var options []rewriterOption
-	if _, wasRewritten := c.persistedRewrittenFieldRefs[fieldRef]; wasRewritten {
+	_, wasRewritten := c.persistedRewrittenFieldRefs[fieldRef]
+	if wasRewritten {
 		// When field was already rewritten in previous walker runs,
 		// but we are visiting it again - it means that we have appended more required fields to it.
 		// So we have to force rewriting it again, because without force we could end up with duplicated fields outside of fragments.
 		// When newly added fields are local - rewriter will consider that rewrite is not necessary.
 		options = append(options, withForceRewrite())
+	}
+
+	// The union member types could differ between the datasources able to resolve the field.
+	// The planner choice between such candidate datasources must not affect the response shape,
+	// so we pass the rest of the candidates to allow the rewriter to shrink the union members
+	// to the intersection. Candidates are all non-orphan suggestions for the field,
+	// regardless of their selection state, which are reachable on their datasource -
+	// an unreachable suggestion could never be planned, so it should not affect the intersection.
+	candidates := c.nodeSuggestions.SuggestionsForFieldRef(fieldRef)
+	if len(candidates) > 0 && candidates[0].hasUnionReturnType {
+		var restDs []DataSource
+		for _, dsItem := range c.dataSources {
+			if dsItem.Hash() == ds.Hash() {
+				continue
+			}
+
+			for _, suggestion := range candidates {
+				if suggestion.DataSourceHash == dsItem.Hash() && c.nodeSuggestions.IsSuggestionReachable(suggestion) {
+					restDs = append(restDs, dsItem)
+					break
+				}
+			}
+		}
+
+		if len(restDs) > 0 {
+			options = append(options, withIntersectUnion(restDs))
+		}
 	}
 
 	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds, options...)
@@ -801,17 +915,37 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		return
 	}
 
-	if !result.rewritten {
+	// a rewrite could have exploded interface fragments into concrete member fragments,
+	// so the check for conflicting member fields runs on the rewritten selection set
+	aliased := c.aliasConflictingMemberFields(fieldRef)
+
+	if !result.rewritten && !aliased {
 		return
 	}
 
-	c.addNewSkipFieldRefs(rewriter.skipFieldRefs...)
-	c.hasNewFields = true
-	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
-	c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
+	if result.rewritten {
+		c.addNewSkipFieldRefs(rewriter.skipFieldRefs...)
+		c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
+		c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
 
-	c.updateFieldDependsOn(result.changedFieldRefs)
-	c.updateSkipFieldRefs(result.changedFieldRefs)
+		for _, unfetchableFieldRef := range result.unfetchableFieldRefs {
+			c.unfetchableFieldRefs[unfetchableFieldRef] = struct{}{}
+		}
+
+		if result.fieldIsUnresolvable {
+			c.unresolvableFieldRefs[fieldRef] = struct{}{}
+		}
+
+		c.updateFieldDependsOn(result.changedFieldRefs)
+		c.updateSkipFieldRefs(result.changedFieldRefs)
+		c.updateFieldMergingAliasRefs(result.changedFieldRefs)
+		c.updateUnresolvableFieldRefs(result.changedFieldRefs)
+	} else {
+		// only aliased - the child suggestions have to be recollected with the new paths
+		c.aliasedFieldRefs = append(c.aliasedFieldRefs, fieldRef)
+	}
+
+	c.hasNewFields = true
 
 	// skip walking into a rewritten field instead of stoping the whole visitor
 	// should allow to do fewer walks over the operation
@@ -862,6 +996,22 @@ func (c *nodeSelectionVisitor) updateSkipFieldRefs(changedFieldRefs map[int][]in
 	for _, fieldRef := range c.skipFieldsRefs {
 		if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
 			c.skipFieldsRefs = append(c.skipFieldsRefs, newRefs...)
+		}
+	}
+}
+
+func (c *nodeSelectionVisitor) updateFieldMergingAliasRefs(changedFieldRefs map[int][]int) {
+	for fieldRef := range c.fieldMergingAliasRefs {
+		for _, newRef := range changedFieldRefs[fieldRef] {
+			c.fieldMergingAliasRefs[newRef] = c.fieldMergingAliasRefs[fieldRef]
+		}
+	}
+}
+
+func (c *nodeSelectionVisitor) updateUnresolvableFieldRefs(changedFieldRefs map[int][]int) {
+	for fieldRef := range c.unresolvableFieldRefs {
+		for _, newRef := range changedFieldRefs[fieldRef] {
+			c.unresolvableFieldRefs[newRef] = struct{}{}
 		}
 	}
 }

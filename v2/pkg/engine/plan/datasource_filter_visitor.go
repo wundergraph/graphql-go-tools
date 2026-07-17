@@ -22,10 +22,17 @@ type DataSourceFilter struct {
 	enableSelectionReasons bool
 	secondaryRun           bool
 
-	fieldDependsOn map[int][]int
-	newFieldRefs   map[int]struct{}
-	dataSources    []DataSource
+	fieldDependsOn       map[int][]int
+	newFieldRefs         map[int]struct{}
+	unfetchableFieldRefs map[int]struct{}
+	dataSources          []DataSource
 
+	// allowFallbackKeyJumps allows assigning fallback (subset -> compound key) jumps as requiresKey.
+	// It is disabled on the initial selection runs: when regular planning fails on a node
+	// reachable only via a fallback jump, the node is marked with requiresFallbackKey,
+	// nodesResolvableVisitor reports it as unresolved, and NodeSelectionBuilder
+	// enables this flag and refilters the datasources (see NodeSelectionBuilder.SelectNodes).
+	allowFallbackKeyJumps   bool
 	jumpsForPathForTypename map[KeyIndex]*DataSourceJumpsGraph
 	dsHashesHavingKeys      map[DSHash]struct{}
 
@@ -48,9 +55,19 @@ func (f *DataSourceFilter) EnableSelectionReasons() {
 	f.enableSelectionReasons = true
 }
 
+func (f *DataSourceFilter) EnableFallbackKeyJumps() {
+	f.allowFallbackKeyJumps = true
+}
+
 // WithMaxDataSourceCollectorsConcurrency sets the maximum number of concurrent data source collectors
 func (f *DataSourceFilter) WithMaxDataSourceCollectorsConcurrency(maxConcurrency uint) *DataSourceFilter {
 	f.maxDataSourceCollectorsConcurrency = maxConcurrency
+	return f
+}
+
+// WithUnfetchableFieldRefs sets the field refs which must not be planned on any datasource
+func (f *DataSourceFilter) WithUnfetchableFieldRefs(unfetchableFieldRefs map[int]struct{}) *DataSourceFilter {
+	f.unfetchableFieldRefs = unfetchableFieldRefs
 	return f
 }
 
@@ -149,15 +166,16 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 func (f *DataSourceFilter) collectNodes() {
 	if f.nodesCollector == nil {
 		f.nodesCollector = &nodesCollector{
-			operation:      f.operation,
-			definition:     f.definition,
-			dataSources:    f.dataSources,
-			nodes:          f.nodes,
-			report:         f.report,
-			maxConcurrency: f.maxDataSourceCollectorsConcurrency,
-			seenKeys:       make(map[SeenKeyPath]struct{}),
-			fieldInfo:      make(map[int]fieldInfo),
-			newFieldRefs:   f.newFieldRefs,
+			operation:            f.operation,
+			definition:           f.definition,
+			dataSources:          f.dataSources,
+			nodes:                f.nodes,
+			report:               f.report,
+			maxConcurrency:       f.maxDataSourceCollectorsConcurrency,
+			seenKeys:             make(map[SeenKeyPath]struct{}),
+			fieldInfo:            make(map[int]fieldInfo),
+			newFieldRefs:         f.newFieldRefs,
+			unfetchableFieldRefs: f.unfetchableFieldRefs,
 		}
 
 		f.nodesCollector.initVisitors()
@@ -268,6 +286,11 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 			break
 		}
 
+		// if parent node returns union type and it is shareable - not unique, we should not select it here
+		if f.nodes.items[parentIdx].hasUnionReturnType && !f.nodes.isNodeUnique(parentIdx) {
+			break
+		}
+
 		// TODO: there could be a potential situation when we have selected root node with enabled entity resolver,
 		// but we can't jump to it because no parent could provide a key for it
 		// Need to consider how to move this logic into the selection process of duplicated nodes maybe?
@@ -289,16 +312,32 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 	}
 }
 
-func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash) (bestPath *SourceConnection, exists bool) {
-	possiblePaths, exists := jumps.GetPaths(from, to)
+// hasPathBetweenDs returns the best key jump path between two datasources.
+// Preference order: direct exact-key path, shortest indirect exact-key path,
+// and only then paths using fallback (subset -> compound key) jumps - a fallback jump
+// requires extra gather fetches for the missing key members, so it is always the last resort.
+// Fallback paths are present in possiblePaths only when includeFallback is true.
+func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash, includeFallback bool) (bestPath *SourceConnection, exists bool) {
+	possiblePaths, exists := jumps.getPaths(from, to, includeFallback)
 	if !exists {
 		return nil, false
 	}
 
 	var directs []SourceConnection
 	var indirects []SourceConnection
+	var fallbackDirects []SourceConnection
+	var fallbackIndirects []SourceConnection
 
 	for _, path := range possiblePaths {
+		if sourceConnectionUsesFallback(path) {
+			if path.Type == SourceConnectionTypeDirect {
+				fallbackDirects = append(fallbackDirects, path)
+				continue
+			}
+			fallbackIndirects = append(fallbackIndirects, path)
+			continue
+		}
+
 		if path.Type == SourceConnectionTypeDirect {
 			directs = append(directs, path)
 			continue
@@ -312,7 +351,25 @@ func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash) (bestPath *S
 
 	// TODO: indirect path should take into consideration existing nodes?
 
-	for _, path := range indirects {
+	if bestPath := shortestConnection(indirects); bestPath != nil {
+		return bestPath, true
+	}
+
+	if len(fallbackDirects) > 0 {
+		return &fallbackDirects[0], true
+	}
+
+	if bestPath := shortestConnection(fallbackIndirects); bestPath != nil {
+		return bestPath, true
+	}
+
+	return nil, false
+}
+
+func shortestConnection(paths []SourceConnection) *SourceConnection {
+	var bestPath *SourceConnection
+
+	for _, path := range paths {
 		if bestPath == nil {
 			bestPath = &path
 			continue
@@ -323,7 +380,19 @@ func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash) (bestPath *S
 		}
 	}
 
-	return bestPath, bestPath != nil
+	return bestPath
+}
+
+// sourceConnectionUsesFallback reports whether any jump of the path
+// is a fallback (subset -> compound key) jump.
+func sourceConnectionUsesFallback(path SourceConnection) bool {
+	for _, jump := range path.Jumps {
+		if jump.Fallback {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (f *DataSourceFilter) jumpsForPathAndTypeName(path string, typeName string) (*DataSourceJumpsGraph, bool) {
@@ -346,10 +415,12 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 	currentNodeTypeName := currentNode.TypeName
 
 	selectedParentHashes := make([]DSHash, 0, len(parentNodeIndexes))
+	unselectedParentIndexes := make([]int, 0, len(parentNodeIndexes))
 	hasSelectedParentOnSameDataSource := false
 
 	for _, parentIdx := range parentNodeIndexes {
 		if !f.nodes.items[parentIdx].Selected {
+			unselectedParentIndexes = append(unselectedParentIndexes, parentIdx)
 			continue
 		}
 
@@ -371,11 +442,67 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 	}
 
 	for _, selectedParentHash := range selectedParentHashes {
-		path, exists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash)
+		path, exists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash, f.allowFallbackKeyJumps)
 		if exists {
 			currentNode.requiresKey = path
-			break
+			currentNode.requiresFallbackKey = false
+			return
 		}
+
+		if f.allowFallbackKeyJumps {
+			continue
+		}
+
+		// No exact key path exists from this parent. If a fallback (subset -> compound key)
+		// path would work, do not assign it right away - fallback jumps are allowed
+		// only when regular planning fails. Instead mark the node with requiresFallbackKey:
+		// nodesResolvableVisitor will report it as unresolved, and NodeSelectionBuilder
+		// will refilter the datasources with fallback key jumps enabled.
+		fallbackPath, fallbackExists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash, true)
+		if !fallbackExists {
+			continue
+		}
+		if !sourceConnectionUsesFallback(*fallbackPath) {
+			continue
+		}
+		if sourceConnectionRequiresMissingFallbackKeyField(fallbackPath, currentNode) {
+			continue
+		}
+		currentNode.requiresFallbackKey = true
+	}
+
+	if len(selectedParentHashes) == 0 {
+		// no parent is selected yet - the node will be revisited on the next run
+		return
+	}
+
+	// None of the selected parents' datasources could provide a key for the jump
+	// to the current node's datasource, but a not yet selected parent duplicate could,
+	// e.g. when the key field is resolvable only from a sibling subgraph.
+	// Select such a parent in addition and route the key jump through it.
+	for _, parentIdx := range unselectedParentIndexes {
+		parentNode := f.nodes.items[parentIdx]
+
+		if parentNode.IsOrphan || parentNode.DataSourceHash == currentNodeDsHash {
+			continue
+		}
+
+		path, exists := hasPathBetweenDs(jumpsForTypename, parentNode.DataSourceHash, currentNodeDsHash, f.allowFallbackKeyJumps)
+		if !exists {
+			continue
+		}
+
+		if !f.selectWithExternalCheck(parentIdx, ReasonStage3SelectParentNodeWhichCouldGiveKeys) {
+			continue
+		}
+
+		currentNode.requiresKey = path
+		currentNode.requiresFallbackKey = false
+
+		// the newly selected parent may itself require a key to be reachable
+		parentTreeNode := f.nodes.treeNode(parentIdx)
+		f.assignKeys(parentIdx, parentTreeNode.GetParent().GetData())
+		return
 	}
 }
 
@@ -750,7 +877,7 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(
 		return false
 	}
 
-	path, exists := hasPathBetweenDs(jumpsForTypename, f.nodes.items[parentIdx].DataSourceHash, f.nodes.items[idx].DataSourceHash)
+	path, exists := hasPathBetweenDs(jumpsForTypename, f.nodes.items[parentIdx].DataSourceHash, f.nodes.items[idx].DataSourceHash, f.allowFallbackKeyJumps)
 	if !exists {
 		return false
 	}
@@ -760,6 +887,46 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(
 	}
 
 	return true
+}
+
+// sourceConnectionRequiresMissingFallbackKeyField reports whether the node itself
+// is a missing key member of a fallback jump on the given path: the target compound key
+// contains the node's field, but the jump source cannot provide it.
+// Such a path is unusable for this node - we cannot gather a key field
+// through a jump which requires that very field to be gathered first.
+func sourceConnectionRequiresMissingFallbackKeyField(path *SourceConnection, node *NodeSuggestion) bool {
+	if path == nil || node == nil {
+		return false
+	}
+
+	fieldPath := node.Path
+
+	for _, jump := range path.Jumps {
+		if !jump.Fallback {
+			continue
+		}
+
+		targetContainsField := false
+		for _, keyPath := range jump.FieldPaths {
+			if keyPath.Path == fieldPath {
+				targetContainsField = true
+				break
+			}
+		}
+		if !targetContainsField {
+			continue
+		}
+
+		for _, keyPath := range jump.SourcePaths {
+			if keyPath.Path == fieldPath {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	return false
 }
 
 type nodeInfo struct {
@@ -979,6 +1146,11 @@ func (f *DataSourceFilter) childsHasOnlyTypename(i int) (hasOnlyTypename bool) {
 
 	for _, child := range children {
 		itemIds := child.GetData()
+		if len(itemIds) == 0 {
+			// the field is intentionally left unplanned (unfetchable) -
+			// it has no suggestions and contributes neither fields nor typename
+			continue
+		}
 		firstItem := itemIds[0]
 
 		if f.nodes.items[firstItem].isTypeName {

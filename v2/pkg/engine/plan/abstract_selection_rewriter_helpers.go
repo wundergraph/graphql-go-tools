@@ -536,6 +536,126 @@ func (r *fieldSelectionRewriter) getAllowedUnionMemberTypeNames(fieldRef int, un
 	return unionTypeNames, nil
 }
 
+// unionMemberTypeNamesForDataSource returns members of the union with the given name
+// in the datasource's upstream schema, or nil when the union is not defined there.
+func (r *fieldSelectionRewriter) unionMemberTypeNamesForDataSource(unionTypeName string, ds DataSource) []string {
+	upstreamSchema, ok := ds.UpstreamSchema()
+	if !ok {
+		return nil
+	}
+
+	unionNode, ok := upstreamSchema.NodeByNameStr(unionTypeName)
+	if !ok || unionNode.Kind != ast.NodeKindUnionTypeDefinition {
+		return nil
+	}
+
+	memberTypeNames, ok := upstreamSchema.UnionTypeDefinitionMemberTypeNames(unionNode.Ref)
+	if !ok {
+		return nil
+	}
+
+	return memberTypeNames
+}
+
+// shouldShrinkUnionMembers reports whether the selection set contains inline fragments
+// on union members which are outside the intersection of the union members across
+// the current and the additional datasources, but are members of the union in at least
+// one of them. Such fragments must not be resolved, as the planner choice
+// of the datasource should not affect the response shape.
+// Fragments on types which are not members of the union in any of the datasources
+// are left to the regular cleanup, which does not affect the other members.
+func (r *fieldSelectionRewriter) shouldShrinkUnionMembers(selectionSetInfo selectionSetInfo, unionTypeName string, currentMemberNames []string, intersection []string) bool {
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
+		if slices.Contains(intersection, inlineFragmentInfo.typeName) {
+			continue
+		}
+
+		if slices.Contains(currentMemberNames, inlineFragmentInfo.typeName) {
+			return true
+		}
+
+		for _, ds := range r.additionalDatasources {
+			if slices.Contains(r.unionMemberTypeNamesForDataSource(unionTypeName, ds), inlineFragmentInfo.typeName) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// collectFragmentsFieldRefs returns the refs of all fields nested in the inline fragments
+// of the given field selection set which have a type condition matching one of the given type names
+func (r *fieldSelectionRewriter) collectFragmentsFieldRefs(fieldRef int, typeNames []string) []int {
+	if len(typeNames) == 0 {
+		return nil
+	}
+
+	selectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
+	if !ok {
+		return nil
+	}
+
+	var fieldRefs []int
+	for _, inlineFragmentSelectionRef := range r.operation.SelectionSetInlineFragmentSelections(selectionSetRef) {
+		inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionRef].Ref
+		typeCondition := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
+		if !slices.Contains(typeNames, typeCondition) {
+			continue
+		}
+
+		fragmentSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
+		if !ok {
+			continue
+		}
+
+		fieldRefs = append(fieldRefs, collectNestedFieldRefs(r.operation, fragmentSelectionSetRef)...)
+	}
+
+	return fieldRefs
+}
+
+// collectNestedFieldRefs returns the refs of all fields in the selection set, recursively
+func collectNestedFieldRefs(operation *ast.Document, selectionSetRef int) []int {
+	var fieldRefs []int
+	for _, selectionRef := range operation.SelectionSets[selectionSetRef].SelectionRefs {
+		selection := operation.Selections[selectionRef]
+		switch selection.Kind {
+		case ast.SelectionKindField:
+			fieldRefs = append(fieldRefs, selection.Ref)
+			if nestedSelectionSetRef, ok := operation.FieldSelectionSet(selection.Ref); ok {
+				fieldRefs = append(fieldRefs, collectNestedFieldRefs(operation, nestedSelectionSetRef)...)
+			}
+		case ast.SelectionKindInlineFragment:
+			if nestedSelectionSetRef, ok := operation.InlineFragmentSelectionSet(selection.Ref); ok {
+				fieldRefs = append(fieldRefs, collectNestedFieldRefs(operation, nestedSelectionSetRef)...)
+			}
+		}
+	}
+
+	return fieldRefs
+}
+
+// intersectUnionMemberTypeNames shrinks the allowed union member type names to the
+// intersection of the current datasource's members with the members of the same union
+// in each additional datasource.
+func (r *fieldSelectionRewriter) intersectUnionMemberTypeNames(unionTypeName string, currentMemberNames []string) []string {
+	intersection := slices.Clone(currentMemberNames)
+
+	for _, ds := range r.additionalDatasources {
+		dsMemberNames := r.unionMemberTypeNamesForDataSource(unionTypeName, ds)
+		if dsMemberNames == nil {
+			continue
+		}
+
+		intersection = slices.DeleteFunc(intersection, func(typeName string) bool {
+			return !slices.Contains(dsMemberNames, typeName)
+		})
+	}
+
+	return intersection
+}
+
 func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (interfaceTypeName string, typeNames []string, isInterfaceObject bool, err error) {
 	interfaceTypeName = r.definition.InterfaceTypeDefinitionNameString(interfaceDefRef)
 	interfaceTypeNamesFromDefinition, _ := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceDefRef)

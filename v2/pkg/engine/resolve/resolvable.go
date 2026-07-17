@@ -1284,6 +1284,19 @@ func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 }
 
 func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bool) {
+	if obj.Unresolvable {
+		// The object selection set was dropped during planning because the abstract type
+		// has no possible runtime types able to provide the requested fields.
+		// The field could never be resolved, so we always fail, regardless of the data.
+		if !r.render() {
+			fieldName := ""
+			if len(obj.Path) > 0 {
+				fieldName = obj.Path[len(obj.Path)-1]
+			}
+			r.addError(fmt.Sprintf("Unable to resolve field '%s' of abstract type '%s': no runtime types are able to provide the requested fields.", fieldName, obj.TypeName), obj.Path)
+		}
+		return r.err()
+	}
 	r.enclosingTypeNames = append(r.enclosingTypeNames, obj.TypeName)
 	defer func() {
 		r.enclosingTypeNames = r.enclosingTypeNames[:len(r.enclosingTypeNames)-1]

@@ -66,13 +66,26 @@ type fieldSelectionRewriter struct {
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
 
-	skipFieldRefs []int
-	alwaysRewrite bool
+	skipFieldRefs       []int
+	alwaysRewrite       bool
+	fieldIsUnresolvable bool
+
+	intersectUnion        bool
+	additionalDatasources []DataSource
 }
 
 type RewriteResult struct {
 	rewritten        bool
 	changedFieldRefs map[int][]int // map[fieldRef][]fieldRef - for each original fieldRef list of new fieldRefs
+	// unfetchableFieldRefs holds fields of the union members which are outside the intersection
+	// of the union members across the candidate datasources, but are members of the union
+	// in the current datasource. Such fields are kept in the operation to preserve
+	// the response shape, but must not be planned on any datasource - they resolve to null.
+	unfetchableFieldRefs []int
+	// fieldIsUnresolvable indicates that the rewrite has dropped all requested field selections,
+	// because the interface has no possible runtime types able to provide them,
+	// so the field could never be resolved to the requested shape.
+	fieldIsUnresolvable bool
 }
 
 var resultNotRewritten = RewriteResult{}
@@ -80,12 +93,21 @@ var resultNotRewritten = RewriteResult{}
 type rewriterOption func(*rewriterOptions)
 
 type rewriterOptions struct {
-	forceRewrite bool
+	forceRewrite          bool
+	intersectUnion        bool
+	additionalDatasources []DataSource
 }
 
 func withForceRewrite() rewriterOption {
 	return func(o *rewriterOptions) {
 		o.forceRewrite = true
+	}
+}
+
+func withIntersectUnion(additional []DataSource) rewriterOption {
+	return func(o *rewriterOptions) {
+		o.intersectUnion = true
+		o.additionalDatasources = additional
 	}
 }
 
@@ -101,11 +123,13 @@ func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document
 	}
 
 	return &fieldSelectionRewriter{
-		operation:          operation,
-		definition:         definition,
-		upstreamDefinition: upstreamDefinition,
-		dsConfiguration:    dsConfiguration,
-		alwaysRewrite:      dsConfiguration.PlanningBehavior().AlwaysFlattenFragments || opts.forceRewrite,
+		operation:             operation,
+		definition:            definition,
+		upstreamDefinition:    upstreamDefinition,
+		dsConfiguration:       dsConfiguration,
+		alwaysRewrite:         dsConfiguration.PlanningBehavior().AlwaysFlattenFragments || opts.forceRewrite,
+		intersectUnion:        opts.intersectUnion,
+		additionalDatasources: opts.additionalDatasources,
 	}, nil
 }
 
@@ -155,12 +179,33 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		return resultNotRewritten, err
 	}
 
-	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
-
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
 	if err != nil {
 		return resultNotRewritten, err
 	}
+
+	// when the query requests union members which are outside the intersection of the
+	// union members across the candidate datasources able to resolve the union field,
+	// the planner choice between the datasources should not affect the response shape,
+	// so we shrink the allowed members to the intersection of the datasources union members.
+	// The current datasource own members outside the intersection are kept in the operation
+	// to preserve the response shape, but must not be fetched.
+	var unfetchableTypeNames []string
+	if r.intersectUnion && len(r.additionalDatasources) > 0 {
+		unionTypeName := r.definition.UnionTypeDefinitionNameString(unionDefRef)
+		intersection := r.intersectUnionMemberTypeNames(unionTypeName, unionTypeNames)
+		if r.shouldShrinkUnionMembers(selectionSetInfo, unionTypeName, unionTypeNames, intersection) {
+			for _, typeName := range unionTypeNames {
+				if !slices.Contains(intersection, typeName) {
+					unfetchableTypeNames = append(unfetchableTypeNames, typeName)
+				}
+			}
+
+			unionTypeNames = intersection
+		}
+	}
+
+	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
 
 	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, unionTypeNames, entityNames)
 	if !needRewrite {
@@ -172,7 +217,7 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		return resultNotRewritten, err
 	}
 
-	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, unionTypeNames)
+	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, append(unionTypeNames, unfetchableTypeNames...))
 	if err != nil {
 		return resultNotRewritten, err
 	}
@@ -183,8 +228,9 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 	}
 
 	return RewriteResult{
-		rewritten:        true,
-		changedFieldRefs: changedRefs,
+		rewritten:            true,
+		changedFieldRefs:     changedRefs,
+		unfetchableFieldRefs: r.collectFragmentsFieldRefs(fieldRef, unfetchableTypeNames),
 	}, nil
 }
 
@@ -441,8 +487,9 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	}
 
 	return RewriteResult{
-		rewritten:        true,
-		changedFieldRefs: changedRefs,
+		rewritten:           true,
+		changedFieldRefs:    changedRefs,
+		fieldIsUnresolvable: r.fieldIsUnresolvable,
 	}, nil
 }
 
@@ -593,6 +640,15 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 		interfaceTypeNames,
 		&newSelectionRefs,
 	)
+
+	// When the interface has no possible runtime types, flattening drops all requested
+	// field selections, and there is no other datasource able to provide them.
+	// Dropping fields when implementing types exist is a regular cleanup - requested
+	// fields belong to types resolvable elsewhere. Without a single implementing type
+	// resolving the field is impossible at all, so we mark the field as unresolvable.
+	if len(newSelectionRefs) == 0 && len(interfaceTypeNames) == 0 && fieldInfo.hasNonTypenameFields() {
+		r.fieldIsUnresolvable = true
+	}
 
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }

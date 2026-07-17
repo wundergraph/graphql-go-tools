@@ -2,11 +2,24 @@ package plan
 
 // KeyJump represents possible jump from one data source to another
 type KeyJump struct {
-	From         DSHash
-	To           DSHash
+	From DSHash
+	To   DSHash
+	// SelectionSet is the selection set of the TARGET datasource @key -
+	// the key which the _entities representation has to satisfy to enter the To datasource.
 	SelectionSet string
-	FieldPaths   []KeyInfoFieldPath
-	TypeName     string
+	// FieldPaths are the field paths of the TARGET datasource @key.
+	FieldPaths []KeyInfoFieldPath
+	TypeName   string
+	// Fallback marks a jump where the source key is only a subset of the target compound @key.
+	// Such a jump requires gathering the missing key members from other datasources first,
+	// so it is used only when no plan could be built from exact key jumps
+	// (see DataSourceFilter.allowFallbackKeyJumps).
+	Fallback bool
+	// SourcePaths is set only on fallback jumps: the field paths of the SOURCE datasource key,
+	// i.e. the subset of FieldPaths which the From datasource can provide by itself.
+	// The difference FieldPaths - SourcePaths is the missing key members to gather
+	// (see nodeSelectionVisitor.addKeyRequirementsToOperation).
+	SourcePaths []KeyInfoFieldPath
 }
 
 type SourceConnectionType int
@@ -25,8 +38,9 @@ type SourceConnection struct {
 
 // JumpCacheKey represents a key for the cache map
 type JumpCacheKey struct {
-	Source DSHash
-	Target DSHash
+	Source          DSHash
+	Target          DSHash
+	IncludeFallback bool
 }
 
 // DataSourceJumpsGraph represents a graph of possible jumps between each data sources
@@ -37,8 +51,16 @@ type DataSourceJumpsGraph struct {
 }
 
 func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceConnection, bool) {
+	return g.getPaths(source, target, false)
+}
+
+func (g *DataSourceJumpsGraph) GetPathsWithFallback(source DSHash, target DSHash) ([]SourceConnection, bool) {
+	return g.getPaths(source, target, true)
+}
+
+func (g *DataSourceJumpsGraph) getPaths(source DSHash, target DSHash, includeFallback bool) ([]SourceConnection, bool) {
 	// Create a cache key
-	key := JumpCacheKey{Source: source, Target: target}
+	key := JumpCacheKey{Source: source, Target: target, IncludeFallback: includeFallback}
 
 	// Check if the path is already in the cache
 	if path, found := g.Cache[key]; found {
@@ -71,6 +93,10 @@ func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceC
 		found := false
 
 		for _, jump := range g.Jumps[current] {
+			if jump.Fallback && !includeFallback {
+				continue
+			}
+
 			if depth > 0 && jump.SelectionSet == path[len(path)-1].SelectionSet {
 				continue // Skip jumps with the same selection set
 			}
@@ -131,16 +157,33 @@ func NewDataSourceJumpsGraph(dataSources []DSHash, keysPerPath map[DSHash][]KeyI
 				}
 
 				for _, keyInfo := range sourceKeyInfos {
-					if !keyInfo.Source || keyInfo.SelectionSet != targetKeyInfo.SelectionSet {
+					if !keyInfo.Source {
 						continue
+					}
+
+					// An exact match of the key selection sets gives a regular jump.
+					// When the source key is a strict subset of the target compound key,
+					// we still record the jump, but mark it as a fallback:
+					// it is usable only after the missing key members are gathered
+					// from other datasources.
+					fallback := false
+					if keyInfo.SelectionSet != targetKeyInfo.SelectionSet {
+						if !keyInfoFieldsCoverTargetKey(keyInfo, targetKeyInfo) {
+							continue
+						}
+						fallback = true
 					}
 
 					jump := KeyJump{
 						From:         sourceDsHash,
 						To:           targetDSHash,
-						SelectionSet: keyInfo.SelectionSet,
-						FieldPaths:   keyInfo.FieldPaths,
+						SelectionSet: targetKeyInfo.SelectionSet,
+						FieldPaths:   targetKeyInfo.FieldPaths,
 						TypeName:     typeName,
+						Fallback:     fallback,
+					}
+					if fallback {
+						jump.SourcePaths = keyInfo.FieldPaths
 					}
 					graph.Jumps[sourceDsHash] = append(graph.Jumps[sourceDsHash], jump)
 				}
@@ -149,4 +192,31 @@ func NewDataSourceJumpsGraph(dataSources []DSHash, keysPerPath map[DSHash][]KeyI
 	}
 
 	return graph
+}
+
+// keyInfoFieldsCoverTargetKey reports whether every field path of the source key
+// is a member of the target key, i.e. the source key is a subset of the target compound key.
+// Such a source key alone is not enough to jump into the target datasource,
+// but it could be complemented by gathering the missing members from other datasources.
+func keyInfoFieldsCoverTargetKey(sourceKey, targetKey KeyInfo) bool {
+	if sourceKey.SelectionSet == targetKey.SelectionSet {
+		return true
+	}
+
+	if len(sourceKey.FieldPaths) == 0 || len(targetKey.FieldPaths) == 0 {
+		return false
+	}
+
+	targetPaths := make(map[string]struct{}, len(targetKey.FieldPaths))
+	for _, path := range targetKey.FieldPaths {
+		targetPaths[path.Path] = struct{}{}
+	}
+
+	for _, path := range sourceKey.FieldPaths {
+		if _, ok := targetPaths[path.Path]; !ok {
+			return false
+		}
+	}
+
+	return true
 }
