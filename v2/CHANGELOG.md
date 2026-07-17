@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.13.0...v2.13.1) (2026-07-17)
+
+
+### Bug Fixes
+
+* improve ast rewriter field provenance ([#1587](https://github.com/wundergraph/graphql-go-tools/issues/1587)) ([ee8555b](https://github.com/wundergraph/graphql-go-tools/commit/ee8555b374e4682ab72f1b73f73cdafc142decab))
+
 ## [2.13.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.12.1...v2.13.0) (2026-07-17)
 
 
