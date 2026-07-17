@@ -64,7 +64,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
 								},
-							}},
+							},
+						},
 						customConfig,
 					),
 				},
@@ -120,7 +121,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 									},
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
 								},
-							}},
+							},
+						},
 						customConfig,
 					),
 				},
@@ -181,7 +183,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 								Types: map[string]int{
 									"Droid": -1, // Negative type weight
 								},
-							}},
+							},
+						},
 						customConfig,
 					),
 				},
@@ -292,10 +295,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			computeCosts(),
 		))
 
-		// Regression test for the abstract field without __typename bug recordObjectTypeStats).
-		// When the subgraph resolves a single (non-list) abstract field and does NOT return __typename,
-		// we must still record one occurrence for that field's path, falling back to the declared
-		// abstract type name in actual costs.
 		t.Run("single abstract field without __typename is rejected and bills nothing", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: graphql.StarwarsSchema(t),
@@ -1046,7 +1045,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 										{TypeName: "Droid", FieldName: "primaryFunction"}: {HasWeight: true, Weight: 17},
 									},
-								}},
+								},
+							},
 							customConfig,
 						),
 					},
@@ -1319,7 +1319,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					// friends items carry no __typename, so they are rejected and nulled
 					expectedResponse:      `{"errors":[{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["hero","friends",0],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"hero":{"name":"Luke","friends":[null]}}}`,
 					expectedEstimatedCost: intPtr(20), // 2 + 1*(0 + 6*(3 + 1*0))
-					expectedActualCost:    intPtr(5),  // 2 + 1*(0 + 1*(3 + 1*0))
+					expectedActualCost:    intPtr(5),  // 2 + 1*(0 + 1*3)
 				},
 				computeCosts(),
 				costsIgnoreImplementingTypeWeights(),
@@ -1380,7 +1380,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				costsIgnoreImplementingTypeWeights(),
 			))
 		})
-
 	})
 
 	t.Run("union types", func(t *testing.T) {
@@ -2515,7 +2514,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				computeCosts(),
 			))
 		})
-
 	})
 
 	t.Run("nested lists with compounding multipliers", func(t *testing.T) {
@@ -5275,7 +5273,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				computeCosts(),
 			))
 		})
-
 	})
 
 	t.Run("validate requireOneSlicingArgument on concrete types", func(t *testing.T) {
@@ -6172,7 +6169,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			"external: field 'Paginated.items' requires exactly one slicing argument, but 2 were provided, locations: [], path: [search,items]",
 			computeCosts(),
 		))
-
 	})
 
 	t.Run("input object cost", func(t *testing.T) {
@@ -7514,7 +7510,6 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			},
 			computeCosts(),
 		))
-
 	})
 
 	t.Run("fragment fields sharing a response path under an abstract list", func(t *testing.T) {
