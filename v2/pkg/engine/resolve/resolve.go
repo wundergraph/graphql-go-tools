@@ -956,6 +956,13 @@ func (s *subscriptionState) done() {
 // complete delivers a "subscription done" signal to the downstream writer.
 // Called by handleTriggerComplete, not through toClose.
 func (s *subscriptionState) complete() {
+	// Hold resolveMu so the terminal frame is written after any in-flight resolve for
+	// this subscription, not ahead of its data write. This restores the ordering the
+	// per-trigger updater mutex provided upstream, now that executeSubscriptionUpdate
+	// resolves outside that mutex. resolveMu is ordered before writeMu, consistent with
+	// executeSubscriptionUpdate.
+	s.resolveMu.Lock()
+	defer s.resolveMu.Unlock()
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.writer.Complete()
@@ -964,6 +971,10 @@ func (s *subscriptionState) complete() {
 // error delivers a terminal error payload to the downstream writer.
 // Called by handleTriggerError, not through toClose.
 func (s *subscriptionState) error(data []byte) {
+	// See complete(): hold resolveMu so the terminal error frame is ordered after any
+	// in-flight resolve for this subscription rather than racing its data write.
+	s.resolveMu.Lock()
+	defer s.resolveMu.Unlock()
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.writer.Error(data)
