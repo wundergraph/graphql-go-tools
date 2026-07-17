@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.13.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.12.1...v2.13.0) (2026-07-17)
+
+
+### Features
+
+* improve abstract field validation ([#1588](https://github.com/wundergraph/graphql-go-tools/issues/1588)) ([d6cceac](https://github.com/wundergraph/graphql-go-tools/commit/d6cceacd291eee5dbab8f6a0cadd245e47eca2d0))
+
 ## [2.12.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.12.0...v2.12.1) (2026-07-15)
 
 
