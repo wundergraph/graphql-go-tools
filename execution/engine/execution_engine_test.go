@@ -63,7 +63,6 @@ func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[grap
 
 func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return func(t *testing.T) {
-		t.Parallel()
 		t.Helper()
 
 		if testCase.skipReason != "" {
@@ -805,7 +804,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     "",
-								sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+								sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 								sendStatusCode:   200,
 							}),
 						),
@@ -910,7 +909,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -957,8 +956,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							expectedBody:     `{"query":"{hero {__typename name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1016,8 +1015,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Droid","field":"name","by_user":true}]}}`,
-							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							expectedBody:     `{"query":"{hero {__typename name}}","extensions":{"fetch_reasons":[{"typename":"Droid","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Droid","name":"Droid Number 6"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1076,8 +1075,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
-							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							expectedBody:     `{"query":"{hero {__typename name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Droid","name":"Droid Number 6"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1280,7 +1279,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}, "errors": []}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}, "errors": []}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1332,7 +1331,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -2305,7 +2304,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{codeType {code __typename ... on Country {name}}}"}`,
+							expectedBody:     `{"query":"{codeType {__typename code ... on Country {name}}}"}`,
 							sendResponseBody: `{"data":{"codeType":{"__typename":"Country","code":"de","name":"Germany"}}}`,
 							sendStatusCode:   200,
 						}),
@@ -2436,7 +2435,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"searchResults":[{"name":"Luke Skywalker"},{"length":13.37}]}}`,
+							sendResponseBody: `{"data":{"searchResults":[{"__typename":"Human","name":"Luke Skywalker"},{"__typename":"Starship","length":13.37}]}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -2484,7 +2483,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				),
 			},
 			fields:           []plan.FieldConfiguration{},
-			expectedResponse: `{"data":{"searchResults":[{},{}]}}`,
+			expectedResponse: `{"data":{"searchResults":[{"name":"Luke Skywalker"},{"length":13.37}]}}`,
 		},
 	))
 

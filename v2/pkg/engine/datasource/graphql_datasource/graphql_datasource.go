@@ -578,19 +578,12 @@ func (p *Planner[T]) EnterSelectionSet(ref int) {
 		p.addRepresentationsQuery()
 	}
 
-	if p.visitor.Walker.EnclosingTypeDefinition.Kind != ast.NodeKindInterfaceTypeDefinition {
-		return
-	}
-
-	// handle adding typename for the InterfaceObject
-	// In case we are inside selection set which returns an interface object
-	// we need to add __typename field to the selection set to get an initial typename value
-	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationConfiguration().InterfaceObjects {
-		if interfaceObjectCfg.InterfaceTypeName == typeName {
-			p.addTypenameToSelectionSet(set.Ref)
-			return
-		}
+	// abstract values are validated against the contract by their runtime type,
+	// so the upstream must always report it. This also covers the InterfaceObject
+	// case, which needs __typename for an initial typename value.
+	switch p.visitor.Walker.EnclosingTypeDefinition.Kind {
+	case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+		p.addTypenameToSelectionSet(set.Ref)
 	}
 }
 

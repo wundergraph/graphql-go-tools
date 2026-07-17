@@ -13,6 +13,10 @@ type Object struct {
 	PossibleTypes map[string]struct{} `json:"-"`
 	SourceName    string              `json:"-"`
 	TypeName      string              `json:"-"`
+
+	// InaccessibleTypes are members/implementers of the abstract type marked
+	// @inaccessible; excluded from PossibleTypes. Nil when none.
+	InaccessibleTypes map[string]struct{} `json:"-"`
 }
 
 func (o *Object) Copy() Node {

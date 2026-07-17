@@ -96,7 +96,7 @@
                 "raw_input_data": {},
                 "input": {
                   "body": {
-                    "query": "{me {id username history {__typename ... on Purchase {wallet {currency}} ... on Sale {location product {upc __typename}}} __typename}}"
+                    "query": "{me {id username history {__typename ... on Purchase {wallet {__typename currency}} ... on Sale {location product {upc __typename}}} __typename}}"
                   },
                   "header": {},
                   "method": "POST",
@@ -111,6 +111,7 @@
                         {
                           "__typename": "Purchase",
                           "wallet": {
+                            "__typename": "WalletType1",
                             "currency": "USD"
                           }
                         },
@@ -125,6 +126,7 @@
                         {
                           "__typename": "Purchase",
                           "wallet": {
+                            "__typename": "WalletType2",
                             "currency": "USD"
                           }
                         }
@@ -155,13 +157,13 @@
                         "status": "200 OK",
                         "headers": {
                           "Content-Length": [
-                            "277"
+                            "331"
                           ],
                           "Content-Type": [
                             "application/json"
                           ]
                         },
-                        "body_size": 277
+                        "body_size": 331
                       }
                     }
                   }
@@ -387,6 +389,7 @@
                         {
                           "__typename": "Purchase",
                           "wallet": {
+                            "__typename": "WalletType1",
                             "currency": "USD"
                           }
                         },
@@ -401,6 +404,7 @@
                         {
                           "__typename": "Purchase",
                           "wallet": {
+                            "__typename": "WalletType2",
                             "currency": "USD"
                           }
                         }
