@@ -1529,7 +1529,7 @@ func (r *Resolver) handleTriggerBulkUpdate(triggerID uint64, subData map[Subscri
 	// now update it the same way as single-update
 	var wg sync.WaitGroup
 	for sub, data := range subs {
-		if sub.removed.Load() {
+		if sub == nil || sub.removed.Load() {
 			continue
 		}
 		wg.Go(func() {
