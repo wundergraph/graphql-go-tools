@@ -1481,7 +1481,6 @@ type pendingFilterError struct {
 }
 
 // handleTriggerUpdate sends data to all subscriptions of a trigger.
-// all-at-once
 func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
@@ -1509,8 +1508,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	wg.Wait()
 }
 
-// new: block update
-func (r *Resolver) handleTriggerBlockUpdate(triggerID uint64, subData map[SubscriptionIdentifier][]byte) {
+func (r *Resolver) handleTriggerBulkUpdate(triggerID uint64, subData map[SubscriptionIdentifier][]byte) {
 	trigger, ok := r.getTrigger(triggerID)
 	if !ok {
 		return
@@ -1543,7 +1541,6 @@ func (r *Resolver) handleTriggerBlockUpdate(triggerID uint64, subData map[Subscr
 }
 
 // handleUpdateSubscription sends data to a single subscription.
-// single-update
 func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
@@ -1956,7 +1953,6 @@ type subscriptionUpdater struct {
 	subsFn    func() map[context.Context]SubscriptionIdentifier
 }
 
-// all-at-once
 func (s *subscriptionUpdater) Update(data []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1969,9 +1965,7 @@ func (s *subscriptionUpdater) Update(data []byte) {
 	s.resolver.handleTriggerUpdate(s.triggerID, data)
 }
 
-// new: update collectively
-// subIDs => map key = sub id, value = data
-func (s *subscriptionUpdater) BlockUpdate(subData map[SubscriptionIdentifier][]byte) {
+func (s *subscriptionUpdater) UpdateBulk(subData map[SubscriptionIdentifier][]byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
@@ -1980,7 +1974,7 @@ func (s *subscriptionUpdater) BlockUpdate(subData map[SubscriptionIdentifier][]b
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:block_update:%d\n", s.triggerID)
 	}
-	s.resolver.handleTriggerBlockUpdate(s.triggerID, subData)
+	s.resolver.handleTriggerBulkUpdate(s.triggerID, subData)
 }
 
 func (s *subscriptionUpdater) Heartbeat() {
@@ -2080,11 +2074,15 @@ type addSubscription struct {
 }
 
 type SubscriptionUpdater interface {
-	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
+	// Update sends an update all clients of updaters trigger.
+	// It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
-	// TODO: godoc
-	BlockUpdate(subData map[SubscriptionIdentifier][]byte)
-	// UpdateSubscription sends an update to a single subscription. It is not guaranteed that the update is sent immediately.
+	// UpdateBulk sends an update to all clients in subData using subData's value as event data.
+	// It is not guaranteed that the update is sent immediately.
+	UpdateBulk(subData map[SubscriptionIdentifier][]byte)
+	// UpdateSubscription sends an update to a single subscription.
+	// It is not guaranteed that the update is sent immediately.
+	// Warning: Using this highly concurrent slows updates down tremendously.
 	UpdateSubscription(id SubscriptionIdentifier, data []byte)
 	// Complete delivers a "subscription done" signal to all subscriptions on the trigger.
 	// Does not perform cleanup — call Done() after Complete().
