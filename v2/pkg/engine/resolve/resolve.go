@@ -1481,6 +1481,7 @@ type pendingFilterError struct {
 }
 
 // handleTriggerUpdate sends data to all subscriptions of a trigger.
+// all-at-once
 func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
@@ -1508,7 +1509,41 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	wg.Wait()
 }
 
+// new: block update
+func (r *Resolver) handleTriggerBlockUpdate(triggerID uint64, subData map[SubscriptionIdentifier][]byte) {
+	trigger, ok := r.getTrigger(triggerID)
+	if !ok {
+		return
+	}
+
+	// convert SubscriptionIdentifier to subscriptionState
+	subs := make(map[*subscriptionState][]byte, len(subData))
+	for id, data := range subData {
+		subState, err := trigger.filterSubscription(id, data)
+		if err != nil {
+			err.sub.writeError(r.errorFormatter, err.ctx, err.err, err.response)
+			// TODO: don't we need to ignore this sub now? existing paths don't do it
+		}
+
+		subs[subState] = data
+	}
+
+	// now update it the same way as single-update
+	var wg sync.WaitGroup
+	for sub, data := range subs {
+		if sub.removed.Load() {
+			continue
+		}
+		wg.Go(func() {
+			r.executeSubscriptionUpdate(sub.ctx, sub, data)
+		})
+	}
+
+	wg.Wait()
+}
+
 // handleUpdateSubscription sends data to a single subscription.
+// single-update
 func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
@@ -1921,6 +1956,7 @@ type subscriptionUpdater struct {
 	subsFn    func() map[context.Context]SubscriptionIdentifier
 }
 
+// all-at-once
 func (s *subscriptionUpdater) Update(data []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1933,6 +1969,20 @@ func (s *subscriptionUpdater) Update(data []byte) {
 	s.resolver.handleTriggerUpdate(s.triggerID, data)
 }
 
+// new: update collectively
+// subIDs => map key = sub id, value = data
+func (s *subscriptionUpdater) BlockUpdate(subData map[SubscriptionIdentifier][]byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done || s.ctx.Err() != nil {
+		return
+	}
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:block_update:%d\n", s.triggerID)
+	}
+	s.resolver.handleTriggerBlockUpdate(s.triggerID, subData)
+}
+
 func (s *subscriptionUpdater) Heartbeat() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1942,6 +1992,7 @@ func (s *subscriptionUpdater) Heartbeat() {
 	s.resolver.heartbeatTriggerSubscriptions(s.triggerID)
 }
 
+// single-update
 func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -2031,6 +2082,8 @@ type addSubscription struct {
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
+	// TODO: godoc
+	BlockUpdate(subData map[SubscriptionIdentifier][]byte)
 	// UpdateSubscription sends an update to a single subscription. It is not guaranteed that the update is sent immediately.
 	UpdateSubscription(id SubscriptionIdentifier, data []byte)
 	// Complete delivers a "subscription done" signal to all subscriptions on the trigger.
