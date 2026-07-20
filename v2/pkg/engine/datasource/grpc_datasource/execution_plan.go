@@ -1404,7 +1404,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 		MethodName:  rpcConfig.RPC,
 		ResponsePath: ast.Path{
 			{Kind: ast.FieldName, FieldName: []byte("_entities")},
-			{Kind: ast.FieldName, FieldName: []byte(requiredField.fieldName)},
+			{Kind: ast.FieldName, FieldName: []byte(requiredField.resultField.AliasOrPath())},
 		},
 		Request: RPCMessage{
 			Name: rpcConfig.Request,

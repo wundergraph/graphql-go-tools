@@ -437,6 +437,19 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 		return
 	}
 
+	// A required field selected under multiple response keys (e.g. a field and an alias of it)
+	// needs one entry per key. Reuse the entry already bound to this key, otherwise clone a new
+	// one; the first instance keeps the configured entry.
+	if requiredField.ref != ast.InvalidRef && requiredField.resultField.AliasOrPath() != field.AliasOrPath() {
+		if boundIndex := config.findRequiredFieldByResponseKey(fieldName, field.AliasOrPath()); boundIndex != ast.InvalidRef {
+			index, requiredField = boundIndex, config.requiredFields[boundIndex]
+		} else {
+			index = len(config.requiredFields)
+			config.requiredFields = append(config.requiredFields, requiredField.clone())
+			r.entityConfig.setEntity(r.entityInfo.typeName, config)
+		}
+	}
+
 	requiredField.ref = ref
 	requiredField.fieldDefRef = fieldDefRef
 	requiredField.resultField = field
@@ -628,6 +641,16 @@ type entityConfigData struct {
 	requiredFields  []requiredField
 }
 
+// clone creates a new required field with the same definition but without the result field and field arguments.
+func (r requiredField) clone() requiredField {
+	return requiredField{
+		fieldName:    r.fieldName,
+		ref:          r.ref,
+		fieldDefRef:  r.fieldDefRef,
+		selectionSet: r.selectionSet,
+	}
+}
+
 func (e entityConfigData) findRequiredField(fieldName string) (int, requiredField) {
 	for i, rf := range e.requiredFields {
 		if rf.fieldName == fieldName {
@@ -636,6 +659,19 @@ func (e entityConfigData) findRequiredField(fieldName string) (int, requiredFiel
 	}
 
 	return ast.InvalidRef, requiredField{}
+}
+
+// findRequiredFieldByResponseKey returns the index of the requiredField entry for the given
+// field name that is already bound to an operation field instance with the given response key
+// (alias when present, field name otherwise), or ast.InvalidRef if there is none.
+func (e entityConfigData) findRequiredFieldByResponseKey(fieldName, responseKey string) int {
+	for i, rf := range e.requiredFields {
+		if rf.fieldName == fieldName && rf.ref != ast.InvalidRef && rf.resultField.AliasOrPath() == responseKey {
+			return i
+		}
+	}
+
+	return ast.InvalidRef
 }
 
 func (e entityConfig) setEntity(typeName string, data entityConfigData) {

@@ -732,6 +732,102 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 			},
 		},
 		{
+			name:  "Query Storage type with aliased required field",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name aliasedScore: stockHealthScore } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","itemCount":100,"restockData":{"lastRestockDate":"2021-01-01"}},
+				{"__typename":"Storage","id":"2","itemCount":200,"restockData":{"lastRestockDate":"2021-01-02"}},
+				{"__typename":"Storage","id":"3","itemCount":300,"restockData":{"lastRestockDate":"2021-01-03"}},
+				{"__typename":"Storage","id":"4","itemCount":400,"restockData":{"lastRestockDate":"2021-01-04"}}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "stockHealthScore",
+					SelectionSet: "itemCount restockData { lastRestockDate }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 4, "Should return 4 entities")
+
+				// Storage 1: itemCount=100, restockData provided -> score = 100*0.1 + 10 = 20.0
+				storage1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "Storage 1", storage1["name"])
+				require.Equal(t, 20.0, storage1["aliasedScore"])
+
+				// Storage 2: itemCount=200, restockData provided -> score = 200*0.1 + 10 = 30.0
+				storage2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, "Storage 2", storage2["name"])
+				require.Equal(t, 30.0, storage2["aliasedScore"])
+
+				// Storage 3: itemCount=300, restockData provided -> score = 300*0.1 + 10 = 40.0
+				storage3, ok := entities[2].(map[string]any)
+				require.True(t, ok, "storage3 should be an object")
+				require.Equal(t, "3", storage3["id"])
+				require.Equal(t, "Storage 3", storage3["name"])
+				require.Equal(t, 40.0, storage3["aliasedScore"])
+
+				// Storage 4: itemCount=400, restockData provided -> score = 400*0.1 + 10 = 50.0
+				storage4, ok := entities[3].(map[string]any)
+				require.True(t, ok, "storage4 should be an object")
+				require.Equal(t, "4", storage4["id"])
+				require.Equal(t, "Storage 4", storage4["name"])
+				require.Equal(t, 50.0, storage4["aliasedScore"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage type with plain and aliased required field instances",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name stockHealthScore aliasedScore: stockHealthScore } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","itemCount":100,"restockData":{"lastRestockDate":"2021-01-01"}},
+				{"__typename":"Storage","id":"2","itemCount":200,"restockData":{"lastRestockDate":"2021-01-02"}},
+				{"__typename":"Storage","id":"3","itemCount":300,"restockData":{"lastRestockDate":"2021-01-03"}},
+				{"__typename":"Storage","id":"4","itemCount":400,"restockData":{"lastRestockDate":"2021-01-04"}}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "stockHealthScore",
+					SelectionSet: "itemCount restockData { lastRestockDate }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 4, "Should return 4 entities")
+
+				expectedScores := []float64{20.0, 30.0, 40.0, 50.0}
+				for i, expectedScore := range expectedScores {
+					storage, ok := entities[i].(map[string]any)
+					require.True(t, ok, "storage%d should be an object", i+1)
+					require.Equal(t, fmt.Sprintf("%d", i+1), storage["id"])
+					require.Equal(t, fmt.Sprintf("Storage %d", i+1), storage["name"])
+					require.Equal(t, expectedScore, storage["stockHealthScore"], "plain response key of storage%d", i+1)
+					require.Equal(t, expectedScore, storage["aliasedScore"], "aliased response key of storage%d", i+1)
+				}
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
 			name:  "Query Storage with empty restockData (no +10 bonus)",
 			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name stockHealthScore } } }`,
 			vars: `{"variables":{"representations":[
