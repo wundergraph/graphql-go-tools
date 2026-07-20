@@ -979,11 +979,11 @@ func (s *subscriptionState) sendHeartbeat() error {
 	return s.writer.Heartbeat()
 }
 
-func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) {
-	if r.options.Debug {
-		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
-	}
-
+// resolveSubscriptionUpdateToBytes runs a single subscription resolve (init + pre-fetch auth +
+// load + serialize) for the given representative context/subscription and returns the serialized
+// response body. It does not touch any subscriber's writer, so the result can be fanned out to a
+// group of subscribers whose resolved output is identical (see executeSubscriptionUpdateGroup).
+func (r *Resolver) resolveSubscriptionUpdateToBytes(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(resolveCtx.ctx, r.maxSubscriptionFetchTimeout)
 	defer cancel()
 
@@ -994,31 +994,17 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	copy(input, sharedInput)
 
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
+	defer r.resolveArenaPool.Release(resolveArena)
+
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
 	authorization := NewFieldAuthorization(resolveCtx)
 	resolvable.SetFieldAuthorization(authorization)
 
 	if err := resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
-		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
-		}
-		if r.reporter != nil {
-			r.reporter.SubscriptionUpdateSent()
-		}
-		return
+		return nil, err
 	}
 	if err := authorization.authorizePreFetch(sub.resolve.Response); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
-		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:authorization:failed:%d\n", sub.id.SubscriptionID)
-		}
-		if r.reporter != nil {
-			r.reporter.SubscriptionUpdateSent()
-		}
-		return
+		return nil, err
 	}
 
 	// The DataBuffer wraps the base tree produced by InitSubscription (the
@@ -1027,22 +1013,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if err := loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
-		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
-		}
-		if r.reporter != nil {
-			r.reporter.SubscriptionUpdateSent()
-		}
-		return
-	}
-
-	sub.writeMu.Lock()
-	if sub.removed.Load() {
-		sub.writeMu.Unlock()
-		r.resolveArenaPool.Release(resolveArena)
-		return
+		return nil, err
 	}
 
 	// Inject loader output into Resolvable before rendering. InitSubscription may
@@ -1059,21 +1030,39 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	}
 	resolvable.skipValueCompletion = loader.skipValueCompletion
 
-	if err := resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
-		r.errorFormatter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
-		sub.writeMu.Unlock()
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
-		}
+	// Render into a buffer instead of a subscriber's writer, so the identical bytes can be broadcast
+	// to every member of the group.
+	buf := bytes.NewBuffer(make([]byte, 0, 1024))
+	if err := resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, buf); err != nil {
+		return nil, err
+	}
+	// Copy out of the buffer so the bytes are independent of the pooled arena we're about to release.
+	out := make([]byte, buf.Len())
+	copy(out, buf.Bytes())
+	return out, nil
+}
+
+// deliverSubscriptionUpdate writes an already-resolved response body (or a resolve error) to one
+// subscriber. Called once per subscriber in a group; each subscriber has its own writer + writeMu.
+func (r *Resolver) deliverSubscriptionUpdate(sub *subscriptionState, resolveCtx *Context, body []byte, resolveErr error) {
+	if resolveErr != nil {
+		sub.writeError(r.errorFormatter, resolveCtx, resolveErr, sub.resolve.Response)
 		if r.reporter != nil {
 			r.reporter.SubscriptionUpdateSent()
 		}
 		return
 	}
 
-	r.resolveArenaPool.Release(resolveArena)
-
+	sub.writeMu.Lock()
+	if sub.removed.Load() {
+		sub.writeMu.Unlock()
+		return
+	}
+	if _, err := sub.writer.Write(body); err != nil {
+		sub.writeMu.Unlock()
+		_ = r.UnsubscribeSubscription(sub.id)
+		return
+	}
 	if err := sub.writer.Flush(); err != nil {
 		sub.writeMu.Unlock()
 		// If flush fails (e.g. client disconnected), remove the subscription.
@@ -1083,16 +1072,48 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	sub.lastWriteTime.Store(time.Now().UnixNano())
 	sub.writeMu.Unlock()
 
-	if r.options.Debug {
-		fmt.Printf("resolver:trigger:subscription:flushed:%d\n", sub.id.SubscriptionID)
-	}
 	if r.reporter != nil {
 		r.reporter.SubscriptionUpdateSent()
 	}
+}
 
-	if resolvable.WroteErrorsWithoutData() && r.options.Debug {
-		fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
+// executeSubscriptionUpdateGroup resolves the update ONCE for a group of subscribers whose output
+// is identical (see resolutionGroupKey), then fans the serialized bytes out to each concurrently.
+// A single-member group is equivalent to the previous per-subscriber behavior.
+func (r *Resolver) executeSubscriptionUpdateGroup(members []*subscriptionState, sharedInput []byte) {
+	if len(members) == 0 {
+		return
 	}
+	lead := members[0]
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:update:%d:group_size:%d\n", lead.id.SubscriptionID, len(members))
+	}
+
+	// Resolve once, using the representative subscriber's context. Grouping guarantees every member
+	// would produce identical bytes for this event.
+	body, err := r.resolveSubscriptionUpdateToBytes(lead.ctx, lead, sharedInput)
+
+	if len(members) == 1 {
+		r.deliverSubscriptionUpdate(lead, lead.ctx, body, err)
+		return
+	}
+
+	var wg sync.WaitGroup
+	for _, sub := range members {
+		if sub.removed.Load() {
+			continue
+		}
+		wg.Go(func() {
+			r.deliverSubscriptionUpdate(sub, lead.ctx, body, err)
+		})
+	}
+	wg.Wait()
+}
+
+// executeSubscriptionUpdate resolves and delivers a single subscription update. Retained for the
+// single-subscription path (handleUpdateSubscription); delegates to the group path with one member.
+func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) {
+	r.executeSubscriptionUpdateGroup([]*subscriptionState{sub}, sharedInput)
 }
 
 func (r *Resolver) executeSubscriptionHeartbeat(sub *subscriptionState) {
@@ -1480,7 +1501,46 @@ type pendingFilterError struct {
 	sub      *subscriptionState
 }
 
-// handleTriggerUpdate sends data to all subscriptions of a trigger.
+// subGroupKey identifies a set of subscribers on a trigger whose resolved output is byte-identical,
+// so the update can be resolved once and broadcast to all of them. It covers everything that can
+// change the output: the plan/selection (via the shared cached plan pointer — the router's plan
+// cache hands identical operations the same *GraphQLSubscription), the operation variables, and the
+// full set of subgraph request headers. Subscribers whose output can vary per viewer are excluded
+// from grouping entirely (see resolutionGroupKey), never keyed here.
+type subGroupKey struct {
+	plan      *GraphQLSubscription
+	variables uint64
+	headers   uint64
+}
+
+// resolutionGroupKey returns a subscriber's grouping key and whether it may be grouped. Grouping is
+// only allowed when the output cannot vary per viewer: the selected plan gates no fields on the
+// viewer's scopes (no authorization coordinates) and tracing is off for the request (a sampled
+// request renders a per-request trace extension). Otherwise the subscriber resolves individually.
+func resolutionGroupKey(sub *subscriptionState) (subGroupKey, bool) {
+	resp := sub.resolve.Response
+	if resp == nil || resp.Info == nil || len(resp.Info.AuthorizationCoordinates) > 0 {
+		return subGroupKey{}, false
+	}
+	if sub.ctx.TracingOptions.Enable {
+		return subGroupKey{}, false
+	}
+	var headers uint64
+	if sub.ctx.SubgraphHeadersBuilder != nil {
+		headers = sub.ctx.SubgraphHeadersBuilder.HashAll()
+	}
+	return subGroupKey{
+		plan:      sub.resolve,
+		variables: sub.ctx.VariablesHash,
+		headers:   headers,
+	}, true
+}
+
+// handleTriggerUpdate sends data to all subscriptions of a trigger. Subscribers whose resolved
+// output is identical are grouped and resolved once (resolve-once-broadcast), then the serialized
+// bytes are fanned out to each; the rest resolve individually. This collapses N per-subscriber
+// resolves+fetches to one per distinct output — the common case for high-fanout EDFS subscriptions
+// where every subscriber selects the same fields with non-personalized subgraph headers.
 func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
@@ -1496,13 +1556,36 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		fe.sub.writeError(r.errorFormatter, fe.ctx, fe.err, fe.response)
 	}
 
-	var wg sync.WaitGroup
+	// Bucket subscribers by resolution output. Groupable subscribers with an equal key share one
+	// resolve; non-groupable ones (per-viewer auth / tracing) resolve individually.
+	groups := make(map[subGroupKey][]*subscriptionState, len(subs))
+	order := make([]subGroupKey, 0, len(subs))
+	var solo []*subscriptionState
 	for _, sub := range subs {
 		if sub.removed.Load() {
 			continue
 		}
+		key, groupable := resolutionGroupKey(sub)
+		if !groupable {
+			solo = append(solo, sub)
+			continue
+		}
+		if _, seen := groups[key]; !seen {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], sub)
+	}
+
+	var wg sync.WaitGroup
+	for _, key := range order {
+		members := groups[key]
 		wg.Go(func() {
-			r.executeSubscriptionUpdate(sub.ctx, sub, data)
+			r.executeSubscriptionUpdateGroup(members, data)
+		})
+	}
+	for _, sub := range solo {
+		wg.Go(func() {
+			r.executeSubscriptionUpdateGroup([]*subscriptionState{sub}, data)
 		})
 	}
 	wg.Wait()
