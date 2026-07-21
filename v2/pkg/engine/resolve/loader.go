@@ -139,6 +139,9 @@ type result struct {
 	out               []byte
 	singleFlightStats *singleFlightStats
 	tools             *batchEntityTools
+
+	// multi is set on per-entry result views during MultiEntityFetch merging.
+	multi *multiEntryMergeConfig
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -347,6 +350,9 @@ func (l *Loader) preparePhase(item *FetchItem) (*preparedFetch, error) {
 		prepared.batchFetch = true
 		err := l.prepareBatchEntityFetch(item, fetch, items, res, prepared)
 		return prepared, err
+	case *MultiEntityFetch:
+		err := l.prepareMultiEntityFetch(item, fetch, res, prepared)
+		return prepared, err
 	default:
 		return nil, nil
 	}
@@ -366,6 +372,10 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 func (l *Loader) mergePhase(prepared *preparedFetch) error {
 	l.dataBuffer.Lock()
 	defer l.dataBuffer.Unlock()
+
+	if prepared.multiEntries != nil {
+		return l.mergeMultiEntityResult(prepared)
+	}
 
 	res := prepared.res
 	var err error
@@ -415,6 +425,8 @@ type preparedFetch struct {
 	trace      *DataSourceLoadTrace
 	skipLoad   bool
 	batchFetch bool
+
+	multiEntries []preparedMultiEntry
 }
 
 func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
@@ -631,16 +643,25 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 	// astjson.ParseBytesWithArena copies bytes onto the arena internally,
 	// tying the byte lifecycle to the arena and preventing GC-related segfaults.
-	response, err := astjson.ParseBytesWithArena(l.jsonArena, res.out)
-	if err != nil {
-		// Fall back to status code if parsing fails and non-2XX
-		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
-			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+	// Multi entries share a response parsed once by the parent.
+	var (
+		response *astjson.Value
+		err      error
+	)
+	if res.multi != nil && res.multi.response != nil {
+		response = res.multi.response
+	} else {
+		response, err = astjson.ParseBytesWithArena(l.jsonArena, res.out)
+		if err != nil {
+			// Fall back to status code if parsing fails and non-2XX
+			if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
+				return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+			}
+			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 		}
-		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
-	if l.allowCustomExtensionProperties {
+	if l.allowCustomExtensionProperties && res.multi == nil {
 		extensions := response.Get("extensions")
 
 		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
@@ -660,14 +681,23 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	var taintedIndices []int
 	// Check if the subgraph response has errors.
 	if res.postProcessing.SelectResponseErrorsPath != nil {
-		responseErrors := response.Get(res.postProcessing.SelectResponseErrorsPath...)
+		var responseErrors *astjson.Value
+		if res.multi != nil {
+			responseErrors = res.multi.errors
+		} else {
+			responseErrors = response.Get(res.postProcessing.SelectResponseErrorsPath...)
+		}
 		if astjson.ValueIsNonNull(responseErrors) {
 			hasErrors = len(responseErrors.GetArray()) > 0
 			// If the response has the "errors" key, and its value is empty,
 			// we don't consider it as an error. Note: it is not compliant with graphql spec.
 			if hasErrors {
 				if l.validateRequiredExternalFields && res.postProcessing.SelectResponseDataPath != nil {
-					taintedIndices = getTaintedIndices(fetchItem.Fetch, responseData, responseErrors)
+					if res.multi != nil {
+						taintedIndices = getTaintedIndices(res.multi.info, res.multi.alias, responseData, responseErrors)
+					} else {
+						taintedIndices = getTaintedIndices(fetchItem.Fetch.FetchInfo(), "_entities", responseData, responseErrors)
+					}
 				}
 				if len(taintedIndices) > 0 {
 					// Override errors with generic error about missing deps.
@@ -689,7 +719,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
 		// First check if this is actually an entity null fetch, instead of a data null fetch.
 		// In this case we return early to avoid adding subgraph errors or merging this into items.
-		if isEmptyEntityFetch(fetchItem, response) {
+		// Multi-entity entry items carry no Fetch (nil) and have no trailing index in their
+		// data path, so the check does not apply to them.
+		if res.multi == nil && isEmptyEntityFetch(fetchItem, response) {
 			return nil
 		}
 
@@ -738,6 +770,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if slices.Contains(taintedIndices, 0) {
 			l.taintedObjs.add(items[0])
 		}
+		return nil
+	}
+	// A single-origin multi entry over an empty _entities array is a benign no-op,
+	// matching the unmerged EntityFetch whose ["data","_entities","0"] selects null.
+	if res.multi != nil && res.multi.originSingle &&
+		responseData.Type() == astjson.TypeArray && len(responseData.GetArray()) == 0 {
 		return nil
 	}
 	batch := responseData.GetArray()
@@ -855,8 +893,17 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value) error {
 	values := value.GetArray()
 	l.optionallyOmitErrorLocations(values)
-	if l.rewriteSubgraphErrorPaths {
-		rewriteErrorPaths(l.jsonArena, fetchItem, values)
+	if res.multi != nil {
+		// Multi entries prefix error paths with their internal alias. Rewrite it to
+		// the entry's response path when enabled, or hide it as "_entities"
+		// otherwise, so pass-through propagation never leaks the alias.
+		if l.rewriteSubgraphErrorPaths {
+			rewriteErrorPaths(l.jsonArena, fetchItem, values, res.multi.alias)
+		} else {
+			hideAliasInErrorPaths(l.jsonArena, res.multi.alias, values)
+		}
+	} else if l.rewriteSubgraphErrorPaths {
+		rewriteErrorPaths(l.jsonArena, fetchItem, values, "_entities")
 	}
 	l.optionallyEnsureExtensionErrorCode(values)
 
@@ -1084,12 +1131,14 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	}
 }
 
-// rewriteErrorPaths rewrites GraphQL error "path" arrays for subgraph errors routed via _entities:
+// rewriteErrorPaths rewrites GraphQL error "path" arrays for subgraph errors
+// routed via the root field named rootName ("_entities", or a MultiEntityFetch
+// alias):
 //   - Prefixes with fetchItem.ResponsePathElements (trailing "@" removed).
-//   - Drops the numeric index immediately following "_entities".
+//   - Drops the numeric index immediately following rootName.
 //   - Converts all subsequent numeric segments to strings (e.g., 1 -> "1").
 //   - Skips non-string/non-number segments.
-func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Value) {
+func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Value, rootName string) {
 	pathPrefix := make([]string, len(fetchItem.ResponsePathElements))
 	copy(pathPrefix, fetchItem.ResponsePathElements)
 	// remove the trailing @ in case we're in an array as it looks weird in the path
@@ -1111,7 +1160,7 @@ func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Va
 		}
 		for i, item := range pathItems {
 			if item.Type() != astjson.TypeString ||
-				unsafebytes.BytesToString(item.GetStringBytes()) != "_entities" {
+				unsafebytes.BytesToString(item.GetStringBytes()) != rootName {
 				continue
 			}
 			arr := astjson.ArrayValue(a)
@@ -1131,6 +1180,32 @@ func rewriteErrorPaths(a arena.Arena, fetchItem *FetchItem, values []*astjson.Va
 			value.Set(a, "path", arr)
 			break
 		}
+	}
+}
+
+// hideAliasInErrorPaths replaces a leading path element equal to alias with
+// "_entities", so pass-through error propagation never exposes the internal
+// MultiEntityFetch alias.
+func hideAliasInErrorPaths(a arena.Arena, alias string, values []*astjson.Value) {
+	for _, value := range values {
+		errorPath := value.Get("path")
+		if astjson.ValueIsNull(errorPath) || errorPath.Type() != astjson.TypeArray {
+			continue
+		}
+		pathItems := errorPath.GetArray()
+		if len(pathItems) == 0 {
+			continue
+		}
+		if pathItems[0].Type() != astjson.TypeString ||
+			unsafebytes.BytesToString(pathItems[0].GetStringBytes()) != alias {
+			continue
+		}
+		arr := astjson.ArrayValue(a)
+		astjson.AppendToArray(a, arr, astjson.StringValue(a, "_entities"))
+		for j := 1; j < len(pathItems); j++ {
+			astjson.AppendToArray(a, arr, pathItems[j])
+		}
+		value.Set(a, "path", arr)
 	}
 }
 
@@ -1624,6 +1699,15 @@ func (b *batchEntityTools) reset() {
 	b.a.Reset()
 	for i := range b.batchHashToIndex {
 		delete(b.batchHashToIndex, i)
+	}
+}
+
+// clearDedupState resets the per-entry dedup scope without touching the
+// arena, whose buffers must survive until final input assembly.
+func (b *batchEntityTools) clearDedupState() {
+	b.keyGen.Reset()
+	for k := range b.batchHashToIndex {
+		delete(b.batchHashToIndex, k)
 	}
 }
 

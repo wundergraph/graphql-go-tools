@@ -324,6 +324,7 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 		planner:                   planner,
 		options: plannerConfigurationOptions{
 			EnableOperationNamePropagation: configuration.EnableOperationNamePropagation,
+			EnableMultiFetch:               configuration.EnableMultiFetch,
 		},
 	}
 

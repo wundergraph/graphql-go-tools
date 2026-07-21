@@ -8,6 +8,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -374,4 +375,77 @@ func TestImportVariableDefinitionPreservesBlockStringFlag(t *testing.T) {
 	assert.True(t, importedVar.Description.IsBlockString,
 		"block-string flag must survive the import")
 	assert.Equal(t, "The user ID", to.Input.ByteSliceString(importedVar.Description.Content))
+}
+
+func TestImportSelectionSetWithVariableRename(t *testing.T) {
+	from, report := astparser.ParseGraphqlDocumentString(`query($representations: [_Any!]!, $first: Int) {
+  _entities(representations: $representations) {
+    ... on Employee { __typename p: products(first: $first) @custom(arg: $first) { upc nested { id } } }
+  }
+}`)
+	require.False(t, report.HasErrors())
+
+	to := ast.NewSmallDocument()
+	importer := &Importer{}
+	rename := map[string]string{"representations": "representations_f1", "first": "first_f1"}
+
+	setRef, err := importer.ImportSelectionSetWithVariableRename(from.OperationDefinitions[0].SelectionSet, &from, to, rename)
+	require.NoError(t, err)
+
+	to.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
+		OperationType: ast.OperationTypeQuery,
+		HasSelections: true,
+		SelectionSet:  setRef,
+	})
+
+	printed, err := astprinter.PrintString(to)
+	require.NoError(t, err)
+
+	assert.Contains(t, printed, "_entities(representations: $representations_f1)")
+	assert.Contains(t, printed, "p: products(first: $first_f1)")
+	assert.Contains(t, printed, "@custom(arg: $first_f1)")
+	assert.Contains(t, printed, "... on Employee")
+	assert.Contains(t, printed, "nested {id}")
+}
+
+func TestImportSelectionSetFragmentSpreadError(t *testing.T) {
+	from, report := astparser.ParseGraphqlDocumentString(`query { ...Frag }
+fragment Frag on Query { __typename }`)
+	require.False(t, report.HasErrors())
+
+	to := ast.NewSmallDocument()
+	importer := &Importer{}
+
+	_, err := importer.ImportSelectionSet(from.OperationDefinitions[0].SelectionSet, &from, to)
+	require.Error(t, err)
+}
+
+func TestImportVariableDefinitionWithVariableNameRename(t *testing.T) {
+	from, report := astparser.ParseGraphqlDocumentString(`query($representations: [_Any!]!) { _entities(representations: $representations) { __typename } }`)
+	require.False(t, report.HasErrors())
+
+	to := ast.NewSmallDocument()
+	importer := &Importer{}
+
+	typenameField := to.AddField(ast.Field{
+		Name:         to.Input.AppendInputString("__typename"),
+		SelectionSet: -1,
+	}).Ref
+	set := to.AddSelectionSetToDocument(ast.SelectionSet{
+		SelectionRefs: []int{to.AddSelectionToDocument(ast.Selection{Kind: ast.SelectionKindField, Ref: typenameField})},
+	})
+	opNode := to.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
+		OperationType: ast.OperationTypeQuery,
+		HasSelections: true,
+		SelectionSet:  set,
+	})
+
+	srcVarRef := from.OperationDefinitions[0].VariableDefinitions.Refs[0]
+	importedRef := importer.ImportVariableDefinitionWithVariableNameRename(srcVarRef, &from, to, "representations_f1")
+	to.AddImportedVariableDefinitionToOperationDefinition(opNode.Ref, importedRef)
+
+	printed, err := astprinter.PrintString(to)
+	require.NoError(t, err)
+
+	assert.Contains(t, printed, "query($representations_f1: [_Any!]!)")
 }

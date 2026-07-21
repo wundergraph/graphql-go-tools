@@ -389,6 +389,61 @@ func TestProcess_ExtractFetches(t *testing.T) {
 	}
 }
 
+// TestProcess_AddMissingNestedDependenciesLock locks the behavior that a nested
+// fetch with an empty DependsOnFetchIDs gains the dependency on the fetch that
+// provides its response path, independent of where addMissingNestedDependencies
+// runs in the pipeline.
+func TestProcess_AddMissingNestedDependenciesLock(t *testing.T) {
+	p := &plan.SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			RawFetches: []*resolve.FetchItem{
+				{
+					Fetch: &resolve.SingleFetch{
+						FetchDependencies: resolve.FetchDependencies{FetchID: 0},
+						FetchConfiguration: resolve.FetchConfiguration{
+							PostProcessing: resolve.PostProcessingConfiguration{MergePath: []string{"user"}},
+						},
+					},
+					ResponsePath: "",
+				},
+				{
+					Fetch: &resolve.SingleFetch{
+						FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+					},
+					ResponsePath: "user",
+				},
+			},
+			Data: &resolve.Object{
+				Fields: []*resolve.Field{
+					{
+						Name:  []byte("user"),
+						Value: &resolve.String{Path: []string{"user"}},
+					},
+				},
+			},
+		},
+	}
+
+	NewProcessor().Process(p)
+
+	fetches := p.Response.Fetches
+	assert.Equal(t, resolve.FetchTreeNodeKindSequence, fetches.Kind)
+	assert.Len(t, fetches.ChildNodes, 2)
+
+	first := fetches.ChildNodes[0]
+	assert.Equal(t, resolve.FetchTreeNodeKindSingle, first.Kind)
+	firstFetch, ok := first.Item.Fetch.(*resolve.SingleFetch)
+	assert.True(t, ok)
+	assert.Equal(t, 0, firstFetch.FetchID)
+
+	second := fetches.ChildNodes[1]
+	assert.Equal(t, resolve.FetchTreeNodeKindSingle, second.Kind)
+	secondFetch, ok := second.Item.Fetch.(*resolve.SingleFetch)
+	assert.True(t, ok)
+	assert.Equal(t, 1, secondFetch.FetchID)
+	assert.Equal(t, []int{0}, secondFetch.DependsOnFetchIDs)
+}
+
 func TestProcess_ExtractServiceNames(t *testing.T) {
 	type TestCase struct {
 		name     string

@@ -94,6 +94,12 @@ type FetchTraceNode struct {
 	SourceName string                 `json:"source_name"`
 	Trace      *DataSourceLoadTrace   `json:"trace,omitempty"`
 	Traces     []*DataSourceLoadTrace `json:"traces,omitempty"`
+	Entries    []FetchTraceEntry      `json:"entries,omitempty"`
+}
+
+type FetchTraceEntry struct {
+	Alias string `json:"alias"`
+	Path  string `json:"path"`
 }
 
 func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
@@ -130,6 +136,19 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 				Trace:      f.Trace,
 				Path:       n.Item.ResponsePath,
 			}
+		case *MultiEntityFetch:
+			entries := make([]FetchTraceEntry, len(f.Input.Entries))
+			for i, e := range f.Input.Entries {
+				entries[i] = FetchTraceEntry{Alias: e.Alias, Path: e.Item.ResponsePath}
+			}
+			trace.Fetch = &FetchTraceNode{
+				Kind:       "MultiEntity",
+				SourceID:   f.Info.DataSourceID,
+				SourceName: f.Info.DataSourceName,
+				Trace:      f.Trace,
+				Path:       n.Item.ResponsePath,
+				Entries:    entries,
+			}
 		default:
 		}
 	case FetchTreeNodeKindSequence, FetchTreeNodeKindParallel:
@@ -160,6 +179,13 @@ type FetchTreeQueryPlan struct {
 	Representations   []Representation  `json:"representations,omitempty"`
 	Query             string            `json:"query,omitempty"`
 	Dependencies      []FetchDependency `json:"dependencies,omitempty"`
+	MergedFetchIDs    []int             `json:"mergedFetchIds,omitempty"`
+	Entries           []QueryPlanEntry  `json:"entries,omitempty"`
+}
+
+type QueryPlanEntry struct {
+	Alias string `json:"alias"`
+	Path  string `json:"path,omitempty"`
 }
 
 func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {
@@ -236,6 +262,27 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				SubgraphID:        f.Info.DataSourceID,
 				Path:              n.Item.ResponsePath,
 				Dependencies:      f.Info.CoordinateDependencies,
+			}
+
+			if f.Info.QueryPlan != nil {
+				queryPlan.Fetch.Query = f.Info.QueryPlan.Query
+				queryPlan.Fetch.Representations = f.Info.QueryPlan.DependsOnFields
+			}
+		case *MultiEntityFetch:
+			entries := make([]QueryPlanEntry, len(f.Input.Entries))
+			for i, e := range f.Input.Entries {
+				entries[i] = QueryPlanEntry{Alias: e.Alias, Path: e.Item.ResponsePath}
+			}
+			queryPlan.Fetch = &FetchTreeQueryPlan{
+				Kind:              "MultiEntity",
+				FetchID:           f.FetchDependencies.FetchID,
+				DependsOnFetchIDs: f.FetchDependencies.DependsOnFetchIDs,
+				SubgraphName:      f.Info.DataSourceName,
+				SubgraphID:        f.Info.DataSourceID,
+				Path:              n.Item.ResponsePath,
+				Dependencies:      f.Info.CoordinateDependencies,
+				MergedFetchIDs:    f.MergedFetchIDs,
+				Entries:           entries,
 			}
 
 			if f.Info.QueryPlan != nil {
