@@ -113,6 +113,11 @@ type result struct {
 	batchStats       [][]*astjson.Value
 	fetchSkipped     bool
 	nestedMergeItems []*result
+	// multiSubs carries per-sub-fetch demux metadata for a MultiEntityFetch.
+	// It is populated by prepareMultiEntityFetch and consumed by
+	// mergeMultiEntityResult to scatter the aliased response back onto each
+	// sub-fetch's response path.
+	multiSubs []multiEntitySub
 
 	statusCode int
 	err        error
@@ -149,6 +154,29 @@ func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInf
 			Name: info.DataSourceName,
 		}
 	}
+}
+
+// multiEntitySub is the per-sub-fetch merge metadata that prepareMultiEntityFetch
+// records so mergeMultiEntityResult can demultiplex an aliased _entities response
+// back onto each sub-fetch's own response path.
+type multiEntitySub struct {
+	// responsePath is the sub-fetch's ResponsePath (e.g. "query.store"), used to
+	// attribute per-alias subgraph errors.
+	responsePath string
+	// alias is the response alias of this sub-fetch's _entities block (e.g. "f2").
+	alias string
+	// batch reports whether this sub-fetch resolves array items (batch semantics)
+	// or a single object.
+	batch bool
+	// items are the demux targets selected from the sub-fetch's FetchPath. For a
+	// single (non-batch) sub-fetch this holds the single target object.
+	items []*astjson.Value
+	// batchStats maps each unique representation index in the request to the
+	// original target values that must receive the response at that index. It is
+	// nil for single (non-batch) sub-fetches.
+	batchStats [][]*astjson.Value
+	// postProcessing extracts this alias's data from the merged response.
+	postProcessing PostProcessingConfiguration
 }
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
@@ -347,6 +375,10 @@ func (l *Loader) preparePhase(item *FetchItem) (*preparedFetch, error) {
 		prepared.batchFetch = true
 		err := l.prepareBatchEntityFetch(item, fetch, items, res, prepared)
 		return prepared, err
+	case *MultiEntityFetch:
+		prepared.batchFetch = true
+		err := l.prepareMultiEntityFetch(item, fetch, res, prepared)
+		return prepared, err
 	default:
 		return nil, nil
 	}
@@ -369,6 +401,11 @@ func (l *Loader) mergePhase(prepared *preparedFetch) error {
 
 	res := prepared.res
 	var err error
+	if _, ok := prepared.item.Fetch.(*MultiEntityFetch); ok {
+		err = l.mergeMultiEntityResult(prepared.item, res)
+		l.callOnFinished(res)
+		return err
+	}
 	if res.nestedMergeItems != nil {
 		for j := range res.nestedMergeItems {
 			err = l.mergeResult(prepared.item, res.nestedMergeItems[j], prepared.items[j:j+1])
@@ -1792,6 +1829,337 @@ WithNextItem:
 	prepared.trace = fetch.Trace
 	return nil
 }
+
+// prepareMultiEntityFetch renders a single upstream request that resolves several
+// entity sub-fetches at once via aliased _entities selections. It mirrors
+// prepareBatchEntityFetch, but loops over fetch.Fetches into one shared buffer and
+// records per-sub demux metadata (multiEntitySub) so mergeMultiEntityResult can
+// scatter the aliased response back onto each sub-fetch's response path.
+func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntityFetch, res *result, prepared *preparedFetch) error {
+	res.init(fetch.PostProcessing, fetch.Info)
+
+	if l.ctx.TracingOptions.Enable {
+		fetch.Trace = &DataSourceLoadTrace{}
+	}
+
+	res.tools = batchEntityToolPool.Get(0)
+	preparedInput := arena.NewArenaBuffer(res.tools.a)
+	itemInput := arena.NewArenaBuffer(res.tools.a)
+
+	var undefinedVariables []string
+
+	// Shared request envelope + operation header (aliased variable definitions).
+	err := fetch.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	res.multiSubs = make([]multiEntitySub, 0, len(fetch.Fetches))
+
+	for _, sub := range fetch.Fetches {
+		items := l.selectItemsForPath(sub.FetchPath)
+
+		// Per-alias variable header, e.g. `"representations_f1":[`.
+		err = sub.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		// Dedup is per alias: reset the hashing state between sub-fetches while
+		// still appending representations to the shared buffer.
+		res.tools.keyGen.Reset()
+		clear(res.tools.batchHashToIndex)
+		batchStats := arena.AllocateSlice[[]*astjson.Value](res.tools.a, 0, len(items))
+		batchItemIndex := 0
+		addSeparator := false
+
+	WithNextItem:
+		for i, item := range items {
+			for j := range sub.Input.Items {
+				itemInput.Reset()
+				err = sub.Input.Items[j].Render(l.ctx, item, itemInput)
+				if err != nil {
+					if sub.Input.SkipErrItems {
+						err = nil // nolint:ineffassign
+						continue
+					}
+					if l.ctx.TracingOptions.Enable {
+						fetch.Trace.LoadSkipped = true
+					}
+					return errors.WithStack(err)
+				}
+				if sub.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
+					continue
+				}
+				if sub.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
+					continue
+				}
+
+				res.tools.keyGen.Reset()
+				_, _ = res.tools.keyGen.Write(itemInput.Bytes())
+				itemHash := res.tools.keyGen.Sum64()
+				if existingIndex, ok := res.tools.batchHashToIndex[itemHash]; ok {
+					batchStats[existingIndex] = arena.SliceAppend(res.tools.a, batchStats[existingIndex], items[i])
+					continue WithNextItem
+				}
+				if addSeparator {
+					err = sub.Input.Separator.Render(l.ctx, nil, preparedInput)
+					if err != nil {
+						return errors.WithStack(err)
+					}
+				}
+				_, _ = itemInput.WriteTo(preparedInput)
+				res.tools.batchHashToIndex[itemHash] = batchItemIndex
+				// Allocate the targets bucket on the arena so the GC can't collect
+				// its backing array while it is still referenced.
+				bucket := arena.AllocateSlice[*astjson.Value](res.tools.a, 1, 1)
+				bucket[0] = items[i]
+				batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
+				batchItemIndex++
+				addSeparator = true
+			}
+		}
+
+		// Per-alias variable footer, e.g. `]`.
+		err = sub.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		msub := multiEntitySub{
+			responsePath:   sub.ResponsePath,
+			alias:          sub.Alias,
+			batch:          sub.Batch,
+			postProcessing: sub.PostProcessing,
+		}
+		if sub.Batch {
+			// Copy batchStats off the arena to the heap: the arena is reset once
+			// the fetch is done, but the *astjson.Value targets it points at live
+			// on the loader's json arena and must survive into the merge phase.
+			msub.batchStats = make([][]*astjson.Value, len(batchStats))
+			for i := range batchStats {
+				msub.batchStats[i] = make([]*astjson.Value, len(batchStats[i]))
+				copy(msub.batchStats[i], batchStats[i])
+			}
+		} else {
+			// Single object: keep the (at most one) selected target for the merge.
+			msub.items = make([]*astjson.Value, len(items))
+			copy(msub.items, items)
+		}
+		res.multiSubs = append(res.multiSubs, msub)
+	}
+
+	// Shared request footer (close the operation and variables object).
+	err = fetch.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	fetchInput := preparedInput.Bytes()
+
+	// fetch.Info carries the union of all merged root fields, so auth / rate-limit
+	// is enforced once for every participating field.
+	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		prepared.skipLoad = true
+		return nil
+	}
+
+	prepared.source = fetch.DataSource
+	prepared.input = fetchInput
+	prepared.trace = fetch.Trace
+	return nil
+}
+
+// mergeMultiEntityResult demultiplexes an aliased _entities response back onto
+// each sub-fetch's response path. A whole-request failure or rejection is surfaced
+// once at the shared fetch path (all participating fields stay null); otherwise the
+// per-alias data is scattered and any alias-prefixed subgraph errors are remapped
+// to their real response paths.
+func (l *Loader) mergeMultiEntityResult(fetchItem *FetchItem, res *result) error {
+	if res.err != nil {
+		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
+	}
+	if res.authorizationRejected {
+		if err := l.renderAuthorizationRejectedErrors(fetchItem, res); err != nil {
+			return err
+		}
+		for i := range res.multiSubs {
+			l.setSkipErrors(res, res.multiSubs[i].items)
+		}
+		return nil
+	}
+	if res.rateLimitRejected {
+		if err := l.renderRateLimitRejectedErrors(fetchItem, res); err != nil {
+			return err
+		}
+		for i := range res.multiSubs {
+			l.setSkipErrors(res, res.multiSubs[i].items)
+		}
+		return nil
+	}
+	if res.fetchSkipped {
+		return nil
+	}
+	if len(res.out) == 0 {
+		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
+	}
+
+	response, err := astjson.ParseBytesWithArena(l.jsonArena, res.out)
+	if err != nil {
+		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
+			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+		}
+		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
+	}
+
+	// Per-sub data demux.
+	for i := range res.multiSubs {
+		sub := &res.multiSubs[i]
+		var responseData *astjson.Value
+		if sub.postProcessing.SelectResponseDataPath != nil {
+			responseData = response.Get(sub.postProcessing.SelectResponseDataPath...)
+		} else {
+			responseData = response
+		}
+		// A null alias payload is legitimate (e.g. an entity that did not resolve):
+		// leave the targets null instead of raising a "no data" error.
+		if astjson.ValueIsNull(responseData) {
+			continue
+		}
+		if err = l.mergeEntityResponseData(fetchItem, res, sub, responseData); err != nil {
+			return err
+		}
+	}
+
+	// Per-alias subgraph errors: group by the alias at path[0], remap the path to
+	// the sub-fetch's real response path, and reuse mergeErrors for wrapping.
+	if res.postProcessing.SelectResponseErrorsPath != nil {
+		responseErrors := response.Get(res.postProcessing.SelectResponseErrorsPath...)
+		if astjson.ValueIsNonNull(responseErrors) && len(responseErrors.GetArray()) > 0 {
+			if err = l.mergeMultiEntityErrors(res, responseErrors); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// mergeEntityResponseData merges one alias's response payload onto its demux
+// targets, reusing the same batchStats fan-out and single-object merge semantics
+// as mergeResult.
+func (l *Loader) mergeEntityResponseData(fetchItem *FetchItem, res *result, sub *multiEntitySub, responseData *astjson.Value) error {
+	mergePath := sub.postProcessing.MergePath
+
+	if !sub.batch {
+		if len(sub.items) == 0 {
+			return nil
+		}
+		var err error
+		sub.items[0], _, err = astjson.MergeValuesWithPath(l.jsonArena, sub.items[0], responseData, mergePath...)
+		if err != nil {
+			return errors.WithStack(ErrMergeResult{Subgraph: res.ds.Name, Reason: err, Path: sub.responsePath})
+		}
+		return nil
+	}
+
+	batch := responseData.GetArray()
+	if batch == nil {
+		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
+	}
+	if len(sub.batchStats) != len(batch) {
+		return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, len(sub.batchStats), len(batch)))
+	}
+	for batchIndex, targets := range sub.batchStats {
+		src := batch[batchIndex]
+		for _, target := range targets {
+			_, _, mErr := astjson.MergeValuesWithPath(l.jsonArena, target, src, mergePath...)
+			if mErr != nil {
+				return errors.WithStack(ErrMergeResult{Subgraph: res.ds.Name, Reason: mErr, Path: sub.responsePath})
+			}
+		}
+	}
+	return nil
+}
+
+// mergeMultiEntityErrors groups alias-prefixed subgraph errors by their leading
+// alias segment, remaps each error path to the matching sub-fetch's real response
+// path, and delegates to mergeErrors so the resolver's configured wrapping /
+// pass-through behaviour is preserved.
+func (l *Loader) mergeMultiEntityErrors(res *result, responseErrors *astjson.Value) error {
+	errsByAlias := make(map[string][]*astjson.Value)
+	for _, gqlErr := range responseErrors.GetArray() {
+		path := gqlErr.Get("path")
+		if path == nil || path.Type() != astjson.TypeArray {
+			continue
+		}
+		pathItems := path.GetArray()
+		if len(pathItems) == 0 {
+			continue
+		}
+		alias := string(pathItems[0].GetStringBytes())
+		errsByAlias[alias] = append(errsByAlias[alias], gqlErr)
+	}
+
+	for i := range res.multiSubs {
+		sub := &res.multiSubs[i]
+		grouped := errsByAlias[sub.alias]
+		if len(grouped) == 0 {
+			continue
+		}
+
+		// Real response-path tail (without the synthetic operation root, e.g.
+		// "query.store" -> ["store"]).
+		tail := strings.Split(sub.responsePath, ".")
+		if len(tail) > 0 {
+			tail = tail[1:]
+		}
+
+		remapped := astjson.ArrayValue(l.jsonArena)
+		for _, gqlErr := range grouped {
+			pathItems := gqlErr.Get("path").GetArray()
+			// Drop the alias segment and the entity index that follows it, keeping
+			// the remaining field path, e.g. ["f2",0,"reviewScore"] -> ["reviewScore"].
+			rest := pathItems[1:]
+			if len(rest) > 0 && rest[0].Type() == astjson.TypeNumber {
+				rest = rest[1:]
+			}
+			newPath := astjson.ArrayValue(l.jsonArena)
+			for _, seg := range tail {
+				astjson.AppendToArray(l.jsonArena, newPath, astjson.StringValue(l.jsonArena, seg))
+			}
+			for _, seg := range rest {
+				astjson.AppendToArray(l.jsonArena, newPath, seg)
+			}
+			gqlErr.Set(l.jsonArena, "path", newPath)
+			astjson.AppendToArray(l.jsonArena, remapped, gqlErr)
+		}
+
+		syntheticItem := &FetchItem{
+			Fetch:        fetchItemMultiEntityErrorFetch,
+			ResponsePath: strings.Join(tail, "."),
+		}
+		if err := l.mergeErrors(res, syntheticItem, remapped); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// fetchItemMultiEntityErrorFetch is a stand-in Fetch used only to satisfy the
+// FetchItem carried into mergeErrors for per-alias error attribution; mergeErrors
+// never inspects the fetch itself.
+var fetchItemMultiEntityErrorFetch = &EntityFetch{}
 
 func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	var obj map[string]any
