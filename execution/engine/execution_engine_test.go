@@ -5949,19 +5949,25 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 	schema, err := graphql.NewSchemaFromString(testSubscriptionDefinition)
 	require.NoError(t, err)
 
-	gqlRequest := graphql.Request{
-		OperationName: "LastRegisteredUser",
-		Variables:     nil,
-		Query:         testSubscriptionLastRegisteredUserOperation,
+	newGraphqlRequest := func(t *testing.T) graphql.Request {
+		t.Helper()
+
+		gqlReq := graphql.Request{
+			OperationName: "LastRegisteredUser",
+			Variables:     nil,
+			Query:         testSubscriptionLastRegisteredUserOperation,
+		}
+
+		validationResult, err := gqlReq.ValidateForSchema(schema)
+		require.NoError(t, err)
+		require.True(t, validationResult.Valid)
+
+		normalizationResult, err := gqlReq.Normalize(schema)
+		require.NoError(t, err)
+		require.True(t, normalizationResult.Successful)
+
+		return gqlReq
 	}
-
-	validationResult, err := gqlRequest.ValidateForSchema(schema)
-	require.NoError(t, err)
-	require.True(t, validationResult.Valid)
-
-	normalizationResult, err := gqlRequest.Normalize(schema)
-	require.NoError(t, err)
-	require.True(t, normalizationResult.Successful)
 
 	differentGqlRequest := graphql.Request{
 		OperationName: "LiveUserCount",
@@ -5969,11 +5975,11 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		Query:         testSubscriptionLiveUserCountOperation,
 	}
 
-	validationResult, err = differentGqlRequest.ValidateForSchema(schema)
+	validationResult, err := differentGqlRequest.ValidateForSchema(schema)
 	require.NoError(t, err)
 	require.True(t, validationResult.Valid)
 
-	normalizationResult, err = differentGqlRequest.Normalize(schema)
+	normalizationResult, err := differentGqlRequest.Normalize(schema)
 	require.NoError(t, err)
 	require.True(t, normalizationResult.Successful)
 
@@ -6031,6 +6037,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
 
+		gqlRequest := newGraphqlRequest(t)
 		report := operationreport.Report{}
 		cachedPlan, _ := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
@@ -6061,6 +6068,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
 
+		gqlRequest := newGraphqlRequest(t)
 		report := operationreport.Report{}
 		cachedPlan, _ := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()

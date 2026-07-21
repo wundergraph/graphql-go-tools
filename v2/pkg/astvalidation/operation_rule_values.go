@@ -145,8 +145,8 @@ func (v *valuesVisitor) valueSatisfiesOperationListType(value ast.Value, operati
 
 	if v.operation.Types[listItemType].TypeKind == ast.TypeKindNonNull {
 		if len(v.operation.ListValues[value.Ref].Refs) == 0 {
-			v.handleOperationTypeError(value, operationTypeRef)
-			return false
+			// [] empty list is a valid input for [item!] lists
+			return true
 		}
 		listItemType = v.operation.Types[listItemType].OfType
 	}
