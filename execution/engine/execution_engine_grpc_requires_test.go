@@ -66,6 +66,39 @@ const requiresSupergraphSDL = `
 	}
 `
 
+// owningSubgraphSDL is the single, shared SDL for the "owning" subgraph across all @requires cases.
+// It owns the entity root fields plus every field the gRPC subgraph consumes via @requires (from the
+// gRPC perspective those are @external). Individual cases only vary the mocked response, never this.
+const owningSubgraphSDL = `
+	type Query {
+		storageProvider(id: ID!): Storage
+		warehouseProvider(id: ID!): Warehouse
+	}
+
+	type Storage @key(fields: "id") {
+		id: ID!
+		itemCount: Int!
+		restockData: RestockData!
+		tags: [String!]!
+		metadata: StorageMetadata!
+	}
+
+	type Warehouse @key(fields: "id") {
+		id: ID!
+		inventoryCount: Int!
+		restockData: RestockData!
+	}
+
+	type RestockData {
+		lastRestockDate: String!
+	}
+
+	type StorageMetadata {
+		capacity: Int!
+		zone: String!
+	}
+`
+
 // requiresFieldConfigurations covers the arguments of every field the test operations use: the
 // entity root fields and the @requires field that also takes an argument.
 var requiresFieldConfigurations = plan.FieldConfigurations{
@@ -86,24 +119,40 @@ var requiresFieldConfigurations = plan.FieldConfigurations{
 	},
 }
 
-// owningSubgraphConfig describes the "owning" subgraph for a single test case: the subgraph that
-// exposes the entity via a root field and provides the fields the gRPC subgraph consumes through
-// @requires (its @external fields). Its upstream returns responseJSON verbatim for any request.
-type owningSubgraphConfig struct {
-	// serviceSDL is the federation SDL for this subgraph (root field, @key, owned/external fields).
-	serviceSDL string
-	// responseJSON is the fixed upstream response; it must contain the entity's __typename, key and
-	// the fields referenced by the @requires selection set so the planner can build the representation.
-	responseJSON string
-	// metadata declares which nodes this subgraph owns plus the entity @key.
-	metadata *plan.DataSourceMetadata
+// newOwningSubgraphMetadata returns a fresh metadata instance describing what the owning subgraph
+// owns (a superset covering every @requires input across the cases) plus the entity @keys. A fresh
+// instance is returned per call because NewDataSourceConfiguration mutates it via Init(), and the
+// subtests run in parallel.
+func newOwningSubgraphMetadata() *plan.DataSourceMetadata {
+	return &plan.DataSourceMetadata{
+		RootNodes: []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"storageProvider", "warehouseProvider"}},
+			{TypeName: "Storage", FieldNames: []string{"id", "itemCount", "restockData", "tags", "metadata"}},
+			{TypeName: "Warehouse", FieldNames: []string{"id", "inventoryCount", "restockData"}},
+		},
+		ChildNodes: []plan.TypeField{
+			{TypeName: "RestockData", FieldNames: []string{"lastRestockDate"}},
+			{TypeName: "StorageMetadata", FieldNames: []string{"capacity", "zone"}},
+		},
+		FederationMetaData: plan.FederationMetaData{
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Storage", SelectionSet: "id"},
+				{TypeName: "Warehouse", SelectionSet: "id"},
+			},
+		},
+	}
 }
 
-// requiresTestCase is one @requires scenario exercised end-to-end through the engine.
+// requiresTestCase is one @requires scenario exercised end-to-end through the engine. Only the
+// mocked owning-subgraph response, the operation and the assertion vary; the owning subgraph's SDL
+// and metadata are shared across all cases.
 type requiresTestCase struct {
-	name      string
-	owning    owningSubgraphConfig
-	operation string
+	name string
+	// owningResponseJSON is the fixed upstream response the owning subgraph returns; it must contain
+	// the entity's __typename, key and the fields referenced by the @requires selection set so the
+	// planner can build the representation for the jump.
+	owningResponseJSON string
+	operation          string
 	// assert validates the raw engine response for this case.
 	assert func(t *testing.T, response string)
 }
@@ -125,88 +174,25 @@ func TestGRPCSubgraphRequiresFullExecution(t *testing.T) {
 			// Scalar @requires with a nested selection: itemCount + restockData { lastRestockDate }.
 			// Also selects name (resolved by the gRPC entity lookup) to cover lookup + requires together.
 			// stockHealthScore = itemCount*0.1 + 10 (restockData provided) = 100*0.1 + 10 = 20.0.
-			name: "Storage scalar @requires with nested selection",
-			owning: owningSubgraphConfig{
-				serviceSDL: `
-					type Query { storageProvider(id: ID!): Storage }
-					type Storage @key(fields: "id") {
-						id: ID!
-						itemCount: Int!
-						restockData: RestockData!
-					}
-					type RestockData { lastRestockDate: String! }
-				`,
-				responseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","itemCount":100,"restockData":{"__typename":"RestockData","lastRestockDate":"2021-01-01"}}}}`,
-				metadata: &plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"storageProvider"}},
-						{TypeName: "Storage", FieldNames: []string{"id", "itemCount", "restockData"}},
-					},
-					ChildNodes: []plan.TypeField{
-						{TypeName: "RestockData", FieldNames: []string{"lastRestockDate"}},
-					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{{TypeName: "Storage", SelectionSet: "id"}},
-					},
-				},
-			},
-			operation: `query { storageProvider(id: "1") { name stockHealthScore } }`,
-			assert:    expectJSON(`{"data":{"storageProvider":{"name":"Storage 1","stockHealthScore":20}}}`),
+			name:               "Storage scalar @requires with nested selection",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","itemCount":100,"restockData":{"__typename":"RestockData","lastRestockDate":"2021-01-01"}}}}`,
+			operation:          `query { storageProvider(id: "1") { name stockHealthScore } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"name":"Storage 1","stockHealthScore":20}}}`),
 		},
 		{
 			// @requires on a list scalar: tagSummary requires "tags". Mock joins tags with ", ".
-			name: "Storage @requires a scalar list",
-			owning: owningSubgraphConfig{
-				serviceSDL: `
-					type Query { storageProvider(id: ID!): Storage }
-					type Storage @key(fields: "id") {
-						id: ID!
-						tags: [String!]!
-					}
-				`,
-				responseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","tags":["alpha","beta","gamma"]}}}`,
-				metadata: &plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"storageProvider"}},
-						{TypeName: "Storage", FieldNames: []string{"id", "tags"}},
-					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{{TypeName: "Storage", SelectionSet: "id"}},
-					},
-				},
-			},
-			operation: `query { storageProvider(id: "1") { tagSummary } }`,
-			assert:    expectJSON(`{"data":{"storageProvider":{"tagSummary":"alpha, beta, gamma"}}}`),
+			name:               "Storage @requires a scalar list",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","tags":["alpha","beta","gamma"]}}}`,
+			operation:          `query { storageProvider(id: "1") { tagSummary } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"tagSummary":"alpha, beta, gamma"}}}`),
 		},
 		{
 			// @requires on nested object fields: metadataScore requires "metadata { capacity zone }".
 			// Mock: capacity * zoneWeight; zone "A" => 1.0, so 100 * 1.0 = 100.0.
-			name: "Storage @requires nested object fields",
-			owning: owningSubgraphConfig{
-				serviceSDL: `
-					type Query { storageProvider(id: ID!): Storage }
-					type Storage @key(fields: "id") {
-						id: ID!
-						metadata: StorageMetadata!
-					}
-					type StorageMetadata { capacity: Int! zone: String! }
-				`,
-				responseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","metadata":{"capacity":100,"zone":"A"}}}}`,
-				metadata: &plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"storageProvider"}},
-						{TypeName: "Storage", FieldNames: []string{"id", "metadata"}},
-					},
-					ChildNodes: []plan.TypeField{
-						{TypeName: "StorageMetadata", FieldNames: []string{"capacity", "zone"}},
-					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{{TypeName: "Storage", SelectionSet: "id"}},
-					},
-				},
-			},
-			operation: `query { storageProvider(id: "1") { metadataScore } }`,
-			assert:    expectJSON(`{"data":{"storageProvider":{"metadataScore":100}}}`),
+			name:               "Storage @requires nested object fields",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","metadata":{"capacity":100,"zone":"A"}}}}`,
+			operation:          `query { storageProvider(id: "1") { metadataScore } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"metadataScore":100}}}`),
 		},
 		{
 			// Same @requires machinery on a different entity (Warehouse.stockHealthScore requires
@@ -215,32 +201,9 @@ func TestGRPCSubgraphRequiresFullExecution(t *testing.T) {
 			// grpctest/mockservice_lookup.go), so the engine must surface the subgraph entity-count
 			// error and null the field rather than fabricate data. This still verifies Warehouse's
 			// @requires config is wired and that the jump is planned for a second entity type.
-			name: "Warehouse @requires surfaces subgraph entity-count error",
-			owning: owningSubgraphConfig{
-				serviceSDL: `
-					type Query { warehouseProvider(id: ID!): Warehouse }
-					type Warehouse @key(fields: "id") {
-						id: ID!
-						inventoryCount: Int!
-						restockData: RestockData!
-					}
-					type RestockData { lastRestockDate: String! }
-				`,
-				responseJSON: `{"data":{"warehouseProvider":{"__typename":"Warehouse","id":"2","inventoryCount":200,"restockData":{"__typename":"RestockData","lastRestockDate":"2021-01-02"}}}}`,
-				metadata: &plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"warehouseProvider"}},
-						{TypeName: "Warehouse", FieldNames: []string{"id", "inventoryCount", "restockData"}},
-					},
-					ChildNodes: []plan.TypeField{
-						{TypeName: "RestockData", FieldNames: []string{"lastRestockDate"}},
-					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{{TypeName: "Warehouse", SelectionSet: "id"}},
-					},
-				},
-			},
-			operation: `query { warehouseProvider(id: "2") { stockHealthScore } }`,
+			name:               "Warehouse @requires surfaces subgraph entity-count error",
+			owningResponseJSON: `{"data":{"warehouseProvider":{"__typename":"Warehouse","id":"2","inventoryCount":200,"restockData":{"__typename":"RestockData","lastRestockDate":"2021-01-02"}}}}`,
+			operation:          `query { warehouseProvider(id: "2") { stockHealthScore } }`,
 			assert: func(t *testing.T, response string) {
 				require.Contains(t, response, "entity type Warehouse received 0 entities", "response was: %s", response)
 				require.Contains(t, response, `"warehouseProvider":null`, "response was: %s", response)
@@ -249,28 +212,10 @@ func TestGRPCSubgraphRequiresFullExecution(t *testing.T) {
 		{
 			// @requires combined with a field argument: filteredTagSummary(prefix) requires "tags".
 			// Mock keeps tags with the given prefix: prefix "ap" over [apple apricot banana] => "apple, apricot".
-			name: "Storage @requires with a field argument",
-			owning: owningSubgraphConfig{
-				serviceSDL: `
-					type Query { storageProvider(id: ID!): Storage }
-					type Storage @key(fields: "id") {
-						id: ID!
-						tags: [String!]!
-					}
-				`,
-				responseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","tags":["apple","apricot","banana"]}}}`,
-				metadata: &plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"storageProvider"}},
-						{TypeName: "Storage", FieldNames: []string{"id", "tags"}},
-					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{{TypeName: "Storage", SelectionSet: "id"}},
-					},
-				},
-			},
-			operation: `query { storageProvider(id: "1") { filteredTagSummary(prefix: "ap") } }`,
-			assert:    expectJSON(`{"data":{"storageProvider":{"filteredTagSummary":"apple, apricot"}}}`),
+			name:               "Storage @requires with a field argument",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","tags":["apple","apricot","banana"]}}}`,
+			operation:          `query { storageProvider(id: "1") { filteredTagSummary(prefix: "ap") } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"filteredTagSummary":"apple, apricot"}}}`),
 		},
 	}
 
@@ -280,7 +225,7 @@ func TestGRPCSubgraphRequiresFullExecution(t *testing.T) {
 
 			// Both subgraph setups live side by side: the owning subgraph provides the entity key and
 			// the @requires inputs, the gRPC subgraph resolves the @requires field.
-			owningDS := setupOwningSubgraph(t, tc.owning)
+			owningDS := setupOwningSubgraph(t, tc.owningResponseJSON)
 			grpcDS := setupGRPCProductsSubgraph(t, conn)
 
 			response := runRequiresOperation(t, []plan.DataSource{owningDS, grpcDS}, tc.operation)
@@ -290,23 +235,24 @@ func TestGRPCSubgraphRequiresFullExecution(t *testing.T) {
 	}
 }
 
-// setupOwningSubgraph builds an "owning" subgraph from cfg: a graphql_datasource over an
-// httptest.Server that returns cfg.responseJSON for any request. It owns a root field returning the
-// entity plus the fields the gRPC subgraph consumes via @requires.
-func setupOwningSubgraph(t *testing.T, cfg owningSubgraphConfig) plan.DataSource {
+// setupOwningSubgraph builds the "owning" subgraph: a graphql_datasource over an httptest.Server
+// that returns responseJSON for any request. Its SDL (owningSubgraphSDL) and metadata are shared
+// across all cases; only responseJSON varies. It owns the entity root fields plus the fields the
+// gRPC subgraph consumes via @requires.
+func setupOwningSubgraph(t *testing.T, responseJSON string) plan.DataSource {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(cfg.responseJSON))
+		_, _ = w.Write([]byte(responseJSON))
 	}))
 	t.Cleanup(server.Close)
 
 	config, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
 		Fetch: &graphql_datasource.FetchConfiguration{URL: server.URL},
 		SchemaConfiguration: mustSchemaConfig(t,
-			&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: cfg.serviceSDL},
-			cfg.serviceSDL,
+			&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: owningSubgraphSDL},
+			owningSubgraphSDL,
 		),
 	})
 	require.NoError(t, err)
@@ -314,7 +260,7 @@ func setupOwningSubgraph(t *testing.T, cfg owningSubgraphConfig) plan.DataSource
 	ds, err := plan.NewDataSourceConfiguration[graphql_datasource.Configuration](
 		"owning-subgraph",
 		mustFactory(t, http.DefaultClient),
-		cfg.metadata,
+		newOwningSubgraphMetadata(),
 		config,
 	)
 	require.NoError(t, err)
