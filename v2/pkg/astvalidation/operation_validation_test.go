@@ -3216,6 +3216,60 @@ type Query {
 					Values(), Invalid,
 					withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: {foo: "bar"}`))
 			})
+			t.Run("145 allow string literals for enums", func(t *testing.T) {
+				t.Run("disabled by default: string literal for enum is invalid", func(t *testing.T) {
+					run(t, `	{
+									dog {
+										doesKnowCommand(dogCommand: "SIT")
+									}
+								}`,
+						Values(), Invalid,
+						withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: "SIT"`))
+				})
+				t.Run("explicitly disabled: string literal for enum is invalid", func(t *testing.T) {
+					run(t, `	{
+									dog {
+										doesKnowCommand(dogCommand: "SIT")
+									}
+								}`,
+						Values(false), Invalid,
+						withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: "SIT"`))
+				})
+				t.Run("enabled: string literal matching an enum value is valid", func(t *testing.T) {
+					run(t, `	{
+									dog {
+										doesKnowCommand(dogCommand: "SIT")
+									}
+								}`,
+						Values(true), Valid)
+				})
+				t.Run("enabled: string literal matching an enum value is valid as variable default", func(t *testing.T) {
+					run(t, `	query ($catCommand: CatCommand = "JUMP") {
+									cat {
+										doesKnowCommand(catCommand: $catCommand)
+									}
+								}`,
+						Values(true), Valid)
+				})
+				t.Run("enabled: string literal not matching an enum value is invalid", func(t *testing.T) {
+					run(t, `	{
+									dog {
+										doesKnowCommand(dogCommand: "MEOW")
+									}
+								}`,
+						Values(true), Invalid,
+						withValidationErrors(`Value "MEOW" does not exist in "DogCommand" enum`))
+				})
+				t.Run("enabled: non-string non-enum value is still invalid", func(t *testing.T) {
+					run(t, `	{
+									dog {
+										doesKnowCommand(dogCommand: true)
+									}
+								}`,
+						Values(true), Invalid,
+						withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: true`))
+				})
+			})
 			t.Run("146", func(t *testing.T) {
 				run(t, `
 							{
@@ -6130,6 +6184,32 @@ func TestValidateFieldSelection(t *testing.T) {
 
 			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
 		})
+	})
+}
+
+func TestAllowStringLiteralsForEnums(t *testing.T) {
+	doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`
+		enum SomeEnum { VALUE1 VALUE2 }
+		type Query { f(arg: SomeEnum): String }`)
+
+	validate := func(t *testing.T, options ...Option) operationreport.Report {
+		t.Helper()
+		op := unsafeparser.ParseGraphqlDocumentString(`query { f(arg: "VALUE1") }`)
+		operationValidator := DefaultOperationValidator(options...)
+		report := operationreport.Report{}
+		operationValidator.Validate(&op, &doc, &report)
+		return report
+	}
+
+	t.Run("by default, string literal for enum is rejected", func(t *testing.T) {
+		report := validate(t)
+		require.True(t, report.HasErrors())
+		assert.Contains(t, report.Error(), `Enum "SomeEnum" cannot represent non-enum value: "VALUE1"`)
+	})
+
+	t.Run("with WithAllowStringLiteralsForEnums, string literal for enum is accepted", func(t *testing.T) {
+		report := validate(t, WithAllowStringLiteralsForEnums())
+		require.False(t, report.HasErrors(), "expected no errors, got: %s", report.Error())
 	})
 }
 
