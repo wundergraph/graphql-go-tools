@@ -11,11 +11,15 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-// Values validates if values are used properly
-func Values() Rule {
+// Values validates if values are used properly.
+// The optional allowStringLiteralsForEnums argument enables a deliberate spec deviation
+// that accepts a string literal where an enum value is expected, as long as the string
+// content matches one of the enum's values.
+func Values(allowStringLiteralsForEnums ...bool) Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := valuesVisitor{
-			Walker: walker,
+			Walker:                      walker,
+			allowStringLiteralsForEnums: len(allowStringLiteralsForEnums) > 0 && allowStringLiteralsForEnums[0],
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterArgumentVisitor(&visitor)
@@ -26,8 +30,9 @@ func Values() Rule {
 type valuesVisitor struct {
 	*astvisitor.Walker
 
-	operation, definition *ast.Document
-	importer              astimport.Importer
+	operation, definition       *ast.Document
+	importer                    astimport.Importer
+	allowStringLiteralsForEnums bool
 }
 
 func (v *valuesVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -270,6 +275,23 @@ func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, definitionTypeRef in
 	if value.Kind == ast.ValueKindVariable {
 		expectedTypeName := node.NameBytes(v.definition)
 		return v.variableValueHasMatchingTypeName(value, definitionTypeRef, expectedTypeName)
+	}
+
+	if value.Kind == ast.ValueKindString && v.allowStringLiteralsForEnums {
+		enumValue := v.operation.StringValueContentBytes(value.Ref)
+		hasValue, isInaccessible := v.definition.EnumTypeDefinitionContainsEnumValueWithDirective(node.Ref, enumValue, federation.InaccessibleDirectiveNameBytes)
+		if !hasValue || isInaccessible {
+			// Report the string content instead of the printed literal so the
+			// value is not double-quoted in the error message.
+			underlyingType := v.definition.ResolveUnderlyingType(definitionTypeRef)
+			printedType, err := v.definition.PrintTypeBytes(underlyingType, nil)
+			if v.HandleInternalErr(err) {
+				return false
+			}
+			v.Report.AddExternalError(operationreport.ErrValueDoesntExistsInEnum(enumValue, printedType, value.Position))
+			return false
+		}
+		return true
 	}
 
 	if value.Kind != ast.ValueKindEnum {

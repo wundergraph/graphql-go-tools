@@ -14,6 +14,7 @@ import (
 type OperationValidatorOptions struct {
 	ApolloCompatibilityFlags                   apollocompatibility.Flags
 	RelaxFieldSelectionMergingNullabilityCheck bool
+	AllowStringLiteralsForEnums                bool
 }
 
 func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
@@ -29,6 +30,17 @@ func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
 func WithRelaxFieldSelectionMergingNullability() Option {
 	return func(options *OperationValidatorOptions) {
 		options.RelaxFieldSelectionMergingNullabilityCheck = true
+	}
+}
+
+// WithAllowStringLiteralsForEnums enables a deliberate spec deviation that allows a string
+// literal to be used where an enum value is expected, as long as the string content matches
+// one of the enum's values (e.g. `f(arg: "VALUE1")` for `enum SomeEnum { VALUE1 }`).
+// Without this option, the validator enforces the strict GraphQL spec behavior where only
+// enum literals are valid inline values for enum types.
+func WithAllowStringLiteralsForEnums() Option {
+	return func(options *OperationValidatorOptions) {
+		options.AllowStringLiteralsForEnums = true
 	}
 }
 
@@ -60,7 +72,7 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(FieldSelections())
 	validator.RegisterRule(FieldSelectionMerging(opts.RelaxFieldSelectionMergingNullabilityCheck))
 	validator.RegisterRule(KnownArguments())
-	validator.RegisterRule(Values())
+	validator.RegisterRule(Values(opts.AllowStringLiteralsForEnums))
 	validator.RegisterRule(ArgumentUniqueness())
 	validator.RegisterRule(RequiredArguments())
 	validator.RegisterRule(Fragments())
