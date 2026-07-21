@@ -35,6 +35,19 @@ type rpcPlanVisitorFederation struct {
 	fieldResolverAncestors stack[int]
 	resolverFields         []resolverField
 
+	// plannedRequiredFields accumulates one entry per required-field instance observed
+	// during the walk.
+	plannedRequiredFields []plannedRequiredField
+
+	// keyFieldMessages holds the key message built per entity type in scaffoldEntityLookup.
+	// Both are consumed in LeaveDocument to build the RPC calls.
+	//
+	// Keying by type name alone (here and for entityConfig.keyFields) assumes a single fetch
+	// never looks up the same entity type under two different @key selections. The planner
+	// guarantees this: it uses one key per type per fetch and splits conflicting keys into
+	// separate operations. If that ever changes, these lookups must key on (type, key) instead.
+	keyFieldMessages map[string]*RPCMessage
+
 	fieldPath ast.Path
 }
 
@@ -50,6 +63,7 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 			entityInlineFragmentRef: ast.InvalidRef,
 		},
 		entityConfig:           parseFederationConfigData(config.federationConfigs),
+		keyFieldMessages:       make(map[string]*RPCMessage),
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
 		fieldPath:              ast.Path{}.WithFieldNameItem([]byte("result")),
@@ -95,21 +109,19 @@ func (r *rpcPlanVisitorFederation) LeaveDocument(_, _ *ast.Document) {
 		r.resolverFields = nil
 	}
 
-	for entityTypeName, entityConfigData := range r.entityConfig {
-		if len(entityConfigData.requiredFields) == 0 {
-			continue
-		}
-
-		calls, err = r.planCtx.createRequiredFieldsRPCCalls(&r.callIndex, r.subgraphName, entityTypeName, entityConfigData)
+	for _, prf := range r.plannedRequiredFields {
+		call, err := r.planCtx.createRequiredFieldsRPCCall(
+			r.callIndex, r.subgraphName, prf,
+			r.entityConfig[prf.typeName].keyFields,
+			r.keyFieldMessages[prf.typeName],
+		)
 		if err != nil {
 			r.walker.StopWithInternalErr(err)
 			return
 		}
 
-		if len(calls) > 0 {
-			r.plan.Calls = append(r.plan.Calls, calls...)
-		}
-
+		r.callIndex++
+		r.plan.Calls = append(r.plan.Calls, call)
 	}
 }
 
@@ -425,34 +437,20 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 		field.Message = message
 	}
 
-	config, exists := r.entityConfig.getEntity(r.entityInfo.typeName)
-	if !exists {
-		r.walker.StopWithInternalErr(fmt.Errorf("entity config not found for type %s", r.entityInfo.typeName))
-		return
-	}
-
-	index, requiredField := config.findRequiredField(fieldName)
-	if index == ast.InvalidRef {
+	// Each operation field instance appends its own entry, so a required field selected under
+	// multiple response keys (e.g. a field and an alias of it) naturally gets one entry per key.
+	selectionSet, ok := r.entityConfig.requiredFieldSelectionSet(r.entityInfo.typeName, fieldName)
+	if !ok {
 		r.walker.StopWithInternalErr(fmt.Errorf("required field not found for type %s and field %s", r.entityInfo.typeName, fieldName))
 		return
 	}
 
-	// A required field selected under multiple response keys (e.g. a field and an alias of it)
-	// needs one entry per key. Reuse the entry already bound to this key, otherwise clone a new
-	// one; the first instance keeps the configured entry.
-	if requiredField.ref != ast.InvalidRef && requiredField.resultField.AliasOrPath() != field.AliasOrPath() {
-		if boundIndex := config.findRequiredFieldByResponseKey(fieldName, field.AliasOrPath()); boundIndex != ast.InvalidRef {
-			index, requiredField = boundIndex, config.requiredFields[boundIndex]
-		} else {
-			index = len(config.requiredFields)
-			config.requiredFields = append(config.requiredFields, requiredField.clone())
-			r.entityConfig.setEntity(r.entityInfo.typeName, config)
-		}
+	planned := plannedRequiredField{
+		typeName:     r.entityInfo.typeName,
+		fieldName:    fieldName,
+		selectionSet: selectionSet,
+		resultField:  field,
 	}
-
-	requiredField.ref = ref
-	requiredField.fieldDefRef = fieldDefRef
-	requiredField.resultField = field
 
 	fieldArgs := r.operation.FieldArguments(ref)
 	if len(fieldArgs) > 0 {
@@ -461,10 +459,10 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 			r.walker.StopWithInternalErr(err)
 			return
 		}
-		requiredField.fieldArguments = fieldArguments
+		planned.fieldArguments = fieldArguments
 	}
 
-	config.requiredFields[index] = requiredField
+	r.plannedRequiredFields = append(r.plannedRequiredFields, planned)
 }
 
 // enterFieldResolver enters a field resolver.
@@ -567,7 +565,7 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 		},
 	}
 
-	r.entityConfig.setEntityKeyMessage(typeName, keyFieldMessage)
+	r.keyFieldMessages[typeName] = keyFieldMessage
 
 	entityMessage := &RPCMessage{
 		Name: typeName,
@@ -625,67 +623,34 @@ type entityInfo struct {
 	entityInlineFragmentRef int
 }
 
+// entityConfig is a read-only lookup built once from the federation field configurations.
 type entityConfig map[string]entityConfigData
 
-type requiredField struct {
+type entityConfigData struct {
+	keyFields      string
+	requiredFields map[string]string // fieldName -> @requires selection set
+}
+
+// plannedRequiredField is one observed instance of a required field in the operation. One entry
+// is appended per operation field instance, so distinct response keys each get their own entry.
+type plannedRequiredField struct {
+	typeName       string
 	fieldName      string
-	ref            int
-	fieldDefRef    int
-	selectionSet   string
+	selectionSet   string // @requires selection set, copied from the federation config
 	resultField    RPCField
 	fieldArguments []fieldArgument
 }
-type entityConfigData struct {
-	keyFields       string
-	keyFieldMessage *RPCMessage
-	requiredFields  []requiredField
-}
 
-// clone creates a new required field with the same definition but without the result field and field arguments.
-func (r requiredField) clone() requiredField {
-	return requiredField{
-		fieldName:    r.fieldName,
-		ref:          r.ref,
-		fieldDefRef:  r.fieldDefRef,
-		selectionSet: r.selectionSet,
-	}
-}
-
-func (e entityConfigData) findRequiredField(fieldName string) (int, requiredField) {
-	for i, rf := range e.requiredFields {
-		if rf.fieldName == fieldName {
-			return i, rf
-		}
-	}
-
-	return ast.InvalidRef, requiredField{}
-}
-
-// findRequiredFieldByResponseKey returns the index of the requiredField entry for the given
-// field name that is already bound to an operation field instance with the given response key
-// (alias when present, field name otherwise), or ast.InvalidRef if there is none.
-func (e entityConfigData) findRequiredFieldByResponseKey(fieldName, responseKey string) int {
-	for i, rf := range e.requiredFields {
-		if rf.fieldName == fieldName && rf.ref != ast.InvalidRef && rf.resultField.AliasOrPath() == responseKey {
-			return i
-		}
-	}
-
-	return ast.InvalidRef
-}
-
-func (e entityConfig) setEntity(typeName string, data entityConfigData) {
-	e[typeName] = data
-}
-
-func (e entityConfig) setEntityKeyMessage(typeName string, message *RPCMessage) {
+// requiredFieldSelectionSet returns the @requires selection set for a required field,
+// or ("", false) if the type/field is not a configured required field.
+func (e entityConfig) requiredFieldSelectionSet(typeName, fieldName string) (string, bool) {
 	data, ok := e[typeName]
 	if !ok {
-		return
+		return "", false
 	}
 
-	data.keyFieldMessage = message
-	e[typeName] = data
+	sel, ok := data.requiredFields[fieldName]
+	return sel, ok
 }
 
 func (e entityConfig) getEntity(typeName string) (entityConfigData, bool) {
@@ -697,25 +662,20 @@ func parseFederationConfigData(federationConfigs plan.FederationFieldConfigurati
 	config := make(entityConfig)
 
 	for _, fc := range federationConfigs {
-		data, ok := config.getEntity(fc.TypeName)
+		data, ok := config[fc.TypeName]
 		if !ok {
 			data = entityConfigData{
-				requiredFields: make([]requiredField, 0),
+				requiredFields: make(map[string]string),
 			}
 		}
 
 		if fc.FieldName != "" {
-			data.requiredFields = append(data.requiredFields, requiredField{
-				fieldName:    fc.FieldName,
-				ref:          ast.InvalidRef,
-				fieldDefRef:  ast.InvalidRef,
-				selectionSet: fc.SelectionSet,
-			})
+			data.requiredFields[fc.FieldName] = fc.SelectionSet
 		} else {
 			data.keyFields = fc.SelectionSet
 		}
 
-		config.setEntity(fc.TypeName, data)
+		config[fc.TypeName] = data
 	}
 
 	return config
