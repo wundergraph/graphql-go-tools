@@ -160,7 +160,7 @@ func NewDataSourceJumpsGraph(dataSources []DSHash, keysPerPath map[DSHash][]KeyI
 					// from other datasources.
 					fallback := false
 					if keyInfo.SelectionSet != targetKeyInfo.SelectionSet {
-						if !keyInfoFieldsCoverTargetKey(keyInfo, targetKeyInfo) {
+						if !sourceKeyIsSubsetOfTargetKey(keyInfo, targetKeyInfo) {
 							continue
 						}
 						fallback = true
@@ -186,11 +186,11 @@ func NewDataSourceJumpsGraph(dataSources []DSHash, keysPerPath map[DSHash][]KeyI
 	return graph
 }
 
-// keyInfoFieldsCoverTargetKey reports whether every field path of the source key
+// sourceKeyIsSubsetOfTargetKey reports whether every field path of the source key
 // is a member of the target key, i.e. the source key is a subset of the target compound key.
 // Such a source key alone is not enough to jump into the target datasource,
 // but it could be complemented by gathering the missing members from other datasources.
-func keyInfoFieldsCoverTargetKey(sourceKey, targetKey KeyInfo) bool {
+func sourceKeyIsSubsetOfTargetKey(sourceKey, targetKey KeyInfo) bool {
 	if sourceKey.SelectionSet == targetKey.SelectionSet {
 		return true
 	}
