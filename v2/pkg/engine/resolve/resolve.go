@@ -1105,7 +1105,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 // response body. It does not touch any subscriber's writer, so the result can be fanned out to a
 // group of subscribers whose resolved output is identical (see executeSubscriptionUpdateGroup).
 func (r *Resolver) resolveSubscriptionUpdateGroup(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(resolveCtx.ctx, r.maxSubscriptionFetchTimeout)
+	ctx, cancel := context.WithTimeout(r.ctx, r.maxSubscriptionFetchTimeout)
 	defer cancel()
 
 	resolveCtx = resolveCtx.WithContext(ctx)
