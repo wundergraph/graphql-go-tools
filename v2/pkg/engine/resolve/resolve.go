@@ -1100,11 +1100,11 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	}
 }
 
-// resolveSubscriptionUpdateToBytes runs a single subscription resolve (init + pre-fetch auth +
+// resolveSubscriptionUpdateGroup runs a single subscription resolve (init + pre-fetch auth +
 // load + serialize) for the given representative context/subscription and returns the serialized
 // response body. It does not touch any subscriber's writer, so the result can be fanned out to a
 // group of subscribers whose resolved output is identical (see executeSubscriptionUpdateGroup).
-func (r *Resolver) resolveSubscriptionUpdateToBytes(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) ([]byte, error) {
+func (r *Resolver) resolveSubscriptionUpdateGroup(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(resolveCtx.ctx, r.maxSubscriptionFetchTimeout)
 	defer cancel()
 
@@ -1201,22 +1201,23 @@ func (r *Resolver) deliverSubscriptionUpdate(sub *subscriptionState, resolveCtx 
 // executeSubscriptionUpdateGroup resolves the update ONCE for a group of subscribers whose output
 // is identical (see resolutionGroupKey), then fans the serialized bytes out to each concurrently.
 // A single-member group is equivalent to the previous per-subscriber behavior.
-func (r *Resolver) executeSubscriptionUpdateGroup(members []*subscriptionState, sharedInput []byte) {
+func (r *Resolver) executeSubscriptionUpdateGroup(members []*subscriptionState, data []byte) {
 	if len(members) == 0 {
 		return
 	}
 
 	lead := members[0]
 	if r.options.Debug {
-		fmt.Printf("resolver:trigger:subscription:update:%d:group_size:%d\n", lead.id.SubscriptionID, len(members))
+		fmt.Printf("resolver:trigger:subscription:update_group:%d:group_size:%d\n",
+			lead.id.SubscriptionID, len(members))
 	}
 
 	// Resolve once, using the representative subscriber's context. Grouping guarantees every member
 	// would produce identical bytes for this event.
-	body, err := r.resolveSubscriptionUpdateToBytes(lead.ctx, lead, sharedInput)
+	response, err := r.resolveSubscriptionUpdateGroup(lead.ctx, lead, data)
 
 	if len(members) == 1 {
-		r.deliverSubscriptionUpdate(lead, lead.ctx, body, err)
+		r.deliverSubscriptionUpdate(lead, lead.ctx, response, err)
 		return
 	}
 
@@ -1226,7 +1227,7 @@ func (r *Resolver) executeSubscriptionUpdateGroup(members []*subscriptionState, 
 			continue
 		}
 		wg.Go(func() {
-			r.deliverSubscriptionUpdate(sub, lead.ctx, body, err)
+			r.deliverSubscriptionUpdate(sub, lead.ctx, response, err)
 		})
 	}
 	wg.Wait()
