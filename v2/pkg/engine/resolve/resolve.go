@@ -1638,22 +1638,31 @@ type subGroupKey struct {
 	headers   uint64
 }
 
-// resolutionGroupKey returns a subscriber's grouping key and whether it may be grouped. Grouping is
-// only allowed when the output cannot vary per viewer: the selected plan gates no fields on the
-// viewer's scopes (no authorization coordinates) and tracing is off for the request (a sampled
-// request renders a per-request trace extension). Otherwise the subscriber resolves individually.
+// resolutionGroupKey generates a subscription group key and returns true,
+// if sub is groupable or false if it is not. It's not groupable when
+// the response will contain per-subscriber data, i.e.
+// - auth-scoped fields
+// - tracing data
+// - rate-limit data
 func resolutionGroupKey(sub *subscriptionState) (subGroupKey, bool) {
 	resp := sub.resolve.Response
 	if resp == nil || resp.Info == nil || len(resp.Info.AuthorizationCoordinates) > 0 {
 		return subGroupKey{}, false
 	}
+
 	if sub.ctx.TracingOptions.Enable {
 		return subGroupKey{}, false
 	}
+
+	if sub.ctx.RateLimitOptions.Enable && sub.ctx.RateLimitOptions.IncludeStatsInResponseExtension {
+		return subGroupKey{}, false
+	}
+
 	var headers uint64
 	if sub.ctx.SubgraphHeadersBuilder != nil {
 		headers = sub.ctx.SubgraphHeadersBuilder.HashAll()
 	}
+
 	return subGroupKey{
 		plan:      sub.resolve,
 		variables: sub.ctx.VariablesHash,
