@@ -149,6 +149,26 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 		},
 		{
 			TypeName:  "Query",
+			FieldName: "calculateTotals",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "orders",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "category",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "id",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
 			FieldName: "categoriesByKind",
 			Arguments: []plan.ArgumentConfiguration{
 				{
@@ -179,26 +199,6 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 		},
 		{
 			TypeName:  "Query",
-			FieldName: "calculateTotals",
-			Arguments: []plan.ArgumentConfiguration{
-				{
-					Name:       "orders",
-					SourceType: plan.FieldArgumentSource,
-				},
-			},
-		},
-		{
-			TypeName:  "Mutation",
-			FieldName: "createUser",
-			Arguments: []plan.ArgumentConfiguration{
-				{
-					Name:       "input",
-					SourceType: plan.FieldArgumentSource,
-				},
-			},
-		},
-		{
-			TypeName:  "Query",
 			FieldName: "search",
 			Arguments: []plan.ArgumentConfiguration{
 				{
@@ -223,40 +223,6 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 			Arguments: []plan.ArgumentConfiguration{
 				{
 					Name:       "filter",
-					SourceType: plan.FieldArgumentSource,
-				},
-			},
-		},
-		{
-			TypeName:  "Mutation",
-			FieldName: "performAction",
-			Arguments: []plan.ArgumentConfiguration{
-				{
-					Name:       "input",
-					SourceType: plan.FieldArgumentSource,
-				},
-			},
-		},
-		{
-			TypeName:  "Mutation",
-			FieldName: "createNullableFieldsType",
-			Arguments: []plan.ArgumentConfiguration{
-				{
-					Name:       "input",
-					SourceType: plan.FieldArgumentSource,
-				},
-			},
-		},
-		{
-			TypeName:  "Mutation",
-			FieldName: "updateNullableFieldsType",
-			Arguments: []plan.ArgumentConfiguration{
-				{
-					Name:       "id",
-					SourceType: plan.FieldArgumentSource,
-				},
-				{
-					Name:       "input",
 					SourceType: plan.FieldArgumentSource,
 				},
 			},
@@ -297,6 +263,90 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 			Arguments: []plan.ArgumentConfiguration{
 				{
 					Name:       "filter",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "bulkSearchAuthors",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "filters",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "bulkSearchBlogPosts",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "filters",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "testContainer",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "id",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "conditionalSearch",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "conditions",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "createUser",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "performAction",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "createNullableFieldsType",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "updateNullableFieldsType",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "id",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "input",
 					SourceType: plan.FieldArgumentSource,
 				},
 			},
@@ -350,11 +400,275 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 			},
 		},
 		{
-			TypeName:  "Query",
-			FieldName: "conditionalSearch",
+			TypeName:  "Mutation",
+			FieldName: "bulkCreateAuthors",
 			Arguments: []plan.ArgumentConfiguration{
 				{
-					Name:       "conditions",
+					Name:       "authors",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "bulkUpdateAuthors",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "authors",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "bulkCreateBlogPosts",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "blogPosts",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "bulkUpdateBlogPosts",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "blogPosts",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Product",
+			FieldName: "shippingEstimate",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Product",
+			FieldName: "recommendedCategory",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "maxPrice",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Product",
+			FieldName: "mascotRecommendation",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "includeDetails",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Product",
+			FieldName: "stockStatus",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "checkAvailability",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Product",
+			FieldName: "productDetails",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "includeExtended",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Storage",
+			FieldName: "storageStatus",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "checkHealth",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Storage",
+			FieldName: "linkedStorages",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "depth",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Storage",
+			FieldName: "nearbyStorages",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "radius",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Storage",
+			FieldName: "filteredTagSummary",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "prefix",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Storage",
+			FieldName: "multiFilteredTagSummary",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "prefixes",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "maxResults",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Storage",
+			FieldName: "nullableFilteredTagSummary",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "prefix",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Category",
+			FieldName: "productCount",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "filters",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Category",
+			FieldName: "popularityScore",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "threshold",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Category",
+			FieldName: "categoryMetrics",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "metricType",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Category",
+			FieldName: "mascot",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "includeVolume",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Category",
+			FieldName: "categoryStatus",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "checkHealth",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Category",
+			FieldName: "childCategories",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "include",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Category",
+			FieldName: "optionalCategories",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "include",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Subcategory",
+			FieldName: "itemCount",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "filters",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Subcategory",
+			FieldName: "featuredCategory",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "includeChildren",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "CategoryMetrics",
+			FieldName: "normalizedScore",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "baseline",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "CategoryMetrics",
+			FieldName: "relatedCategory",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "include",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "TestContainer",
+			FieldName: "details",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "includeExtended",
 					SourceType: plan.FieldArgumentSource,
 				},
 			},
@@ -364,31 +678,130 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 
 func GetDataSourceMetadata() *plan.DataSourceMetadata {
 	return &plan.DataSourceMetadata{
+		FederationMetaData: plan.FederationMetaData{
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Warehouse",
+					SelectionSet: "id",
+				},
+			},
+			Requires: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					FieldName:    "stockHealthScore",
+					SelectionSet: "itemCount restockData { lastRestockDate }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagSummary",
+					SelectionSet: "tags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalTagSummary",
+					SelectionSet: "optionalTags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "metadataScore",
+					SelectionSet: "metadata { capacity zone }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "processedMetadata",
+					SelectionSet: "metadata { capacity zone priority }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalProcessedMetadata",
+					SelectionSet: "metadata { capacity zone }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "processedTags",
+					SelectionSet: "tags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalProcessedTags",
+					SelectionSet: "optionalTags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "processedMetadataHistory",
+					SelectionSet: "metadataHistory { capacity zone }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "kindSummary",
+					SelectionSet: "storageKind",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "categoryInfoSummary",
+					SelectionSet: "categoryInfo { kind name }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "itemInfo",
+					SelectionSet: "primaryItem { ... on PalletItem { __typename name palletCount } ... on ContainerItem { __typename name containerSize } }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "operationReport",
+					SelectionSet: "lastStorageOperation { ... on StorageSuccess { __typename message completedAt } ... on StorageFailure { __typename message errorCode } }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "securitySummary",
+					SelectionSet: "securitySetup { securityLevel primaryItem { ... on PalletItem { __typename name palletCount } ... on ContainerItem { __typename name containerSize } } }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "itemHandlerInfo",
+					SelectionSet: "primaryItem { ... on PalletItem { __typename handler { name } } ... on ContainerItem { __typename handler { name } } }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "itemSpecsInfo",
+					SelectionSet: "primaryItem { ... on PalletItem { __typename specs { name dimensions { length width } } } ... on ContainerItem { __typename specs { name dimensions { length width } } } }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "deepItemInfo",
+					SelectionSet: "primaryItem { ... on PalletItem { __typename handler { assignedItem { ... on ContainerItem { __typename name containerSize } ... on PalletItem { __typename name palletCount } } } } ... on ContainerItem { __typename handler { name } } }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "filteredTagSummary",
+					SelectionSet: "tags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "multiFilteredTagSummary",
+					SelectionSet: "tags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "nullableFilteredTagSummary",
+					SelectionSet: "tags",
+				},
+				{
+					TypeName:     "Warehouse",
+					FieldName:    "stockHealthScore",
+					SelectionSet: "inventoryCount restockData { lastRestockDate }",
+				},
+			},
+		},
 		RootNodes: plan.TypeFields{
-			{
-				TypeName: "Product",
-				FieldNames: []string{
-					"id",
-					"name",
-					"price",
-				},
-			},
-			{
-				TypeName: "Storage",
-				FieldNames: []string{
-					"id",
-					"name",
-					"location",
-				},
-			},
-			{
-				TypeName: "Warehouse",
-				FieldNames: []string{
-					"id",
-					"name",
-					"location",
-				},
-			},
 			{
 				TypeName: "Query",
 				FieldNames: []string{
@@ -399,14 +812,15 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"typeFilterWithArguments",
 					"typeWithMultipleFilterFields",
 					"complexFilterType",
+					"calculateTotals",
 					"categories",
+					"category",
 					"categoriesByKind",
 					"categoriesByKinds",
 					"filterCategories",
 					"randomPet",
 					"allPets",
 					"search",
-					"calculateTotals",
 					"randomSearchResult",
 					"nullableFieldsType",
 					"nullableFieldsTypeById",
@@ -420,6 +834,10 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"authorById",
 					"authorsWithFilter",
 					"allAuthors",
+					"bulkSearchAuthors",
+					"bulkSearchBlogPosts",
+					"testContainer",
+					"testContainers",
 					"conditionalSearch",
 				},
 			},
@@ -434,10 +852,184 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"updateBlogPost",
 					"createAuthor",
 					"updateAuthor",
+					"bulkCreateAuthors",
+					"bulkUpdateAuthors",
+					"bulkCreateBlogPosts",
+					"bulkUpdateBlogPosts",
+				},
+			},
+			{
+				TypeName: "Product",
+				FieldNames: []string{
+					"id",
+					"name",
+					"price",
+					"shippingEstimate",
+					"recommendedCategory",
+					"mascotRecommendation",
+					"stockStatus",
+					"productDetails",
+				},
+			},
+			{
+				TypeName: "Storage",
+				FieldNames: []string{
+					"id",
+					"name",
+					"location",
+					"stockHealthScore",
+					"tagSummary",
+					"optionalTagSummary",
+					"metadataScore",
+					"processedMetadata",
+					"optionalProcessedMetadata",
+					"processedTags",
+					"optionalProcessedTags",
+					"processedMetadataHistory",
+					"kindSummary",
+					"categoryInfoSummary",
+					"itemInfo",
+					"operationReport",
+					"securitySummary",
+					"itemHandlerInfo",
+					"itemSpecsInfo",
+					"deepItemInfo",
+					"storageStatus",
+					"linkedStorages",
+					"nearbyStorages",
+					"filteredTagSummary",
+					"multiFilteredTagSummary",
+					"nullableFilteredTagSummary",
+				},
+				ExternalFieldNames: []string{
+					"itemCount",
+					"restockData",
+					"tags",
+					"optionalTags",
+					"metadata",
+					"metadataHistory",
+					"storageKind",
+					"categoryInfo",
+					"primaryItem",
+					"lastStorageOperation",
+					"securitySetup",
+				},
+			},
+			{
+				TypeName: "Warehouse",
+				FieldNames: []string{
+					"id",
+					"name",
+					"location",
+					"stockHealthScore",
+				},
+				ExternalFieldNames: []string{
+					"inventoryCount",
+					"restockData",
 				},
 			},
 		},
 		ChildNodes: plan.TypeFields{
+			{
+				TypeName: "Product",
+				FieldNames: []string{
+					"id",
+					"name",
+					"price",
+					"shippingEstimate",
+					"recommendedCategory",
+					"mascotRecommendation",
+					"stockStatus",
+					"productDetails",
+				},
+			},
+			{
+				TypeName: "ProductDetails",
+				FieldNames: []string{
+					"id",
+					"description",
+					"reviewSummary",
+					"recommendedPet",
+				},
+			},
+			{
+				TypeName: "Storage",
+				FieldNames: []string{
+					"id",
+					"name",
+					"location",
+					"stockHealthScore",
+					"tagSummary",
+					"optionalTagSummary",
+					"metadataScore",
+					"processedMetadata",
+					"optionalProcessedMetadata",
+					"processedTags",
+					"optionalProcessedTags",
+					"processedMetadataHistory",
+					"kindSummary",
+					"categoryInfoSummary",
+					"itemInfo",
+					"operationReport",
+					"securitySummary",
+					"itemHandlerInfo",
+					"itemSpecsInfo",
+					"deepItemInfo",
+					"storageStatus",
+					"linkedStorages",
+					"nearbyStorages",
+					"filteredTagSummary",
+					"multiFilteredTagSummary",
+					"nullableFilteredTagSummary",
+				},
+				ExternalFieldNames: []string{
+					"itemCount",
+					"restockData",
+					"tags",
+					"optionalTags",
+					"metadata",
+					"metadataHistory",
+					"storageKind",
+					"categoryInfo",
+					"primaryItem",
+					"lastStorageOperation",
+					"securitySetup",
+				},
+			},
+			{
+				TypeName: "Warehouse",
+				FieldNames: []string{
+					"id",
+					"name",
+					"location",
+					"stockHealthScore",
+				},
+				ExternalFieldNames: []string{
+					"inventoryCount",
+					"restockData",
+				},
+			},
+			{
+				TypeName: "RestockData",
+				FieldNames: []string{
+					"lastRestockDate",
+				},
+			},
+			{
+				TypeName: "StorageMetadata",
+				FieldNames: []string{
+					"capacity",
+					"zone",
+					"priority",
+				},
+			},
+			{
+				TypeName: "StorageCategoryInfo",
+				FieldNames: []string{
+					"kind",
+					"name",
+				},
+			},
 			{
 				TypeName: "User",
 				FieldNames: []string{
@@ -486,120 +1078,17 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				},
 			},
 			{
-				TypeName: "TypeWithComplexFilterInput",
-				FieldNames: []string{
-					"id",
-					"name",
-				},
-			},
-			{
-				TypeName: "Category",
-				FieldNames: []string{
-					"id",
-					"name",
-					"kind",
-				},
-			},
-			{
-				TypeName: "CategoryFilter",
-				FieldNames: []string{
-					"category",
-					"pagination",
-				},
-			},
-			{
-				TypeName: "CategoryKind",
-				FieldNames: []string{
-					"BOOK",
-					"ELECTRONICS",
-					"FURNITURE",
-					"OTHER",
-				},
-			},
-			{
-				TypeName: "Animal",
-				FieldNames: []string{
-					"id",
-					"name",
-					"kind",
-				},
-			},
-			{
-				TypeName: "Cat",
-				FieldNames: []string{
-					"id",
-					"name",
-					"kind",
-					"meowVolume",
-				},
-			},
-			{
-				TypeName: "Dog",
-				FieldNames: []string{
-					"id",
-					"name",
-					"kind",
-					"barkVolume",
-				},
-			},
-			{
-				TypeName: "UserInput",
-				FieldNames: []string{
-					"name",
-				},
-			},
-			{
-				TypeName: "Order",
-				FieldNames: []string{
-					"orderId",
-					"customerName",
-					"totalItems",
-					"orderLines",
-				},
-			},
-			{
-				TypeName: "OrderLine",
-				FieldNames: []string{
-					"productId",
-					"quantity",
-					"modifiers",
-				},
-			},
-			{
-				TypeName: "ActionInput",
-				FieldNames: []string{
-					"name",
-				},
-			},
-			{
-				TypeName: "Product",
-				FieldNames: []string{
-					"id",
-					"name",
-					"price",
-				},
-			},
-			{
-				TypeName: "Storage",
-				FieldNames: []string{
-					"id",
-					"name",
-					"location",
-				},
-			},
-			{
-				TypeName: "Warehouse",
-				FieldNames: []string{
-					"id",
-					"name",
-					"location",
-				},
-			},
-			{
 				TypeName: "FilterTypeInput",
 				FieldNames: []string{
 					"filterField1",
 					"filterField2",
+				},
+			},
+			{
+				TypeName: "TypeWithComplexFilterInput",
+				FieldNames: []string{
+					"id",
+					"name",
 				},
 			},
 			{
@@ -641,6 +1130,249 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				},
 			},
 			{
+				TypeName: "Order",
+				FieldNames: []string{
+					"orderId",
+					"customerName",
+					"totalItems",
+					"orderLines",
+				},
+			},
+			{
+				TypeName: "OrderLine",
+				FieldNames: []string{
+					"productId",
+					"quantity",
+					"modifiers",
+				},
+			},
+			{
+				TypeName: "CategoryFilter",
+				FieldNames: []string{
+					"category",
+					"pagination",
+				},
+			},
+			{
+				TypeName: "Category",
+				FieldNames: []string{
+					"id",
+					"name",
+					"kind",
+					"productCount",
+					"subcategories",
+					"popularityScore",
+					"categoryMetrics",
+					"mascot",
+					"categoryStatus",
+					"childCategories",
+					"optionalCategories",
+					"nullMetrics",
+					"totalProducts",
+					"topSubcategory",
+					"activeSubcategories",
+				},
+			},
+			{
+				TypeName: "Subcategory",
+				FieldNames: []string{
+					"id",
+					"name",
+					"description",
+					"isActive",
+					"itemCount",
+					"featuredCategory",
+					"parentCategory",
+				},
+			},
+			{
+				TypeName: "CategoryMetrics",
+				FieldNames: []string{
+					"id",
+					"metricType",
+					"value",
+					"timestamp",
+					"categoryId",
+					"normalizedScore",
+					"relatedCategory",
+					"averageScore",
+				},
+			},
+			{
+				TypeName: "CategoryKind",
+				FieldNames: []string{
+					"BOOK",
+					"ELECTRONICS",
+					"FURNITURE",
+					"OTHER",
+				},
+			},
+			{
+				TypeName: "Animal",
+				FieldNames: []string{
+					"id",
+					"name",
+					"kind",
+				},
+			},
+			{
+				TypeName: "Cat",
+				FieldNames: []string{
+					"id",
+					"name",
+					"kind",
+					"meowVolume",
+					"owner",
+					"breed",
+				},
+			},
+			{
+				TypeName: "Dog",
+				FieldNames: []string{
+					"id",
+					"name",
+					"kind",
+					"barkVolume",
+					"owner",
+					"breed",
+				},
+			},
+			{
+				TypeName: "Owner",
+				FieldNames: []string{
+					"id",
+					"name",
+					"contact",
+					"pet",
+				},
+			},
+			{
+				TypeName: "ContactInfo",
+				FieldNames: []string{
+					"email",
+					"phone",
+					"address",
+				},
+			},
+			{
+				TypeName: "Address",
+				FieldNames: []string{
+					"street",
+					"city",
+					"country",
+					"zipCode",
+				},
+			},
+			{
+				TypeName: "CatBreed",
+				FieldNames: []string{
+					"id",
+					"name",
+					"origin",
+					"characteristics",
+				},
+			},
+			{
+				TypeName: "DogBreed",
+				FieldNames: []string{
+					"id",
+					"name",
+					"origin",
+					"characteristics",
+				},
+			},
+			{
+				TypeName: "BreedCharacteristics",
+				FieldNames: []string{
+					"size",
+					"temperament",
+					"lifespan",
+				},
+			},
+			{
+				TypeName: "StorageItem",
+				FieldNames: []string{
+					"id",
+					"name",
+					"weight",
+				},
+			},
+			{
+				TypeName: "PalletItem",
+				FieldNames: []string{
+					"id",
+					"name",
+					"weight",
+					"palletCount",
+					"handler",
+					"specs",
+				},
+			},
+			{
+				TypeName: "ContainerItem",
+				FieldNames: []string{
+					"id",
+					"name",
+					"weight",
+					"containerSize",
+					"handler",
+					"specs",
+				},
+			},
+			{
+				TypeName: "ItemHandler",
+				FieldNames: []string{
+					"id",
+					"name",
+					"assignedItem",
+				},
+			},
+			{
+				TypeName: "PalletSpecs",
+				FieldNames: []string{
+					"name",
+					"maxWeight",
+					"dimensions",
+				},
+			},
+			{
+				TypeName: "ContainerSpecs",
+				FieldNames: []string{
+					"name",
+					"volume",
+					"dimensions",
+				},
+			},
+			{
+				TypeName: "Dimensions",
+				FieldNames: []string{
+					"length",
+					"width",
+					"height",
+				},
+			},
+			{
+				TypeName: "StorageSuccess",
+				FieldNames: []string{
+					"message",
+					"completedAt",
+				},
+			},
+			{
+				TypeName: "StorageFailure",
+				FieldNames: []string{
+					"message",
+					"errorCode",
+				},
+			},
+			{
+				TypeName: "SecuritySetup",
+				FieldNames: []string{
+					"securityLevel",
+					"primaryItem",
+				},
+			},
+			{
 				TypeName: "ActionSuccess",
 				FieldNames: []string{
 					"message",
@@ -655,6 +1387,24 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				},
 			},
 			{
+				TypeName: "TestContainer",
+				FieldNames: []string{
+					"id",
+					"name",
+					"description",
+					"details",
+				},
+			},
+			{
+				TypeName: "TestDetails",
+				FieldNames: []string{
+					"id",
+					"summary",
+					"pet",
+					"status",
+				},
+			},
+			{
 				TypeName: "SearchInput",
 				FieldNames: []string{
 					"query",
@@ -662,18 +1412,10 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				},
 			},
 			{
-				TypeName: "SearchResult",
+				TypeName: "ActionInput",
 				FieldNames: []string{
-					"product",
-					"user",
-					"category",
-				},
-			},
-			{
-				TypeName: "ActionResult",
-				FieldNames: []string{
-					"actionSuccess",
-					"actionError",
+					"type",
+					"payload",
 				},
 			},
 			{
@@ -687,26 +1429,6 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"optionalBoolean",
 					"requiredString",
 					"requiredInt",
-				},
-			},
-			{
-				TypeName: "NullableFieldsInput",
-				FieldNames: []string{
-					"name",
-					"optionalString",
-					"optionalInt",
-					"optionalFloat",
-					"optionalBoolean",
-					"requiredString",
-					"requiredInt",
-				},
-			},
-			{
-				TypeName: "NullableFieldsFilter",
-				FieldNames: []string{
-					"name",
-					"optionalString",
-					"includeNulls",
 				},
 			},
 			{
@@ -807,10 +1529,71 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				},
 			},
 			{
+				TypeName: "NullableFieldsInput",
+				FieldNames: []string{
+					"name",
+					"optionalString",
+					"optionalInt",
+					"optionalFloat",
+					"optionalBoolean",
+					"requiredString",
+					"requiredInt",
+				},
+			},
+			{
+				TypeName: "NullableFieldsFilter",
+				FieldNames: []string{
+					"name",
+					"optionalString",
+					"includeNulls",
+				},
+			},
+			{
 				TypeName: "CategoryInput",
 				FieldNames: []string{
 					"name",
 					"kind",
+				},
+			},
+			{
+				TypeName: "ProductCountFilter",
+				FieldNames: []string{
+					"minPrice",
+					"maxPrice",
+					"inStock",
+					"searchTerm",
+				},
+			},
+			{
+				TypeName: "SubcategoryItemFilter",
+				FieldNames: []string{
+					"minPrice",
+					"maxPrice",
+					"inStock",
+					"isActive",
+					"searchTerm",
+				},
+			},
+			{
+				TypeName: "ShippingDestination",
+				FieldNames: []string{
+					"DOMESTIC",
+					"EXPRESS",
+					"INTERNATIONAL",
+				},
+			},
+			{
+				TypeName: "ShippingEstimateInput",
+				FieldNames: []string{
+					"destination",
+					"weight",
+					"expedited",
+				},
+			},
+			{
+				TypeName: "UserInput",
+				FieldNames: []string{
+					"name",
 				},
 			},
 			{
