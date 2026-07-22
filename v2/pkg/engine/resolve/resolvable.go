@@ -2302,6 +2302,15 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 		}
 	}
 	r.pushNodePathElement(fieldPath)
+	// A non-nullable field that is null because an existing error already covers
+	// its path (or a descendant it bubbled up from) is already explained by that
+	// error. Synthesizing a second "Cannot return null" error there duplicates it,
+	// which notably happens for federated partial-data responses where
+	// skipAddingNullErrors (whole-response-null only) does not apply.
+	if r.hasErrorAtOrBelowPath(r.path) {
+		r.popNodePathElement(fieldPath)
+		return
+	}
 	if r.options.ApolloCompatibilityValueCompletionInExtensions {
 		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
 	} else {
@@ -2310,6 +2319,49 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	}
 	r.popNodePathElement(fieldPath)
+}
+
+// hasErrorAtOrBelowPath reports whether an already-collected error has a path
+// equal to prefix or descending from it. Such an error already accounts for the
+// null at prefix, so no synthetic non-nullable-field error should be added.
+func (r *Resolvable) hasErrorAtOrBelowPath(prefix []fastjsonext.PathElement) bool {
+	if r.errors == nil || len(prefix) == 0 {
+		return false
+	}
+	items, err := r.errors.Array()
+	if err != nil {
+		return false
+	}
+	for _, item := range items {
+		path := item.Get("path")
+		if path == nil || path.Type() != astjson.TypeArray {
+			continue
+		}
+		elems, err := path.Array()
+		if err != nil || len(elems) < len(prefix) {
+			continue
+		}
+		if pathHasPrefix(elems, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func pathHasPrefix(path []*astjson.Value, prefix []fastjsonext.PathElement) bool {
+	for i, want := range prefix {
+		got := path[i]
+		if want.Name != "" {
+			if got.Type() != astjson.TypeString || string(got.GetStringBytes()) != want.Name {
+				return false
+			}
+			continue
+		}
+		if got.Type() != astjson.TypeNumber || got.GetInt() != want.Idx {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *Resolvable) renderFieldPath() string {
