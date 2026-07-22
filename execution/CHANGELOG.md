@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.18.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.17.1...execution/v1.18.0) (2026-07-22)
+
+
+### Features
+
+* improve abstract field validation ([#1588](https://github.com/wundergraph/graphql-go-tools/issues/1588)) ([d6cceac](https://github.com/wundergraph/graphql-go-tools/commit/d6cceacd291eee5dbab8f6a0cadd245e47eca2d0))
+
+
+### Bug Fixes
+
+* incorrect alias behavior for required fields ([#1604](https://github.com/wundergraph/graphql-go-tools/issues/1604)) ([5752e91](https://github.com/wundergraph/graphql-go-tools/commit/5752e914cc6f88ce2fa9a3143712ede705c92226))
+
 ## [1.17.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.17.0...execution/v1.17.1) (2026-07-09)
 
 
