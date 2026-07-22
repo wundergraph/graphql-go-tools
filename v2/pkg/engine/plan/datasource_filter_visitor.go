@@ -323,43 +323,48 @@ func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash, includeFallb
 		return nil, false
 	}
 
-	var directs []SourceConnection
-	var indirects []SourceConnection
-	var fallbackDirects []SourceConnection
-	var fallbackIndirects []SourceConnection
+	// The paths are classified along two axes:
+	// direct (a single key jump) vs indirect (a chain of key jumps
+	// via intermediate datasources), and exact (every jump key is fully
+	// satisfiable by its source datasource) vs fallback (at least one jump uses
+	// a subset -> compound key and has to gather the missing key members first).
+	var exactDirectPaths []SourceConnection
+	var exactIndirectPaths []SourceConnection
+	var fallbackDirectPaths []SourceConnection
+	var fallbackIndirectPaths []SourceConnection
 
 	for _, path := range possiblePaths {
 		if sourceConnectionUsesFallback(path) {
 			if path.Type == SourceConnectionTypeDirect {
-				fallbackDirects = append(fallbackDirects, path)
+				fallbackDirectPaths = append(fallbackDirectPaths, path)
 				continue
 			}
-			fallbackIndirects = append(fallbackIndirects, path)
+			fallbackIndirectPaths = append(fallbackIndirectPaths, path)
 			continue
 		}
 
 		if path.Type == SourceConnectionTypeDirect {
-			directs = append(directs, path)
+			exactDirectPaths = append(exactDirectPaths, path)
 			continue
 		}
-		indirects = append(indirects, path)
+		exactIndirectPaths = append(exactIndirectPaths, path)
 	}
 
-	if len(directs) > 0 {
-		return &directs[0], true
+	if len(exactDirectPaths) > 0 {
+		return &exactDirectPaths[0], true
 	}
 
 	// TODO: indirect path should take into consideration existing nodes?
 
-	if bestPath := shortestConnection(indirects); bestPath != nil {
+	if bestPath := shortestConnection(exactIndirectPaths); bestPath != nil {
 		return bestPath, true
 	}
 
-	if len(fallbackDirects) > 0 {
-		return &fallbackDirects[0], true
+	if bestPath := bestFallbackConnection(fallbackDirectPaths); bestPath != nil {
+		return bestPath, true
 	}
 
-	if bestPath := shortestConnection(fallbackIndirects); bestPath != nil {
+	if bestPath := bestFallbackConnection(fallbackIndirectPaths); bestPath != nil {
 		return bestPath, true
 	}
 
@@ -381,6 +386,41 @@ func shortestConnection(paths []SourceConnection) *SourceConnection {
 	}
 
 	return bestPath
+}
+
+// bestFallbackConnection returns the cheapest connection using fallback jumps:
+// the fewest jumps first, and among connections with the same number of jumps -
+// the fewest missing key members to gather (every missing member costs an extra
+// gather fetch from a third datasource). The first connection wins ties, keeping
+// the selection deterministic (jumps are recorded in key appearance order).
+func bestFallbackConnection(paths []SourceConnection) *SourceConnection {
+	var bestPath *SourceConnection
+	var bestMissing int
+
+	for _, path := range paths {
+		missing := fallbackMissingKeyMembers(path)
+		if bestPath == nil ||
+			len(path.Jumps) < len(bestPath.Jumps) ||
+			(len(path.Jumps) == len(bestPath.Jumps) && missing < bestMissing) {
+			bestPath = &path
+			bestMissing = missing
+		}
+	}
+
+	return bestPath
+}
+
+// fallbackMissingKeyMembers returns the total number of target key members which
+// the fallback jumps of the connection cannot provide from their source datasources
+// (see KeyJump.SourcePaths).
+func fallbackMissingKeyMembers(path SourceConnection) (missing int) {
+	for _, jump := range path.Jumps {
+		if jump.Fallback {
+			missing += len(jump.FieldPaths) - len(jump.SourcePaths)
+		}
+	}
+
+	return missing
 }
 
 // sourceConnectionUsesFallback reports whether any jump of the path
