@@ -1104,11 +1104,19 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 // load + serialize) for the given representative context/subscription and returns the serialized
 // response body. It does not touch any subscriber's writer, so the result can be fanned out to a
 // group of subscribers whose resolved output is identical (see executeSubscriptionUpdateGroup).
-func (r *Resolver) resolveSubscriptionUpdateGroup(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(r.ctx, r.maxSubscriptionFetchTimeout)
+func (r *Resolver) resolveSubscriptionUpdateGroup(sub *subscriptionState, sharedInput []byte) ([]byte, error) {
+	// Use subs context for everything we do in here.
+	// sub is likely the leader of a group. Him leaving mid-resolve (cancelling its ctx)
+	// would result in no one from the group getting the message.
+	// To avoid this we detach it's cancellation while keeping everything else.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(sub.ctx.ctx), r.maxSubscriptionFetchTimeout)
 	defer cancel()
 
-	resolveCtx = resolveCtx.WithContext(ctx)
+	// in case resolver shuts down while we are here we cancel ctx to abort
+	stop := context.AfterFunc(r.ctx, cancel)
+	defer stop()
+
+	resolveCtx := sub.ctx.WithContext(ctx)
 
 	// Copy the input.
 	input := make([]byte, len(sharedInput))
@@ -1214,7 +1222,7 @@ func (r *Resolver) executeSubscriptionUpdateGroup(members []*subscriptionState, 
 
 	// Resolve once, using the representative subscriber's context. Grouping guarantees every member
 	// would produce identical bytes for this event.
-	response, err := r.resolveSubscriptionUpdateGroup(lead.ctx, lead, data)
+	response, err := r.resolveSubscriptionUpdateGroup(lead, data)
 
 	if len(members) == 1 {
 		r.deliverSubscriptionUpdate(lead, lead.ctx, response, err)
