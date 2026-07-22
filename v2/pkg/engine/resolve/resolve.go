@@ -984,6 +984,122 @@ func (s *subscriptionState) sendHeartbeat() error {
 	return s.writer.Heartbeat()
 }
 
+func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
+	}
+
+	ctx, cancel := context.WithTimeout(resolveCtx.ctx, r.maxSubscriptionFetchTimeout)
+	defer cancel()
+
+	resolveCtx = resolveCtx.WithContext(ctx)
+
+	// Copy the input.
+	input := make([]byte, len(sharedInput))
+	copy(input, sharedInput)
+
+	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
+	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
+	authorization := NewFieldAuthorization(resolveCtx)
+	resolvable.SetFieldAuthorization(authorization)
+
+	if err := resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
+		r.resolveArenaPool.Release(resolveArena)
+		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
+		}
+		return
+	}
+	if err := authorization.authorizePreFetch(sub.resolve.Response); err != nil {
+		r.resolveArenaPool.Release(resolveArena)
+		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:authorization:failed:%d\n", sub.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
+		}
+		return
+	}
+
+	// The DataBuffer wraps the base tree produced by InitSubscription (the
+	// subscription event payload). The loader merges fetched data into it.
+	db := &DataBuffer{data: resolvable.data}
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
+
+	if err := loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response); err != nil {
+		r.resolveArenaPool.Release(resolveArena)
+		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
+		}
+		return
+	}
+
+	sub.writeMu.Lock()
+	if sub.removed.Load() {
+		sub.writeMu.Unlock()
+		r.resolveArenaPool.Release(resolveArena)
+		return
+	}
+
+	// Inject loader output into Resolvable before rendering. InitSubscription may
+	// have already set resolvable.errors from the event payload, so append the
+	// loader's fetch errors rather than overwrite them.
+	resolvable.data = loader.dataBuffer.Get()
+	resolvable.subgraphExtensions = loader.subgraphExtensions
+	if loader.errors != nil {
+		if resolvable.errors == nil {
+			resolvable.errors = loader.errors
+		} else {
+			resolvable.errors.AppendArrayItems(resolveArena.Arena, loader.errors)
+		}
+	}
+	resolvable.skipValueCompletion = loader.skipValueCompletion
+
+	if err := resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
+		r.resolveArenaPool.Release(resolveArena)
+		r.errorFormatter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
+		sub.writeMu.Unlock()
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
+		}
+		return
+	}
+
+	r.resolveArenaPool.Release(resolveArena)
+
+	if err := sub.writer.Flush(); err != nil {
+		sub.writeMu.Unlock()
+		// If flush fails (e.g. client disconnected), remove the subscription.
+		_ = r.UnsubscribeSubscription(sub.id)
+		return
+	}
+	sub.lastWriteTime.Store(time.Now().UnixNano())
+	sub.writeMu.Unlock()
+
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:flushed:%d\n", sub.id.SubscriptionID)
+	}
+	if r.reporter != nil {
+		r.reporter.SubscriptionUpdateSent()
+	}
+
+	if resolvable.WroteErrorsWithoutData() && r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
+	}
+}
+
 // resolveSubscriptionUpdateToBytes runs a single subscription resolve (init + pre-fetch auth +
 // load + serialize) for the given representative context/subscription and returns the serialized
 // response body. It does not touch any subscriber's writer, so the result can be fanned out to a
@@ -1114,13 +1230,6 @@ func (r *Resolver) executeSubscriptionUpdateGroup(members []*subscriptionState, 
 		})
 	}
 	wg.Wait()
-}
-
-// executeSubscriptionUpdate resolves and delivers a single subscription update. Retained for the
-// single-subscription path (handleUpdateSubscription); delegates to the group path with one member.
-// TODO: context is unused and only the lead context is used --> this is a bug
-func (r *Resolver) executeSubscriptionUpdate(_ *Context, sub *subscriptionState, sharedInput []byte) {
-	r.executeSubscriptionUpdateGroup([]*subscriptionState{sub}, sharedInput)
 }
 
 func (r *Resolver) executeSubscriptionHeartbeat(sub *subscriptionState) {
