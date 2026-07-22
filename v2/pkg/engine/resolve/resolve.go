@@ -1227,7 +1227,7 @@ func (r *Resolver) executeSubscriptionUpdateGroup(members []*subscriptionState, 
 			continue
 		}
 		wg.Go(func() {
-			r.deliverSubscriptionUpdate(sub, lead.ctx, response, err)
+			r.deliverSubscriptionUpdate(sub, sub.ctx, response, err)
 		})
 	}
 	wg.Wait()
