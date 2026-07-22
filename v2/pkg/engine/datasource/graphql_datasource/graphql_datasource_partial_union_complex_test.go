@@ -356,4 +356,84 @@ func TestPartialUnionComplex(t *testing.T) {
 		planConfiguration,
 		WithDefaultPostProcessor(),
 	))
+
+	// Regression: the user-selected key field id is also registered as a key requirement
+	// of the union field (see handleKeyFieldNonDeferred reusing the existing field ref).
+	// When the partial-union rewrite deselects the requiring (field, datasource) pair,
+	// the abandoned-requirements cleanup must not remove the user-selected field
+	// from the operation - only planner-added fields may be removed.
+	t.Run("case 5 - rootA: user-selected key field survives requirement cleanup", RunTest(
+		partialUnionComplexDefinition,
+		`query { rootA { id wrapper { actions { __typename ... on OnlyB { b } } } } }`,
+		"",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Fetches: resolve.Sequence(
+					resolve.Single(&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://subgraph-a","body":{"query":"{rootA {id wrapper {actions {__typename}}}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+							DataSource:     &Source{},
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}),
+				),
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("rootA"),
+							Value: &resolve.Object{
+								Path:          []string{"rootA"},
+								Nullable:      true,
+								PossibleTypes: map[string]struct{}{"Container": {}},
+								TypeName:      "Container",
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.Scalar{
+											Path: []string{"id"},
+										},
+									},
+									{
+										Name: []byte("wrapper"),
+										Value: &resolve.Object{
+											Path:          []string{"wrapper"},
+											Nullable:      true,
+											PossibleTypes: map[string]struct{}{"Wrapper": {}},
+											TypeName:      "Wrapper",
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("actions"),
+													Value: &resolve.Array{
+														Path: []string{"actions"},
+														Item: &resolve.Object{
+															PossibleTypes: map[string]struct{}{"Common": {}, "OnlyA": {}, "OnlyB": {}},
+															TypeName:      "Action",
+															Fields: []*resolve.Field{
+																{
+																	Name:  []byte("__typename"),
+																	Value: &resolve.String{Path: []string{"__typename"}, IsTypeName: true},
+																},
+																{
+																	Name:        []byte("b"),
+																	Value:       &resolve.String{Path: []string{"b"}, Nullable: true},
+																	OnTypeNames: [][]byte{[]byte("OnlyB")},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		planConfiguration,
+		WithDefaultPostProcessor(),
+	))
 }

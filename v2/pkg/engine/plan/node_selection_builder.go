@@ -268,60 +268,20 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 // by any other field anymore - we remove it from the operation
 // and orphan its suggestions.
 func (p *NodeSelectionBuilder) cleanupAbandonedFieldDependencies(operation *ast.Document) {
-	v := p.nodeSelectionsVisitor
-
 	// requirements of the nested key jumps depend on the key fields of the previous jump,
 	// so removing a required field could abandon other dependency entries -
 	// repeat until there is nothing to remove
 	for {
-		abandonedRequiredRefs := make(map[int]struct{})
-
-		for key, requiredRefs := range v.fieldDependsOn {
-			if v.nodeSuggestions.IsSelectedOnDataSource(key.fieldRef, key.dsHash) {
-				continue
-			}
-
-			delete(v.fieldDependsOn, key)
-			delete(v.fieldRequirementsConfigs, key)
-
-			for _, requiredRef := range requiredRefs {
-				abandonedRequiredRefs[requiredRef] = struct{}{}
-			}
-		}
-
+		abandonedRequiredRefs := p.dropAbandonedDependencyEntries()
 		if len(abandonedRequiredRefs) == 0 {
 			return
 		}
 
-		// rebuild the plain field refs dependency index from the remaining entries
-		v.fieldRefDependsOn = make(map[int][]int, len(v.fieldRefDependsOn))
-		stillRequiredRefs := make(map[int]struct{})
-		for key, requiredRefs := range v.fieldDependsOn {
-			v.fieldRefDependsOn[key.fieldRef] = append(v.fieldRefDependsOn[key.fieldRef], requiredRefs...)
-			for _, requiredRef := range requiredRefs {
-				stillRequiredRefs[requiredRef] = struct{}{}
-			}
-		}
+		stillRequiredRefs := p.rebuildFieldDependencyIndexes()
 
-		for kindKey := range v.fieldDependencyKind {
-			if !slices.Contains(v.fieldRefDependsOn[kindKey.field], kindKey.dependsOn) {
-				delete(v.fieldDependencyKind, kindKey)
-			}
-		}
+		keptFieldRefs, removedFieldRefs := p.releaseAbandonedFieldRefs(abandonedRequiredRefs, stillRequiredRefs)
 
-		touchedSelectionSets := make(map[int]struct{})
-		for requiredRef := range abandonedRequiredRefs {
-			if _, stillRequired := stillRequiredRefs[requiredRef]; stillRequired {
-				continue
-			}
-
-			delete(v.fieldLandedTo, requiredRef)
-			v.skipFieldsRefs = slices.DeleteFunc(v.skipFieldsRefs, func(ref int) bool { return ref == requiredRef })
-			v.nodeSuggestions.OrphanSuggestionsForFieldRef(requiredRef)
-			if setRef := removeFieldFromOperationSelectionSets(operation, requiredRef); setRef != ast.InvalidRef {
-				touchedSelectionSets[setRef] = struct{}{}
-			}
-		}
+		touchedSelectionSets := p.removeAbandonedFieldsFromSelectionSets(operation, keptFieldRefs, removedFieldRefs)
 
 		// The key fields are added to the operation along with an accompanying __typename selection,
 		// which is intentionally not tracked as a required field.
@@ -331,6 +291,119 @@ func (p *NodeSelectionBuilder) cleanupAbandonedFieldDependencies(operation *ast.
 			p.removeAbandonedTypenameFromSelectionSet(operation, setRef, stillRequiredRefs)
 		}
 	}
+}
+
+// dropAbandonedDependencyEntries removes the dependency mappings of the (field, datasource)
+// pairs which are no longer selected, and returns the field refs those pairs required.
+func (p *NodeSelectionBuilder) dropAbandonedDependencyEntries() map[int]struct{} {
+	v := p.nodeSelectionsVisitor
+
+	abandonedRequiredRefs := make(map[int]struct{})
+	for key, requiredRefs := range v.fieldDependsOn {
+		if v.nodeSuggestions.IsSelectedOnDataSource(key.fieldRef, key.dsHash) {
+			continue
+		}
+
+		delete(v.fieldDependsOn, key)
+		delete(v.fieldRequirementsConfigs, key)
+
+		for _, requiredRef := range requiredRefs {
+			abandonedRequiredRefs[requiredRef] = struct{}{}
+		}
+	}
+
+	return abandonedRequiredRefs
+}
+
+// rebuildFieldDependencyIndexes rebuilds the plain field refs dependency index from
+// the remaining dependency entries, prunes the dependency kinds of the removed pairs,
+// and returns the set of field refs still required by some (field, datasource) pair.
+func (p *NodeSelectionBuilder) rebuildFieldDependencyIndexes() (stillRequiredRefs map[int]struct{}) {
+	v := p.nodeSelectionsVisitor
+
+	v.fieldRefDependsOn = make(map[int][]int, len(v.fieldRefDependsOn))
+	stillRequiredRefs = make(map[int]struct{})
+	for key, requiredRefs := range v.fieldDependsOn {
+		v.fieldRefDependsOn[key.fieldRef] = append(v.fieldRefDependsOn[key.fieldRef], requiredRefs...)
+		for _, requiredRef := range requiredRefs {
+			stillRequiredRefs[requiredRef] = struct{}{}
+		}
+	}
+
+	for kindKey := range v.fieldDependencyKind {
+		if !slices.Contains(v.fieldRefDependsOn[kindKey.field], kindKey.dependsOn) {
+			delete(v.fieldDependencyKind, kindKey)
+		}
+	}
+
+	return stillRequiredRefs
+}
+
+// releaseAbandonedFieldRefs releases the bookkeeping of the abandoned field refs not
+// required anymore and splits them into two sets deciding their fate in the operation.
+// Only planner-added fields (tracked in skipFieldsRefs) may be removed from
+// the operation. A required ref can also be a user-selected field reused as
+// a key member (see handleKeyFieldNonDeferred) - such a field has to stay
+// in the operation and keep its suggestions.
+func (p *NodeSelectionBuilder) releaseAbandonedFieldRefs(abandonedRequiredRefs, stillRequiredRefs map[int]struct{}) (keptFieldRefs, removedFieldRefs map[int]struct{}) {
+	v := p.nodeSelectionsVisitor
+
+	keptFieldRefs = make(map[int]struct{})
+	removedFieldRefs = make(map[int]struct{})
+	for requiredRef := range abandonedRequiredRefs {
+		if _, stillRequired := stillRequiredRefs[requiredRef]; stillRequired {
+			continue
+		}
+
+		delete(v.fieldLandedTo, requiredRef)
+
+		if !slices.Contains(v.skipFieldsRefs, requiredRef) {
+			keptFieldRefs[requiredRef] = struct{}{}
+			continue
+		}
+
+		removedFieldRefs[requiredRef] = struct{}{}
+		v.skipFieldsRefs = slices.DeleteFunc(v.skipFieldsRefs, func(ref int) bool { return ref == requiredRef })
+		v.nodeSuggestions.OrphanSuggestionsForFieldRef(requiredRef)
+	}
+
+	return keptFieldRefs, removedFieldRefs
+}
+
+// removeAbandonedFieldsFromSelectionSets removes the abandoned planner-added fields from
+// the operation and returns the selection sets which contained any abandoned field -
+// including the sets of the kept user-selected fields, as their planner-added __typename
+// is abandoned along with the requirement and has to be cleaned up by the caller.
+// The abandoned fields are located with a single pass over the selection sets:
+// the containing set of a field is not tracked, as a required field could have been
+// added not only to a field selection set but also to a planner created inline fragment.
+func (p *NodeSelectionBuilder) removeAbandonedFieldsFromSelectionSets(operation *ast.Document, keptFieldRefs, removedFieldRefs map[int]struct{}) (touchedSelectionSets map[int]struct{}) {
+	touchedSelectionSets = make(map[int]struct{})
+	for setRef := range operation.SelectionSets {
+		var removeFieldRefs []int
+		for _, selectionRef := range operation.SelectionSets[setRef].SelectionRefs {
+			selection := operation.Selections[selectionRef]
+			if selection.Kind != ast.SelectionKindField {
+				continue
+			}
+
+			if _, kept := keptFieldRefs[selection.Ref]; kept {
+				touchedSelectionSets[setRef] = struct{}{}
+				continue
+			}
+
+			if _, removed := removedFieldRefs[selection.Ref]; removed {
+				touchedSelectionSets[setRef] = struct{}{}
+				removeFieldRefs = append(removeFieldRefs, selection.Ref)
+			}
+		}
+
+		for _, fieldRef := range removeFieldRefs {
+			operation.RemoveNodeFromSelectionSet(setRef, ast.Node{Kind: ast.NodeKindField, Ref: fieldRef})
+		}
+	}
+
+	return touchedSelectionSets
 }
 
 func (p *NodeSelectionBuilder) removeAbandonedTypenameFromSelectionSet(operation *ast.Document, setRef int, stillRequiredRefs map[int]struct{}) {
@@ -356,24 +429,8 @@ func (p *NodeSelectionBuilder) removeAbandonedTypenameFromSelectionSet(operation
 	for _, typenameRef := range typenameRefs {
 		v.skipFieldsRefs = slices.DeleteFunc(v.skipFieldsRefs, func(ref int) bool { return ref == typenameRef })
 		v.nodeSuggestions.OrphanSuggestionsForFieldRef(typenameRef)
-		removeFieldFromOperationSelectionSets(operation, typenameRef)
+		operation.RemoveNodeFromSelectionSet(setRef, ast.Node{Kind: ast.NodeKindField, Ref: typenameRef})
 	}
-}
-
-// removeFieldFromOperationSelectionSets removes the field from the selection set containing it
-// and returns the ref of that selection set, or ast.InvalidRef when the field was not found.
-// We have to iterate over the selection sets, because the field could have been added
-// not only to a field selection set but also to a planner created inline fragment.
-func removeFieldFromOperationSelectionSets(operation *ast.Document, fieldRef int) int {
-	fieldNode := ast.Node{Kind: ast.NodeKindField, Ref: fieldRef}
-
-	for setRef := range operation.SelectionSets {
-		if operation.RemoveNodeFromSelectionSet(setRef, fieldNode) {
-			return setRef
-		}
-	}
-
-	return ast.InvalidRef
 }
 
 func (p *NodeSelectionBuilder) isResolvable(operation, definition *ast.Document, nodes *NodeSuggestions) *operationreport.Report {
