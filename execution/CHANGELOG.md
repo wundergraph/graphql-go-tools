@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.17.0...execution/v1.17.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* do not charge actual cost for denied fields ([#1582](https://github.com/wundergraph/graphql-go-tools/issues/1582)) ([00d9f66](https://github.com/wundergraph/graphql-go-tools/commit/00d9f66ff0d6af5c7b02862806b6090f77e87dd4))
+
 ## [1.17.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.16.0...execution/v1.17.0) (2026-07-07)
 
 

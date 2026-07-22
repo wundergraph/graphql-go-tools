@@ -63,7 +63,6 @@ func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[grap
 
 func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return func(t *testing.T) {
-		t.Parallel()
 		t.Helper()
 
 		if testCase.skipReason != "" {
@@ -805,7 +804,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     "",
-								sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+								sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 								sendStatusCode:   200,
 							}),
 						),
@@ -910,7 +909,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -957,8 +956,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							expectedBody:     `{"query":"{hero {__typename name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1016,8 +1015,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Droid","field":"name","by_user":true}]}}`,
-							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							expectedBody:     `{"query":"{hero {__typename name}}","extensions":{"fetch_reasons":[{"typename":"Droid","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Droid","name":"Droid Number 6"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1076,8 +1075,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
-							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							expectedBody:     `{"query":"{hero {__typename name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Droid","name":"Droid Number 6"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1280,7 +1279,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}, "errors": []}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}, "errors": []}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1332,7 +1331,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -2305,7 +2304,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{codeType {code __typename ... on Country {name}}}"}`,
+							expectedBody:     `{"query":"{codeType {__typename code ... on Country {name}}}"}`,
 							sendResponseBody: `{"data":{"codeType":{"__typename":"Country","code":"de","name":"Germany"}}}`,
 							sendStatusCode:   200,
 						}),
@@ -2436,7 +2435,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"searchResults":[{"name":"Luke Skywalker"},{"length":13.37}]}}`,
+							sendResponseBody: `{"data":{"searchResults":[{"__typename":"Human","name":"Luke Skywalker"},{"__typename":"Starship","length":13.37}]}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -2484,7 +2483,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				),
 			},
 			fields:           []plan.FieldConfiguration{},
-			expectedResponse: `{"data":{"searchResults":[{},{}]}}`,
+			expectedResponse: `{"data":{"searchResults":[{"name":"Luke Skywalker"},{"length":13.37}]}}`,
 		},
 	))
 
@@ -5952,19 +5951,25 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 	schema, err := graphql.NewSchemaFromString(testSubscriptionDefinition)
 	require.NoError(t, err)
 
-	gqlRequest := graphql.Request{
-		OperationName: "LastRegisteredUser",
-		Variables:     nil,
-		Query:         testSubscriptionLastRegisteredUserOperation,
+	newGraphqlRequest := func(t *testing.T) graphql.Request {
+		t.Helper()
+
+		gqlReq := graphql.Request{
+			OperationName: "LastRegisteredUser",
+			Variables:     nil,
+			Query:         testSubscriptionLastRegisteredUserOperation,
+		}
+
+		validationResult, err := gqlReq.ValidateForSchema(schema)
+		require.NoError(t, err)
+		require.True(t, validationResult.Valid)
+
+		normalizationResult, err := gqlReq.Normalize(schema)
+		require.NoError(t, err)
+		require.True(t, normalizationResult.Successful)
+
+		return gqlReq
 	}
-
-	validationResult, err := gqlRequest.ValidateForSchema(schema)
-	require.NoError(t, err)
-	require.True(t, validationResult.Valid)
-
-	normalizationResult, err := gqlRequest.Normalize(schema)
-	require.NoError(t, err)
-	require.True(t, normalizationResult.Successful)
 
 	differentGqlRequest := graphql.Request{
 		OperationName: "LiveUserCount",
@@ -5972,11 +5977,11 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		Query:         testSubscriptionLiveUserCountOperation,
 	}
 
-	validationResult, err = differentGqlRequest.ValidateForSchema(schema)
+	validationResult, err := differentGqlRequest.ValidateForSchema(schema)
 	require.NoError(t, err)
 	require.True(t, validationResult.Valid)
 
-	normalizationResult, err = differentGqlRequest.Normalize(schema)
+	normalizationResult, err := differentGqlRequest.Normalize(schema)
 	require.NoError(t, err)
 	require.True(t, normalizationResult.Successful)
 
@@ -6034,6 +6039,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
 
+		gqlRequest := newGraphqlRequest(t)
 		report := operationreport.Report{}
 		cachedPlan, _ := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
@@ -6064,6 +6070,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
 
+		gqlRequest := newGraphqlRequest(t)
 		report := operationreport.Report{}
 		cachedPlan, _ := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()

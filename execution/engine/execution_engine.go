@@ -101,6 +101,24 @@ func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	}
 }
 
+// WithAuthorizer sets the post-fetch authorizer on the resolve context.
+// Fields with an authorization rule are checked via AuthorizeObjectField
+// while the response is resolved.
+func WithAuthorizer(authorizer resolve.Authorizer) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SetAuthorizer(authorizer)
+	}
+}
+
+// WithPreFetchFieldAuthorizer enables pre-fetch field authorization: all protected
+// field coordinates of the operation are decided in one batch call before any fetch
+// executes, and fetches serving only denied fields are skipped.
+func WithPreFetchFieldAuthorizer(authorizer resolve.BatchAuthorizer) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SetPreFetchFieldAuthorizer(authorizer)
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {
@@ -264,7 +282,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			return err
 		}
 		if resp != nil {
-			operation.ComputeActualCost(costCalculator, varsView, execContext.resolveContext.TypeNameStats)
+			operation.ComputeActualCost(costCalculator, varsView, execContext.resolveContext)
 		}
 		return nil
 	case *plan.DeferResponsePlan:

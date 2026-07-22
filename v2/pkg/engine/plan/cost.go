@@ -251,7 +251,7 @@ type CostTreeNode struct {
 	// arguments contain the values of arguments passed to the field.
 	arguments map[string]ArgumentInfo
 
-	jsonPath string // JSON path using aliases too
+	fieldPath string // field path using aliases too
 
 	returnsListType         bool
 	returnsSimpleType       bool
@@ -474,12 +474,22 @@ func newCostInput(isEstimation bool, c *CostCalculator, vars resolve.VariablesVi
 }
 
 // returnedTypeNames returns the runtime distribution of __typename for the array/object
-// resolved at jsonPath, or nil when no stats were collected for that path.
-func (ci *costInput) returnedTypeNames(jsonPath string) map[string]int {
-	if stats, ok := ci.typeStats[jsonPath]; ok {
+// resolved at fieldPath, or nil when no stats were collected for that path.
+func (ci *costInput) returnedTypeNames(fieldPath string) map[string]int {
+	if stats, ok := ci.typeStats[fieldPath]; ok {
 		return stats.TypeNames
 	}
 	return nil
+}
+
+// fieldUnreached reports whether the response walk never reached this node's field: its path
+// has no runtime-stats entry. Only meaningful in actual mode with collected stats.
+func (ci *costInput) fieldUnreached(node *CostTreeNode) bool {
+	if ci.typeStats == nil || node.fieldPath == "" || node.fieldCoords == costTreeRootNodeCoords {
+		return false
+	}
+	_, reached := ci.typeStats[node.fieldPath]
+	return !reached
 }
 
 // cost calculates the estimated/actual cost of this node and all descendants.
@@ -487,6 +497,10 @@ func (ci *costInput) returnedTypeNames(jsonPath string) map[string]int {
 // For actual cost, multipliers are computed as averages (totalCount/parentCount).
 func (node *CostTreeNode) cost(input *costInput) float64 {
 	if node == nil {
+		return 0
+	}
+	if !input.isEstimation && input.fieldUnreached(node) {
+		// Denied by authorization or its fetch was skipped.
 		return 0
 	}
 	nodeCost := node.costsAndMultiplier(input)
@@ -549,7 +563,7 @@ func (node *CostTreeNode) childrenCost(input *costInput) (total float64) {
 			}
 		} else {
 			// Actual cost: only charge fragments whose concrete type was actually returned at runtime.
-			returnedTypeNames := input.returnedTypeNames(node.jsonPath)
+			returnedTypeNames := input.returnedTypeNames(node.fieldPath)
 			for typeName, c := range perTypeCost {
 				if returnedTypeNames != nil {
 					if _, returned := returnedTypeNames[typeName]; !returned {
@@ -650,7 +664,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 		if fieldWeight != nil && fieldWeight.HasWeight {
 			weight := float64(fieldWeight.Weight)
 			if fromImplementingTypes && !input.isEstimation {
-				weight = parent.actualImplementingFieldWeight(dsCostConfig, node.fieldCoords.FieldName, input.typeStats[parent.jsonPath], weight)
+				weight = parent.actualImplementingFieldWeight(dsCostConfig, node.fieldCoords.FieldName, input.typeStats[parent.fieldPath], weight)
 			}
 			nodeCost.field += weight
 		} else {
@@ -659,7 +673,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 			case node.returnsSimpleType:
 				nodeCost.field += float64(dsCostConfig.EnumScalarTypeWeight(node.fieldTypeName))
 			case node.returnsAbstractType:
-				returnedTypeNames := input.returnedTypeNames(node.jsonPath)
+				returnedTypeNames := input.returnedTypeNames(node.fieldPath)
 				treatAsMaximum := false
 				if len(returnedTypeNames) == 1 {
 					if _, returned := returnedTypeNames[node.fieldTypeName]; returned {
@@ -796,7 +810,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 	if node.parent == nil {
 		return
 	}
-	parentStats := input.typeStats[node.parent.jsonPath]
+	parentStats := input.typeStats[node.parent.fieldPath]
 	if node.parent.fieldCoords == costTreeRootNodeCoords && parentStats.Size == 0 {
 		parentStats.Size = 1
 	}
@@ -804,7 +818,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 	if node.returnsListType {
 		// This node's multiplier is its own array size, averaged over its immediate parent's
 		// occurrence count to avoid double-counting.
-		if nodeStats, ok := input.typeStats[node.jsonPath]; ok && nodeStats.Size != 0 {
+		if nodeStats, ok := input.typeStats[node.fieldPath]; ok && nodeStats.Size != 0 {
 			parentSize := 1.0
 			if parentStats.Size > 0 {
 				parentSize = float64(parentStats.Size)
@@ -825,7 +839,7 @@ func (node *CostTreeNode) costsAndMultiplier(input *costInput) (nodeCost costNod
 	// the type-share multiplier set below instead.
 	isFragmentField := node.parent.returnsAbstractType && !node.isEnclosingTypeAbstract
 	if !node.returnsSimpleType && !isFragmentField && parentStats.Size > 0 {
-		nodeStats := input.typeStats[node.jsonPath]
+		nodeStats := input.typeStats[node.fieldPath]
 		// The field's own weight is kept via multiplier while its children
 		// are charged only for the fraction of occurrences where the object was present.
 		nodeCost.childMultiplier = float64(nodeStats.Size) / float64(parentStats.Size)
@@ -1011,12 +1025,16 @@ func (node *CostTreeNode) validateSliceArguments(configs map[DSHash]*DataSourceC
 	}
 }
 
-// buildASTPath constructs an ast.Path from the node's jsonPath (e.g. "search.items" → [search,items]).
+// buildASTPath constructs an ast.Path from the node's fieldPath, dropping the leading
+// operation-type segment (e.g. "Query.search.items" → [search,items]).
 func (node *CostTreeNode) buildASTPath() ast.Path {
-	if node.jsonPath == "" {
+	if node.fieldPath == "" {
 		return nil
 	}
-	segments := strings.Split(node.jsonPath, ".")
+	segments := strings.Split(node.fieldPath, ".")[1:]
+	if len(segments) == 0 {
+		return nil
+	}
 	path := make(ast.Path, len(segments))
 	for i, seg := range segments {
 		path[i] = ast.PathItem{
@@ -1076,8 +1094,8 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, input *costInput, dept
 	if len(flags) > 0 {
 		fmt.Fprintf(sb, " [%s]", strings.Join(flags, ","))
 	}
-	if len(node.jsonPath) > 0 {
-		fmt.Fprintf(sb, ", path=%s", node.jsonPath)
+	if len(node.fieldPath) > 0 {
+		fmt.Fprintf(sb, ", path=%s", node.fieldPath)
 	}
 	if len(node.dataSourceHashes) > 0 {
 		fmt.Fprintf(sb, ", dataSources=%v", len(node.dataSourceHashes))

@@ -51,7 +51,13 @@ func WithSkipReason(reason string) func(*testOptions) {
 
 func WithDefaultPostProcessor() func(*testOptions) {
 	return func(o *testOptions) {
-		o.postProcessor = postprocess.NewProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields())
+		o.postProcessor = postprocess.NewProcessor(
+			postprocess.DisableResolveInputTemplates(),
+			postprocess.DisableCreateConcreteSingleFetchTypes(),
+			postprocess.DisableCreateParallelNodes(),
+			postprocess.DisableMergeFields(),
+			postprocess.DisableCollectAuthorizationCoordinates(),
+		)
 	}
 }
 

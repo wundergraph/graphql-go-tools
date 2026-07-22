@@ -47,7 +47,7 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 	cfg.schemaConfiguration = *input.SchemaConfiguration
 
 	if input.Fetch == nil && input.Subscription == nil && input.GRPC == nil {
-		return Configuration{}, errors.New("fetch or subscription or grpc configuration is required")
+		return Configuration{}, errors.New("fetch / subscription / grpc configuration is required")
 	}
 
 	if input.Fetch != nil {

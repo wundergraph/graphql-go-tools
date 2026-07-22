@@ -20,6 +20,8 @@ import (
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 
+	"github.com/wundergraph/go-arena"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
@@ -220,6 +222,14 @@ func Test_DataSource_Load(t *testing.T) {
 
 	_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","variables":`+variables+`}`))
 	require.NoError(t, err)
+}
+
+func Test_DataSource_Load_NilTransport(t *testing.T) {
+	ds := &DataSource{pool: arena.NewArenaPool(), disabled: false}
+
+	out, err := ds.Load(context.Background(), nil, []byte(`{}`))
+	require.EqualError(t, err, "gRPC / connect configuration requires an rpc transport")
+	require.Nil(t, out)
 }
 
 // Test_DataSource_Load_WithMockService tests the datasource.Load method with an actual gRPC server
@@ -4776,6 +4786,36 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			// The context path for productCount (blog_post.related_categories.id) crosses a
+			// repeated message field under a non-list parent, which is resolved by a different
+			// code path than a repeated field at the query root. Each category must yield its
+			// own context entry in response order.
+			name:  "Query with field resolver on items of a list nested in a non-list parent",
+			query: "query BlogPostCategoriesWithFieldResolvers { blogPost { id relatedCategories { id name productCount } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]any) {
+				require.NotEmpty(t, data)
+
+				blogPost, ok := data["blogPost"].(map[string]any)
+				require.True(t, ok, "blogPost should be an object")
+
+				relatedCategories, ok := blogPost["relatedCategories"].([]any)
+				require.True(t, ok, "relatedCategories should be an array")
+				require.Len(t, relatedCategories, 2, "Should return 2 related categories")
+
+				for i, cat := range relatedCategories {
+					category, ok := cat.(map[string]any)
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.Equal(t, float64(i), category["productCount"])
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -4807,7 +4847,10 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			var output []byte
+			require.NotPanics(t, func() {
+				output, err = ds.Load(context.Background(), nil, []byte(input))
+			})
 			require.NoError(t, err)
 
 			// Parse the response

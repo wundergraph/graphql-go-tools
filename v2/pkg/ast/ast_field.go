@@ -33,7 +33,7 @@ func (d *Document) CopyField(ref int) int {
 	if d.Fields[ref].HasSelections {
 		selectionSet = d.CopySelectionSet(d.Fields[ref].SelectionSet)
 	}
-	return d.AddField(Field{
+	copyRef := d.AddField(Field{
 		Name:          d.copyByteSliceReference(d.Fields[ref].Name),
 		Alias:         d.CopyAlias(d.Fields[ref].Alias),
 		HasArguments:  d.Fields[ref].HasArguments,
@@ -43,6 +43,10 @@ func (d *Document) CopyField(ref int) int {
 		HasSelections: d.Fields[ref].HasSelections,
 		SelectionSet:  selectionSet,
 	}).Ref
+	if d.OnCopyField != nil {
+		d.OnCopyField(ref, copyRef)
+	}
+	return copyRef
 }
 
 func (d *Document) FieldNameBytes(ref int) ByteSlice {
@@ -187,6 +191,10 @@ func (d *Document) FieldTypeNode(fieldName []byte, enclosingNode Node) (node Nod
 //   - if both sides defer, the smaller id wins, since lower ids correspond to earlier/outer
 //     defer scopes that subsume later ones
 func (d *Document) MergeFieldsDefer(left, right int) {
+	if d.OnMergeFields != nil {
+		d.OnMergeFields(left, right)
+	}
+
 	leftDeferDirectiveRef, leftDeferExists := d.Fields[left].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
 	rightDeferDirectiveRef, rightDeferExists := d.Fields[right].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
 

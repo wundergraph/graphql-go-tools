@@ -44,7 +44,7 @@ func interfaceProvidesPlan() *plan.SynchronousResponsePlan {
 		Response: &resolve.GraphQLResponse{
 			Fetches: resolve.Sequence(resolve.Single(&resolve.SingleFetch{
 				FetchConfiguration: resolve.FetchConfiguration{
-					Input:          `{"method":"POST","url":"http://localhost:4250/provides-on-interface/b","body":{"query":"{media {__typename ... on Book {id animals {id name}}}}"}}`,
+					Input:          `{"method":"POST","url":"http://localhost:4250/provides-on-interface/b","body":{"query":"{media {__typename ... on Book {id animals {__typename id name}}}}"}}`,
 					DataSource:     &Source{},
 					PostProcessing: DefaultPostProcessingConfiguration,
 				},

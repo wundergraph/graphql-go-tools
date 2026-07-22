@@ -55,6 +55,14 @@ type Document struct {
 	Refs                         [][8]int
 	RefIndex                     int
 	Index                        Index
+
+	// OnCopyField, when set, is called by CopyField with the source field ref and the new field ref.
+	// CopyField is recursive: the hook fires once for every field copied, including fields nested
+	// in copied selection sets, children before their parent.
+	OnCopyField func(fieldRef, copyRef int)
+	// OnMergeFields, when set, is called by MergeFieldsDefer with the surviving (left)
+	// and the removed (right) field ref when two fields are merged.
+	OnMergeFields func(survivorRef, removedRef int)
 }
 
 func NewDocument() *Document {
@@ -164,6 +172,9 @@ func (d *Document) Reset() {
 	d.RefIndex = -1
 	d.Index.Reset()
 	d.Input.Reset()
+
+	d.OnCopyField = nil
+	d.OnMergeFields = nil
 }
 
 func (d *Document) NextRefIndex() int {

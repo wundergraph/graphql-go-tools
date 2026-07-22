@@ -1340,8 +1340,8 @@ func (r *rpcPlanningContext) fieldDefinitionRefForType(fieldName, typeName strin
 
 }
 
-// createRequiredFieldsRPCCalls creates a new call for each required field.
-// It returns a list of calls which are needed to provide certain fields for the entity, which require data from the representation variables.
+// createRequiredFieldsRPCCall creates the call needed to provide a required field for an entity,
+// which requires data from the representation variables. It produces messages of the form:
 /*
 message RequireWarehouseStockHealthScoreByIdRequest {
   // RequireWarehouseStockHealthScoreByIdContext provides the context for the required fields method RequireWarehouseStockHealthScoreById.
@@ -1366,35 +1366,15 @@ message RequireWarehouseStockHealthScoreByIdFields {
   RestockData restock_data = 2;
 }
 */
-func (r *rpcPlanningContext) createRequiredFieldsRPCCalls(callIndex *int, subgraphName string, entityTypeName string, data entityConfigData) ([]RPCCall, error) {
-	calls := make([]RPCCall, 0, len(data.requiredFields))
-	for _, requiredField := range data.requiredFields {
-		call, err := r.createRequiredFieldsRPCCall(*callIndex, subgraphName, entityTypeName, &requiredField, data)
-		if err != nil {
-			return nil, err
-		}
-
-		*callIndex++
-		calls = append(calls, call)
-	}
-
-	return calls, nil
-}
-
-// createRequiredFieldsRPCCall creates a new required fields RPC call for a given configuration.
-func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraphName, typeName string, requiredField *requiredField, data entityConfigData) (RPCCall, error) {
-	rpcConfig, exists := r.mapping.FindRequiredFieldsRPCConfig(typeName, data.keyFields, requiredField.fieldName)
+func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraphName string, rf plannedRequiredField, keyFields string, keyFieldMessage *RPCMessage) (RPCCall, error) {
+	typeName := rf.typeName
+	rpcConfig, exists := r.mapping.FindRequiredFieldsRPCConfig(typeName, keyFields, rf.fieldName)
 	if !exists {
-		return RPCCall{}, fmt.Errorf("required fields RPC config not found for type: %s, field: %s", typeName, requiredField.fieldName)
+		return RPCCall{}, fmt.Errorf("required fields RPC config not found for type: %s, field: %s", typeName, rf.fieldName)
 	}
 
 	fieldMessage := &RPCMessage{
 		Name: rpcConfig.RPC + "Fields",
-	}
-
-	fieldDefRef := r.fieldDefinitionRefForType(requiredField.fieldName, typeName)
-	if fieldDefRef == ast.InvalidRef {
-		return RPCCall{}, fmt.Errorf("unable to build required field: field definition not found for field %s", requiredField.fieldName)
 	}
 
 	call := RPCCall{
@@ -1404,7 +1384,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 		MethodName:  rpcConfig.RPC,
 		ResponsePath: ast.Path{
 			{Kind: ast.FieldName, FieldName: []byte("_entities")},
-			{Kind: ast.FieldName, FieldName: []byte(requiredField.fieldName)},
+			{Kind: ast.FieldName, FieldName: []byte(rf.resultField.AliasOrPath())},
 		},
 		Request: RPCMessage{
 			Name: rpcConfig.Request,
@@ -1420,7 +1400,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 							{
 								Name:          "key",
 								ProtoTypeName: DataTypeMessage,
-								Message:       data.keyFieldMessage,
+								Message:       keyFieldMessage,
 							},
 							{
 								Name:          requiresArgumentsFieldName,
@@ -1442,7 +1422,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 					JSONPath:      resultFieldName,
 					Message: &RPCMessage{
 						Name:   rpcConfig.RPC + "Result",
-						Fields: RPCFields{requiredField.resultField},
+						Fields: RPCFields{rf.resultField},
 					},
 				},
 			},
@@ -1453,18 +1433,18 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 	defer walker.Release()
 
 	vis := newRequiredFieldsVisitor(walker, fieldMessage, r.mapping)
-	if err := vis.visit(r.definition, typeName, requiredField.selectionSet, requiredFieldVisitorConfig{
+	if err := vis.visit(r.definition, typeName, rf.selectionSet, requiredFieldVisitorConfig{
 		referenceNestedMessages: true,
 	}); err != nil {
 		return RPCCall{}, err
 	}
 
-	if len(requiredField.fieldArguments) > 0 {
+	if len(rf.fieldArguments) > 0 {
 		fieldArgsMessage := &RPCMessage{
 			Name: rpcConfig.RPC + "Args",
 		}
-		fieldArgsMessage.Fields = make(RPCFields, len(requiredField.fieldArguments))
-		for i, arg := range requiredField.fieldArguments {
+		fieldArgsMessage.Fields = make(RPCFields, len(rf.fieldArguments))
+		for i, arg := range rf.fieldArguments {
 			field, err := r.createRPCFieldFromFieldArgument(arg)
 			if err != nil {
 				return RPCCall{}, err

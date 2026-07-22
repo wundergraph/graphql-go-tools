@@ -188,6 +188,432 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 			},
 		},
 		{
+			name:    "Should create an execution plan for an entity lookup with an aliased required field",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Warehouse { __typename name location aliasedScore: stockHealthScore } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Warehouse",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Warehouse",
+					FieldName:    "stockHealthScore",
+					SelectionSet: "inventoryCount restockData { lastRestockDate }",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName:         "Products",
+						MethodName:          "LookupWarehouseById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Warehouse",
+						Request: RPCMessage{
+							Name: "LookupWarehouseByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupWarehouseByIdRequestKey",
+										MemberTypes: []string{"Warehouse"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupWarehouseByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Warehouse",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Warehouse",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+											{
+												Name:          "location",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "location",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireWarehouseStockHealthScoreById",
+						ResponsePath: buildPath("_entities.aliasedScore"),
+						Request: RPCMessage{
+							Name: "RequireWarehouseStockHealthScoreByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireWarehouseStockHealthScoreByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name:        "LookupWarehouseByIdRequestKey",
+													MemberTypes: []string{"Warehouse"},
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+													},
+												},
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireWarehouseStockHealthScoreByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "inventory_count",
+															ProtoTypeName: DataTypeInt32,
+															JSONPath:      "inventoryCount",
+														},
+														{
+															Name:          "restock_data",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "restockData",
+															Message: &RPCMessage{
+																Name: "RequireWarehouseStockHealthScoreByIdFields.RestockData",
+																Fields: []RPCField{
+																	{
+																		Name:          "last_restock_date",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "lastRestockDate",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireWarehouseStockHealthScoreByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireWarehouseStockHealthScoreByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "stock_health_score",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "stockHealthScore",
+												Alias:         "aliasedScore",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Should create one require call per response key for plain and aliased required field instances",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Warehouse { __typename name location stockHealthScore aliasedScore: stockHealthScore } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Warehouse",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Warehouse",
+					FieldName:    "stockHealthScore",
+					SelectionSet: "inventoryCount restockData { lastRestockDate }",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName:         "Products",
+						MethodName:          "LookupWarehouseById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Warehouse",
+						Request: RPCMessage{
+							Name: "LookupWarehouseByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupWarehouseByIdRequestKey",
+										MemberTypes: []string{"Warehouse"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupWarehouseByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Warehouse",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Warehouse",
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+											},
+											{
+												Name:          "location",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "location",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireWarehouseStockHealthScoreById",
+						ResponsePath: buildPath("_entities.stockHealthScore"),
+						Request: RPCMessage{
+							Name: "RequireWarehouseStockHealthScoreByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireWarehouseStockHealthScoreByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name:        "LookupWarehouseByIdRequestKey",
+													MemberTypes: []string{"Warehouse"},
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+													},
+												},
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireWarehouseStockHealthScoreByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "inventory_count",
+															ProtoTypeName: DataTypeInt32,
+															JSONPath:      "inventoryCount",
+														},
+														{
+															Name:          "restock_data",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "restockData",
+															Message: &RPCMessage{
+																Name: "RequireWarehouseStockHealthScoreByIdFields.RestockData",
+																Fields: []RPCField{
+																	{
+																		Name:          "last_restock_date",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "lastRestockDate",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireWarehouseStockHealthScoreByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireWarehouseStockHealthScoreByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "stock_health_score",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "stockHealthScore",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:           2,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireWarehouseStockHealthScoreById",
+						ResponsePath: buildPath("_entities.aliasedScore"),
+						Request: RPCMessage{
+							Name: "RequireWarehouseStockHealthScoreByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireWarehouseStockHealthScoreByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name:        "LookupWarehouseByIdRequestKey",
+													MemberTypes: []string{"Warehouse"},
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+													},
+												},
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireWarehouseStockHealthScoreByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "inventory_count",
+															ProtoTypeName: DataTypeInt32,
+															JSONPath:      "inventoryCount",
+														},
+														{
+															Name:          "restock_data",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "restockData",
+															Message: &RPCMessage{
+																Name: "RequireWarehouseStockHealthScoreByIdFields.RestockData",
+																Fields: []RPCField{
+																	{
+																		Name:          "last_restock_date",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "lastRestockDate",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireWarehouseStockHealthScoreByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireWarehouseStockHealthScoreByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "stock_health_score",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "stockHealthScore",
+												Alias:         "aliasedScore",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name:    "Should create an execution plan for tagSummary requiring tags list",
 			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name tagSummary } } }`,
 			mapping: testMapping(),

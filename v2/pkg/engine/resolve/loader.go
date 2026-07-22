@@ -159,6 +159,12 @@ type Loader struct {
 	// dataBuffer holds the shared response tree and its concurrency guard.
 	dataBuffer *DataBuffer
 
+	// authorization is set for the loader serving the primary response when pre-fetch field
+	// authorization is enabled. It holds the up-front batch decisions that isFetchAuthorizedFromCache
+	// reads to skip fetches serving only denied fields. It is nil for defer-group loaders, whose
+	// denied fields are still nulled/errored during response resolution.
+	authorization *FieldAuthorization
+
 	// errors accumulates fetch-time errors for this Loader instance.
 	// Each parallel defer group gets its own Loader (via NewLoader) and so its
 	// own errors. All writes happen under dataBuffer.Lock() (arena not thread-safe).
@@ -1367,6 +1373,10 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 }
 
 func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (authorized bool, err error) {
+	if l.ctx.preFetchFieldAuthorizer != nil {
+		operationType := l.fetchOperationType(info)
+		return l.isFetchAuthorizedFromCache(info, operationType, res), nil
+	}
 	if info.OperationType == ast.OperationTypeQuery {
 		// we only want to authorize Mutations and Subscriptions at the load level
 		// Mutations can have side effects, so we don't want to send them to a subgraph if the user is not authorized
@@ -1397,6 +1407,47 @@ func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (
 		}
 	}
 	return authorized, nil
+}
+
+func (l *Loader) fetchOperationType(info *FetchInfo) ast.OperationType {
+	if info != nil && info.OperationType != ast.OperationTypeUnknown {
+		return info.OperationType
+	}
+	if l.info != nil {
+		return l.info.OperationType
+	}
+	return ast.OperationTypeUnknown
+}
+
+func (l *Loader) isFetchAuthorizedFromCache(info *FetchInfo, operationType ast.OperationType, res *result) bool {
+	if l.authorization == nil || info == nil || len(info.RootFields) == 0 {
+		return true
+	}
+	deniedRootFields := 0
+	for i := range info.RootFields {
+		if !info.RootFields[i].HasAuthorizationRule {
+			continue
+		}
+		_, denied := l.authorization.denyReason(info.DataSourceID, info.RootFields[i])
+		if !denied {
+			continue
+		}
+		deniedRootFields++
+		if operationType != ast.OperationTypeQuery {
+			// Mutations and subscriptions must not partially execute: skip the origin request
+			// entirely when any root field is denied. The single field-level
+			// UNAUTHORIZED_FIELD_OR_TYPE error is emitted during response resolution from the
+			// seeded decision (identical in shape to the query field errors); we intentionally do
+			// not set authorizationRejected here, which would add a second, subgraph-level error.
+			res.fetchSkipped = true
+			return false
+		}
+	}
+	if operationType == ast.OperationTypeQuery && deniedRootFields == len(info.RootFields) {
+		res.fetchSkipped = true
+		return false
+	}
+	return true
 }
 
 func (l *Loader) rateLimitFetch(input []byte, info *FetchInfo, res *result) (allowed bool, err error) {
