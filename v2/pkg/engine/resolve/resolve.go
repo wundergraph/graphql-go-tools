@@ -1626,24 +1626,21 @@ type pendingFilterError struct {
 	sub      *subscriptionState
 }
 
-// subGroupKey identifies a set of subscribers on a trigger whose resolved output is byte-identical,
-// so the update can be resolved once and broadcast to all of them. It covers everything that can
-// change the output: the plan/selection (via the shared cached plan pointer — the router's plan
-// cache hands identical operations the same *GraphQLSubscription), the operation variables, and the
-// full set of subgraph request headers. Subscribers whose output can vary per viewer are excluded
-// from grouping entirely (see resolutionGroupKey), never keyed here.
 type subGroupKey struct {
-	plan      *GraphQLSubscription
-	variables uint64
-	headers   uint64
+	plan             *GraphQLSubscription
+	variables        uint64
+	headers          uint64
+	includeQueryPlan bool
 }
 
 // resolutionGroupKey generates a subscription group key and returns true,
 // if sub is groupable or false if it is not. It's not groupable when
-// the response will contain per-subscriber data, i.e.
+// the response will contain per-subscriber data that cannot be reduced to a
+// static key value, i.e.
 // - auth-scoped fields
 // - tracing data
 // - rate-limit data
+// - a custom field-value renderer (may emit per-subscriber bytes)
 func resolutionGroupKey(sub *subscriptionState) (subGroupKey, bool) {
 	resp := sub.resolve.Response
 	if resp == nil || resp.Info == nil || len(resp.Info.AuthorizationCoordinates) > 0 {
@@ -1658,15 +1655,20 @@ func resolutionGroupKey(sub *subscriptionState) (subGroupKey, bool) {
 		return subGroupKey{}, false
 	}
 
+	if sub.ctx.fieldRenderer != nil {
+		return subGroupKey{}, false
+	}
+
 	var headers uint64
 	if sub.ctx.SubgraphHeadersBuilder != nil {
 		headers = sub.ctx.SubgraphHeadersBuilder.HashAll()
 	}
 
 	return subGroupKey{
-		plan:      sub.resolve,
-		variables: sub.ctx.VariablesHash,
-		headers:   headers,
+		plan:             sub.resolve,
+		variables:        sub.ctx.VariablesHash,
+		headers:          headers,
+		includeQueryPlan: sub.ctx.ExecutionOptions.IncludeQueryPlanInResponse,
 	}, true
 }
 
