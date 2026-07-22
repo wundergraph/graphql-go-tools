@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.14.0...v2.14.1) (2026-07-22)
+
+
+### Bug Fixes
+
+* incorrect alias behavior for required fields ([#1604](https://github.com/wundergraph/graphql-go-tools/issues/1604)) ([5752e91](https://github.com/wundergraph/graphql-go-tools/commit/5752e914cc6f88ce2fa9a3143712ede705c92226))
+
 ## [2.14.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.13.2...v2.14.0) (2026-07-21)
 
 
