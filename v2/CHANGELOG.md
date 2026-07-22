@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.13.2...v2.14.0) (2026-07-21)
+
+
+### Features
+
+* add AllowStringLiteralsForEnums option to validator ([#1608](https://github.com/wundergraph/graphql-go-tools/issues/1608)) ([0771feb](https://github.com/wundergraph/graphql-go-tools/commit/0771febd0d27faf4878d32ef7a2d93d547989434))
+
 ## [2.13.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.13.1...v2.13.2) (2026-07-17)
 
 
