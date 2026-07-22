@@ -230,6 +230,13 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 				dsFilter.EnableFallbackKeyJumps()
 				fallbackKeyJumpsEnabled = true
 				refilterWithFallbackKeyJumps = true
+			} else if !p.nodeSelectionsVisitor.hasNewFields && !refilterWithFallbackKeyJumps {
+				// fallback key jumps are already enabled, their refilter has run,
+				// and this iteration made no progress (per-walk state is reset in
+				// EnterDocument) - further iterations cannot change anything,
+				// so report the unresolved fields right away
+				report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
+				return
 			}
 
 			if i > 100 {
