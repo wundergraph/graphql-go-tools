@@ -50,14 +50,6 @@ type DataSourceJumpsGraph struct {
 	Cache map[JumpCacheKey][]SourceConnection
 }
 
-func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceConnection, bool) {
-	return g.getPaths(source, target, false)
-}
-
-func (g *DataSourceJumpsGraph) GetPathsWithFallback(source DSHash, target DSHash) ([]SourceConnection, bool) {
-	return g.getPaths(source, target, true)
-}
-
 func (g *DataSourceJumpsGraph) getPaths(source DSHash, target DSHash, includeFallback bool) ([]SourceConnection, bool) {
 	// Create a cache key
 	key := JumpCacheKey{Source: source, Target: target, IncludeFallback: includeFallback}

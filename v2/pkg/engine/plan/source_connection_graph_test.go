@@ -40,7 +40,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}
 
 			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
-			path, exists := graph.GetPaths(1, 2)
+			path, exists := graph.getPaths(1, 2, false)
 			assert.True(t, exists, "Should have a connection")
 
 			assert.Equal(t, []SourceConnection{
@@ -95,7 +95,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}
 
 			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
-			path1, exists := graph.GetPaths(1, 2)
+			path1, exists := graph.getPaths(1, 2, false)
 			assert.True(t, exists, "Should have a connection")
 
 			assert.Equal(t, []SourceConnection{
@@ -118,7 +118,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 				},
 			}, path1)
 
-			path2, exists := graph.GetPaths(2, 1)
+			path2, exists := graph.getPaths(2, 1, false)
 			assert.True(t, exists, "Should have a connection")
 
 			assert.Equal(t, []SourceConnection{
@@ -180,7 +180,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}
 
 			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
-			path, exists := graph.GetPaths(1, 2)
+			path, exists := graph.getPaths(1, 2, false)
 			assert.True(t, exists, "Should have a connection")
 
 			assert.Equal(t, []SourceConnection{
@@ -245,7 +245,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}
 
 			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "ProductList")
-			path, exists := graph.GetPaths(1, 2)
+			path, exists := graph.getPaths(1, 2, false)
 			assert.False(t, exists, "Should not use fallback subset-key connection during regular lookup")
 			assert.Nil(t, path, "Path should be nil")
 		})
@@ -282,7 +282,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}
 
 			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "ProductList")
-			path, exists := graph.GetPathsWithFallback(1, 2)
+			path, exists := graph.getPaths(1, 2, true)
 			assert.True(t, exists, "Should have a connection")
 
 			assert.Equal(t, []SourceConnection{
@@ -419,7 +419,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 		}
 
 		graph := NewDataSourceJumpsGraph([]DSHash{1, 2, 3, 4}, keysPerPath, "User")
-		path, exists := graph.GetPaths(1, 4)
+		path, exists := graph.getPaths(1, 4, false)
 		assert.True(t, exists, "Should have a connection")
 
 		assert.Equal(t, []SourceConnection{
@@ -475,7 +475,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}
 
 			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
-			path, exists := graph.GetPaths(1, 2)
+			path, exists := graph.getPaths(1, 2, false)
 			assert.False(t, exists, "Should not have a connection")
 			assert.Nil(t, path, "Path should be nil")
 		})
@@ -503,7 +503,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}
 
 			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
-			path, exists := graph.GetPaths(1, 2)
+			path, exists := graph.getPaths(1, 2, false)
 			assert.False(t, exists, "Should not have a connection")
 			assert.Nil(t, path, "Path should be nil")
 		})
@@ -531,7 +531,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}
 
 			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
-			path, exists := graph.GetPaths(1, 2)
+			path, exists := graph.getPaths(1, 2, false)
 			assert.False(t, exists, "Should not have a connection")
 			assert.Nil(t, path, "Path should be nil")
 		})
@@ -559,7 +559,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			}
 
 			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
-			path, exists := graph.GetPaths(1, 2)
+			path, exists := graph.getPaths(1, 2, false)
 			assert.False(t, exists, "Should not have a connection")
 			assert.Nil(t, path, "Path should be nil")
 		})
@@ -590,8 +590,8 @@ func TestSourceConnectionGraphCache(t *testing.T) {
 
 	graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
 
-	// First call to GetPaths should compute the path
-	path, exists := graph.GetPaths(1, 2)
+	// First call to getPaths should compute the path
+	path, exists := graph.getPaths(1, 2, false)
 	assert.True(t, exists, "Should have a connection")
 	assert.NotNil(t, path, "Path should not be nil")
 
