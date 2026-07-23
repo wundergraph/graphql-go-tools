@@ -918,6 +918,17 @@ type subscriptionState struct {
 	id        SubscriptionIdentifier
 	heartbeat bool
 	completed chan struct{}
+	// resolveMu serializes executeSubscriptionUpdate for THIS subscription so that
+	// consecutive events for the same SubscriptionIdentifier resolve and write in
+	// order. Different subscriptions have different resolveMu instances, so updates
+	// to distinct subscribers on a trigger still run concurrently.
+	//
+	// This preserves per-subscription event ordering even when the pubsub layer
+	// abandons an event's in-flight goroutines on handler_timeout and starts the
+	// next event: the next event's update for this subscription queues behind the
+	// previous one here rather than racing it (writeMu only orders the final write,
+	// not by event).
+	resolveMu sync.Mutex
 	// writeMu protects all writes to writer (Complete, Error, Write, Flush, Heartbeat).
 	// Paired with the removed atomic to prevent writes after removal.
 	writeMu sync.Mutex
@@ -945,6 +956,13 @@ func (s *subscriptionState) done() {
 // complete delivers a "subscription done" signal to the downstream writer.
 // Called by handleTriggerComplete, not through toClose.
 func (s *subscriptionState) complete() {
+	// Hold resolveMu so the terminal frame is written after any in-flight resolve for
+	// this subscription, not ahead of its data write. This restores the ordering the
+	// per-trigger updater mutex provided upstream, now that executeSubscriptionUpdate
+	// resolves outside that mutex. resolveMu is ordered before writeMu, consistent with
+	// executeSubscriptionUpdate.
+	s.resolveMu.Lock()
+	defer s.resolveMu.Unlock()
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.writer.Complete()
@@ -953,6 +971,10 @@ func (s *subscriptionState) complete() {
 // error delivers a terminal error payload to the downstream writer.
 // Called by handleTriggerError, not through toClose.
 func (s *subscriptionState) error(data []byte) {
+	// See complete(): hold resolveMu so the terminal error frame is ordered after any
+	// in-flight resolve for this subscription rather than racing its data write.
+	s.resolveMu.Lock()
+	defer s.resolveMu.Unlock()
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	s.writer.Error(data)
@@ -980,6 +1002,14 @@ func (s *subscriptionState) sendHeartbeat() error {
 }
 
 func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) {
+	// Serialize resolves for THIS subscription so consecutive events for the same
+	// SubscriptionIdentifier keep their order. Distinct subscriptions hold distinct
+	// resolveMu instances, so a single event still resolves all of its subscribers
+	// concurrently; only same-subscription events (e.g. an event that overlaps a
+	// prior one abandoned on handler_timeout) queue here.
+	sub.resolveMu.Lock()
+	defer sub.resolveMu.Unlock()
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
@@ -1907,8 +1937,11 @@ func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscrip
 type subscriptionUpdater struct {
 	// mu serves two roles:
 	//
-	// 1. Event serialization gate -- held across the entire Update() call including
-	//    wg.Wait(), ensuring event A fully completes before event B begins.
+	// 1. Event serialization gate -- Update() (broadcast) holds it across the entire call
+	//    including wg.Wait(), ensuring event A fully completes before event B begins.
+	//    UpdateSubscription() is the deliberate exception: it takes the lock only for the
+	//    lifecycle check and resolves outside it, so per-subscriber deliveries for one event
+	//    run concurrently rather than serializing on this lock (see UpdateSubscription).
 	//
 	// 2. Lifecycle guard -- the done flag prevents callbacks after Done() has torn down
 	//    the trigger. Every method checks done || ctx.Err() under the lock before proceeding.
@@ -1943,11 +1976,31 @@ func (s *subscriptionUpdater) Heartbeat() {
 }
 
 func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
+	// Take the lock only for the lifecycle check, then release it before resolving.
+	//
+	// Unlike Update() (broadcast), which holds s.mu across a single wg.Go fan-out for one
+	// event, UpdateSubscription is invoked once per subscriber. Holding s.mu across
+	// handleUpdateSubscription would serialize every subscriber on a trigger behind one
+	// lock, so a single event fanned out to N subscribers would resolve N subgraph fetches
+	// sequentially instead of concurrently. Resolving outside the lock lets per-subscriber
+	// deliveries for the same event run in parallel.
+	//
+	// This is safe:
+	//   - Event ordering (event A fully before event B) is enforced by the caller, which
+	//     blocks between events (it waits on its own WaitGroup before delivering the next
+	//     event), not by holding s.mu across the resolve here.
+	//   - The lifecycle guard (done/ctx) is still checked under the lock. If Done() runs
+	//     after we release, handleUpdateSubscription's getTrigger returns a torn-down
+	//     trigger and no-ops.
+	//   - The per-subscription write path is independently guarded by
+	//     subscriptionState.writeMu and the removed flag, so concurrent resolves and
+	//     teardown (Done/UnsubscribeSubscription) remain correct.
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
+		s.mu.Unlock()
 		return
 	}
+	s.mu.Unlock()
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
