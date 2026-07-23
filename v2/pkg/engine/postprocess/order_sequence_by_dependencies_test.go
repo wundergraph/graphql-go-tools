@@ -1,169 +1,207 @@
 package postprocess
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-func sequenceToDeps(seq *resolve.FetchTreeNode) []resolve.FetchDependencies {
-	result := make([]resolve.FetchDependencies, len(seq.ChildNodes))
-	for i, node := range seq.ChildNodes {
-		result[i] = node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies
-	}
-	return result
-}
-
-func depsToSequence(deps []resolve.FetchDependencies) *resolve.FetchTreeNode {
-	result := &resolve.FetchTreeNode{
-		ChildNodes: make([]*resolve.FetchTreeNode, len(deps)),
-	}
-	for i, dep := range deps {
-		result.ChildNodes[i] = &resolve.FetchTreeNode{
-			Kind: resolve.FetchTreeNodeKindSingle,
-			Item: &resolve.FetchItem{
-				Fetch: &resolve.SingleFetch{FetchDependencies: dep},
-			},
-		}
-	}
-	return result
-}
-
-func prettyPrint(input any) string {
-	out, _ := json.MarshalIndent(input, "", "  ")
-	return string(out)
-}
-
-func TestOrderSquenceByDependencies_ProcessFetchTree(t *testing.T) {
-	processor := &orderSequenceByDependencies{}
+func TestOrderSequenceByDependencies_ProcessFetchTree(t *testing.T) {
 	t.Run("no dependencies", func(t *testing.T) {
-		input := []resolve.FetchDependencies{
-			{FetchID: 2},
-			{FetchID: 0},
-			{FetchID: 1},
-		}
-		expected := []resolve.FetchDependencies{
-			{FetchID: 0},
-			{FetchID: 1},
-			{FetchID: 2},
-		}
-		seq := depsToSequence(input)
-		processor.ProcessFetchTree(seq)
-		require.Equal(t, prettyPrint(expected), prettyPrint(sequenceToDeps(seq)))
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(2),
+			sf(0),
+			sf(1),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0),
+			sf(1),
+			sf(2),
+		)
+		require.Equal(t, expected, input)
 	})
 	t.Run("serial dependencies", func(t *testing.T) {
-		input := []resolve.FetchDependencies{
-			{FetchID: 0},
-			{FetchID: 2, DependsOnFetchIDs: []int{1}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-		}
-		expected := []resolve.FetchDependencies{
-			{FetchID: 0},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			{FetchID: 2, DependsOnFetchIDs: []int{1}},
-		}
-		seq := depsToSequence(input)
-		processor.ProcessFetchTree(seq)
-		require.Equal(t, prettyPrint(expected), prettyPrint(sequenceToDeps(seq)))
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(0),
+			sf(2, deps(1)),
+			sf(1, deps(0)),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0),
+			sf(1, deps(0)),
+			sf(2, deps(1)),
+		)
+		require.Equal(t, expected, input)
 	})
 	t.Run("serial + requires dependencies", func(t *testing.T) {
-		input := []resolve.FetchDependencies{
-			{FetchID: 0},
-			{FetchID: 1, DependsOnFetchIDs: []int{0, 2}},
-			{FetchID: 2, DependsOnFetchIDs: []int{0}},
-		}
-		expected := []resolve.FetchDependencies{
-			{FetchID: 0},
-			{FetchID: 2, DependsOnFetchIDs: []int{0}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0, 2}},
-		}
-		seq := depsToSequence(input)
-		processor.ProcessFetchTree(seq)
-		require.Equal(t, prettyPrint(expected), prettyPrint(sequenceToDeps(seq)))
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(0),
+			sf(1, deps(0, 2)),
+			sf(2, deps(0)),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0),
+			sf(2, deps(0)),
+			sf(1, deps(0, 2)),
+		)
+		require.Equal(t, expected, input)
 	})
 	t.Run("more dependencies", func(t *testing.T) {
-		input := []resolve.FetchDependencies{
-			{FetchID: 4, DependsOnFetchIDs: []int{3}},
-			{FetchID: 0, DependsOnFetchIDs: []int{}},
-			{FetchID: 2, DependsOnFetchIDs: []int{1}},
-			{FetchID: 3, DependsOnFetchIDs: []int{5, 1}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			{FetchID: 5, DependsOnFetchIDs: []int{0}},
-		}
-		expected := []resolve.FetchDependencies{
-			{FetchID: 0, DependsOnFetchIDs: []int{}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			{FetchID: 5, DependsOnFetchIDs: []int{0}},
-			{FetchID: 2, DependsOnFetchIDs: []int{1}},
-			{FetchID: 3, DependsOnFetchIDs: []int{5, 1}},
-			{FetchID: 4, DependsOnFetchIDs: []int{3}},
-		}
-		seq := depsToSequence(input)
-		processor.ProcessFetchTree(seq)
-		require.Equal(t, prettyPrint(expected), prettyPrint(sequenceToDeps(seq)))
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(4, deps(3)),
+			sf(0),
+			sf(2, deps(1)),
+			sf(3, deps(5, 1)),
+			sf(1, deps(0)),
+			sf(5, deps(0)),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0),
+			sf(1, deps(0)),
+			sf(5, deps(0)),
+			sf(2, deps(1)),
+			sf(3, deps(5, 1)),
+			sf(4, deps(3)),
+		)
+		require.Equal(t, expected, input)
 	})
 	t.Run("double dependencies", func(t *testing.T) {
-		input := []resolve.FetchDependencies{
-			{FetchID: 0, DependsOnFetchIDs: []int{}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			{FetchID: 2, DependsOnFetchIDs: []int{0, 5}},
-			{FetchID: 3, DependsOnFetchIDs: []int{0, 1}},
-			{FetchID: 4, DependsOnFetchIDs: []int{2}},
-			{FetchID: 5, DependsOnFetchIDs: []int{0}},
-		}
-		expected := []resolve.FetchDependencies{
-			{FetchID: 0, DependsOnFetchIDs: []int{}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			{FetchID: 5, DependsOnFetchIDs: []int{0}},
-			{FetchID: 2, DependsOnFetchIDs: []int{0, 5}},
-			{FetchID: 3, DependsOnFetchIDs: []int{0, 1}},
-			{FetchID: 4, DependsOnFetchIDs: []int{2}},
-		}
-		seq := depsToSequence(input)
-		processor.ProcessFetchTree(seq)
-		require.Equal(t, prettyPrint(expected), prettyPrint(sequenceToDeps(seq)))
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(0),
+			sf(1, deps(0)),
+			sf(2, deps(0, 5)),
+			sf(3, deps(0, 1)),
+			sf(4, deps(2)),
+			sf(5, deps(0)),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0),
+			sf(1, deps(0)),
+			sf(5, deps(0)),
+			sf(2, deps(0, 5)),
+			sf(3, deps(0, 1)),
+			sf(4, deps(2)),
+		)
+		require.Equal(t, expected, input)
 	})
 	t.Run("double dependencies variant", func(t *testing.T) {
-		input := []resolve.FetchDependencies{
-			{FetchID: 0, DependsOnFetchIDs: []int{}},
-			{FetchID: 2, DependsOnFetchIDs: []int{0, 1}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			{FetchID: 3, DependsOnFetchIDs: []int{2}},
-			{FetchID: 5, DependsOnFetchIDs: []int{4}},
-			{FetchID: 4, DependsOnFetchIDs: []int{2, 3}},
-		}
-		expected := []resolve.FetchDependencies{
-			{FetchID: 0, DependsOnFetchIDs: []int{}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			{FetchID: 2, DependsOnFetchIDs: []int{0, 1}},
-			{FetchID: 3, DependsOnFetchIDs: []int{2}},
-			{FetchID: 4, DependsOnFetchIDs: []int{2, 3}},
-			{FetchID: 5, DependsOnFetchIDs: []int{4}},
-		}
-		seq := depsToSequence(input)
-		processor.ProcessFetchTree(seq)
-		require.Equal(t, prettyPrint(expected), prettyPrint(sequenceToDeps(seq)))
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(0),
+			sf(2, deps(0, 1)),
+			sf(1, deps(0)),
+			sf(3, deps(2)),
+			sf(5, deps(4)),
+			sf(4, deps(2, 3)),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0),
+			sf(1, deps(0)),
+			sf(2, deps(0, 1)),
+			sf(3, deps(2)),
+			sf(4, deps(2, 3)),
+			sf(5, deps(4)),
+		)
+		require.Equal(t, expected, input)
 	})
 	t.Run("nested requires", func(t *testing.T) {
-		input := []resolve.FetchDependencies{
-			{FetchID: 0, DependsOnFetchIDs: []int{}},
-			{FetchID: 3, DependsOnFetchIDs: []int{0, 2}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			{FetchID: 2, DependsOnFetchIDs: []int{0}},
-			{FetchID: 4, DependsOnFetchIDs: []int{0, 1}},
-		}
-		expected := []resolve.FetchDependencies{
-			{FetchID: 0, DependsOnFetchIDs: []int{}},
-			{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			{FetchID: 2, DependsOnFetchIDs: []int{0}},
-			{FetchID: 3, DependsOnFetchIDs: []int{0, 2}},
-			{FetchID: 4, DependsOnFetchIDs: []int{0, 1}},
-		}
-		seq := depsToSequence(input)
-		processor.ProcessFetchTree(seq)
-		require.Equal(t, prettyPrint(expected), prettyPrint(sequenceToDeps(seq)))
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(0),
+			sf(3, deps(0, 2)),
+			sf(1, deps(0)),
+			sf(2, deps(0)),
+			sf(4, deps(0, 1)),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0),
+			sf(1, deps(0)),
+			sf(2, deps(0)),
+			sf(3, deps(0, 2)),
+			sf(4, deps(0, 1)),
+		)
+		require.Equal(t, expected, input)
+	})
+
+	t.Run("dependent with fetch ID 0 must come after its dependency", func(t *testing.T) {
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(0, deps(3)),
+			sf(3, deps(1, 2)),
+			sf(1, deps(5)),
+			sf(2, deps(5)),
+			sf(5),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(5),
+			sf(1, deps(5)),
+			sf(2, deps(5)),
+			sf(3, deps(1, 2)),
+			sf(0, deps(3)),
+		)
+		require.Equal(t, expected, input)
+	})
+	t.Run("equal transitive dependencies tie-break by fetch ID (diamond)", func(t *testing.T) {
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(7, deps(4, 5)),
+			sf(6, deps(3, 4, 5)),
+			sf(3),
+			sf(4, deps(3)),
+			sf(5, deps(3)),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(3),
+			sf(4, deps(3)),
+			sf(5, deps(3)),
+			sf(6, deps(3, 4, 5)),
+			sf(7, deps(4, 5)),
+		)
+		require.Equal(t, expected, input)
+	})
+	t.Run("duplicate direct dependency IDs tie-break by fetch ID", func(t *testing.T) {
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(3, deps(1)),
+			sf(2, deps(1, 1)),
+			sf(1),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(1),
+			sf(2, deps(1, 1)),
+			sf(3, deps(1)),
+		)
+		require.Equal(t, expected, input)
 	})
 }
+
+// func TestOrderSequenceByDependencies_DependencyCycle(t *testing.T) {
+// 	processor := &orderSequenceByDependencies{}
+// 	processor.ProcessFetchTree(seq(
+// 		sf(1, deps(2)),
+// 		sf(2, deps(1)),
+// 	))
+// }
+//
+// func TestOrderSequenceByDependencies_SelfDependency(t *testing.T) {
+// 	processor := &orderSequenceByDependencies{}
+// 	processor.ProcessFetchTree(seq(
+// 		sf(0),
+// 		sf(1, deps(1)),
+// 	))
+// }
