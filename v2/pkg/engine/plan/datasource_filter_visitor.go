@@ -520,10 +520,41 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 	// to the current node's datasource, but a not yet selected parent duplicate could,
 	// e.g. when the key field is resolvable only from a sibling subgraph.
 	// Select such a parent in addition and route the key jump through it.
+	parentIdx, path, ok := f.firstReachableKeyProvidingParent(jumpsForTypename, currentNodeDsHash, unselectedParentIndexes)
+	if !ok {
+		return
+	}
+
+	if !f.selectWithExternalCheck(parentIdx, ReasonStage3SelectParentNodeWhichCouldGiveKeys) {
+		// cannot happen: the candidate filter mirrors the external check
+		return
+	}
+
+	currentNode.requiresKey = path
+	currentNode.requiresFallbackKey = false
+
+	// the newly selected parent may itself require a key to be reachable
+	f.assignKeys(parentIdx, f.nodes.treeNode(parentIdx).GetParent().GetData())
+}
+
+// firstReachableKeyProvidingParent returns the first not yet selected parent duplicate
+// which could provide a key jump into the current node's datasource. The parent has to
+// be reachable on its own datasource as well (see canAssignKeys) - otherwise the extra
+// selection produces a fetch which cannot be rooted anywhere and degenerates into an
+// invalid root query fetch (e.g. a parent inside a keyless non-entity value type chain
+// on a datasource without the corresponding root query field). The selection has no
+// undo, so reachability is a precondition of the candidate, not a post-hoc repair.
+// The filter is shared by assignKeys' sibling-parent fallback and canAssignKeys.
+func (f *DataSourceFilter) firstReachableKeyProvidingParent(jumpsForTypename *DataSourceJumpsGraph, currentNodeDsHash DSHash, unselectedParentIndexes []int) (parentIdx int, path *SourceConnection, ok bool) {
 	for _, parentIdx := range unselectedParentIndexes {
 		parentNode := f.nodes.items[parentIdx]
 
 		if parentNode.IsOrphan || parentNode.DataSourceHash == currentNodeDsHash {
+			continue
+		}
+
+		if parentNode.IsExternal && !parentNode.IsProvided {
+			// selectWithExternalCheck would refuse this parent
 			continue
 		}
 
@@ -532,18 +563,71 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 			continue
 		}
 
-		if !f.selectWithExternalCheck(parentIdx, ReasonStage3SelectParentNodeWhichCouldGiveKeys) {
+		parentTreeNode := f.nodes.treeNode(parentIdx)
+		if !f.canAssignKeys(parentIdx, parentTreeNode.GetParent().GetData()) {
 			continue
 		}
 
-		currentNode.requiresKey = path
-		currentNode.requiresFallbackKey = false
-
-		// the newly selected parent may itself require a key to be reachable
-		parentTreeNode := f.nodes.treeNode(parentIdx)
-		f.assignKeys(parentIdx, parentTreeNode.GetParent().GetData())
-		return
+		return parentIdx, path, true
 	}
+
+	return 0, nil, false
+}
+
+// canAssignKeys reports whether assignKeys would be able to route the node at itemIdx
+// to its datasource: it already has a key, or it is nested under a selected parent on
+// the same datasource, or a selected parent's datasource provides a key jump, or -
+// recursively - a not yet selected parent duplicate could provide the key while being
+// reachable itself. It mirrors the decision paths of assignKeys without mutating state,
+// and is used as the precondition for the sibling-parent fallback selection.
+func (f *DataSourceFilter) canAssignKeys(itemIdx int, parentNodeIndexes []int) bool {
+	currentNode := f.nodes.items[itemIdx]
+
+	if currentNode.requiresKey != nil {
+		return true
+	}
+
+	currentNodeDsHash := currentNode.DataSourceHash
+
+	if len(parentNodeIndexes) == 0 {
+		// the node is at the operation root - it is fetchable directly
+		// only when its field is a root node of its datasource
+		return currentNode.IsRootNode
+	}
+
+	selectedParentHashes := make([]DSHash, 0, len(parentNodeIndexes))
+	unselectedParentIndexes := make([]int, 0, len(parentNodeIndexes))
+	for _, parentIdx := range parentNodeIndexes {
+		if !f.nodes.items[parentIdx].Selected {
+			unselectedParentIndexes = append(unselectedParentIndexes, parentIdx)
+			continue
+		}
+
+		if f.nodes.items[parentIdx].DataSourceHash == currentNodeDsHash {
+			// nested under a selected parent on the same datasource
+			return true
+		}
+
+		selectedParentHashes = append(selectedParentHashes, f.nodes.items[parentIdx].DataSourceHash)
+	}
+
+	jumpsForTypename, exists := f.jumpsForPathAndTypeName(currentNode.ParentPath, currentNode.TypeName)
+	if !exists {
+		return false
+	}
+
+	for _, selectedParentHash := range selectedParentHashes {
+		if _, exists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash, f.allowFallbackKeyJumps); exists {
+			return true
+		}
+	}
+
+	if len(selectedParentHashes) == 0 {
+		return false
+	}
+
+	_, _, reachable := f.firstReachableKeyProvidingParent(jumpsForTypename, currentNodeDsHash, unselectedParentIndexes)
+	return reachable
 }
 
 // selectDuplicateNodes - selects nodes (e.g. fields) which are not unique to a single datasource,
