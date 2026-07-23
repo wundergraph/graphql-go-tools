@@ -1100,10 +1100,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	}
 }
 
-// resolveSubscriptionUpdateGroup runs a single subscription resolve (init + pre-fetch auth +
-// load + serialize) for the given representative context/subscription and returns the serialized
-// response body. It does not touch any subscriber's writer, so the result can be fanned out to a
-// group of subscribers whose resolved output is identical (see executeSubscriptionUpdateGroup).
+// resolveSubscriptionUpdateGroup resolves the response for sub using sharedInput.
+// It returns the response as bytes.
 func (r *Resolver) resolveSubscriptionUpdateGroup(sub *subscriptionState, sharedInput []byte) ([]byte, error) {
 	// Use subs context for everything we do in here.
 	// sub is likely the leader of a group. Him leaving mid-resolve (cancelling its ctx)
@@ -1118,7 +1116,6 @@ func (r *Resolver) resolveSubscriptionUpdateGroup(sub *subscriptionState, shared
 
 	resolveCtx := sub.ctx.WithContext(ctx)
 
-	// Copy the input.
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
 
@@ -1139,7 +1136,8 @@ func (r *Resolver) resolveSubscriptionUpdateGroup(sub *subscriptionState, shared
 	// The DataBuffer wraps the base tree produced by InitSubscription (the
 	// subscription event payload). The loader merges fetched data into it.
 	db := &DataBuffer{data: resolvable.data}
-	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
+	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields,
+		r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if err := loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response); err != nil {
 		return nil, err
@@ -1159,16 +1157,14 @@ func (r *Resolver) resolveSubscriptionUpdateGroup(sub *subscriptionState, shared
 	}
 	resolvable.skipValueCompletion = loader.skipValueCompletion
 
-	// Render into a buffer instead of a subscriber's writer, so the identical bytes can be broadcast
-	// to every member of the group.
+	// Render response into buf. Needs to be independent of arena because we use
+	// it later to fan out to subscribers.
 	buf := bytes.NewBuffer(make([]byte, 0, 1024))
 	if err := resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, buf); err != nil {
 		return nil, err
 	}
-	// Copy out of the buffer so the bytes are independent of the pooled arena we're about to release.
-	out := make([]byte, buf.Len())
-	copy(out, buf.Bytes())
-	return out, nil
+
+	return buf.Bytes(), nil
 }
 
 // deliverSubscriptionUpdate writes an already-resolved response body (or a resolve error) to one
@@ -1176,6 +1172,10 @@ func (r *Resolver) resolveSubscriptionUpdateGroup(sub *subscriptionState, shared
 func (r *Resolver) deliverSubscriptionUpdate(sub *subscriptionState, resolveCtx *Context, body []byte, resolveErr error) {
 	if resolveErr != nil {
 		sub.writeError(r.errorFormatter, resolveCtx, resolveErr, sub.resolve.Response)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:grouped:resolve:failed:%d\n",
+				sub.id.SubscriptionID)
+		}
 		if r.reporter != nil {
 			r.reporter.SubscriptionUpdateSent()
 		}
