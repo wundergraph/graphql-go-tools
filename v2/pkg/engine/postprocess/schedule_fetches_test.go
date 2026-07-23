@@ -487,7 +487,7 @@ func TestScheduleFetches_Validator(t *testing.T) {
 		tree := par(x, y)
 		dag, err := newFetchDAG(nodes(x, y))
 		require.NoError(t, err)
-		require.EqualError(t, validateSchedule(tree, dag), "fetch 1 depends on fetch 0 before it is available")
+		require.EqualError(t, validateSchedule(tree, dag), "fetch 1 is scheduled before its dependency 0 completes")
 	})
 
 	t.Run("self-dependency is invalid", func(t *testing.T) {

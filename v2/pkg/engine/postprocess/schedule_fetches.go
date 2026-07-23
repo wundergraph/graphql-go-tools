@@ -1,6 +1,7 @@
 package postprocess
 
 import (
+	"cmp"
 	"fmt"
 	"math"
 	"slices"
@@ -333,13 +334,16 @@ func validateSchedule(root *resolve.FetchTreeNode, dag *fetchDAG) error {
 		switch node.Kind {
 		case resolve.FetchTreeNodeKindSingle:
 			id := node.Item.Fetch.Dependencies().FetchID
+			if _, ok := dag.nodes[id]; !ok {
+				return nil, fmt.Errorf("fetch %d not found in dag", id)
+			}
 			seen[id]++
 			for _, dep := range node.Item.Fetch.Dependencies().DependsOnFetchIDs {
 				if _, known := dag.nodes[dep]; !known {
 					continue
 				}
 				if _, ok := before[dep]; !ok {
-					return nil, fmt.Errorf("fetch %d depends on fetch %d before it is available", id, dep)
+					return nil, fmt.Errorf("fetch %d is scheduled before its dependency %d completes", id, dep)
 				}
 			}
 			return []int{id}, nil
@@ -426,9 +430,8 @@ func weaklyConnectedComponents(nodes []int, dag *fetchDAG) [][]int {
 	return components
 }
 
-// sequenceOf and parallelOf normalize child lists into fresh slices: nils
-// dropped, same-kind children spliced inline, singleton unwrapped. They never
-// write into the input slice.
+// sequenceOf and parallelOf normalize child lists into fresh slices:
+// nils dropped, same-kind children spliced inline, singleton unwrapped.
 func sequenceOf(children []*resolve.FetchTreeNode) *resolve.FetchTreeNode {
 	return combineOf(resolve.FetchTreeNodeKindSequence, children)
 }
@@ -456,7 +459,7 @@ func combineOf(kind resolve.FetchTreeNodeKind, children []*resolve.FetchTreeNode
 	}
 	if kind == resolve.FetchTreeNodeKindParallel {
 		slices.SortFunc(out, func(a, b *resolve.FetchTreeNode) int {
-			return minReachableFetchID(a) - minReachableFetchID(b)
+			return cmp.Compare(minReachableFetchID(a), minReachableFetchID(b))
 		})
 		return resolve.Parallel(out...)
 	}
