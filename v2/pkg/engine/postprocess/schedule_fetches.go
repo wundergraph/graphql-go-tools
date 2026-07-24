@@ -155,7 +155,7 @@ func schedule(set []int, dag *fetchDAG, inline bool) (*resolve.FetchTreeNode, er
 		}
 		return parallelOf(branches), nil
 	}
-	// Find the ready fetches:
+	// Find the ready fetches.
 	// Roots have no parents in inSet; their dependencies outside inSet complete
 	// before this subtree starts, so they are ready to run as the first wave.
 	inSet := asMap(sortedSet)
@@ -168,22 +168,35 @@ func schedule(set []int, dag *fetchDAG, inline bool) (*resolve.FetchTreeNode, er
 	if len(roots) == 0 {
 		return nil, fmt.Errorf("cycle detected in fetch dependency graph")
 	}
+
+	// A fetch reachable from exactly one root cannot start before that root finishes,
+	// so inlining it into the root's branch never delays it and frees it from waiting on sibling roots.
 	scheduled := asMap(roots)
+	// exclusive maps each root to the fetches reachable only from that root.
+	exclusive := map[int][]int{}
+	if inline {
+		for id, root := range colorExclusive(roots, dag, inSet) {
+			if root == sharedByRoots {
+				// Fetch stays in the caller's rest set.
+				continue
+			}
+			exclusive[root] = append(exclusive[root], id)
+			scheduled[id] = struct{}{}
+		}
+	}
 	branches := make([]*resolve.FetchTreeNode, 0, len(roots))
 	for _, root := range roots {
 		branch := dag.nodes[root]
-		if inline {
-			exclusive := exclusiveDescendants(root, dag, inSet, scheduled)
-			if len(exclusive) > 0 {
-				subtree, err := schedule(exclusive, dag, inline)
-				if err != nil {
-					return nil, err
-				}
-				branch = sequenceOf([]*resolve.FetchTreeNode{branch, subtree})
+		if members := exclusive[root]; len(members) > 0 {
+			subtree, err := schedule(members, dag, inline)
+			if err != nil {
+				return nil, err
 			}
+			branch = sequenceOf([]*resolve.FetchTreeNode{branch, subtree})
 		}
 		branches = append(branches, branch)
 	}
+
 	rest := make([]int, 0, len(sortedSet)-len(scheduled))
 	for _, id := range sortedSet {
 		if _, ok := scheduled[id]; !ok {
@@ -206,58 +219,55 @@ func hasParentIn(dag *fetchDAG, id int, set map[int]struct{}) bool {
 	return false
 }
 
-// exclusiveDescendants returns the descendants within inSet that are reachable only through root:
-// every member's parent in inSet is root or another member.
-// Such fetches cannot start before root finishes, inlining them into root's branch never delays
-// them and frees them from waiting on sibling roots.
-// Fetches returned are also recorded in scheduled.
-func exclusiveDescendants(root int, dag *fetchDAG, inSet, scheduled map[int]struct{}) []int {
-	member := map[int]struct{}{root: {}}
-	out := make([]int, 0, len(dag.children[root]))
-	queue := asSlice(dag.children[root])
-	for len(queue) > 0 {
-		id := queue[0]
-		queue = queue[1:]
-		if _, ok := inSet[id]; !ok {
-			continue
-		}
-		if _, ok := member[id]; ok {
-			continue
-		}
-		if _, ok := scheduled[id]; ok {
-			continue
-		}
-		exclusive := true
-		for parent := range dag.parents[id] {
-			if _, in := inSet[parent]; !in {
-				continue // satisfied by an enclosing recursion step
-			}
-			if _, ok := member[parent]; !ok {
-				exclusive = false
-				break
-			}
-		}
-		if !exclusive {
-			continue // revisited via the queue if its parents join later
-		}
-		member[id] = struct{}{}
-		scheduled[id] = struct{}{}
-		out = append(out, id)
-		queue = append(queue, asSlice(dag.children[id])...)
+// sharedByRoots marks a fetch reachable from more than one root. Fetch IDs are non-negative.
+const sharedByRoots = -1
+
+// colorExclusive labels every fetch of the component reachable from a root with that root's id,
+// or with sharedByRoots when several roots reach it.
+// It returns the mapping from fetch ID to the single root it's reachable from, or sharedByRoots.
+func colorExclusive(roots []int, dag *fetchDAG, inSet map[int]struct{}) map[int]int {
+	type item struct {
+		id, color int
 	}
-	return out
+	queue := make([]item, 0, len(inSet))
+	for _, root := range roots {
+		for child := range dag.children[root] {
+			queue = append(queue, item{child, root})
+		}
+	}
+	color := make(map[int]int, len(inSet))
+	for len(queue) > 0 {
+		next := queue[0]
+		queue = queue[1:]
+		if _, ok := inSet[next.id]; !ok {
+			// A shared dependant of an enclosing component; its "rest" set runs after this subtree.
+			continue
+		}
+		current, seen := color[next.id]
+		if seen && (current == next.color || current == sharedByRoots) {
+			continue
+		}
+		if seen {
+			next.color = sharedByRoots
+		}
+		color[next.id] = next.color
+		for child := range dag.children[next.id] {
+			queue = append(queue, item{child, next.color})
+		}
+	}
+	return color
 }
 
-// dominates checks whether tree a is never slower than tree b, no matter how long each fetch takes.
+// dominates checks whether treeA is never slower than treeB, no matter how long each fetch takes.
 //
-// The test: every fetch's predecessor set in a must be a subset of its predecessor set in b.
-// The fetches on any critical path of a are pairwise ordered in a, hence also in b, so they form
-// a chain in b and b's makespan is at least that chain's weight — a's makespan.
+// The test: every fetch's predecessor set in A must be a subset of its predecessor set in B.
+// The fetches on any critical path of A are pairwise ordered in A, hence also in B,
+// so they form a chain in B and B's makespan is at least that chain's weight — a's makespan.
 //
-// The test is also exact, not just sufficient: given any extra predecessor pair in a,
-// there are fetch durations for which a is strictly slower.
-func dominates(a, b *resolve.FetchTreeNode) bool {
-	predA, predB := treePredecessors(a), treePredecessors(b)
+// The test is also exact, not just sufficient: given any extra predecessor pair in A,
+// there are fetch durations for which A is strictly slower.
+func dominates(treeA, treeB *resolve.FetchTreeNode) bool {
+	predA, predB := treePredecessors(treeA), treePredecessors(treeB)
 	if len(predA) != len(predB) {
 		return false
 	}
@@ -489,14 +499,6 @@ func sortedUnique(ids []int) []int {
 	out := append([]int{}, ids...)
 	slices.Sort(out)
 	return slices.Compact(out)
-}
-
-func asSlice(set map[int]struct{}) []int {
-	out := make([]int, 0, len(set))
-	for id := range set {
-		out = append(out, id)
-	}
-	return out
 }
 
 func asMap(ids []int) map[int]struct{} {
