@@ -200,9 +200,6 @@ type ResolverOptions struct {
 	// SubscriptionHeartbeatInterval defines the interval in which a heartbeat is sent to all subscriptions (whether or not this does anything is determined by the subscription response writer)
 	SubscriptionHeartbeatInterval time.Duration
 
-	// ResolveSubscriptionsInGroups deduplicates resolves for subscriptions sharing a trigger and the same request
-	ResolveSubscriptionsInGroups bool
-
 	// MaxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	MaxSubscriptionFetchTimeout time.Duration
 
@@ -296,7 +293,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		triggers:                     make(map[uint64]*trigger),
 		subscriptionsByID:            make(map[SubscriptionIdentifier]*subscriptionState),
 		subscriptionsByConnection:    make(map[ConnectionID]map[SubscriptionIdentifier]*subscriptionState),
-		resolveSubscriptionsInGroups: options.ResolveSubscriptionsInGroups,
+		resolveSubscriptionsInGroups: true, // change this to false to use original code path
 		reporter:                     options.Reporter,
 		errorFormatter:               options.AsyncErrorWriter,
 		allowedErrorExtensionFields:  allowedExtensionFields,

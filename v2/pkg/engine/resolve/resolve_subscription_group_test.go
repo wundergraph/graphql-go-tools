@@ -96,8 +96,7 @@ func TestResolver_GroupedSubscriptions(t *testing.T) {
 	}
 
 	resolverOptions := ResolverOptions{
-		AsyncErrorWriter:             &TestErrorWriter{},
-		ResolveSubscriptionsInGroups: true, // this is what the tests are about
+		AsyncErrorWriter: &TestErrorWriter{},
 	}
 
 	t.Run("2 out of 3 subscribers are deduplicated", func(t *testing.T) {
