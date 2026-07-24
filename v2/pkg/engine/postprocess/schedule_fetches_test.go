@@ -26,43 +26,43 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 		{
 			name:  "independent components baseline",
 			input: nodes(sf(0), sf(1), sf(2, deps(0))),
-			want:  par(seq(sf(0), sf(2, deps(0))), sf(1)),
+			want:  par(seq(sf(0), sf(2)), sf(1)),
 		},
 		{
 			name:  "single chain",
 			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(1)), sf(3, deps(2))),
-			want:  seq(sf(0), sf(1, deps(0)), sf(2, deps(1)), sf(3, deps(2))),
+			want:  seq(sf(0), sf(1), sf(2), sf(3)),
 		},
 		{
 			name:  "diamond join",
 			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(1, 2))),
-			want:  seq(sf(0), par(sf(1, deps(0)), sf(2, deps(0))), sf(3, deps(1, 2))),
+			want:  seq(sf(0), par(sf(1), sf(2)), sf(3)),
 		},
 		{
 			name:  "two chains joining",
 			input: nodes(sf(0), sf(1), sf(2, deps(0)), sf(3, deps(1)), sf(4, deps(2, 3))),
 			want: seq(
 				par(
-					seq(sf(0), sf(2, deps(0))),
-					seq(sf(1), sf(3, deps(1))),
+					seq(sf(0), sf(2)),
+					seq(sf(1), sf(3)),
 				),
-				sf(4, deps(2, 3)),
+				sf(4),
 			),
 			waves: seq(
 				par(sf(0), sf(1)),
-				par(sf(2, deps(0)), sf(3, deps(1))),
-				sf(4, deps(2, 3)),
+				par(sf(2), sf(3)),
+				sf(4),
 			),
 		},
 		{
 			name:  "wide fan out",
 			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(0)), sf(4, deps(0))),
-			want:  seq(sf(0), par(sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(0)), sf(4, deps(0)))),
+			want:  seq(sf(0), par(sf(1), sf(2), sf(3), sf(4))),
 		},
 		{
 			name:  "wide fan in",
 			input: nodes(sf(0), sf(1), sf(2), sf(3), sf(4, deps(0, 1, 2, 3))),
-			want:  seq(par(sf(0), sf(1), sf(2), sf(3)), sf(4, deps(0, 1, 2, 3))),
+			want:  seq(par(sf(0), sf(1), sf(2), sf(3)), sf(4)),
 		},
 		{
 			name: "independent diamonds",
@@ -71,8 +71,8 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 				sf(4), sf(5, deps(4)), sf(6, deps(4)), sf(7, deps(5, 6)),
 			),
 			want: par(
-				seq(sf(0), par(sf(1, deps(0)), sf(2, deps(0))), sf(3, deps(1, 2))),
-				seq(sf(4), par(sf(5, deps(4)), sf(6, deps(4))), sf(7, deps(5, 6))),
+				seq(sf(0), par(sf(1), sf(2)), sf(3)),
+				seq(sf(4), par(sf(5), sf(6)), sf(7)),
 			),
 		},
 		{
@@ -87,40 +87,40 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			want: seq(
 				sf(0),
 				par(
-					seq(sf(1, deps(0)), sf(2, deps(1))),
-					seq(sf(3, deps(0)), sf(4, deps(3))),
+					seq(sf(1), sf(2)),
+					seq(sf(3), sf(4)),
 				),
-				sf(5, deps(2, 4)),
+				sf(5),
 				par(
-					seq(sf(6, deps(5)), sf(7, deps(6))),
-					seq(sf(8, deps(5)), sf(9, deps(8))),
+					seq(sf(6), sf(7)),
+					seq(sf(8), sf(9)),
 				),
-				sf(10, deps(7, 9)),
+				sf(10),
 			),
 			waves: seq(
 				sf(0),
-				par(sf(1, deps(0)), sf(3, deps(0))),
-				par(sf(2, deps(1)), sf(4, deps(3))),
-				sf(5, deps(2, 4)),
-				par(sf(6, deps(5)), sf(8, deps(5))),
-				par(sf(7, deps(6)), sf(9, deps(8))),
-				sf(10, deps(7, 9)),
+				par(sf(1), sf(3)),
+				par(sf(2), sf(4)),
+				sf(5),
+				par(sf(6), sf(8)),
+				par(sf(7), sf(9)),
+				sf(10),
 			),
 		},
 		{
 			name:  "requires chain",
 			input: nodes(sf(0), sf(1, deps(0))),
-			want:  seq(sf(0), sf(1, deps(0))),
+			want:  seq(sf(0), sf(1)),
 		},
 		{
 			name:  "batch entity component with independent root",
 			input: nodes(sf(0), bf(1, 0), sf(2)),
-			want:  par(seq(sf(0), bf(1, 0)), sf(2)),
+			want:  par(seq(sf(0), bf(1)), sf(2)),
 		},
 		{
 			name:  "nested entity chain",
 			input: nodes(sf(0), ef(1, 0), ef(2, 1)),
-			want:  seq(sf(0), ef(1, 0), ef(2, 1)),
+			want:  seq(sf(0), ef(1), ef(2)),
 		},
 		{
 			name:  "interface expansion",
@@ -135,7 +135,7 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 		{
 			name:  "sequential mutation",
 			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0, 1))),
-			want:  seq(sf(0), sf(1, deps(0)), sf(2, deps(0, 1))),
+			want:  seq(sf(0), sf(1), sf(2)),
 		},
 		{
 			name:  "single fetch",
@@ -150,50 +150,50 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 		{
 			name:  "composite key fan in",
 			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0, 1))),
-			want:  seq(sf(0), sf(1, deps(0)), sf(2, deps(0, 1))),
+			want:  seq(sf(0), sf(1), sf(2)),
 		},
 		{
 			name:  "asymmetric chain merge with leaf",
 			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(1, 2)), sf(4, deps(2))),
 			want: seq(
 				sf(0),
-				par(sf(1, deps(0)), sf(2, deps(0))),
-				par(sf(3, deps(1, 2)), sf(4, deps(2))),
+				par(sf(1), sf(2)),
+				par(sf(3), sf(4)),
 			),
 			inlined: seq(
 				sf(0),
 				par(
-					sf(1, deps(0)),
-					seq(sf(2, deps(0)), sf(4, deps(2))),
+					sf(1),
+					seq(sf(2), sf(4)),
 				),
-				sf(3, deps(1, 2)),
+				sf(3),
 			),
 		},
 		{
 			name:  "deep multi parent fan in",
 			input: nodes(sf(0), sf(1), sf(2), sf(3, deps(0, 1, 2)), sf(4, deps(3)), sf(5, deps(4))),
-			want:  seq(par(sf(0), sf(1), sf(2)), sf(3, deps(0, 1, 2)), sf(4, deps(3)), sf(5, deps(4))),
+			want:  seq(par(sf(0), sf(1), sf(2)), sf(3), sf(4), sf(5)),
 		},
 		{
 			name:  "non inlined n shape",
 			input: nodes(sf(0), sf(1), sf(2, deps(0)), sf(3, deps(0, 1)), sf(4, deps(1))),
 			want: seq(
 				par(sf(0), sf(1)),
-				par(sf(2, deps(0)), sf(3, deps(0, 1)), sf(4, deps(1))),
+				par(sf(2), sf(3), sf(4)),
 			),
 			inlined: seq(
 				par(
-					seq(sf(0), sf(2, deps(0))),
-					seq(sf(1), sf(4, deps(1))),
+					seq(sf(0), sf(2)),
+					seq(sf(1), sf(4)),
 				),
-				sf(3, deps(0, 1)),
+				sf(3),
 			),
 		},
 		{
 			name:  "independent root with shared join",
 			input: nodes(sf(0), sf(1), sf(2, deps(0, 1)), sf(3)),
 			want: par(
-				seq(par(sf(0), sf(1)), sf(2, deps(0, 1))),
+				seq(par(sf(0), sf(1)), sf(2)),
 				sf(3),
 			),
 		},
@@ -203,8 +203,8 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			want: seq(
 				sf(0),
 				par(
-					seq(sf(1, deps(0)), sf(2, deps(0, 1))),
-					sf(3, deps(0)),
+					seq(sf(1), sf(2)),
+					sf(3),
 				),
 			),
 		},
@@ -214,13 +214,13 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			want: seq(
 				par(sf(0), sf(1)),
 				par(
-					seq(sf(2, deps(1)), sf(3, deps(0, 2))),
-					sf(4, deps(0, 1)),
+					seq(sf(2), sf(3)),
+					sf(4),
 				),
 			),
 			inlined: seq(
-				par(sf(0), seq(sf(1), sf(2, deps(1)))),
-				par(sf(3, deps(0, 2)), sf(4, deps(0, 1))),
+				par(sf(0), seq(sf(1), sf(2))),
+				par(sf(3), sf(4)),
 			),
 		},
 		{
@@ -228,9 +228,9 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			input: nodes(sf(0), sf(1), sf(2, deps(0, 1)), sf(3, deps(2)), sf(4, deps(3, 0))),
 			want: seq(
 				par(sf(0), sf(1)),
-				sf(2, deps(0, 1)),
-				sf(3, deps(2)),
-				sf(4, deps(3, 0)),
+				sf(2),
+				sf(3),
+				sf(4),
 			),
 		},
 		{
@@ -249,41 +249,41 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			want: par(
 				seq(
 					par(sf(0), sf(1)),
-					par(sf(2, deps(0)), sf(3, deps(0, 1)), sf(4, deps(1))),
+					par(sf(2), sf(3), sf(4)),
 				),
 				seq(
 					par(
-						seq(sf(5), sf(7, deps(5))),
-						seq(sf(6), sf(8, deps(6))),
+						seq(sf(5), sf(7)),
+						seq(sf(6), sf(8)),
 					),
-					sf(9, deps(7, 8)),
+					sf(9),
 				),
 			),
 			waves: par(
 				seq(
 					par(sf(0), sf(1)),
-					par(sf(2, deps(0)), sf(3, deps(0, 1)), sf(4, deps(1))),
+					par(sf(2), sf(3), sf(4)),
 				),
 				seq(
 					par(sf(5), sf(6)),
-					par(sf(7, deps(5)), sf(8, deps(6))),
-					sf(9, deps(7, 8)),
+					par(sf(7), sf(8)),
+					sf(9),
 				),
 			),
 			inlined: par(
 				seq(
 					par(
-						seq(sf(0), sf(2, deps(0))),
-						seq(sf(1), sf(4, deps(1))),
+						seq(sf(0), sf(2)),
+						seq(sf(1), sf(4)),
 					),
-					sf(3, deps(0, 1)),
+					sf(3),
 				),
 				seq(
 					par(
-						seq(sf(5), sf(7, deps(5))),
-						seq(sf(6), sf(8, deps(6))),
+						seq(sf(5), sf(7)),
+						seq(sf(6), sf(8)),
 					),
-					sf(9, deps(7, 8)),
+					sf(9),
 				),
 			),
 		},
@@ -303,31 +303,31 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			want: seq(
 				sf(0),
 				par(
-					sf(1, deps(0)),
-					sf(3, deps(0)),
-					sf(5, deps(0)),
-					sf(7, deps(0)),
-					sf(9, deps(0)),
-					sf(10, deps(0)),
-					seq(sf(14, deps(0)), par(sf(15, deps(14)), sf(16, deps(14)))),
-					seq(sf(17, deps(0)), par(sf(18, deps(17)), sf(19, deps(17)))),
-					seq(sf(32, deps(0)), par(sf(33, deps(32)), sf(34, deps(32)))),
-					seq(sf(35, deps(0)), par(sf(36, deps(35)), sf(37, deps(35)))),
-					seq(sf(44, deps(0)), par(sf(45, deps(44)), sf(46, deps(44)))),
-					seq(sf(47, deps(0)), par(sf(48, deps(47)), sf(49, deps(47)))),
-					seq(sf(56, deps(0)), par(sf(57, deps(56)), sf(58, deps(56)))),
-					seq(sf(59, deps(0)), par(sf(60, deps(59)), sf(61, deps(59)))),
-					seq(sf(62, deps(0)), par(sf(63, deps(62)), sf(64, deps(62)))),
+					sf(1),
+					sf(3),
+					sf(5),
+					sf(7),
+					sf(9),
+					sf(10),
+					seq(sf(14), par(sf(15), sf(16))),
+					seq(sf(17), par(sf(18), sf(19))),
+					seq(sf(32), par(sf(33), sf(34))),
+					seq(sf(35), par(sf(36), sf(37))),
+					seq(sf(44), par(sf(45), sf(46))),
+					seq(sf(47), par(sf(48), sf(49))),
+					seq(sf(56), par(sf(57), sf(58))),
+					seq(sf(59), par(sf(60), sf(61))),
+					seq(sf(62), par(sf(63), sf(64))),
 					seq(
-						sf(68, deps(0)),
+						sf(68),
 						par(
-							sf(69, deps(68)),
+							sf(69),
 							seq(
-								sf(82, deps(68)),
-								par(sf(83, deps(82)), sf(84, deps(82)))),
+								sf(82),
+								par(sf(83), sf(84))),
 							seq(
-								sf(85, deps(68)),
-								par(sf(86, deps(85)), sf(87, deps(85)))),
+								sf(85),
+								par(sf(86), sf(87))),
 						),
 					),
 				),
@@ -355,34 +355,31 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			want: seq(
 				sf(0),
 				par(
-					sf(1, deps(0)),
-					sf(3, deps(0)),
-					sf(5, deps(0)),
-					sf(7, deps(0)),
-					sf(9, deps(0)),
-					sf(10, deps(0)),
-					seq(sf(14, deps(0)),
-						par(sf(15, deps(14)),
-							sf(16, deps(14)))),
-					seq(sf(17, deps(0)), sf(18, deps(17))),
-					seq(sf(29, deps(0)), par(sf(30, deps(29)), sf(31, deps(29)))),
-					seq(sf(32, deps(0)), sf(33, deps(32))),
-					seq(sf(39, deps(0)), par(sf(40, deps(39)), sf(41, deps(39)))),
-					seq(sf(42, deps(0)), sf(43, deps(42))),
-					seq(sf(49, deps(0)), par(sf(50, deps(49)), sf(51, deps(49)))),
-					seq(sf(52, deps(0)), sf(53, deps(52))),
-					seq(sf(54, deps(0)), sf(55, deps(54))),
+					sf(1),
+					sf(3),
+					sf(5),
+					sf(7),
+					sf(9),
+					sf(10),
+					seq(sf(14),
+						par(sf(15),
+							sf(16))),
+					seq(sf(17), sf(18)),
+					seq(sf(29), par(sf(30), sf(31))),
+					seq(sf(32), sf(33)),
+					seq(sf(39), par(sf(40), sf(41))),
+					seq(sf(42), sf(43)),
+					seq(sf(49), par(sf(50), sf(51))),
+					seq(sf(52), sf(53)),
+					seq(sf(54), sf(55)),
 					seq(
-						sf(59, deps(0)),
+						sf(59),
 						par(
 							seq(
-								sf(71, deps(59)),
-								par(
-									sf(72, deps(71)),
-									sf(73, deps(71)),
-								),
+								sf(71),
+								par(sf(72), sf(73)),
 							),
-							seq(sf(74, deps(59)), sf(75, deps(74))),
+							seq(sf(74), sf(75)),
 						),
 					),
 				),
@@ -410,21 +407,21 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			want: seq(
 				sf(0),
 				par(
-					sf(1, deps(0)),
+					sf(1),
 					seq(
-						sf(2, deps(0)),
-						par(sf(3, deps(2)), sf(4, deps(2))),
+						sf(2),
+						par(sf(3), sf(4)),
 					),
 				),
-				sf(5, deps(0, 1, 2, 3, 4)),
-				sf(6, deps(0, 5)),
+				sf(5),
+				sf(6),
 			),
 			waves: seq(
 				sf(0),
-				par(sf(1, deps(0)), sf(2, deps(0))),
-				par(sf(3, deps(2)), sf(4, deps(2))),
-				sf(5, deps(0, 1, 2, 3, 4)),
-				sf(6, deps(0, 5)),
+				par(sf(1), sf(2)),
+				par(sf(3), sf(4)),
+				sf(5),
+				sf(6),
 			),
 			// The legacy wave pipeline:
 			//   seq(
@@ -456,43 +453,40 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			want: seq(
 				sf(0),
 				par(
-					sf(1, deps(0)),
+					sf(1),
 					seq(
-						sf(2, deps(0)),
-						sf(15, deps(2)),
-						par(sf(16, deps(15)), sf(17, deps(15)), sf(24, deps(15))),
+						sf(2),
+						sf(15),
+						par(sf(16), sf(17), sf(24)),
 					),
-					sf(3, deps(0)),
+					sf(3),
 					seq(
-						sf(4, deps(0)),
-						par(sf(5, deps(4)), sf(6, deps(4)), sf(7, deps(4)), sf(21, deps(4))),
-						sf(27, deps(0, 4, 4, 5, 5, 6, 6, 7, 7, 21, 21)),
+						sf(4),
+						par(sf(5), sf(6), sf(7), sf(21)),
+						sf(27),
 					),
-					sf(12, deps(0)),
+					sf(12),
 					seq(
-						sf(18, deps(0)),
-						par(sf(19, deps(18)), sf(20, deps(18)), sf(25, deps(18))),
+						sf(18),
+						par(sf(19), sf(20), sf(25)),
 					),
 				),
-				sf(26, deps(0, 2, 3, 5, 6, 12, 15, 16, 17, 18, 19, 20, 21, 24, 25)),
-				sf(28, deps(0, 1, 18, 26, 27)),
+				sf(26),
+				sf(28),
 			),
 			waves: seq(
 				sf(0),
 				par(
-					sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(0)),
-					sf(4, deps(0)), sf(12, deps(0)), sf(18, deps(0)),
+					sf(1), sf(2), sf(3), sf(4), sf(12), sf(18),
 				),
 				par(
-					sf(5, deps(4)), sf(6, deps(4)), sf(7, deps(4)), sf(15, deps(2)),
-					sf(19, deps(18)), sf(20, deps(18)), sf(21, deps(4)), sf(25, deps(18)),
+					sf(5), sf(6), sf(7), sf(15), sf(19), sf(20), sf(21), sf(25),
 				),
 				par(
-					sf(16, deps(15)), sf(17, deps(15)), sf(24, deps(15)),
-					sf(27, deps(0, 4, 4, 5, 5, 6, 6, 7, 7, 21, 21)),
+					sf(16), sf(17), sf(24), sf(27),
 				),
-				sf(26, deps(0, 2, 3, 5, 6, 12, 15, 16, 17, 18, 19, 20, 21, 24, 25)),
-				sf(28, deps(0, 1, 18, 26, 27)),
+				sf(26),
+				sf(28),
 			),
 			// The legacy wave pipeline:
 			//   seq(
@@ -530,16 +524,19 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			require.NoError(t, validateSchedule(actualWaves, dag))
 			require.NoError(t, validateSchedule(actualWinner, dag))
 
-			expectedInlined, expectedWaves := tc.inlined, tc.waves
+			byID := fetchesByID(tc.input)
+			want := materialize(t, tc.want, byID)
+			expectedInlined := materialize(t, tc.inlined, byID)
+			expectedWaves := materialize(t, tc.waves, byID)
 			if expectedInlined == nil {
-				expectedInlined = tc.want
+				expectedInlined = want
 			}
 			if expectedWaves == nil {
-				expectedWaves = tc.want
+				expectedWaves = want
 			}
-			require.Equal(t, expectedInlined, actualInlined)
-			require.Equal(t, expectedWaves, actualWaves)
-			require.Equal(t, tc.want, actualWinner)
+			requireEqualTrees(t, expectedInlined, actualInlined)
+			requireEqualTrees(t, expectedWaves, actualWaves)
+			requireEqualTrees(t, want, actualWinner)
 
 			// Beyond the pinned shapes, the trees must satisfy the scheduler
 			// invariants under randomized duration profiles.
@@ -570,11 +567,11 @@ func TestDisableScheduleFetches_OptionWiring(t *testing.T) {
 
 	scheduled := input()
 	NewProcessor().fetchTreeProcessors.organizeFetchTree(scheduled)
-	require.Equal(t, wantScheduled, scheduled)
+	requireEqualTrees(t, wantScheduled, scheduled)
 
 	waves := input()
 	NewProcessor(DisableScheduleFetches()).fetchTreeProcessors.organizeFetchTree(waves)
-	require.Equal(t, wantWaves, waves)
+	requireEqualTrees(t, wantWaves, waves)
 }
 
 func TestScheduleFetches_SubscriptionRootStaysSequence(t *testing.T) {
@@ -690,39 +687,30 @@ func TestScheduleFetches_BigPlan(t *testing.T) {
 		)
 	}
 
-	expected := par(
+	expected := materialize(t, par(
 		seq(
 			sf(0),
-			sf(1, at("users"), deps(0)),
+			sf(1),
 			par(
-				seq(
-					sf(2, at("users.@.reviews.@.product"), deps(1)),
-					sf(9, at("users.@.reviews.@.product"), deps(1, 2)),
-				),
-				sf(3, at("users.@.reviews.@.product.reviews.@.author"), deps(1)),
-				seq(
-					sf(4, at("users.@.reviews.@.product.reviews.@.author.reviews.@.product"), deps(1)),
-					sf(10, at("users.@.reviews.@.product.reviews.@.author.reviews.@.product"), deps(1, 4)),
-				),
+				seq(sf(2), sf(9)),
+				sf(3),
+				seq(sf(4), sf(10)),
 			),
 		),
 		seq(
 			sf(5),
 			par(
 				seq(
-					sf(6, at("topProducts"), deps(5)),
+					sf(6),
 					par(
-						sf(7, at("topProducts.@.reviews.@.author"), deps(6)),
-						seq(
-							sf(8, at("topProducts.@.reviews.@.author.reviews.@.product"), deps(6)),
-							sf(12, at("topProducts.@.reviews.@.author.reviews.@.product"), deps(6, 8)),
-						),
+						sf(7),
+						seq(sf(8), sf(12)),
 					),
 				),
-				sf(11, at("topProducts"), deps(5)),
+				sf(11),
 			),
 		),
-	)
+	), fetchesByID(input()))
 
 	t.Run("scheduler produces the tree without errors", func(t *testing.T) {
 		fetches := input()
@@ -731,13 +719,13 @@ func TestScheduleFetches_BigPlan(t *testing.T) {
 		tree, err := buildScheduleTree(fetches, dag)
 		require.NoError(t, err)
 		require.NoError(t, validateSchedule(tree, dag))
-		require.Equal(t, expected, tree)
+		requireEqualTrees(t, expected, tree)
 	})
 
 	t.Run("scheduler does not fall back to legacy waves", func(t *testing.T) {
 		root := seq(input()...)
 		(&scheduleFetches{}).ProcessFetchTree(root)
-		require.Equal(t, expected, root)
+		requireEqualTrees(t, expected, root)
 	})
 }
 
@@ -898,13 +886,13 @@ func weightedMakespan(node *resolve.FetchTreeNode, durations map[int]int) int {
 		}
 		return sum
 	case resolve.FetchTreeNodeKindParallel:
-		max := 0
+		maxSpan := 0
 		for _, child := range node.ChildNodes {
-			if m := weightedMakespan(child, durations); m > max {
-				max = m
+			if m := weightedMakespan(child, durations); m > maxSpan {
+				maxSpan = m
 			}
 		}
-		return max
+		return maxSpan
 	default:
 		return 0
 	}
