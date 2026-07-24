@@ -548,10 +548,8 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 	}
 }
 
-func TestWithScheduleFetches_OptionWiring(t *testing.T) {
+func TestDisableScheduleFetches_OptionWiring(t *testing.T) {
 	t.Parallel()
-	// Verifies that WithScheduleFetches switches organizeFetchTree from the
-	// legacy wave scheduler to the schedule-tree scheduler.
 	input := func() *resolve.FetchTreeNode {
 		return seq(
 			sf(0),
@@ -570,13 +568,42 @@ func TestWithScheduleFetches_OptionWiring(t *testing.T) {
 			seq(sf(1), sf(3, deps(1)))),
 		sf(4, deps(2, 3)))
 
-	waves := input()
-	NewProcessor().fetchTreeProcessors.organizeFetchTree(waves)
-	require.Equal(t, wantWaves, waves)
-
 	scheduled := input()
-	NewProcessor(WithScheduleFetches()).fetchTreeProcessors.organizeFetchTree(scheduled)
+	NewProcessor().fetchTreeProcessors.organizeFetchTree(scheduled)
 	require.Equal(t, wantScheduled, scheduled)
+
+	waves := input()
+	NewProcessor(DisableScheduleFetches()).fetchTreeProcessors.organizeFetchTree(waves)
+	require.Equal(t, wantWaves, waves)
+}
+
+func TestScheduleFetches_SubscriptionRootStaysSequence(t *testing.T) {
+	t.Parallel()
+	// The plan printer renders the Subscription Primary/Rest wrapper only for Sequence roots:
+	// the scheduled tree must not collapse into the root when it carries a Trigger.
+	trigger := &resolve.FetchTreeNode{
+		Kind: resolve.FetchTreeNodeKindTrigger,
+		Item: &resolve.FetchItem{Fetch: &resolve.SingleFetch{}},
+	}
+
+	single := seq(sf(0))
+	single.Trigger = trigger
+	(&scheduleFetches{}).ProcessFetchTree(single)
+	require.Equal(t, resolve.FetchTreeNodeKindSequence, single.Kind)
+	require.Equal(t, trigger, single.Trigger)
+	require.Equal(t, nodes(sf(0)), single.ChildNodes)
+
+	parallel := seq(sf(0), sf(1))
+	parallel.Trigger = trigger
+	(&scheduleFetches{}).ProcessFetchTree(parallel)
+	require.Equal(t, resolve.FetchTreeNodeKindSequence, parallel.Kind)
+	require.Equal(t, trigger, parallel.Trigger)
+	require.Equal(t, nodes(par(sf(0), sf(1))), parallel.ChildNodes)
+
+	// Without a Trigger the root may collapse into the scheduled tree.
+	sync := seq(sf(0))
+	(&scheduleFetches{}).ProcessFetchTree(sync)
+	require.Equal(t, sf(0), sync)
 }
 
 func TestScheduleFetches_Validator(t *testing.T) {
