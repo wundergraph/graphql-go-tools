@@ -57,13 +57,16 @@ func WithDefaultPostProcessor() func(*testOptions) {
 			postprocess.DisableCreateParallelNodes(),
 			postprocess.DisableMergeFields(),
 			postprocess.DisableCollectAuthorizationCoordinates(),
+			// plan fixtures pin flat dependency-ordered trees, not schedule trees
+			postprocess.DisableScheduleFetches(),
 		)
 	}
 }
 
-func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
-	// TODO: rename to WithPostProcessor
+func WithPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
 	return func(o *testOptions) {
+		// plan fixtures pin flat dependency-ordered trees, not schedule trees
+		options = append(options, postprocess.DisableScheduleFetches())
 		o.postProcessor = postprocess.NewProcessor(options...)
 	}
 }

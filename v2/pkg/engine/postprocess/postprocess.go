@@ -80,14 +80,14 @@ type processorOptions struct {
 	disableExtractDeferFetches             bool
 	disableBuildDeferTree                  bool
 	disableCollectAuthorizationCoordinates bool
-	scheduleFetches                        bool
+	disableScheduleFetches                 bool
 }
 
-// WithScheduleFetches replaces the orderSequenceByDependencies and
-// createParallelNodes pair with the nested schedule-tree scheduler.
-func WithScheduleFetches() ProcessorOption {
+// DisableScheduleFetches replaces the nested schedule-tree scheduler with the
+// legacy orderSequenceByDependencies and createParallelNodes pair.
+func DisableScheduleFetches() ProcessorOption {
 	return func(o *processorOptions) {
-		o.scheduleFetches = true
+		o.disableScheduleFetches = true
 	}
 }
 
@@ -196,7 +196,7 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 				disable: opts.disableCreateParallelNodes,
 			},
 			scheduleFetches: &scheduleFetches{
-				disable: !opts.scheduleFetches,
+				disable: opts.disableScheduleFetches,
 			},
 		},
 		responseTreeProcessors: &ResponseTreeProcessors{

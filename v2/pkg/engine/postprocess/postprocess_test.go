@@ -364,6 +364,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 		DisableMergeFields(),
 		DisableCreateParallelNodes(),
 		DisableAddMissingNestedDependencies(),
+		DisableScheduleFetches(),
 	)
 
 	for _, c := range cases {
@@ -675,6 +676,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 		DisableCreateParallelNodes(),
 		DisableAddMissingNestedDependencies(),
 		CollectDataSourceInfo(),
+		DisableScheduleFetches(),
 	)
 
 	for _, c := range cases {

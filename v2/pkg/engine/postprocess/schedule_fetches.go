@@ -50,6 +50,12 @@ func (b *scheduleFetches) buildSchedule(root *resolve.FetchTreeNode) error {
 		root.ChildNodes = nil
 		return nil
 	}
+	// A subscription root must stay a Sequence: the plan printer renders the
+	// Subscription Primary/Rest wrapper only for Sequence roots, so the tree
+	// must not collapse into the root when it carries a Trigger.
+	if root.Trigger != nil && tree.Kind != resolve.FetchTreeNodeKindSequence {
+		tree = resolve.Sequence(tree)
+	}
 	// Replace only the scheduling-related fields: the root may carry a
 	// subscription Trigger or NormalizedQuery that must survive rescheduling.
 	root.Kind = tree.Kind
