@@ -396,6 +396,114 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			//   )
 			// so fetch 72 waits on all 15 second-wave fetches instead of just 0, 59, 71.
 		},
+		{
+			name: "inlining wins on exclusive chain beside a late join",
+			input: nodes(
+				sf(0),
+				sf(1, deps(0)),
+				sf(2, deps(0)),
+				sf(3, deps(2)),
+				sf(4, deps(2)),
+				sf(5, deps(0, 1, 2, 3, 4)),
+				sf(6, deps(0, 5)),
+			),
+			want: seq(
+				sf(0),
+				par(
+					sf(1, deps(0)),
+					seq(
+						sf(2, deps(0)),
+						par(sf(3, deps(2)), sf(4, deps(2))),
+					),
+				),
+				sf(5, deps(0, 1, 2, 3, 4)),
+				sf(6, deps(0, 5)),
+			),
+			waves: seq(
+				sf(0),
+				par(sf(1, deps(0)), sf(2, deps(0))),
+				par(sf(3, deps(2)), sf(4, deps(2))),
+				sf(5, deps(0, 1, 2, 3, 4)),
+				sf(6, deps(0, 5)),
+			),
+			// The legacy wave pipeline:
+			//   seq(
+			//     0,
+			//     par(1, 2),
+			//     par(3, 4),
+			//     5,
+			//     6,
+			//   )
+		},
+		{
+			name: "inlining wins on independent chains gathered by ending joins",
+			input: nodes(
+				sf(0),
+				sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(0)), sf(4, deps(0)),
+				sf(5, deps(4)), sf(6, deps(4)), sf(7, deps(4)),
+				sf(12, deps(0)),
+				sf(15, deps(2)),
+				sf(16, deps(15)), sf(17, deps(15)),
+				sf(18, deps(0)),
+				sf(19, deps(18)), sf(20, deps(18)),
+				sf(21, deps(4)),
+				sf(24, deps(15)),
+				sf(25, deps(18)),
+				sf(26, deps(0, 2, 3, 5, 6, 12, 15, 16, 17, 18, 19, 20, 21, 24, 25)),
+				sf(27, deps(0, 4, 4, 5, 5, 6, 6, 7, 7, 21, 21)),
+				sf(28, deps(0, 1, 18, 26, 27)),
+			),
+			want: seq(
+				sf(0),
+				par(
+					sf(1, deps(0)),
+					seq(
+						sf(2, deps(0)),
+						sf(15, deps(2)),
+						par(sf(16, deps(15)), sf(17, deps(15)), sf(24, deps(15))),
+					),
+					sf(3, deps(0)),
+					seq(
+						sf(4, deps(0)),
+						par(sf(5, deps(4)), sf(6, deps(4)), sf(7, deps(4)), sf(21, deps(4))),
+						sf(27, deps(0, 4, 4, 5, 5, 6, 6, 7, 7, 21, 21)),
+					),
+					sf(12, deps(0)),
+					seq(
+						sf(18, deps(0)),
+						par(sf(19, deps(18)), sf(20, deps(18)), sf(25, deps(18))),
+					),
+				),
+				sf(26, deps(0, 2, 3, 5, 6, 12, 15, 16, 17, 18, 19, 20, 21, 24, 25)),
+				sf(28, deps(0, 1, 18, 26, 27)),
+			),
+			waves: seq(
+				sf(0),
+				par(
+					sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(0)),
+					sf(4, deps(0)), sf(12, deps(0)), sf(18, deps(0)),
+				),
+				par(
+					sf(5, deps(4)), sf(6, deps(4)), sf(7, deps(4)), sf(15, deps(2)),
+					sf(19, deps(18)), sf(20, deps(18)), sf(21, deps(4)), sf(25, deps(18)),
+				),
+				par(
+					sf(16, deps(15)), sf(17, deps(15)), sf(24, deps(15)),
+					sf(27, deps(0, 4, 4, 5, 5, 6, 6, 7, 7, 21, 21)),
+				),
+				sf(26, deps(0, 2, 3, 5, 6, 12, 15, 16, 17, 18, 19, 20, 21, 24, 25)),
+				sf(28, deps(0, 1, 18, 26, 27)),
+			),
+			// The legacy wave pipeline:
+			//   seq(
+			//     0,
+			//     par(1, 2, 3, 4, 12, 18),
+			//     par(5, 6, 7, 15, 19, 20, 21, 25),
+			//     par(16, 17, 24, 27),
+			//     26,
+			//     28,
+			//   )
+		},
 	}
 
 	for i, tc := range scenarios {
