@@ -16,10 +16,10 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 	type scenario struct {
 		name      string
 		input     []*resolve.FetchTreeNode
-		inlined   *resolve.FetchTreeNode
-		waves     *resolve.FetchTreeNode
-		want      *resolve.FetchTreeNode // the winner
 		wantError string
+		want      *resolve.FetchTreeNode // the winner
+		inlined   *resolve.FetchTreeNode // specify when it's not equal to winner
+		waves     *resolve.FetchTreeNode // specify when it's not equal to winner
 	}
 
 	scenarios := []scenario{
