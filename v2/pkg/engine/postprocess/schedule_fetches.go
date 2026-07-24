@@ -208,23 +208,23 @@ func hasParentIn(dag *fetchDAG, id int, set map[int]struct{}) bool {
 
 // exclusiveDescendants returns the descendants within inSet that are reachable only through root:
 // every member's parent in inSet is root or another member.
-// Such fetches cannot start before root finishes,
-// inlining them into root's branch never delays them and frees them from waiting on sibling roots.
-// Members are recorded in claimed, which keeps them out of the caller's rest set.
-func exclusiveDescendants(root int, dag *fetchDAG, inSet, claimed map[int]struct{}) []int {
+// Such fetches cannot start before root finishes, inlining them into root's branch never delays
+// them and frees them from waiting on sibling roots.
+// Fetches returned are also recorded in scheduled.
+func exclusiveDescendants(root int, dag *fetchDAG, inSet, scheduled map[int]struct{}) []int {
 	member := map[int]struct{}{root: {}}
 	out := make([]int, 0, len(dag.children[root]))
-	queue := asSortedSlice(dag.children[root])
+	queue := asSlice(dag.children[root])
 	for len(queue) > 0 {
 		id := queue[0]
 		queue = queue[1:]
-		if _, ok := member[id]; ok {
-			continue
-		}
 		if _, ok := inSet[id]; !ok {
 			continue
 		}
-		if _, ok := claimed[id]; ok {
+		if _, ok := member[id]; ok {
+			continue
+		}
+		if _, ok := scheduled[id]; ok {
 			continue
 		}
 		exclusive := true
@@ -241,9 +241,9 @@ func exclusiveDescendants(root int, dag *fetchDAG, inSet, claimed map[int]struct
 			continue // revisited via the queue if its parents join later
 		}
 		member[id] = struct{}{}
-		claimed[id] = struct{}{}
+		scheduled[id] = struct{}{}
 		out = append(out, id)
-		queue = append(queue, asSortedSlice(dag.children[id])...)
+		queue = append(queue, asSlice(dag.children[id])...)
 	}
 	return out
 }
@@ -491,12 +491,11 @@ func sortedUnique(ids []int) []int {
 	return slices.Compact(out)
 }
 
-func asSortedSlice(set map[int]struct{}) []int {
+func asSlice(set map[int]struct{}) []int {
 	out := make([]int, 0, len(set))
 	for id := range set {
 		out = append(out, id)
 	}
-	slices.Sort(out)
 	return out
 }
 
