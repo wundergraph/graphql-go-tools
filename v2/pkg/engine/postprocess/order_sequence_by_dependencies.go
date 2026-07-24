@@ -61,15 +61,8 @@ func (o *orderSequenceByDependencies) nodeDependsOn(node, root *resolve.FetchTre
 			result = append(result, o.nodeDependsOn(child, root)...)
 		}
 	}
-	index := make(map[int]struct{}, len(result))
-	for _, id := range result {
-		index[id] = struct{}{}
-	}
-	result = make([]int, 0, len(index))
-	for id := range index {
-		result = append(result, id)
-	}
 	slices.Sort(result)
+	result = slices.Compact(result)
 	return result
 }
 
