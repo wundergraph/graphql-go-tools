@@ -496,6 +496,50 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			//   )
 		},
 		{
+			// ca50f52a-4345-42ff-aa79-5897f5a001be-4d832881-45b4-443e-9121-5c610bb07b2c-10761258400747712775
+			name: "dense shallow joins",
+			input: nodes(
+				sf(0),
+				sf(1, deps(0)),
+				sf(2, deps(0)),
+				sf(3, deps(0)),
+				sf(4, deps(0)),
+				sf(7, deps(0)),
+				sf(8, deps(0)),
+				sf(9, deps(0)),
+				sf(10, deps(0)),
+				sf(11, deps(0)),
+				sf(15, deps(0, 10, 17, 19, 21)),
+				sf(17, deps(0)),
+				sf(19, deps(0)),
+				sf(21, deps(0)),
+				sf(24, deps(0, 11)),
+			),
+			want: seq(
+				sf(0),
+				par(
+					sf(1),
+					sf(2),
+					sf(3),
+					sf(4),
+					sf(7),
+					sf(8),
+					sf(9),
+					seq(
+						par(sf(10), sf(17), sf(19), sf(21)),
+						sf(15),
+					),
+					seq(sf(11), sf(24)),
+				),
+			),
+			// The legacy wave pipeline:
+			// seq(
+			//     0,
+			//     par(1, 2, 3, 4, 7, 8, 9, 10, 11, 17, 19, 21),
+			//     par(24, 15),
+			//   )
+		},
+		{
 			// 3becc2e0f56d3d513c374e8035d1533cc6795740193a45c0c07def3f1f11eb0b
 			name: "deeply nested operation with wide dependencies",
 			input: nodes(
