@@ -120,21 +120,16 @@ func writeShape(b *strings.Builder, node *resolve.FetchTreeNode, depth int) {
 	}
 	switch node.Kind {
 	case resolve.FetchTreeNodeKindSingle:
-		id := node.Item.Fetch.Dependencies().FetchID
-		switch node.Item.Fetch.(type) {
-		case *resolve.SingleFetch:
-			fmt.Fprintf(b, "%ssf(%d)", indent, id)
-		case *resolve.EntityFetch:
-			fmt.Fprintf(b, "%sef(%d)", indent, id)
-		case *resolve.BatchEntityFetch:
-			fmt.Fprintf(b, "%sbf(%d)", indent, id)
-		default:
-			fmt.Fprintf(b, "%sfetch(%d)", indent, id)
-		}
+		b.WriteString(indent + leafShape(node))
 	case resolve.FetchTreeNodeKindSequence, resolve.FetchTreeNodeKindParallel:
 		name := "seq"
 		if node.Kind == resolve.FetchTreeNodeKindParallel {
 			name = "par"
+		}
+		// A group of only leaves stays on one line.
+		if leaves := leafShapes(node.ChildNodes); leaves != nil {
+			b.WriteString(indent + name + "(" + strings.Join(leaves, ", ") + ")")
+			return
 		}
 		b.WriteString(indent + name + "(\n")
 		for _, child := range node.ChildNodes {
@@ -144,5 +139,31 @@ func writeShape(b *strings.Builder, node *resolve.FetchTreeNode, depth int) {
 		b.WriteString(indent + ")")
 	default:
 		fmt.Fprintf(b, "%s%s(?)", indent, node.Kind)
+	}
+}
+
+// leafShapes returns the rendered leaves of children, or nil if any child is not a leaf.
+func leafShapes(children []*resolve.FetchTreeNode) []string {
+	leaves := make([]string, len(children))
+	for i, child := range children {
+		if child == nil || child.Kind != resolve.FetchTreeNodeKindSingle {
+			return nil
+		}
+		leaves[i] = leafShape(child)
+	}
+	return leaves
+}
+
+func leafShape(node *resolve.FetchTreeNode) string {
+	id := node.Item.Fetch.Dependencies().FetchID
+	switch node.Item.Fetch.(type) {
+	case *resolve.SingleFetch:
+		return fmt.Sprintf("sf(%d)", id)
+	case *resolve.EntityFetch:
+		return fmt.Sprintf("ef(%d)", id)
+	case *resolve.BatchEntityFetch:
+		return fmt.Sprintf("bf(%d)", id)
+	default:
+		return fmt.Sprintf("fetch(%d)", id)
 	}
 }
