@@ -35,19 +35,18 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	repsBytes := make([][]byte, len(fetch.Input.Entries))
 	anyIncluded := false
 
+	// One item-render buffer serves every entry: it is reset per item and the
+	// arena behind it (res.tools.a) survives until assembly.
 	itemInput := arena.NewArenaBuffer(res.tools.a)
 
 	for k := range fetch.Input.Entries {
 		entry := &fetch.Input.Entries[k]
 		entryRes := &result{}
 		entryRes.init(entry.PostProcessing, entry.Info)
-		items := l.selectItemsForPath(entry.Item.FetchPath)
+		items := l.selectEntryTargets(entry)
 		entries[k] = preparedMultiEntry{entry: entry, items: items, res: entryRes}
 
-		// Authorization first: for query-typed entries the authorizer path is
-		// unreachable, so this only exercises the pre-fetch cache. A denied entry
-		// is excluded like a skipped one, and its representations are never sent.
-		allowed, err := l.isFetchAuthorized(nil, entry.Info, entryRes)
+		allowed, err := l.authorizeEntry(entry, entryRes)
 		if err != nil {
 			return err
 		}
@@ -55,72 +54,138 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 			continue
 		}
 
-		repsBuf := arena.NewArenaBuffer(res.tools.a)
-		batchStats := arena.AllocateSlice[[]*astjson.Value](res.tools.a, 0, len(items))
-		batchItemIndex := 0
-		addSeparator := false
-		for i, item := range items {
-			itemInput.Reset()
-			err = entry.Representations.Render(l.ctx, item, itemInput)
-			if err != nil {
-				if entry.SkipErrItems {
-					err = nil // nolint:ineffassign
-					continue
-				}
-				return errors.WithStack(err)
-			}
-			if entry.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
-				continue
-			}
-			if entry.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
-				continue
-			}
-			res.tools.keyGen.Reset()
-			_, _ = res.tools.keyGen.Write(itemInput.Bytes())
-			itemHash := res.tools.keyGen.Sum64()
-			if existingIndex, ok := res.tools.batchHashToIndex[itemHash]; ok {
-				batchStats[existingIndex] = arena.SliceAppend(res.tools.a, batchStats[existingIndex], items[i])
-				continue
-			}
-			if addSeparator {
-				_ = repsBuf.WriteByte(',')
-			}
-			_, _ = itemInput.WriteTo(repsBuf)
-			res.tools.batchHashToIndex[itemHash] = batchItemIndex
-			// The targets bucket must live on the arena: a heap bucket referenced
-			// only from arena memory could be collected while still in use.
-			bucket := arena.AllocateSlice[*astjson.Value](res.tools.a, 1, 1)
-			bucket[0] = items[i]
-			batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
-			batchItemIndex++
-			addSeparator = true
+		reps, entryIncluded, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools)
+		if err != nil {
+			return err
 		}
-
-		// Copy the entry's batchStats to the heap before the next entry reuses
-		// the dedup scope; the arena buffers themselves survive until assembly.
-		entryRes.batchStats = make([][]*astjson.Value, len(batchStats))
-		for i := range batchStats {
-			entryRes.batchStats[i] = make([]*astjson.Value, len(batchStats[i]))
-			copy(entryRes.batchStats[i], batchStats[i])
-			batchStats[i] = nil
-		}
-		res.tools.clearDedupState()
-
-		if len(entryRes.batchStats) == 0 {
-			entryRes.fetchSkipped = true
+		if !entryIncluded {
 			continue
 		}
 		included[k] = true
-		repsBytes[k] = repsBuf.Bytes()
+		repsBytes[k] = reps
 		anyIncluded = true
 	}
 
 	prepared.multiEntries = entries
 
+	input, err := l.assembleMultiEntityInput(fetch, res, included, repsBytes)
+	if err != nil {
+		return err
+	}
+
+	if !anyIncluded {
+		res.fetchSkipped = true
+		prepared.skipLoad = true
+		if l.ctx.TracingOptions.Enable {
+			l.setTracingInput(fetchItem, input, fetch.Trace)
+		}
+		return nil
+	}
+
+	allowed, err := l.rateLimitFetch(input, fetch.Info, res)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		prepared.skipLoad = true
+	}
+
+	prepared.source = fetch.DataSource
+	prepared.input = input
+	prepared.trace = fetch.Trace
+	if l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeRawInputData {
+		l.setMultiFetchRawInputTrace(entries, fetch.Trace)
+	}
+	return nil
+}
+
+// selectEntryTargets picks this entry's merge targets via its own FetchPath
+// (type-condition- and taint-aware); the targets are jsonArena-backed.
+func (l *Loader) selectEntryTargets(entry *MultiEntityFetchEntry) []*astjson.Value {
+	return l.selectItemsForPath(entry.Item.FetchPath)
+}
+
+// authorizeEntry runs authorization first, before any input is rendered: for
+// query-typed entries the authorizer path is unreachable, so this only
+// exercises the pre-fetch cache. A denied entry is excluded like a skipped one,
+// and its representations are never sent.
+func (l *Loader) authorizeEntry(entry *MultiEntityFetchEntry, entryRes *result) (bool, error) {
+	return l.isFetchAuthorized(nil, entry.Info, entryRes)
+}
+
+// renderEntryRepresentations renders this entry's representations exactly like a
+// batch entity fetch: per item apply skip flags, xxhash-dedup, and comma
+// separators. The per-entry batchStats are copied to the heap and the dedup
+// state is cleared before the next entry reuses the shared tools; the arena
+// buffers themselves survive until assembly. An entry with zero unique items is
+// excluded (fetchSkipped) and reports entryIncluded=false.
+func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryRes *result, items []*astjson.Value, itemInput *arena.Buffer, tools *batchEntityTools) (reps []byte, entryIncluded bool, err error) {
+	repsBuf := arena.NewArenaBuffer(tools.a)
+	batchStats := arena.AllocateSlice[[]*astjson.Value](tools.a, 0, len(items))
+	batchItemIndex := 0
+	addSeparator := false
+	for i, item := range items {
+		itemInput.Reset()
+		err = entry.Representations.Render(l.ctx, item, itemInput)
+		if err != nil {
+			if entry.SkipErrItems {
+				err = nil // nolint:ineffassign
+				continue
+			}
+			return nil, false, errors.WithStack(err)
+		}
+		if entry.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
+			continue
+		}
+		if entry.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
+			continue
+		}
+		tools.keyGen.Reset()
+		_, _ = tools.keyGen.Write(itemInput.Bytes())
+		itemHash := tools.keyGen.Sum64()
+		if existingIndex, ok := tools.batchHashToIndex[itemHash]; ok {
+			batchStats[existingIndex] = arena.SliceAppend(tools.a, batchStats[existingIndex], items[i])
+			continue
+		}
+		if addSeparator {
+			_ = repsBuf.WriteByte(',')
+		}
+		_, _ = itemInput.WriteTo(repsBuf)
+		tools.batchHashToIndex[itemHash] = batchItemIndex
+		// The targets bucket must live on the arena: a heap bucket referenced
+		// only from arena memory could be collected while still in use.
+		bucket := arena.AllocateSlice[*astjson.Value](tools.a, 1, 1)
+		bucket[0] = items[i]
+		batchStats = arena.SliceAppend(tools.a, batchStats, bucket)
+		batchItemIndex++
+		addSeparator = true
+	}
+
+	// Copy the entry's batchStats to the heap before the next entry reuses
+	// the dedup scope; the arena buffers themselves survive until assembly.
+	entryRes.batchStats = make([][]*astjson.Value, len(batchStats))
+	for i := range batchStats {
+		entryRes.batchStats[i] = make([]*astjson.Value, len(batchStats[i]))
+		copy(entryRes.batchStats[i], batchStats[i])
+		batchStats[i] = nil
+	}
+	tools.clearDedupState()
+
+	if len(entryRes.batchStats) == 0 {
+		entryRes.fetchSkipped = true
+		return nil, false, nil
+	}
+	return repsBuf.Bytes(), true, nil
+}
+
+// assembleMultiEntityInput writes the merged request body into one buffer:
+// Header, then per entry "representations_fN":[<items or empty>],"includeFN":<bool>
+// plus that entry's other variables, then Footer.
+func (l *Loader) assembleMultiEntityInput(fetch *MultiEntityFetch, res *result, included []bool, repsBytes [][]byte) ([]byte, error) {
 	buf := &bytes.Buffer{}
 	var undefined []string
 	if err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf, &undefined); err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	scratch := arena.NewArenaBuffer(res.tools.a)
 	for k := range fetch.Input.Entries {
@@ -135,67 +200,58 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 		} else {
 			buf.WriteString("false")
 		}
-		for v := range entry.Variables {
-			variable := &entry.Variables[v]
-			scratch.Reset()
-			var varUndefined []string
-			if err := variable.Value.RenderAndCollectUndefinedVariables(l.ctx, nil, scratch, &varUndefined); err != nil {
-				return errors.WithStack(err)
-			}
-			// Omit a pair whose value is null only because an undefined context
-			// variable was collected; an explicit client null (empty slice) stays.
-			if len(varUndefined) > 0 && bytes.Equal(scratch.Bytes(), null) {
-				continue
-			}
-			buf.Write(variable.KeyPrefix)
-			buf.Write(scratch.Bytes())
+		if err := l.renderEntryVariables(entry, buf, scratch); err != nil {
+			return nil, err
 		}
 	}
 	if err := fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf, &undefined); err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
+	return buf.Bytes(), nil
+}
 
-	if !anyIncluded {
-		res.fetchSkipped = true
-		prepared.skipLoad = true
-		if l.ctx.TracingOptions.Enable {
-			l.setTracingInput(fetchItem, buf.Bytes(), fetch.Trace)
+// renderEntryVariables appends the entry's non-representations variable pairs to
+// buf, rendering each value through the shared scratch buffer.
+func (l *Loader) renderEntryVariables(entry *MultiEntityFetchEntry, buf *bytes.Buffer, scratch *arena.Buffer) error {
+	for v := range entry.Variables {
+		variable := &entry.Variables[v]
+		scratch.Reset()
+		var varUndefined []string
+		if err := variable.Value.RenderAndCollectUndefinedVariables(l.ctx, nil, scratch, &varUndefined); err != nil {
+			return errors.WithStack(err)
 		}
-		return nil
-	}
-
-	allowed, err := l.rateLimitFetch(buf.Bytes(), fetch.Info, res)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		prepared.skipLoad = true
-	}
-
-	prepared.source = fetch.DataSource
-	prepared.input = buf.Bytes()
-	prepared.trace = fetch.Trace
-	if l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeRawInputData {
-		var rawData bytes.Buffer
-		rawData.WriteByte('{')
-		for k := range entries {
-			if k > 0 {
-				rawData.WriteByte(',')
-			}
-			rawData.WriteByte('"')
-			rawData.WriteString(entries[k].entry.Alias)
-			rawData.WriteString(`":`)
-			data := l.itemsData(entries[k].items)
-			if data == nil {
-				rawData.Write(null)
-			} else {
-				rawData.Write(data.MarshalTo(nil))
-			}
+		// Omit a pair whose value is null only because an undefined context
+		// variable was collected; an explicit client null (empty slice) stays.
+		if len(varUndefined) > 0 && bytes.Equal(scratch.Bytes(), null) {
+			continue
 		}
-		rawData.WriteByte('}')
-		fetch.Trace.RawInputData, _ = l.compactJSON(rawData.Bytes())
+		buf.Write(variable.KeyPrefix)
+		buf.Write(scratch.Bytes())
 	}
 	return nil
+}
+
+// setMultiFetchRawInputTrace records the per-alias parent data that fed the
+// merged request into the fetch trace.
+func (l *Loader) setMultiFetchRawInputTrace(entries []preparedMultiEntry, trace *DataSourceLoadTrace) {
+	var rawData bytes.Buffer
+	rawData.WriteByte('{')
+	for k := range entries {
+		if k > 0 {
+			rawData.WriteByte(',')
+		}
+		rawData.WriteByte('"')
+		rawData.WriteString(entries[k].entry.Alias)
+		rawData.WriteString(`":`)
+		data := l.itemsData(entries[k].items)
+		if data == nil {
+			rawData.Write(null)
+		} else {
+			rawData.Write(data.MarshalTo(nil))
+		}
+	}
+	rawData.WriteByte('}')
+	trace.RawInputData, _ = l.compactJSON(rawData.Bytes())
 }
 
 // multiEntryMergeConfig is set on a per-entry result view so the shared
@@ -223,63 +279,96 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 		return nil
 	}
 
-	transportFailure := res.err != nil || res.authorizationRejected || res.rateLimitRejected || len(res.out) == 0
-	var response *astjson.Value
-	if !transportFailure {
-		var parseErr error
-		response, parseErr = astjson.ParseBytesWithArena(l.jsonArena, res.out)
-		if parseErr != nil {
-			// Invalid body: fan out so each entry re-parses and renders today's
-			// guards. loadPhase recorded no errored fetch ID, so dependents still run.
-			transportFailure = true
-			response = nil
-		}
-	}
-
+	response, transportFailure := l.parseMultiEntityResponse(res)
 	if transportFailure {
-		for i := range prepared.multiEntries {
-			entryRes := prepared.multiEntries[i].res
-			if entryRes.fetchSkipped {
-				// Excluded at prepare: never sent, so it gets no transport error.
-				continue
-			}
-			entryRes.err = res.err
-			entryRes.statusCode = res.statusCode
-			entryRes.ds = res.ds
-			entryRes.out = res.out
-			entryRes.rateLimitRejected = res.rateLimitRejected
-			entryRes.rateLimitRejectedReason = res.rateLimitRejectedReason
-			entryRes.authorizationRejected = res.authorizationRejected
-			entryRes.authorizationRejectedReasons = res.authorizationRejectedReasons
-		}
+		l.applyTransportStateToEntries(prepared)
 	} else {
-		if l.allowCustomExtensionProperties {
-			extensions := response.Get("extensions")
-			if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
-				l.subgraphExtensions = append(l.subgraphExtensions, extensions.GetObject())
-			}
-		}
-		entryErrors, err := l.partitionMultiEntityErrors(prepared, response)
-		if err != nil {
+		if err := l.applyParsedResponseToEntries(prepared, response); err != nil {
 			return err
 		}
-		for i := range prepared.multiEntries {
-			entry := prepared.multiEntries[i].entry
-			entryRes := prepared.multiEntries[i].res
-			entryRes.multi = &multiEntryMergeConfig{
-				alias:        entry.Alias,
-				originSingle: entry.OriginKind == EntityFetchOriginSingle,
-				info:         entry.Info,
-				response:     response,
-				errors:       entryErrors[i],
-			}
-			entryRes.statusCode = res.statusCode
-			entryRes.ds = res.ds
-			entryRes.out = res.out
-			entryRes.httpResponseContext = res.httpResponseContext
-		}
 	}
 
+	return l.mergeEntryResults(prepared)
+}
+
+// parseMultiEntityResponse reports whether the merged request failed at the
+// transport level (error, auth/rate-limit rejection, empty or unparseable body)
+// and, when it did not, returns the response parsed once for all entries.
+func (l *Loader) parseMultiEntityResponse(res *result) (*astjson.Value, bool) {
+	if res.err != nil || res.authorizationRejected || res.rateLimitRejected || len(res.out) == 0 {
+		return nil, true
+	}
+	response, parseErr := astjson.ParseBytesWithArena(l.jsonArena, res.out)
+	if parseErr != nil {
+		// Invalid body: fan out so each entry re-parses and renders today's
+		// guards. loadPhase recorded no errored fetch ID, so dependents still run.
+		return nil, true
+	}
+	return response, false
+}
+
+// applyTransportStateToEntries copies the merged request's transport state onto
+// every entry except those excluded at prepare time (their unmerged
+// counterparts were never sent), so each entry's ordinary mergeResult guards
+// render the failed-to-fetch / rate-limit errors at that entry's response path.
+func (l *Loader) applyTransportStateToEntries(prepared *preparedFetch) {
+	res := prepared.res
+	for i := range prepared.multiEntries {
+		entryRes := prepared.multiEntries[i].res
+		if entryRes.fetchSkipped {
+			// Excluded at prepare: never sent, so it gets no transport error.
+			continue
+		}
+		entryRes.err = res.err
+		entryRes.statusCode = res.statusCode
+		entryRes.ds = res.ds
+		entryRes.out = res.out
+		entryRes.rateLimitRejected = res.rateLimitRejected
+		entryRes.rateLimitRejectedReason = res.rateLimitRejectedReason
+		entryRes.authorizationRejected = res.authorizationRejected
+		entryRes.authorizationRejectedReasons = res.authorizationRejectedReasons
+	}
+}
+
+// applyParsedResponseToEntries handles the success path: it collects the shared
+// response extensions once, partitions the errors by entry, and attaches a
+// per-entry multiEntryMergeConfig so each entry's mergeResult reads its aliased
+// slice, pre-partitioned errors, and taint info.
+func (l *Loader) applyParsedResponseToEntries(prepared *preparedFetch, response *astjson.Value) error {
+	res := prepared.res
+	if l.allowCustomExtensionProperties {
+		extensions := response.Get("extensions")
+		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
+			l.subgraphExtensions = append(l.subgraphExtensions, extensions.GetObject())
+		}
+	}
+	entryErrors, err := l.partitionResponseErrors(prepared, response)
+	if err != nil {
+		return err
+	}
+	for i := range prepared.multiEntries {
+		entry := prepared.multiEntries[i].entry
+		entryRes := prepared.multiEntries[i].res
+		entryRes.multi = &multiEntryMergeConfig{
+			alias:        entry.Alias,
+			originSingle: entry.OriginKind == EntityFetchOriginSingle,
+			info:         entry.Info,
+			response:     response,
+			errors:       entryErrors[i],
+		}
+		entryRes.statusCode = res.statusCode
+		entryRes.ds = res.ds
+		entryRes.out = res.out
+		entryRes.httpResponseContext = res.httpResponseContext
+	}
+	return nil
+}
+
+// mergeEntryResults runs the standard mergeResult for each entry, joins every
+// entry's subgraph error into the shared result, and fires OnFinished exactly
+// once for the single merged request. Returns the first entry merge error.
+func (l *Loader) mergeEntryResults(prepared *preparedFetch) error {
+	res := prepared.res
 	var firstErr error
 	for i := range prepared.multiEntries {
 		entry := prepared.multiEntries[i]
@@ -292,11 +381,11 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 	return firstErr
 }
 
-// partitionMultiEntityErrors splits the shared response's top-level errors by
+// partitionResponseErrors splits the shared response's top-level errors by
 // their leading path element: errors keyed by an entry alias are returned
 // aligned with prepared.multiEntries; the rest are merged once against the
 // parent multi fetch (empty response path).
-func (l *Loader) partitionMultiEntityErrors(prepared *preparedFetch, response *astjson.Value) ([]*astjson.Value, error) {
+func (l *Loader) partitionResponseErrors(prepared *preparedFetch, response *astjson.Value) ([]*astjson.Value, error) {
 	entryErrors := make([]*astjson.Value, len(prepared.multiEntries))
 	responseErrors := response.Get("errors")
 	if !astjson.ValueIsNonNull(responseErrors) || responseErrors.Type() != astjson.TypeArray {
