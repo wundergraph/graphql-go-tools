@@ -154,6 +154,67 @@ func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInf
 	}
 }
 
+// parsedResponse returns the response body as an astjson value. Multi entries
+// reuse the response the parent parsed once; every other result parses its own
+// res.out. The status-code fallback for a parse error stays with the caller.
+func (r *result) parsedResponse(l *Loader) (*astjson.Value, error) {
+	if r.multi != nil && r.multi.response != nil {
+		return r.multi.response, nil
+	}
+	return astjson.ParseBytesWithArena(l.jsonArena, r.out)
+}
+
+// collectExtensions reports whether this result should collect the response's
+// custom extensions itself. Multi entries do not: their parent multi fetch
+// collects extensions once from the shared response.
+func (r *result) collectExtensions() bool {
+	return r.multi == nil
+}
+
+// responseErrors returns the subgraph errors to merge for this result: a multi
+// entry's pre-partitioned errors, otherwise the errors selected from the parsed
+// response by SelectResponseErrorsPath.
+func (r *result) responseErrors(response *astjson.Value) *astjson.Value {
+	if r.multi != nil {
+		return r.multi.errors
+	}
+	return response.Get(r.postProcessing.SelectResponseErrorsPath...)
+}
+
+// errorPathRoot is the leading path element the subgraph uses for this result:
+// a multi entry's alias, or "_entities" for an ordinary entity fetch. It feeds
+// getTaintedIndices and rewriteErrorPaths and decides alias hiding vs rewrite.
+func (r *result) errorPathRoot() string {
+	if r.multi != nil {
+		return r.multi.alias
+	}
+	return "_entities"
+}
+
+// taintInfo is the FetchInfo used to compute tainted indices: a multi entry's
+// own info, otherwise the fetch item's fetch info.
+func (r *result) taintInfo(fetchItem *FetchItem) *FetchInfo {
+	if r.multi != nil {
+		return r.multi.info
+	}
+	return fetchItem.Fetch.FetchInfo()
+}
+
+// checkEmptyEntityFetch reports whether the empty-entity-fetch short-circuit
+// applies. Multi entries carry no Fetch and no trailing index in their data
+// path, so the check never applies to them.
+func (r *result) checkEmptyEntityFetch() bool {
+	return r.multi == nil
+}
+
+// emptyAliasIsBenign reports whether this is a single-origin multi entry whose
+// alias returned an empty _entities array: a benign no-op matching the unmerged
+// EntityFetch whose ["data","_entities","0"] selects null.
+func (r *result) emptyAliasIsBenign(responseData *astjson.Value) bool {
+	return r.multi != nil && r.multi.originSingle &&
+		responseData.Type() == astjson.TypeArray && len(responseData.GetArray()) == 0
+}
+
 func IsIntrospectionDataSource(dataSourceID string) bool {
 	return dataSourceID == IntrospectionSchemaTypeDataSourceID || dataSourceID == IntrospectionTypeFieldsDataSourceID || dataSourceID == IntrospectionTypeEnumValuesDataSourceID
 }
@@ -644,24 +705,16 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	// astjson.ParseBytesWithArena copies bytes onto the arena internally,
 	// tying the byte lifecycle to the arena and preventing GC-related segfaults.
 	// Multi entries share a response parsed once by the parent.
-	var (
-		response *astjson.Value
-		err      error
-	)
-	if res.multi != nil && res.multi.response != nil {
-		response = res.multi.response
-	} else {
-		response, err = astjson.ParseBytesWithArena(l.jsonArena, res.out)
-		if err != nil {
-			// Fall back to status code if parsing fails and non-2XX
-			if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
-				return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
-			}
-			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
+	response, err := res.parsedResponse(l)
+	if err != nil {
+		// Fall back to status code if parsing fails and non-2XX
+		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
+			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
 		}
+		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
-	if l.allowCustomExtensionProperties && res.multi == nil {
+	if l.allowCustomExtensionProperties && res.collectExtensions() {
 		extensions := response.Get("extensions")
 
 		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
@@ -681,23 +734,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	var taintedIndices []int
 	// Check if the subgraph response has errors.
 	if res.postProcessing.SelectResponseErrorsPath != nil {
-		var responseErrors *astjson.Value
-		if res.multi != nil {
-			responseErrors = res.multi.errors
-		} else {
-			responseErrors = response.Get(res.postProcessing.SelectResponseErrorsPath...)
-		}
+		responseErrors := res.responseErrors(response)
 		if astjson.ValueIsNonNull(responseErrors) {
 			hasErrors = len(responseErrors.GetArray()) > 0
 			// If the response has the "errors" key, and its value is empty,
 			// we don't consider it as an error. Note: it is not compliant with graphql spec.
 			if hasErrors {
 				if l.validateRequiredExternalFields && res.postProcessing.SelectResponseDataPath != nil {
-					if res.multi != nil {
-						taintedIndices = getTaintedIndices(res.multi.info, res.multi.alias, responseData, responseErrors)
-					} else {
-						taintedIndices = getTaintedIndices(fetchItem.Fetch.FetchInfo(), "_entities", responseData, responseErrors)
-					}
+					taintedIndices = getTaintedIndices(res.taintInfo(fetchItem), res.errorPathRoot(), responseData, responseErrors)
 				}
 				if len(taintedIndices) > 0 {
 					// Override errors with generic error about missing deps.
@@ -721,7 +765,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// In this case we return early to avoid adding subgraph errors or merging this into items.
 		// Multi-entity entry items carry no Fetch (nil) and have no trailing index in their
 		// data path, so the check does not apply to them.
-		if res.multi == nil && isEmptyEntityFetch(fetchItem, response) {
+		if res.checkEmptyEntityFetch() && isEmptyEntityFetch(fetchItem, response) {
 			return nil
 		}
 
@@ -774,8 +818,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 	// A single-origin multi entry over an empty _entities array is a benign no-op,
 	// matching the unmerged EntityFetch whose ["data","_entities","0"] selects null.
-	if res.multi != nil && res.multi.originSingle &&
-		responseData.Type() == astjson.TypeArray && len(responseData.GetArray()) == 0 {
+	if res.emptyAliasIsBenign(responseData) {
 		return nil
 	}
 	batch := responseData.GetArray()
@@ -893,17 +936,15 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value) error {
 	values := value.GetArray()
 	l.optionallyOmitErrorLocations(values)
-	if res.multi != nil {
-		// Multi entries prefix error paths with their internal alias. Rewrite it to
-		// the entry's response path when enabled, or hide it as "_entities"
-		// otherwise, so pass-through propagation never leaks the alias.
-		if l.rewriteSubgraphErrorPaths {
-			rewriteErrorPaths(l.jsonArena, fetchItem, values, res.multi.alias)
-		} else {
-			hideAliasInErrorPaths(l.jsonArena, res.multi.alias, values)
-		}
-	} else if l.rewriteSubgraphErrorPaths {
-		rewriteErrorPaths(l.jsonArena, fetchItem, values, "_entities")
+	// Multi entries prefix error paths with their internal alias. When rewriting
+	// is enabled, rewrite the root (the entry's alias, or "_entities" for an
+	// ordinary entity fetch) to the fetch's response path. When it is disabled, a
+	// multi entry still hides its alias as "_entities" so pass-through propagation
+	// never leaks the internal alias.
+	if l.rewriteSubgraphErrorPaths {
+		rewriteErrorPaths(l.jsonArena, fetchItem, values, res.errorPathRoot())
+	} else if res.multi != nil {
+		hideAliasInErrorPaths(l.jsonArena, res.multi.alias, values)
 	}
 	l.optionallyEnsureExtensionErrorCode(values)
 
