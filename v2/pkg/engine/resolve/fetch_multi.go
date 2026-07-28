@@ -4,8 +4,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
-// MergeableOperation is the planner hand-off for MultiFetch merging.
-type MergeableOperation struct {
+// SubgraphOperation is the planner hand-off for MultiFetch merging.
+type SubgraphOperation struct {
 	// Document is the normalized and validated upstream operation. Ownership
 	// transfers to the plan; the planner nils its own reference after storing.
 	Document *ast.Document
@@ -13,10 +13,10 @@ type MergeableOperation struct {
 	// (value replaced in place on duplicate name). Values are raw fragments
 	// that may contain $$N$$ placeholders referring to
 	// FetchConfiguration.Variables.
-	Variables []NamedVariableFragment
+	Variables []SubgraphVariable
 }
 
-type NamedVariableFragment struct {
+type SubgraphVariable struct {
 	Name  string
 	Value []byte
 }

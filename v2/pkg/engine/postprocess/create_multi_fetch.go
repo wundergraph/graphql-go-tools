@@ -12,7 +12,7 @@ import (
 
 // createMultiFetch merges same-subgraph entity fetches that would execute in
 // the same parallel wave into a single MultiEntityFetch with aliased
-// _entities fields. It always clears MergeableOperation artifacts, even when
+// _entities fields. It always clears SubgraphOperation artifacts, even when
 // disabled, so no AST survives postprocessing.
 type createMultiFetch struct {
 	disable bool
@@ -24,7 +24,7 @@ func (c *createMultiFetch) ProcessFetchTree(root *resolve.FetchTreeNode) {
 			c.mergeGroup(root, group)
 		}
 	}
-	c.clearMergeableOperations(root)
+	c.clearSubgraphOperations(root)
 }
 
 // mergeGroup merges a candidate group into one MultiEntityFetch, printing the
@@ -98,7 +98,7 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 		}
 
 		repIndex := representationsFragmentIndex(m)
-		repValue := m.MergeableOperation.Variables[repIndex].Value
+		repValue := m.SubgraphOperation.Variables[repIndex].Value
 		var reps resolve.InputTemplate
 		resolveInputTemplate(m.Variables, string(repValue[1:len(repValue)-1]), &reps)
 		// The fragment is exactly one $$N$$ token; drop the empty static segments
@@ -112,17 +112,17 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 		// Derive the key from the recorded fragment name (name-agnostic, like the
 		// document builder): a collision-renamed synthetic ("_representations")
 		// must keep the input key and the merged query's variable in agreement.
-		repPrefix := `"` + m.MergeableOperation.Variables[repIndex].Name + "_f" + kStr + `":[`
+		repPrefix := `"` + m.SubgraphOperation.Variables[repIndex].Name + "_f" + kStr + `":[`
 		if i > 0 {
 			repPrefix = "," + repPrefix
 		}
 
 		var variables []resolve.MultiEntityFetchVariable
-		for j := range m.MergeableOperation.Variables {
+		for j := range m.SubgraphOperation.Variables {
 			if j == repIndex {
 				continue
 			}
-			frag := m.MergeableOperation.Variables[j]
+			frag := m.SubgraphOperation.Variables[j]
 			var tpl resolve.InputTemplate
 			resolveInputTemplate(m.Variables, string(frag.Value), &tpl)
 			variables = append(variables, resolve.MultiEntityFetchVariable{
@@ -133,7 +133,7 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 
 		itemCopy := *group[i].Item
 		// The copied item must not retain the replaced member fetch: it would keep
-		// the merged-away SingleFetch (and its MergeableOperation document) alive
+		// the merged-away SingleFetch (and its SubgraphOperation document) alive
 		// inside the cached plan, and a multi backpointer would make the plan cyclic.
 		itemCopy.Fetch = nil
 		entries[i] = resolve.MultiEntityFetchEntry{
@@ -386,7 +386,7 @@ func (c *createMultiFetch) isCandidate(node *resolve.FetchTreeNode) bool {
 	if !fetch.RequiresEntityFetch && !fetch.RequiresEntityBatchFetch {
 		return false
 	}
-	if fetch.MergeableOperation == nil || fetch.Info == nil {
+	if fetch.SubgraphOperation == nil || fetch.Info == nil {
 		return false
 	}
 	return representationsFragmentIndex(fetch) != -1
@@ -394,12 +394,12 @@ func (c *createMultiFetch) isCandidate(node *resolve.FetchTreeNode) bool {
 
 var representationsFragmentPattern = regexp.MustCompile(`^\[\$\$(\d+)\$\$\]$`)
 
-// representationsFragmentIndex returns the index in MergeableOperation.Variables
+// representationsFragmentIndex returns the index in SubgraphOperation.Variables
 // of the sole representations fragment (`[$$N$$]`) whose token points at a
 // ResolvableObjectVariable, or -1 when the record is malformed: duplicate
 // names, or not exactly one such well-formed fragment.
 func representationsFragmentIndex(fetch *resolve.SingleFetch) int {
-	op := fetch.MergeableOperation
+	op := fetch.SubgraphOperation
 	if op == nil {
 		return -1
 	}
@@ -430,12 +430,12 @@ func representationsFragmentIndex(fetch *resolve.SingleFetch) int {
 	return index
 }
 
-// clearMergeableOperations nils MergeableOperation on every SingleFetch child so
+// clearSubgraphOperations nils SubgraphOperation on every SingleFetch child so
 // no planner AST survives postprocessing.
-func (c *createMultiFetch) clearMergeableOperations(root *resolve.FetchTreeNode) {
+func (c *createMultiFetch) clearSubgraphOperations(root *resolve.FetchTreeNode) {
 	for _, node := range root.ChildNodes {
 		if fetch, ok := node.Item.Fetch.(*resolve.SingleFetch); ok {
-			fetch.MergeableOperation = nil
+			fetch.SubgraphOperation = nil
 		}
 	}
 }

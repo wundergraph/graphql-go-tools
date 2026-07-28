@@ -282,15 +282,15 @@ injection) → `mergePhase` (under lock; `mergeResult` + `callOnFinished`).
 
 ```
 plan (graphql_datasource):
-  ConfigureFetch stores MergeableOperation{Document, Variables}            [flag-gated]
+  ConfigureFetch stores SubgraphOperation{Document, Variables}            [flag-gated]
         │
 postprocess (new order):
   collectAuthorizationCoordinates
   dedupe
   appendFetchID
   addMissingNestedDependencies      ← moved BEFORE resolveInputTemplates
-  createMultiFetch (NEW)            ← consumes MergeableOperation, emits resolve.MultiEntityFetch,
-        │                             clears MergeableOperation on ALL fetches
+  createMultiFetch (NEW)            ← consumes SubgraphOperation, emits resolve.MultiEntityFetch,
+        │                             clears SubgraphOperation on ALL fetches
   resolveInputTemplates             ← checked type switch; skips MultiEntityFetch
   createConcreteSingleFetchTypes    ← already skips non-SingleFetch
   orderSequenceByDependencies / createParallelNodes   (unchanged; interface-based)
@@ -313,7 +313,7 @@ point every child is still a `SingleFetch`, so its unchecked casts hold. The
   `plannerConfigurationOptions.EnableMultiFetch` →
   `DataSourcePlannerConfiguration.Options`.
 - `graphql_datasource.Planner.ConfigureFetch` populates
-  `FetchConfiguration.MergeableOperation` only when the option is set, the
+  `FetchConfiguration.SubgraphOperation` only when the option is set, the
   fetch is an entity fetch, and `p.config.grpc == nil`.
 - `postprocess.EnableMultiFetch()` ProcessorOption (default off) sets
   `processorOptions.enableMultiFetch` and activates the stage, which lives in
@@ -325,20 +325,20 @@ point every child is still a `SingleFetch`, so its unchecked casts hold. The
   the multi stage off — merged fetches have no `Input` string and would break
   plan-test golden assertions (`datasourcetesting.WithDefaultPostProcessor`).
 - Document clearing is unconditional: `createMultiFetch.ProcessFetchTree`
-  clears `MergeableOperation` on every `SingleFetch` even when `disable` is
+  clears `SubgraphOperation` on every `SingleFetch` even when `disable` is
   true (the only work done in that case).
 
-### 4.3 Planner artifacts: `resolve.MergeableOperation`
+### 4.3 Planner artifacts: `resolve.SubgraphOperation`
 
 New type in `resolve` (fetch.go already imports `pkg/ast`):
 
 ```go
-// MergeableOperation carries planner artifacts that allow the postprocess
+// SubgraphOperation carries planner artifacts that allow the postprocess
 // MultiFetch stage to join sibling entity fetches to the same subgraph into
 // one MultiEntityFetch. It is cleared during postprocessing and never reaches
 // the executable plan. Requires postprocessing to run before the plan is
 // cached or executed.
-type MergeableOperation struct {
+type SubgraphOperation struct {
     // Document is the normalized and validated upstream operation. Ownership
     // transfers to the plan: ConfigureFetch nils the planner's reference
     // after storing, so no later planner activity can mutate it.
@@ -349,16 +349,16 @@ type MergeableOperation struct {
     // downstream depends on blob order. Values are raw fragments that may
     // contain $$N$$ placeholders referring to FetchConfiguration.Variables
     // (and, in literal fragments, incidental "$$" bytes — see 3.1).
-    Variables []NamedVariableFragment
+    Variables []SubgraphVariable
 }
 
-type NamedVariableFragment struct {
+type SubgraphVariable struct {
     Name  string
     Value []byte
 }
 ```
 
-`FetchConfiguration` gets `MergeableOperation *MergeableOperation`.
+`FetchConfiguration` gets `SubgraphOperation *SubgraphOperation`.
 `FetchConfiguration.Equals` does not compare it (consistent with its
 DataSource exclusion): equal `Input` strings imply *semantically equivalent*
 documents (selection order may differ under `SortAST` minification), which is
@@ -379,9 +379,9 @@ Datasource changes:
   `createInputForQuery` runs once per planner). A duplicate write to the
   `representations` slot marks the planner's fetch as non-mergeable (a client
   variable literally named `representations` collides with the synthetic key
-  — pre-existing planner defect; `MergeableOperation` is not stored).
+  — pre-existing planner defect; `SubgraphOperation` is not stored).
 - `ConfigureFetch` stores `p.upstreamOperation` (post-normalization,
-  post-validation) into `MergeableOperation.Document` and then sets
+  post-validation) into `SubgraphOperation.Document` and then sets
   `p.upstreamOperation = nil`, making later mutation structurally impossible
   (a hypothetical reuse allocates a fresh document in `EnterDocument`).
 - No envelope is stored (see 3.1: header/URL `{{ }}` conversion happens after
@@ -394,7 +394,7 @@ Runs on the flat tree (root Sequence, all children Single/SingleFetch).
 
 **Candidate selection.** A child is a candidate iff its fetch is a
 `*resolve.SingleFetch` with (`RequiresEntityFetch || RequiresEntityBatchFetch`),
-`MergeableOperation != nil` (the planner already refuses to store it on a
+`SubgraphOperation != nil` (the planner already refuses to store it on a
 `representations` name collision — see 4.3), `Info != nil` (with
 `plan.DisableIncludeInfo` the feature silently disables — grouping and
 per-entry auth need FetchInfo), and a well-formed variables record: exactly
@@ -425,7 +425,7 @@ the executed wave (zero added latency).
    sub `Input` strings; the merged operation prints fresh from documents.)
 2. Per sub `k`, build the rename map `name → name_fk` over the **union** of
    the sub document's variable-definition names and the recorded
-   `NamedVariableFragment` names (the recorded names are the source of truth
+   `SubgraphVariable` names (the recorded names are the source of truth
    for `body.variables` keys and can include stale keys absent from the
    document — see 3.1).
 3. Import all of sub k's variable definitions with the variable **name**
@@ -529,12 +529,12 @@ other members are removed. Bookkeeping mirrors `deduplicateSingleFetches`
 - Entry `Item` = a copy of the sub's original `FetchItem` with `Item.Fetch`
   set to **nil**: a backpointer to the multi would make the plan cyclic
   (breaking structural plan comparison in tests), and retaining the replaced
-  member fetch would keep its `MergeableOperation` document alive inside the
+  member fetch would keep its `SubgraphOperation` document alive inside the
   cached plan. The only `fetchItem.Fetch` consumer on the per-entry merge
   path (`isEmptyEntityFetch`) is skipped for multi entries (see 4.7).
 
 **Document clearing.** Final step (and only step when disabled): set
-`MergeableOperation = nil` on every `SingleFetch` in the tree.
+`SubgraphOperation = nil` on every `SingleFetch` in the tree.
 
 ### 4.5 New fetch type: `resolve.MultiEntityFetch`
 
@@ -768,7 +768,7 @@ for `Boolean!`, `field.Alias = ast.Alias{...}` as in
 | Different `DeferID` | Never merged; waves computed per DeferID partition. |
 | Subscription response tree | Merged like sync; trigger untouched. |
 | Mutation root fetches | Never candidates (entity fetches are query-typed). |
-| gRPC datasource | Never candidates (no `MergeableOperation`). |
+| gRPC datasource | Never candidates (no `SubgraphOperation`). |
 | `Info == nil` (DisableIncludeInfo) | Never candidates; feature silently off. |
 | Client variable named `representations` | Sub excluded from candidacy (duplicate-name / representations-fragment guard; pre-existing planner defect not merged bug-for-bug). |
 | Envelope bytes differ within a group | Group not merged (defensive). |

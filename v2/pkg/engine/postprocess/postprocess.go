@@ -50,7 +50,7 @@ func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResp
 	// child is still a SingleFetch, so it runs before resolveInputTemplates.
 	p.addMissingNestedDependencies.ProcessFetchTree(fetches)
 	// createMultiFetch runs unconditionally: it merges when enabled and always clears the
-	// planner MergeableOperation artifacts so no AST survives postprocessing.
+	// planner SubgraphOperation artifacts so no AST survives postprocessing.
 	p.createMultiFetch.ProcessFetchTree(fetches)
 	p.resolveInputTemplates.ProcessFetchTree(fetches)
 	p.createConcreteSingleFetchTypes.ProcessFetchTree(fetches)

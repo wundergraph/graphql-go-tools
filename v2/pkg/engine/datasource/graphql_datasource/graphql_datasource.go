@@ -65,7 +65,7 @@ type Planner[T Configuration] struct {
 	config                             Configuration
 	upstreamOperation                  *ast.Document
 	upstreamVariables                  []byte
-	upstreamVariablesList              []resolve.NamedVariableFragment
+	upstreamVariablesList              []resolve.SubgraphVariable
 	recordUpstreamVariables            bool
 	representationsVariableNameCached  string
 	nodes                              []ast.Node
@@ -343,7 +343,7 @@ func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte)
 				return out, nil
 			}
 		}
-		p.upstreamVariablesList = append(p.upstreamVariablesList, resolve.NamedVariableFragment{Name: name, Value: value})
+		p.upstreamVariablesList = append(p.upstreamVariablesList, resolve.SubgraphVariable{Name: name, Value: value})
 	}
 	return out, nil
 }
@@ -411,9 +411,9 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 	}
 
-	var mergeableOperation *resolve.MergeableOperation
+	var subgraphOperation *resolve.SubgraphOperation
 	if p.recordUpstreamVariables && (requiresEntityFetch || requiresEntityBatchFetch) {
-		mergeableOperation = &resolve.MergeableOperation{
+		subgraphOperation = &resolve.SubgraphOperation{
 			Document:  p.upstreamOperation,
 			Variables: p.upstreamVariablesList,
 		}
@@ -430,7 +430,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 		QueryPlan:                             p.queryPlan,
 		OperationName:                         p.propagatedOperationName,
-		MergeableOperation:                    mergeableOperation,
+		SubgraphOperation:                     subgraphOperation,
 	}
 }
 

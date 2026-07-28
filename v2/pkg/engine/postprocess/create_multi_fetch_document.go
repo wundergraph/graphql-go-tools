@@ -21,7 +21,7 @@ func buildMergedOperation(members []*resolve.SingleFetch) (compact string, prett
 	mergeMembers := make([]asttransform.OperationMergeMember, 0, len(members))
 	for i, member := range members {
 		kStr := strconv.Itoa(i + 1)
-		op := member.MergeableOperation
+		op := member.SubgraphOperation
 		if op == nil || op.Document == nil {
 			return "", "", fmt.Errorf("createMultiFetch: member %d has no document", i+1)
 		}
@@ -55,7 +55,7 @@ func buildMergedOperation(members []*resolve.SingleFetch) (compact string, prett
 // buildVariableRename maps every variable name to name_f<k> over the union of
 // the document's variable definitions and the recorded fragment names (which
 // can include stale keys absent from the document).
-func buildVariableRename(op *resolve.MergeableOperation, kStr string) map[string]string {
+func buildVariableRename(op *resolve.SubgraphOperation, kStr string) map[string]string {
 	doc := op.Document
 	rename := make(map[string]string, len(op.Variables))
 	for _, defRef := range doc.OperationDefinitions[0].VariableDefinitions.Refs {
