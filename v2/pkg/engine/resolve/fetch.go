@@ -280,10 +280,10 @@ type FetchConfiguration struct {
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
 
-	// MergeableOperation carries planner artifacts consumed by the postprocess
+	// SubgraphOperation carries planner artifacts consumed by the postprocess
 	// MultiFetch stage; it is cleared during postprocessing and never reaches
 	// the executable plan. Nil unless plan.Configuration.EnableMultiFetch is set.
-	MergeableOperation *MergeableOperation
+	SubgraphOperation *SubgraphOperation
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {

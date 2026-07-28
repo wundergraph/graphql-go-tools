@@ -10848,10 +10848,10 @@ const petSchema = `
 	}
 `
 
-// planMergeableOperationTest normalizes, validates and plans an operation
+// planSubgraphOperationTest normalizes, validates and plans an operation
 // without postprocessing, returning the synchronous response plan so its
-// RawFetches can be inspected for MergeableOperation artifacts.
-func planMergeableOperationTest(t *testing.T, definition, operation, operationName string, config plan.Configuration) *plan.SynchronousResponsePlan {
+// RawFetches can be inspected for SubgraphOperation artifacts.
+func planSubgraphOperationTest(t *testing.T, definition, operation, operationName string, config plan.Configuration) *plan.SynchronousResponsePlan {
 	t.Helper()
 
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
@@ -10883,7 +10883,7 @@ func planMergeableOperationTest(t *testing.T, definition, operation, operationNa
 	return syncPlan
 }
 
-func TestConfigureFetch_MergeableOperation(t *testing.T) {
+func TestConfigureFetch_SubgraphOperation(t *testing.T) {
 	definition := `
 		type Query {
 			obj: Object
@@ -10966,13 +10966,13 @@ func TestConfigureFetch_MergeableOperation(t *testing.T) {
 
 	repsFragmentPattern := regexp.MustCompile(`^\[\$\$\d+\$\$\]$`)
 
-	findFragment := func(vars []resolve.NamedVariableFragment, name string) (resolve.NamedVariableFragment, bool) {
+	findFragment := func(vars []resolve.SubgraphVariable, name string) (resolve.SubgraphVariable, bool) {
 		for _, v := range vars {
 			if v.Name == name {
 				return v, true
 			}
 		}
-		return resolve.NamedVariableFragment{}, false
+		return resolve.SubgraphVariable{}, false
 	}
 
 	singleFetches := func(syncPlan *plan.SynchronousResponsePlan) (root, entity *resolve.SingleFetch) {
@@ -10989,31 +10989,31 @@ func TestConfigureFetch_MergeableOperation(t *testing.T) {
 	}
 
 	t.Run("entity fetch records mergeable operation", func(t *testing.T) {
-		syncPlan := planMergeableOperationTest(t, definition, `query { obj { field name } }`, "", newConfig(true))
+		syncPlan := planSubgraphOperationTest(t, definition, `query { obj { field name } }`, "", newConfig(true))
 		_, entity := singleFetches(syncPlan)
 		require.NotNil(t, entity)
-		require.NotNil(t, entity.MergeableOperation)
+		require.NotNil(t, entity.SubgraphOperation)
 
-		reps, ok := findFragment(entity.MergeableOperation.Variables, "representations")
+		reps, ok := findFragment(entity.SubgraphOperation.Variables, "representations")
 		require.True(t, ok, "representations fragment recorded in write order")
 		require.Regexp(t, repsFragmentPattern, string(reps.Value))
 
-		printed, err := astprinter.PrintString(entity.MergeableOperation.Document)
+		printed, err := astprinter.PrintString(entity.SubgraphOperation.Document)
 		require.NoError(t, err)
 		require.Contains(t, printed, "_entities")
 	})
 
 	t.Run("root fetch does not record mergeable operation", func(t *testing.T) {
-		syncPlan := planMergeableOperationTest(t, definition, `query { obj { field name } }`, "", newConfig(true))
+		syncPlan := planSubgraphOperationTest(t, definition, `query { obj { field name } }`, "", newConfig(true))
 		root, _ := singleFetches(syncPlan)
 		require.NotNil(t, root)
-		require.Nil(t, root.MergeableOperation)
+		require.Nil(t, root.SubgraphOperation)
 	})
 
 	t.Run("flag off yields nil artifacts and byte-identical inputs", func(t *testing.T) {
 		op := `query { obj { field name } }`
-		onPlan := planMergeableOperationTest(t, definition, op, "", newConfig(true))
-		offPlan := planMergeableOperationTest(t, definition, op, "", newConfig(false))
+		onPlan := planSubgraphOperationTest(t, definition, op, "", newConfig(true))
+		offPlan := planSubgraphOperationTest(t, definition, op, "", newConfig(false))
 
 		require.Len(t, offPlan.Response.RawFetches, len(onPlan.Response.RawFetches))
 		for i := range offPlan.Response.RawFetches {
@@ -11021,7 +11021,7 @@ func TestConfigureFetch_MergeableOperation(t *testing.T) {
 			require.True(t, ok)
 			onSF, ok := onPlan.Response.RawFetches[i].Fetch.(*resolve.SingleFetch)
 			require.True(t, ok)
-			require.Nil(t, offSF.MergeableOperation)
+			require.Nil(t, offSF.SubgraphOperation)
 			require.Equal(t, onSF.Input, offSF.Input)
 		}
 	})
@@ -11123,7 +11123,7 @@ func TestGraphQLDataSource_RepresentationsCollision(t *testing.T) {
 
 	entityFetchInput := func(t *testing.T, operation string) string {
 		t.Helper()
-		syncPlan := planMergeableOperationTest(t, definition, operation, "", config)
+		syncPlan := planSubgraphOperationTest(t, definition, operation, "", config)
 		for _, item := range syncPlan.Response.RawFetches {
 			sf, ok := item.Fetch.(*resolve.SingleFetch)
 			require.True(t, ok)

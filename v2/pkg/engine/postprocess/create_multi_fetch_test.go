@@ -23,8 +23,8 @@ func multiFetchCandidate(fetchID int, dependsOn []int, deferID int, dataSourceID
 		Info: &resolve.FetchInfo{DataSourceID: dataSourceID},
 		FetchConfiguration: resolve.FetchConfiguration{
 			RequiresEntityBatchFetch: true,
-			MergeableOperation: &resolve.MergeableOperation{
-				Variables: []resolve.NamedVariableFragment{
+			SubgraphOperation: &resolve.SubgraphOperation{
+				Variables: []resolve.SubgraphVariable{
 					{Name: "representations", Value: []byte("[$$0$$]")},
 				},
 			},
@@ -157,9 +157,9 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 		require.Empty(t, c.collectGroups(tree))
 	})
 
-	t.Run("nil MergeableOperation is not a candidate", func(t *testing.T) {
+	t.Run("nil SubgraphOperation is not a candidate", func(t *testing.T) {
 		bad := multiFetchCandidate(2, []int{0}, 0, "ds1")
-		bad.Item.Fetch.(*resolve.SingleFetch).MergeableOperation = nil
+		bad.Item.Fetch.(*resolve.SingleFetch).SubgraphOperation = nil
 		tree := resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
@@ -181,7 +181,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 
 	t.Run("duplicate names is not a candidate", func(t *testing.T) {
 		bad := multiFetchCandidate(2, []int{0}, 0, "ds1")
-		bad.Item.Fetch.(*resolve.SingleFetch).MergeableOperation.Variables = []resolve.NamedVariableFragment{
+		bad.Item.Fetch.(*resolve.SingleFetch).SubgraphOperation.Variables = []resolve.SubgraphVariable{
 			{Name: "a", Value: []byte("1")},
 			{Name: "a", Value: []byte("2")},
 			{Name: "representations", Value: []byte("[$$0$$]")},
@@ -214,8 +214,8 @@ func TestCreateMultiFetch_RepresentationsFragmentIndex(t *testing.T) {
 		fetch := &resolve.SingleFetch{
 			FetchConfiguration: resolve.FetchConfiguration{
 				Variables: resolvableVars,
-				MergeableOperation: &resolve.MergeableOperation{
-					Variables: []resolve.NamedVariableFragment{
+				SubgraphOperation: &resolve.SubgraphOperation{
+					Variables: []resolve.SubgraphVariable{
 						{Name: "first", Value: []byte("$$1$$")},
 						{Name: "representations", Value: []byte("[$$0$$]")},
 					},
@@ -229,8 +229,8 @@ func TestCreateMultiFetch_RepresentationsFragmentIndex(t *testing.T) {
 		fetch := &resolve.SingleFetch{
 			FetchConfiguration: resolve.FetchConfiguration{
 				Variables: resolvableVars,
-				MergeableOperation: &resolve.MergeableOperation{
-					Variables: []resolve.NamedVariableFragment{
+				SubgraphOperation: &resolve.SubgraphOperation{
+					Variables: []resolve.SubgraphVariable{
 						{Name: "first", Value: []byte("$$1$$")},
 					},
 				},
@@ -243,8 +243,8 @@ func TestCreateMultiFetch_RepresentationsFragmentIndex(t *testing.T) {
 		fetch := &resolve.SingleFetch{
 			FetchConfiguration: resolve.FetchConfiguration{
 				Variables: resolvableVars,
-				MergeableOperation: &resolve.MergeableOperation{
-					Variables: []resolve.NamedVariableFragment{
+				SubgraphOperation: &resolve.SubgraphOperation{
+					Variables: []resolve.SubgraphVariable{
 						{Name: "representations", Value: []byte("[$$0$$]")},
 						{Name: "other", Value: []byte("[$$0$$]")},
 					},
@@ -258,8 +258,8 @@ func TestCreateMultiFetch_RepresentationsFragmentIndex(t *testing.T) {
 		fetch := &resolve.SingleFetch{
 			FetchConfiguration: resolve.FetchConfiguration{
 				Variables: resolvableVars,
-				MergeableOperation: &resolve.MergeableOperation{
-					Variables: []resolve.NamedVariableFragment{
+				SubgraphOperation: &resolve.SubgraphOperation{
+					Variables: []resolve.SubgraphVariable{
 						{Name: "representations", Value: []byte("[$$5$$]")},
 					},
 				},
@@ -272,8 +272,8 @@ func TestCreateMultiFetch_RepresentationsFragmentIndex(t *testing.T) {
 		fetch := &resolve.SingleFetch{
 			FetchConfiguration: resolve.FetchConfiguration{
 				Variables: resolve.NewVariables(&resolve.ContextVariable{Path: []string{"x"}}),
-				MergeableOperation: &resolve.MergeableOperation{
-					Variables: []resolve.NamedVariableFragment{
+				SubgraphOperation: &resolve.SubgraphOperation{
+					Variables: []resolve.SubgraphVariable{
 						{Name: "representations", Value: []byte("[$$0$$]")},
 					},
 				},
@@ -283,14 +283,14 @@ func TestCreateMultiFetch_RepresentationsFragmentIndex(t *testing.T) {
 	})
 }
 
-func TestCreateMultiFetch_ClearMergeableOperations(t *testing.T) {
+func TestCreateMultiFetch_ClearSubgraphOperations(t *testing.T) {
 	tree := resolve.Sequence(
 		multiFetchCandidate(1, nil, 0, "ds1"),
 		multiFetchCandidate(2, nil, 0, "ds1"),
 	)
 	(&createMultiFetch{disable: true}).ProcessFetchTree(tree)
 	for _, node := range tree.ChildNodes {
-		require.Nil(t, node.Item.Fetch.(*resolve.SingleFetch).MergeableOperation)
+		require.Nil(t, node.Item.Fetch.(*resolve.SingleFetch).SubgraphOperation)
 	}
 }
 
@@ -302,8 +302,8 @@ func TestCreateMultiFetch_PipelineClearingUnconditional(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{FetchID: 0},
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input:              `{"q":"0"}`,
-							MergeableOperation: &resolve.MergeableOperation{},
+							Input:             `{"q":"0"}`,
+							SubgraphOperation: &resolve.SubgraphOperation{},
 						},
 					},
 				},
@@ -311,8 +311,8 @@ func TestCreateMultiFetch_PipelineClearingUnconditional(t *testing.T) {
 					Fetch: &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{FetchID: 1},
 						FetchConfiguration: resolve.FetchConfiguration{
-							Input:              `{"q":"1"}`,
-							MergeableOperation: &resolve.MergeableOperation{},
+							Input:             `{"q":"1"}`,
+							SubgraphOperation: &resolve.SubgraphOperation{},
 						},
 					},
 				},
@@ -327,7 +327,7 @@ func TestCreateMultiFetch_PipelineClearingUnconditional(t *testing.T) {
 	collectSingleFetches(p.Response.Fetches, &fetches)
 	require.Len(t, fetches, 2)
 	for _, f := range fetches {
-		require.Nil(t, f.MergeableOperation)
+		require.Nil(t, f.SubgraphOperation)
 	}
 }
 
@@ -339,8 +339,8 @@ func TestCreateMultiFetch_PipelineDisableResolveInputTemplates(t *testing.T) {
 			FetchConfiguration: resolve.FetchConfiguration{
 				Input:                    input,
 				RequiresEntityBatchFetch: true,
-				MergeableOperation: &resolve.MergeableOperation{
-					Variables: []resolve.NamedVariableFragment{
+				SubgraphOperation: &resolve.SubgraphOperation{
+					Variables: []resolve.SubgraphVariable{
 						{Name: "representations", Value: []byte("[$$0$$]")},
 					},
 				},
@@ -368,7 +368,7 @@ func TestCreateMultiFetch_PipelineDisableResolveInputTemplates(t *testing.T) {
 	require.Len(t, fetches, 2)
 	inputs := map[string]bool{}
 	for _, f := range fetches {
-		require.Nil(t, f.MergeableOperation)
+		require.Nil(t, f.SubgraphOperation)
 		inputs[f.Input] = true
 	}
 	require.True(t, inputs[`{"q":"0"}`])
@@ -392,9 +392,9 @@ func TestBuildMergedOperation(t *testing.T) {
 				FetchDependencies: resolve.FetchDependencies{FetchID: 3},
 				FetchConfiguration: resolve.FetchConfiguration{
 					OperationName: operationName,
-					MergeableOperation: &resolve.MergeableOperation{
+					SubgraphOperation: &resolve.SubgraphOperation{
 						Document: parseUpstreamDocument(t, m1Source),
-						Variables: []resolve.NamedVariableFragment{
+						Variables: []resolve.SubgraphVariable{
 							{Name: "representations", Value: []byte("[$$0$$]")},
 							{Name: "first", Value: []byte("$$1$$")},
 							{Name: "stale", Value: []byte("1")},
@@ -406,9 +406,9 @@ func TestBuildMergedOperation(t *testing.T) {
 				FetchDependencies: resolve.FetchDependencies{FetchID: 5},
 				FetchConfiguration: resolve.FetchConfiguration{
 					OperationName: operationName,
-					MergeableOperation: &resolve.MergeableOperation{
+					SubgraphOperation: &resolve.SubgraphOperation{
 						Document: parseUpstreamDocument(t, m2Source),
-						Variables: []resolve.NamedVariableFragment{
+						Variables: []resolve.SubgraphVariable{
 							{Name: "representations", Value: []byte("[$$0$$]")},
 							{Name: "first", Value: []byte("$$1$$")},
 						},
@@ -453,9 +453,9 @@ func TestBuildMergedOperation(t *testing.T) {
 			{
 				FetchDependencies: resolve.FetchDependencies{FetchID: 1},
 				FetchConfiguration: resolve.FetchConfiguration{
-					MergeableOperation: &resolve.MergeableOperation{
+					SubgraphOperation: &resolve.SubgraphOperation{
 						Document: parseUpstreamDocument(t, `query($representations: [_Any!]!){notEntities(representations: $representations){__typename}}`),
-						Variables: []resolve.NamedVariableFragment{
+						Variables: []resolve.SubgraphVariable{
 							{Name: "representations", Value: []byte("[$$0$$]")},
 						},
 					},
@@ -544,7 +544,7 @@ type mergeMemberSpec struct {
 	source       string
 	batch        bool
 	mergePath    string
-	fragments    []resolve.NamedVariableFragment
+	fragments    []resolve.SubgraphVariable
 	variables    resolve.Variables
 	responsePath string
 }
@@ -558,7 +558,7 @@ func buildMergeMember(t *testing.T, spec mergeMemberSpec) *resolve.FetchItem {
 			Input:          spec.input,
 			Variables:      spec.variables,
 			PostProcessing: resolve.PostProcessingConfiguration{MergePath: []string{spec.mergePath}},
-			MergeableOperation: &resolve.MergeableOperation{
+			SubgraphOperation: &resolve.SubgraphOperation{
 				Document:  parseUpstreamDocument(t, spec.source),
 				Variables: spec.fragments,
 			},
@@ -636,13 +636,13 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 					buildMergeNonCandidate(0, nil, `{"q":"0"}`),
 					buildMergeMember(t, mergeMemberSpec{
 						fetchID: 1, deps: []int{0}, input: mergeM1Repo(), source: mergeM1Source, batch: true, mergePath: "a",
-						fragments:    []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "stale", Value: []byte("1")}},
+						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "stale", Value: []byte("1")}},
 						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})),
 						responsePath: "employees.@",
 					}),
 					buildMergeMember(t, mergeMemberSpec{
 						fetchID: 2, deps: []int{0}, input: mergeM2Repo(), source: mergeM2Source, batch: false, mergePath: "b",
-						fragments:    []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
+						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
 						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"first"}, Renderer: resolve.NewJSONVariableRenderer()}),
 						responsePath: "employee",
 					}),
@@ -705,7 +705,7 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 		var fetches []*resolve.SingleFetch
 		collectSingleFetches(tree, &fetches)
 		for _, f := range fetches {
-			require.Nil(t, f.MergeableOperation)
+			require.Nil(t, f.SubgraphOperation)
 		}
 	})
 
@@ -718,13 +718,13 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 					buildMergeNonCandidate(0, nil, `{"q":"0"}`),
 					buildMergeMember(t, mergeMemberSpec{
 						fetchID: 1, deps: []int{0}, input: m1, source: mergeM1Source, batch: true, mergePath: "a",
-						fragments:    []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "stale", Value: []byte("1")}},
+						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "stale", Value: []byte("1")}},
 						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})),
 						responsePath: "employees.@",
 					}),
 					buildMergeMember(t, mergeMemberSpec{
 						fetchID: 2, deps: []int{0}, input: m2, source: mergeM2Source, batch: false, mergePath: "b",
-						fragments:    []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
+						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
 						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"first"}, Renderer: resolve.NewJSONVariableRenderer()}),
 						responsePath: "employee",
 					}),
@@ -749,19 +749,19 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 					buildMergeNonCandidate(0, nil, `{"q":"0"}`),
 					buildMergeMember(t, mergeMemberSpec{
 						fetchID: 1, deps: []int{0}, input: mergeM1Repo(), source: mergeM1Source, batch: true, mergePath: "a",
-						fragments:    []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "stale", Value: []byte("1")}},
+						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "stale", Value: []byte("1")}},
 						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})),
 						responsePath: "employees.@",
 					}),
 					buildMergeMember(t, mergeMemberSpec{
 						fetchID: 2, deps: []int{0}, input: mergeM2Repo(), source: mergeM2Source, batch: false, mergePath: "b",
-						fragments:    []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
+						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
 						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"first"}, Renderer: resolve.NewJSONVariableRenderer()}),
 						responsePath: "employee",
 					}),
 					buildMergeMember(t, mergeMemberSpec{
 						fetchID: 4, deps: []int{0}, input: m3, source: mergeM1Source, batch: true, mergePath: "c",
-						fragments:    []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}},
+						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}},
 						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})),
 						responsePath: "contractors.@",
 					}),
@@ -791,13 +791,13 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 					buildMergeNonCandidate(1, nil, `{"q":"1"}`),
 					buildMergeMember(t, mergeMemberSpec{
 						fetchID: 7, deps: []int{0}, input: m7, source: mergeM1Source, batch: true, mergePath: "a",
-						fragments:    []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}},
+						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}},
 						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})),
 						responsePath: "employees.@",
 					}),
 					buildMergeMember(t, mergeMemberSpec{
 						fetchID: 4, deps: []int{0, 1}, input: mergeM2Repo(), source: mergeM2Source, batch: false, mergePath: "b",
-						fragments:    []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
+						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
 						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"first"}, Renderer: resolve.NewJSONVariableRenderer()}),
 						responsePath: "employee",
 					}),
@@ -835,8 +835,8 @@ func mergeAbortMember(input string, vars resolve.Variables) *resolve.SingleFetch
 			Input:                    input,
 			Variables:                vars,
 			RequiresEntityBatchFetch: true,
-			MergeableOperation: &resolve.MergeableOperation{
-				Variables: []resolve.NamedVariableFragment{{Name: "representations", Value: []byte("[$$0$$]")}},
+			SubgraphOperation: &resolve.SubgraphOperation{
+				Variables: []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}},
 			},
 		},
 	}

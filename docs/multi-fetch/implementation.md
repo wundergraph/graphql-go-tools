@@ -45,7 +45,7 @@ prints it into the fetch input string
 (`{"method":"POST","url":...,"body":{"query":"...","variables":{...}}}`).
 Merging two printed strings later is not reliably possible, so when the flag
 is on the planner keeps the structured artifacts a merge needs, on
-`resolve.FetchConfiguration.MergeableOperation`:
+`resolve.FetchConfiguration.SubgraphOperation`:
 
 - **`Document`** — the normalized, validated upstream operation AST
   (`*ast.Document`). `ConfigureFetch` transfers ownership by nil-ing its own
@@ -87,13 +87,13 @@ collectAuthorizationCoordinates → dedupe → appendFetchID
 ```
 
 `createMultiFetch.ProcessFetchTree` always runs; when the option is off it
-only clears `MergeableOperation` from every fetch (unconditional cleanup).
+only clears `SubgraphOperation` from every fetch (unconditional cleanup).
 When on, it works in four steps:
 
 ### 2.1 Candidates and grouping (`create_multi_fetch.go`)
 
 A fetch is a candidate iff it is a `SingleFetch` entity fetch with a non-nil
-`MergeableOperation`, a non-nil `FetchInfo` (needed for grouping and per-entry
+`SubgraphOperation`, a non-nil `FetchInfo` (needed for grouping and per-entry
 authorization; `plan.DisableIncludeInfo` silently disables the feature), and a
 well-formed variables record (exactly one `[$$N$$]` fragment whose variable is
 the `ResolvableObjectVariable`).
@@ -280,7 +280,7 @@ whole input) are listed in spec section 5.1.
 | Concern | Tests |
 |---|---|
 | AST import primitives | `astimport/astimport_test.go` (`TestImportSelectionSet*`, `TestImportVariableDefinitionWithVariableNameRename`) |
-| Artifact recording | `graphql_datasource_test.go` (`TestConfigureFetch_MergeableOperation`) |
+| Artifact recording | `graphql_datasource_test.go` (`TestConfigureFetch_SubgraphOperation`) |
 | Grouping/waves/clearing | `postprocess/create_multi_fetch_test.go` (`TestCreateMultiFetch_CollectGroups`, `_PipelineClearingUnconditional`, `_PipelineDisableResolveInputTemplates`) |
 | Document merge | `TestBuildMergedOperation` (full compact + pretty golden equality) |
 | Input scanner + assembly | `TestSplitEntityFetchInput`, `TestCreateMultiFetch_MergeGroup` (+ aborts, survivor-ID rewrite, append shape, three members) |
