@@ -823,6 +823,462 @@ func TestGraphQLDataSourceFederation_MultiFetch_ThreeFetchGroup(t *testing.T) {
 	))
 }
 
+func multiFetchArgDefinition() string {
+	return `
+		type Query {
+			employees: [Employee]
+			employee: Employee
+		}
+		type Employee {
+			id: ID!
+			products(first: Int): [String]
+			notes: String
+		}`
+}
+
+func multiFetchArgPlanConfig(t *testing.T) plan.Configuration {
+	accountsSDL := `
+		type Query {
+			employees: [Employee]
+			employee: Employee
+		}
+		type Employee @key(fields: "id") {
+			id: ID!
+		}`
+	productsSDL := `
+		type Employee @key(fields: "id") {
+			id: ID!
+			products(first: Int): [String]
+			notes: String
+		}`
+
+	accounts := mustDataSourceConfiguration(t, "accounts",
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"employees", "employee"}},
+				{TypeName: "Employee", FieldNames: []string{"id"}},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
+			},
+		},
+		mustCustomConfiguration(t, ConfigurationInput{
+			Fetch:               &FetchConfiguration{URL: "http://accounts"},
+			SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: accountsSDL}, accountsSDL),
+		}))
+	products := mustDataSourceConfiguration(t, "products",
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{{TypeName: "Employee", FieldNames: []string{"id", "products", "notes"}}},
+			FederationMetaData: plan.FederationMetaData{
+				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
+			},
+		},
+		mustCustomConfiguration(t, ConfigurationInput{
+			Fetch:               &FetchConfiguration{URL: "http://products"},
+			SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: productsSDL}, productsSDL),
+		}))
+
+	return plan.Configuration{
+		DataSources:                  []plan.DataSource{accounts, products},
+		DisableResolveFieldPositions: true,
+		EnableMultiFetch:             true,
+		Fields: plan.FieldConfigurations{
+			{
+				TypeName:  "Employee",
+				FieldName: "products",
+				Arguments: plan.ArgumentsConfigurations{
+					{Name: "first", SourceType: plan.FieldArgumentSource},
+				},
+			},
+		},
+	}
+}
+
+// multiFetchEmployeeProductsData is the response object for
+// `{ employees { id products(...) } employee { id products(...) } }`.
+func multiFetchEmployeeProductsData() *resolve.Object {
+	employeeProducts := func(path string) *resolve.Field {
+		return &resolve.Field{
+			Name: []byte("products"),
+			Value: &resolve.Array{
+				Path:     []string{"products"},
+				Nullable: true,
+				Item:     &resolve.String{Nullable: true},
+				SkipItem: func(ctx *resolve.Context, value *astjson.Value) bool { return false },
+			},
+			Info: &resolve.FieldInfo{
+				Name:                "products",
+				ExactParentTypeName: "Employee",
+				ParentTypeNames:     []string{"Employee"},
+				NamedType:           "String",
+				Source:              resolve.TypeFieldSource{IDs: []string{"products"}, Names: []string{"products"}},
+			},
+		}
+	}
+	idField := &resolve.Field{
+		Name:  []byte("id"),
+		Value: &resolve.Scalar{Path: []string{"id"}},
+		Info: &resolve.FieldInfo{
+			Name:                "id",
+			ExactParentTypeName: "Employee",
+			ParentTypeNames:     []string{"Employee"},
+			NamedType:           "ID",
+			Source:              resolve.TypeFieldSource{IDs: []string{"accounts"}, Names: []string{"accounts"}},
+		},
+	}
+	return &resolve.Object{
+		Fields: []*resolve.Field{
+			{
+				Name: []byte("employees"),
+				Value: &resolve.Array{
+					Path:     []string{"employees"},
+					Nullable: true,
+					Item: &resolve.Object{
+						Nullable:      true,
+						Fields:        []*resolve.Field{idField, employeeProducts("employees")},
+						PossibleTypes: map[string]struct{}{"Employee": {}},
+						SourceName:    "accounts",
+						TypeName:      "Employee",
+					},
+					SkipItem: func(ctx *resolve.Context, value *astjson.Value) bool { return false },
+				},
+				Info: &resolve.FieldInfo{
+					Name:                "employees",
+					ExactParentTypeName: "Query",
+					ParentTypeNames:     []string{"Query"},
+					NamedType:           "Employee",
+					Source:              resolve.TypeFieldSource{IDs: []string{"accounts"}, Names: []string{"accounts"}},
+				},
+			},
+			{
+				Name: []byte("employee"),
+				Value: &resolve.Object{
+					Nullable:      true,
+					Path:          []string{"employee"},
+					Fields:        []*resolve.Field{idField, employeeProducts("employee")},
+					PossibleTypes: map[string]struct{}{"Employee": {}},
+					SourceName:    "accounts",
+					TypeName:      "Employee",
+				},
+				Info: &resolve.FieldInfo{
+					Name:                "employee",
+					ExactParentTypeName: "Query",
+					ParentTypeNames:     []string{"Query"},
+					NamedType:           "Employee",
+					Source:              resolve.TypeFieldSource{IDs: []string{"accounts"}, Names: []string{"accounts"}},
+				},
+			},
+		},
+	}
+}
+
+// firstArgVariable is the recorded non-representations variable `first`, renamed
+// per member to `first_f<k>`, rendered as a context variable template.
+func firstArgVariable(alias string) resolve.MultiEntityFetchVariable {
+	return resolve.MultiEntityFetchVariable{
+		KeyPrefix: []byte(`,"first_` + alias + `":`),
+		Value: resolve.InputTemplate{
+			Segments: []resolve.TemplateSegment{
+				{SegmentType: resolve.StaticSegmentType},
+				{
+					SegmentType:        resolve.VariableSegmentType,
+					VariableKind:       resolve.ContextVariableKind,
+					VariableSourcePath: []string{"first"},
+					Renderer:           resolve.NewJSONVariableRenderer(),
+				},
+				{SegmentType: resolve.StaticSegmentType},
+			},
+		},
+	}
+}
+
+func multiFetchProductsEntry(alias, kind, path string, first bool) resolve.MultiEntityFetchEntry {
+	var fetchPath []resolve.FetchItemPathElement
+	if kind == "array" {
+		fetchPath = []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindArray, Path: []string{path}}}
+	} else {
+		fetchPath = []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{path}}}
+	}
+	originKind := resolve.EntityFetchOriginBatch
+	if kind == "object" {
+		originKind = resolve.EntityFetchOriginSingle
+	}
+	repPrefix := `"representations_` + alias + `":[`
+	if alias != "f1" {
+		repPrefix = "," + repPrefix
+	}
+	entry := resolve.MultiEntityFetchEntry{
+		Alias: alias,
+		Item: &resolve.FetchItem{
+			FetchPath:            fetchPath,
+			ResponsePath:         path,
+			ResponsePathElements: []string{path},
+		},
+		Info: &resolve.FetchInfo{
+			DataSourceID:   "products",
+			DataSourceName: "products",
+			RootFields:     []resolve.GraphCoordinate{{TypeName: "Employee", FieldName: "products"}},
+			OperationType:  ast.OperationTypeQuery,
+		},
+		PostProcessing: resolve.PostProcessingConfiguration{
+			SelectResponseDataPath:   []string{"data", alias},
+			SelectResponseErrorsPath: []string{"errors"},
+		},
+		OriginKind:            originKind,
+		RepresentationsPrefix: []byte(repPrefix),
+		Representations: resolve.InputTemplate{
+			Segments: []resolve.TemplateSegment{
+				{
+					SegmentType:  resolve.VariableSegmentType,
+					VariableKind: resolve.ResolvableObjectVariableKind,
+					Renderer:     multiFetchRepresentationsRenderer(),
+				},
+			},
+			SetTemplateOutputToNullOnVariableNull: true,
+		},
+		IncludePrefix:        []byte(`],"include` + "F" + alias[1:] + `":`),
+		SkipNullItems:        true,
+		SkipEmptyObjectItems: true,
+		SkipErrItems:         true,
+	}
+	if first {
+		entry.Variables = []resolve.MultiEntityFetchVariable{firstArgVariable(alias)}
+	}
+	return entry
+}
+
+func TestGraphQLDataSourceFederation_MultiFetch_AdditionalVariables(t *testing.T) {
+	t.Run("client variable through one member", RunTest(
+		multiFetchArgDefinition(),
+		`query($first: Int){ employees { id products(first: $first) } employee { id notes } }`,
+		"",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: multiFetchResponseData(),
+				Info: &resolve.GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+				Fetches: resolve.Sequence(
+					multiFetchRootFetch(),
+					&resolve.FetchTreeNode{
+						Kind: resolve.FetchTreeNodeKindSingle,
+						Item: &resolve.FetchItem{
+							Fetch: &resolve.MultiEntityFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
+								},
+								Input: resolve.MultiEntityInput{
+									Header: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{
+												SegmentType: resolve.StaticSegmentType,
+												Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query($representations_f1: [_Any!]!, $first_f1: Int, $includeF1: Boolean!, $representations_f2: [_Any!]!, $includeF2: Boolean!){f1: _entities(representations: $representations_f1)@include(if: $includeF1) {... on Employee {__typename products(first: $first_f1)}} f2: _entities(representations: $representations_f2)@include(if: $includeF2) {... on Employee {__typename notes}}}","variables":{`),
+											},
+										},
+									},
+									Entries: []resolve.MultiEntityFetchEntry{
+										multiFetchProductsEntry("f1", "array", "employees", true),
+										multiFetchNotesEntry(),
+									},
+									Footer: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{SegmentType: resolve.StaticSegmentType, Data: []byte(`}}}`)},
+										},
+									},
+								},
+								DataSource:           &Source{},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								MergedFetchIDs:       []int{1, 2},
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "products",
+									DataSourceName: "products",
+									RootFields: []resolve.GraphCoordinate{
+										{TypeName: "Employee", FieldName: "products"},
+										{TypeName: "Employee", FieldName: "notes"},
+									},
+									OperationType: ast.OperationTypeQuery,
+								},
+							},
+						},
+					},
+				),
+			},
+		},
+		multiFetchArgPlanConfig(t),
+		WithFieldInfo(),
+		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+	))
+
+	t.Run("same client variable through both members", RunTest(
+		multiFetchArgDefinition(),
+		`query($first: Int){ employees { id products(first: $first) } employee { id products(first: $first) } }`,
+		"",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: multiFetchEmployeeProductsData(),
+				Info: &resolve.GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+				Fetches: resolve.Sequence(
+					multiFetchRootFetch(),
+					&resolve.FetchTreeNode{
+						Kind: resolve.FetchTreeNodeKindSingle,
+						Item: &resolve.FetchItem{
+							Fetch: &resolve.MultiEntityFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
+								},
+								Input: resolve.MultiEntityInput{
+									Header: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{
+												SegmentType: resolve.StaticSegmentType,
+												Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query($representations_f1: [_Any!]!, $first_f1: Int, $includeF1: Boolean!, $representations_f2: [_Any!]!, $first_f2: Int, $includeF2: Boolean!){f1: _entities(representations: $representations_f1)@include(if: $includeF1) {... on Employee {__typename products(first: $first_f1)}} f2: _entities(representations: $representations_f2)@include(if: $includeF2) {... on Employee {__typename products(first: $first_f2)}}}","variables":{`),
+											},
+										},
+									},
+									Entries: []resolve.MultiEntityFetchEntry{
+										multiFetchProductsEntry("f1", "array", "employees", true),
+										multiFetchProductsEntry("f2", "object", "employee", true),
+									},
+									Footer: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{SegmentType: resolve.StaticSegmentType, Data: []byte(`}}}`)},
+										},
+									},
+								},
+								DataSource:           &Source{},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								MergedFetchIDs:       []int{1, 2},
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "products",
+									DataSourceName: "products",
+									// Duplicate root fields (both members resolve
+									// Employee.products) are deduplicated in the merged info.
+									RootFields: []resolve.GraphCoordinate{
+										{TypeName: "Employee", FieldName: "products"},
+									},
+									OperationType: ast.OperationTypeQuery,
+								},
+							},
+						},
+					},
+				),
+			},
+		},
+		multiFetchArgPlanConfig(t),
+		WithFieldInfo(),
+		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+	))
+
+	// A default-valued client variable ($first: Int = 10) merges without error.
+	// The default is applied during client-operation normalization, so the
+	// context variable always sends a concrete value; the base federation
+	// planner deliberately does NOT propagate the default into the subgraph
+	// operation (it imports only the argument type — see
+	// configureFieldArgumentSource / AddVariableDefinitionToOperationDefinition
+	// in graphql_datasource.go). The rename-import preserves whatever the base
+	// operation had, so the merged definition is `$first_f1: Int` (no default),
+	// identical to the non-merged path — a transport-transparent merge.
+	t.Run("client variable with default value", RunTest(
+		multiFetchArgDefinition(),
+		`query($first: Int = 10){ employees { id products(first: $first) } employee { id notes } }`,
+		"",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: multiFetchResponseData(),
+				Info: &resolve.GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+				Fetches: resolve.Sequence(
+					multiFetchRootFetch(),
+					&resolve.FetchTreeNode{
+						Kind: resolve.FetchTreeNodeKindSingle,
+						Item: &resolve.FetchItem{
+							Fetch: &resolve.MultiEntityFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
+								},
+								Input: resolve.MultiEntityInput{
+									Header: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{
+												SegmentType: resolve.StaticSegmentType,
+												Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query($representations_f1: [_Any!]!, $first_f1: Int, $includeF1: Boolean!, $representations_f2: [_Any!]!, $includeF2: Boolean!){f1: _entities(representations: $representations_f1)@include(if: $includeF1) {... on Employee {__typename products(first: $first_f1)}} f2: _entities(representations: $representations_f2)@include(if: $includeF2) {... on Employee {__typename notes}}}","variables":{`),
+											},
+										},
+									},
+									Entries: []resolve.MultiEntityFetchEntry{
+										multiFetchProductsEntry("f1", "array", "employees", true),
+										multiFetchNotesEntry(),
+									},
+									Footer: resolve.InputTemplate{
+										Segments: []resolve.TemplateSegment{
+											{SegmentType: resolve.StaticSegmentType, Data: []byte(`}}}`)},
+										},
+									},
+								},
+								DataSource:           &Source{},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								MergedFetchIDs:       []int{1, 2},
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "products",
+									DataSourceName: "products",
+									RootFields: []resolve.GraphCoordinate{
+										{TypeName: "Employee", FieldName: "products"},
+										{TypeName: "Employee", FieldName: "notes"},
+									},
+									OperationType: ast.OperationTypeQuery,
+								},
+							},
+						},
+					},
+				),
+			},
+		},
+		multiFetchArgPlanConfig(t),
+		WithFieldInfo(),
+		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+	))
+}
+
+// multiFetchNotesEntry is the employee->notes member (no extra variables).
+func multiFetchNotesEntry() resolve.MultiEntityFetchEntry {
+	return resolve.MultiEntityFetchEntry{
+		Alias: "f2",
+		Item: &resolve.FetchItem{
+			FetchPath: []resolve.FetchItemPathElement{
+				{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"employee"}},
+			},
+			ResponsePath:         "employee",
+			ResponsePathElements: []string{"employee"},
+		},
+		Info: &resolve.FetchInfo{
+			DataSourceID:   "products",
+			DataSourceName: "products",
+			RootFields:     []resolve.GraphCoordinate{{TypeName: "Employee", FieldName: "notes"}},
+			OperationType:  ast.OperationTypeQuery,
+		},
+		PostProcessing: resolve.PostProcessingConfiguration{
+			SelectResponseDataPath:   []string{"data", "f2"},
+			SelectResponseErrorsPath: []string{"errors"},
+		},
+		OriginKind:            resolve.EntityFetchOriginSingle,
+		RepresentationsPrefix: []byte(`,"representations_f2":[`),
+		Representations: resolve.InputTemplate{
+			Segments: []resolve.TemplateSegment{
+				{
+					SegmentType:  resolve.VariableSegmentType,
+					VariableKind: resolve.ResolvableObjectVariableKind,
+					Renderer:     multiFetchRepresentationsRenderer(),
+				},
+			},
+			SetTemplateOutputToNullOnVariableNull: true,
+		},
+		IncludePrefix:        []byte(`],"includeF2":`),
+		SkipNullItems:        true,
+		SkipEmptyObjectItems: true,
+		SkipErrItems:         true,
+	}
+}
+
 func TestGraphQLDataSourceFederation_MultiFetch_WaveSeparation(t *testing.T) {
 	// products is fetched twice: Employee.upc via key id in wave one, and
 	// Manager.title via key mid in wave two (the manager key comes from the org
