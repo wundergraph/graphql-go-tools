@@ -11001,6 +11001,14 @@ func TestConfigureFetch_SubgraphOperation(t *testing.T) {
 		printed, err := astprinter.PrintString(entity.SubgraphOperation.Document)
 		require.NoError(t, err)
 		require.Contains(t, printed, "_entities")
+
+		// The recorded envelope carries the static request fields that wrap the
+		// operation. The entity fetch targets sub2 (Object.name lives there).
+		require.Equal(t, "https://example-2.com/graphql", entity.SubgraphOperation.Envelope.URL)
+		require.Equal(t, "POST", entity.SubgraphOperation.Envelope.Method)
+		// Header is a nil http.Header here, which marshals to JSON null and is
+		// therefore omitted from the envelope (nothing would be printed).
+		require.Nil(t, entity.SubgraphOperation.Envelope.Header)
 	})
 
 	t.Run("root fetch does not record mergeable operation", func(t *testing.T) {
