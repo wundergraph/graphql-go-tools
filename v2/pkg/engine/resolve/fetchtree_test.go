@@ -24,6 +24,27 @@ func multiEntityTestNode() *FetchTreeNode {
 					DataSourceName: "products",
 					QueryPlan: &QueryPlan{
 						Query: "query {...}",
+						DependsOnFields: []Representation{
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Product",
+								Fragment: "... on Product {\n    __typename\n    upc\n}",
+							},
+						},
+					},
+					CoordinateDependencies: []FetchDependency{
+						{
+							Coordinate:      GraphCoordinate{TypeName: "Product", FieldName: "name"},
+							IsUserRequested: true,
+							DependsOn: []FetchDependencyOrigin{
+								{
+									FetchID:    0,
+									Subgraph:   "products",
+									Coordinate: GraphCoordinate{TypeName: "Product", FieldName: "upc"},
+									IsKey:      true,
+								},
+							},
+						},
 					},
 				},
 				MergedFetchIDs: []int{1, 2},
@@ -42,22 +63,70 @@ func TestFetchTreeNode_Trace_MultiEntity(t *testing.T) {
 	node := multiEntityTestNode()
 	data, err := json.Marshal(node.Trace())
 	assert.NoError(t, err)
-	out := string(data)
-	assert.Contains(t, out, `"kind":"MultiEntity"`)
-	assert.Contains(t, out, `"entries":[{"alias":"f1","path":"employees.products"},{"alias":"f2","path":"employee"}]`)
-	assert.Contains(t, out, `"source_id":"products-id"`)
-	assert.Contains(t, out, `"source_name":"products"`)
+
+	// Full-document equality: every populated field of the trace node.
+	expected := `{
+		"kind": "Single",
+		"fetch": {
+			"kind": "MultiEntity",
+			"path": "",
+			"source_id": "products-id",
+			"source_name": "products",
+			"entries": [
+				{"alias": "f1", "path": "employees.products"},
+				{"alias": "f2", "path": "employee"}
+			]
+		}
+	}`
+	assert.JSONEq(t, expected, string(data))
 }
 
 func TestFetchTreeNode_QueryPlan_MultiEntity(t *testing.T) {
 	node := multiEntityTestNode()
 	data, err := json.Marshal(node.QueryPlan())
 	assert.NoError(t, err)
-	out := string(data)
-	assert.Contains(t, out, `"kind":"MultiEntity"`)
-	assert.Contains(t, out, `"entries":[{"alias":"f1","path":"employees.products"},{"alias":"f2","path":"employee"}]`)
-	assert.Contains(t, out, `"mergedFetchIds":[1,2]`)
-	assert.Contains(t, out, `"query":"query {...}"`)
+
+	// Full-document equality: every populated field of the query-plan node.
+	expected := `{
+		"version": "1",
+		"kind": "Single",
+		"fetch": {
+			"kind": "MultiEntity",
+			"subgraphName": "products",
+			"subgraphId": "products-id",
+			"fetchId": 1,
+			"dependsOnFetchIds": [0],
+			"representations": [
+				{
+					"kind": "@key",
+					"typeName": "Product",
+					"fragment": "... on Product {\n    __typename\n    upc\n}"
+				}
+			],
+			"query": "query {...}",
+			"dependencies": [
+				{
+					"coordinate": {"typeName": "Product", "fieldName": "name"},
+					"isUserRequested": true,
+					"dependsOn": [
+						{
+							"fetchId": 0,
+							"subgraph": "products",
+							"coordinate": {"typeName": "Product", "fieldName": "upc"},
+							"isKey": true,
+							"isRequires": false
+						}
+					]
+				}
+			],
+			"mergedFetchIds": [1, 2],
+			"entries": [
+				{"alias": "f1", "path": "employees.products"},
+				{"alias": "f2", "path": "employee"}
+			]
+		}
+	}`
+	assert.JSONEq(t, expected, string(data))
 }
 
 func TestFetchTreeQueryPlanNode_PrettyPrint_Trigger(t *testing.T) {
@@ -191,4 +260,93 @@ QueryPlan {
 
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
+}
+
+func TestFetchTreeQueryPlanNode_PrettyPrint_MultiEntity(t *testing.T) {
+	fetches := Sequence()
+	fetches.ChildNodes = []*FetchTreeNode{{
+		Kind: FetchTreeNodeKindSingle,
+		Item: &FetchItem{
+			Fetch: &MultiEntityFetch{
+				FetchDependencies: FetchDependencies{
+					FetchID:           1,
+					DependsOnFetchIDs: []int{0},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "products-id",
+					DataSourceName: "products",
+					QueryPlan: &QueryPlan{
+						Query: `query($representations_f1: [_Any!]!, $representations_f2: [_Any!]!, $includeF1: Boolean!, $includeF2: Boolean!){
+    f1: _entities(representations: $representations_f1) @include(if: $includeF1){
+        ... on Product {
+            __typename
+            name
+        }
+    }
+    f2: _entities(representations: $representations_f2) @include(if: $includeF2){
+        ... on Product {
+            __typename
+            price
+        }
+    }
+}`,
+						DependsOnFields: []Representation{
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Product",
+								Fragment: "... on Product {\n    __typename\n    upc\n}",
+							},
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Product",
+								Fragment: "... on Product {\n    __typename\n    upc\n}",
+							},
+						},
+					},
+				},
+				MergedFetchIDs: []int{1, 2},
+				Input: MultiEntityInput{
+					Entries: []MultiEntityFetchEntry{
+						{Alias: "f1", Item: &FetchItem{ResponsePath: "employees.products"}},
+						{Alias: "f2", Item: &FetchItem{ResponsePath: "employee"}},
+					},
+				},
+			},
+		},
+	}}
+
+	queryPlan := fetches.QueryPlan()
+	actual := queryPlan.PrettyPrint()
+
+	expected := `
+QueryPlan {
+  Fetch(service: "products") {
+    {
+      ... on Product {
+          __typename
+          upc
+      }
+      ... on Product {
+          __typename
+          upc
+      }
+    } =>
+    {
+        f1: _entities(representations: $representations_f1) @include(if: $includeF1){
+            ... on Product {
+                __typename
+                name
+            }
+        }
+        f2: _entities(representations: $representations_f2) @include(if: $includeF2){
+            ... on Product {
+                __typename
+                price
+            }
+        }
+    }
+  }
+}`
+
+	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 }
