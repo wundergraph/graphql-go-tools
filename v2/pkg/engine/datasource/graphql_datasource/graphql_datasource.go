@@ -298,7 +298,12 @@ func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSour
 	return nil
 }
 
-func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
+// buildUpstreamVariablesAndOperation prints the upstream operation and merges
+// any operation-level variable defaults into the recorded upstream variables,
+// returning the assembled body.variables bytes alongside the printed operation.
+// It performs the variable-recording side effects (setUpstreamVariable); the
+// envelope assembly itself is done by httpclient.AssembleGraphQLRequestInput.
+func (p *Planner[T]) buildUpstreamVariablesAndOperation() (variables, operation []byte) {
 	opBytes, opVarsBytes := p.printOperation()
 	upstreamVariables := p.upstreamVariables
 
@@ -316,6 +321,12 @@ func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
 			return nil, nil
 		}
 	}
+
+	return upstreamVariables, opBytes
+}
+
+func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
+	upstreamVariables, opBytes := p.buildUpstreamVariablesAndOperation()
 
 	input = httpclient.SetInputBodyWithPath(input, upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, opBytes, "query")
@@ -354,20 +365,25 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		return resolve.FetchConfiguration{}
 	}
 
-	input, operation := p.createInputForQuery()
+	variables, operation := p.buildUpstreamVariablesAndOperation()
 
+	var header []byte
+	var fetchURL, fetchMethod string
 	if p.config.fetch != nil {
-		header, err := json.Marshal(p.config.fetch.Header)
+		var err error
+		header, err = json.Marshal(p.config.fetch.Header)
 		if err != nil {
 			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to marshal header: %w", err)))
 			return resolve.FetchConfiguration{}
 		}
-		if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
-			input = httpclient.SetInputHeader(input, header)
-		}
+		fetchURL = p.config.fetch.URL
+		fetchMethod = p.config.fetch.Method
+	}
 
-		input = httpclient.SetInputURL(input, []byte(p.config.fetch.URL))
-		input = httpclient.SetInputMethod(input, []byte(p.config.fetch.Method))
+	input, err := httpclient.AssembleGraphQLRequestInput(variables, operation, header, fetchURL, fetchMethod)
+	if err != nil {
+		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to assemble request input: %w", err)))
+		return resolve.FetchConfiguration{}
 	}
 
 	postProcessing := DefaultPostProcessingConfiguration
@@ -413,9 +429,21 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 
 	var subgraphOperation *resolve.SubgraphOperation
 	if p.recordUpstreamVariables && (requiresEntityFetch || requiresEntityBatchFetch) {
+		// Record only the header bytes that are actually printed into the
+		// envelope today: omit when empty or JSON null (mirrors the guard in
+		// httpclient.AssembleGraphQLRequestInput).
+		var envelopeHeader []byte
+		if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
+			envelopeHeader = header
+		}
 		subgraphOperation = &resolve.SubgraphOperation{
 			Document:  p.upstreamOperation,
 			Variables: p.upstreamVariablesList,
+			Envelope: resolve.SubgraphRequestEnvelope{
+				Method: fetchMethod,
+				URL:    fetchURL,
+				Header: envelopeHeader,
+			},
 		}
 		p.upstreamOperation = nil
 	}
