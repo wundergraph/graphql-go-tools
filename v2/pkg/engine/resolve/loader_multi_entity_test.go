@@ -16,6 +16,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
+// ---------------------------------------------------------------------------
+// Input-template builders. These stay small and named so the fetch shape below
+// reads declaratively; each returns one InputTemplate segment kind.
+// ---------------------------------------------------------------------------
+
 func multiStaticTemplate(s string) InputTemplate {
 	return InputTemplate{
 		Segments: []TemplateSegment{
@@ -49,13 +54,6 @@ func multiContextVariableTemplate(path string) InputTemplate {
 			(&ContextVariable{Path: []string{path}, Renderer: NewJSONVariableRenderer()}).TemplateSegment(),
 		},
 	}
-}
-
-func newMultiEntityLoader(seed string) (*Loader, *Context) {
-	ctx := NewContext(context.Background())
-	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.MustParse(seed)}}
-	loader.ctx = ctx
-	return loader, ctx
 }
 
 // twoEntryMultiFetch builds an f1 batch entry over employees and an f2 single
@@ -99,15 +97,102 @@ func twoEntryMultiFetch(entry2Vars []MultiEntityFetchVariable) *MultiEntityFetch
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Two shared helpers (per review item 11). Everything else in a test is inline
+// so each case reads top-to-bottom; small duplication is preferred over more
+// tiny abstractions.
+// ---------------------------------------------------------------------------
+
+// multiFetch bundles the pieces a MultiEntityFetch test drives, with named
+// fields so a test reads: build the fixture, tweak the fetch, run, assert.
+type multiFetch struct {
+	loader *Loader
+	ctx    *Context
+	fetch  *MultiEntityFetch
+	item   *FetchItem
+}
+
+type multiFetchConfig struct {
+	seed       string
+	variables  string
+	entry2Vars []MultiEntityFetchVariable
+}
+
+type multiFetchOption func(*multiFetchConfig)
+
+// withSeed overrides the parent data the fetch reads representations from.
+func withSeed(seed string) multiFetchOption {
+	return func(c *multiFetchConfig) { c.seed = seed }
+}
+
+// withVariables sets ctx.Variables from the given JSON object.
+func withVariables(variables string) multiFetchOption {
+	return func(c *multiFetchConfig) { c.variables = variables }
+}
+
+// withEntry2Vars attaches the given variables to the f2 entry.
+func withEntry2Vars(vars ...MultiEntityFetchVariable) multiFetchOption {
+	return func(c *multiFetchConfig) { c.entry2Vars = vars }
+}
+
+// multiFetchFixture builds the MultiEntityFetch, its loader, and the parent
+// data in one call. Defaults to a single-employee parent; override with
+// withSeed / withVariables / withEntry2Vars.
+func multiFetchFixture(t *testing.T, opts ...multiFetchOption) multiFetch {
+	t.Helper()
+	cfg := multiFetchConfig{
+		seed: `{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	ctx := NewContext(context.Background())
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	if cfg.variables != "" {
+		ctx.Variables = astjson.MustParse(cfg.variables)
+	}
+
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.MustParse(cfg.seed)}}
+	loader.ctx = ctx
+	loader.taintedObjs = make(taintedObjects)
+
+	fetch := twoEntryMultiFetch(cfg.entry2Vars)
+	return multiFetch{
+		loader: loader,
+		ctx:    ctx,
+		fetch:  fetch,
+		item:   &FetchItem{Fetch: fetch},
+	}
+}
+
+// assertMergedErrors marshals the loader's accumulated errors and compares the
+// whole document. An empty expectedJSON asserts no errors were accumulated.
+func assertMergedErrors(t *testing.T, loader *Loader, expectedJSON string) {
+	t.Helper()
+	var got string
+	if loader.errors != nil {
+		got = string(loader.errors.MarshalTo(nil))
+	}
+	if expectedJSON == "" {
+		assert.Empty(t, got, "expected no accumulated errors")
+		return
+	}
+	assert.JSONEq(t, expectedJSON, got)
+}
+
+// ---------------------------------------------------------------------------
+// Prepare phase
+// ---------------------------------------------------------------------------
+
 func TestPrepareMultiEntityFetch_Assembly(t *testing.T) {
-	loader, ctx := newMultiEntityLoader(`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-	ctx.Variables = astjson.MustParse(`{"first":10}`)
+	f := multiFetchFixture(t,
+		withSeed(`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`),
+		withVariables(`{"first":10}`),
+		withEntry2Vars(MultiEntityFetchVariable{KeyPrefix: []byte(`,"first_f2":`), Value: multiContextVariableTemplate("first")}),
+	)
 
-	multi := twoEntryMultiFetch([]MultiEntityFetchVariable{
-		{KeyPrefix: []byte(`,"first_f2":`), Value: multiContextVariableTemplate("first")},
-	})
-
-	prepared, err := loader.preparePhase(&FetchItem{Fetch: multi})
+	prepared, err := f.loader.preparePhase(f.item)
 	require.NoError(t, err)
 	require.NotNil(t, prepared)
 	require.False(t, prepared.skipLoad)
@@ -124,59 +209,59 @@ func TestPrepareMultiEntityFetch_Assembly(t *testing.T) {
 }
 
 func TestPrepareMultiEntityFetch_EmptyEntry(t *testing.T) {
-	loader, ctx := newMultiEntityLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":null}`)
-	ctx.Variables = astjson.MustParse(`{"first":10}`)
+	f := multiFetchFixture(t,
+		withSeed(`{"employees":[{"__typename":"Employee","id":1}],"employee":null}`),
+		withVariables(`{"first":10}`),
+		withEntry2Vars(MultiEntityFetchVariable{KeyPrefix: []byte(`,"first_f2":`), Value: multiContextVariableTemplate("first")}),
+	)
 
-	multi := twoEntryMultiFetch([]MultiEntityFetchVariable{
-		{KeyPrefix: []byte(`,"first_f2":`), Value: multiContextVariableTemplate("first")},
-	})
-
-	prepared, err := loader.preparePhase(&FetchItem{Fetch: multi})
+	prepared, err := f.loader.preparePhase(f.item)
 	require.NoError(t, err)
 	require.NotNil(t, prepared)
 	require.False(t, prepared.skipLoad)
 
-	assert.Contains(t, string(prepared.input), `"representations_f1":[{"__typename":"Employee","id":1}],"includeF1":true`)
-	assert.Contains(t, string(prepared.input), `,"representations_f2":[],"includeF2":false`)
-	// A skipped entry still renders its non-representations variables.
-	assert.Contains(t, string(prepared.input), `,"first_f2":10`)
+	// The excluded f2 entry renders empty representations + includeF2:false, but
+	// still emits its non-representations variable (first_f2).
+	expected := `{"method":"POST","url":"http://x","body":{"query":"Q","variables":{"representations_f1":[{"__typename":"Employee","id":1}],"includeF1":true,"representations_f2":[],"includeF2":false,"first_f2":10}}}`
+	assert.Equal(t, expected, string(prepared.input))
 	assert.True(t, prepared.multiEntries[1].res.fetchSkipped)
 }
 
 func TestPrepareMultiEntityFetch_DeniedEntry(t *testing.T) {
-	loader, ctx := newMultiEntityLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-	ctx.SetPreFetchFieldAuthorizer(&batchTestAuthorizer{})
+	f := multiFetchFixture(t)
+	f.ctx.SetPreFetchFieldAuthorizer(&batchTestAuthorizer{})
 
-	multi := twoEntryMultiFetch(nil)
 	deniedField := GraphCoordinate{TypeName: "Employee", FieldName: "secret", HasAuthorizationRule: true}
-	multi.Input.Entries[1].Info = &FetchInfo{
+	f.fetch.Input.Entries[1].Info = &FetchInfo{
 		OperationType: ast.OperationTypeQuery,
 		DataSourceID:  "products-id",
 		RootFields:    []GraphCoordinate{deniedField},
 	}
 
-	auth := NewFieldAuthorization(ctx)
+	auth := NewFieldAuthorization(f.ctx)
 	auth.seedDeny("products-id", deniedField, "missing scope")
-	loader.authorization = auth
+	f.loader.authorization = auth
 
-	prepared, err := loader.preparePhase(&FetchItem{Fetch: multi})
+	prepared, err := f.loader.preparePhase(f.item)
 	require.NoError(t, err)
 	require.NotNil(t, prepared)
 	require.False(t, prepared.skipLoad)
 
-	assert.Contains(t, string(prepared.input), `"representations_f1":[{"__typename":"Employee","id":1}],"includeF1":true`)
-	assert.Contains(t, string(prepared.input), `,"representations_f2":[],"includeF2":false`)
+	// A denied entry is excluded (empty representations, includeF2:false) and its
+	// representations are never rendered into the request.
+	expected := `{"method":"POST","url":"http://x","body":{"query":"Q","variables":{"representations_f1":[{"__typename":"Employee","id":1}],"includeF1":true,"representations_f2":[],"includeF2":false}}}`
+	assert.Equal(t, expected, string(prepared.input))
 	assert.True(t, prepared.multiEntries[1].res.fetchSkipped)
 	assert.False(t, prepared.multiEntries[1].res.authorizationRejected)
 }
 
 func TestPrepareMultiEntityFetch_AllExcluded(t *testing.T) {
-	loader, ctx := newMultiEntityLoader(`{"employees":[],"employee":null}`)
-	ctx.Variables = astjson.MustParse(`{"first":10}`)
+	f := multiFetchFixture(t,
+		withSeed(`{"employees":[],"employee":null}`),
+		withVariables(`{"first":10}`),
+	)
 
-	multi := twoEntryMultiFetch(nil)
-
-	prepared, err := loader.preparePhase(&FetchItem{Fetch: multi})
+	prepared, err := f.loader.preparePhase(f.item)
 	require.NoError(t, err)
 	require.NotNil(t, prepared)
 	assert.True(t, prepared.skipLoad)
@@ -184,50 +269,53 @@ func TestPrepareMultiEntityFetch_AllExcluded(t *testing.T) {
 }
 
 func TestPrepareMultiEntityFetch_UndefinedVariable(t *testing.T) {
+	entry2Var := MultiEntityFetchVariable{KeyPrefix: []byte(`,"first_f2":`), Value: multiContextVariableTemplate("first")}
+
 	t.Run("undefined omits pair", func(t *testing.T) {
-		loader, ctx := newMultiEntityLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-		ctx.Variables = astjson.MustParse(`{}`)
+		f := multiFetchFixture(t, withVariables(`{}`), withEntry2Vars(entry2Var))
 
-		multi := twoEntryMultiFetch([]MultiEntityFetchVariable{
-			{KeyPrefix: []byte(`,"first_f2":`), Value: multiContextVariableTemplate("first")},
-		})
-
-		prepared, err := loader.preparePhase(&FetchItem{Fetch: multi})
+		prepared, err := f.loader.preparePhase(f.item)
 		require.NoError(t, err)
 		require.NotNil(t, prepared)
-		assert.NotContains(t, string(prepared.input), `first_f2`)
+
+		// An undefined client variable drops the whole first_f2 pair.
+		expected := `{"method":"POST","url":"http://x","body":{"query":"Q","variables":{"representations_f1":[{"__typename":"Employee","id":1}],"includeF1":true,"representations_f2":[{"__typename":"Employee","id":9}],"includeF2":true}}}`
+		assert.Equal(t, expected, string(prepared.input))
 	})
 
 	t.Run("explicit null kept", func(t *testing.T) {
-		loader, ctx := newMultiEntityLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-		ctx.Variables = astjson.MustParse(`{"first":null}`)
+		f := multiFetchFixture(t, withVariables(`{"first":null}`), withEntry2Vars(entry2Var))
 
-		multi := twoEntryMultiFetch([]MultiEntityFetchVariable{
-			{KeyPrefix: []byte(`,"first_f2":`), Value: multiContextVariableTemplate("first")},
-		})
-
-		prepared, err := loader.preparePhase(&FetchItem{Fetch: multi})
+		prepared, err := f.loader.preparePhase(f.item)
 		require.NoError(t, err)
 		require.NotNil(t, prepared)
-		assert.Contains(t, string(prepared.input), `,"first_f2":null`)
+
+		// An explicit client null keeps first_f2:null in place.
+		expected := `{"method":"POST","url":"http://x","body":{"query":"Q","variables":{"representations_f1":[{"__typename":"Employee","id":1}],"includeF1":true,"representations_f2":[{"__typename":"Employee","id":9}],"includeF2":true,"first_f2":null}}}`
+		assert.Equal(t, expected, string(prepared.input))
 	})
 }
 
 func TestPrepareMultiEntityFetch_DedupStateIsolation(t *testing.T) {
 	// employee renders the same representation as an employees element; the
 	// per-entry dedup scope must not drop it from f2.
-	loader, ctx := newMultiEntityLoader(`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2}],"employee":{"__typename":"Employee","id":1}}`)
-	ctx.Variables = astjson.MustParse(`{"first":10}`)
+	f := multiFetchFixture(t,
+		withSeed(`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2}],"employee":{"__typename":"Employee","id":1}}`),
+		withVariables(`{"first":10}`),
+	)
 
-	multi := twoEntryMultiFetch(nil)
-
-	prepared, err := loader.preparePhase(&FetchItem{Fetch: multi})
+	prepared, err := f.loader.preparePhase(f.item)
 	require.NoError(t, err)
 	require.NotNil(t, prepared)
 
-	assert.Contains(t, string(prepared.input), `,"representations_f2":[{"__typename":"Employee","id":1}]`)
+	expected := `{"method":"POST","url":"http://x","body":{"query":"Q","variables":{"representations_f1":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2}],"includeF1":true,"representations_f2":[{"__typename":"Employee","id":1}],"includeF2":true}}}`
+	assert.Equal(t, expected, string(prepared.input))
 	assert.Len(t, prepared.multiEntries[1].res.batchStats, 1)
 }
+
+// ---------------------------------------------------------------------------
+// Merge phase
+// ---------------------------------------------------------------------------
 
 // recordingDataSource returns a canned body or error, counts Load calls, and
 // captures the last received input.
@@ -250,212 +338,196 @@ func (r *recordingDataSource) LoadWithFiles(_ context.Context, _ http.Header, in
 	return r.response, r.err
 }
 
-func newMultiMergeLoader(seed string) (*Loader, *Context) {
-	ctx := NewContext(context.Background())
-	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
-	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.MustParse(seed)}}
-	loader.ctx = ctx
-	loader.taintedObjs = make(taintedObjects)
-	return loader, ctx
-}
-
-func mergeErrorsJSON(l *Loader) string {
-	if l.errors == nil {
-		return ""
-	}
-	return string(l.errors.MarshalTo(nil))
-}
-
 func TestMergeMultiEntityResult_FanOut(t *testing.T) {
-	loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
+	f := multiFetchFixture(t, withSeed(`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`))
+	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[{"upc":"1"}]},{"products":[{"upc":"2"}]}],"f2":[{"notes":"n"}]}}`)}
 
-	multi := twoEntryMultiFetch(nil)
-	multi.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[{"upc":"1"}]},{"products":[{"upc":"2"}]}],"f2":[{"notes":"n"}]}}`)}
-
-	require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
 	expected := `{"employees":[{"__typename":"Employee","id":1,"products":[{"upc":"1"}]},{"__typename":"Employee","id":2,"products":[{"upc":"2"}]},{"__typename":"Employee","id":1,"products":[{"upc":"1"}]}],"employee":{"__typename":"Employee","id":9,"notes":"n"}}`
-	assert.JSONEq(t, expected, string(loader.dataBuffer.Get().MarshalTo(nil)))
-	assert.Empty(t, mergeErrorsJSON(loader))
+	assert.JSONEq(t, expected, string(f.loader.dataBuffer.Get().MarshalTo(nil)))
+	assertMergedErrors(t, f.loader, "")
 }
 
 func TestMergeMultiEntityResult_ErrorPartitioning(t *testing.T) {
 	body := `{"data":{"f1":[{"products":[{"upc":"1"}]},{"products":[{"upc":"2"}]}],"f2":[{"notes":"n"}]},"errors":[{"message":"a","path":["f1",0,"products"]},{"message":"b","path":["f2"]},{"message":"c"}]}`
+	seed := `{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`
 
 	t.Run("wrap mode rewrites paths and hides aliases", func(t *testing.T) {
-		loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-		loader.propagateSubgraphErrors = true
-		loader.rewriteSubgraphErrorPaths = true
-		multi := twoEntryMultiFetch(nil)
-		multi.DataSource = &recordingDataSource{response: []byte(body)}
+		f := multiFetchFixture(t, withSeed(seed))
+		f.loader.propagateSubgraphErrors = true
+		f.loader.rewriteSubgraphErrorPaths = true
+		f.fetch.DataSource = &recordingDataSource{response: []byte(body)}
 
-		require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
-		errStr := mergeErrorsJSON(loader)
-		assert.Contains(t, errStr, `"message":"a"`)
-		assert.Contains(t, errStr, `"path":["products"]`)
-		assert.Contains(t, errStr, `"message":"c"`)
-		assert.NotContains(t, errStr, `"f1"`)
-		assert.NotContains(t, errStr, `"f2"`)
+		// "a" attributes to f1 (employees, index dropped), "b" to f2 (employee),
+		// "c" (no path) to the merged fetch. No internal alias leaks.
+		expected := `[` +
+			`{"message":"Failed to fetch from Subgraph.","extensions":{"errors":[{"message":"c"}]}},` +
+			`{"message":"Failed to fetch from Subgraph at Path 'employees'.","extensions":{"errors":[{"message":"a","path":["products"]}]}},` +
+			`{"message":"Failed to fetch from Subgraph at Path 'employee'.","extensions":{"errors":[{"message":"b","path":[]}]}}` +
+			`]`
+		assertMergedErrors(t, f.loader, expected)
 	})
 
 	t.Run("pass-through never leaks aliases", func(t *testing.T) {
-		loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-		loader.subgraphErrorPropagationMode = SubgraphErrorPropagationModePassThrough
-		loader.rewriteSubgraphErrorPaths = false
-		loader.allowedSubgraphErrorFields = map[string]struct{}{"message": {}, "path": {}}
-		multi := twoEntryMultiFetch(nil)
-		multi.DataSource = &recordingDataSource{response: []byte(body)}
+		f := multiFetchFixture(t, withSeed(seed))
+		f.loader.subgraphErrorPropagationMode = SubgraphErrorPropagationModePassThrough
+		f.loader.rewriteSubgraphErrorPaths = false
+		f.loader.allowedSubgraphErrorFields = map[string]struct{}{"message": {}, "path": {}}
+		f.fetch.DataSource = &recordingDataSource{response: []byte(body)}
 
-		require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
-		errStr := mergeErrorsJSON(loader)
-		assert.Contains(t, errStr, `_entities`)
-		assert.NotContains(t, errStr, `"f1"`)
-		assert.NotContains(t, errStr, `"f2"`)
+		// Pass-through keeps subgraph errors verbatim, but leading aliases are
+		// rewritten to _entities so internal alias names never leak.
+		expected := `[` +
+			`{"message":"c"},` +
+			`{"message":"a","path":["_entities",0,"products"]},` +
+			`{"message":"b","path":["_entities"]}` +
+			`]`
+		assertMergedErrors(t, f.loader, expected)
 	})
 }
 
 func TestMergeMultiEntityResult_EmptyArraySingleOrigin(t *testing.T) {
 	t.Run("single origin empty array is benign", func(t *testing.T) {
-		loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-		multi := twoEntryMultiFetch(nil)
-		multi.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[{"upc":"1"}]}],"f2":[]}}`)}
+		f := multiFetchFixture(t)
+		f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[{"upc":"1"}]}],"f2":[]}}`)}
 
-		require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
-		assert.Empty(t, mergeErrorsJSON(loader))
-		out := string(loader.dataBuffer.Get().MarshalTo(nil))
-		assert.Contains(t, out, `"products":[{"upc":"1"}]`)
-		assert.NotContains(t, out, `notes`)
+		assertMergedErrors(t, f.loader, "")
+		expected := `{"employees":[{"__typename":"Employee","id":1,"products":[{"upc":"1"}]}],"employee":{"__typename":"Employee","id":9}}`
+		assert.JSONEq(t, expected, string(f.loader.dataBuffer.Get().MarshalTo(nil)))
 	})
 
 	t.Run("batch origin empty array errors like unmerged", func(t *testing.T) {
-		loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-		multi := twoEntryMultiFetch(nil)
-		multi.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[],"f2":[{"notes":"n"}]}}`)}
+		f := multiFetchFixture(t)
+		f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[],"f2":[{"notes":"n"}]}}`)}
 
-		require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
 		// An empty _entities array yields GetArray()==nil, so mergeResult renders the
 		// same invalidGraphQLResponseShape error an unmerged BatchEntityFetch would.
-		assert.Contains(t, mergeErrorsJSON(loader), "no data or errors in response")
-		assert.Contains(t, string(loader.dataBuffer.Get().MarshalTo(nil)), `"notes":"n"`)
+		assertMergedErrors(t, f.loader, `[{"message":"Failed to fetch from Subgraph at Path 'employees', Reason: no data or errors in response."}]`)
+		expected := `{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9,"notes":"n"}}`
+		assert.JSONEq(t, expected, string(f.loader.dataBuffer.Get().MarshalTo(nil)))
 	})
 }
 
 func TestMergeMultiEntityResult_TransportError(t *testing.T) {
 	t.Run("error at every non-excluded entry path", func(t *testing.T) {
-		loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-		multi := twoEntryMultiFetch(nil)
-		multi.FetchID = 5
-		multi.DataSource = &recordingDataSource{err: errors.New("boom")}
+		f := multiFetchFixture(t)
+		f.fetch.FetchID = 5
+		f.fetch.DataSource = &recordingDataSource{err: errors.New("boom")}
 
-		require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
-		errStr := mergeErrorsJSON(loader)
-		assert.Contains(t, errStr, "at Path 'employees'")
-		assert.Contains(t, errStr, "at Path 'employee'")
-		assert.Contains(t, loader.erroredFetchIDs, 5)
+		assertMergedErrors(t, f.loader, `[`+
+			`{"message":"Failed to fetch from Subgraph at Path 'employees'."},`+
+			`{"message":"Failed to fetch from Subgraph at Path 'employee'."}`+
+			`]`)
+		assert.Contains(t, f.loader.erroredFetchIDs, 5)
 	})
 
 	t.Run("excluded entry gets no error", func(t *testing.T) {
-		loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":null}`)
-		multi := twoEntryMultiFetch(nil)
-		multi.FetchID = 5
-		multi.DataSource = &recordingDataSource{err: errors.New("boom")}
+		f := multiFetchFixture(t, withSeed(`{"employees":[{"__typename":"Employee","id":1}],"employee":null}`))
+		f.fetch.FetchID = 5
+		f.fetch.DataSource = &recordingDataSource{err: errors.New("boom")}
 
-		require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
-		errStr := mergeErrorsJSON(loader)
-		assert.Contains(t, errStr, "at Path 'employees'")
-		assert.NotContains(t, errStr, "at Path 'employee'.")
+		// Only the live employees entry gets a transport error; the excluded
+		// employee entry (parent null) produces none.
+		assertMergedErrors(t, f.loader, `[{"message":"Failed to fetch from Subgraph at Path 'employees'."}]`)
 	})
 }
 
 func TestMergeMultiEntityResult_InvalidResponse(t *testing.T) {
-	loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-	multi := twoEntryMultiFetch(nil)
-	multi.FetchID = 5
-	multi.DataSource = &recordingDataSource{response: []byte(`not json`)}
+	f := multiFetchFixture(t)
+	f.fetch.FetchID = 5
+	f.fetch.DataSource = &recordingDataSource{response: []byte(`not json`)}
 
-	require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
-	assert.Contains(t, mergeErrorsJSON(loader), "invalid JSON")
-	assert.NotContains(t, loader.erroredFetchIDs, 5)
+	assertMergedErrors(t, f.loader, `[`+
+		`{"message":"Failed to fetch from Subgraph at Path 'employees', Reason: invalid JSON."},`+
+		`{"message":"Failed to fetch from Subgraph at Path 'employee', Reason: invalid JSON."}`+
+		`]`)
+	assert.NotContains(t, f.loader.erroredFetchIDs, 5)
 }
 
 func TestMergeMultiEntityResult_RateLimitRejected(t *testing.T) {
-	loader, ctx := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-	ctx.RateLimitOptions = RateLimitOptions{Enable: true}
-	ctx.rateLimiter = &testRateLimiter{allowFn: func(*Context, *FetchInfo, json.RawMessage) (*RateLimitDeny, error) {
+	f := multiFetchFixture(t)
+	f.ctx.RateLimitOptions = RateLimitOptions{Enable: true}
+	f.ctx.rateLimiter = &testRateLimiter{allowFn: func(*Context, *FetchInfo, json.RawMessage) (*RateLimitDeny, error) {
 		return &RateLimitDeny{Reason: "over limit"}, nil
 	}}
 	ds := &recordingDataSource{response: []byte(`{"data":{}}`)}
-	multi := twoEntryMultiFetch(nil)
-	multi.DataSource = ds
+	f.fetch.DataSource = ds
 
-	require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
 	assert.Equal(t, 0, ds.calls, "no subgraph request when rate limited")
-	errStr := mergeErrorsJSON(loader)
-	assert.Contains(t, errStr, "at Path 'employees'")
-	assert.Contains(t, errStr, "at Path 'employee'")
-	assert.Contains(t, errStr, "Rate limit exceeded")
+	assertMergedErrors(t, f.loader, `[`+
+		`{"message":"Rate limit exceeded for Subgraph request at Path 'employees', Reason: over limit."},`+
+		`{"message":"Rate limit exceeded for Subgraph request at Path 'employee', Reason: over limit."}`+
+		`]`)
 }
 
 func TestMergeMultiEntityResult_TaintPerEntry(t *testing.T) {
-	loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-	loader.validateRequiredExternalFields = true
-	multi := twoEntryMultiFetch(nil)
-	multi.Input.Entries[0].Info = &FetchInfo{
+	f := multiFetchFixture(t)
+	f.loader.validateRequiredExternalFields = true
+	f.fetch.Input.Entries[0].Info = &FetchInfo{
 		OperationType: ast.OperationTypeQuery,
 		DataSourceID:  "products-id",
 		FetchReasons:  []FetchReason{{TypeName: "Employee", FieldName: "x", IsRequires: true, Nullable: true}},
 	}
-	multi.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"__typename":"Employee","x":null}],"f2":[{"notes":"n"}]},"errors":[{"message":"e","path":["f1",0,"x"]}]}`)}
+	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"__typename":"Employee","x":null}],"f2":[{"notes":"n"}]},"errors":[{"message":"e","path":["f1",0,"x"]}]}`)}
 
-	require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
-	assert.Len(t, loader.taintedObjs, 1)
+	assert.Len(t, f.loader.taintedObjs, 1)
 }
 
 func TestMergeMultiEntityResult_ExtensionsOnce(t *testing.T) {
-	loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
-	loader.allowCustomExtensionProperties = true
-	multi := twoEntryMultiFetch(nil)
-	multi.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[]}],"f2":[{"notes":"n"}]},"extensions":{"foo":"bar"}}`)}
+	f := multiFetchFixture(t)
+	f.loader.allowCustomExtensionProperties = true
+	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[]}],"f2":[{"notes":"n"}]},"extensions":{"foo":"bar"}}`)}
 
-	require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
-	assert.Len(t, loader.subgraphExtensions, 1)
+	assert.Len(t, f.loader.subgraphExtensions, 1)
 }
 
 func TestMergeMultiEntityResult_HooksOnce(t *testing.T) {
-	loader, ctx := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`)
+	f := multiFetchFixture(t)
 	hooks := NewTestLoaderHooks()
-	ctx.LoaderHooks = hooks
-	multi := twoEntryMultiFetch(nil)
-	multi.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[]}],"f2":[{"notes":"n"}]}}`)}
+	f.ctx.LoaderHooks = hooks
+	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[]}],"f2":[{"notes":"n"}]}}`)}
 
-	require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
 	assert.Equal(t, int64(1), hooks.preFetchCalls.Load())
 	assert.Equal(t, int64(1), hooks.postFetchCalls.Load())
 }
 
 func TestMergeMultiEntityResult_ExcludedEntry(t *testing.T) {
-	loader, _ := newMultiMergeLoader(`{"employees":[{"__typename":"Employee","id":1}],"employee":null}`)
-	multi := twoEntryMultiFetch(nil)
-	multi.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[{"upc":"1"}]}]}}`)}
+	f := multiFetchFixture(t, withSeed(`{"employees":[{"__typename":"Employee","id":1}],"employee":null}`))
+	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[{"upc":"1"}]}]}}`)}
 
-	require.NoError(t, loader.resolveSingle(context.Background(), &FetchItem{Fetch: multi}))
+	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
 
-	assert.Empty(t, mergeErrorsJSON(loader))
-	out := string(loader.dataBuffer.Get().MarshalTo(nil))
-	assert.Contains(t, out, `"products":[{"upc":"1"}]`)
-	assert.Contains(t, out, `"employee":null`)
+	assertMergedErrors(t, f.loader, "")
+	expected := `{"employees":[{"__typename":"Employee","id":1,"products":[{"upc":"1"}]}],"employee":null}`
+	assert.JSONEq(t, expected, string(f.loader.dataBuffer.Get().MarshalTo(nil)))
 }
+
+// ---------------------------------------------------------------------------
+// Full-tree integration (prepare + load + merge)
+// ---------------------------------------------------------------------------
 
 // multiEntityRootFetch seeds the shared parent data (three employees, one
 // employee) that both merged and unmerged integration trees fetch on.
@@ -500,7 +572,7 @@ func TestLoadGraphQLResponseData_MultiEntity(t *testing.T) {
 		)
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 		require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: tree}))
-		require.Empty(t, mergeErrorsJSON(loader))
+		assertMergedErrors(t, loader, "")
 		return string(loader.dataBuffer.Get().MarshalTo(nil)), multiDS
 	}
 
@@ -543,7 +615,7 @@ func TestLoadGraphQLResponseData_MultiEntity(t *testing.T) {
 		)
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 		require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: tree}))
-		require.Empty(t, mergeErrorsJSON(loader))
+		assertMergedErrors(t, loader, "")
 		return string(loader.dataBuffer.Get().MarshalTo(nil))
 	}
 
