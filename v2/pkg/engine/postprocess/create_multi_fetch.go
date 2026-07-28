@@ -109,7 +109,10 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 		})
 		reps.SetTemplateOutputToNullOnVariableNull = true
 
-		repPrefix := `"representations_f` + kStr + `":[`
+		// Derive the key from the recorded fragment name (name-agnostic, like the
+		// document builder): a collision-renamed synthetic ("_representations")
+		// must keep the input key and the merged query's variable in agreement.
+		repPrefix := `"` + m.MergeableOperation.Variables[repIndex].Name + "_f" + kStr + `":[`
 		if i > 0 {
 			repPrefix = "," + repPrefix
 		}

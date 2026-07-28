@@ -67,7 +67,7 @@ type Planner[T Configuration] struct {
 	upstreamVariables                  []byte
 	upstreamVariablesList              []resolve.NamedVariableFragment
 	recordUpstreamVariables            bool
-	upstreamVariableCollision          bool
+	representationsVariableNameCached  string
 	nodes                              []ast.Node
 	variables                          resolve.Variables
 	lastFieldEnclosingTypeName         string
@@ -325,8 +325,10 @@ func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
 
 // setUpstreamVariable writes a top-level body.variables entry and, when
 // MultiFetch recording is on, mirrors it into upstreamVariablesList in write
-// order with replace-in-slot semantics on duplicate names. A duplicate write
-// to the "representations" slot marks the fetch as non-mergeable.
+// order with replace-in-slot semantics on duplicate names. The synthetic
+// representations key is renamed away from any client variable of the same name
+// (see representationsVariableName), so a duplicate write to that slot cannot
+// occur.
 func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte) ([]byte, error) {
 	out, err := sjson.SetRawBytes(target, name, raw)
 	if err != nil {
@@ -337,9 +339,6 @@ func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte)
 		copy(value, raw)
 		for i := range p.upstreamVariablesList {
 			if p.upstreamVariablesList[i].Name == name {
-				if name == "representations" {
-					p.upstreamVariableCollision = true
-				}
 				p.upstreamVariablesList[i].Value = value
 				return out, nil
 			}
@@ -413,7 +412,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	}
 
 	var mergeableOperation *resolve.MergeableOperation
-	if p.recordUpstreamVariables && !p.upstreamVariableCollision && (requiresEntityFetch || requiresEntityBatchFetch) {
+	if p.recordUpstreamVariables && (requiresEntityFetch || requiresEntityBatchFetch) {
 		mergeableOperation = &resolve.MergeableOperation{
 			Document:  p.upstreamOperation,
 			Variables: p.upstreamVariablesList,
@@ -855,7 +854,7 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.upstreamVariables = nil
 	p.upstreamVariablesList = nil
 	p.recordUpstreamVariables = p.dataSourcePlannerConfig.Options.EnableMultiFetch && p.config.grpc == nil
-	p.upstreamVariableCollision = false
+	p.representationsVariableNameCached = ""
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false
 	p.queryPlan = nil
@@ -877,6 +876,56 @@ func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {
 	p.addRepresentationsVariable()
 }
 
+// representationsVariableName returns the name of the planner-added synthetic
+// variable that carries the entity representations. It is normally
+// "representations", but if the downstream client operation already declares a
+// variable of that name, the synthetic is renamed (to "_representations",
+// "_representations2", ...) so it never collides with a client variable that
+// reaches the same upstream operation. The client variable always keeps its
+// name; only the synthetic moves. The result is computed once per document and
+// cached (reset in EnterDocument).
+//
+// Detection uses the downstream operation (p.visitor.Operation) because the
+// synthetic definition is added while scaffolding the upstream operation,
+// before client variables are imported into it — at write time the upstream
+// operation cannot yet reveal the collision. This makes the check conservative:
+// a client that declares $representations but never passes it to this subgraph
+// still triggers the rename, which is harmless because the renamed synthetic is
+// internal to the subgraph request.
+func (p *Planner[T]) representationsVariableName() string {
+	if p.representationsVariableNameCached != "" {
+		return p.representationsVariableNameCached
+	}
+	name := "representations"
+	if p.downstreamDeclaresVariable(name) {
+		candidate := "_representations"
+		for i := 2; p.downstreamDeclaresVariable(candidate); i++ {
+			candidate = fmt.Sprintf("_representations%d", i)
+		}
+		name = candidate
+	}
+	p.representationsVariableNameCached = name
+	return name
+}
+
+// downstreamDeclaresVariable reports whether the downstream document declares a
+// variable with the given name. The scan is document-wide (ast.Document backing
+// store), not per-operation — deliberately conservative: it can over-detect and
+// rename the synthetic unnecessarily (harmless, internal to the subgraph
+// request) but can never miss a real collision.
+func (p *Planner[T]) downstreamDeclaresVariable(name string) bool {
+	if p.visitor == nil || p.visitor.Operation == nil {
+		return false
+	}
+	nameBytes := []byte(name)
+	for ref := range p.visitor.Operation.VariableDefinitions {
+		if bytes.Equal(p.visitor.Operation.VariableDefinitionNameBytes(ref), nameBytes) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Planner[T]) addRepresentationsVariable() {
 	if !p.hasFederationRoot {
 		return
@@ -888,7 +937,7 @@ func (p *Planner[T]) addRepresentationsVariable() {
 
 	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
 
-	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, "representations", fmt.Appendf(nil, "[%s]", variable))
+	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, p.representationsVariableName(), fmt.Appendf(nil, "[%s]", variable))
 }
 
 func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
@@ -1062,13 +1111,16 @@ func (p *Planner[T]) addOnTypeInlineFragment() {
 }
 
 func (p *Planner[T]) addEntitiesSelectionSet() {
-	// $representations
-	representationsLiteral := p.upstreamOperation.Input.AppendInputString("representations")
+	// The _entities argument name is fixed by the federation schema
+	// (_entities(representations: ...)); only the variable it binds to is
+	// renamed when the client already declares a $representations variable.
+	argumentLiteral := p.upstreamOperation.Input.AppendInputString("representations")
+	variableLiteral := p.upstreamOperation.Input.AppendInputString(p.representationsVariableName())
 	representationsVariable := p.upstreamOperation.AddVariableValue(ast.VariableValue{
-		Name: representationsLiteral,
+		Name: variableLiteral,
 	})
 	representationsArgument := p.upstreamOperation.AddArgument(ast.Argument{
-		Name: representationsLiteral,
+		Name: argumentLiteral,
 		Value: ast.Value{
 			Kind: ast.ValueKindVariable,
 			Ref:  representationsVariable,
@@ -1099,7 +1151,7 @@ func (p *Planner[T]) addRepresentationsVariableDefinition() {
 	listOfNonNullAnyType := p.upstreamOperation.AddListType(nonNullAnyType)
 	nonNullListOfNonNullAnyType := p.upstreamOperation.AddNonNullType(listOfNonNullAnyType)
 
-	representationsVariable := p.upstreamOperation.ImportVariableValue([]byte("representations"))
+	representationsVariable := p.upstreamOperation.ImportVariableValue([]byte(p.representationsVariableName()))
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, representationsVariable, nonNullListOfNonNullAnyType)
 }
 

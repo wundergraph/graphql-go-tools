@@ -11026,64 +11026,131 @@ func TestConfigureFetch_MergeableOperation(t *testing.T) {
 		}
 	})
 
-	// A client variable literally named "representations" that reaches an entity
-	// fetch's upstream operation makes the planner emit two $representations
-	// definitions, which fails upstream validation and yields a nil plan
-	// (pre-existing defect). The collision guard therefore cannot be observed
-	// through a successful plan, so its mechanism is exercised directly here.
-	t.Run("representations collision guard suppresses recording", func(t *testing.T) {
-		p := &Planner[Configuration]{recordUpstreamVariables: true}
-
-		out, err := p.setUpstreamVariable(nil, "first", []byte("$$0$$"))
-		require.NoError(t, err)
-		out, err = p.setUpstreamVariable(out, "representations", []byte("[$$1$$]"))
-		require.NoError(t, err)
-		require.False(t, p.upstreamVariableCollision)
-		require.Len(t, p.upstreamVariablesList, 2)
-
-		// A duplicate write to the representations slot marks the collision and
-		// replaces the value in place without growing the list.
-		_, err = p.setUpstreamVariable(out, "representations", []byte("[$$2$$]"))
-		require.NoError(t, err)
-		require.True(t, p.upstreamVariableCollision)
-		require.Len(t, p.upstreamVariablesList, 2)
-
-		reps, ok := findFragment(p.upstreamVariablesList, "representations")
-		require.True(t, ok)
-		require.Equal(t, "[$$2$$]", string(reps.Value))
-	})
-
 	t.Run("recording off leaves list untouched", func(t *testing.T) {
 		p := &Planner[Configuration]{recordUpstreamVariables: false}
 		_, err := p.setUpstreamVariable(nil, "representations", []byte("[$$0$$]"))
 		require.NoError(t, err)
 		require.Nil(t, p.upstreamVariablesList)
-		require.False(t, p.upstreamVariableCollision)
+	})
+}
+
+// TestGraphQLDataSource_RepresentationsCollision covers the pre-existing planner
+// defect (review item 2): a client operation that declares AND uses a variable
+// literally named $representations previously made the entity-fetch planner emit
+// two $representations definitions (the synthetic one plus the client's), which
+// clobbered on the shared body.variables slot and failed upstream validation.
+// The fix renames the synthetic variable to $_representations; the client's
+// variable keeps its name. This applies to ALL entity fetches (MultiFetch off).
+func TestGraphQLDataSource_RepresentationsCollision(t *testing.T) {
+	definition := `
+		type Query {
+			obj: Object
+			objs: [Object]
+		}
+		type Object {
+			id: ID!
+			name(x: String): String!
+			field: String!
+		}`
+
+	sub1 := `
+		type Query {
+			obj: Object
+			objs: [Object]
+		}
+		type Object @key(fields: "id") {
+			id: ID!
+			field: String!
+		}`
+
+	sub2 := `
+		type Object @key(fields: "id") {
+			id: ID!
+			name(x: String): String!
+		}`
+
+	config := plan.Configuration{
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"obj", "objs"}},
+						{TypeName: "Object", FieldNames: []string{"id", "field"}},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{TypeName: "Object", SelectionSet: "id"},
+						},
+					},
+				},
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch:               &FetchConfiguration{URL: "https://example.com/graphql"},
+					SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: sub1}, sub1),
+				}),
+			),
+			mustDataSourceConfiguration(
+				t,
+				"ds-id-2",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Object", FieldNames: []string{"id", "name"}},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{TypeName: "Object", SelectionSet: "id"},
+						},
+					},
+				},
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch:               &FetchConfiguration{URL: "https://example-2.com/graphql"},
+					SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: sub2}, sub2),
+				}),
+			),
+		},
+		DisableResolveFieldPositions: true,
+		Fields: plan.FieldConfigurations{
+			{
+				TypeName:  "Object",
+				FieldName: "name",
+				Arguments: plan.ArgumentsConfigurations{
+					{Name: "x", SourceType: plan.FieldArgumentSource},
+				},
+			},
+		},
+	}
+
+	entityFetchInput := func(t *testing.T, operation string) string {
+		t.Helper()
+		syncPlan := planMergeableOperationTest(t, definition, operation, "", config)
+		for _, item := range syncPlan.Response.RawFetches {
+			sf, ok := item.Fetch.(*resolve.SingleFetch)
+			require.True(t, ok)
+			if sf.RequiresEntityFetch || sf.RequiresEntityBatchFetch {
+				return sf.Input
+			}
+		}
+		t.Fatal("no entity fetch found in plan")
+		return ""
+	}
+
+	// The synthetic is renamed to $_representations and binds the _entities
+	// argument (whose name stays "representations"); the client's $representations
+	// keeps its name and continues to feed the name(x:) argument. Both variables
+	// appear in body.variables with no clobbering. The single- and batch-entity
+	// shapes print the identical upstream operation; they differ only in the
+	// representations-variable rendering (single object vs array), which is not
+	// part of the printed input string.
+	const expectedInput = `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($_representations: [_Any!]!, $representations: String){_entities(representations: $_representations){... on Object {__typename name(x: $representations)}}}","variables":{"_representations":[$$1$$],"representations":$$0$$}}}`
+
+	t.Run("RequiresEntityFetch", func(t *testing.T) {
+		input := entityFetchInput(t, `query($representations: String){ obj { field name(x: $representations) } }`)
+		assert.Equal(t, expectedInput, input)
 	})
 
-	// The broken plan is pre-existing and independent of the flag: it fails
-	// upstream validation regardless of EnableMultiFetch.
-	t.Run("representations collision fixture fails to plan regardless of flag", func(t *testing.T) {
-		op := `query($representations: String) { obj { field name(x: $representations) } }`
-		for _, enabled := range []bool{true, false} {
-			def := unsafeparser.ParseGraphqlDocumentString(definition)
-			clientOp := unsafeparser.ParseGraphqlDocumentString(op)
-			require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
-
-			norm := astnormalization.NewWithOpts(
-				astnormalization.WithExtractVariables(),
-				astnormalization.WithInlineFragmentSpreads(),
-				astnormalization.WithRemoveFragmentDefinitions(),
-				astnormalization.WithRemoveUnusedVariables(),
-			)
-			var report operationreport.Report
-			norm.NormalizeOperation(&clientOp, &def, &report)
-			require.False(t, report.HasErrors(), report.Error())
-
-			pl, err := plan.NewPlanner(newConfig(enabled))
-			require.NoError(t, err)
-			pl.Plan(&clientOp, &def, "", &report)
-			require.True(t, report.HasErrors())
-		}
+	t.Run("RequiresEntityBatchFetch", func(t *testing.T) {
+		input := entityFetchInput(t, `query($representations: String){ objs { field name(x: $representations) } }`)
+		assert.Equal(t, expectedInput, input)
 	})
 }
