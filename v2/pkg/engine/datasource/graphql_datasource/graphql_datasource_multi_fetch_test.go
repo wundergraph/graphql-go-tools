@@ -2005,3 +2005,109 @@ func TestGraphQLDataSourceFederation_MultiFetch_Subscription(t *testing.T) {
 		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
 	))
 }
+
+// TestGraphQLDataSourceFederation_MultiFetch_RepresentationsCollision exercises
+// the planner representations-collision fix (review item 2) end-to-end under
+// MultiFetch: the client declares AND uses a variable literally named
+// $representations. The planner renames the synthetic representations variable
+// to $_representations on every member; the merge stage then applies its normal
+// per-member suffix, so the synthetic flows through as $_representations_f1 /
+// $_representations_f2, while the client's variable becomes $representations_f1.
+// The fetches are merged (no longer refused), proving the collision fix removes
+// the MultiFetch opt-out.
+func TestGraphQLDataSourceFederation_MultiFetch_RepresentationsCollision(t *testing.T) {
+	// The recorded client variable is named "representations" and feeds the
+	// products(first:) argument; after the per-member rename it is
+	// "representations_f1" and reads context path ["representations"].
+	clientRepresentationsVar := resolve.MultiEntityFetchVariable{
+		KeyPrefix: []byte(`,"representations_f1":`),
+		Value: resolve.InputTemplate{
+			Segments: []resolve.TemplateSegment{
+				{SegmentType: resolve.StaticSegmentType},
+				{
+					SegmentType:        resolve.VariableSegmentType,
+					VariableKind:       resolve.ContextVariableKind,
+					VariableSourcePath: []string{"representations"},
+					Renderer:           resolve.NewJSONVariableRenderer(),
+				},
+				{SegmentType: resolve.StaticSegmentType},
+			},
+		},
+	}
+
+	// f1: employees -> products(first: $representations). Reuse the products
+	// entry but override the two fields the rename changes: the renamed synthetic
+	// representations key and the client variable.
+	productsEntry := multiFetchProductsEntry("f1", "array", "employees", false)
+	productsEntry.RepresentationsPrefix = []byte(`"_representations_f1":[`)
+	productsEntry.Variables = []resolve.MultiEntityFetchVariable{clientRepresentationsVar}
+
+	// f2: employee -> notes. Only the renamed synthetic key changes.
+	notesEntry := multiFetchNotesEntry()
+	notesEntry.RepresentationsPrefix = []byte(`,"_representations_f2":[`)
+
+	t.Run("client $representations collides, fetch still merges", func(t *testing.T) {
+		// The synthetic is renamed to $_representations; both the merged query
+		// ($_representations_f1/$_representations_f2) and the input statics
+		// (RepresentationsPrefix) must agree on the renamed key.
+		RunTest(
+			multiFetchArgDefinition(),
+			`query($representations: Int){ employees { id products(first: $representations) } employee { id notes } }`,
+			"",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: multiFetchResponseData(),
+					Info: &resolve.GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+					Fetches: resolve.Sequence(
+						multiFetchRootFetch(),
+						&resolve.FetchTreeNode{
+							Kind: resolve.FetchTreeNodeKindSingle,
+							Item: &resolve.FetchItem{
+								Fetch: &resolve.MultiEntityFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
+									Input: resolve.MultiEntityInput{
+										Header: resolve.InputTemplate{
+											Segments: []resolve.TemplateSegment{
+												{
+													SegmentType: resolve.StaticSegmentType,
+													Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query($_representations_f1: [_Any!]!, $representations_f1: Int, $includeF1: Boolean!, $_representations_f2: [_Any!]!, $includeF2: Boolean!){f1: _entities(representations: $_representations_f1)@include(if: $includeF1) {... on Employee {__typename products(first: $representations_f1)}} f2: _entities(representations: $_representations_f2)@include(if: $includeF2) {... on Employee {__typename notes}}}","variables":{`),
+												},
+											},
+										},
+										Entries: []resolve.MultiEntityFetchEntry{
+											productsEntry,
+											notesEntry,
+										},
+										Footer: resolve.InputTemplate{
+											Segments: []resolve.TemplateSegment{
+												{SegmentType: resolve.StaticSegmentType, Data: []byte(`}}}`)},
+											},
+										},
+									},
+									DataSource:           &Source{},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									MergedFetchIDs:       []int{1, 2},
+									Info: &resolve.FetchInfo{
+										DataSourceID:   "products",
+										DataSourceName: "products",
+										RootFields: []resolve.GraphCoordinate{
+											{TypeName: "Employee", FieldName: "products"},
+											{TypeName: "Employee", FieldName: "notes"},
+										},
+										OperationType: ast.OperationTypeQuery,
+									},
+								},
+							},
+						},
+					),
+				},
+			},
+			multiFetchArgPlanConfig(t),
+			WithFieldInfo(),
+			WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+		)(t)
+	})
+}
