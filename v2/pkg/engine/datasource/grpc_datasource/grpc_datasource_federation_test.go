@@ -2238,6 +2238,117 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractReturnTypes(t *t
 			},
 		},
 		{
+			name:  "Query Storage with recommendedItem returning an interface type containing a nested interface type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id recommendedItem { __typename ... on PalletItem { name palletCount handler { name assignedItem { __typename ... on ContainerItem { name containerSize } ... on PalletItem { name palletCount } } } } ... on ContainerItem { name containerSize handler { name assignedItem { __typename ... on ContainerItem { name containerSize } ... on PalletItem { name palletCount } } } } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","metadata":{"capacity":200,"zone":"A"}},
+				{"__typename":"Storage","id":"2","metadata":{"capacity":50,"zone":"B"}}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItem",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storages := entities(t, data, 2)
+
+				// PalletItem -> handler -> assignedItem resolves to a ContainerItem
+				item1, ok := storages[0]["recommendedItem"].(map[string]any)
+				require.True(t, ok, "recommendedItem should be an object")
+				require.Equal(t, "PalletItem", item1["__typename"])
+				require.Equal(t, "Pallet for zone A", item1["name"])
+
+				handler1, ok := item1["handler"].(map[string]any)
+				require.True(t, ok, "handler should be an object")
+				require.Equal(t, "Handler for Pallet for zone A", handler1["name"])
+
+				assigned1, ok := handler1["assignedItem"].(map[string]any)
+				require.True(t, ok, "assignedItem should be an object")
+				require.Equal(t, "ContainerItem", assigned1["__typename"])
+				require.Equal(t, "Pallet for zone A assigned container", assigned1["name"])
+				require.Equal(t, "20ft", assigned1["containerSize"])
+				require.NotContains(t, assigned1, "palletCount", "the nested abstract type must resolve its own concrete member")
+
+				// ContainerItem -> handler -> assignedItem resolves to a PalletItem
+				item2, ok := storages[1]["recommendedItem"].(map[string]any)
+				require.True(t, ok, "recommendedItem should be an object")
+				require.Equal(t, "ContainerItem", item2["__typename"])
+				require.Equal(t, "Container for zone B", item2["name"])
+
+				handler2, ok := item2["handler"].(map[string]any)
+				require.True(t, ok, "handler should be an object")
+				require.Equal(t, "Handler for Container for zone B", handler2["name"])
+
+				assigned2, ok := handler2["assignedItem"].(map[string]any)
+				require.True(t, ok, "assignedItem should be an object")
+				require.Equal(t, "PalletItem", assigned2["__typename"])
+				require.Equal(t, "Container for zone B assigned pallet", assigned2["name"])
+				require.Equal(t, float64(7), assigned2["palletCount"])
+				require.NotContains(t, assigned2, "containerSize", "the nested abstract type must resolve its own concrete member")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with recommendedItems returning a list of interfaces containing nested interface types",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id recommendedItems { __typename ... on PalletItem { name handler { assignedItem { __typename ... on ContainerItem { name containerSize } } } } ... on ContainerItem { name handler { assignedItem { __typename ... on PalletItem { name palletCount } } } } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","tags":["alpha","beta"]}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItems",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storage1 := entities(t, data, 1)[0]
+				items, ok := storage1["recommendedItems"].([]any)
+				require.True(t, ok, "recommendedItems should be an array")
+				require.Len(t, items, 2)
+
+				// Each list element resolves its own concrete member and its own nested abstract type
+				item0, ok := items[0].(map[string]any)
+				require.True(t, ok, "item 0 should be an object")
+				require.Equal(t, "PalletItem", item0["__typename"])
+				require.Equal(t, "Pallet alpha", item0["name"])
+				handler0, ok := item0["handler"].(map[string]any)
+				require.True(t, ok, "handler should be an object")
+				assigned0, ok := handler0["assignedItem"].(map[string]any)
+				require.True(t, ok, "assignedItem should be an object")
+				require.Equal(t, "ContainerItem", assigned0["__typename"])
+				require.Equal(t, "Pallet alpha assigned container", assigned0["name"])
+				require.Equal(t, "20ft", assigned0["containerSize"])
+
+				item1, ok := items[1].(map[string]any)
+				require.True(t, ok, "item 1 should be an object")
+				require.Equal(t, "ContainerItem", item1["__typename"])
+				require.Equal(t, "Container beta", item1["name"])
+				handler1, ok := item1["handler"].(map[string]any)
+				require.True(t, ok, "handler should be an object")
+				assigned1, ok := handler1["assignedItem"].(map[string]any)
+				require.True(t, ok, "assignedItem should be an object")
+				require.Equal(t, "PalletItem", assigned1["__typename"])
+				require.Equal(t, "Container beta assigned pallet", assigned1["name"])
+				require.Equal(t, float64(7), assigned1["palletCount"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
 			name:  "Query Storage with recommendedItems returning a list of an interface type",
 			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id recommendedItems { __typename name ... on PalletItem { palletCount } ... on ContainerItem { containerSize } } } } }`,
 			vars: `{"variables":{"representations":[

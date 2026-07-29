@@ -3805,6 +3805,184 @@ func TestExecutionPlan_FederationRequires_AbstractReturnTypes(t *testing.T) {
 			},
 		},
 		{
+			name:    "requires field returning an interface type with a nested interface type",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name recommendedItem { ... on PalletItem { name handler { name assignedItem { ... on ContainerItem { name containerSize } ... on PalletItem { name palletCount } } } } ... on ContainerItem { name containerSize } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItem",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageRecommendedItemById",
+						ResponsePath: buildPath("_entities.recommendedItem"),
+						Request: RPCMessage{
+							Name: "RequireStorageRecommendedItemByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageRecommendedItemByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message:       storageKeyMessage(),
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageRecommendedItemByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "metadata",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "metadata",
+															Message: &RPCMessage{
+																Name: "RequireStorageRecommendedItemByIdFields.StorageMetadata",
+																Fields: []RPCField{
+																	{
+																		Name:          "capacity",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "capacity",
+																	},
+																	{
+																		Name:          "zone",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "zone",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageRecommendedItemByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageRecommendedItemByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "recommended_item",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "recommendedItem",
+												Message: &RPCMessage{
+													Name:        "StorageItem",
+													OneOfType:   OneOfTypeInterface,
+													MemberTypes: []string{"PalletItem", "ContainerItem"},
+													FragmentFields: RPCFieldSelectionSet{
+														"PalletItem": {
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+															{
+																Name:          "handler",
+																ProtoTypeName: DataTypeMessage,
+																JSONPath:      "handler",
+																Message: &RPCMessage{
+																	Name: "ItemHandler",
+																	Fields: RPCFields{
+																		{
+																			Name:          "name",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "name",
+																		},
+																		{
+																			// The nested abstract type resolves through
+																			// the concrete ItemHandler intermediary.
+																			Name:          "assigned_item",
+																			ProtoTypeName: DataTypeMessage,
+																			JSONPath:      "assignedItem",
+																			Message: &RPCMessage{
+																				Name:        "StorageItem",
+																				OneOfType:   OneOfTypeInterface,
+																				MemberTypes: []string{"PalletItem", "ContainerItem"},
+																				FragmentFields: RPCFieldSelectionSet{
+																					"PalletItem": {
+																						{
+																							Name:          "name",
+																							ProtoTypeName: DataTypeString,
+																							JSONPath:      "name",
+																						},
+																						{
+																							Name:          "pallet_count",
+																							ProtoTypeName: DataTypeInt32,
+																							JSONPath:      "palletCount",
+																						},
+																					},
+																					"ContainerItem": {
+																						{
+																							Name:          "name",
+																							ProtoTypeName: DataTypeString,
+																							JSONPath:      "name",
+																						},
+																						{
+																							Name:          "container_size",
+																							ProtoTypeName: DataTypeString,
+																							JSONPath:      "containerSize",
+																						},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+														"ContainerItem": {
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+															{
+																Name:          "container_size",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "containerSize",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name:    "requires field returning a list of an interface type",
 			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name recommendedItems { ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } } } } }`,
 			mapping: testMapping(),

@@ -475,7 +475,9 @@ func (s *MockService) RequireStorageDeepItemInfoById(_ context.Context, req *pro
 }
 
 // newPalletStorageItem builds a fully populated PalletItem wrapped in the StorageItem interface message.
-func newPalletStorageItem(id, name string, palletCount int32) *productv1.StorageItem {
+// assignedItem is attached to the item's handler and may be nil to terminate the recursion,
+// as StorageItem is reachable from itself via handler.assignedItem.
+func newPalletStorageItem(id, name string, palletCount int32, assignedItem *productv1.StorageItem) *productv1.StorageItem {
 	return &productv1.StorageItem{
 		Instance: &productv1.StorageItem_PalletItem{
 			PalletItem: &productv1.PalletItem{
@@ -484,8 +486,9 @@ func newPalletStorageItem(id, name string, palletCount int32) *productv1.Storage
 				Weight:      float64(palletCount) * 12.5,
 				PalletCount: palletCount,
 				Handler: &productv1.ItemHandler{
-					Id:   id + "-handler",
-					Name: "Handler for " + name,
+					Id:           id + "-handler",
+					Name:         "Handler for " + name,
+					AssignedItem: assignedItem,
 				},
 				Specs: &productv1.PalletSpecs{
 					Name:      name + " specs",
@@ -502,7 +505,9 @@ func newPalletStorageItem(id, name string, palletCount int32) *productv1.Storage
 }
 
 // newContainerStorageItem builds a fully populated ContainerItem wrapped in the StorageItem interface message.
-func newContainerStorageItem(id, name, containerSize string) *productv1.StorageItem {
+// assignedItem is attached to the item's handler and may be nil to terminate the recursion,
+// as StorageItem is reachable from itself via handler.assignedItem.
+func newContainerStorageItem(id, name, containerSize string, assignedItem *productv1.StorageItem) *productv1.StorageItem {
 	return &productv1.StorageItem{
 		Instance: &productv1.StorageItem_ContainerItem{
 			ContainerItem: &productv1.ContainerItem{
@@ -511,8 +516,9 @@ func newContainerStorageItem(id, name, containerSize string) *productv1.StorageI
 				Weight:        float64(len(containerSize)) * 7.5,
 				ContainerSize: containerSize,
 				Handler: &productv1.ItemHandler{
-					Id:   id + "-handler",
-					Name: "Handler for " + name,
+					Id:           id + "-handler",
+					Name:         "Handler for " + name,
+					AssignedItem: assignedItem,
 				},
 				Specs: &productv1.ContainerSpecs{
 					Name:   name + " specs",
@@ -528,6 +534,20 @@ func newContainerStorageItem(id, name, containerSize string) *productv1.StorageI
 	}
 }
 
+// newHandledPalletStorageItem builds a PalletItem whose handler is assigned a ContainerItem,
+// so that a nested abstract type is reachable within an abstract result.
+func newHandledPalletStorageItem(id, name string, palletCount int32) *productv1.StorageItem {
+	assigned := newContainerStorageItem(id+"-assigned", name+" assigned container", "20ft", nil)
+	return newPalletStorageItem(id, name, palletCount, assigned)
+}
+
+// newHandledContainerStorageItem builds a ContainerItem whose handler is assigned a PalletItem,
+// so that a nested abstract type is reachable within an abstract result.
+func newHandledContainerStorageItem(id, name, containerSize string) *productv1.StorageItem {
+	assigned := newPalletStorageItem(id+"-assigned", name+" assigned pallet", 7, nil)
+	return newContainerStorageItem(id, name, containerSize, assigned)
+}
+
 // RequireStorageRecommendedItemById implements [productv1.ProductServiceServer].
 // Returns an interface (StorageItem) derived from the required metadata fields.
 func (s *MockService) RequireStorageRecommendedItemById(_ context.Context, req *productv1.RequireStorageRecommendedItemByIdRequest) (*productv1.RequireStorageRecommendedItemByIdResponse, error) {
@@ -541,13 +561,13 @@ func (s *MockService) RequireStorageRecommendedItemById(_ context.Context, req *
 		// High capacity storages get a pallet recommendation, everything else a container.
 		var item *productv1.StorageItem
 		if capacity > 100 {
-			item = newPalletStorageItem(
+			item = newHandledPalletStorageItem(
 				fmt.Sprintf("pallet-%s-%d", zone, capacity),
 				fmt.Sprintf("Pallet for zone %s", zone),
 				capacity/10,
 			)
 		} else {
-			item = newContainerStorageItem(
+			item = newHandledContainerStorageItem(
 				fmt.Sprintf("container-%s-%d", zone, capacity),
 				fmt.Sprintf("Container for zone %s", zone),
 				fmt.Sprintf("%dL", capacity),
@@ -574,13 +594,13 @@ func (s *MockService) RequireStorageRecommendedItemsById(_ context.Context, req 
 		for i, tag := range tags {
 			// Alternate between both concrete types so every list contains a mix.
 			if i%2 == 0 {
-				items = append(items, newPalletStorageItem(
+				items = append(items, newHandledPalletStorageItem(
 					fmt.Sprintf("pallet-%s", tag),
 					fmt.Sprintf("Pallet %s", tag),
 					int32(i+1),
 				))
 			} else {
-				items = append(items, newContainerStorageItem(
+				items = append(items, newHandledContainerStorageItem(
 					fmt.Sprintf("container-%s", tag),
 					fmt.Sprintf("Container %s", tag),
 					strings.ToUpper(tag),
