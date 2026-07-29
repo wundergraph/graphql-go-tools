@@ -1,11 +1,13 @@
 package resolve
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 )
 
 type FetchKind int
@@ -287,7 +289,21 @@ type FetchConfiguration struct {
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
-	if fc.Input != other.Input {
+	// When both sides deferred input assembly (empty Input) and carry a
+	// SubgraphOperation artifact, compare the structured artifact (envelope,
+	// recorded variables, and the print-once operation bytes) instead of the
+	// printed Input string. When only one side has such an artifact, they are
+	// not equal. Otherwise fall back to the byte comparison of the printed Input.
+	aArtifact := fc.Input == "" && fc.SubgraphOperation != nil
+	bArtifact := other.Input == "" && other.SubgraphOperation != nil
+	if aArtifact != bArtifact {
+		return false
+	}
+	if aArtifact {
+		if !subgraphOperationsEqual(fc.SubgraphOperation, other.SubgraphOperation) {
+			return false
+		}
+	} else if fc.Input != other.Input {
 		return false
 	}
 	if !slices.EqualFunc(fc.Variables, other.Variables, func(a, b Variable) bool {
@@ -312,6 +328,58 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	}
 
 	return true
+}
+
+// subgraphOperationsEqual reports whether two deferred SubgraphOperation
+// artifacts would render to the same fetch input: identical envelope
+// (method/url/header bytes), identical recorded variables (name + raw value,
+// order-sensitive), and identical printed operation. The operation print is
+// obtained via the print-once cache (supplying an astprinter closure); after
+// this call both sides have their print cached.
+func subgraphOperationsEqual(a, b *SubgraphOperation) bool {
+	if a.Envelope.Method != b.Envelope.Method {
+		return false
+	}
+	if a.Envelope.URL != b.Envelope.URL {
+		return false
+	}
+	if !bytes.Equal(a.Envelope.Header, b.Envelope.Header) {
+		return false
+	}
+	if len(a.Variables) != len(b.Variables) {
+		return false
+	}
+	for i := range a.Variables {
+		if a.Variables[i].Name != b.Variables[i].Name {
+			return false
+		}
+		if !bytes.Equal(a.Variables[i].Value, b.Variables[i].Value) {
+			return false
+		}
+	}
+	aQuery, err := a.PrintedQuery(printSubgraphOperation(a))
+	if err != nil {
+		return false
+	}
+	bQuery, err := b.PrintedQuery(printSubgraphOperation(b))
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(aQuery, bQuery)
+}
+
+// printSubgraphOperation returns a closure that prints the artifact's document
+// with astprinter (minified compact form). It is used only when the print-once
+// cache is empty; the planner normally seeds the cache with the exact bytes it
+// produced (preserving minification), so this closure is a fallback.
+func printSubgraphOperation(o *SubgraphOperation) func() ([]byte, error) {
+	return func() ([]byte, error) {
+		printed, err := astprinter.PrintString(o.Document)
+		if err != nil {
+			return nil, err
+		}
+		return []byte(printed), nil
+	}
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

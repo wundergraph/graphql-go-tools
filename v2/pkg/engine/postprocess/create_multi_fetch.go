@@ -1,30 +1,32 @@
 package postprocess
 
 import (
+	"bytes"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // createMultiFetch merges same-subgraph entity fetches that would execute in
 // the same parallel wave into a single MultiEntityFetch with aliased
-// _entities fields. It always clears SubgraphOperation artifacts, even when
-// disabled, so no AST survives postprocessing.
+// _entities fields. The SubgraphOperation artifacts are cleared by the
+// renderSubgraphInputs stage, which runs immediately after this one.
 type createMultiFetch struct {
 	disable bool
 }
 
 func (c *createMultiFetch) ProcessFetchTree(root *resolve.FetchTreeNode) {
-	if !c.disable {
-		for _, group := range c.collectGroups(root) {
-			c.mergeGroup(root, group)
-		}
+	if c.disable {
+		return
 	}
-	c.clearSubgraphOperations(root)
+	for _, group := range c.collectGroups(root) {
+		c.mergeGroup(root, group)
+	}
 }
 
 // mergeGroup merges a candidate group into one MultiEntityFetch, printing the
@@ -37,25 +39,29 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 		members[i] = node.Item.Fetch.(*resolve.SingleFetch)
 	}
 
-	splits := make([]fetchInputSplit, len(members))
-	for i, m := range members {
-		s, ok := splitEntityFetchInput(m.Input)
-		if !ok {
-			return
-		}
-		splits[i] = s
-	}
-
-	// Envelope precondition: every member's input minus its query and variables
-	// ranges must be byte-equal, and any shared $$K$$ token must reference the
-	// same variable across members.
-	baseRemainder := envelopeRemainder(members[0].Input, splits[0])
+	// Envelope precondition: every member's structured envelope (method, url,
+	// header bytes) must be byte-equal. This replaces the old envelope-remainder
+	// byte comparison of the printed inputs; because every member's input is
+	// assembled from its envelope by the same httpclient helper, equal envelopes
+	// imply equal envelope remainders.
+	base := members[0].SubgraphOperation
 	for i := 1; i < len(members); i++ {
-		if envelopeRemainder(members[i].Input, splits[i]) != baseRemainder {
+		op := members[i].SubgraphOperation
+		if op.Envelope.Method != base.Envelope.Method ||
+			op.Envelope.URL != base.Envelope.URL ||
+			!bytes.Equal(op.Envelope.Header, base.Envelope.Header) {
 			return
 		}
 	}
-	for _, k := range envelopeTokenIndices(baseRemainder) {
+	// Any $$K$$ token embedded in the envelope (method/url/header) must reference
+	// the same fetch variable across members — the structured equivalent of the
+	// old envelope-token check. In practice the planner never emits $$K$$ tokens
+	// into the envelope (url/method are static strings and the header is static
+	// config marshalled to JSON), so for real plans this check finds no tokens
+	// and reduces to nothing; it is retained to preserve the exact merge-abort
+	// semantics for envelopes that do carry template tokens.
+	envelopeTokenSource := base.Envelope.Method + base.Envelope.URL + string(base.Envelope.Header)
+	for _, k := range envelopeTokenIndices(envelopeTokenSource) {
 		for i := 1; i < len(members); i++ {
 			if k >= len(members[i].Variables) || k >= len(members[0].Variables) ||
 				!members[i].Variables[k].Equals(members[0].Variables[k]) {
@@ -69,18 +75,27 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 		return
 	}
 
+	// Build Header/Footer from the structured envelope + merged compact operation
+	// via the SAME httpclient assembly the planner uses for an unmerged fetch,
+	// guaranteeing byte-identity of the envelope. We assemble with an empty-object
+	// variables placeholder and split at the "variables":{} boundary we injected;
+	// the per-entry templates render the variables object body between Header and
+	// Footer. No scanning of an unknown input is involved.
 	s1 := members[0]
-	split1 := splits[0]
-	var headerSource, footerSource string
-	if split1.queryStart < split1.variablesStart {
-		// repo shape: query before variables
-		headerSource = s1.Input[:split1.queryStart] + compact + s1.Input[split1.queryEnd:split1.variablesStart] + "{"
-		footerSource = "}" + s1.Input[split1.variablesEnd:]
-	} else {
-		// append shape: variables before query
-		headerSource = s1.Input[:split1.variablesStart] + "{"
-		footerSource = "}" + s1.Input[split1.variablesEnd:split1.queryStart] + compact + s1.Input[split1.queryEnd:]
+	env := s1.SubgraphOperation.Envelope
+	assembled, err := httpclient.AssembleGraphQLRequestInput([]byte("{}"), []byte(compact), env.Header, env.URL, env.Method)
+	if err != nil {
+		return
 	}
+	const varsOpen = `"variables":{`
+	marker := []byte(`"variables":{}`)
+	idx := bytes.Index(assembled, marker)
+	if idx == -1 {
+		return
+	}
+	boundary := idx + len(varsOpen)
+	headerSource := string(assembled[:boundary])
+	footerSource := string(assembled[boundary:])
 	var header, footer resolve.InputTemplate
 	resolveInputTemplate(s1.Variables, headerSource, &header)
 	resolveInputTemplate(s1.Variables, footerSource, &footer)
@@ -428,14 +443,4 @@ func representationsFragmentIndex(fetch *resolve.SingleFetch) int {
 		index = i
 	}
 	return index
-}
-
-// clearSubgraphOperations nils SubgraphOperation on every SingleFetch child so
-// no planner AST survives postprocessing.
-func (c *createMultiFetch) clearSubgraphOperations(root *resolve.FetchTreeNode) {
-	for _, node := range root.ChildNodes {
-		if fetch, ok := node.Item.Fetch.(*resolve.SingleFetch); ok {
-			fetch.SubgraphOperation = nil
-		}
-	}
 }
