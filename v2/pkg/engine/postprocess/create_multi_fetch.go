@@ -24,16 +24,54 @@ func (c *createMultiFetch) ProcessFetchTree(root *resolve.FetchTreeNode) {
 	if c.disable {
 		return
 	}
-	for _, group := range c.collectGroups(root) {
-		c.mergeGroup(root, group)
+	c.walk(root, root)
+}
+
+// walk descends the ORGANIZED tree (produced by orderSequenceByDependencies +
+// createParallelNodes, run just before this stage) and merges same-datasource
+// entity fetches inside every real FetchTreeNodeKindParallel group. There is no
+// scratch tree and no DeferID partitioning: defer groups are extracted into
+// their own trees and organized separately before this stage runs, so the
+// parallel groups we see already encode the correct execution waves.
+func (c *createMultiFetch) walk(root, node *resolve.FetchTreeNode) {
+	if node == nil {
+		return
+	}
+	for i := 0; i < len(node.ChildNodes); i++ {
+		child := node.ChildNodes[i]
+		if child.Kind == resolve.FetchTreeNodeKindParallel {
+			for _, group := range c.groupCandidatesByDataSource(child) {
+				c.mergeGroup(root, child, group)
+			}
+			// createParallelNodes materializes a Parallel node only for >1
+			// children; once merging collapses a group to a single survivor the
+			// Parallel wrapper must collapse back to the bare Single node to
+			// preserve that invariant.
+			if len(child.ChildNodes) == 1 {
+				node.ChildNodes[i] = child.ChildNodes[0]
+			}
+		}
+		c.walk(root, node.ChildNodes[i])
 	}
 }
 
 // mergeGroup merges a candidate group into one MultiEntityFetch, printing the
 // aliased operation, authoring per-entry template material, and rewiring
-// dependents onto the survivor fetch ID. Any precondition failure leaves the
-// group untouched.
-func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*resolve.FetchTreeNode) {
+// dependents onto the survivor fetch ID. The merged node replaces the first
+// group member inside its containing parallel node; the other members are
+// removed from that node. Any precondition failure leaves the group untouched.
+//
+// parent is the FetchTreeNodeKindParallel node that holds the group members;
+// root is the whole organized tree, walked to rewire dependents.
+func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group []*resolve.FetchTreeNode) {
+	// Order-stability insurance (design D2): sort members by FetchID before
+	// aliasing so alias/entry order is independent of any ordering behaviour in
+	// orderSequenceByDependencies. Real waves already list members in ascending
+	// FetchID order, so this reproduces the historical flat-order aliasing.
+	slices.SortFunc(group, func(a, b *resolve.FetchTreeNode) int {
+		return a.Item.Fetch.(*resolve.SingleFetch).FetchID - b.Item.Fetch.(*resolve.SingleFetch).FetchID
+	})
+
 	members := make([]*resolve.SingleFetch, len(group))
 	for i, node := range group {
 		members[i] = node.Item.Fetch.(*resolve.SingleFetch)
@@ -187,26 +225,27 @@ func (c *createMultiFetch) mergeGroup(root *resolve.FetchTreeNode, group []*reso
 	// would make the plan cyclic (breaking structural plan comparison), and
 	// the per-entry merge path never dereferences it.
 
-	// Replace the first member's node with the multi node, drop the rest, then
-	// repoint dependents from every merged member ID onto the survivor.
+	// Replace the first member encountered inside the parallel node with the
+	// multi node, drop the rest, then repoint dependents (anywhere in the
+	// organized tree) from every merged member ID onto the survivor.
 	memberNodes := make(map[*resolve.FetchTreeNode]struct{}, len(group))
 	for _, n := range group {
 		memberNodes[n] = struct{}{}
 	}
-	first := group[0]
 	multiNode := &resolve.FetchTreeNode{Kind: resolve.FetchTreeNodeKindSingle, Item: &resolve.FetchItem{Fetch: multi}}
-	newChildren := make([]*resolve.FetchTreeNode, 0, len(root.ChildNodes))
-	for _, n := range root.ChildNodes {
-		if n == first {
-			newChildren = append(newChildren, multiNode)
-			continue
-		}
+	newChildren := make([]*resolve.FetchTreeNode, 0, len(parent.ChildNodes))
+	inserted := false
+	for _, n := range parent.ChildNodes {
 		if _, isMember := memberNodes[n]; isMember {
+			if !inserted {
+				newChildren = append(newChildren, multiNode)
+				inserted = true
+			}
 			continue
 		}
 		newChildren = append(newChildren, n)
 	}
-	root.ChildNodes = newChildren
+	parent.ChildNodes = newChildren
 
 	for _, id := range ids {
 		if id != multi.FetchID {
@@ -318,74 +357,53 @@ func mergedFetchInfo(members []*resolve.SingleFetch, pretty string) *resolve.Fet
 	return info
 }
 
-// collectGroups returns the candidate sets to merge: candidates sharing a
-// DataSourceID within the same simulated parallel wave, ordered as they appear
-// in that wave, keeping only sets with at least two members.
+// collectGroups returns every candidate set to merge across the ORGANIZED tree:
+// it descends into each FetchTreeNodeKindParallel group and, within it, buckets
+// candidates by DataSourceID (see groupCandidatesByDataSource). It is a
+// read-only query used by ProcessFetchTree's walk and by unit tests; it does not
+// mutate the tree.
 func (c *createMultiFetch) collectGroups(root *resolve.FetchTreeNode) [][]*resolve.FetchTreeNode {
 	var result [][]*resolve.FetchTreeNode
-	for _, wave := range c.wavesInOrder(root) {
-		byDataSource := map[string][]*resolve.FetchTreeNode{}
-		var order []string
-		for _, node := range wave {
-			if !c.isCandidate(node) {
-				continue
-			}
-			id := node.Item.Fetch.(*resolve.SingleFetch).Info.DataSourceID
-			if _, seen := byDataSource[id]; !seen {
-				order = append(order, id)
-			}
-			byDataSource[id] = append(byDataSource[id], node)
+	var walk func(node *resolve.FetchTreeNode)
+	walk = func(node *resolve.FetchTreeNode) {
+		if node == nil {
+			return
 		}
-		for _, id := range order {
-			if len(byDataSource[id]) >= 2 {
-				result = append(result, byDataSource[id])
-			}
+		if node.Kind == resolve.FetchTreeNodeKindParallel {
+			result = append(result, c.groupCandidatesByDataSource(node)...)
+		}
+		for _, child := range node.ChildNodes {
+			walk(child)
 		}
 	}
+	walk(root)
 	return result
 }
 
-// wavesInOrder simulates the organize stages on a scratch copy per DeferID
-// partition and returns the flat child nodes grouped into execution waves. The
-// stages mutate only the scratch root's ChildNodes slice, never the nodes.
-func (c *createMultiFetch) wavesInOrder(root *resolve.FetchTreeNode) [][]*resolve.FetchTreeNode {
-	var waves [][]*resolve.FetchTreeNode
-	for _, partition := range c.partitionByDeferID(root.ChildNodes) {
-		scratch := &resolve.FetchTreeNode{
-			Kind:       resolve.FetchTreeNodeKindSequence,
-			ChildNodes: append([]*resolve.FetchTreeNode(nil), partition...),
+// groupCandidatesByDataSource buckets the candidate children of a single
+// parallel node by DataSourceID, in first-seen order, keeping only buckets with
+// at least two members. Because every member of a parallel group is schedulable
+// in the same wave, any bucket is safe to merge into one MultiEntityFetch.
+func (c *createMultiFetch) groupCandidatesByDataSource(parallel *resolve.FetchTreeNode) [][]*resolve.FetchTreeNode {
+	byDataSource := map[string][]*resolve.FetchTreeNode{}
+	var order []string
+	for _, node := range parallel.ChildNodes {
+		if !c.isCandidate(node) {
+			continue
 		}
-		(&orderSequenceByDependencies{}).ProcessFetchTree(scratch)
-		(&createParallelNodes{}).ProcessFetchTree(scratch)
-		for _, child := range scratch.ChildNodes {
-			switch child.Kind {
-			case resolve.FetchTreeNodeKindParallel:
-				waves = append(waves, child.ChildNodes)
-			default:
-				waves = append(waves, []*resolve.FetchTreeNode{child})
-			}
+		id := node.Item.Fetch.(*resolve.SingleFetch).Info.DataSourceID
+		if _, seen := byDataSource[id]; !seen {
+			order = append(order, id)
+		}
+		byDataSource[id] = append(byDataSource[id], node)
+	}
+	var groups [][]*resolve.FetchTreeNode
+	for _, id := range order {
+		if len(byDataSource[id]) >= 2 {
+			groups = append(groups, byDataSource[id])
 		}
 	}
-	return waves
-}
-
-// partitionByDeferID buckets children by DeferID, emitting buckets in
-// first-seen order and preserving each bucket's original child order.
-func (c *createMultiFetch) partitionByDeferID(children []*resolve.FetchTreeNode) [][]*resolve.FetchTreeNode {
-	buckets := map[int][]*resolve.FetchTreeNode{}
-	var order []int
-	for _, node := range children {
-		deferID := node.Item.Fetch.Dependencies().DeferID
-		if _, seen := buckets[deferID]; !seen {
-			order = append(order, deferID)
-		}
-		buckets[deferID] = append(buckets[deferID], node)
-	}
-	result := make([][]*resolve.FetchTreeNode, 0, len(order))
-	for _, deferID := range order {
-		result = append(result, buckets[deferID])
-	}
-	return result
+	return groups
 }
 
 // isCandidate reports whether the node holds a well-formed entity SingleFetch
