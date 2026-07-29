@@ -384,9 +384,10 @@ Datasource changes:
   post-validation) into `SubgraphOperation.Document` and then sets
   `p.upstreamOperation = nil`, making later mutation structurally impossible
   (a hypothetical reuse allocates a fresh document in `EnterDocument`).
-- No envelope is stored (see 3.1: header/URL `{{ }}` conversion happens after
-  ConfigureFetch). Envelope bytes are derived at merge time from the
-  surviving member's post-visitor `Input`.
+- The structured `SubgraphOperation.Envelope` (method, url, raw header bytes)
+  is recorded from the same envelope assembly the planner uses for the input;
+  the `renderSubgraphInputs` and merge stages read it directly, so no envelope
+  bytes need to be recovered from a printed input at merge time.
 
 ### 4.4 New postprocess stage: `createMultiFetch`
 
@@ -451,34 +452,40 @@ the executed wave (zero added latency).
    `QueryPlan.Query` when subs carry query plans.
 
 **Merged input assembly.** The stage outputs the concrete
-`resolve.MultiEntityFetch` directly. The input skeleton derives from the
-surviving member's post-visitor `Input` string via a small quote-aware scanner
-(handles `$$N$$` tokens transparently — tokens contain no braces or quotes):
+`resolve.MultiEntityFetch` directly. There is no string scanner: the input
+skeleton is assembled from the survivor's structured
+`SubgraphOperation.Envelope` (method, url, raw header bytes) plus the merged
+compact operation, via the **same** `httpclient.AssembleGraphQLRequestInput`
+helper the planner and the `renderSubgraphInputs` stage use for an unmerged
+fetch — so the merged envelope is byte-identical to an unmerged one by
+construction:
 
-- Locate the `body.variables` **object value** byte range and the
-  `body.query` **string value** byte range in `s1.Input`, supporting **both**
-  key orders (3.1): the repo shape (envelope first, `"body":{"query":"...",
-  "variables":{...}}` at the end — variables object found by a backward
-  brace-balanced scan from the input tail, query anchored by
-  `"body":{"query":"`) and the append shape (`{"body":{"variables":{...},
-  "query":"..."},...}` — variables found by a forward balanced scan, query
-  end located by the last `"}` followed by `,`). The raw, unescaped query
-  string is never scanned through — both shapes bound it by its neighbors.
-  A candidate whose input fails these anchors or a round-trip check is left
-  unmerged.
-- Replace the query value with the printed merged operation (embedded raw,
-  matching today's unescaped embedding) and the variables object with the
-  authored per-entry material below.
-- Precondition: all group members' envelope bytes (input minus the two
-  replaced ranges) must be equal (`bytes.Equal`); otherwise the group is not
-  merged (defensive — same DataSourceID implies same config in practice).
+- Assemble a skeleton carrying an empty-object `"variables":{}` placeholder
+  from the survivor's `Envelope` and the merged compact operation, then split
+  it at the `"variables":{` boundary into a Header prefix and a Footer suffix.
+  The authored per-entry material below renders the variables-object body
+  between them. No scanning of an unknown input shape is involved, so the old
+  dual repo/append `$$N$$`-shape handling disappears entirely.
+- Merge guard — envelope equality: every group member's structured `Envelope`
+  must match (equal `Method`, equal `URL`, `bytes.Equal` `Header`); otherwise
+  the group is not merged. This replaces the old envelope-remainder byte
+  comparison of the printed inputs: because every member's input is assembled
+  from its envelope by the same helper, equal envelopes imply equal envelope
+  remainders (defensive — same DataSourceID implies same config in practice).
+- Merge guard — `$$K$$` envelope token: any `$$K$$` token embedded in the
+  envelope bytes (`Method + URL + Header`) must reference a fetch variable that
+  is `.Equals()` across all members; otherwise the group is not merged. In real
+  plans the planner never emits `$$K$$` tokens into the envelope (url/method are
+  static strings, the header is static config marshalled to JSON), so this
+  guard finds no tokens and reduces to nothing; it is retained to preserve the
+  exact merge-abort semantics for envelopes that do carry template tokens.
 - Header template = `$$`-split of the prefix (up to and including
-  `"variables":` plus `{`) against `s1.Variables`; Footer template =
-  `$$`-split of `}` + everything after the variables object (includes the
-  replaced query and the header/url section, whose `$$K$$` HeaderVariable
-  tokens resolve against `s1.Variables`). Header/Footer contain no context
-  variables (header variables never collect undefined), so no undefined-
-  variable bookkeeping is needed there.
+  `"variables":{`) against the survivor's `Variables`; Footer template =
+  `$$`-split of everything after the placeholder (includes the merged query and
+  the header/url section, whose `$$K$$` HeaderVariable tokens resolve against
+  the survivor's `Variables`). Header/Footer contain no context variables
+  (header variables never collect undefined), so no undefined-variable
+  bookkeeping is needed there.
 
 Authored per-entry material, per sub k (templates built with the shared
 `$$`-split helper against the **sub's own** Variables slice):
@@ -832,7 +839,8 @@ Client-visible invariants (test assertions):
   (incl. per-DeferID wave partition), dependency-ID rewrite, merged-document
   goldens (include directives, renamed variables, synthetic names, stale
   blob keys), entry template layout (prefix commas, statics + segments),
-  envelope-equality bail-out, `representations`-named-variable bail-out,
+  structured envelope-equality and `$$K$$`-token bail-outs,
+  `representations`-named-variable bail-out,
   document clearing with the stage enabled AND disabled, no-op for single
   candidates / non-entity fetches / nil Info; full `Process` test with the
   option on asserting the final tree; a subscription-plan test; interaction

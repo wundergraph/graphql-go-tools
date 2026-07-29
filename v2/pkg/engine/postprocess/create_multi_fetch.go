@@ -254,17 +254,6 @@ func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group
 	}
 }
 
-// envelopeRemainder returns the input with its query and variables value ranges
-// removed, i.e. the transport envelope shared by same-subgraph members.
-func envelopeRemainder(input string, s fetchInputSplit) string {
-	aStart, aEnd := s.queryStart, s.queryEnd
-	bStart, bEnd := s.variablesStart, s.variablesEnd
-	if bStart < aStart {
-		aStart, aEnd, bStart, bEnd = bStart, bEnd, aStart, aEnd
-	}
-	return input[:aStart] + input[aEnd:bStart] + input[bEnd:]
-}
-
 // envelopeTokenIndices returns the $$K$$ token indices in the envelope using the
 // same blind alternation as resolveInputTemplate.
 func envelopeTokenIndices(remainder string) []int {
