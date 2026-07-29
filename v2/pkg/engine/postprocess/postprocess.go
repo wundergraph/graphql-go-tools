@@ -34,6 +34,7 @@ type FetchTreeProcessors struct {
 	dedupe                          *deduplicateSingleFetches
 	addMissingNestedDependencies    *addMissingNestedDependencies
 	createMultiFetch                *createMultiFetch
+	renderSubgraphInputs            *renderSubgraphInputs
 	createConcreteSingleFetchTypes  *createConcreteSingleFetchTypes
 	orderSequenceByDependencies     *orderSequenceByDependencies
 	createParallelNodes             *createParallelNodes
@@ -49,9 +50,14 @@ func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResp
 	// addMissingNestedDependencies reads only paths and dependency fields and must run while every
 	// child is still a SingleFetch, so it runs before resolveInputTemplates.
 	p.addMissingNestedDependencies.ProcessFetchTree(fetches)
-	// createMultiFetch runs unconditionally: it merges when enabled and always clears the
-	// planner SubgraphOperation artifacts so no AST survives postprocessing.
+	// createMultiFetch runs unconditionally: it merges same-subgraph entity
+	// fetches when enabled (a no-op when disabled).
 	p.createMultiFetch.ProcessFetchTree(fetches)
+	// renderSubgraphInputs runs unconditionally after createMultiFetch and before
+	// resolveInputTemplates: it renders the deferred entity-fetch input string
+	// for surviving (unmerged) fetches and clears the SubgraphOperation artifacts
+	// so no AST survives postprocessing.
+	p.renderSubgraphInputs.ProcessFetchTree(fetches)
 	p.resolveInputTemplates.ProcessFetchTree(fetches)
 	p.createConcreteSingleFetchTypes.ProcessFetchTree(fetches)
 }
@@ -192,6 +198,12 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			},
 			createMultiFetch: &createMultiFetch{
 				disable: !enableMultiFetch,
+			},
+			// renderSubgraphInputs runs unconditionally (no disable flag): it must
+			// (only its op-name suffix rewrite follows fetchIDAppender's flag)
+			// render/clear artifacts even under DisableResolveInputTemplates.
+			renderSubgraphInputs: &renderSubgraphInputs{
+				disableRewriteOpNames: opts.disableRewriteOpNames,
 			},
 			// this must go after deduplication because it relies on the existence of a "sequence" fetch node in the root
 			createConcreteSingleFetchTypes: &createConcreteSingleFetchTypes{

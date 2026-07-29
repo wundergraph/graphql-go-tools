@@ -380,15 +380,27 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		fetchMethod = p.config.fetch.Method
 	}
 
-	input, err := httpclient.AssembleGraphQLRequestInput(variables, operation, header, fetchURL, fetchMethod)
-	if err != nil {
-		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to assemble request input: %w", err)))
-		return resolve.FetchConfiguration{}
+	requiresEntityFetch := p.requiresEntityFetch()
+	requiresEntityBatchFetch := p.requiresEntityBatchFetch()
+
+	// When MultiFetch recording is on for an entity fetch, defer input assembly:
+	// the renderSubgraphInputs postprocess stage renders the input from the
+	// structured SubgraphOperation artifact (or the MultiFetch merge builds it
+	// from the same artifact), so the planner leaves FetchConfiguration.Input
+	// empty. recordUpstreamVariables already implies grpc == nil.
+	deferInput := p.recordUpstreamVariables && (requiresEntityFetch || requiresEntityBatchFetch)
+
+	var input []byte
+	if !deferInput {
+		var err error
+		input, err = httpclient.AssembleGraphQLRequestInput(variables, operation, header, fetchURL, fetchMethod)
+		if err != nil {
+			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to assemble request input: %w", err)))
+			return resolve.FetchConfiguration{}
+		}
 	}
 
 	postProcessing := DefaultPostProcessingConfiguration
-	requiresEntityFetch := p.requiresEntityFetch()
-	requiresEntityBatchFetch := p.requiresEntityBatchFetch()
 
 	switch {
 	case requiresEntityFetch:
@@ -445,6 +457,11 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 				Header: envelopeHeader,
 			},
 		}
+		// Seed the print-once cache with the compact operation bytes printOperation
+		// already produced (preserving minification), so the renderSubgraphInputs
+		// stage and dedupe reuse them verbatim instead of re-printing.
+		operationBytes := operation
+		_, _ = subgraphOperation.PrintedQuery(func() ([]byte, error) { return operationBytes, nil })
 		p.upstreamOperation = nil
 	}
 
@@ -1522,10 +1539,20 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	if !p.includeQueryPlanInFetchConfiguration {
 		return
 	}
-	query, err := astprinter.PrintStringIndent(operation, "    ")
-	if err != nil {
-		p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print operation: %w", err)))
-		return
+	// Defer the pretty operation print for recorded entity fetches: a merged
+	// fetch re-prints its own document, and surviving (unmerged) fetches have
+	// their QueryPlan.Query rendered by the renderSubgraphInputs postprocess
+	// stage. DependsOnFields is always built (needed per-member even after
+	// merge), so only the .Query string is deferred.
+	deferQuery := p.recordUpstreamVariables && (p.requiresEntityFetch() || p.requiresEntityBatchFetch())
+	var query string
+	if !deferQuery {
+		printed, err := astprinter.PrintStringIndent(operation, "    ")
+		if err != nil {
+			p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print operation: %w", err)))
+			return
+		}
+		query = printed
 	}
 	var (
 		representations []resolve.Representation

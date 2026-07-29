@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -18,8 +19,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/sjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -29,6 +32,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -11018,20 +11022,44 @@ func TestConfigureFetch_SubgraphOperation(t *testing.T) {
 		require.Nil(t, root.SubgraphOperation)
 	})
 
-	t.Run("flag off yields nil artifacts and byte-identical inputs", func(t *testing.T) {
+	t.Run("flag off yields nil artifacts; flag on defers entity input", func(t *testing.T) {
+		// Task 2.4 flip: under the flag the planner defers the entity-fetch input
+		// (empty Input + recorded artifact); the root fetch is still assembled
+		// eagerly. Reconstructing the artifact reproduces the flag-off input
+		// byte-for-byte (the byte-identity guarantee, now realised at render time).
 		op := `query { obj { field name } }`
 		onPlan := planSubgraphOperationTest(t, definition, op, "", newConfig(true))
 		offPlan := planSubgraphOperationTest(t, definition, op, "", newConfig(false))
 
-		require.Len(t, offPlan.Response.RawFetches, len(onPlan.Response.RawFetches))
-		for i := range offPlan.Response.RawFetches {
-			offSF, ok := offPlan.Response.RawFetches[i].Fetch.(*resolve.SingleFetch)
-			require.True(t, ok)
-			onSF, ok := onPlan.Response.RawFetches[i].Fetch.(*resolve.SingleFetch)
-			require.True(t, ok)
-			require.Nil(t, offSF.SubgraphOperation)
-			require.Equal(t, onSF.Input, offSF.Input)
+		onRoot, onEntity := singleFetches(onPlan)
+		offRoot, offEntity := singleFetches(offPlan)
+
+		// flag-off records no artifacts.
+		require.Nil(t, offRoot.SubgraphOperation)
+		require.Nil(t, offEntity.SubgraphOperation)
+
+		// The root (non-entity) fetch is assembled eagerly in both modes.
+		require.Nil(t, onRoot.SubgraphOperation)
+		require.Equal(t, offRoot.Input, onRoot.Input)
+
+		// The entity fetch defers input assembly under the flag.
+		require.NotNil(t, onEntity.SubgraphOperation)
+		require.Empty(t, onEntity.Input)
+
+		// Reconstruct the deferred input the same way renderSubgraphInputs does and
+		// assert byte-identity with the eagerly-assembled flag-off input.
+		var variables []byte
+		for _, v := range onEntity.SubgraphOperation.Variables {
+			variables, _ = sjson.SetRawBytes(variables, v.Name, v.Value)
 		}
+		query, err := astprinter.PrintString(onEntity.SubgraphOperation.Document)
+		require.NoError(t, err)
+		rendered, err := httpclient.AssembleGraphQLRequestInput(variables, []byte(query),
+			onEntity.SubgraphOperation.Envelope.Header,
+			onEntity.SubgraphOperation.Envelope.URL,
+			onEntity.SubgraphOperation.Envelope.Method)
+		require.NoError(t, err)
+		require.Equal(t, offEntity.Input, string(rendered))
 	})
 
 	t.Run("recording off leaves list untouched", func(t *testing.T) {
@@ -11161,4 +11189,64 @@ func TestGraphQLDataSource_RepresentationsCollision(t *testing.T) {
 		input := entityFetchInput(t, `query($representations: String){ objs { field name(x: $representations) } }`)
 		assert.Equal(t, expectedInput, input)
 	})
+}
+
+// TestGraphQLDataSourceFederation_MultiFetch_OperationNameSuffixByteIdentical is
+// the design D1 gate: with EnableOperationNamePropagation on, a MultiFetch
+// flag-on plan (planner defers the input; renderSubgraphInputs reconstructs it
+// and applies the operation-name suffix) must render byte-identically to the
+// flag-off plan (planner assembles the input; fetchIDAppender applies the
+// suffix). A single, non-merging entity fetch exercises the survivor render
+// path under the flag.
+func TestGraphQLDataSourceFederation_MultiFetch_OperationNameSuffixByteIdentical(t *testing.T) {
+	definition := multiFetchDefinition()
+	operation := `query MyOp { employee { products } }`
+
+	buildPlan := func(enableMultiFetch bool) plan.Plan {
+		config := multiFetchPlanConfig(t, enableMultiFetch)
+		config.EnableOperationNamePropagation = true
+		config.DisableIncludeInfo = true
+		config.DisableIncludeFieldDependencies = true
+		config.DisableCalculateFieldDependencies = true
+
+		def := unsafeparser.ParseGraphqlDocumentString(definition)
+		op := unsafeparser.ParseGraphqlDocumentString(operation)
+		require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
+		norm := astnormalization.NewWithOpts(
+			astnormalization.WithExtractVariables(),
+			astnormalization.WithInlineFragmentSpreads(),
+			astnormalization.WithRemoveFragmentDefinitions(),
+			astnormalization.WithRemoveUnusedVariables(),
+		)
+		var report operationreport.Report
+		norm.NormalizeOperation(&op, &def, &report)
+		astvalidation.DefaultOperationValidator().Validate(&op, &def, &report)
+
+		planner, err := plan.NewPlanner(config)
+		require.NoError(t, err)
+		result := planner.Plan(&op, &def, "MyOp", &report)
+		require.False(t, report.HasErrors(), report.Error())
+
+		var processor *postprocess.Processor
+		if enableMultiFetch {
+			processor = postprocess.NewProcessor(postprocess.EnableMultiFetch())
+		} else {
+			processor = postprocess.NewProcessor()
+		}
+		processor.Process(result)
+		return result
+	}
+
+	prettyCfg := &pretty.Config{
+		Diffable:          true,
+		IncludeUnexported: false,
+		Formatter: map[reflect.Type]any{
+			reflect.TypeFor[[]byte](): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+		},
+	}
+	off := prettyCfg.Sprint(buildPlan(false))
+	on := prettyCfg.Sprint(buildPlan(true))
+	// Sanity: the suffixed, propagated operation name must actually be present.
+	require.Contains(t, off, "MyOp__products__")
+	assert.Equal(t, off, on)
 }

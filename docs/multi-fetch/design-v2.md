@@ -27,8 +27,11 @@ type SubgraphOperation struct {
     Variables []SubgraphVariable // ordered top-level body.variables entries, raw fragments with $$N$$
     Envelope  SubgraphRequestEnvelope
 
-    // printedQuery caches the minified operation print; produced at most once,
-    // on first need (dedupe comparison or input rendering).
+    // printedQuery caches the compact operation print. Implementation amendment
+    // (Task 2.4): the PLANNER seeds this cache with the exact bytes printOperation
+    // produces (including minification, which needs the schema and is impossible
+    // in postprocess); dedupe and the render stage only read it. The print-once
+    // property holds — the planner printed the operation exactly once already.
     printedQuery []byte
 }
 

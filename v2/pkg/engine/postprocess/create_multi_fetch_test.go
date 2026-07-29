@@ -283,16 +283,11 @@ func TestCreateMultiFetch_RepresentationsFragmentIndex(t *testing.T) {
 	})
 }
 
-func TestCreateMultiFetch_ClearSubgraphOperations(t *testing.T) {
-	tree := resolve.Sequence(
-		multiFetchCandidate(1, nil, 0, "ds1"),
-		multiFetchCandidate(2, nil, 0, "ds1"),
-	)
-	(&createMultiFetch{disable: true}).ProcessFetchTree(tree)
-	for _, node := range tree.ChildNodes {
-		require.Nil(t, node.Item.Fetch.(*resolve.SingleFetch).SubgraphOperation)
-	}
-}
+// Note: artifact clearing moved from createMultiFetch to the renderSubgraphInputs
+// stage; its direct unit test now lives in render_subgraph_inputs_test.go
+// (TestRenderSubgraphInputs_ClearsArtifactWithoutRenderingWhenInputPresent).
+// TestCreateMultiFetch_PipelineClearingUnconditional below still asserts the
+// end-to-end guarantee that no artifact survives postprocessing.
 
 func TestCreateMultiFetch_PipelineClearingUnconditional(t *testing.T) {
 	p := &plan.SynchronousResponsePlan{
@@ -561,6 +556,10 @@ func buildMergeMember(t *testing.T, spec mergeMemberSpec) *resolve.FetchItem {
 			SubgraphOperation: &resolve.SubgraphOperation{
 				Document:  parseUpstreamDocument(t, spec.source),
 				Variables: spec.fragments,
+				// The structured mergeGroup builds Header/Footer from the envelope
+				// (not from the printed Input, which is now ignored). All fixtures
+				// target the same POST http://x subgraph endpoint.
+				Envelope: resolve.SubgraphRequestEnvelope{Method: "POST", URL: "http://x"},
 			},
 		},
 	}
@@ -709,37 +708,10 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 		}
 	})
 
-	t.Run("append shape two members", func(t *testing.T) {
-		m1 := `{"body":{"variables":{"representations":[$$0$$],"stale":1},"query":"` + mergeM1Source + `"},"url":"http://x","method":"POST"}`
-		m2 := `{"body":{"variables":{"representations":[$$0$$],"first":$$1$$},"query":"` + mergeM2Source + `"},"url":"http://x","method":"POST"}`
-		p := &plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				RawFetches: []*resolve.FetchItem{
-					buildMergeNonCandidate(0, nil, `{"q":"0"}`),
-					buildMergeMember(t, mergeMemberSpec{
-						fetchID: 1, deps: []int{0}, input: m1, source: mergeM1Source, batch: true, mergePath: "a",
-						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "stale", Value: []byte("1")}},
-						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})),
-						responsePath: "employees.@",
-					}),
-					buildMergeMember(t, mergeMemberSpec{
-						fetchID: 2, deps: []int{0}, input: m2, source: mergeM2Source, batch: false, mergePath: "b",
-						fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
-						variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"first"}, Renderer: resolve.NewJSONVariableRenderer()}),
-						responsePath: "employee",
-					}),
-				},
-				Data: &resolve.Object{},
-			},
-		}
-
-		NewProcessor(EnableMultiFetch()).Process(p)
-
-		multi := findMultiEntityFetch(p.Response.Fetches)
-		require.NotNil(t, multi)
-		require.Equal(t, `{"body":{"variables":{`, staticData(t, multi.Input.Header))
-		require.Equal(t, `},"query":"`+mergeGroupMergedOperation+`"},"url":"http://x","method":"POST"}`, staticData(t, multi.Input.Footer))
-	})
+	// Note: the former "append shape two members" subtest was removed with the
+	// structured mergeGroup flip. The planner no longer produces an append-shape
+	// input; renderSubgraphInputs / mergeGroup assemble the repo-shape envelope
+	// via httpclient.AssembleGraphQLRequestInput, so only the repo shape exists.
 
 	t.Run("three members", func(t *testing.T) {
 		m3 := `{"method":"POST","url":"http://x","body":{"query":"` + mergeM1Source + `","variables":{"representations":[$$0$$]}}}`
