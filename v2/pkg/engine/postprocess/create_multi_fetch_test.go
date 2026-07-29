@@ -488,68 +488,6 @@ const (
 	mergeGroupMergedOperation = `query($representations_f1: [_Any!]!, $includeF1: Boolean!, $representations_f2: [_Any!]!, $first_f2: Int, $includeF2: Boolean!){f1: _entities(representations: $representations_f1)@include(if: $includeF1) {... on Employee {__typename products {upc}}} f2: _entities(representations: $representations_f2)@include(if: $includeF2) {... on Employee {__typename notes(first: $first_f2)}}}`
 )
 
-func TestSplitEntityFetchInput(t *testing.T) {
-	t.Run("repo shape canonical", func(t *testing.T) {
-		input := `{"method":"POST","url":"http://x","header":{"Auth":["$$2$$"]},"body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename}}","variables":{"representations":[$$0$$],"a":$$1$$}}}`
-		s, ok := splitEntityFetchInput(input)
-		require.True(t, ok)
-		require.Equal(t, `query($representations: [_Any!]!){_entities(representations: $representations){__typename}}`, input[s.queryStart:s.queryEnd])
-		require.Equal(t, `{"representations":[$$0$$],"a":$$1$$}`, input[s.variablesStart:s.variablesEnd])
-	})
-
-	t.Run("repo shape with escapes in literal fragment", func(t *testing.T) {
-		input := `{"method":"POST","url":"http://x","body":{"query":"query{__typename}","variables":{"a":"x\"}","b":"y\\","representations":[$$0$$]}}}`
-		s, ok := splitEntityFetchInput(input)
-		require.True(t, ok)
-		require.Equal(t, `query{__typename}`, input[s.queryStart:s.queryEnd])
-		require.Equal(t, `{"a":"x\"}","b":"y\\","representations":[$$0$$]}`, input[s.variablesStart:s.variablesEnd])
-	})
-
-	t.Run("append shape", func(t *testing.T) {
-		input := `{"body":{"variables":{"representations":[$$0$$],"a":$$1$$},"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename}}"},"header":{"Auth":["$$2$$"]},"url":"http://x","method":"POST"}`
-		s, ok := splitEntityFetchInput(input)
-		require.True(t, ok)
-		require.Equal(t, `query($representations: [_Any!]!){_entities(representations: $representations){__typename}}`, input[s.queryStart:s.queryEnd])
-		require.Equal(t, `{"representations":[$$0$$],"a":$$1$$}`, input[s.variablesStart:s.variablesEnd])
-	})
-
-	t.Run("append shape with escaped header containing quote-brace-comma", func(t *testing.T) {
-		input := `{"body":{"variables":{"representations":[$$0$$]},"query":"query{__typename}"},"header":"{\"a\":\"b\"},x","url":"http://x","method":"POST"}`
-		s, ok := splitEntityFetchInput(input)
-		require.True(t, ok)
-		require.Equal(t, `query{__typename}`, input[s.queryStart:s.queryEnd])
-		require.Equal(t, `{"representations":[$$0$$]}`, input[s.variablesStart:s.variablesEnd])
-	})
-
-	t.Run("append shape with second false query anchor fails", func(t *testing.T) {
-		// A later top-level value whose string member ends in a raw '}' produces a
-		// second `"},` match; ambiguity must fail safe.
-		input := `{"body":{"variables":{"representations":[$$0$$]},"query":"query{__typename}"},"extensions":{"note":"x}"},"url":"http://x"}`
-		_, ok := splitEntityFetchInput(input)
-		require.False(t, ok)
-	})
-
-	t.Run("no body.query anchor fails", func(t *testing.T) {
-		_, ok := splitEntityFetchInput(`{"method":"POST","body":{"data":{}}}`)
-		require.False(t, ok)
-	})
-
-	t.Run("repo shape not ending in triple brace fails", func(t *testing.T) {
-		_, ok := splitEntityFetchInput(`{"method":"POST","body":{"query":"query{__typename}","variables":{"representations":[$$0$$]}}`)
-		require.False(t, ok)
-	})
-
-	t.Run("truncated input fails", func(t *testing.T) {
-		_, ok := splitEntityFetchInput(`{"body":{"query":"`)
-		require.False(t, ok)
-	})
-
-	t.Run("body-but-not-variables prefix fails", func(t *testing.T) {
-		_, ok := splitEntityFetchInput(`{"body":{"operationName":"x","variables":{}}}`)
-		require.False(t, ok)
-	})
-}
-
 type mergeMemberSpec struct {
 	fetchID      int
 	deps         []int
@@ -820,15 +758,23 @@ func segmentKinds(tpl resolve.InputTemplate) []resolve.SegmentType {
 	return kinds
 }
 
-func mergeAbortMember(input string, vars resolve.Variables) *resolve.SingleFetch {
+// mergeAbortMember builds a well-formed entity-fetch member with a valid,
+// mergeable _entities document, parameterised by its structured envelope and
+// fetch variables. Because the document always merges cleanly, any abort in
+// mergeGroup is attributable solely to the structured guard under test (envelope
+// mismatch or a $$K$$ envelope-token variable mismatch), never to a downstream
+// buildMergedOperation failure.
+func mergeAbortMember(t *testing.T, env resolve.SubgraphRequestEnvelope, vars resolve.Variables) *resolve.SingleFetch {
+	t.Helper()
 	return &resolve.SingleFetch{
 		Info: &resolve.FetchInfo{DataSourceID: "ds1"},
 		FetchConfiguration: resolve.FetchConfiguration{
-			Input:                    input,
 			Variables:                vars,
 			RequiresEntityBatchFetch: true,
 			SubgraphOperation: &resolve.SubgraphOperation{
+				Document:  parseUpstreamDocument(t, mergeM1Source),
 				Variables: []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}},
+				Envelope:  env,
 			},
 		},
 	}
@@ -867,9 +813,17 @@ func TestCreateMultiFetch_CollapsesGroupOfOne(t *testing.T) {
 func TestCreateMultiFetch_MergeGroupAborts(t *testing.T) {
 	c := &createMultiFetch{}
 
+	baseVars := func() resolve.Variables {
+		return resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}))
+	}
+
+	// Envelope mismatch (guard 1): two members whose structured
+	// SubgraphOperation.Envelope differ must not merge. Both carry valid,
+	// mergeable documents, so the abort is attributable solely to the envelope
+	// comparison replacing the old envelope-remainder byte scan.
 	t.Run("different envelope url", func(t *testing.T) {
-		m1 := mergeAbortMember(`{"method":"POST","url":"http://x","body":{"query":"query{__typename}","variables":{"representations":[$$0$$]}}}`, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})))
-		m2 := mergeAbortMember(`{"method":"POST","url":"http://y","body":{"query":"query{__typename}","variables":{"representations":[$$0$$]}}}`, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})))
+		m1 := mergeAbortMember(t, resolve.SubgraphRequestEnvelope{Method: "POST", URL: "http://x"}, baseVars())
+		m2 := mergeAbortMember(t, resolve.SubgraphRequestEnvelope{Method: "POST", URL: "http://y"}, baseVars())
 		node1, node2 := resolve.Single(m1), resolve.Single(m2)
 		root := resolve.Sequence(node1, node2)
 		c.mergeGroup(root, root, []*resolve.FetchTreeNode{node1, node2})
@@ -877,20 +831,26 @@ func TestCreateMultiFetch_MergeGroupAborts(t *testing.T) {
 		require.False(t, treeHasMultiEntityFetch(root))
 	})
 
+	t.Run("different envelope header presence", func(t *testing.T) {
+		m1 := mergeAbortMember(t, resolve.SubgraphRequestEnvelope{Method: "POST", URL: "http://x"}, baseVars())
+		m2 := mergeAbortMember(t, resolve.SubgraphRequestEnvelope{Method: "POST", URL: "http://x", Header: []byte(`{"Auth":["secret"]}`)}, baseVars())
+		node1, node2 := resolve.Single(m1), resolve.Single(m2)
+		root := resolve.Sequence(node1, node2)
+		c.mergeGroup(root, root, []*resolve.FetchTreeNode{node1, node2})
+		require.Len(t, root.ChildNodes, 2)
+		require.False(t, treeHasMultiEntityFetch(root))
+	})
+
+	// Envelope $$K$$-token variable mismatch (guard 2): when the (identical)
+	// envelope bytes embed a $$K$$ token, the fetch variable it references must be
+	// .Equals() across members. Here the envelopes are byte-equal (so guard 1
+	// passes) but the HeaderVariable at index 2 differs, so the token guard aborts
+	// the merge. The envelope Header bytes are hand-built to carry the token,
+	// exercising the structured equivalent of the old envelope-token scan.
 	t.Run("envelope token references different variable", func(t *testing.T) {
-		input := `{"method":"POST","url":"http://x","header":{"Auth":["$$2$$"]},"body":{"query":"query{__typename}","variables":{"representations":[$$0$$]}}}`
-		m1 := mergeAbortMember(input, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"x"}}, &resolve.HeaderVariable{Path: []string{"Auth"}}))
-		m2 := mergeAbortMember(input, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"x"}}, &resolve.HeaderVariable{Path: []string{"Other"}}))
-		node1, node2 := resolve.Single(m1), resolve.Single(m2)
-		root := resolve.Sequence(node1, node2)
-		c.mergeGroup(root, root, []*resolve.FetchTreeNode{node1, node2})
-		require.Len(t, root.ChildNodes, 2)
-		require.False(t, treeHasMultiEntityFetch(root))
-	})
-
-	t.Run("malformed input", func(t *testing.T) {
-		m1 := mergeAbortMember(`{"garbage":true}`, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})))
-		m2 := mergeAbortMember(`{"method":"POST","url":"http://x","body":{"query":"query{__typename}","variables":{"representations":[$$0$$]}}}`, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})))
+		env := resolve.SubgraphRequestEnvelope{Method: "POST", URL: "http://x", Header: []byte(`{"Auth":["$$2$$"]}`)}
+		m1 := mergeAbortMember(t, env, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"x"}}, &resolve.HeaderVariable{Path: []string{"Auth"}}))
+		m2 := mergeAbortMember(t, env, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"x"}}, &resolve.HeaderVariable{Path: []string{"Other"}}))
 		node1, node2 := resolve.Single(m1), resolve.Single(m2)
 		root := resolve.Sequence(node1, node2)
 		c.mergeGroup(root, root, []*resolve.FetchTreeNode{node1, node2})

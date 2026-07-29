@@ -40,12 +40,12 @@ With either flag off there is zero behavior change; plans are byte-identical.
 
 ## Level 1: planning (`datasource/graphql_datasource`)
 
-The datasource planner already builds a private upstream operation AST and
-prints it into the fetch input string
-(`{"method":"POST","url":...,"body":{"query":"...","variables":{...}}}`).
-Merging two printed strings later is not reliably possible, so when the flag
-is on the planner keeps the structured artifacts a merge needs, on
-`resolve.FetchConfiguration.SubgraphOperation`:
+The datasource planner builds a private upstream operation AST. Merging two
+printed input strings later is not reliably possible, so when the flag is on the
+planner **stops assembling the input JSON for entity fetches** entirely and
+instead records the structured artifacts a merge needs on
+`resolve.FetchConfiguration.SubgraphOperation`, leaving `FetchConfiguration.Input`
+empty for `renderSubgraphInputs` to fill in later:
 
 - **`Document`** — the normalized, validated upstream operation AST
   (`*ast.Document`). `ConfigureFetch` transfers ownership by nil-ing its own
@@ -54,6 +54,20 @@ is on the planner keeps the structured artifacts a merge needs, on
   fragment)` in write order. Fragments are raw bytes that may contain `$$N$$`
   placeholders indexing `FetchConfiguration.Variables` (e.g. the
   representations entry is always `[$$N$$]`).
+- **`Envelope`** — the structured transport envelope
+  (`SubgraphRequestEnvelope`: method, url, raw header bytes), produced by the
+  same `httpclient.AssembleGraphQLRequestInput` assembly the planner would have
+  used for the input. The merge guard and the `renderSubgraphInputs` stage read
+  it directly instead of recovering envelope bytes from a printed input.
+- **`printedQuery`** (cache) — the planner seeds this with the exact compact
+  operation print (minified against the upstream schema, which is only possible
+  at plan time); dedupe and `renderSubgraphInputs` reuse it as `body.query`, so
+  each surviving fetch is printed exactly once — the same count as before.
+
+The planner also **defers the query-plan operation print**: for a recorded
+entity fetch it stops eagerly pretty-printing `QueryPlan.Query`, which
+`renderSubgraphInputs` renders for survivors only (merged fetches re-print the
+merged document, so per-member prints would be pure waste).
 
 Recording happens in `setUpstreamVariable` (graphql_datasource.go), a thin
 wrapper around the existing `sjson.SetRawBytes` write sites (field arguments,
@@ -75,20 +89,32 @@ Flag threading follows the `EnableOperationNamePropagation` precedent:
 
 ## Level 2: postprocessing (`postprocess/create_multi_fetch*.go`)
 
-The pipeline order in `processFlatFetchTree` is:
+Postprocessing splits into a flat phase, an organize phase, and an organized
+phase; the merge stage runs in the last one, on the REAL parallel waves:
 
 ```
-collectAuthorizationCoordinates → dedupe → appendFetchID
-→ addMissingNestedDependencies   (moved before template resolution)
-→ createMultiFetch               (NEW — needs complete dependency edges
-                                  and untouched Input/Variables)
-→ resolveInputTemplates → createConcreteSingleFetchTypes
-→ orderSequenceByDependencies → createParallelNodes
+processFlatFetchTree:
+  collectAuthorizationCoordinates → dedupe → appendFetchID
+  → addMissingNestedDependencies
+organizeFetchTree:
+  orderSequenceByDependencies → createParallelNodes
+processOrganizedFetchTree:
+  createMultiFetch          (walks the real parallel groups)
+  → renderSubgraphInputs    (assembles deferred inputs, renders survivor
+                             query plans, clears artifacts)
+  → resolveInputTemplates → createConcreteSingleFetchTypes
 ```
 
-`createMultiFetch.ProcessFetchTree` always runs; when the option is off it
-only clears `SubgraphOperation` from every fetch (unconditional cleanup).
-When on, it works in four steps:
+`processOrganizedFetchTree` runs for every response tree, **including each
+extracted defer group** (which gets its own `organizeFetchTree` pass), so the
+same semantics hold for deferred fetches; the subscription trigger keeps its
+separate `ProcessTrigger` template resolution and is never merged.
+
+`createMultiFetch.ProcessFetchTree` runs unconditionally but is a no-op when the
+processor option is off. `renderSubgraphInputs` also runs unconditionally (no
+disable flag) — even under `DisableResolveInputTemplates` — so it always
+assembles a readable `Input` from the recorded artifacts and clears them.
+When merging is on, `createMultiFetch` works in three steps (2.1–2.3):
 
 ### 2.1 Candidates and grouping (`create_multi_fetch.go`)
 
@@ -99,13 +125,21 @@ well-formed variables record (exactly one `[$$N$$]` fragment whose variable is
 the `ResolvableObjectVariable`).
 
 Grouping must answer "which fetches would execute simultaneously?" without
-duplicating scheduler logic. The stage partitions the flat child list by
-`DeferID` (defer groups are organized separately later, and out-of-partition
-dependencies are never satisfiable there) and, per partition, runs the REAL
-organize stages — `orderSequenceByDependencies` + `createParallelNodes` — on a
-scratch tree. Nodes that land in the same parallel group form a wave; a wave's
-candidates are then bucketed by `Info.DataSourceID`. Buckets with ≥ 2 members
-merge. Zero drift from the actual scheduler by construction.
+duplicating scheduler logic. Because the stage now runs **after**
+`organizeFetchTree`, the real `FetchTreeNodeKindParallel` groups already encode
+the execution waves: `createMultiFetch` walks the organized tree and, within
+each parallel group, buckets candidates by `Info.DataSourceID`; buckets with ≥ 2
+members merge. There is no scratch tree and no `DeferID` partitioning — defer
+groups are extracted and organized into their own trees before this stage runs,
+so their parallel groups are already correct. Zero drift from the actual
+scheduler by identity rather than by construction.
+
+Design-review note: because merging now keys off materialized Parallel nodes, it
+is **strictly gated on `createParallelNodes` being enabled** — with that stage
+disabled no Parallel node exists and nothing merges, whereas the old scratch-tree
+simulation ran its own organize pass regardless. This is a latent behavioral
+difference; it is unreachable in production wiring today (the parallel-nodes
+stage is always enabled there).
 
 ### 2.2 Merged document (`create_multi_fetch_document.go`)
 
@@ -134,53 +168,58 @@ merged `Info.QueryPlan.Query` when every member carries a query plan). No
 re-normalization or re-validation happens — members are already normalized and
 validated, aliases keep root fields disjoint, and the renaming is total.
 
-### 2.3 Merged input (`create_multi_fetch_input.go` + `mergeGroup`)
+### 2.3 Merged input (`renderSubgraphInputs` + `mergeGroup`)
 
-The first member's post-visitor `Input` string supplies the envelope.
-`splitEntityFetchInput` locates the `body.query` string value and the
-`body.variables` object value, supporting both real-world key orders:
+There is no string scanner. Both the unmerged and the merged paths assemble the
+input from the structured `SubgraphOperation.Envelope` (method, url, raw header
+bytes) plus a compact operation, via the **same**
+`httpclient.AssembleGraphQLRequestInput` helper the planner would have used — so
+an unmerged rendered input is byte-identical to the old eager one, and a merged
+input's envelope is byte-identical to an unmerged one, by construction.
 
-- **repo shape** (sjson v1.0.4 via `go.work` replace — prepends keys):
-  `{"method":...,["header":...,]"body":{"query":"...","variables":{...}}}`.
-  The query is found via the last `"body":{"query":"` anchor; the variables
-  object via a backward, quote-and-escape-aware brace scan from the `}}}`
-  tail (backslash-run parity decides whether a quote is escaped).
-- **append shape** (sjson v1.2.5+ downstream):
-  `{"body":{"variables":{...},"query":"..."},...}`. The variables object is
-  scanned forward; the query end is the **unique** `"}`-then-`,` position
-  preceded by `}` — ambiguity (e.g. header values ending in raw `}`) fails
-  safe and the group is left unmerged.
+The `renderSubgraphInputs` stage (running immediately after `createMultiFetch`)
+renders each surviving entity fetch's `Input` from its `Envelope` + cached
+`printedQuery`, applies the `fetchIDAppender` operation-name suffix on the whole
+input (first-occurrence replace, preserving the historical quirk), renders the
+deferred `QueryPlan.Query` for survivors, and finally clears every
+`SubgraphOperation` artifact so no AST reaches the cached plan.
 
-The raw, unescaped query text is never scanned through — both shapes bound it
-by its neighbors. Before merging, every member's "envelope remainder" (input
-minus the two value ranges) must be byte-identical to the first member's, and
-every `$$K$$` token inside the remainder must reference `.Equals()`-equal
-variables — otherwise the group is not merged.
+`mergeGroup` assembles the concrete `resolve.MultiEntityFetch` for a group:
 
-`mergeGroup` then assembles the concrete `resolve.MultiEntityFetch`:
-
-- **Header** template: everything up to the variables object, with the query
-  range replaced by the merged compact operation, ending in `"variables":{`;
-- **Entries** (one per member, in wave order): precomputed statics
+- **Merge guards** (structured, no byte scanning): every member's `Envelope`
+  must match (equal method/url, `bytes.Equal` header); and any `$$K$$` token
+  embedded in the envelope bytes must reference `.Equals()`-equal variables
+  across members. Either mismatch leaves the group unmerged. In real plans the
+  envelope carries no `$$K$$` token, so the second guard is inert; it preserves
+  the exact abort semantics for envelopes that do carry template tokens.
+- **Header/Footer**: assemble a skeleton from the survivor's `Envelope` and the
+  merged compact operation carrying an empty-object `"variables":{}`
+  placeholder, then split at the `"variables":{` boundary — the prefix (with the
+  merged query embedded) becomes the Header template, the suffix the Footer
+  template, both `$$`-split against the survivor's `Variables`.
+- **Entries** (one per member, sorted by `FetchID` before aliasing so entry
+  order is independent of scheduler ordering): precomputed statics
   `RepresentationsPrefix` (`"representations_f1":[`, with a leading comma from
-  the second entry on), `IncludePrefix` (`],"includeF1":`), the
-  representations item template (the member's `ResolvableObjectVariable`
-  segment, null-propagating), the member's other recorded variables as
+  the second entry on), `IncludePrefix` (`],"includeF1":`), the representations
+  item template (the member's `ResolvableObjectVariable` segment,
+  null-propagating), the member's other recorded variables as
   `{KeyPrefix: ',"name_fk":', Value: template}`, the original `FetchItem`
   placement (with `Fetch` deliberately nil — a backpointer would make the plan
   cyclic and would keep the merged-away member fetch and its document alive),
   the member's `FetchInfo`, per-alias `PostProcessing`
   (`["data","fN"]`/`["errors"]` + original merge path), and the origin kind
   (single vs batch — needed for one response edge case);
-- **Footer** template: the variables-object close plus the envelope tail;
 - merged `FetchDependencies` (lowest member ID; deduplicated dependency union
   minus member IDs) and merged `FetchInfo` (same subgraph identity; union
   root fields; concatenated coordinate dependencies / fetch reasons; merged
   query plan);
-- tree surgery: the first member node is replaced, the others removed, and
-  `replaceDependsOnFetchID` rewrites EVERY member ID (including the first
-  member's own, when it is not the group minimum) to the surviving ID across
-  the tree, so dependents and the loader's skip cascade stay correct.
+- tree surgery: inside the containing parallel node the first member node is
+  replaced by the merged node and the others removed; a parallel group that
+  collapses to a single survivor reverts to a bare Single node (preserving
+  `createParallelNodes`' >1-child invariant); `replaceDependsOnFetchID` then
+  rewrites EVERY member ID (including the first member's own, when it is not the
+  group minimum) to the surviving ID across the tree, so dependents and the
+  loader's skip cascade stay correct.
 
 ## Level 3: runtime (`resolve/loader_multi_entity.go`)
 
@@ -270,8 +309,9 @@ whole input) are listed in spec section 5.1.
 | Artifact recording | `datasource/graphql_datasource/graphql_datasource.go` (`setUpstreamVariable`, `ConfigureFetch`) |
 | Artifact types + fetch type | `resolve/fetch_multi.go`, `resolve/fetch.go` |
 | AST merging primitives | `astimport/astimport.go` (`ImportSelectionSetWithVariableRename`, `ImportVariableDefinitionWithVariableNameRename`) |
-| Merge stage | `postprocess/create_multi_fetch.go` (stage, candidates, waves, tree surgery), `create_multi_fetch_document.go` (document merge), `create_multi_fetch_input.go` (dual-shape input scanner) |
-| Pipeline wiring | `postprocess/postprocess.go` (`EnableMultiFetch()`, stage order), `resolve_input_templates.go` / `deduplicate_single_fetches.go` (shared helpers) |
+| Merge stage | `postprocess/create_multi_fetch.go` (stage, candidates, parallel-group walk, structured merge guards, tree surgery), `create_multi_fetch_document.go` (document merge) |
+| Input assembly | `postprocess/render_subgraph_inputs.go` (deferred input + survivor query-plan rendering, artifact clearing), `datasource/httpclient/input_assembly.go` (`AssembleGraphQLRequestInput`, shared with the planner) |
+| Pipeline wiring | `postprocess/postprocess.go` (`EnableMultiFetch()`, flat/organize/organized phases), `resolve_input_templates.go` / `deduplicate_single_fetches.go` (shared helpers) |
 | Runtime | `resolve/loader_multi_entity.go` (prepare + merge), `resolve/loader.go` (dispatch, `mergeResult` multi branches, alias hiding), `resolve/tainted_objects.go` |
 | Observability | `resolve/fetchtree.go` |
 
@@ -281,9 +321,9 @@ whole input) are listed in spec section 5.1.
 |---|---|
 | AST import primitives | `astimport/astimport_test.go` (`TestImportSelectionSet*`, `TestImportVariableDefinitionWithVariableNameRename`) |
 | Artifact recording | `graphql_datasource_test.go` (`TestConfigureFetch_SubgraphOperation`) |
-| Grouping/waves/clearing | `postprocess/create_multi_fetch_test.go` (`TestCreateMultiFetch_CollectGroups`, `_PipelineClearingUnconditional`, `_PipelineDisableResolveInputTemplates`) |
+| Grouping/waves/clearing | `postprocess/create_multi_fetch_test.go` (`TestCreateMultiFetch_CollectGroups`, `_PipelineClearingUnconditional`, `_PipelineDisableResolveInputTemplates`, `_CollapsesGroupOfOne`) |
 | Document merge | `TestBuildMergedOperation` (full compact + pretty golden equality) |
-| Input scanner + assembly | `TestSplitEntityFetchInput`, `TestCreateMultiFetch_MergeGroup` (+ aborts, survivor-ID rewrite, append shape, three members) |
+| Input assembly + merge guards | `TestCreateMultiFetch_MergeGroup` (survivor-ID rewrite, three members, entry/Header/Footer statics), `TestCreateMultiFetch_MergeGroupAborts` (structured envelope-URL / header-presence / `$$K$$`-token mismatch bail-outs), and the `renderSubgraphInputs` stage tests (`TestRenderSubgraphInputs_Render`, `_ClearsArtifactWithoutRenderingWhenInputPresent`) |
 | Loader prepare | `resolve/loader_multi_entity_test.go` (`TestPrepareMultiEntityFetch_*`: assembly golden, dedup isolation, empty/denied/all-excluded, undefined variables) |
 | Loader merge | `TestMergeMultiEntityResult_*` (fan-out, error partitioning in both propagation modes, empty-array origins, transport/invalid/rate-limit, taint, extensions/hooks once) |
 | End-to-end plans (full-plan equality via `datasourcetesting.RunTest`) | `graphql_datasource_multi_fetch_test.go` (`TestGraphQLDataSourceFederation_MultiFetch` + `_ThreeFetchGroup`, `_WaveSeparation`, `_Subscription`) |
