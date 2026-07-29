@@ -86,96 +86,114 @@ func treeHasMultiEntityFetch(node *resolve.FetchTreeNode) bool {
 	return false
 }
 
+// organizeForTest runs the organize stages (order + parallel) so collectGroups
+// sees the same real parallel groups it walks in the production pipeline, where
+// createMultiFetch runs AFTER organizeFetchTree.
+func organizeForTest(tree *resolve.FetchTreeNode) *resolve.FetchTreeNode {
+	(&orderSequenceByDependencies{}).ProcessFetchTree(tree)
+	(&createParallelNodes{}).ProcessFetchTree(tree)
+	return tree
+}
+
 func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 	c := &createMultiFetch{}
 
 	t.Run("root and two same-datasource candidates", func(t *testing.T) {
-		tree := resolve.Sequence(
+		tree := organizeForTest(resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			multiFetchCandidate(2, []int{0}, 0, "ds1"),
-		)
+		))
 		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(c.collectGroups(tree)))
 	})
 
 	t.Run("two candidates with empty dependencies", func(t *testing.T) {
-		tree := resolve.Sequence(
+		tree := organizeForTest(resolve.Sequence(
 			multiFetchCandidate(1, nil, 0, "ds1"),
 			multiFetchCandidate(2, nil, 0, "ds1"),
-		)
+		))
 		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(c.collectGroups(tree)))
 	})
 
 	t.Run("different datasource does not group", func(t *testing.T) {
-		tree := resolve.Sequence(
+		tree := organizeForTest(resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			multiFetchCandidate(2, []int{0}, 0, "ds2"),
-		)
+		))
 		require.Empty(t, c.collectGroups(tree))
 	})
 
 	t.Run("dependent candidates land in different waves", func(t *testing.T) {
-		tree := resolve.Sequence(
+		tree := organizeForTest(resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			multiFetchCandidate(2, []int{1}, 0, "ds1"),
-		)
+		))
 		require.Empty(t, c.collectGroups(tree))
 	})
 
-	t.Run("waves computed per DeferID partition", func(t *testing.T) {
-		tree := resolve.Sequence(
+	// Defer groups are extracted into their own trees before organizeFetchTree
+	// (see Processor.Process for DeferResponsePlan), so each defer group is
+	// organized and merged independently. This replaces the old DeferID
+	// partitioning that createMultiFetch did on a single flat tree.
+	t.Run("each defer group is organized and merged independently", func(t *testing.T) {
+		initial := organizeForTest(resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			multiFetchCandidate(2, []int{0}, 0, "ds1"),
+		))
+		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(c.collectGroups(initial)))
+
+		deferGroup := organizeForTest(resolve.Sequence(
 			multiFetchCandidate(3, nil, 7, "ds1"),
 			multiFetchCandidate(4, nil, 7, "ds1"),
-		)
-		require.Equal(t, [][]int{{1, 2}, {3, 4}}, groupFetchIDs(c.collectGroups(tree)))
+		))
+		require.Equal(t, [][]int{{3, 4}}, groupFetchIDs(c.collectGroups(deferGroup)))
 	})
 
-	t.Run("defer candidates depending out of partition stay serial", func(t *testing.T) {
-		tree := resolve.Sequence(
-			multiFetchNonCandidate(0, nil, 0),
-			multiFetchCandidate(1, []int{0}, 0, "ds1"),
-			multiFetchCandidate(2, []int{0}, 0, "ds1"),
+	t.Run("defer candidates depending out of group stay serial", func(t *testing.T) {
+		// In the defer group's own tree, fetch 0 lives in the initial response
+		// tree, not here; createParallelNodes cannot satisfy that dependency
+		// within the group, so the two candidates never share a parallel wave and
+		// are not merged.
+		deferGroup := organizeForTest(resolve.Sequence(
 			multiFetchCandidate(3, []int{0}, 7, "ds1"),
 			multiFetchCandidate(4, []int{0}, 7, "ds1"),
-		)
-		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(c.collectGroups(tree)))
+		))
+		require.Empty(t, c.collectGroups(deferGroup))
 	})
 
 	t.Run("nil Info is not a candidate", func(t *testing.T) {
 		bad := multiFetchCandidate(2, []int{0}, 0, "ds1")
 		bad.Item.Fetch.(*resolve.SingleFetch).Info = nil
-		tree := resolve.Sequence(
+		tree := organizeForTest(resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
-		)
+		))
 		require.Empty(t, c.collectGroups(tree))
 	})
 
 	t.Run("nil SubgraphOperation is not a candidate", func(t *testing.T) {
 		bad := multiFetchCandidate(2, []int{0}, 0, "ds1")
 		bad.Item.Fetch.(*resolve.SingleFetch).SubgraphOperation = nil
-		tree := resolve.Sequence(
+		tree := organizeForTest(resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
-		)
+		))
 		require.Empty(t, c.collectGroups(tree))
 	})
 
 	t.Run("non-entity fetch is not a candidate", func(t *testing.T) {
 		bad := multiFetchCandidate(2, []int{0}, 0, "ds1")
 		bad.Item.Fetch.(*resolve.SingleFetch).RequiresEntityBatchFetch = false
-		tree := resolve.Sequence(
+		tree := organizeForTest(resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
-		)
+		))
 		require.Empty(t, c.collectGroups(tree))
 	})
 
@@ -186,11 +204,11 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			{Name: "a", Value: []byte("2")},
 			{Name: "representations", Value: []byte("[$$0$$]")},
 		}
-		tree := resolve.Sequence(
+		tree := organizeForTest(resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
-		)
+		))
 		require.Empty(t, c.collectGroups(tree))
 	})
 
@@ -198,11 +216,11 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 		bad := multiFetchCandidate(2, []int{0}, 0, "ds1")
 		badFetch := bad.Item.Fetch.(*resolve.SingleFetch)
 		badFetch.Variables = resolve.NewVariables(&resolve.ContextVariable{Path: []string{"x"}})
-		tree := resolve.Sequence(
+		tree := organizeForTest(resolve.Sequence(
 			multiFetchNonCandidate(0, nil, 0),
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
-		)
+		))
 		require.Empty(t, c.collectGroups(tree))
 	})
 }
@@ -784,7 +802,9 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 		multi := findMultiEntityFetch(p.Response.Fetches)
 		require.NotNil(t, multi)
 		require.Equal(t, 4, multi.FetchID)
-		require.Equal(t, []int{7, 4}, multi.MergedFetchIDs)
+		// Members are sorted by FetchID before aliasing (design D2), so the merged
+		// id list is ascending regardless of the members' position in the wave.
+		require.Equal(t, []int{4, 7}, multi.MergedFetchIDs)
 
 		s9 := findSingleFetchByID(p.Response.Fetches, 9)
 		require.NotNil(t, s9)
@@ -814,6 +834,36 @@ func mergeAbortMember(input string, vars resolve.Variables) *resolve.SingleFetch
 	}
 }
 
+func TestCreateMultiFetch_CollapsesGroupOfOne(t *testing.T) {
+	// An organized Parallel group whose only children are the merge members must
+	// collapse back to a bare Single node once they merge into one
+	// MultiEntityFetch, preserving createParallelNodes' invariant that a Parallel
+	// node exists only for >1 children.
+	m1 := buildMergeMember(t, mergeMemberSpec{
+		fetchID: 1, deps: []int{0}, input: mergeM1Repo(), source: mergeM1Source, batch: true, mergePath: "a",
+		fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}},
+		variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})),
+		responsePath: "employees.@",
+	})
+	m2 := buildMergeMember(t, mergeMemberSpec{
+		fetchID: 2, deps: []int{0}, input: mergeM2Repo(), source: mergeM2Source, batch: false, mergePath: "b",
+		fragments:    []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "first", Value: []byte("$$1$$")}},
+		variables:    resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"first"}, Renderer: resolve.NewJSONVariableRenderer()}),
+		responsePath: "employee",
+	})
+	node1 := &resolve.FetchTreeNode{Kind: resolve.FetchTreeNodeKindSingle, Item: m1}
+	node2 := &resolve.FetchTreeNode{Kind: resolve.FetchTreeNodeKindSingle, Item: m2}
+	root := resolve.Sequence(resolve.Parallel(node1, node2))
+
+	(&createMultiFetch{}).ProcessFetchTree(root)
+
+	require.Len(t, root.ChildNodes, 1)
+	require.Equal(t, resolve.FetchTreeNodeKindSingle, root.ChildNodes[0].Kind, "the parallel group of one must collapse to a bare Single node")
+	multi, ok := root.ChildNodes[0].Item.Fetch.(*resolve.MultiEntityFetch)
+	require.True(t, ok)
+	require.Equal(t, []int{1, 2}, multi.MergedFetchIDs)
+}
+
 func TestCreateMultiFetch_MergeGroupAborts(t *testing.T) {
 	c := &createMultiFetch{}
 
@@ -822,7 +872,7 @@ func TestCreateMultiFetch_MergeGroupAborts(t *testing.T) {
 		m2 := mergeAbortMember(`{"method":"POST","url":"http://y","body":{"query":"query{__typename}","variables":{"representations":[$$0$$]}}}`, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})))
 		node1, node2 := resolve.Single(m1), resolve.Single(m2)
 		root := resolve.Sequence(node1, node2)
-		c.mergeGroup(root, []*resolve.FetchTreeNode{node1, node2})
+		c.mergeGroup(root, root, []*resolve.FetchTreeNode{node1, node2})
 		require.Len(t, root.ChildNodes, 2)
 		require.False(t, treeHasMultiEntityFetch(root))
 	})
@@ -833,7 +883,7 @@ func TestCreateMultiFetch_MergeGroupAborts(t *testing.T) {
 		m2 := mergeAbortMember(input, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{}), &resolve.ContextVariable{Path: []string{"x"}}, &resolve.HeaderVariable{Path: []string{"Other"}}))
 		node1, node2 := resolve.Single(m1), resolve.Single(m2)
 		root := resolve.Sequence(node1, node2)
-		c.mergeGroup(root, []*resolve.FetchTreeNode{node1, node2})
+		c.mergeGroup(root, root, []*resolve.FetchTreeNode{node1, node2})
 		require.Len(t, root.ChildNodes, 2)
 		require.False(t, treeHasMultiEntityFetch(root))
 	})
@@ -843,7 +893,7 @@ func TestCreateMultiFetch_MergeGroupAborts(t *testing.T) {
 		m2 := mergeAbortMember(`{"method":"POST","url":"http://x","body":{"query":"query{__typename}","variables":{"representations":[$$0$$]}}}`, resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})))
 		node1, node2 := resolve.Single(m1), resolve.Single(m2)
 		root := resolve.Sequence(node1, node2)
-		c.mergeGroup(root, []*resolve.FetchTreeNode{node1, node2})
+		c.mergeGroup(root, root, []*resolve.FetchTreeNode{node1, node2})
 		require.Len(t, root.ChildNodes, 2)
 		require.False(t, treeHasMultiEntityFetch(root))
 	})
