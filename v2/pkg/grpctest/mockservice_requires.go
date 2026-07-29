@@ -474,6 +474,207 @@ func (s *MockService) RequireStorageDeepItemInfoById(_ context.Context, req *pro
 	return &productv1.RequireStorageDeepItemInfoByIdResponse{Result: results}, nil
 }
 
+// newPalletStorageItem builds a fully populated PalletItem wrapped in the StorageItem interface message.
+func newPalletStorageItem(id, name string, palletCount int32) *productv1.StorageItem {
+	return &productv1.StorageItem{
+		Instance: &productv1.StorageItem_PalletItem{
+			PalletItem: &productv1.PalletItem{
+				Id:          id,
+				Name:        name,
+				Weight:      float64(palletCount) * 12.5,
+				PalletCount: palletCount,
+				Handler: &productv1.ItemHandler{
+					Id:   id + "-handler",
+					Name: "Handler for " + name,
+				},
+				Specs: &productv1.PalletSpecs{
+					Name:      name + " specs",
+					MaxWeight: float64(palletCount) * 100,
+					Dimensions: &productv1.Dimensions{
+						Length: 120.0,
+						Width:  80.0,
+						Height: 15.0,
+					},
+				},
+			},
+		},
+	}
+}
+
+// newContainerStorageItem builds a fully populated ContainerItem wrapped in the StorageItem interface message.
+func newContainerStorageItem(id, name, containerSize string) *productv1.StorageItem {
+	return &productv1.StorageItem{
+		Instance: &productv1.StorageItem_ContainerItem{
+			ContainerItem: &productv1.ContainerItem{
+				Id:            id,
+				Name:          name,
+				Weight:        float64(len(containerSize)) * 7.5,
+				ContainerSize: containerSize,
+				Handler: &productv1.ItemHandler{
+					Id:   id + "-handler",
+					Name: "Handler for " + name,
+				},
+				Specs: &productv1.ContainerSpecs{
+					Name:   name + " specs",
+					Volume: float64(len(containerSize)) * 33.3,
+					Dimensions: &productv1.Dimensions{
+						Length: 240.0,
+						Width:  120.0,
+						Height: 260.0,
+					},
+				},
+			},
+		},
+	}
+}
+
+// RequireStorageRecommendedItemById implements [productv1.ProductServiceServer].
+// Returns an interface (StorageItem) derived from the required metadata fields.
+func (s *MockService) RequireStorageRecommendedItemById(_ context.Context, req *productv1.RequireStorageRecommendedItemByIdRequest) (*productv1.RequireStorageRecommendedItemByIdResponse, error) {
+	results := make([]*productv1.RequireStorageRecommendedItemByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		metadata := ctx.GetFields().GetMetadata()
+		capacity := metadata.GetCapacity()
+		zone := metadata.GetZone()
+
+		// High capacity storages get a pallet recommendation, everything else a container.
+		var item *productv1.StorageItem
+		if capacity > 100 {
+			item = newPalletStorageItem(
+				fmt.Sprintf("pallet-%s-%d", zone, capacity),
+				fmt.Sprintf("Pallet for zone %s", zone),
+				capacity/10,
+			)
+		} else {
+			item = newContainerStorageItem(
+				fmt.Sprintf("container-%s-%d", zone, capacity),
+				fmt.Sprintf("Container for zone %s", zone),
+				fmt.Sprintf("%dL", capacity),
+			)
+		}
+
+		results = append(results, &productv1.RequireStorageRecommendedItemByIdResult{
+			RecommendedItem: item,
+		})
+	}
+
+	return &productv1.RequireStorageRecommendedItemByIdResponse{Result: results}, nil
+}
+
+// RequireStorageRecommendedItemsById implements [productv1.ProductServiceServer].
+// Returns a list of interfaces (StorageItem), one entry per required tag.
+func (s *MockService) RequireStorageRecommendedItemsById(_ context.Context, req *productv1.RequireStorageRecommendedItemsByIdRequest) (*productv1.RequireStorageRecommendedItemsByIdResponse, error) {
+	results := make([]*productv1.RequireStorageRecommendedItemsByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		tags := ctx.GetFields().GetTags()
+
+		items := make([]*productv1.StorageItem, 0, len(tags))
+		for i, tag := range tags {
+			// Alternate between both concrete types so every list contains a mix.
+			if i%2 == 0 {
+				items = append(items, newPalletStorageItem(
+					fmt.Sprintf("pallet-%s", tag),
+					fmt.Sprintf("Pallet %s", tag),
+					int32(i+1),
+				))
+			} else {
+				items = append(items, newContainerStorageItem(
+					fmt.Sprintf("container-%s", tag),
+					fmt.Sprintf("Container %s", tag),
+					strings.ToUpper(tag),
+				))
+			}
+		}
+
+		results = append(results, &productv1.RequireStorageRecommendedItemsByIdResult{
+			RecommendedItems: items,
+		})
+	}
+
+	return &productv1.RequireStorageRecommendedItemsByIdResponse{Result: results}, nil
+}
+
+// RequireStorageLatestOperationById implements [productv1.ProductServiceServer].
+// Returns a union (StorageOperationResult) derived from the required storageKind enum.
+func (s *MockService) RequireStorageLatestOperationById(_ context.Context, req *productv1.RequireStorageLatestOperationByIdRequest) (*productv1.RequireStorageLatestOperationByIdResponse, error) {
+	results := make([]*productv1.RequireStorageLatestOperationByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		kind := ctx.GetFields().GetStorageKind()
+
+		// Known kinds report a success, everything else a failure.
+		operation := &productv1.StorageOperationResult{}
+		switch kind {
+		case productv1.CategoryKind_CATEGORY_KIND_BOOK,
+			productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS,
+			productv1.CategoryKind_CATEGORY_KIND_FURNITURE:
+			operation.Value = &productv1.StorageOperationResult_StorageSuccess{
+				StorageSuccess: &productv1.StorageSuccess{
+					Message:     fmt.Sprintf("Operation completed for %s", kind.String()),
+					CompletedAt: "2024-01-01T00:00:00Z",
+				},
+			}
+		default:
+			operation.Value = &productv1.StorageOperationResult_StorageFailure{
+				StorageFailure: &productv1.StorageFailure{
+					Message:   fmt.Sprintf("Operation failed for %s", kind.String()),
+					ErrorCode: "UNSUPPORTED_KIND",
+				},
+			}
+		}
+
+		results = append(results, &productv1.RequireStorageLatestOperationByIdResult{
+			LatestOperation: operation,
+		})
+	}
+
+	return &productv1.RequireStorageLatestOperationByIdResponse{Result: results}, nil
+}
+
+// RequireStorageOptionalLatestOperationById implements [productv1.ProductServiceServer].
+// Returns a nullable union (StorageOperationResult) derived from the required optionalTags.
+func (s *MockService) RequireStorageOptionalLatestOperationById(_ context.Context, req *productv1.RequireStorageOptionalLatestOperationByIdRequest) (*productv1.RequireStorageOptionalLatestOperationByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOptionalLatestOperationByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		optionalTags := ctx.GetFields().GetOptionalTags()
+
+		var operation *productv1.StorageOperationResult
+		items := optionalTags.GetList().GetItems()
+		switch {
+		case len(items) == 0:
+			// No tags provided, the operation is unknown.
+			operation = nil
+		case len(items)%2 == 0:
+			operation = &productv1.StorageOperationResult{
+				Value: &productv1.StorageOperationResult_StorageFailure{
+					StorageFailure: &productv1.StorageFailure{
+						Message:   fmt.Sprintf("Operation failed for tags: %s", strings.Join(items, ", ")),
+						ErrorCode: "EVEN_TAG_COUNT",
+					},
+				},
+			}
+		default:
+			operation = &productv1.StorageOperationResult{
+				Value: &productv1.StorageOperationResult_StorageSuccess{
+					StorageSuccess: &productv1.StorageSuccess{
+						Message:     fmt.Sprintf("Operation completed for tags: %s", strings.Join(items, ", ")),
+						CompletedAt: "2024-01-02T00:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.RequireStorageOptionalLatestOperationByIdResult{
+			OptionalLatestOperation: operation,
+		})
+	}
+
+	return &productv1.RequireStorageOptionalLatestOperationByIdResponse{Result: results}, nil
+}
+
 // RequireStorageMultiFilteredTagSummaryById implements [productv1.ProductServiceServer].
 // Returns a comma separated list of tags matching any of the given prefixes, capped at maxResults.
 func (s *MockService) RequireStorageMultiFilteredTagSummaryById(_ context.Context, req *productv1.RequireStorageMultiFilteredTagSummaryByIdRequest) (*productv1.RequireStorageMultiFilteredTagSummaryByIdResponse, error) {

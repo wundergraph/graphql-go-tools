@@ -201,6 +201,9 @@ const (
 	// ProductServiceRequireStorageKindSummaryByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageKindSummaryById RPC.
 	ProductServiceRequireStorageKindSummaryByIdProcedure = "/productv1.ProductService/RequireStorageKindSummaryById"
+	// ProductServiceRequireStorageLatestOperationByIdProcedure is the fully-qualified name of the
+	// ProductService's RequireStorageLatestOperationById RPC.
+	ProductServiceRequireStorageLatestOperationByIdProcedure = "/productv1.ProductService/RequireStorageLatestOperationById"
 	// ProductServiceRequireStorageMetadataScoreByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageMetadataScoreById RPC.
 	ProductServiceRequireStorageMetadataScoreByIdProcedure = "/productv1.ProductService/RequireStorageMetadataScoreById"
@@ -213,6 +216,9 @@ const (
 	// ProductServiceRequireStorageOperationReportByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageOperationReportById RPC.
 	ProductServiceRequireStorageOperationReportByIdProcedure = "/productv1.ProductService/RequireStorageOperationReportById"
+	// ProductServiceRequireStorageOptionalLatestOperationByIdProcedure is the fully-qualified name of
+	// the ProductService's RequireStorageOptionalLatestOperationById RPC.
+	ProductServiceRequireStorageOptionalLatestOperationByIdProcedure = "/productv1.ProductService/RequireStorageOptionalLatestOperationById"
 	// ProductServiceRequireStorageOptionalProcessedMetadataByIdProcedure is the fully-qualified name of
 	// the ProductService's RequireStorageOptionalProcessedMetadataById RPC.
 	ProductServiceRequireStorageOptionalProcessedMetadataByIdProcedure = "/productv1.ProductService/RequireStorageOptionalProcessedMetadataById"
@@ -231,6 +237,12 @@ const (
 	// ProductServiceRequireStorageProcessedTagsByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageProcessedTagsById RPC.
 	ProductServiceRequireStorageProcessedTagsByIdProcedure = "/productv1.ProductService/RequireStorageProcessedTagsById"
+	// ProductServiceRequireStorageRecommendedItemByIdProcedure is the fully-qualified name of the
+	// ProductService's RequireStorageRecommendedItemById RPC.
+	ProductServiceRequireStorageRecommendedItemByIdProcedure = "/productv1.ProductService/RequireStorageRecommendedItemById"
+	// ProductServiceRequireStorageRecommendedItemsByIdProcedure is the fully-qualified name of the
+	// ProductService's RequireStorageRecommendedItemsById RPC.
+	ProductServiceRequireStorageRecommendedItemsByIdProcedure = "/productv1.ProductService/RequireStorageRecommendedItemsById"
 	// ProductServiceRequireStorageSecuritySummaryByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageSecuritySummaryById RPC.
 	ProductServiceRequireStorageSecuritySummaryByIdProcedure = "/productv1.ProductService/RequireStorageSecuritySummaryById"
@@ -381,16 +393,20 @@ type ProductServiceClient interface {
 	RequireStorageItemInfoById(context.Context, *connect.Request[productv1.RequireStorageItemInfoByIdRequest]) (*connect.Response[productv1.RequireStorageItemInfoByIdResponse], error)
 	RequireStorageItemSpecsInfoById(context.Context, *connect.Request[productv1.RequireStorageItemSpecsInfoByIdRequest]) (*connect.Response[productv1.RequireStorageItemSpecsInfoByIdResponse], error)
 	RequireStorageKindSummaryById(context.Context, *connect.Request[productv1.RequireStorageKindSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageKindSummaryByIdResponse], error)
+	RequireStorageLatestOperationById(context.Context, *connect.Request[productv1.RequireStorageLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageLatestOperationByIdResponse], error)
 	RequireStorageMetadataScoreById(context.Context, *connect.Request[productv1.RequireStorageMetadataScoreByIdRequest]) (*connect.Response[productv1.RequireStorageMetadataScoreByIdResponse], error)
 	RequireStorageMultiFilteredTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageMultiFilteredTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageMultiFilteredTagSummaryByIdResponse], error)
 	RequireStorageNullableFilteredTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageNullableFilteredTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageNullableFilteredTagSummaryByIdResponse], error)
 	RequireStorageOperationReportById(context.Context, *connect.Request[productv1.RequireStorageOperationReportByIdRequest]) (*connect.Response[productv1.RequireStorageOperationReportByIdResponse], error)
+	RequireStorageOptionalLatestOperationById(context.Context, *connect.Request[productv1.RequireStorageOptionalLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalLatestOperationByIdResponse], error)
 	RequireStorageOptionalProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataByIdResponse], error)
 	RequireStorageOptionalProcessedTagsById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedTagsByIdResponse], error)
 	RequireStorageOptionalTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageOptionalTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalTagSummaryByIdResponse], error)
 	RequireStorageProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedMetadataByIdResponse], error)
 	RequireStorageProcessedMetadataHistoryById(context.Context, *connect.Request[productv1.RequireStorageProcessedMetadataHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedMetadataHistoryByIdResponse], error)
 	RequireStorageProcessedTagsById(context.Context, *connect.Request[productv1.RequireStorageProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedTagsByIdResponse], error)
+	RequireStorageRecommendedItemById(context.Context, *connect.Request[productv1.RequireStorageRecommendedItemByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemByIdResponse], error)
+	RequireStorageRecommendedItemsById(context.Context, *connect.Request[productv1.RequireStorageRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemsByIdResponse], error)
 	RequireStorageSecuritySummaryById(context.Context, *connect.Request[productv1.RequireStorageSecuritySummaryByIdRequest]) (*connect.Response[productv1.RequireStorageSecuritySummaryByIdResponse], error)
 	RequireStorageStockHealthScoreById(context.Context, *connect.Request[productv1.RequireStorageStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireStorageStockHealthScoreByIdResponse], error)
 	RequireStorageTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error)
@@ -769,6 +785,12 @@ func NewProductServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(productServiceMethods.ByName("RequireStorageKindSummaryById")),
 			connect.WithClientOptions(opts...),
 		),
+		requireStorageLatestOperationById: connect.NewClient[productv1.RequireStorageLatestOperationByIdRequest, productv1.RequireStorageLatestOperationByIdResponse](
+			httpClient,
+			baseURL+ProductServiceRequireStorageLatestOperationByIdProcedure,
+			connect.WithSchema(productServiceMethods.ByName("RequireStorageLatestOperationById")),
+			connect.WithClientOptions(opts...),
+		),
 		requireStorageMetadataScoreById: connect.NewClient[productv1.RequireStorageMetadataScoreByIdRequest, productv1.RequireStorageMetadataScoreByIdResponse](
 			httpClient,
 			baseURL+ProductServiceRequireStorageMetadataScoreByIdProcedure,
@@ -791,6 +813,12 @@ func NewProductServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+ProductServiceRequireStorageOperationReportByIdProcedure,
 			connect.WithSchema(productServiceMethods.ByName("RequireStorageOperationReportById")),
+			connect.WithClientOptions(opts...),
+		),
+		requireStorageOptionalLatestOperationById: connect.NewClient[productv1.RequireStorageOptionalLatestOperationByIdRequest, productv1.RequireStorageOptionalLatestOperationByIdResponse](
+			httpClient,
+			baseURL+ProductServiceRequireStorageOptionalLatestOperationByIdProcedure,
+			connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalLatestOperationById")),
 			connect.WithClientOptions(opts...),
 		),
 		requireStorageOptionalProcessedMetadataById: connect.NewClient[productv1.RequireStorageOptionalProcessedMetadataByIdRequest, productv1.RequireStorageOptionalProcessedMetadataByIdResponse](
@@ -827,6 +855,18 @@ func NewProductServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+ProductServiceRequireStorageProcessedTagsByIdProcedure,
 			connect.WithSchema(productServiceMethods.ByName("RequireStorageProcessedTagsById")),
+			connect.WithClientOptions(opts...),
+		),
+		requireStorageRecommendedItemById: connect.NewClient[productv1.RequireStorageRecommendedItemByIdRequest, productv1.RequireStorageRecommendedItemByIdResponse](
+			httpClient,
+			baseURL+ProductServiceRequireStorageRecommendedItemByIdProcedure,
+			connect.WithSchema(productServiceMethods.ByName("RequireStorageRecommendedItemById")),
+			connect.WithClientOptions(opts...),
+		),
+		requireStorageRecommendedItemsById: connect.NewClient[productv1.RequireStorageRecommendedItemsByIdRequest, productv1.RequireStorageRecommendedItemsByIdResponse](
+			httpClient,
+			baseURL+ProductServiceRequireStorageRecommendedItemsByIdProcedure,
+			connect.WithSchema(productServiceMethods.ByName("RequireStorageRecommendedItemsById")),
 			connect.WithClientOptions(opts...),
 		),
 		requireStorageSecuritySummaryById: connect.NewClient[productv1.RequireStorageSecuritySummaryByIdRequest, productv1.RequireStorageSecuritySummaryByIdResponse](
@@ -1064,16 +1104,20 @@ type productServiceClient struct {
 	requireStorageItemInfoById                   *connect.Client[productv1.RequireStorageItemInfoByIdRequest, productv1.RequireStorageItemInfoByIdResponse]
 	requireStorageItemSpecsInfoById              *connect.Client[productv1.RequireStorageItemSpecsInfoByIdRequest, productv1.RequireStorageItemSpecsInfoByIdResponse]
 	requireStorageKindSummaryById                *connect.Client[productv1.RequireStorageKindSummaryByIdRequest, productv1.RequireStorageKindSummaryByIdResponse]
+	requireStorageLatestOperationById            *connect.Client[productv1.RequireStorageLatestOperationByIdRequest, productv1.RequireStorageLatestOperationByIdResponse]
 	requireStorageMetadataScoreById              *connect.Client[productv1.RequireStorageMetadataScoreByIdRequest, productv1.RequireStorageMetadataScoreByIdResponse]
 	requireStorageMultiFilteredTagSummaryById    *connect.Client[productv1.RequireStorageMultiFilteredTagSummaryByIdRequest, productv1.RequireStorageMultiFilteredTagSummaryByIdResponse]
 	requireStorageNullableFilteredTagSummaryById *connect.Client[productv1.RequireStorageNullableFilteredTagSummaryByIdRequest, productv1.RequireStorageNullableFilteredTagSummaryByIdResponse]
 	requireStorageOperationReportById            *connect.Client[productv1.RequireStorageOperationReportByIdRequest, productv1.RequireStorageOperationReportByIdResponse]
+	requireStorageOptionalLatestOperationById    *connect.Client[productv1.RequireStorageOptionalLatestOperationByIdRequest, productv1.RequireStorageOptionalLatestOperationByIdResponse]
 	requireStorageOptionalProcessedMetadataById  *connect.Client[productv1.RequireStorageOptionalProcessedMetadataByIdRequest, productv1.RequireStorageOptionalProcessedMetadataByIdResponse]
 	requireStorageOptionalProcessedTagsById      *connect.Client[productv1.RequireStorageOptionalProcessedTagsByIdRequest, productv1.RequireStorageOptionalProcessedTagsByIdResponse]
 	requireStorageOptionalTagSummaryById         *connect.Client[productv1.RequireStorageOptionalTagSummaryByIdRequest, productv1.RequireStorageOptionalTagSummaryByIdResponse]
 	requireStorageProcessedMetadataById          *connect.Client[productv1.RequireStorageProcessedMetadataByIdRequest, productv1.RequireStorageProcessedMetadataByIdResponse]
 	requireStorageProcessedMetadataHistoryById   *connect.Client[productv1.RequireStorageProcessedMetadataHistoryByIdRequest, productv1.RequireStorageProcessedMetadataHistoryByIdResponse]
 	requireStorageProcessedTagsById              *connect.Client[productv1.RequireStorageProcessedTagsByIdRequest, productv1.RequireStorageProcessedTagsByIdResponse]
+	requireStorageRecommendedItemById            *connect.Client[productv1.RequireStorageRecommendedItemByIdRequest, productv1.RequireStorageRecommendedItemByIdResponse]
+	requireStorageRecommendedItemsById           *connect.Client[productv1.RequireStorageRecommendedItemsByIdRequest, productv1.RequireStorageRecommendedItemsByIdResponse]
 	requireStorageSecuritySummaryById            *connect.Client[productv1.RequireStorageSecuritySummaryByIdRequest, productv1.RequireStorageSecuritySummaryByIdResponse]
 	requireStorageStockHealthScoreById           *connect.Client[productv1.RequireStorageStockHealthScoreByIdRequest, productv1.RequireStorageStockHealthScoreByIdResponse]
 	requireStorageTagSummaryById                 *connect.Client[productv1.RequireStorageTagSummaryByIdRequest, productv1.RequireStorageTagSummaryByIdResponse]
@@ -1390,6 +1434,12 @@ func (c *productServiceClient) RequireStorageKindSummaryById(ctx context.Context
 	return c.requireStorageKindSummaryById.CallUnary(ctx, req)
 }
 
+// RequireStorageLatestOperationById calls
+// productv1.ProductService.RequireStorageLatestOperationById.
+func (c *productServiceClient) RequireStorageLatestOperationById(ctx context.Context, req *connect.Request[productv1.RequireStorageLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageLatestOperationByIdResponse], error) {
+	return c.requireStorageLatestOperationById.CallUnary(ctx, req)
+}
+
 // RequireStorageMetadataScoreById calls productv1.ProductService.RequireStorageMetadataScoreById.
 func (c *productServiceClient) RequireStorageMetadataScoreById(ctx context.Context, req *connect.Request[productv1.RequireStorageMetadataScoreByIdRequest]) (*connect.Response[productv1.RequireStorageMetadataScoreByIdResponse], error) {
 	return c.requireStorageMetadataScoreById.CallUnary(ctx, req)
@@ -1411,6 +1461,12 @@ func (c *productServiceClient) RequireStorageNullableFilteredTagSummaryById(ctx 
 // productv1.ProductService.RequireStorageOperationReportById.
 func (c *productServiceClient) RequireStorageOperationReportById(ctx context.Context, req *connect.Request[productv1.RequireStorageOperationReportByIdRequest]) (*connect.Response[productv1.RequireStorageOperationReportByIdResponse], error) {
 	return c.requireStorageOperationReportById.CallUnary(ctx, req)
+}
+
+// RequireStorageOptionalLatestOperationById calls
+// productv1.ProductService.RequireStorageOptionalLatestOperationById.
+func (c *productServiceClient) RequireStorageOptionalLatestOperationById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalLatestOperationByIdResponse], error) {
+	return c.requireStorageOptionalLatestOperationById.CallUnary(ctx, req)
 }
 
 // RequireStorageOptionalProcessedMetadataById calls
@@ -1446,6 +1502,18 @@ func (c *productServiceClient) RequireStorageProcessedMetadataHistoryById(ctx co
 // RequireStorageProcessedTagsById calls productv1.ProductService.RequireStorageProcessedTagsById.
 func (c *productServiceClient) RequireStorageProcessedTagsById(ctx context.Context, req *connect.Request[productv1.RequireStorageProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedTagsByIdResponse], error) {
 	return c.requireStorageProcessedTagsById.CallUnary(ctx, req)
+}
+
+// RequireStorageRecommendedItemById calls
+// productv1.ProductService.RequireStorageRecommendedItemById.
+func (c *productServiceClient) RequireStorageRecommendedItemById(ctx context.Context, req *connect.Request[productv1.RequireStorageRecommendedItemByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemByIdResponse], error) {
+	return c.requireStorageRecommendedItemById.CallUnary(ctx, req)
+}
+
+// RequireStorageRecommendedItemsById calls
+// productv1.ProductService.RequireStorageRecommendedItemsById.
+func (c *productServiceClient) RequireStorageRecommendedItemsById(ctx context.Context, req *connect.Request[productv1.RequireStorageRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemsByIdResponse], error) {
+	return c.requireStorageRecommendedItemsById.CallUnary(ctx, req)
 }
 
 // RequireStorageSecuritySummaryById calls
@@ -1665,16 +1733,20 @@ type ProductServiceHandler interface {
 	RequireStorageItemInfoById(context.Context, *connect.Request[productv1.RequireStorageItemInfoByIdRequest]) (*connect.Response[productv1.RequireStorageItemInfoByIdResponse], error)
 	RequireStorageItemSpecsInfoById(context.Context, *connect.Request[productv1.RequireStorageItemSpecsInfoByIdRequest]) (*connect.Response[productv1.RequireStorageItemSpecsInfoByIdResponse], error)
 	RequireStorageKindSummaryById(context.Context, *connect.Request[productv1.RequireStorageKindSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageKindSummaryByIdResponse], error)
+	RequireStorageLatestOperationById(context.Context, *connect.Request[productv1.RequireStorageLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageLatestOperationByIdResponse], error)
 	RequireStorageMetadataScoreById(context.Context, *connect.Request[productv1.RequireStorageMetadataScoreByIdRequest]) (*connect.Response[productv1.RequireStorageMetadataScoreByIdResponse], error)
 	RequireStorageMultiFilteredTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageMultiFilteredTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageMultiFilteredTagSummaryByIdResponse], error)
 	RequireStorageNullableFilteredTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageNullableFilteredTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageNullableFilteredTagSummaryByIdResponse], error)
 	RequireStorageOperationReportById(context.Context, *connect.Request[productv1.RequireStorageOperationReportByIdRequest]) (*connect.Response[productv1.RequireStorageOperationReportByIdResponse], error)
+	RequireStorageOptionalLatestOperationById(context.Context, *connect.Request[productv1.RequireStorageOptionalLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalLatestOperationByIdResponse], error)
 	RequireStorageOptionalProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataByIdResponse], error)
 	RequireStorageOptionalProcessedTagsById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedTagsByIdResponse], error)
 	RequireStorageOptionalTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageOptionalTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalTagSummaryByIdResponse], error)
 	RequireStorageProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedMetadataByIdResponse], error)
 	RequireStorageProcessedMetadataHistoryById(context.Context, *connect.Request[productv1.RequireStorageProcessedMetadataHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedMetadataHistoryByIdResponse], error)
 	RequireStorageProcessedTagsById(context.Context, *connect.Request[productv1.RequireStorageProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedTagsByIdResponse], error)
+	RequireStorageRecommendedItemById(context.Context, *connect.Request[productv1.RequireStorageRecommendedItemByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemByIdResponse], error)
+	RequireStorageRecommendedItemsById(context.Context, *connect.Request[productv1.RequireStorageRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemsByIdResponse], error)
 	RequireStorageSecuritySummaryById(context.Context, *connect.Request[productv1.RequireStorageSecuritySummaryByIdRequest]) (*connect.Response[productv1.RequireStorageSecuritySummaryByIdResponse], error)
 	RequireStorageStockHealthScoreById(context.Context, *connect.Request[productv1.RequireStorageStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireStorageStockHealthScoreByIdResponse], error)
 	RequireStorageTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error)
@@ -2049,6 +2121,12 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 		connect.WithSchema(productServiceMethods.ByName("RequireStorageKindSummaryById")),
 		connect.WithHandlerOptions(opts...),
 	)
+	productServiceRequireStorageLatestOperationByIdHandler := connect.NewUnaryHandler(
+		ProductServiceRequireStorageLatestOperationByIdProcedure,
+		svc.RequireStorageLatestOperationById,
+		connect.WithSchema(productServiceMethods.ByName("RequireStorageLatestOperationById")),
+		connect.WithHandlerOptions(opts...),
+	)
 	productServiceRequireStorageMetadataScoreByIdHandler := connect.NewUnaryHandler(
 		ProductServiceRequireStorageMetadataScoreByIdProcedure,
 		svc.RequireStorageMetadataScoreById,
@@ -2071,6 +2149,12 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 		ProductServiceRequireStorageOperationReportByIdProcedure,
 		svc.RequireStorageOperationReportById,
 		connect.WithSchema(productServiceMethods.ByName("RequireStorageOperationReportById")),
+		connect.WithHandlerOptions(opts...),
+	)
+	productServiceRequireStorageOptionalLatestOperationByIdHandler := connect.NewUnaryHandler(
+		ProductServiceRequireStorageOptionalLatestOperationByIdProcedure,
+		svc.RequireStorageOptionalLatestOperationById,
+		connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalLatestOperationById")),
 		connect.WithHandlerOptions(opts...),
 	)
 	productServiceRequireStorageOptionalProcessedMetadataByIdHandler := connect.NewUnaryHandler(
@@ -2107,6 +2191,18 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 		ProductServiceRequireStorageProcessedTagsByIdProcedure,
 		svc.RequireStorageProcessedTagsById,
 		connect.WithSchema(productServiceMethods.ByName("RequireStorageProcessedTagsById")),
+		connect.WithHandlerOptions(opts...),
+	)
+	productServiceRequireStorageRecommendedItemByIdHandler := connect.NewUnaryHandler(
+		ProductServiceRequireStorageRecommendedItemByIdProcedure,
+		svc.RequireStorageRecommendedItemById,
+		connect.WithSchema(productServiceMethods.ByName("RequireStorageRecommendedItemById")),
+		connect.WithHandlerOptions(opts...),
+	)
+	productServiceRequireStorageRecommendedItemsByIdHandler := connect.NewUnaryHandler(
+		ProductServiceRequireStorageRecommendedItemsByIdProcedure,
+		svc.RequireStorageRecommendedItemsById,
+		connect.WithSchema(productServiceMethods.ByName("RequireStorageRecommendedItemsById")),
 		connect.WithHandlerOptions(opts...),
 	)
 	productServiceRequireStorageSecuritySummaryByIdHandler := connect.NewUnaryHandler(
@@ -2397,6 +2493,8 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 			productServiceRequireStorageItemSpecsInfoByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageKindSummaryByIdProcedure:
 			productServiceRequireStorageKindSummaryByIdHandler.ServeHTTP(w, r)
+		case ProductServiceRequireStorageLatestOperationByIdProcedure:
+			productServiceRequireStorageLatestOperationByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageMetadataScoreByIdProcedure:
 			productServiceRequireStorageMetadataScoreByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageMultiFilteredTagSummaryByIdProcedure:
@@ -2405,6 +2503,8 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 			productServiceRequireStorageNullableFilteredTagSummaryByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageOperationReportByIdProcedure:
 			productServiceRequireStorageOperationReportByIdHandler.ServeHTTP(w, r)
+		case ProductServiceRequireStorageOptionalLatestOperationByIdProcedure:
+			productServiceRequireStorageOptionalLatestOperationByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageOptionalProcessedMetadataByIdProcedure:
 			productServiceRequireStorageOptionalProcessedMetadataByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageOptionalProcessedTagsByIdProcedure:
@@ -2417,6 +2517,10 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 			productServiceRequireStorageProcessedMetadataHistoryByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageProcessedTagsByIdProcedure:
 			productServiceRequireStorageProcessedTagsByIdHandler.ServeHTTP(w, r)
+		case ProductServiceRequireStorageRecommendedItemByIdProcedure:
+			productServiceRequireStorageRecommendedItemByIdHandler.ServeHTTP(w, r)
+		case ProductServiceRequireStorageRecommendedItemsByIdProcedure:
+			productServiceRequireStorageRecommendedItemsByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageSecuritySummaryByIdProcedure:
 			productServiceRequireStorageSecuritySummaryByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageStockHealthScoreByIdProcedure:
@@ -2708,6 +2812,10 @@ func (UnimplementedProductServiceHandler) RequireStorageKindSummaryById(context.
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageKindSummaryById is not implemented"))
 }
 
+func (UnimplementedProductServiceHandler) RequireStorageLatestOperationById(context.Context, *connect.Request[productv1.RequireStorageLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageLatestOperationByIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageLatestOperationById is not implemented"))
+}
+
 func (UnimplementedProductServiceHandler) RequireStorageMetadataScoreById(context.Context, *connect.Request[productv1.RequireStorageMetadataScoreByIdRequest]) (*connect.Response[productv1.RequireStorageMetadataScoreByIdResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageMetadataScoreById is not implemented"))
 }
@@ -2722,6 +2830,10 @@ func (UnimplementedProductServiceHandler) RequireStorageNullableFilteredTagSumma
 
 func (UnimplementedProductServiceHandler) RequireStorageOperationReportById(context.Context, *connect.Request[productv1.RequireStorageOperationReportByIdRequest]) (*connect.Response[productv1.RequireStorageOperationReportByIdResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageOperationReportById is not implemented"))
+}
+
+func (UnimplementedProductServiceHandler) RequireStorageOptionalLatestOperationById(context.Context, *connect.Request[productv1.RequireStorageOptionalLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalLatestOperationByIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageOptionalLatestOperationById is not implemented"))
 }
 
 func (UnimplementedProductServiceHandler) RequireStorageOptionalProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataByIdResponse], error) {
@@ -2746,6 +2858,14 @@ func (UnimplementedProductServiceHandler) RequireStorageProcessedMetadataHistory
 
 func (UnimplementedProductServiceHandler) RequireStorageProcessedTagsById(context.Context, *connect.Request[productv1.RequireStorageProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedTagsByIdResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageProcessedTagsById is not implemented"))
+}
+
+func (UnimplementedProductServiceHandler) RequireStorageRecommendedItemById(context.Context, *connect.Request[productv1.RequireStorageRecommendedItemByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemByIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageRecommendedItemById is not implemented"))
+}
+
+func (UnimplementedProductServiceHandler) RequireStorageRecommendedItemsById(context.Context, *connect.Request[productv1.RequireStorageRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemsByIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageRecommendedItemsById is not implemented"))
 }
 
 func (UnimplementedProductServiceHandler) RequireStorageSecuritySummaryById(context.Context, *connect.Request[productv1.RequireStorageSecuritySummaryByIdRequest]) (*connect.Response[productv1.RequireStorageSecuritySummaryByIdResponse], error) {

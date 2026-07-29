@@ -3577,6 +3577,579 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 	}
 }
 
+// TestExecutionPlan_FederationRequires_AbstractReturnTypes covers @requires fields whose
+// *return* type is abstract (interface or union). This is distinct from
+// TestExecutionPlan_FederationRequires_AbstractTypes, which covers abstract types appearing
+// in the @requires *selection set*.
+//
+// The expected plans mirror the shape the field resolver path already produces for abstract
+// return types (see TestExecutionPlan_EntityLookupWithFieldResolvers, Animal/ActionResult):
+// the response message must carry OneOfType, MemberTypes and FragmentFields so the compiler
+// can resolve the concrete member from the protobuf oneof.
+func TestExecutionPlan_FederationRequires_AbstractReturnTypes(t *testing.T) {
+	t.Parallel()
+
+	// storageEntityLookupCall returns the common entity lookup call shared by all tests
+	storageEntityLookupCall := func() RPCCall {
+		return RPCCall{
+			ServiceName:         "Products",
+			MethodName:          "LookupStorageById",
+			Kind:                CallKindEntity,
+			RequestedEntityType: "Storage",
+			Request: RPCMessage{
+				Name: "LookupStorageByIdRequest",
+				Fields: []RPCField{
+					{
+						Name:          "keys",
+						ProtoTypeName: DataTypeMessage,
+						Repeated:      true,
+						JSONPath:      "representations",
+						Message: &RPCMessage{
+							Name:        "LookupStorageByIdRequestKey",
+							MemberTypes: []string{"Storage"},
+							Fields: []RPCField{
+								{
+									Name:          "id",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "id",
+								},
+							},
+						},
+					},
+				},
+			},
+			Response: RPCMessage{
+				Name: "LookupStorageByIdResponse",
+				Fields: []RPCField{
+					{
+						Name:          "result",
+						ProtoTypeName: DataTypeMessage,
+						Repeated:      true,
+						JSONPath:      "_entities",
+						Message: &RPCMessage{
+							Name: "Storage",
+							Fields: []RPCField{
+								{
+									Name:          "__typename",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "__typename",
+									StaticValue:   "Storage",
+								},
+								{
+									Name:          "name",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "name",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	storageKeyMessage := func() *RPCMessage {
+		return &RPCMessage{
+			Name:        "LookupStorageByIdRequestKey",
+			MemberTypes: []string{"Storage"},
+			Fields: []RPCField{
+				{
+					Name:          "id",
+					ProtoTypeName: DataTypeString,
+					JSONPath:      "id",
+				},
+			},
+		}
+	}
+
+	// storageItemMessage returns the expected StorageItem interface message for a response.
+	storageItemMessage := func() *RPCMessage {
+		return &RPCMessage{
+			Name:        "StorageItem",
+			OneOfType:   OneOfTypeInterface,
+			MemberTypes: []string{"PalletItem", "ContainerItem"},
+			FragmentFields: RPCFieldSelectionSet{
+				"PalletItem": {
+					{
+						Name:          "name",
+						ProtoTypeName: DataTypeString,
+						JSONPath:      "name",
+					},
+					{
+						Name:          "pallet_count",
+						ProtoTypeName: DataTypeInt32,
+						JSONPath:      "palletCount",
+					},
+				},
+				"ContainerItem": {
+					{
+						Name:          "name",
+						ProtoTypeName: DataTypeString,
+						JSONPath:      "name",
+					},
+					{
+						Name:          "container_size",
+						ProtoTypeName: DataTypeString,
+						JSONPath:      "containerSize",
+					},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name              string
+		query             string
+		expectedPlan      *RPCExecutionPlan
+		mapping           *GRPCMapping
+		federationConfigs plan.FederationFieldConfigurations
+	}{
+		{
+			name:    "requires field returning an interface type",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name recommendedItem { ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItem",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageRecommendedItemById",
+						ResponsePath: buildPath("_entities.recommendedItem"),
+						Request: RPCMessage{
+							Name: "RequireStorageRecommendedItemByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageRecommendedItemByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message:       storageKeyMessage(),
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageRecommendedItemByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "metadata",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "metadata",
+															Message: &RPCMessage{
+																Name: "RequireStorageRecommendedItemByIdFields.StorageMetadata",
+																Fields: []RPCField{
+																	{
+																		Name:          "capacity",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "capacity",
+																	},
+																	{
+																		Name:          "zone",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "zone",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageRecommendedItemByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageRecommendedItemByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "recommended_item",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "recommendedItem",
+												Message:       storageItemMessage(),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "requires field returning a list of an interface type",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name recommendedItems { ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItems",
+					SelectionSet: "tags",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageRecommendedItemsById",
+						ResponsePath: buildPath("_entities.recommendedItems"),
+						Request: RPCMessage{
+							Name: "RequireStorageRecommendedItemsByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageRecommendedItemsByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message:       storageKeyMessage(),
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageRecommendedItemsByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "tags",
+															ProtoTypeName: DataTypeString,
+															Repeated:      true,
+															JSONPath:      "tags",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageRecommendedItemsByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageRecommendedItemsByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "recommended_items",
+												ProtoTypeName: DataTypeMessage,
+												Repeated:      true,
+												JSONPath:      "recommendedItems",
+												Message:       storageItemMessage(),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "requires field returning a union type",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name latestOperation { ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "latestOperation",
+					SelectionSet: "storageKind",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageLatestOperationById",
+						ResponsePath: buildPath("_entities.latestOperation"),
+						Request: RPCMessage{
+							Name: "RequireStorageLatestOperationByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageLatestOperationByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message:       storageKeyMessage(),
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageLatestOperationByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "storage_kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "storageKind",
+															EnumName:      "CategoryKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageLatestOperationByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageLatestOperationByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "latest_operation",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "latestOperation",
+												Message: &RPCMessage{
+													Name:        "StorageOperationResult",
+													OneOfType:   OneOfTypeUnion,
+													MemberTypes: []string{"StorageSuccess", "StorageFailure"},
+													FragmentFields: RPCFieldSelectionSet{
+														"StorageSuccess": {
+															{
+																Name:          "message",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "message",
+															},
+															{
+																Name:          "completed_at",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "completedAt",
+															},
+														},
+														"StorageFailure": {
+															{
+																Name:          "message",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "message",
+															},
+															{
+																Name:          "error_code",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "errorCode",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "requires field returning a nullable union type",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename name optionalLatestOperation { ... on StorageSuccess { message } ... on StorageFailure { errorCode } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalLatestOperation",
+					SelectionSet: "optionalTags",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageOptionalLatestOperationById",
+						ResponsePath: buildPath("_entities.optionalLatestOperation"),
+						Request: RPCMessage{
+							Name: "RequireStorageOptionalLatestOperationByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageOptionalLatestOperationByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message:       storageKeyMessage(),
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageOptionalLatestOperationByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "optional_tags",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "optionalTags",
+															Optional:      true,
+															IsListType:    true,
+															ListMetadata: &ListMetadata{
+																NestingLevel: 1,
+																LevelInfo:    []LevelInfo{{Optional: true}},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageOptionalLatestOperationByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageOptionalLatestOperationByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "optional_latest_operation",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalLatestOperation",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name:        "StorageOperationResult",
+													OneOfType:   OneOfTypeUnion,
+													MemberTypes: []string{"StorageSuccess", "StorageFailure"},
+													FragmentFields: RPCFieldSelectionSet{
+														"StorageSuccess": {
+															{
+																Name:          "message",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "message",
+															},
+														},
+														"StorageFailure": {
+															{
+																Name:          "error_code",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "errorCode",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tt.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			planner, err := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			if err != nil {
+				t.Fatalf("failed to create planner: %s", err)
+			}
+			plan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+			if err != nil {
+				t.Fatalf("failed to plan operation: %s", err)
+			}
+
+			diff := cmp.Diff(tt.expectedPlan, plan)
+			if diff != "" {
+				t.Fatalf("execution plan mismatch: %s", diff)
+			}
+		})
+	}
+}
+
 func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 	t.Parallel()
 
