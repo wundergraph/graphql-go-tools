@@ -39,11 +39,26 @@ const requiresSupergraphSDL = `
 		itemCount: Int!
 		restockData: RestockData!
 		tags: [String!]!
+		optionalTags: [String!]
 		metadata: StorageMetadata!
+		storageKind: CategoryKind!
+		primaryItem: StorageItem!
+		lastStorageOperation: StorageOperationResult!
+		securitySetup: SecuritySetup!
 		stockHealthScore: Float!
 		tagSummary: String!
 		metadataScore: Float!
 		filteredTagSummary(prefix: String!): String
+		itemInfo: String!
+		operationReport: String!
+		securitySummary: String!
+		itemHandlerInfo: String!
+		itemSpecsInfo: String!
+		deepItemInfo: String!
+		recommendedItem: StorageItem!
+		recommendedItems: [StorageItem!]!
+		latestOperation: StorageOperationResult!
+		optionalLatestOperation: StorageOperationResult
 	}
 
 	type Warehouse {
@@ -64,6 +79,84 @@ const requiresSupergraphSDL = `
 		zone: String!
 		priority: Int!
 	}
+` + compositeTypeDefinitions
+
+// compositeTypeDefinitions holds the abstract types (interface/union) and their members used by the
+// composite-type @requires cases. They are shared verbatim by the supergraph and the owning subgraph
+// SDL: as value types both subgraphs know them, the owning subgraph produces them as @requires input
+// and the gRPC subgraph returns them from @requires fields.
+const compositeTypeDefinitions = `
+	enum CategoryKind {
+		BOOK
+		ELECTRONICS
+		FURNITURE
+		OTHER
+	}
+
+	interface StorageItem {
+		id: ID!
+		name: String!
+		weight: Float!
+	}
+
+	type PalletItem implements StorageItem {
+		id: ID!
+		name: String!
+		weight: Float!
+		palletCount: Int!
+		handler: ItemHandler!
+		specs: PalletSpecs!
+	}
+
+	type ContainerItem implements StorageItem {
+		id: ID!
+		name: String!
+		weight: Float!
+		containerSize: String!
+		handler: ItemHandler!
+		specs: ContainerSpecs!
+	}
+
+	type ItemHandler {
+		id: ID!
+		name: String!
+		assignedItem: StorageItem!
+	}
+
+	type PalletSpecs {
+		name: String!
+		maxWeight: Float!
+		dimensions: Dimensions!
+	}
+
+	type ContainerSpecs {
+		name: String!
+		volume: Float!
+		dimensions: Dimensions!
+	}
+
+	type Dimensions {
+		length: Float!
+		width: Float!
+		height: Float!
+	}
+
+	union StorageOperationResult = StorageSuccess | StorageFailure
+
+	type StorageSuccess {
+		message: String!
+		completedAt: String!
+	}
+
+	type StorageFailure {
+		message: String!
+		errorCode: String!
+	}
+
+	type SecuritySetup {
+		securityLevel: String!
+		primaryItem: StorageItem!
+	}
 `
 
 // owningSubgraphSDL is the single, shared SDL for the "owning" subgraph across all @requires cases.
@@ -80,7 +173,12 @@ const owningSubgraphSDL = `
 		itemCount: Int!
 		restockData: RestockData!
 		tags: [String!]!
+		optionalTags: [String!]
 		metadata: StorageMetadata!
+		storageKind: CategoryKind!
+		primaryItem: StorageItem!
+		lastStorageOperation: StorageOperationResult!
+		securitySetup: SecuritySetup!
 	}
 
 	type Warehouse @key(fields: "id") {
@@ -97,7 +195,7 @@ const owningSubgraphSDL = `
 		capacity: Int!
 		zone: String!
 	}
-`
+` + compositeTypeDefinitions
 
 // requiresFieldConfigurations covers the arguments of every field the test operations use: the
 // entity root fields and the @requires field that also takes an argument.
@@ -127,12 +225,24 @@ func newOwningSubgraphMetadata() *plan.DataSourceMetadata {
 	return &plan.DataSourceMetadata{
 		RootNodes: []plan.TypeField{
 			{TypeName: "Query", FieldNames: []string{"storageProvider", "warehouseProvider"}},
-			{TypeName: "Storage", FieldNames: []string{"id", "itemCount", "restockData", "tags", "metadata"}},
+			{TypeName: "Storage", FieldNames: []string{"id", "itemCount", "restockData", "tags", "optionalTags", "metadata", "storageKind", "primaryItem", "lastStorageOperation", "securitySetup"}},
 			{TypeName: "Warehouse", FieldNames: []string{"id", "inventoryCount", "restockData"}},
 		},
 		ChildNodes: []plan.TypeField{
 			{TypeName: "RestockData", FieldNames: []string{"lastRestockDate"}},
 			{TypeName: "StorageMetadata", FieldNames: []string{"capacity", "zone"}},
+			// The abstract types and their members are value types owned by both subgraphs. The owning
+			// subgraph produces them as @requires input for the gRPC subgraph.
+			{TypeName: "StorageItem", FieldNames: []string{"id", "name", "weight"}},
+			{TypeName: "PalletItem", FieldNames: []string{"id", "name", "weight", "palletCount", "handler", "specs"}},
+			{TypeName: "ContainerItem", FieldNames: []string{"id", "name", "weight", "containerSize", "handler", "specs"}},
+			{TypeName: "ItemHandler", FieldNames: []string{"id", "name", "assignedItem"}},
+			{TypeName: "PalletSpecs", FieldNames: []string{"name", "maxWeight", "dimensions"}},
+			{TypeName: "ContainerSpecs", FieldNames: []string{"name", "volume", "dimensions"}},
+			{TypeName: "Dimensions", FieldNames: []string{"length", "width", "height"}},
+			{TypeName: "StorageSuccess", FieldNames: []string{"message", "completedAt"}},
+			{TypeName: "StorageFailure", FieldNames: []string{"message", "errorCode"}},
+			{TypeName: "SecuritySetup", FieldNames: []string{"securityLevel", "primaryItem"}},
 		},
 		FederationMetaData: plan.FederationMetaData{
 			Keys: plan.FederationFieldConfigurations{
@@ -225,6 +335,167 @@ func TestGRPCSubgraphRequiresFullExecution(t *testing.T) {
 
 			// Both subgraph setups live side by side: the owning subgraph provides the entity key and
 			// the @requires inputs, the gRPC subgraph resolves the @requires field.
+			owningDS := setupOwningSubgraph(t, tc.owningResponseJSON)
+			grpcDS := setupGRPCProductsSubgraph(t, conn)
+
+			response := runRequiresOperation(t, []plan.DataSource{owningDS, grpcDS}, tc.operation)
+
+			tc.assert(t, response)
+		})
+	}
+}
+
+// TestGRPCSubgraphRequiresCompositeTypesFullExecution exercises @requires against composite
+// (abstract) types end-to-end: the owning subgraph is asked for a representation containing an
+// interface/union, the representation travels to the gRPC subgraph, and the gRPC subgraph resolves
+// the @requires field. Two directions are covered:
+//
+//   - abstract types inside the @requires selection set (itemInfo, operationReport,
+//     securitySummary, itemHandlerInfo, itemSpecsInfo, deepItemInfo) — here the concrete member has
+//     to be written into the request's protobuf oneof.
+//   - abstract types as the @requires field's return type (recommendedItem, recommendedItems,
+//     latestOperation, optionalLatestOperation) — here the concrete member has to be read back out
+//     of the response's oneof, so that __typename reports the concrete type and only the matching
+//     inline fragment's fields are returned.
+func TestGRPCSubgraphRequiresCompositeTypesFullExecution(t *testing.T) {
+	t.Parallel()
+
+	conn := setupGRPCTestGoPluginServer(t)
+
+	testCases := []requiresTestCase{
+		{
+			// Pattern 1: flat interface in the @requires selection set. The owning subgraph resolves
+			// primaryItem to a PalletItem, so the mock must see the PalletItem oneof member.
+			name:               "Storage @requires an interface with inline fragments",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","primaryItem":{"__typename":"PalletItem","name":"Euro pallet","palletCount":12}}}}`,
+			operation:          `query { storageProvider(id: "1") { itemInfo } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"itemInfo":"Pallet: Euro pallet (count: 12)"}}}`),
+		},
+		{
+			// Pattern 2: flat union in the @requires selection set, resolved to the failure member.
+			name:               "Storage @requires a union with inline fragments",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","lastStorageOperation":{"__typename":"StorageFailure","message":"Disk full","errorCode":"E_DISK"}}}}`,
+			operation:          `query { storageProvider(id: "1") { operationReport } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"operationReport":"Failure: Disk full (code: E_DISK)"}}}`),
+		},
+		{
+			// Pattern 3: concrete type (SecuritySetup) wrapping an abstract type.
+			name:               "Storage @requires a concrete type wrapping an interface",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","securitySetup":{"__typename":"SecuritySetup","securityLevel":"HIGH","primaryItem":{"__typename":"ContainerItem","name":"Reefer","containerSize":"40ft"}}}}}`,
+			operation:          `query { storageProvider(id: "1") { securitySummary } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"securitySummary":"[HIGH] Container: Reefer (size: 40ft)"}}}`),
+		},
+		{
+			// Pattern 4: concrete message (handler) selected inside an inline fragment.
+			name:               "Storage @requires a concrete type inside an inline fragment",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","primaryItem":{"__typename":"ContainerItem","handler":{"__typename":"ItemHandler","name":"Dock crew"}}}}}`,
+			operation:          `query { storageProvider(id: "1") { itemHandlerInfo } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"itemHandlerInfo":"ContainerHandler: Dock crew"}}}`),
+		},
+		{
+			// Pattern 5: deep concrete nesting (specs → dimensions) inside an inline fragment.
+			name:               "Storage @requires deeply nested concrete types inside an inline fragment",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","primaryItem":{"__typename":"PalletItem","specs":{"__typename":"PalletSpecs","name":"EUR-1","dimensions":{"__typename":"Dimensions","length":120,"width":80}}}}}}`,
+			operation:          `query { storageProvider(id: "1") { itemSpecsInfo } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"itemSpecsInfo":"PalletSpecs: EUR-1 (120.0x80.0)"}}}`),
+		},
+		{
+			// Pattern 6: a second abstract type nested behind a concrete intermediary
+			// (primaryItem → handler → assignedItem), so two oneofs have to be written per request.
+			name:               "Storage @requires a nested interface behind a concrete intermediary",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","primaryItem":{"__typename":"PalletItem","handler":{"__typename":"ItemHandler","assignedItem":{"__typename":"ContainerItem","name":"Nested reefer","containerSize":"20ft"}}}}}}`,
+			operation:          `query { storageProvider(id: "1") { deepItemInfo } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"deepItemInfo":"PalletHandler->Container: Nested reefer (size: 20ft)"}}}`),
+		},
+		{
+			// Pattern 7: the @requires field returns an interface. capacity 200 > 100 => PalletItem,
+			// palletCount = capacity / 10 = 20, weight = palletCount * 12.5 = 250. Interface fields are
+			// selected directly next to the inline fragments.
+			name:               "Storage @requires field returning an interface",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","metadata":{"__typename":"StorageMetadata","capacity":200,"zone":"A"}}}}`,
+			operation:          `query { storageProvider(id: "1") { recommendedItem { __typename id name weight ... on PalletItem { palletCount } ... on ContainerItem { containerSize } } } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"recommendedItem":{"__typename":"PalletItem","id":"pallet-A-200","name":"Pallet for zone A","weight":250,"palletCount":20}}}}`),
+		},
+		{
+			// Pattern 7, other member and one level deeper: capacity 50 <= 100 => ContainerItem, whose
+			// handler.assignedItem is itself abstract and must resolve to its own concrete member.
+			name:               "Storage @requires field returning an interface with a nested interface",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"2","metadata":{"__typename":"StorageMetadata","capacity":50,"zone":"B"}}}}`,
+			operation:          `query { storageProvider(id: "2") { recommendedItem { __typename ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize handler { name assignedItem { __typename ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } } } } } } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"recommendedItem":{"__typename":"ContainerItem","name":"Container for zone B","containerSize":"50L","handler":{"name":"Handler for Container for zone B","assignedItem":{"__typename":"PalletItem","name":"Container for zone B assigned pallet","palletCount":7}}}}}}`),
+		},
+		{
+			// Pattern 8: the @requires field returns a list of an interface — one entry per required
+			// tag, alternating between both concrete members by index.
+			name:               "Storage @requires field returning a list of an interface",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","tags":["alpha","beta","gamma"]}}}`,
+			operation:          `query { storageProvider(id: "1") { recommendedItems { __typename name ... on PalletItem { palletCount } ... on ContainerItem { containerSize } } } }`,
+			assert: expectJSON(`{"data":{"storageProvider":{"recommendedItems":[
+				{"__typename":"PalletItem","name":"Pallet alpha","palletCount":1},
+				{"__typename":"ContainerItem","name":"Container beta","containerSize":"BETA"},
+				{"__typename":"PalletItem","name":"Pallet gamma","palletCount":3}
+			]}}}`),
+		},
+		{
+			// Pattern 8 with an empty required list: an empty list, not null.
+			name:               "Storage @requires field returning an empty list of an interface",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","tags":[]}}}`,
+			operation:          `query { storageProvider(id: "1") { recommendedItems { __typename name } } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"recommendedItems":[]}}}`),
+		},
+		{
+			// Pattern 9: the @requires field returns a union, keyed off the required enum. A known kind
+			// yields StorageSuccess, so the StorageFailure fragment must contribute nothing.
+			name:               "Storage @requires field returning a union",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","storageKind":"ELECTRONICS"}}}`,
+			operation:          `query { storageProvider(id: "1") { latestOperation { __typename ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } } } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"latestOperation":{"__typename":"StorageSuccess","message":"Operation completed for CATEGORY_KIND_ELECTRONICS","completedAt":"2024-01-01T00:00:00Z"}}}}`),
+		},
+		{
+			// Pattern 9, the other union member: an unknown kind yields StorageFailure.
+			name:               "Storage @requires field returning the other union member",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","storageKind":"OTHER"}}}`,
+			operation:          `query { storageProvider(id: "1") { latestOperation { __typename ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } } } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"latestOperation":{"__typename":"StorageFailure","message":"Operation failed for CATEGORY_KIND_OTHER","errorCode":"UNSUPPORTED_KIND"}}}}`),
+		},
+		{
+			// Pattern 10: nullable union return type. An odd number of required optional tags yields
+			// StorageSuccess.
+			name:               "Storage @requires field returning a nullable union",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","optionalTags":["alpha"]}}}`,
+			operation:          `query { storageProvider(id: "1") { optionalLatestOperation { __typename ... on StorageSuccess { message completedAt } ... on StorageFailure { errorCode } } } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"optionalLatestOperation":{"__typename":"StorageSuccess","message":"Operation completed for tags: alpha","completedAt":"2024-01-02T00:00:00Z"}}}}`),
+		},
+		{
+			// Pattern 10 with no required tags: the mock returns no union value at all, which must
+			// surface as null rather than an empty object or an error.
+			name:               "Storage @requires field returning a nullable union resolves to null",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","optionalTags":null}}}`,
+			operation:          `query { storageProvider(id: "1") { optionalLatestOperation { __typename ... on StorageSuccess { message } ... on StorageFailure { errorCode } } } }`,
+			assert:             expectJSON(`{"data":{"storageProvider":{"optionalLatestOperation":null}}}`),
+		},
+		{
+			// Abstract return types alongside a scalar @requires field and the entity lookup, so all
+			// three kinds of gRPC call are planned against the same representation.
+			name:               "Storage @requires abstract return types combined with a scalar field and a lookup",
+			owningResponseJSON: `{"data":{"storageProvider":{"__typename":"Storage","id":"1","tags":["alpha","beta"],"storageKind":"BOOK"}}}`,
+			operation:          `query { storageProvider(id: "1") { name tagSummary recommendedItems { __typename name } latestOperation { __typename ... on StorageSuccess { message } ... on StorageFailure { errorCode } } } }`,
+			assert: expectJSON(`{"data":{"storageProvider":{
+				"name":"Storage 1",
+				"tagSummary":"alpha, beta",
+				"recommendedItems":[
+					{"__typename":"PalletItem","name":"Pallet alpha"},
+					{"__typename":"ContainerItem","name":"Container beta"}
+				],
+				"latestOperation":{"__typename":"StorageSuccess","message":"Operation completed for CATEGORY_KIND_BOOK"}
+			}}}`),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			owningDS := setupOwningSubgraph(t, tc.owningResponseJSON)
 			grpcDS := setupGRPCProductsSubgraph(t, conn)
 
