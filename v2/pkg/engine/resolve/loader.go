@@ -164,13 +164,6 @@ func (r *result) parsedResponse(l *Loader) (*astjson.Value, error) {
 	return astjson.ParseBytesWithArena(l.jsonArena, r.out)
 }
 
-// collectExtensions reports whether this result should collect the response's
-// custom extensions itself. Multi entries do not: their parent multi fetch
-// collects extensions once from the shared response.
-func (r *result) collectExtensions() bool {
-	return r.multi == nil
-}
-
 // responseErrors returns the subgraph errors to merge for this result: a multi
 // entry's pre-partitioned errors, otherwise the errors selected from the parsed
 // response by SelectResponseErrorsPath.
@@ -198,13 +191,6 @@ func (r *result) taintInfo(fetchItem *FetchItem) *FetchInfo {
 		return r.multi.info
 	}
 	return fetchItem.Fetch.FetchInfo()
-}
-
-// checkEmptyEntityFetch reports whether the empty-entity-fetch short-circuit
-// applies. Multi entries carry no Fetch and no trailing index in their data
-// path, so the check never applies to them.
-func (r *result) checkEmptyEntityFetch() bool {
-	return r.multi == nil
 }
 
 // emptyAliasIsBenign reports whether this is a single-origin multi entry whose
@@ -714,7 +700,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
-	if l.allowCustomExtensionProperties && res.collectExtensions() {
+	// Multi entries skip this: their parent multi fetch collects the extensions
+	// once from the shared response.
+	if l.allowCustomExtensionProperties && res.multi == nil {
 		extensions := response.Get("extensions")
 
 		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
@@ -765,7 +753,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// In this case we return early to avoid adding subgraph errors or merging this into items.
 		// Multi-entity entry items carry no Fetch (nil) and have no trailing index in their
 		// data path, so the check does not apply to them.
-		if res.checkEmptyEntityFetch() && isEmptyEntityFetch(fetchItem, response) {
+		if res.multi == nil && isEmptyEntityFetch(fetchItem, response) {
 			return nil
 		}
 

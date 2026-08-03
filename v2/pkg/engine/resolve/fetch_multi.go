@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 )
 
 // SubgraphOperation is the planner hand-off for MultiFetch merging.
@@ -38,20 +39,27 @@ type SubgraphRequestEnvelope struct {
 	Header []byte // raw JSON header bytes, or nil when none would be printed
 }
 
+// SetPrintedQuery seeds the print cache with the exact compact operation bytes
+// the planner already produced. Seeding preserves the planner's minification,
+// which the deferred input rendering must reproduce byte-for-byte.
+func (o *SubgraphOperation) SetPrintedQuery(query []byte) {
+	o.printedQuery = query
+	o.printedQueryCached = true
+}
+
 // PrintedQuery returns the minified upstream operation print, producing it at
-// most once via print and caching the result. Subsequent calls return the
-// cached bytes without invoking print again. This lets a later stage print the
-// operation lazily and reuse the bytes across dedupe comparison and input
-// rendering.
-func (o *SubgraphOperation) PrintedQuery(print func() ([]byte, error)) ([]byte, error) {
+// most once and caching the result, so dedupe comparison and input rendering
+// share the same bytes. When the cache was not seeded via SetPrintedQuery (e.g.
+// hand-built fetches in tests), Document is printed in compact form.
+func (o *SubgraphOperation) PrintedQuery() ([]byte, error) {
 	if o.printedQueryCached {
 		return o.printedQuery, nil
 	}
-	printed, err := print()
+	printed, err := astprinter.PrintString(o.Document)
 	if err != nil {
 		return nil, err
 	}
-	o.printedQuery = printed
+	o.printedQuery = []byte(printed)
 	o.printedQueryCached = true
 	return o.printedQuery, nil
 }

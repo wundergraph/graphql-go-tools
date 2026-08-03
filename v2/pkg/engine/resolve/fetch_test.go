@@ -104,3 +104,31 @@ func TestFetchConfiguration_Equals_PrintedInputUnchanged(t *testing.T) {
 	c := &FetchConfiguration{Input: `{"a":2}`, RequiresEntityFetch: true}
 	require.False(t, a.Equals(c))
 }
+
+func TestSubgraphOperation_PrintedQuery(t *testing.T) {
+	const src = `query($representations: [_Any!]!){_entities(representations: $representations){__typename}}`
+
+	t.Run("unseeded prints the document compactly and caches", func(t *testing.T) {
+		op := &SubgraphOperation{Document: parseOp(t, src)}
+		printed, err := op.PrintedQuery()
+		require.NoError(t, err)
+		require.Equal(t, src, string(printed))
+		require.True(t, op.printedQueryCached)
+	})
+
+	t.Run("seeded bytes are returned verbatim", func(t *testing.T) {
+		op := &SubgraphOperation{Document: parseOp(t, src)}
+		op.SetPrintedQuery([]byte(`{seeded}`))
+		printed, err := op.PrintedQuery()
+		require.NoError(t, err)
+		require.Equal(t, `{seeded}`, string(printed))
+	})
+
+	t.Run("a seeded empty print is cached, not re-printed", func(t *testing.T) {
+		op := &SubgraphOperation{Document: parseOp(t, src)}
+		op.SetPrintedQuery(nil)
+		printed, err := op.PrintedQuery()
+		require.NoError(t, err)
+		require.Nil(t, printed)
+	})
+}

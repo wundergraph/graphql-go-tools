@@ -301,12 +301,8 @@ func TestCreateMultiFetch_RepresentationsFragmentIndex(t *testing.T) {
 	})
 }
 
-// Note: artifact clearing moved from createMultiFetch to the renderSubgraphInputs
-// stage; its direct unit test now lives in render_subgraph_inputs_test.go
-// (TestRenderSubgraphInputs_ClearsArtifactWithoutRenderingWhenInputPresent).
-// TestCreateMultiFetch_PipelineClearingUnconditional below still asserts the
-// end-to-end guarantee that no artifact survives postprocessing.
-
+// TestCreateMultiFetch_PipelineClearingUnconditional asserts the end-to-end
+// guarantee that no SubgraphOperation artifact survives postprocessing.
 func TestCreateMultiFetch_PipelineClearingUnconditional(t *testing.T) {
 	p := &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
@@ -664,11 +660,6 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 		}
 	})
 
-	// Note: the former "append shape two members" subtest was removed with the
-	// structured mergeGroup flip. The planner no longer produces an append-shape
-	// input; renderSubgraphInputs / mergeGroup assemble the repo-shape envelope
-	// via httpclient.AssembleGraphQLRequestInput, so only the repo shape exists.
-
 	t.Run("three members", func(t *testing.T) {
 		m3 := `{"method":"POST","url":"http://x","body":{"query":"` + mergeM1Source + `","variables":{"representations":[$$0$$]}}}`
 		p := &plan.SynchronousResponsePlan{
@@ -740,7 +731,7 @@ func TestCreateMultiFetch_MergeGroup(t *testing.T) {
 		multi := findMultiEntityFetch(p.Response.Fetches)
 		require.NotNil(t, multi)
 		require.Equal(t, 4, multi.FetchID)
-		// Members are sorted by FetchID before aliasing (design D2), so the merged
+		// Members are sorted by FetchID before aliasing, so the merged
 		// id list is ascending regardless of the members' position in the wave.
 		require.Equal(t, []int{4, 7}, multi.MergedFetchIDs)
 

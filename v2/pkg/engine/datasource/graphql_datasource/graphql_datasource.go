@@ -457,11 +457,10 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 				Header: envelopeHeader,
 			},
 		}
-		// Seed the print-once cache with the compact operation bytes printOperation
+		// Seed the print cache with the compact operation bytes printOperation
 		// already produced (preserving minification), so the renderSubgraphInputs
 		// stage and dedupe reuse them verbatim instead of re-printing.
-		operationBytes := operation
-		_, _ = subgraphOperation.PrintedQuery(func() ([]byte, error) { return operationBytes, nil })
+		subgraphOperation.SetPrintedQuery(operation)
 		p.upstreamOperation = nil
 	}
 
