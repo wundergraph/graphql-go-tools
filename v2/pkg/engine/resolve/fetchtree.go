@@ -130,6 +130,14 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 				Trace:      f.Trace,
 				Path:       n.Item.ResponsePath,
 			}
+		case *MultiEntityFetch:
+			trace.Fetch = &FetchTraceNode{
+				Kind:       "MultiEntity",
+				SourceID:   f.Info.DataSourceID,
+				SourceName: f.Info.DataSourceName,
+				Trace:      f.Trace,
+				Path:       n.Item.ResponsePath,
+			}
 		default:
 		}
 	case FetchTreeNodeKindSequence, FetchTreeNodeKindParallel:
@@ -230,6 +238,21 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 		case *BatchEntityFetch:
 			queryPlan.Fetch = &FetchTreeQueryPlan{
 				Kind:              "BatchEntity",
+				FetchID:           f.FetchDependencies.FetchID,
+				DependsOnFetchIDs: f.FetchDependencies.DependsOnFetchIDs,
+				SubgraphName:      f.Info.DataSourceName,
+				SubgraphID:        f.Info.DataSourceID,
+				Path:              n.Item.ResponsePath,
+				Dependencies:      f.Info.CoordinateDependencies,
+			}
+
+			if f.Info.QueryPlan != nil {
+				queryPlan.Fetch.Query = f.Info.QueryPlan.Query
+				queryPlan.Fetch.Representations = f.Info.QueryPlan.DependsOnFields
+			}
+		case *MultiEntityFetch:
+			queryPlan.Fetch = &FetchTreeQueryPlan{
+				Kind:              "MultiEntity",
 				FetchID:           f.FetchDependencies.FetchID,
 				DependsOnFetchIDs: f.FetchDependencies.DependsOnFetchIDs,
 				SubgraphName:      f.Info.DataSourceName,

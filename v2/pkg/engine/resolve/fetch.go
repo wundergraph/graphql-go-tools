@@ -14,6 +14,9 @@ const (
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindEntity
 	FetchKindEntityBatch
+	// FetchKindMultiEntity is a single upstream request that resolves entities
+	// for several source paths/types at once via aliased _entities selections.
+	FetchKindMultiEntity
 )
 
 type Fetch interface {
@@ -231,6 +234,65 @@ type EntityInput struct {
 
 func (*EntityFetch) FetchKind() FetchKind {
 	return FetchKindEntity
+}
+
+// MultiEntityFetch merges multiple entity-resolution fetches that target the
+// same subgraph within a single operation into one upstream request, using
+// aliased _entities selections.
+// Unlike EntityFetch (single object) and BatchEntityFetch (array items),
+// it is not bound to a single response path. It holds several aliased sub-fetches,
+// each with its own FetchPath, ResponsePath, representation variables and inline
+// fragment.
+type MultiEntityFetch struct {
+	FetchDependencies
+
+	// Fetches are the aliased entity sub-fetches merged into this request.
+	// Ordering must be deterministic (it drives alias assignment / query shape).
+	Fetches []*MultiEntitySubFetch
+
+	// Header renders the shared request envelope and the operation header,
+	// including the aliased variable definitions (e.g.
+	// `query($representations_f1: [_Any!]!, ...)`).
+	Header InputTemplate
+	// Footer renders the trailing bytes of the request (closing the operation
+	// and variables object).
+	Footer InputTemplate
+
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
+}
+
+// MultiEntitySubFetch is one aliased _entities block inside a MultiEntityFetch.
+type MultiEntitySubFetch struct {
+	// Alias is the response alias for this block's _entities selection (e.g. "f1").
+	Alias string
+	// FetchPath selects the source items to gather representations from.
+	FetchPath []FetchItemPathElement
+	// ResponsePath is where the demultiplexed result for this alias is written.
+	ResponsePath string
+	// Batch reports whether this sub-fetch resolves array items (BatchEntityFetch
+	// semantics) or a single object (EntityFetch semantics). Per gotcha #1 both
+	// shapes may coexist within one merged request.
+	Batch bool
+	// Input renders this alias's isolated representation variable(s).
+	Input BatchInput
+	// PostProcessing extracts this alias's data/errors from the merged response.
+	PostProcessing PostProcessingConfiguration
+}
+
+func (m *MultiEntityFetch) Dependencies() *FetchDependencies {
+	return &m.FetchDependencies
+}
+
+func (m *MultiEntityFetch) FetchInfo() *FetchInfo {
+	return m.Info
+}
+
+func (*MultiEntityFetch) FetchKind() FetchKind {
+	return FetchKindMultiEntity
 }
 
 type QueryPlan struct {
@@ -481,4 +543,5 @@ var (
 	_ Fetch = (*SingleFetch)(nil)
 	_ Fetch = (*BatchEntityFetch)(nil)
 	_ Fetch = (*EntityFetch)(nil)
+	_ Fetch = (*MultiEntityFetch)(nil)
 )
