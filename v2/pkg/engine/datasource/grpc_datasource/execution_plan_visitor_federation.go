@@ -206,7 +206,12 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 			}
 			resolvedField := &r.resolverFields[resolvedFieldAncestor]
 			resolvedField.memberTypes = memberTypes
-			r.planCtx.enterResolverCompositeSelectionSet(compositType, ref, resolvedField)
+
+			config := r.planCtx.buildCompositeTypeConfig(compositType, ref)
+			resolvedField.fieldsSelectionSetRef = config.fieldsSelectionSetRef
+			resolvedField.fragmentType = config.oneOfType
+			resolvedField.fragmentSelections = config.fragmentSelections
+
 			return
 		}
 
@@ -424,11 +429,35 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 
 	if field.ProtoTypeName == DataTypeMessage {
 		fieldDefType := r.definition.FieldDefinitionType(fieldDefRef)
-		message, err := r.planCtx.buildMessageForField(buildFieldMessageConfig{
-			typeName:              r.definition.ResolveTypeNameString(fieldDefType),
-			fieldsSelectionSetRef: r.operation.Fields[ref].SelectionSet,
-		})
+		typeName := r.definition.ResolveTypeNameString(fieldDefType)
 
+		node, found := r.definition.NodeByNameStr(typeName)
+		if !found {
+			r.walker.StopWithInternalErr(fmt.Errorf("definition node not found for type %s", typeName))
+			return
+		}
+
+		bfmc := buildFieldMessageConfig{
+			typeName:              typeName,
+			fieldsSelectionSetRef: r.operation.Fields[ref].SelectionSet,
+		}
+
+		if fragmentType := r.planCtx.getCompositeType(node); fragmentType != OneOfTypeNone {
+			memberTypes, err := r.planCtx.getMemberTypes(node)
+			if err != nil {
+				r.walker.StopWithInternalErr(err)
+				return
+			}
+
+			bfmc.fragmentType = fragmentType
+			bfmc.memberTypes = memberTypes
+
+			c := r.planCtx.buildCompositeTypeConfig(fragmentType, r.operation.Fields[ref].SelectionSet)
+			bfmc.fieldsSelectionSetRef = c.fieldsSelectionSetRef
+			bfmc.fragmentSelections = c.fragmentSelections
+		}
+
+		message, err := r.planCtx.buildMessageForField(bfmc)
 		if err != nil {
 			r.walker.StopWithInternalErr(err)
 			return

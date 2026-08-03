@@ -212,7 +212,12 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 			}
 			resolvedField := &r.resolverFields[resolverFieldAncestor]
 			resolvedField.memberTypes = memberTypes
-			r.planCtx.enterResolverCompositeSelectionSet(compositType, ref, resolvedField)
+
+			config := r.planCtx.buildCompositeTypeConfig(compositType, ref)
+			resolvedField.fieldsSelectionSetRef = config.fieldsSelectionSetRef
+			resolvedField.fragmentType = config.oneOfType
+			resolvedField.fragmentSelections = config.fragmentSelections
+
 			return
 		}
 

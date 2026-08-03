@@ -2087,3 +2087,512 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes(t *testing
 		})
 	}
 }
+
+// Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractReturnTypes covers @requires
+// fields whose *return* type is abstract (interface or union), as opposed to
+// Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractTypes which covers abstract
+// types appearing in the @requires selection set.
+//
+// The concrete member must be resolved from the protobuf oneof, so that __typename reports
+// the concrete type and only the matching inline fragment's fields are returned.
+func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractReturnTypes(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
+	}
+
+	// entities asserts the number of returned entities and returns them as objects.
+	entities := func(t *testing.T, data map[string]any, expectedLen int) []map[string]any {
+		t.Helper()
+		rawEntities, ok := data["_entities"].([]any)
+		require.True(t, ok, "_entities should be an array")
+		require.Len(t, rawEntities, expectedLen)
+
+		result := make([]map[string]any, 0, len(rawEntities))
+		for i, rawEntity := range rawEntities {
+			entity, ok := rawEntity.(map[string]any)
+			require.True(t, ok, "entity %d should be an object", i)
+			result = append(result, entity)
+		}
+
+		return result
+	}
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]any)
+		validateError     func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			name:  "Query Storage with recommendedItem returning an interface type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id name recommendedItem { __typename ... on PalletItem { name palletCount } ... on ContainerItem { name containerSize } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","metadata":{"capacity":200,"zone":"A"}},
+				{"__typename":"Storage","id":"2","metadata":{"capacity":50,"zone":"B"}}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItem",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storages := entities(t, data, 2)
+
+				// capacity 200 > 100 -> PalletItem, palletCount = capacity / 10
+				storage1 := storages[0]
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "Storage 1", storage1["name"])
+
+				item1, ok := storage1["recommendedItem"].(map[string]any)
+				require.True(t, ok, "recommendedItem should be an object")
+				require.Equal(t, "PalletItem", item1["__typename"])
+				require.Equal(t, "Pallet for zone A", item1["name"])
+				require.Equal(t, float64(20), item1["palletCount"])
+				require.NotContains(t, item1, "containerSize", "ContainerItem fields must not leak into a PalletItem")
+
+				// capacity 50 <= 100 -> ContainerItem, containerSize = "<capacity>L"
+				storage2 := storages[1]
+				require.Equal(t, "2", storage2["id"])
+				require.Equal(t, "Storage 2", storage2["name"])
+
+				item2, ok := storage2["recommendedItem"].(map[string]any)
+				require.True(t, ok, "recommendedItem should be an object")
+				require.Equal(t, "ContainerItem", item2["__typename"])
+				require.Equal(t, "Container for zone B", item2["name"])
+				require.Equal(t, "50L", item2["containerSize"])
+				require.NotContains(t, item2, "palletCount", "PalletItem fields must not leak into a ContainerItem")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with recommendedItem selecting interface fields directly alongside fragments",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id recommendedItem { __typename id name weight ... on PalletItem { palletCount specs { name dimensions { length width } } } ... on ContainerItem { containerSize } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","metadata":{"capacity":200,"zone":"A"}},
+				{"__typename":"Storage","id":"2","metadata":{"capacity":50,"zone":"B"}}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItem",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storages := entities(t, data, 2)
+
+				storage1 := storages[0]
+				item1, ok := storage1["recommendedItem"].(map[string]any)
+				require.True(t, ok, "recommendedItem should be an object")
+
+				// Fields selected on the interface itself resolve for the concrete member
+				require.Equal(t, "PalletItem", item1["__typename"])
+				require.Equal(t, "pallet-A-200", item1["id"])
+				require.Equal(t, "Pallet for zone A", item1["name"])
+				require.Equal(t, float64(250), item1["weight"])
+				require.Equal(t, float64(20), item1["palletCount"])
+
+				// Concrete nesting inside the fragment resolves too
+				specs, ok := item1["specs"].(map[string]any)
+				require.True(t, ok, "specs should be an object")
+				require.Equal(t, "Pallet for zone A specs", specs["name"])
+				dimensions, ok := specs["dimensions"].(map[string]any)
+				require.True(t, ok, "dimensions should be an object")
+				require.Equal(t, float64(120), dimensions["length"])
+				require.Equal(t, float64(80), dimensions["width"])
+				require.NotContains(t, dimensions, "height", "unselected fields must not be returned")
+
+				storage2 := storages[1]
+				item2, ok := storage2["recommendedItem"].(map[string]any)
+				require.True(t, ok, "recommendedItem should be an object")
+				require.Equal(t, "ContainerItem", item2["__typename"])
+				require.Equal(t, "container-B-50", item2["id"])
+				require.Equal(t, "Container for zone B", item2["name"])
+				require.Equal(t, 22.5, item2["weight"])
+				require.Equal(t, "50L", item2["containerSize"])
+				require.NotContains(t, item2, "specs", "PalletItem fragment fields must not leak into a ContainerItem")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with recommendedItem returning an interface type containing a nested interface type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id recommendedItem { __typename ... on PalletItem { name palletCount handler { name assignedItem { __typename ... on ContainerItem { name containerSize } ... on PalletItem { name palletCount } } } } ... on ContainerItem { name containerSize handler { name assignedItem { __typename ... on ContainerItem { name containerSize } ... on PalletItem { name palletCount } } } } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","metadata":{"capacity":200,"zone":"A"}},
+				{"__typename":"Storage","id":"2","metadata":{"capacity":50,"zone":"B"}}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItem",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storages := entities(t, data, 2)
+
+				// PalletItem -> handler -> assignedItem resolves to a ContainerItem
+				item1, ok := storages[0]["recommendedItem"].(map[string]any)
+				require.True(t, ok, "recommendedItem should be an object")
+				require.Equal(t, "PalletItem", item1["__typename"])
+				require.Equal(t, "Pallet for zone A", item1["name"])
+
+				handler1, ok := item1["handler"].(map[string]any)
+				require.True(t, ok, "handler should be an object")
+				require.Equal(t, "Handler for Pallet for zone A", handler1["name"])
+
+				assigned1, ok := handler1["assignedItem"].(map[string]any)
+				require.True(t, ok, "assignedItem should be an object")
+				require.Equal(t, "ContainerItem", assigned1["__typename"])
+				require.Equal(t, "Pallet for zone A assigned container", assigned1["name"])
+				require.Equal(t, "20ft", assigned1["containerSize"])
+				require.NotContains(t, assigned1, "palletCount", "the nested abstract type must resolve its own concrete member")
+
+				// ContainerItem -> handler -> assignedItem resolves to a PalletItem
+				item2, ok := storages[1]["recommendedItem"].(map[string]any)
+				require.True(t, ok, "recommendedItem should be an object")
+				require.Equal(t, "ContainerItem", item2["__typename"])
+				require.Equal(t, "Container for zone B", item2["name"])
+
+				handler2, ok := item2["handler"].(map[string]any)
+				require.True(t, ok, "handler should be an object")
+				require.Equal(t, "Handler for Container for zone B", handler2["name"])
+
+				assigned2, ok := handler2["assignedItem"].(map[string]any)
+				require.True(t, ok, "assignedItem should be an object")
+				require.Equal(t, "PalletItem", assigned2["__typename"])
+				require.Equal(t, "Container for zone B assigned pallet", assigned2["name"])
+				require.Equal(t, float64(7), assigned2["palletCount"])
+				require.NotContains(t, assigned2, "containerSize", "the nested abstract type must resolve its own concrete member")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with recommendedItems returning a list of interfaces containing nested interface types",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id recommendedItems { __typename ... on PalletItem { name handler { assignedItem { __typename ... on ContainerItem { name containerSize } } } } ... on ContainerItem { name handler { assignedItem { __typename ... on PalletItem { name palletCount } } } } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","tags":["alpha","beta"]}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItems",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storage1 := entities(t, data, 1)[0]
+				items, ok := storage1["recommendedItems"].([]any)
+				require.True(t, ok, "recommendedItems should be an array")
+				require.Len(t, items, 2)
+
+				// Each list element resolves its own concrete member and its own nested abstract type
+				item0, ok := items[0].(map[string]any)
+				require.True(t, ok, "item 0 should be an object")
+				require.Equal(t, "PalletItem", item0["__typename"])
+				require.Equal(t, "Pallet alpha", item0["name"])
+				handler0, ok := item0["handler"].(map[string]any)
+				require.True(t, ok, "handler should be an object")
+				assigned0, ok := handler0["assignedItem"].(map[string]any)
+				require.True(t, ok, "assignedItem should be an object")
+				require.Equal(t, "ContainerItem", assigned0["__typename"])
+				require.Equal(t, "Pallet alpha assigned container", assigned0["name"])
+				require.Equal(t, "20ft", assigned0["containerSize"])
+
+				item1, ok := items[1].(map[string]any)
+				require.True(t, ok, "item 1 should be an object")
+				require.Equal(t, "ContainerItem", item1["__typename"])
+				require.Equal(t, "Container beta", item1["name"])
+				handler1, ok := item1["handler"].(map[string]any)
+				require.True(t, ok, "handler should be an object")
+				assigned1, ok := handler1["assignedItem"].(map[string]any)
+				require.True(t, ok, "assignedItem should be an object")
+				require.Equal(t, "PalletItem", assigned1["__typename"])
+				require.Equal(t, "Container beta assigned pallet", assigned1["name"])
+				require.Equal(t, float64(7), assigned1["palletCount"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with recommendedItems returning a list of an interface type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id recommendedItems { __typename name ... on PalletItem { palletCount } ... on ContainerItem { containerSize } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","tags":["alpha","beta","gamma"]},
+				{"__typename":"Storage","id":"2","tags":[]}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItems",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storages := entities(t, data, 2)
+
+				// One item per tag, alternating PalletItem / ContainerItem by index
+				storage1 := storages[0]
+				items, ok := storage1["recommendedItems"].([]any)
+				require.True(t, ok, "recommendedItems should be an array")
+				require.Len(t, items, 3)
+
+				item0, ok := items[0].(map[string]any)
+				require.True(t, ok, "item 0 should be an object")
+				require.Equal(t, "PalletItem", item0["__typename"])
+				require.Equal(t, "Pallet alpha", item0["name"])
+				require.Equal(t, float64(1), item0["palletCount"])
+				require.NotContains(t, item0, "containerSize")
+
+				item1, ok := items[1].(map[string]any)
+				require.True(t, ok, "item 1 should be an object")
+				require.Equal(t, "ContainerItem", item1["__typename"])
+				require.Equal(t, "Container beta", item1["name"])
+				require.Equal(t, "BETA", item1["containerSize"])
+				require.NotContains(t, item1, "palletCount")
+
+				item2, ok := items[2].(map[string]any)
+				require.True(t, ok, "item 2 should be an object")
+				require.Equal(t, "PalletItem", item2["__typename"])
+				require.Equal(t, "Pallet gamma", item2["name"])
+				require.Equal(t, float64(3), item2["palletCount"])
+
+				// No tags -> empty list, not null
+				storage2 := storages[1]
+				emptyItems, ok := storage2["recommendedItems"].([]any)
+				require.True(t, ok, "recommendedItems should be an array")
+				require.Empty(t, emptyItems)
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with latestOperation returning a union type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id latestOperation { __typename ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","storageKind":"ELECTRONICS"},
+				{"__typename":"Storage","id":"2","storageKind":"OTHER"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "latestOperation",
+					SelectionSet: "storageKind",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storages := entities(t, data, 2)
+
+				// Known kind -> StorageSuccess
+				storage1 := storages[0]
+				operation1, ok := storage1["latestOperation"].(map[string]any)
+				require.True(t, ok, "latestOperation should be an object")
+				require.Equal(t, "StorageSuccess", operation1["__typename"])
+				require.Equal(t, "Operation completed for CATEGORY_KIND_ELECTRONICS", operation1["message"])
+				require.Equal(t, "2024-01-01T00:00:00Z", operation1["completedAt"])
+				require.NotContains(t, operation1, "errorCode", "StorageFailure fields must not leak into a StorageSuccess")
+
+				// OTHER -> StorageFailure
+				storage2 := storages[1]
+				operation2, ok := storage2["latestOperation"].(map[string]any)
+				require.True(t, ok, "latestOperation should be an object")
+				require.Equal(t, "StorageFailure", operation2["__typename"])
+				require.Equal(t, "Operation failed for CATEGORY_KIND_OTHER", operation2["message"])
+				require.Equal(t, "UNSUPPORTED_KIND", operation2["errorCode"])
+				require.NotContains(t, operation2, "completedAt", "StorageSuccess fields must not leak into a StorageFailure")
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with optionalLatestOperation returning a nullable union type",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id optionalLatestOperation { __typename ... on StorageSuccess { message completedAt } ... on StorageFailure { errorCode } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","optionalTags":["a"]},
+				{"__typename":"Storage","id":"2","optionalTags":["a","b"]},
+				{"__typename":"Storage","id":"3","optionalTags":null}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalLatestOperation",
+					SelectionSet: "optionalTags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storages := entities(t, data, 3)
+
+				// Odd tag count -> StorageSuccess
+				storage1 := storages[0]
+				operation1, ok := storage1["optionalLatestOperation"].(map[string]any)
+				require.True(t, ok, "optionalLatestOperation should be an object")
+				require.Equal(t, "StorageSuccess", operation1["__typename"])
+				require.Equal(t, "Operation completed for tags: a", operation1["message"])
+				require.Equal(t, "2024-01-02T00:00:00Z", operation1["completedAt"])
+
+				// Even tag count -> StorageFailure. Only errorCode is selected on this member.
+				storage2 := storages[1]
+				operation2, ok := storage2["optionalLatestOperation"].(map[string]any)
+				require.True(t, ok, "optionalLatestOperation should be an object")
+				require.Equal(t, "StorageFailure", operation2["__typename"])
+				require.Equal(t, "EVEN_TAG_COUNT", operation2["errorCode"])
+				require.NotContains(t, operation2, "message", "unselected fragment fields must not be returned")
+
+				// No tags -> null
+				storage3 := storages[2]
+				require.Contains(t, storage3, "optionalLatestOperation")
+				require.Nil(t, storage3["optionalLatestOperation"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with abstract return types combined with a scalar required field",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id tagSummary recommendedItems { __typename name } latestOperation { __typename ... on StorageSuccess { message } ... on StorageFailure { errorCode } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","tags":["alpha","beta"],"storageKind":"BOOK"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagSummary",
+					SelectionSet: "tags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "recommendedItems",
+					SelectionSet: "tags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "latestOperation",
+					SelectionSet: "storageKind",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				storage1 := entities(t, data, 1)[0]
+				require.Equal(t, "1", storage1["id"])
+				require.Equal(t, "alpha, beta", storage1["tagSummary"])
+
+				// __typename alone is a valid selection on an abstract type
+				items, ok := storage1["recommendedItems"].([]any)
+				require.True(t, ok, "recommendedItems should be an array")
+				require.Len(t, items, 2)
+
+				item0, ok := items[0].(map[string]any)
+				require.True(t, ok, "item 0 should be an object")
+				require.Equal(t, "PalletItem", item0["__typename"])
+				require.Equal(t, "Pallet alpha", item0["name"])
+
+				item1, ok := items[1].(map[string]any)
+				require.True(t, ok, "item 1 should be an object")
+				require.Equal(t, "ContainerItem", item1["__typename"])
+				require.Equal(t, "Container beta", item1["name"])
+
+				operation, ok := storage1["latestOperation"].(map[string]any)
+				require.True(t, ok, "latestOperation should be an object")
+				require.Equal(t, "StorageSuccess", operation["__typename"])
+				require.Equal(t, "Operation completed for CATEGORY_KIND_BOOK", operation["message"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			data, err := ds.Load(context.Background(), nil, []byte(input))
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+
+			err = json.Unmarshal(data, &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
+		})
+	}
+}

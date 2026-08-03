@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.14.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.14.1...v2.14.2) (2026-07-31)
+
+
+### Bug Fixes
+
+* incorrect type detection for abstract types ([#1613](https://github.com/wundergraph/graphql-go-tools/issues/1613)) ([e249e88](https://github.com/wundergraph/graphql-go-tools/commit/e249e882db4d5768b1661b99f92d070c55d987da))
+
 ## [2.14.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.14.0...v2.14.1) (2026-07-22)
 
 

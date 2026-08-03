@@ -921,20 +921,26 @@ type fragmentSelection struct {
 	selectionSetRef int
 }
 
-// enterResolverCompositeSelectionSet handles logic when entering a composite selection set for a given field resolver.
-// It appends the inline fragment selections to the resolved field and sets the fragment type.
-func (r *rpcPlanningContext) enterResolverCompositeSelectionSet(oneOfType OneOfType, selectionSetRef int, resolvedField *resolverField) {
-	resolvedField.fieldsSelectionSetRef = ast.InvalidRef
-	resolvedField.fragmentType = oneOfType
+type compositeTypeConfig struct {
+	oneOfType             OneOfType
+	fieldsSelectionSetRef int
+	fragmentSelections    []fragmentSelection
+}
+
+func (r *rpcPlanningContext) buildCompositeTypeConfig(oneOfType OneOfType, selectionSetRef int) compositeTypeConfig {
+	config := compositeTypeConfig{
+		oneOfType:             oneOfType,
+		fieldsSelectionSetRef: ast.InvalidRef,
+	}
 
 	// In case of an interface we can select individual fields from the interface without having to use an inline fragment.
 	if len(r.operation.SelectionSetFieldRefs(selectionSetRef)) > 0 {
-		resolvedField.fieldsSelectionSetRef = selectionSetRef
+		config.fieldsSelectionSetRef = selectionSetRef
 	}
 
 	inlineFragSelections := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
 	if len(inlineFragSelections) == 0 {
-		return
+		return config
 	}
 
 	for _, inlineFragSelectionRef := range inlineFragSelections {
@@ -944,11 +950,13 @@ func (r *rpcPlanningContext) enterResolverCompositeSelectionSet(oneOfType OneOfT
 			continue
 		}
 
-		resolvedField.fragmentSelections = append(resolvedField.fragmentSelections, fragmentSelection{
+		config.fragmentSelections = append(config.fragmentSelections, fragmentSelection{
 			typeName:        r.operation.InlineFragmentTypeConditionNameString(inlineFragRef),
 			selectionSetRef: inlinFragSelectionSetRef,
 		})
 	}
+
+	return config
 }
 
 // isFieldResolver checks if a field is a field resolver.
