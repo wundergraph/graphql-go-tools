@@ -24,11 +24,17 @@ func multiEntityTestNode() *FetchTreeNode {
 					DataSourceName: "products",
 					QueryPlan: &QueryPlan{
 						Query: "query {...}",
+						// The merged representations are the concatenation of all entries'.
 						DependsOnFields: []Representation{
 							{
 								Kind:     RepresentationKindKey,
 								TypeName: "Product",
 								Fragment: "... on Product {\n    __typename\n    upc\n}",
+							},
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Employee",
+								Fragment: "... on Employee {\n    __typename\n    id\n}",
 							},
 						},
 					},
@@ -50,8 +56,36 @@ func multiEntityTestNode() *FetchTreeNode {
 				MergedFetchIDs: []int{1, 2},
 				Input: MultiEntityInput{
 					Entries: []MultiEntityFetchEntry{
-						{Alias: "f1", Item: &FetchItem{ResponsePath: "employees.products"}},
-						{Alias: "f2", Item: &FetchItem{ResponsePath: "employee"}},
+						{
+							Alias: "f1",
+							Item:  &FetchItem{ResponsePath: "employees.products"},
+							Info: &FetchInfo{
+								QueryPlan: &QueryPlan{
+									DependsOnFields: []Representation{
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Product",
+											Fragment: "... on Product {\n    __typename\n    upc\n}",
+										},
+									},
+								},
+							},
+						},
+						{
+							Alias: "f2",
+							Item:  &FetchItem{ResponsePath: "employee"},
+							Info: &FetchInfo{
+								QueryPlan: &QueryPlan{
+									DependsOnFields: []Representation{
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Employee",
+											Fragment: "... on Employee {\n    __typename\n    id\n}",
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -101,6 +135,11 @@ func TestFetchTreeNode_QueryPlan_MultiEntity(t *testing.T) {
 					"kind": "@key",
 					"typeName": "Product",
 					"fragment": "... on Product {\n    __typename\n    upc\n}"
+				},
+				{
+					"kind": "@key",
+					"typeName": "Employee",
+					"fragment": "... on Employee {\n    __typename\n    id\n}"
 				}
 			],
 			"query": "query {...}",
@@ -121,8 +160,28 @@ func TestFetchTreeNode_QueryPlan_MultiEntity(t *testing.T) {
 			],
 			"mergedFetchIds": [1, 2],
 			"entries": [
-				{"alias": "f1", "path": "employees.products"},
-				{"alias": "f2", "path": "employee"}
+				{
+					"alias": "f1",
+					"path": "employees.products",
+					"representations": [
+						{
+							"kind": "@key",
+							"typeName": "Product",
+							"fragment": "... on Product {\n    __typename\n    upc\n}"
+						}
+					]
+				},
+				{
+					"alias": "f2",
+					"path": "employee",
+					"representations": [
+						{
+							"kind": "@key",
+							"typeName": "Employee",
+							"fragment": "... on Employee {\n    __typename\n    id\n}"
+						}
+					]
+				}
 			]
 		}
 	}`
@@ -284,12 +343,16 @@ func TestFetchTreeQueryPlanNode_PrettyPrint_MultiEntity(t *testing.T) {
         }
     }
     f2: _entities(representations: $representations_f2) @include(if: $includeF2){
-        ... on Product {
+        ... on Employee {
             __typename
-            price
+            details {
+                surname
+            }
         }
     }
 }`,
+						// The merged representations of all entries: indistinguishable on their own,
+						// which is why the printer attributes them per entry instead.
 						DependsOnFields: []Representation{
 							{
 								Kind:     RepresentationKindKey,
@@ -298,8 +361,18 @@ func TestFetchTreeQueryPlanNode_PrettyPrint_MultiEntity(t *testing.T) {
 							},
 							{
 								Kind:     RepresentationKindKey,
-								TypeName: "Product",
-								Fragment: "... on Product {\n    __typename\n    upc\n}",
+								TypeName: "Employee",
+								Fragment: "... on Employee {\n    __typename\n    id\n}",
+							},
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Consultant",
+								Fragment: "... on Consultant {\n    __typename\n    id\n}",
+							},
+							{
+								Kind:     RepresentationKindRequires,
+								TypeName: "Employee",
+								Fragment: "... on Employee {\n    __typename\n    startDate\n}",
 							},
 						},
 					},
@@ -307,8 +380,46 @@ func TestFetchTreeQueryPlanNode_PrettyPrint_MultiEntity(t *testing.T) {
 				MergedFetchIDs: []int{1, 2},
 				Input: MultiEntityInput{
 					Entries: []MultiEntityFetchEntry{
-						{Alias: "f1", Item: &FetchItem{ResponsePath: "employees.products"}},
-						{Alias: "f2", Item: &FetchItem{ResponsePath: "employee"}},
+						{
+							Alias: "f1",
+							Item:  &FetchItem{ResponsePath: "employees.products"},
+							Info: &FetchInfo{
+								QueryPlan: &QueryPlan{
+									DependsOnFields: []Representation{
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Product",
+											Fragment: "... on Product {\n    __typename\n    upc\n}",
+										},
+									},
+								},
+							},
+						},
+						{
+							Alias: "f2",
+							Item:  &FetchItem{ResponsePath: "employee"},
+							Info: &FetchInfo{
+								QueryPlan: &QueryPlan{
+									DependsOnFields: []Representation{
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Employee",
+											Fragment: "... on Employee {\n    __typename\n    id\n}",
+										},
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Consultant",
+											Fragment: "... on Consultant {\n    __typename\n    id\n}",
+										},
+										{
+											Kind:     RepresentationKindRequires,
+											TypeName: "Employee",
+											Fragment: "... on Employee {\n    __typename\n    startDate\n}",
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -321,16 +432,23 @@ func TestFetchTreeQueryPlanNode_PrettyPrint_MultiEntity(t *testing.T) {
 	expected := `
 QueryPlan {
   Fetch(service: "products") {
-    {
-      ... on Product {
-          __typename
-          upc
-      }
-      ... on Product {
-          __typename
-          upc
-      }
-    } =>
+    fragment f1_Key on Product {
+        __typename
+        upc
+    }
+    fragment f2_Key on Employee {
+        __typename
+        id
+    }
+    fragment f2_Key2 on Consultant {
+        __typename
+        id
+    }
+    fragment f2_Requires on Employee {
+        __typename
+        startDate
+    }
+    =>
     {
         f1: _entities(representations: $representations_f1) @include(if: $includeF1){
             ... on Product {
@@ -339,9 +457,11 @@ QueryPlan {
             }
         }
         f2: _entities(representations: $representations_f2) @include(if: $includeF2){
-            ... on Product {
+            ... on Employee {
                 __typename
-                price
+                details {
+                    surname
+                }
             }
         }
     }
