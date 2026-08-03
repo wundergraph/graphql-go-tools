@@ -64,10 +64,10 @@ func (c *createMultiFetch) walk(root, node *resolve.FetchTreeNode) {
 // parent is the FetchTreeNodeKindParallel node that holds the group members;
 // root is the whole organized tree, walked to rewire dependents.
 func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group []*resolve.FetchTreeNode) {
-	// Order-stability insurance (design D2): sort members by FetchID before
-	// aliasing so alias/entry order is independent of any ordering behaviour in
+	// Order-stability insurance: sort members by FetchID before aliasing so
+	// alias/entry order is independent of any ordering behaviour in
 	// orderSequenceByDependencies. Real waves already list members in ascending
-	// FetchID order, so this reproduces the historical flat-order aliasing.
+	// FetchID order, so aliasing matches the unmerged flat order.
 	slices.SortFunc(group, func(a, b *resolve.FetchTreeNode) int {
 		return a.Item.Fetch.(*resolve.SingleFetch).FetchID - b.Item.Fetch.(*resolve.SingleFetch).FetchID
 	})
@@ -115,25 +115,16 @@ func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group
 
 	// Build Header/Footer from the structured envelope + merged compact operation
 	// via the SAME httpclient assembly the planner uses for an unmerged fetch,
-	// guaranteeing byte-identity of the envelope. We assemble with an empty-object
-	// variables placeholder and split at the "variables":{} boundary we injected;
-	// the per-entry templates render the variables object body between Header and
-	// Footer. No scanning of an unknown input is involved.
+	// guaranteeing byte-identity of the envelope. The split around the empty body
+	// variables object is done by the assembly helper itself, where the split
+	// point is provable; the per-entry templates render the variables object body
+	// between Header and Footer.
 	s1 := members[0]
 	env := s1.SubgraphOperation.Envelope
-	assembled, err := httpclient.AssembleGraphQLRequestInput([]byte("{}"), []byte(compact), env.Header, env.URL, env.Method)
+	headerSource, footerSource, err := httpclient.AssembleGraphQLRequestInputSplitVariables([]byte(compact), env.Header, env.URL, env.Method)
 	if err != nil {
 		return
 	}
-	const varsOpen = `"variables":{`
-	marker := []byte(`"variables":{}`)
-	idx := bytes.Index(assembled, marker)
-	if idx == -1 {
-		return
-	}
-	boundary := idx + len(varsOpen)
-	headerSource := string(assembled[:boundary])
-	footerSource := string(assembled[boundary:])
 	var header, footer resolve.InputTemplate
 	resolveInputTemplate(s1.Variables, headerSource, &header)
 	resolveInputTemplate(s1.Variables, footerSource, &footer)
