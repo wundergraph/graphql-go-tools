@@ -3,10 +3,9 @@ package graphql_datasource
 import (
 	"testing"
 
+	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-
-	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 )
 
 // TestUnreachableSiblingParentDuplicate distills a production graph where the
