@@ -11129,6 +11129,7 @@ func TestConfigureFetch_SubgraphOperation(t *testing.T) {
 // plan.Planner creates them through the Factory and never exposes them.
 type recordingPlannerFactory struct {
 	*Factory[Configuration]
+
 	planners []*Planner[Configuration]
 }
 
