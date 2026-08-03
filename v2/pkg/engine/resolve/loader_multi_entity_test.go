@@ -97,12 +97,6 @@ func twoEntryMultiFetch(entry2Vars []MultiEntityFetchVariable) *MultiEntityFetch
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Two shared helpers (per review item 11). Everything else in a test is inline
-// so each case reads top-to-bottom; small duplication is preferred over more
-// tiny abstractions.
-// ---------------------------------------------------------------------------
-
 // multiFetch bundles the pieces a MultiEntityFetch test drives, with named
 // fields so a test reads: build the fixture, tweak the fetch, run, assert.
 type multiFetch struct {

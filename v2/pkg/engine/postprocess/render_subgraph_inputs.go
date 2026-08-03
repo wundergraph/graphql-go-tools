@@ -77,13 +77,10 @@ func (r *renderSubgraphInputs) render(fetch *resolve.SingleFetch, op *resolve.Su
 		variables, _ = sjson.SetRawBytes(variables, op.Variables[i].Name, op.Variables[i].Value)
 	}
 
-	// Reuse the print-once cached minified operation (produced by the planner);
-	// the closure is a fallback for artifacts that were not printed eagerly
-	// (e.g. hand-built test fetches).
-	query, err := op.PrintedQuery(func() ([]byte, error) {
-		printed, printErr := astprinter.PrintString(op.Document)
-		return []byte(printed), printErr
-	})
+	// Reuse the print-once cached minified operation (seeded by the planner);
+	// PrintedQuery falls back to printing Document for artifacts that were not
+	// printed eagerly (e.g. hand-built test fetches).
+	query, err := op.PrintedQuery()
 	if err != nil {
 		return
 	}
@@ -103,7 +100,7 @@ func (r *renderSubgraphInputs) render(fetch *resolve.SingleFetch, op *resolve.Su
 		}
 	}
 
-	// fetchIDAppender compensation (design E2/D1): fetch_id_appender.go mutates
+	// fetchIDAppender compensation: fetch_id_appender.go mutates
 	// only printed strings and no-ops on the empty deferred Input, so we apply
 	// the identical whole-input first-occurrence replace after assembly. This
 	// preserves today's semantics exactly, including the pre-existing quirk that

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 )
 
 type FetchKind int
@@ -334,8 +333,8 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 // artifacts would render to the same fetch input: identical envelope
 // (method/url/header bytes), identical recorded variables (name + raw value,
 // order-sensitive), and identical printed operation. The operation print is
-// obtained via the print-once cache (supplying an astprinter closure); after
-// this call both sides have their print cached.
+// obtained via the print-once cache, so after this call both sides have their
+// print cached.
 func subgraphOperationsEqual(a, b *SubgraphOperation) bool {
 	if a.Envelope.Method != b.Envelope.Method {
 		return false
@@ -357,29 +356,15 @@ func subgraphOperationsEqual(a, b *SubgraphOperation) bool {
 			return false
 		}
 	}
-	aQuery, err := a.PrintedQuery(printSubgraphOperation(a))
+	aQuery, err := a.PrintedQuery()
 	if err != nil {
 		return false
 	}
-	bQuery, err := b.PrintedQuery(printSubgraphOperation(b))
+	bQuery, err := b.PrintedQuery()
 	if err != nil {
 		return false
 	}
 	return bytes.Equal(aQuery, bQuery)
-}
-
-// printSubgraphOperation returns a closure that prints the artifact's document
-// with astprinter (minified compact form). It is used only when the print-once
-// cache is empty; the planner normally seeds the cache with the exact bytes it
-// produced (preserving minification), so this closure is a fallback.
-func printSubgraphOperation(o *SubgraphOperation) func() ([]byte, error) {
-	return func() ([]byte, error) {
-		printed, err := astprinter.PrintString(o.Document)
-		if err != nil {
-			return nil, err
-		}
-		return []byte(printed), nil
-	}
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

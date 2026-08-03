@@ -1,19 +1,16 @@
 package engine
 
-// Full federation integration tests for the MultiFetch optimization (review
-// item 14). These exercise the whole execution engine end-to-end (planning +
-// postprocessing + runtime), unlike the plan-level goldens in the v2 datasource
-// and postprocess packages.
+// Full federation integration tests for the MultiFetch optimization. These
+// exercise the whole execution engine end-to-end (planning + postprocessing +
+// runtime), unlike the plan-level goldens in the v2 datasource and postprocess
+// packages.
 //
-// Enable mechanism (Task 1.1 investigation result): engine.Configuration is
-// struct-based (it wraps an unexported plan.Configuration in plannerConfig),
-// and the other feature switches are exported setter methods on *Configuration
-// (SetDataSources, SetFieldConfigurations, ...). MultiFetch follows that style:
-// Configuration.EnableMultiFetch() sets plan.Configuration.EnableMultiFetch =
-// true, and NewExecutionEngine derives the postprocess.EnableMultiFetch()
-// processor option from that same flag. One switch drives BOTH required flags
-// (planner artifact recording + postprocess merge stage), so they can never
-// drift apart. With the switch off there is zero behavior change.
+// Configuration.EnableMultiFetch() is the single switch: it sets
+// plan.Configuration.EnableMultiFetch = true, and NewExecutionEngine derives the
+// postprocess.EnableMultiFetch() processor option from that same flag. One
+// switch drives BOTH required flags (planner artifact recording + postprocess
+// merge stage), so they can never drift apart. With the switch off there is zero
+// behavior change.
 
 import (
 	"bytes"
@@ -209,7 +206,7 @@ func runMultiFetchQuery(t *testing.T, dataSources []plan.DataSource, enableMulti
 }
 
 // Golden bodies/responses, all derived from observed engine output (never hand
-// guessed) and asserted with full-equality per the plan's Global Constraints.
+// guessed) and asserted with full equality.
 const (
 	// accounts root fetch: both Query roots resolve here, one request.
 	multiFetchAccountsBody = `{"query":"{employees {__typename id} topEmployee {__typename id}}"}`

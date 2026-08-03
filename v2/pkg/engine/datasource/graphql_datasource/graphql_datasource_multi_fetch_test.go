@@ -2007,7 +2007,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_Subscription(t *testing.T) {
 }
 
 // TestGraphQLDataSourceFederation_MultiFetch_RepresentationsCollision exercises
-// the planner representations-collision fix (review item 2) end-to-end under
+// the planner representations-collision fix end-to-end under
 // MultiFetch: the client declares AND uses a variable literally named
 // $representations. The planner renames the synthetic representations variable
 // to $_representations on every member; the merge stage then applies its normal
