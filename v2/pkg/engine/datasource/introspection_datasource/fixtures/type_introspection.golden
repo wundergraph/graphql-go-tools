@@ -11,7 +11,36 @@
         "kind": "OBJECT",
         "name": "Droid",
         "ofType": null,
-        "__typename": "__Type"
+        "__typename": "__Type",
+        "description": "",
+        "fields": [
+          {
+            "name": "name",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null,
+                "__typename": "__Type",
+                "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
+                "inputFields": [],
+                "interfaces": [],
+                "possibleTypes": []
+              },
+              "__typename": "__Type"
+            },
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "__typename": "__Field"
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "possibleTypes": []
       },
       "isDeprecated": true,
       "deprecationReason": "No longer supported",
@@ -31,7 +60,11 @@
               "kind": "SCALAR",
               "name": "ID",
               "ofType": null,
-              "__typename": "__Type"
+              "__typename": "__Type",
+              "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
+              "inputFields": [],
+              "interfaces": [],
+              "possibleTypes": []
             },
             "__typename": "__Type"
           },
@@ -45,7 +78,36 @@
         "kind": "OBJECT",
         "name": "Droid",
         "ofType": null,
-        "__typename": "__Type"
+        "__typename": "__Type",
+        "description": "",
+        "fields": [
+          {
+            "name": "name",
+            "description": "",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null,
+                "__typename": "__Type",
+                "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
+                "inputFields": [],
+                "interfaces": [],
+                "possibleTypes": []
+              },
+              "__typename": "__Type"
+            },
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "__typename": "__Field"
+          }
+        ],
+        "inputFields": [],
+        "interfaces": [],
+        "possibleTypes": []
       },
       "isDeprecated": false,
       "deprecationReason": null,

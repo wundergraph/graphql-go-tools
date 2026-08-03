@@ -1,0 +1,46 @@
+{
+  review: __type(name: "Review") {
+    kind
+    name
+    fields {
+      name
+      type {
+        kind
+        name
+        ofType {
+          kind
+          name
+          fields {
+            name
+            type {
+              kind
+              name
+              ofType {
+                kind
+                name
+                fields {
+                  name
+                }
+              }
+            }
+          }
+          possibleTypes {
+            kind
+            name
+          }
+        }
+      }
+    }
+  }
+  attachment: __type(name: "Attachment") {
+    kind
+    name
+    possibleTypes {
+      kind
+      name
+      fields {
+        name
+      }
+    }
+  }
+}
