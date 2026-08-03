@@ -186,6 +186,9 @@ type FetchTreeQueryPlan struct {
 type QueryPlanEntry struct {
 	Alias string `json:"alias"`
 	Path  string `json:"path,omitempty"`
+	// Representations are the representations of this entry alone. The enclosing
+	// FetchTreeQueryPlan.Representations holds the merged representations of all entries.
+	Representations []Representation `json:"representations,omitempty"`
 }
 
 func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {
@@ -272,6 +275,9 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 			entries := make([]QueryPlanEntry, len(f.Input.Entries))
 			for i, e := range f.Input.Entries {
 				entries[i] = QueryPlanEntry{Alias: e.Alias, Path: e.Item.ResponsePath}
+				if e.Info != nil && e.Info.QueryPlan != nil {
+					entries[i].Representations = e.Info.QueryPlan.DependsOnFields
+				}
 			}
 			queryPlan.Fetch = &FetchTreeQueryPlan{
 				Kind:              "MultiEntity",
@@ -390,7 +396,12 @@ func (p *PlanPrinter) printFetchInfo(fetch *FetchTreeQueryPlan) {
 	p.print(fmt.Sprintf(`Fetch(service: "%s") {`, fetch.SubgraphName))
 	p.depth++
 
-	if fetch.Representations != nil {
+	switch {
+	case fetch.Kind == "MultiEntity" && hasEntryRepresentations(fetch.Entries):
+		// For a merged multi-entity fetch the top level representations are the concatenation of all
+		// entries, which makes the fragments indistinguishable. Attribute them to their entry instead.
+		p.printEntryRepresentations(fetch.Entries)
+	case fetch.Representations != nil:
 		p.printRepresentations(fetch.Representations)
 	}
 	p.printQuery(fetch.Query)
@@ -429,6 +440,64 @@ func (p *PlanPrinter) printRepresentations(reps []Representation) {
 	}
 	p.depth--
 	p.print("} =>")
+}
+
+// hasEntryRepresentations reports whether at least one entry carries its own representations.
+func hasEntryRepresentations(entries []QueryPlanEntry) bool {
+	for _, entry := range entries {
+		if len(entry.Representations) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// printEntryRepresentations prints the representations of a multi-entity fetch as named fragments,
+// one per representation, named after the aliased sub-fetch they belong to, e.g.
+//
+//	fragment f1_Key on Product {
+//	    __typename
+//	    upc
+//	}
+//	=>
+//
+// The "=>" separator is kept so the overall "representations => query" shape is preserved.
+func (p *PlanPrinter) printEntryRepresentations(entries []QueryPlanEntry) {
+	for _, entry := range entries {
+		seen := make(map[string]int, len(entry.Representations))
+		for _, rep := range entry.Representations {
+			name := representationKindName(rep.Kind)
+			seen[name]++
+			if count := seen[name]; count > 1 {
+				name = fmt.Sprintf("%s%d", name, count)
+			}
+			// Reuse the brace block of the inline fragment verbatim to keep its own indentation.
+			block := "{}"
+			if idx := strings.Index(rep.Fragment, "{"); idx != -1 {
+				block = rep.Fragment[idx:]
+			}
+			lines := strings.Split(block, "\n")
+			lines[0] = fmt.Sprintf("fragment %s_%s on %s %s", entry.Alias, name, rep.TypeName, lines[0])
+			p.print(lines...)
+		}
+	}
+	p.print("=>")
+}
+
+// representationKindName turns a RepresentationKind into a fragment name segment by stripping all
+// non-alphanumeric characters and capitalizing the first letter, e.g. "@key" becomes "Key".
+func representationKindName(kind RepresentationKind) string {
+	var sb strings.Builder
+	for _, r := range string(kind) {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			sb.WriteRune(r)
+		}
+	}
+	name := sb.String()
+	if name == "" {
+		return "Representation"
+	}
+	return strings.ToUpper(name[:1]) + name[1:]
 }
 
 func (p *PlanPrinter) print(lines ...string) {
