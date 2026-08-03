@@ -180,6 +180,11 @@ type Loader struct {
 	// subgraphExtensions - accumulates extensions returned from each subgraph call
 	subgraphExtensions []*astjson.Object
 
+	// responseExtensions is set only for deferred responses. Every initial and
+	// defer-group loader points at the same request-local accumulator, and appends
+	// to it from mergeResult while the shared DataBuffer lock is held.
+	responseExtensions *responseExtensionAccumulator
+
 	// skipValueCompletion is set when a response has errors but no data
 	// and apolloCompatibilityValueCompletionInExtensions is enabled.
 	// Read back by the caller after ResolveFetchNode.
@@ -260,6 +265,10 @@ func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
 	l.info = responseInfo
 	l.taintedObjs = make(taintedObjects)
 	l.erroredFetchIDs = nil
+}
+
+func (l *Loader) setResponseExtensionAccumulator(accumulator *responseExtensionAccumulator) {
+	l.responseExtensions = accumulator
 }
 
 func (l *Loader) ensureErrorsInitialized() {
@@ -644,7 +653,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		extensions := response.Get("extensions")
 
 		if astjson.ValueIsNonNull(extensions) && extensions.Type() == astjson.TypeObject {
-			l.subgraphExtensions = append(l.subgraphExtensions, extensions.GetObject())
+			object := extensions.GetObject()
+			l.subgraphExtensions = append(l.subgraphExtensions, object)
+			l.responseExtensions.append(object)
 		}
 	}
 
@@ -711,6 +722,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// skip value completion
 		if hasErrors && l.apolloCompatibilityValueCompletionInExtensions {
 			l.skipValueCompletion = true
+			l.responseExtensions.suppressValueCompletion()
 		}
 
 		// no data
