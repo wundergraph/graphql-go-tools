@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.14.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.14.1...v2.14.2) (2026-07-31)
+
+
+### Bug Fixes
+
+* incorrect type detection for abstract types ([#1613](https://github.com/wundergraph/graphql-go-tools/issues/1613)) ([e249e88](https://github.com/wundergraph/graphql-go-tools/commit/e249e882db4d5768b1661b99f92d070c55d987da))
+
+## [2.14.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.14.0...v2.14.1) (2026-07-22)
+
+
+### Bug Fixes
+
+* incorrect alias behavior for required fields ([#1604](https://github.com/wundergraph/graphql-go-tools/issues/1604)) ([5752e91](https://github.com/wundergraph/graphql-go-tools/commit/5752e914cc6f88ce2fa9a3143712ede705c92226))
+
+## [2.14.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.13.2...v2.14.0) (2026-07-21)
+
+
+### Features
+
+* add AllowStringLiteralsForEnums option to validator ([#1608](https://github.com/wundergraph/graphql-go-tools/issues/1608)) ([0771feb](https://github.com/wundergraph/graphql-go-tools/commit/0771febd0d27faf4878d32ef7a2d93d547989434))
+
+## [2.13.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.13.1...v2.13.2) (2026-07-17)
+
+
+### Bug Fixes
+
+* accept empty lists for non-null list items ([#1600](https://github.com/wundergraph/graphql-go-tools/issues/1600)) ([bd86537](https://github.com/wundergraph/graphql-go-tools/commit/bd8653780bdc702fdcd11a449a254509c62c2b5e))
+
+## [2.13.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.13.0...v2.13.1) (2026-07-17)
+
+
+### Bug Fixes
+
+* improve ast rewriter field provenance ([#1587](https://github.com/wundergraph/graphql-go-tools/issues/1587)) ([ee8555b](https://github.com/wundergraph/graphql-go-tools/commit/ee8555b374e4682ab72f1b73f73cdafc142decab))
+
+## [2.13.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.12.1...v2.13.0) (2026-07-17)
+
+
+### Features
+
+* improve abstract field validation ([#1588](https://github.com/wundergraph/graphql-go-tools/issues/1588)) ([d6cceac](https://github.com/wundergraph/graphql-go-tools/commit/d6cceacd291eee5dbab8f6a0cadd245e47eca2d0))
+
 ## [2.12.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.12.0...v2.12.1) (2026-07-15)
 
 

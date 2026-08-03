@@ -46,6 +46,8 @@ type Visitor struct {
 	fieldStack                   []*resolve.Field
 	planners                     []PlannerConfiguration
 	skipFieldsRefs               []int
+	fieldMergingAliasRefs        map[int][]byte
+	unresolvableFieldRefs        map[int]struct{}
 	fieldRefDependsOnFieldRefs   map[int][]int
 	fieldDependencyKind          map[fieldDependencyKey]fieldDependencyKind
 	fieldRefDependants           map[int][]int // inverse of fieldRefDependsOnFieldRefs
@@ -311,6 +313,7 @@ func (v *Visitor) EnterField(ref int) {
 	if !v.Config.DisableIncludeFieldDependencies {
 		v.fieldEnclosingTypeNames[ref] = strings.Clone(v.Walker.EnclosingTypeDefinition.NameString(v.Definition))
 	}
+
 	// check if we have to skip the field in the response
 	// it means it was requested by the planner not the user
 	if v.skipField(ref) {
@@ -328,8 +331,16 @@ func (v *Visitor) EnterField(ref int) {
 
 	onTypeNames := v.resolveOnTypeNames(ref, fieldName)
 
+	// a planner generated alias keeps the upstream operation valid, but the client response name
+	// must remain the original one (the user alias if any, otherwise the field name);
+	// the upstream json path still follows the generated alias
+	responseName := fieldAliasOrName
+	if originalResponseName, ok := v.fieldMergingAliasRefs[ref]; ok {
+		responseName = originalResponseName
+	}
+
 	v.currentField = &resolve.Field{
-		Name:        fieldAliasOrName,
+		Name:        responseName,
 		OnTypeNames: onTypeNames,
 		Position:    v.resolveFieldPosition(ref),
 		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
@@ -800,12 +811,14 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				InaccessibleValues: inaccessibleValues,
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+			_, unresolvable := v.unresolvableFieldRefs[fieldRef]
 			object := &resolve.Object{
 				Nullable:      nullable,
 				Path:          path,
 				Fields:        []*resolve.Field{},
 				TypeName:      typeName,
 				PossibleTypes: map[string]struct{}{},
+				Unresolvable:  unresolvable,
 			}
 
 			switch typeDefinitionNode.Kind {
@@ -814,13 +827,17 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			case ast.NodeKindInterfaceTypeDefinition:
 				objectTypesImplementingInterface, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(typeDefinitionNode.Ref)
 				for _, implementingTypeName := range objectTypesImplementingInterface {
-					// exlude inaccessible types from possible types
+					// inaccessible types are recorded separately so the resolver can
+					// reject them without leaking the typename in the error
 					if v.isInaccesibleType(implementingTypeName) {
+						if object.InaccessibleTypes == nil {
+							object.InaccessibleTypes = map[string]struct{}{}
+						}
+						object.InaccessibleTypes[implementingTypeName] = struct{}{}
 						continue
 					}
 
 					object.PossibleTypes[implementingTypeName] = struct{}{}
-
 				}
 
 				if slices.Contains(v.Config.EntityInterfaceNames, typeName) {
@@ -830,8 +847,13 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			case ast.NodeKindUnionTypeDefinition:
 				if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(typeDefinitionNode.Ref); ok {
 					for _, unionMember := range unionMembers {
-						// exlude inaccessible types from possible types
+						// inaccessible types are recorded separately so the resolver can
+						// reject them without leaking the typename in the error
 						if v.isInaccesibleType(unionMember) {
+							if object.InaccessibleTypes == nil {
+								object.InaccessibleTypes = map[string]struct{}{}
+							}
+							object.InaccessibleTypes[unionMember] = struct{}{}
 							continue
 						}
 						object.PossibleTypes[unionMember] = struct{}{}

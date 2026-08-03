@@ -76,6 +76,16 @@ type Storage @key(fields: "id") {
   # Pattern 6: Nested abstract through concrete intermediary (handler → assignedItem)
   deepItemInfo: String! @requires(fields: "primaryItem { ... on PalletItem { __typename handler { assignedItem { ... on ContainerItem { __typename name containerSize } ... on PalletItem { __typename name palletCount } } } } ... on ContainerItem { __typename handler { name } } }")
 
+  # @requires fields returning abstract types
+  # Pattern 7: interface return type
+  recommendedItem: StorageItem! @requires(fields: "metadata { capacity zone }")
+  # Pattern 8: list of interface return type
+  recommendedItems: [StorageItem!]! @requires(fields: "tags")
+  # Pattern 9: union return type
+  latestOperation: StorageOperationResult! @requires(fields: "storageKind")
+  # Pattern 10: nullable union return type
+  optionalLatestOperation: StorageOperationResult @requires(fields: "optionalTags")
+
   # @connect_fieldResolver fields
   storageStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
   linkedStorages(depth: Int!): [Storage!]! @connect__fieldResolver(context: "id name location")

@@ -10,9 +10,18 @@ type Object struct {
 	Path     []string
 	Fields   []*Field
 
+	// Unresolvable marks an object whose selection set was dropped during planning
+	// because the abstract type has no possible runtime types able to provide the
+	// requested fields. Resolving such an object is always an error.
+	Unresolvable bool
+
 	PossibleTypes map[string]struct{} `json:"-"`
 	SourceName    string              `json:"-"`
 	TypeName      string              `json:"-"`
+
+	// InaccessibleTypes are members/implementers of the abstract type marked
+	// @inaccessible; excluded from PossibleTypes. Nil when none.
+	InaccessibleTypes map[string]struct{} `json:"-"`
 }
 
 func (o *Object) Copy() Node {
@@ -21,9 +30,10 @@ func (o *Object) Copy() Node {
 		fields[i] = f.Copy()
 	}
 	return &Object{
-		Nullable: o.Nullable,
-		Path:     o.Path,
-		Fields:   fields,
+		Nullable:     o.Nullable,
+		Path:         o.Path,
+		Fields:       fields,
+		Unresolvable: o.Unresolvable,
 	}
 }
 
@@ -45,6 +55,10 @@ func (o *Object) Equals(n Node) bool {
 		return false
 	}
 	if o.Nullable != other.Nullable {
+		return false
+	}
+
+	if o.Unresolvable != other.Unresolvable {
 		return false
 	}
 

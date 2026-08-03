@@ -29,6 +29,7 @@ type NodeSuggestion struct {
 	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
 	IsLeaf                    bool   `json:"isLeaf"`
 	isTypeName                bool
+	hasUnionReturnType        bool
 	IsOrphan                  bool // if node is orphan it should not be taken into account for planning
 
 	parentPathWithoutFragment string
@@ -41,7 +42,16 @@ type NodeSuggestion struct {
 	deferInfo          *DeferInfo // this node's own defer directive, if the field itself is deferred
 	descendantDeferIDs []int      // defer ids of deferred descendant fields that route through this node (this node is on their parent path to the root)
 
+	// requiresKey holds the key jump path used to reach this node's datasource
+	// from the datasource of a selected parent. Nil when the parent is on the same datasource.
 	requiresKey *SourceConnection
+
+	// requiresFallbackKey marks a node which could NOT be reached with an exact key jump,
+	// but could be reached with a fallback (subset -> compound key) jump.
+	// The fallback jump is not assigned right away: the marker makes nodesResolvableVisitor
+	// report the field as unresolved, which lets NodeSelectionBuilder enable fallback key jumps
+	// and refilter the datasources. Only then assignKeys assigns the fallback path as requiresKey.
+	requiresFallbackKey bool
 }
 
 type DeferInfo struct {
@@ -86,6 +96,11 @@ func (n *NodeSuggestion) selectWithReason(reason string, saveReason bool) {
 func (n *NodeSuggestion) unselect() {
 	n.Selected = false
 	n.SelectionReasons = nil
+}
+
+func (n *NodeSuggestion) orphan() {
+	n.unselect()
+	n.IsOrphan = true
 }
 
 func (n *NodeSuggestion) String() string {
@@ -272,18 +287,66 @@ func (f *NodeSuggestions) AddSeenField(fieldRef int) {
 	f.seenFields[fieldRef] = struct{}{}
 }
 
-func (f *NodeSuggestions) RemoveTreeNodeChilds(fieldRef int) {
+// RemoveSeenFields makes the fields treated as new again,
+// so their tree nodes and suggestions are recollected on the next filter run
+func (f *NodeSuggestions) RemoveSeenFields(fieldRefs ...int) {
+	for _, fieldRef := range fieldRefs {
+		delete(f.seenFields, fieldRef)
+	}
+}
+
+// RemoveRewrittenFieldChilds removes the child nodes of a field which had its
+// selection set rewritten - the old child suggestions do not make sense anymore.
+// A datasource could have been selected for the field or its parents only to resolve
+// the removed child selections - such chains are unselected to allow the next filter run
+// to re-select them for the updated operation.
+func (f *NodeSuggestions) RemoveRewrittenFieldChilds(fieldRef int) {
 	treeNodeId := TreeNodeID(fieldRef)
 	node, ok := f.responseTree.Find(treeNodeId)
 	if !ok {
 		return
 	}
 
-	// mark all nested suggestions as orphans
+	// mark all nested suggestions as orphans and unselect them
 	f.abandonNodeChildren(node, false)
+
+	// unselect the field and its parents chains which have no selected children anymore
+	for _, itemIdx := range node.GetData() {
+		f.unselectWhenNoSelectedChildren(itemIdx)
+	}
 
 	// remove rewritten children nodes from the current node
 	node.ReplaceChildren()
+}
+
+// AbandonFieldChilds marks the child suggestions of the field as orphans
+// and detaches them from the tree nodes, keeping the response tree intact.
+// Used when the child paths have changed (e.g. by adding planner generated aliases),
+// so the child suggestions have to be recollected for the same tree nodes.
+// Unlike after RemoveRewrittenFieldChilds, the tree nodes stay reachable,
+// so the orphaned items have to be removed from the node data to not affect
+// the following selection runs.
+func (f *NodeSuggestions) AbandonFieldChilds(fieldRef int) {
+	node, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	if !ok {
+		return
+	}
+
+	f.abandonAndDetachNodeChildrenItems(node, false)
+}
+
+func (f *NodeSuggestions) abandonAndDetachNodeChildrenItems(node tree.Node[[]int], clearData bool) {
+	for _, child := range node.GetChildren() {
+		f.abandonAndDetachNodeChildrenItems(child, true)
+	}
+
+	if clearData {
+		for _, idx := range node.GetData() {
+			f.items[idx].IsOrphan = true
+			f.items[idx].unselect()
+		}
+		node.SetData(nil)
+	}
 }
 
 // abandonNodeChildren recursively marks all nested suggestions as orphans
@@ -295,10 +358,38 @@ func (f *NodeSuggestions) abandonNodeChildren(node tree.Node[[]int], clearData b
 	if clearData {
 		for _, idx := range node.GetData() {
 			// we can't reslice f.items because tree data stores indexes of f.items
-			f.items[idx].IsOrphan = true
-			f.items[idx].unselect()
+			f.items[idx].orphan()
 		}
 	}
+}
+
+// IsSelectedOnDataSource reports whether the given field ref has a selected
+// non-orphan suggestion on the given data source
+func (f *NodeSuggestions) IsSelectedOnDataSource(fieldRef int, dsHash DSHash) bool {
+	treeNode, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	if !ok {
+		return false
+	}
+
+	for _, itemIdx := range treeNode.GetData() {
+		item := f.items[itemIdx]
+		if item.DataSourceHash == dsHash && !item.IsOrphan && item.Selected {
+			return true
+		}
+	}
+
+	return false
+}
+
+// OrphanSuggestionsForFieldRef marks all suggestions of the given field ref
+// and its nested fields as orphans
+func (f *NodeSuggestions) OrphanSuggestionsForFieldRef(fieldRef int) {
+	treeNode, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	if !ok {
+		return
+	}
+
+	f.abandonNodeChildren(treeNode, true)
 }
 
 func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) (suggestionIdx int) {
@@ -323,6 +414,91 @@ func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (
 	}
 
 	return suggestions
+}
+
+// unselectWhenNoSelectedChildren unselects the suggestion when it no longer has
+// a selected child on any data source, and cascades the same check
+// up the parent chain on the suggestion data source.
+func (f *NodeSuggestions) unselectWhenNoSelectedChildren(idx int) {
+	if !f.items[idx].Selected {
+		return
+	}
+
+	// the node should stay selected when it has a selected child on any datasource:
+	// even when the child is on another datasource, the current node could be
+	// an anchor providing the keys for the jump to the child datasource
+	for _, childIdx := range treeNodeChildren(f.treeNode(idx)) {
+		if f.items[childIdx].Selected {
+			return
+		}
+	}
+
+	f.items[idx].unselect()
+
+	parentIdx, ok := f.parentNodeOnSameSource(idx)
+	if !ok {
+		return
+	}
+
+	f.unselectWhenNoSelectedChildren(parentIdx)
+}
+
+// IsSuggestionReachable reports whether the suggestion could actually be planned
+// on its datasource. Walking up the response tree on the same datasource
+// we should find an anchor - a query root field or an entity root node
+// with an enabled entity resolver - from which the datasource could provide the field.
+// When the parent chain on the datasource is interrupted before an anchor is found,
+// the datasource is not able to resolve the field at this position.
+func (f *NodeSuggestions) IsSuggestionReachable(suggestion *NodeSuggestion) bool {
+	node, ok := f.responseTree.Find(suggestion.treeNodeID())
+	if !ok {
+		return false
+	}
+
+	dsHash := suggestion.DataSourceHash
+
+	for node.GetID() != treeRootID {
+		itemIdx := -1
+		for _, idx := range node.GetData() {
+			if f.items[idx].DataSourceHash == dsHash && !f.items[idx].IsOrphan {
+				itemIdx = idx
+				break
+			}
+		}
+
+		if itemIdx == -1 {
+			// the parent chain on the datasource is interrupted
+			return false
+		}
+
+		if f.items[itemIdx].IsRootNode && !f.items[itemIdx].DisabledEntityResolver {
+			return true
+		}
+
+		node = node.GetParent()
+	}
+
+	return false
+}
+
+// SuggestionsForFieldRef returns all non-orphan suggestions for the given field ref,
+// regardless of their selection state.
+func (f *NodeSuggestions) SuggestionsForFieldRef(fieldRef int) []*NodeSuggestion {
+	treeNode, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	if !ok {
+		return nil
+	}
+
+	itemIndexes := treeNode.GetData()
+	out := make([]*NodeSuggestion, 0, len(itemIndexes))
+	for _, itemIdx := range itemIndexes {
+		if f.items[itemIdx].IsOrphan {
+			continue
+		}
+		out = append(out, f.items[itemIdx])
+	}
+
+	return out
 }
 
 // addProvidedSelection stores the provided selection applying to the children of the
@@ -356,9 +532,18 @@ func (f *NodeSuggestions) providedSelectionForParentOfField(dsHash DSHash, field
 }
 
 func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
-	items, ok := f.pathSuggestions[path]
+	suggestion, ok := f.SelectedSuggestionForPath(typeName, fieldName, path)
 	if !ok {
 		return 0, false
+	}
+
+	return suggestion.DataSourceHash, true
+}
+
+func (f *NodeSuggestions) SelectedSuggestionForPath(typeName, fieldName, path string) (suggestion *NodeSuggestion, ok bool) {
+	items, ok := f.pathSuggestions[path]
+	if !ok {
+		return nil, false
 	}
 
 	for i := range items {
@@ -367,7 +552,80 @@ func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string)
 		}
 
 		if typeName == items[i].TypeName && fieldName == items[i].FieldName && items[i].Selected {
-			return items[i].DataSourceHash, true
+			return items[i], true
+		}
+	}
+
+	return nil, false
+}
+
+// suggestionsForFieldRef returns indexes of the suggestion items for the given field ref.
+// Suggestions for one field ref are grouped under a single response tree node,
+// so the lookup is cheap. When a tree node was removed, its items are orphaned,
+// so a missing tree node means there are no usable suggestions for the field ref.
+func (f *NodeSuggestions) suggestionsForFieldRef(fieldRef int) []int {
+	treeNode, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	if !ok {
+		return nil
+	}
+
+	return treeNode.GetData()
+}
+
+func (f *NodeSuggestions) hasSelectedSuggestionForFieldRefOnDataSource(fieldRef int, dsHash DSHash) bool {
+	for _, itemIdx := range f.suggestionsForFieldRef(fieldRef) {
+		item := f.items[itemIdx]
+		if item.IsOrphan {
+			continue
+		}
+		if !item.Selected {
+			continue
+		}
+		if item.DataSourceHash == dsHash {
+			return true
+		}
+	}
+
+	return false
+}
+
+// firstNonTargetSuggestionForFieldRef returns a datasource able to resolve the given field ref
+// other than the target datasource. It is used to plan a gather hop for a fallback key jump:
+// a member of the target's compound key which the jump source cannot provide (see KeyJump.SourcePaths)
+// has to be fetched from some third datasource before jumping into the target one.
+// Selected suggestions are preferred to reuse fetches which will happen anyway.
+func (f *NodeSuggestions) firstNonTargetSuggestionForFieldRef(fieldRef int, target DSHash) (DSHash, bool) {
+	itemIndexes := f.suggestionsForFieldRef(fieldRef)
+
+	isCandidate := func(item *NodeSuggestion) bool {
+		if item.IsOrphan {
+			return false
+		}
+		if item.DataSourceHash == target {
+			return false
+		}
+		if item.IsExternal && !item.IsProvided {
+			return false
+		}
+		// a datasource which itself needs a fallback jump missing this very field
+		// cannot be used to gather it
+		if sourceConnectionRequiresMissingFallbackKeyField(item.requiresKey, item) {
+			return false
+		}
+		return true
+	}
+
+	for _, itemIdx := range itemIndexes {
+		item := f.items[itemIdx]
+		if item.Selected && isCandidate(item) {
+			return item.DataSourceHash, true
+		}
+	}
+
+	for _, itemIdx := range itemIndexes {
+		item := f.items[itemIdx]
+		if isCandidate(item) {
+			return item.DataSourceHash, true
 		}
 	}
 
