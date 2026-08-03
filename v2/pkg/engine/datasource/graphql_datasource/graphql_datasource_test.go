@@ -8489,6 +8489,10 @@ func (t *testSubscriptionUpdater) Subscriptions() map[context.Context]resolve.Su
 func (t *testSubscriptionUpdater) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
 }
 
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdater) UpdateBulk(_ map[resolve.SubscriptionIdentifier][]byte) {
+}
+
 func TestSubscriptionSource_Start(t *testing.T) {
 	chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 	defer chatServer.Close()
