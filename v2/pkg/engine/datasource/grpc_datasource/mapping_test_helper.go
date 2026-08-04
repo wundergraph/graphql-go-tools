@@ -674,6 +674,38 @@ func testMapping() *GRPCMapping {
 								Response: "RequireStorageDeepItemInfoByIdResponse",
 							},
 						},
+						"recommendedItem": {
+							TargetName: "recommended_item",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageRecommendedItemById",
+								Request:  "RequireStorageRecommendedItemByIdRequest",
+								Response: "RequireStorageRecommendedItemByIdResponse",
+							},
+						},
+						"recommendedItems": {
+							TargetName: "recommended_items",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageRecommendedItemsById",
+								Request:  "RequireStorageRecommendedItemsByIdRequest",
+								Response: "RequireStorageRecommendedItemsByIdResponse",
+							},
+						},
+						"latestOperation": {
+							TargetName: "latest_operation",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageLatestOperationById",
+								Request:  "RequireStorageLatestOperationByIdRequest",
+								Response: "RequireStorageLatestOperationByIdResponse",
+							},
+						},
+						"optionalLatestOperation": {
+							TargetName: "optional_latest_operation",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageOptionalLatestOperationById",
+								Request:  "RequireStorageOptionalLatestOperationByIdRequest",
+								Response: "RequireStorageOptionalLatestOperationByIdResponse",
+							},
+						},
 						"filteredTagSummary": {
 							TargetName: "filtered_tag_summary",
 							RPCConfig: RPCConfig{
@@ -1126,6 +1158,18 @@ func testMapping() *GRPCMapping {
 				},
 				"deepItemInfo": {
 					TargetName: "deep_item_info",
+				},
+				"recommendedItem": {
+					TargetName: "recommended_item",
+				},
+				"recommendedItems": {
+					TargetName: "recommended_items",
+				},
+				"latestOperation": {
+					TargetName: "latest_operation",
+				},
+				"optionalLatestOperation": {
+					TargetName: "optional_latest_operation",
 				},
 				"storageStatus": {
 					TargetName: "storage_status",

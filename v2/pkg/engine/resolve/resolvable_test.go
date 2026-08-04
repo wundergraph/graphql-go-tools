@@ -231,6 +231,51 @@ func TestResolvable_ResolveWithErrorBubbleUp(t *testing.T) {
 	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'.","path":["topProducts",0,"reviews",0,"author","name"]}],"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":null},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`, out.String())
 }
 
+func TestResolvable_ResolveUnresolvableObject(t *testing.T) {
+	// The response shape of the unresolvable object mirrors a plan where the field selections
+	// were dropped during rewrites, e.g. { a { field } } where a returns an interface
+	// without possible runtime types able to provide the field.
+	newObject := func() *Object {
+		return &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("a"),
+					Value: &Object{
+						Nullable:     true,
+						Path:         []string{"a"},
+						TypeName:     "Node",
+						Unresolvable: true,
+					},
+				},
+			},
+		}
+	}
+
+	expectedOut := `{"errors":[{"message":"Unable to resolve field 'a' of abstract type 'Node': no runtime types are able to provide the requested fields.","path":["a"]}],"data":null}`
+
+	t.Run("data is null", func(t *testing.T) {
+		res := NewResolvable(nil, ResolvableOptions{})
+		err := res.Init(&Context{}, []byte(`{"a":null}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), newObject(), nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOut, out.String())
+	})
+
+	t.Run("data is present", func(t *testing.T) {
+		res := NewResolvable(nil, ResolvableOptions{})
+		err := res.Init(&Context{}, []byte(`{"a":{"__typename":"Node"}}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), newObject(), nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOut, out.String())
+	})
+}
+
 func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 	t.Run("Non-nullable root field", func(t *testing.T) {
 		topProducts := `{"topProducts":null}`

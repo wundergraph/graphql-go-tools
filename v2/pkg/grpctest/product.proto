@@ -66,16 +66,20 @@ service ProductService {
   rpc RequireStorageItemInfoById(RequireStorageItemInfoByIdRequest) returns (RequireStorageItemInfoByIdResponse) {}
   rpc RequireStorageItemSpecsInfoById(RequireStorageItemSpecsInfoByIdRequest) returns (RequireStorageItemSpecsInfoByIdResponse) {}
   rpc RequireStorageKindSummaryById(RequireStorageKindSummaryByIdRequest) returns (RequireStorageKindSummaryByIdResponse) {}
+  rpc RequireStorageLatestOperationById(RequireStorageLatestOperationByIdRequest) returns (RequireStorageLatestOperationByIdResponse) {}
   rpc RequireStorageMetadataScoreById(RequireStorageMetadataScoreByIdRequest) returns (RequireStorageMetadataScoreByIdResponse) {}
   rpc RequireStorageMultiFilteredTagSummaryById(RequireStorageMultiFilteredTagSummaryByIdRequest) returns (RequireStorageMultiFilteredTagSummaryByIdResponse) {}
   rpc RequireStorageNullableFilteredTagSummaryById(RequireStorageNullableFilteredTagSummaryByIdRequest) returns (RequireStorageNullableFilteredTagSummaryByIdResponse) {}
   rpc RequireStorageOperationReportById(RequireStorageOperationReportByIdRequest) returns (RequireStorageOperationReportByIdResponse) {}
+  rpc RequireStorageOptionalLatestOperationById(RequireStorageOptionalLatestOperationByIdRequest) returns (RequireStorageOptionalLatestOperationByIdResponse) {}
   rpc RequireStorageOptionalProcessedMetadataById(RequireStorageOptionalProcessedMetadataByIdRequest) returns (RequireStorageOptionalProcessedMetadataByIdResponse) {}
   rpc RequireStorageOptionalProcessedTagsById(RequireStorageOptionalProcessedTagsByIdRequest) returns (RequireStorageOptionalProcessedTagsByIdResponse) {}
   rpc RequireStorageOptionalTagSummaryById(RequireStorageOptionalTagSummaryByIdRequest) returns (RequireStorageOptionalTagSummaryByIdResponse) {}
   rpc RequireStorageProcessedMetadataById(RequireStorageProcessedMetadataByIdRequest) returns (RequireStorageProcessedMetadataByIdResponse) {}
   rpc RequireStorageProcessedMetadataHistoryById(RequireStorageProcessedMetadataHistoryByIdRequest) returns (RequireStorageProcessedMetadataHistoryByIdResponse) {}
   rpc RequireStorageProcessedTagsById(RequireStorageProcessedTagsByIdRequest) returns (RequireStorageProcessedTagsByIdResponse) {}
+  rpc RequireStorageRecommendedItemById(RequireStorageRecommendedItemByIdRequest) returns (RequireStorageRecommendedItemByIdResponse) {}
+  rpc RequireStorageRecommendedItemsById(RequireStorageRecommendedItemsByIdRequest) returns (RequireStorageRecommendedItemsByIdResponse) {}
   rpc RequireStorageSecuritySummaryById(RequireStorageSecuritySummaryByIdRequest) returns (RequireStorageSecuritySummaryByIdResponse) {}
   rpc RequireStorageStockHealthScoreById(RequireStorageStockHealthScoreByIdRequest) returns (RequireStorageStockHealthScoreByIdResponse) {}
   rpc RequireStorageTagSummaryById(RequireStorageTagSummaryByIdRequest) returns (RequireStorageTagSummaryByIdResponse) {}
@@ -1856,6 +1860,103 @@ message RequireStorageDeepItemInfoByIdFields {
     }
   }
   StorageItem primary_item = 1;
+}
+
+message RequireStorageRecommendedItemByIdRequest {
+  // RequireStorageRecommendedItemByIdContext provides the context for the required fields method RequireStorageRecommendedItemById.
+  repeated RequireStorageRecommendedItemByIdContext context = 1;
+}
+
+message RequireStorageRecommendedItemByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageRecommendedItemByIdFields fields = 2;
+}
+
+message RequireStorageRecommendedItemByIdResponse {
+  // RequireStorageRecommendedItemByIdResult provides the result for the required fields method RequireStorageRecommendedItemById.
+  repeated RequireStorageRecommendedItemByIdResult result = 1;
+}
+
+message RequireStorageRecommendedItemByIdResult {
+  StorageItem recommended_item = 1;
+}
+
+message RequireStorageRecommendedItemByIdFields {
+  message StorageMetadata {
+    int32 capacity = 1;
+    string zone = 2;
+  }
+
+  StorageMetadata metadata = 1;
+}
+
+message RequireStorageRecommendedItemsByIdRequest {
+  // RequireStorageRecommendedItemsByIdContext provides the context for the required fields method RequireStorageRecommendedItemsById.
+  repeated RequireStorageRecommendedItemsByIdContext context = 1;
+}
+
+message RequireStorageRecommendedItemsByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageRecommendedItemsByIdFields fields = 2;
+}
+
+message RequireStorageRecommendedItemsByIdResponse {
+  // RequireStorageRecommendedItemsByIdResult provides the result for the required fields method RequireStorageRecommendedItemsById.
+  repeated RequireStorageRecommendedItemsByIdResult result = 1;
+}
+
+message RequireStorageRecommendedItemsByIdResult {
+  repeated StorageItem recommended_items = 1;
+}
+
+message RequireStorageRecommendedItemsByIdFields {
+  repeated string tags = 1;
+}
+
+message RequireStorageLatestOperationByIdRequest {
+  // RequireStorageLatestOperationByIdContext provides the context for the required fields method RequireStorageLatestOperationById.
+  repeated RequireStorageLatestOperationByIdContext context = 1;
+}
+
+message RequireStorageLatestOperationByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageLatestOperationByIdFields fields = 2;
+}
+
+message RequireStorageLatestOperationByIdResponse {
+  // RequireStorageLatestOperationByIdResult provides the result for the required fields method RequireStorageLatestOperationById.
+  repeated RequireStorageLatestOperationByIdResult result = 1;
+}
+
+message RequireStorageLatestOperationByIdResult {
+  StorageOperationResult latest_operation = 1;
+}
+
+message RequireStorageLatestOperationByIdFields {
+  CategoryKind storage_kind = 1;
+}
+
+message RequireStorageOptionalLatestOperationByIdRequest {
+  // RequireStorageOptionalLatestOperationByIdContext provides the context for the required fields method RequireStorageOptionalLatestOperationById.
+  repeated RequireStorageOptionalLatestOperationByIdContext context = 1;
+}
+
+message RequireStorageOptionalLatestOperationByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageOptionalLatestOperationByIdFields fields = 2;
+}
+
+message RequireStorageOptionalLatestOperationByIdResponse {
+  // RequireStorageOptionalLatestOperationByIdResult provides the result for the required fields method RequireStorageOptionalLatestOperationById.
+  repeated RequireStorageOptionalLatestOperationByIdResult result = 1;
+}
+
+message RequireStorageOptionalLatestOperationByIdResult {
+  StorageOperationResult optional_latest_operation = 1;
+}
+
+message RequireStorageOptionalLatestOperationByIdFields {
+  ListOfString optional_tags = 1;
 }
 
 message RequireStorageFilteredTagSummaryByIdRequest {
