@@ -14,9 +14,11 @@ type Item struct {
 
 // Result is a single lookup outcome returned by Cache.GetMany.
 type Result struct {
-	// Value is nil when the key was not cached. A cached but empty value comes
-	// back as an empty, non-nil slice, so the two stay distinguishable.
+	// Value is only meaningful when Found is true.
 	Value []byte
+	// Found reports whether the key was cached, so that a cached empty value
+	// stays distinguishable from a miss. The zero Result is a miss.
+	Found bool
 }
 
 type Cache interface {
