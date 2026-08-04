@@ -119,6 +119,34 @@ func WithPreFetchFieldAuthorizer(authorizer resolve.BatchAuthorizer) ExecutionOp
 	}
 }
 
+// WithSubgraphHeadersBuilder sets the builder that produces the headers for subgraph
+// requests of this execution.
+//
+// Callers that forward per-client headers to subgraphs should use this instead of
+// setting the headers outside the engine, for example from an http.RoundTripper
+// installed on the datasource client. The resolver folds the builder's hash into its
+// request deduplication keys, and a request whose headers reach the subgraph by any
+// other route contributes nothing to those keys. Concurrent operations whose subgraph
+// request bodies are byte-identical then collapse into a single fetch, and every caller
+// receives the response resolved for one arbitrary set of headers.
+//
+// A builder must return a copy of its header map from HeadersForSubgraph: the value is
+// assigned directly to the outgoing http.Request.Header and written to afterwards, so a
+// shared map races across concurrent fetches.
+func WithSubgraphHeadersBuilder(builder resolve.SubgraphHeadersBuilder) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SubgraphHeadersBuilder = builder
+	}
+}
+
+// WithExecutionOptions sets resolve.ExecutionOptions for this execution, which control
+// request deduplication and loading behaviour.
+func WithExecutionOptions(options resolve.ExecutionOptions) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.ExecutionOptions = options
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {
