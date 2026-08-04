@@ -396,6 +396,7 @@ const multiHopCompoundKeyExpectedPlan = `
       SetTemplateOutputToNullOnVariableNull: false,
       QueryPlan: nil,
       OperationName: "",
+      SubgraphOperation: nil,
      },
      FetchDependencies: {
       FetchID: 0,
@@ -439,6 +440,7 @@ const multiHopCompoundKeyExpectedPlan = `
       SetTemplateOutputToNullOnVariableNull: false,
       QueryPlan: nil,
       OperationName: "",
+      SubgraphOperation: nil,
      },
      FetchDependencies: {
       FetchID: 1,
@@ -501,6 +503,7 @@ const multiHopCompoundKeyExpectedPlan = `
       SetTemplateOutputToNullOnVariableNull: false,
       QueryPlan: nil,
       OperationName: "",
+      SubgraphOperation: nil,
      },
      FetchDependencies: {
       FetchID: 2,
