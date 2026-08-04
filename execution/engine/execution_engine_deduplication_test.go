@@ -139,6 +139,7 @@ func executeConcurrently(t *testing.T, engine *ExecutionEngine, sessions []strin
 	t.Helper()
 
 	results := make([]string, len(sessions))
+	ready := make(chan struct{}, len(sessions))
 	start := make(chan struct{})
 
 	var wg sync.WaitGroup
@@ -150,6 +151,7 @@ func executeConcurrently(t *testing.T, engine *ExecutionEngine, sessions []strin
 			operation := graphql.Request{Query: `query Op { hello }`, OperationName: "Op"}
 			resultWriter := graphql.NewEngineResultWriter()
 
+			ready <- struct{}{}
 			<-start
 			err := engine.Execute(context.Background(), &operation, &resultWriter, options(session)...)
 			assert.NoError(t, err)
@@ -162,6 +164,13 @@ func executeConcurrently(t *testing.T, engine *ExecutionEngine, sessions []strin
 			assert.NoError(t, json.Unmarshal([]byte(resultWriter.String()), &parsed))
 			results[i] = parsed.Data.Hello
 		}()
+	}
+
+	// Wait until every worker has done its setup and is about to park on start.
+	// Releasing the burst earlier lets a straggler begin after the leader's fetch
+	// has already finished, which would measure scheduling rather than deduplication.
+	for range sessions {
+		<-ready
 	}
 
 	close(start)
