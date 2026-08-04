@@ -36,6 +36,7 @@ type FetchTreeProcessors struct {
 	createConcreteSingleFetchTypes  *createConcreteSingleFetchTypes
 	orderSequenceByDependencies     *orderSequenceByDependencies
 	createParallelNodes             *createParallelNodes
+	scheduleFetches                 *scheduleFetches
 }
 
 // processFlatFetchTree - process a flat fetch tree - single serial fetch with a flat list of child fetches
@@ -53,6 +54,10 @@ func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResp
 // organizeFetchTree organizes the fetch tree by ordering sequence nodes by dependencies and creating parallel nodes.
 // after this step fetches have tree structure of serial and parallel nodes.
 func (p *FetchTreeProcessors) organizeFetchTree(fetches *resolve.FetchTreeNode) {
+	if !p.scheduleFetches.disable {
+		p.scheduleFetches.ProcessFetchTree(fetches)
+		return
+	}
 	p.orderSequenceByDependencies.ProcessFetchTree(fetches)
 	p.createParallelNodes.ProcessFetchTree(fetches)
 }
@@ -75,6 +80,15 @@ type processorOptions struct {
 	disableExtractDeferFetches             bool
 	disableBuildDeferTree                  bool
 	disableCollectAuthorizationCoordinates bool
+	disableScheduleFetches                 bool
+}
+
+// DisableScheduleFetches replaces the nested schedule-tree scheduler with the
+// legacy orderSequenceByDependencies and createParallelNodes pair.
+func DisableScheduleFetches() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableScheduleFetches = true
+	}
 }
 
 type ProcessorOption func(*processorOptions)
@@ -180,6 +194,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			},
 			createParallelNodes: &createParallelNodes{
 				disable: opts.disableCreateParallelNodes,
+			},
+			scheduleFetches: &scheduleFetches{
+				disable: opts.disableScheduleFetches,
 			},
 		},
 		responseTreeProcessors: &ResponseTreeProcessors{
