@@ -202,7 +202,7 @@ func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group
 
 	multi := &resolve.MultiEntityFetch{
 		FetchDependencies: resolve.FetchDependencies{
-			FetchID:           minID(ids),
+			FetchID:           slices.Min(ids),
 			DependsOnFetchIDs: unionDependencies(members, ids),
 			DeferID:           members[0].DeferID,
 		},
@@ -265,17 +265,6 @@ func envelopeTokenIndices(remainder string) []int {
 		isToken = true
 	}
 	return indices
-}
-
-// minID returns the lowest member fetch ID, used as the merged fetch's survivor ID.
-func minID(ids []int) int {
-	m := ids[0]
-	for _, id := range ids[1:] {
-		if id < m {
-			m = id
-		}
-	}
-	return m
 }
 
 // unionDependencies returns the members' DependsOnFetchIDs minus member IDs;
