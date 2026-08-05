@@ -39,8 +39,8 @@ type multiFetchRecorder struct {
 
 func (r *multiFetchRecorder) record(body string) {
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.bodies = append(r.bodies, body)
-	r.mu.Unlock()
 }
 
 func (r *multiFetchRecorder) requests() []string {
