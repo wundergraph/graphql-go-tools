@@ -325,15 +325,6 @@ func (p *Planner[T]) buildUpstreamVariablesAndOperation() (variables, operation 
 	return upstreamVariables, opBytes
 }
 
-func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
-	upstreamVariables, opBytes := p.buildUpstreamVariablesAndOperation()
-
-	input = httpclient.SetInputBodyWithPath(input, upstreamVariables, "variables")
-	input = httpclient.SetInputBodyWithPath(input, opBytes, "query")
-
-	return input, opBytes
-}
-
 // setUpstreamVariable writes a top-level body.variables entry and, when
 // MultiFetch recording is on, mirrors it into upstreamVariablesList in write
 // order with replace-in-slot semantics on duplicate names. The synthetic
@@ -357,6 +348,15 @@ func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte)
 		p.upstreamVariablesList = append(p.upstreamVariablesList, resolve.SubgraphVariable{Name: name, Value: value})
 	}
 	return out, nil
+}
+
+func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
+	upstreamVariables, opBytes := p.buildUpstreamVariablesAndOperation()
+
+	input = httpclient.SetInputBodyWithPath(input, upstreamVariables, "variables")
+	input = httpclient.SetInputBodyWithPath(input, opBytes, "query")
+
+	return input, opBytes
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
