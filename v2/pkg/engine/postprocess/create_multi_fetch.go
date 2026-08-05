@@ -251,10 +251,10 @@ func envelopeTokenIndices(remainder string) []int {
 	if !strings.Contains(remainder, "$$") {
 		return nil
 	}
-	segments := strings.Split(remainder, "$$")
+	segments := strings.SplitSeq(remainder, "$$")
 	var indices []int
 	isToken := false
-	for _, seg := range segments {
+	for seg := range segments {
 		if isToken {
 			if n, err := strconv.Atoi(seg); err == nil {
 				indices = append(indices, n)
