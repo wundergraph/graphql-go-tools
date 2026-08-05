@@ -193,7 +193,7 @@ func runMultiFetchQuery(t *testing.T, dataSources []plan.DataSource, enableMulti
 		engineConf.EnableMultiFetch()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{MaxConcurrency: 1024})
@@ -201,7 +201,7 @@ func runMultiFetchQuery(t *testing.T, dataSources []plan.DataSource, enableMulti
 
 	operation := graphql.Request{Query: multiFetchQuery}
 	resultWriter := graphql.NewEngineResultWriter()
-	execErr := engine.Execute(context.Background(), &operation, &resultWriter)
+	execErr := engine.Execute(ctx, &operation, &resultWriter)
 	return resultWriter.String(), execErr
 }
 
