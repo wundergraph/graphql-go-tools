@@ -6,10 +6,9 @@ import (
 )
 
 type Item struct {
-	Key       string
-	Value     []byte
-	CacheTags []string
-	TTL       time.Duration
+	Key   string
+	Value []byte
+	TTL   time.Duration
 }
 
 // Result is a single lookup outcome returned by Cache.GetMany.
