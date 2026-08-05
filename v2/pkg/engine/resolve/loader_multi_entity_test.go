@@ -141,7 +141,7 @@ func multiFetchFixture(t *testing.T, opts ...multiFetchOption) multiFetch {
 		opt(&cfg)
 	}
 
-	ctx := NewContext(context.Background())
+	ctx := NewContext(t.Context())
 	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
 	if cfg.variables != "" {
 		ctx.Variables = astjson.MustParse(cfg.variables)
@@ -336,7 +336,7 @@ func TestMergeMultiEntityResult_FanOut(t *testing.T) {
 	f := multiFetchFixture(t, withSeed(`{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}`))
 	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[{"upc":"1"}]},{"products":[{"upc":"2"}]}],"f2":[{"notes":"n"}]}}`)}
 
-	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+	require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 	expected := `{"employees":[{"__typename":"Employee","id":1,"products":[{"upc":"1"}]},{"__typename":"Employee","id":2,"products":[{"upc":"2"}]},{"__typename":"Employee","id":1,"products":[{"upc":"1"}]}],"employee":{"__typename":"Employee","id":9,"notes":"n"}}`
 	assert.JSONEq(t, expected, string(f.loader.dataBuffer.Get().MarshalTo(nil)))
@@ -353,7 +353,7 @@ func TestMergeMultiEntityResult_ErrorPartitioning(t *testing.T) {
 		f.loader.rewriteSubgraphErrorPaths = true
 		f.fetch.DataSource = &recordingDataSource{response: []byte(body)}
 
-		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+		require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 		// "a" attributes to f1 (employees, index dropped), "b" to f2 (employee),
 		// "c" (no path) to the merged fetch. No internal alias leaks.
@@ -372,7 +372,7 @@ func TestMergeMultiEntityResult_ErrorPartitioning(t *testing.T) {
 		f.loader.allowedSubgraphErrorFields = map[string]struct{}{"message": {}, "path": {}}
 		f.fetch.DataSource = &recordingDataSource{response: []byte(body)}
 
-		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+		require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 		// Pass-through keeps subgraph errors verbatim, but leading aliases are
 		// rewritten to _entities so internal alias names never leak.
@@ -390,7 +390,7 @@ func TestMergeMultiEntityResult_EmptyArraySingleOrigin(t *testing.T) {
 		f := multiFetchFixture(t)
 		f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[{"upc":"1"}]}],"f2":[]}}`)}
 
-		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+		require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 		assertMergedErrors(t, f.loader, "")
 		expected := `{"employees":[{"__typename":"Employee","id":1,"products":[{"upc":"1"}]}],"employee":{"__typename":"Employee","id":9}}`
@@ -401,7 +401,7 @@ func TestMergeMultiEntityResult_EmptyArraySingleOrigin(t *testing.T) {
 		f := multiFetchFixture(t)
 		f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[],"f2":[{"notes":"n"}]}}`)}
 
-		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+		require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 		// An empty _entities array yields GetArray()==nil, so mergeResult renders the
 		// same invalidGraphQLResponseShape error an unmerged BatchEntityFetch would.
@@ -417,7 +417,7 @@ func TestMergeMultiEntityResult_TransportError(t *testing.T) {
 		f.fetch.FetchID = 5
 		f.fetch.DataSource = &recordingDataSource{err: errors.New("boom")}
 
-		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+		require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 		assertMergedErrors(t, f.loader, `[`+
 			`{"message":"Failed to fetch from Subgraph at Path 'employees'."},`+
@@ -431,7 +431,7 @@ func TestMergeMultiEntityResult_TransportError(t *testing.T) {
 		f.fetch.FetchID = 5
 		f.fetch.DataSource = &recordingDataSource{err: errors.New("boom")}
 
-		require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+		require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 		// Only the live employees entry gets a transport error; the excluded
 		// employee entry (parent null) produces none.
@@ -444,7 +444,7 @@ func TestMergeMultiEntityResult_InvalidResponse(t *testing.T) {
 	f.fetch.FetchID = 5
 	f.fetch.DataSource = &recordingDataSource{response: []byte(`not json`)}
 
-	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+	require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 	assertMergedErrors(t, f.loader, `[`+
 		`{"message":"Failed to fetch from Subgraph at Path 'employees', Reason: invalid JSON."},`+
@@ -462,7 +462,7 @@ func TestMergeMultiEntityResult_RateLimitRejected(t *testing.T) {
 	ds := &recordingDataSource{response: []byte(`{"data":{}}`)}
 	f.fetch.DataSource = ds
 
-	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+	require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 	assert.Equal(t, 0, ds.calls, "no subgraph request when rate limited")
 	assertMergedErrors(t, f.loader, `[`+
@@ -481,7 +481,7 @@ func TestMergeMultiEntityResult_TaintPerEntry(t *testing.T) {
 	}
 	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"__typename":"Employee","x":null}],"f2":[{"notes":"n"}]},"errors":[{"message":"e","path":["f1",0,"x"]}]}`)}
 
-	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+	require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 	assert.Len(t, f.loader.taintedObjs, 1)
 }
@@ -491,7 +491,7 @@ func TestMergeMultiEntityResult_ExtensionsOnce(t *testing.T) {
 	f.loader.allowCustomExtensionProperties = true
 	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[]}],"f2":[{"notes":"n"}]},"extensions":{"foo":"bar"}}`)}
 
-	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+	require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 	assert.Len(t, f.loader.subgraphExtensions, 1)
 }
@@ -502,7 +502,7 @@ func TestMergeMultiEntityResult_HooksOnce(t *testing.T) {
 	f.ctx.LoaderHooks = hooks
 	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[]}],"f2":[{"notes":"n"}]}}`)}
 
-	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+	require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 	assert.Equal(t, int64(1), hooks.preFetchCalls.Load())
 	assert.Equal(t, int64(1), hooks.postFetchCalls.Load())
@@ -512,7 +512,7 @@ func TestMergeMultiEntityResult_ExcludedEntry(t *testing.T) {
 	f := multiFetchFixture(t, withSeed(`{"employees":[{"__typename":"Employee","id":1}],"employee":null}`))
 	f.fetch.DataSource = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":[{"upc":"1"}]}]}}`)}
 
-	require.NoError(t, f.loader.resolveSingle(context.Background(), f.item))
+	require.NoError(t, f.loader.resolveSingle(t.Context(), f.item))
 
 	assertMergedErrors(t, f.loader, "")
 	expected := `{"employees":[{"__typename":"Employee","id":1,"products":[{"upc":"1"}]}],"employee":null}`
@@ -550,7 +550,7 @@ func TestLoadGraphQLResponseData_MultiEntity(t *testing.T) {
 
 	runMerged := func(t *testing.T) (out string, multiDS *recordingDataSource) {
 		t.Helper()
-		ctx := NewContext(context.Background())
+		ctx := NewContext(t.Context())
 		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
 		ctx.Variables = astjson.MustParse(`{"first":10}`)
 
@@ -572,7 +572,7 @@ func TestLoadGraphQLResponseData_MultiEntity(t *testing.T) {
 
 	runUnmerged := func(t *testing.T) string {
 		t.Helper()
-		ctx := NewContext(context.Background())
+		ctx := NewContext(t.Context())
 		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
 		ctx.Variables = astjson.MustParse(`{"first":10}`)
 
@@ -628,7 +628,7 @@ func TestLoadGraphQLResponseData_MultiEntity(t *testing.T) {
 // is single-flight compatible: it is query-typed, and two identical multi loads
 // collapse into one leader request with a shared follower.
 func TestLoadGraphQLResponseData_MultiEntity_SingleFlight(t *testing.T) {
-	ctx := NewContext(context.Background())
+	ctx := NewContext(t.Context())
 	loader := &Loader{}
 	loader.ctx = ctx
 	multi := twoEntryMultiFetch(nil)
