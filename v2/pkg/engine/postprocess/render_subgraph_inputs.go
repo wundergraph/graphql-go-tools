@@ -1,6 +1,7 @@
 package postprocess
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -104,7 +105,7 @@ func (r *renderSubgraphInputs) render(fetch *resolve.SingleFetch, op *resolve.Su
 	// the replace could hit a URL/header substring.
 	if !r.disableRewriteOpNames && fetch.OperationName != "" {
 		expandedName := fmt.Sprintf("%s__%d", fetch.OperationName, fetch.FetchID)
-		input = []byte(strings.Replace(string(input), fetch.OperationName, expandedName, 1))
+		input = bytes.Replace(input, []byte(fetch.OperationName), []byte(expandedName), 1)
 		if fetch.QueryPlan != nil {
 			fetch.QueryPlan.Query = strings.Replace(fetch.QueryPlan.Query, fetch.OperationName, expandedName, 1)
 		}
