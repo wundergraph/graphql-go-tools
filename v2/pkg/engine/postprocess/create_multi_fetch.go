@@ -37,7 +37,7 @@ func (c *createMultiFetch) walk(root, node *resolve.FetchTreeNode) {
 	if node == nil {
 		return
 	}
-	for i := 0; i < len(node.ChildNodes); i++ {
+	for i := range node.ChildNodes {
 		child := node.ChildNodes[i]
 		if child.Kind == resolve.FetchTreeNodeKindParallel {
 			for _, group := range c.groupCandidatesByDataSource(child) {

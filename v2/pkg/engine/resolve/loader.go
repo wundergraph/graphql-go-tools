@@ -1735,9 +1735,7 @@ func (b *batchEntityTools) reset() {
 // arena, whose buffers must survive until final input assembly.
 func (b *batchEntityTools) clearDedupState() {
 	b.keyGen.Reset()
-	for k := range b.batchHashToIndex {
-		delete(b.batchHashToIndex, k)
-	}
+	clear(b.batchHashToIndex)
 }
 
 type _batchEntityToolPool struct {
