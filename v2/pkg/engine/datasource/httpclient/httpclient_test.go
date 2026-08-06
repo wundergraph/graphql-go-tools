@@ -220,20 +220,17 @@ func TestAssembleGraphQLRequestInput(t *testing.T) {
 	query := []byte(`query{me{id}}`)
 
 	t.Run("with header", func(t *testing.T) {
-		input, err := AssembleGraphQLRequestInput(variables, query, []byte(`{"Authorization":["secret"]}`), "https://example.com/graphql", "POST")
-		assert.NoError(t, err)
+		input := AssembleGraphQLRequestInput(variables, query, []byte(`{"Authorization":["secret"]}`), "https://example.com/graphql", "POST")
 		assert.Equal(t, `{"method":"POST","url":"https://example.com/graphql","header":{"Authorization":["secret"]},"body":{"query":"query{me{id}}","variables":{"representations":[$$0$$]}}}`, string(input))
 	})
 
 	t.Run("without header", func(t *testing.T) {
-		input, err := AssembleGraphQLRequestInput(variables, query, nil, "https://example.com/graphql", "POST")
-		assert.NoError(t, err)
+		input := AssembleGraphQLRequestInput(variables, query, nil, "https://example.com/graphql", "POST")
 		assert.Equal(t, `{"method":"POST","url":"https://example.com/graphql","body":{"query":"query{me{id}}","variables":{"representations":[$$0$$]}}}`, string(input))
 	})
 
 	t.Run("null header omitted like without header", func(t *testing.T) {
-		input, err := AssembleGraphQLRequestInput(variables, query, []byte("null"), "https://example.com/graphql", "POST")
-		assert.NoError(t, err)
+		input := AssembleGraphQLRequestInput(variables, query, []byte("null"), "https://example.com/graphql", "POST")
 		assert.Equal(t, `{"method":"POST","url":"https://example.com/graphql","body":{"query":"query{me{id}}","variables":{"representations":[$$0$$]}}}`, string(input))
 	})
 }
@@ -273,8 +270,7 @@ func TestAssembleGraphQLRequestInputSplitVariables(t *testing.T) {
 		header := []byte(`{"Authorization":["secret"]}`)
 		prefix, suffix, err := AssembleGraphQLRequestInputSplitVariables(query, header, "https://example.com/graphql", "POST")
 		assert.NoError(t, err)
-		unsplit, err := AssembleGraphQLRequestInput([]byte(`{"representations":[$$0$$]}`), query, header, "https://example.com/graphql", "POST")
-		assert.NoError(t, err)
+		unsplit := AssembleGraphQLRequestInput([]byte(`{"representations":[$$0$$]}`), query, header, "https://example.com/graphql", "POST")
 		assert.Equal(t, string(unsplit), prefix+`"representations":[$$0$$]`+suffix)
 	})
 }

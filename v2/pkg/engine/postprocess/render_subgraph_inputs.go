@@ -85,10 +85,7 @@ func (r *renderSubgraphInputs) render(fetch *resolve.SingleFetch, op *resolve.Su
 		return
 	}
 
-	input, err := httpclient.AssembleGraphQLRequestInput(variables, query, op.Envelope.Header, op.Envelope.URL, op.Envelope.Method)
-	if err != nil {
-		return
-	}
+	input := httpclient.AssembleGraphQLRequestInput(variables, query, op.Envelope.Header, op.Envelope.URL, op.Envelope.Method)
 
 	// The planner deferred the pretty query-plan print for mergeable entity
 	// fetches; render it here for surviving (unmerged) fetches. DependsOnFields

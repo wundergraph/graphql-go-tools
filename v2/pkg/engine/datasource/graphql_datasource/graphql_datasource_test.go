@@ -11027,8 +11027,7 @@ func TestConfigureFetch_SubgraphOperation(t *testing.T) {
 		}
 		query, err := op.PrintedQuery()
 		require.NoError(t, err)
-		input, err := httpclient.AssembleGraphQLRequestInput(variables, query, op.Envelope.Header, op.Envelope.URL, op.Envelope.Method)
-		require.NoError(t, err)
+		input := httpclient.AssembleGraphQLRequestInput(variables, query, op.Envelope.Header, op.Envelope.URL, op.Envelope.Method)
 		return string(input)
 	}
 
