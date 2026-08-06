@@ -392,12 +392,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 
 	var input []byte
 	if !deferInput {
-		var err error
-		input, err = httpclient.AssembleGraphQLRequestInput(variables, operation, header, fetchURL, fetchMethod)
-		if err != nil {
-			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to assemble request input: %w", err)))
-			return resolve.FetchConfiguration{}
-		}
+		input = httpclient.AssembleGraphQLRequestInput(variables, operation, header, fetchURL, fetchMethod)
 	}
 
 	postProcessing := DefaultPostProcessingConfiguration
