@@ -1,4 +1,4 @@
-//go:generate stringer -type=ValidationState -output validation_state_string.go
+//go:generate go tool stringer -type=ValidationState -output validation_state_string.go
 
 package astvalidation
 

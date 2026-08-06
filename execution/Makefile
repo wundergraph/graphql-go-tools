@@ -4,14 +4,16 @@ else
  FORMAT := pkgname
 endif
 
+GO_TOOL := go tool
+
 .PHONY: test
 test:
 	# The idiomatic way to disable test caching explicitly is to use -count=1
-	go tool gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- -race -count=1 ./...
+	$(GO_TOOL) gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- -race -count=1 ./...
 
 .PHONY: test-quick
 test-quick:
-	go tool gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- -count=1 ./...
+	$(GO_TOOL) gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- -count=1 ./...
 	go test -run=^$$ -bench=. -benchtime=1x ./...
 
 # update-fixtures will update all! golden fixtures
@@ -22,14 +24,14 @@ update-fixtures:
 # golangci-lint will find the config file in the root dir of the repo.
 .PHONY: format
 format:
-	golangci-lint fmt
+	$(GO_TOOL) golangci-lint fmt
 
 lint:
-	golangci-lint run
+	$(GO_TOOL) golangci-lint run
 
 .PHONY: lint-fix
 lint-fix:
-	golangci-lint run --fix
+	$(GO_TOOL) golangci-lint run --fix
 
 .PHONY: prepare-merge
 prepare-merge: format test
