@@ -6810,7 +6810,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				messagesHeartbeat++
 			}
 		}
-		assert.Equal(t, int32(messagesToSendFromHook+messagesToSendFromOtherSources+messagesHeartbeat), int32(len(recorder.Messages())))
+		assert.Equal(t, messagesToSendFromHook+messagesToSendFromOtherSources+messagesHeartbeat, int32(len(recorder.Messages())))
 		assert.Equal(t, `{"data":{"counter":20000}}`, recorder.Messages()[0])
 	})
 
