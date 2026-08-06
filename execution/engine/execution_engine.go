@@ -32,10 +32,10 @@ type internalExecutionContext struct {
 	postProcessor  *postprocess.Processor
 }
 
-func newInternalExecutionContext() *internalExecutionContext {
+func newInternalExecutionContext(postProcessorOptions ...postprocess.ProcessorOption) *internalExecutionContext {
 	return &internalExecutionContext{
 		resolveContext: resolve.NewContext(context.Background()),
-		postProcessor:  postprocess.NewProcessor(),
+		postProcessor:  postprocess.NewProcessor(postProcessorOptions...),
 	}
 }
 
@@ -60,6 +60,7 @@ type ExecutionEngine struct {
 	executionPlanCache       *lru.Cache
 	apolloCompatibilityFlags apollocompatibility.Flags
 	validationOptions        []astvalidation.Option
+	postProcessorOptions     []postprocess.ProcessorOption
 }
 
 type WebsocketBeforeStartHook interface {
@@ -151,6 +152,13 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		validationOpts = append(validationOpts, astvalidation.WithRelaxFieldSelectionMergingNullability())
 	}
 
+	// MultiFetch needs the planner flag and the postprocess stage together;
+	// deriving the processor option from the same flag keeps them in lock-step.
+	var postProcessorOptions []postprocess.ProcessorOption
+	if engineConfig.plannerConfig.EnableMultiFetch {
+		postProcessorOptions = append(postProcessorOptions, postprocess.EnableMultiFetch())
+	}
+
 	return &ExecutionEngine{
 		logger:             logger,
 		config:             engineConfig,
@@ -159,7 +167,8 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
-		validationOptions: validationOpts,
+		validationOptions:    validationOpts,
+		postProcessorOptions: postProcessorOptions,
 	}, nil
 }
 
@@ -231,7 +240,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 	}
 
-	execContext := newInternalExecutionContext()
+	execContext := newInternalExecutionContext(e.postProcessorOptions...)
 	execContext.setContext(ctx)
 	execContext.setVariables(operation.Variables)
 	execContext.setRequest(operation.InternalRequest())

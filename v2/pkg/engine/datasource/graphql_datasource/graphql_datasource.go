@@ -65,6 +65,9 @@ type Planner[T Configuration] struct {
 	config                             Configuration
 	upstreamOperation                  *ast.Document
 	upstreamVariables                  []byte
+	upstreamVariablesList              []resolve.SubgraphVariable
+	recordUpstreamVariables            bool
+	representationsVariableNameCached  string
 	nodes                              []ast.Node
 	variables                          resolve.Variables
 	lastFieldEnclosingTypeName         string
@@ -244,7 +247,7 @@ func (p *Planner[T]) addDirectiveToNode(directiveRef int, node ast.Node) {
 			}
 
 			// And finally add the variable to the upstream variables JSON.
-			p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, string(variableName), []byte(contextVariableName))
+			p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, string(variableName), []byte(contextVariableName))
 		}
 	}
 }
@@ -295,16 +298,21 @@ func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSour
 	return nil
 }
 
-func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
+// buildUpstreamVariablesAndOperation prints the upstream operation and merges
+// any operation-level variable defaults into the recorded upstream variables,
+// returning the assembled body.variables bytes alongside the printed operation.
+// It performs the variable-recording side effects (setUpstreamVariable); the
+// envelope assembly itself is done by httpclient.AssembleGraphQLRequestInput.
+func (p *Planner[T]) buildUpstreamVariablesAndOperation() (variables, operation []byte) {
 	opBytes, opVarsBytes := p.printOperation()
 	upstreamVariables := p.upstreamVariables
 
 	if opVarsBytes != nil {
 		err := jsonparser.ObjectEach(opVarsBytes, func(key, value []byte, dataType jsonparser.ValueType, offset int) (err error) {
 			if dataType == jsonparser.String {
-				upstreamVariables, err = sjson.SetRawBytes(upstreamVariables, string(key), quotes.WrapBytes(value))
+				upstreamVariables, err = p.setUpstreamVariable(upstreamVariables, string(key), quotes.WrapBytes(value))
 			} else {
-				upstreamVariables, err = sjson.SetRawBytes(upstreamVariables, string(key), value)
+				upstreamVariables, err = p.setUpstreamVariable(upstreamVariables, string(key), value)
 			}
 			return err
 		})
@@ -313,6 +321,37 @@ func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
 			return nil, nil
 		}
 	}
+
+	return upstreamVariables, opBytes
+}
+
+// setUpstreamVariable writes a top-level body.variables entry and, when
+// MultiFetch recording is on, mirrors it into upstreamVariablesList in write
+// order with replace-in-slot semantics on duplicate names. The synthetic
+// representations key is renamed away from any client variable of the same name
+// (see representationsVariableName), so a duplicate write to that slot cannot
+// occur.
+func (p *Planner[T]) setUpstreamVariable(target []byte, name string, raw []byte) ([]byte, error) {
+	out, err := sjson.SetRawBytes(target, name, raw)
+	if err != nil {
+		return out, err
+	}
+	if p.recordUpstreamVariables {
+		value := make([]byte, len(raw))
+		copy(value, raw)
+		for i := range p.upstreamVariablesList {
+			if p.upstreamVariablesList[i].Name == name {
+				p.upstreamVariablesList[i].Value = value
+				return out, nil
+			}
+		}
+		p.upstreamVariablesList = append(p.upstreamVariablesList, resolve.SubgraphVariable{Name: name, Value: value})
+	}
+	return out, nil
+}
+
+func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
+	upstreamVariables, opBytes := p.buildUpstreamVariablesAndOperation()
 
 	input = httpclient.SetInputBodyWithPath(input, upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, opBytes, "query")
@@ -326,25 +365,37 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		return resolve.FetchConfiguration{}
 	}
 
-	input, operation := p.createInputForQuery()
+	variables, operation := p.buildUpstreamVariablesAndOperation()
 
+	var header []byte
+	var fetchURL, fetchMethod string
 	if p.config.fetch != nil {
-		header, err := json.Marshal(p.config.fetch.Header)
+		var err error
+		header, err = json.Marshal(p.config.fetch.Header)
 		if err != nil {
 			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to marshal header: %w", err)))
 			return resolve.FetchConfiguration{}
 		}
-		if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
-			input = httpclient.SetInputHeader(input, header)
-		}
+		fetchURL = p.config.fetch.URL
+		fetchMethod = p.config.fetch.Method
+	}
 
-		input = httpclient.SetInputURL(input, []byte(p.config.fetch.URL))
-		input = httpclient.SetInputMethod(input, []byte(p.config.fetch.Method))
+	requiresEntityFetch := p.requiresEntityFetch()
+	requiresEntityBatchFetch := p.requiresEntityBatchFetch()
+
+	// When MultiFetch recording is on for an entity fetch, defer input assembly:
+	// the renderSubgraphInputs postprocess stage renders the input from the
+	// structured SubgraphOperation artifact (or the MultiFetch merge builds it
+	// from the same artifact), so the planner leaves FetchConfiguration.Input
+	// empty. recordUpstreamVariables already implies grpc == nil.
+	deferInput := p.recordUpstreamVariables && (requiresEntityFetch || requiresEntityBatchFetch)
+
+	var input []byte
+	if !deferInput {
+		input = httpclient.AssembleGraphQLRequestInput(variables, operation, header, fetchURL, fetchMethod)
 	}
 
 	postProcessing := DefaultPostProcessingConfiguration
-	requiresEntityFetch := p.requiresEntityFetch()
-	requiresEntityBatchFetch := p.requiresEntityBatchFetch()
 
 	switch {
 	case requiresEntityFetch:
@@ -383,6 +434,31 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 	}
 
+	var subgraphOperation *resolve.SubgraphOperation
+	if deferInput {
+		// Record only the header bytes that are actually printed into the
+		// envelope today: omit when empty or JSON null (mirrors the guard in
+		// httpclient.AssembleGraphQLRequestInput).
+		var envelopeHeader []byte
+		if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
+			envelopeHeader = header
+		}
+		subgraphOperation = &resolve.SubgraphOperation{
+			Document:  p.upstreamOperation,
+			Variables: p.upstreamVariablesList,
+			Envelope: resolve.SubgraphRequestEnvelope{
+				Method: fetchMethod,
+				URL:    fetchURL,
+				Header: envelopeHeader,
+			},
+		}
+		// Seed the print cache with the compact operation bytes printOperation
+		// already produced (preserving minification), so the renderSubgraphInputs
+		// stage and dedupe reuse them verbatim instead of re-printing.
+		subgraphOperation.SetPrintedQuery(operation)
+		p.upstreamOperation = nil
+	}
+
 	return resolve.FetchConfiguration{
 		Input:                                 string(input),
 		DataSource:                            dataSource,
@@ -393,6 +469,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 		QueryPlan:                             p.queryPlan,
 		OperationName:                         p.propagatedOperationName,
+		SubgraphOperation:                     subgraphOperation,
 	}
 }
 
@@ -807,6 +884,9 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.nodes = p.nodes[:0]
 	p.parentTypeNodes = p.parentTypeNodes[:0]
 	p.upstreamVariables = nil
+	p.upstreamVariablesList = nil
+	p.recordUpstreamVariables = p.dataSourcePlannerConfig.Options.EnableMultiFetch && p.config.grpc == nil
+	p.representationsVariableNameCached = ""
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false
 	p.queryPlan = nil
@@ -828,6 +908,39 @@ func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {
 	p.addRepresentationsVariable()
 }
 
+// representationsVariableName returns a collision-free name for the synthetic
+// representations variable.
+func (p *Planner[T]) representationsVariableName() string {
+	if p.representationsVariableNameCached != "" {
+		return p.representationsVariableNameCached
+	}
+	name := "representations"
+	if p.downstreamDeclaresVariable(name) {
+		candidate := "_representations"
+		for i := 2; p.downstreamDeclaresVariable(candidate); i++ {
+			candidate = fmt.Sprintf("_representations%d", i)
+		}
+		name = candidate
+	}
+	p.representationsVariableNameCached = name
+	return name
+}
+
+// downstreamDeclaresVariable reports whether the downstream document declares
+// a variable with the given name.
+func (p *Planner[T]) downstreamDeclaresVariable(name string) bool {
+	if p.visitor == nil || p.visitor.Operation == nil {
+		return false
+	}
+	nameBytes := []byte(name)
+	for ref := range p.visitor.Operation.VariableDefinitions {
+		if bytes.Equal(p.visitor.Operation.VariableDefinitionNameBytes(ref), nameBytes) {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *Planner[T]) addRepresentationsVariable() {
 	if !p.hasFederationRoot {
 		return
@@ -839,7 +952,7 @@ func (p *Planner[T]) addRepresentationsVariable() {
 
 	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
 
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", fmt.Appendf(nil, "[%s]", variable))
+	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, p.representationsVariableName(), fmt.Appendf(nil, "[%s]", variable))
 }
 
 func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
@@ -1013,13 +1126,16 @@ func (p *Planner[T]) addOnTypeInlineFragment() {
 }
 
 func (p *Planner[T]) addEntitiesSelectionSet() {
-	// $representations
-	representationsLiteral := p.upstreamOperation.Input.AppendInputString("representations")
+	// The _entities argument name is fixed by the federation schema
+	// (_entities(representations: ...)); only the variable it binds to is
+	// renamed when the client already declares a $representations variable.
+	argumentLiteral := p.upstreamOperation.Input.AppendInputString("representations")
+	variableLiteral := p.upstreamOperation.Input.AppendInputString(p.representationsVariableName())
 	representationsVariable := p.upstreamOperation.AddVariableValue(ast.VariableValue{
-		Name: representationsLiteral,
+		Name: variableLiteral,
 	})
 	representationsArgument := p.upstreamOperation.AddArgument(ast.Argument{
-		Name: representationsLiteral,
+		Name: argumentLiteral,
 		Value: ast.Value{
 			Kind: ast.ValueKindVariable,
 			Ref:  representationsVariable,
@@ -1050,7 +1166,7 @@ func (p *Planner[T]) addRepresentationsVariableDefinition() {
 	listOfNonNullAnyType := p.upstreamOperation.AddListType(nonNullAnyType)
 	nonNullListOfNonNullAnyType := p.upstreamOperation.AddNonNullType(listOfNonNullAnyType)
 
-	representationsVariable := p.upstreamOperation.ImportVariableValue([]byte("representations"))
+	representationsVariable := p.upstreamOperation.ImportVariableValue([]byte(p.representationsVariableName()))
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, representationsVariable, nonNullListOfNonNullAnyType)
 }
 
@@ -1147,7 +1263,7 @@ func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFi
 		}
 	}
 
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
+	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
 // applyInlineFieldArgument - configures arguments for a complex argument of a list or input object type
@@ -1231,7 +1347,7 @@ func (p *Planner[T]) addVariableDefinitionsRecursively(value ast.Value, sourcePa
 	importedVariableDefinition := p.visitor.Importer.ImportVariableDefinitionWithRename(variableDefinition, p.visitor.Operation, p.upstreamOperation, variableDefinitionTypeName)
 	p.upstreamOperation.AddImportedVariableDefinitionToOperationDefinition(p.nodes[0].Ref, importedVariableDefinition)
 
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
+	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, variableNameStr, []byte(contextVariableName))
 }
 
 // configureObjectFieldSource - configures source of a field when it has variables coming from current object
@@ -1276,7 +1392,7 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 
 	objectVariableName, exists := p.variables.AddVariable(variable)
 	if !exists {
-		p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, string(variableName), []byte(objectVariableName))
+		p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, string(variableName), []byte(objectVariableName))
 	}
 }
 
@@ -1400,10 +1516,20 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	if !p.includeQueryPlanInFetchConfiguration {
 		return
 	}
-	query, err := astprinter.PrintStringIndent(operation, "    ")
-	if err != nil {
-		p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print operation: %w", err)))
-		return
+	// Defer the pretty operation print for recorded entity fetches: a merged
+	// fetch re-prints its own document, and surviving (unmerged) fetches have
+	// their QueryPlan.Query rendered by the renderSubgraphInputs postprocess
+	// stage. DependsOnFields is always built (needed per-member even after
+	// merge), so only the .Query string is deferred.
+	deferQuery := p.recordUpstreamVariables && (p.requiresEntityFetch() || p.requiresEntityBatchFetch())
+	var query string
+	if !deferQuery {
+		printed, err := astprinter.PrintStringIndent(operation, "    ")
+		if err != nil {
+			p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print operation: %w", err)))
+			return
+		}
+		query = printed
 	}
 	var (
 		representations []resolve.Representation
