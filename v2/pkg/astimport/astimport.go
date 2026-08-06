@@ -124,10 +124,8 @@ func (i *Importer) importValueWithRename(fromValue ast.Value, from, to *ast.Docu
 
 	case ast.ValueKindVariable:
 		name := from.VariableValueNameString(fromValue.Ref)
-		if rename != nil {
-			if renamed, ok := rename[name]; ok {
-				name = renamed
-			}
+		if renamed, ok := rename[name]; ok {
+			name = renamed
 		}
 		value.Ref = to.ImportVariableValue([]byte(name))
 
