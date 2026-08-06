@@ -211,9 +211,6 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			createMultiFetch: &createMultiFetch{
 				disable: !enableMultiFetch,
 			},
-			// renderSubgraphInputs runs unconditionally (no disable flag): it must
-			// (only its op-name suffix rewrite follows fetchIDAppender's flag)
-			// render/clear artifacts even under DisableResolveInputTemplates.
 			renderSubgraphInputs: &renderSubgraphInputs{
 				disableRewriteOpNames: opts.disableRewriteOpNames,
 			},
