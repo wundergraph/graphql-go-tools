@@ -435,7 +435,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	}
 
 	var subgraphOperation *resolve.SubgraphOperation
-	if p.recordUpstreamVariables && (requiresEntityFetch || requiresEntityBatchFetch) {
+	if deferInput {
 		// Record only the header bytes that are actually printed into the
 		// envelope today: omit when empty or JSON null (mirrors the guard in
 		// httpclient.AssembleGraphQLRequestInput).
