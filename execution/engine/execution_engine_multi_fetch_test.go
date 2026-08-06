@@ -1,16 +1,6 @@
 package engine
 
-// Full federation integration tests for the MultiFetch optimization. These
-// exercise the whole execution engine end-to-end (planning + postprocessing +
-// runtime), unlike the plan-level goldens in the v2 datasource and postprocess
-// packages.
-//
-// Configuration.EnableMultiFetch() is the single switch: it sets
-// plan.Configuration.EnableMultiFetch = true, and NewExecutionEngine derives the
-// postprocess.EnableMultiFetch() processor option from that same flag. One
-// switch drives BOTH required flags (planner artifact recording + postprocess
-// merge stage), so they can never drift apart. With the switch off there is zero
-// behavior change.
+// Full federation integration tests for the MultiFetch optimization.
 
 import (
 	"bytes"
