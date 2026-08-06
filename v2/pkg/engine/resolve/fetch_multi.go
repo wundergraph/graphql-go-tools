@@ -76,10 +76,9 @@ const (
 type MultiEntityFetch struct {
 	FetchDependencies
 
-	Input                MultiEntityInput
-	DataSource           DataSource
-	DataSourceIdentifier []byte
-	Trace                *DataSourceLoadTrace
+	Input      MultiEntityInput
+	DataSource DataSource
+	Trace      *DataSourceLoadTrace
 	// MergedFetchIDs are the original fetch IDs merged into this fetch, in
 	// wave order; surfaced in query-plan output.
 	MergedFetchIDs []int
