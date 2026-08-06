@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
@@ -202,9 +203,12 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 	case ValueKindVariable:
 		variableName := d.Input.ByteSliceString(d.VariableValues[value.Ref].Name)
 		variableValue, dataType, _, err := jsonparser.Get(d.Input.Variables, variableName)
-		if err != nil {
+		if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 			buf.Write(literal.NULL)
 			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("get variable %q: %w", variableName, err)
 		}
 		if dataType == jsonparser.String {
 			buf.WriteByte('"')
