@@ -56,6 +56,24 @@ func groupFetchIDs(groups [][]*resolve.FetchTreeNode) [][]int {
 	return out
 }
 
+func collectGroups(c *createMultiFetch, root *resolve.FetchTreeNode) [][]*resolve.FetchTreeNode {
+	var result [][]*resolve.FetchTreeNode
+	var walk func(node *resolve.FetchTreeNode)
+	walk = func(node *resolve.FetchTreeNode) {
+		if node == nil {
+			return
+		}
+		if node.Kind == resolve.FetchTreeNodeKindParallel {
+			result = append(result, c.groupCandidatesByDataSource(node)...)
+		}
+		for _, child := range node.ChildNodes {
+			walk(child)
+		}
+	}
+	walk(root)
+	return result
+}
+
 func collectSingleFetches(node *resolve.FetchTreeNode, out *[]*resolve.SingleFetch) {
 	if node == nil {
 		return
@@ -104,7 +122,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			multiFetchCandidate(2, []int{0}, 0, "ds1"),
 		))
-		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(c.collectGroups(tree)))
+		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(collectGroups(c, tree)))
 	})
 
 	t.Run("two candidates with empty dependencies", func(t *testing.T) {
@@ -112,7 +130,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, nil, 0, "ds1"),
 			multiFetchCandidate(2, nil, 0, "ds1"),
 		))
-		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(c.collectGroups(tree)))
+		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(collectGroups(c, tree)))
 	})
 
 	t.Run("different datasource does not group", func(t *testing.T) {
@@ -121,7 +139,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			multiFetchCandidate(2, []int{0}, 0, "ds2"),
 		))
-		require.Empty(t, c.collectGroups(tree))
+		require.Empty(t, collectGroups(c, tree))
 	})
 
 	t.Run("dependent candidates land in different waves", func(t *testing.T) {
@@ -130,7 +148,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			multiFetchCandidate(2, []int{1}, 0, "ds1"),
 		))
-		require.Empty(t, c.collectGroups(tree))
+		require.Empty(t, collectGroups(c, tree))
 	})
 
 	// Defer groups are extracted into their own trees before organizeFetchTree
@@ -143,13 +161,13 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			multiFetchCandidate(2, []int{0}, 0, "ds1"),
 		))
-		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(c.collectGroups(initial)))
+		require.Equal(t, [][]int{{1, 2}}, groupFetchIDs(collectGroups(c, initial)))
 
 		deferGroup := organizeForTest(resolve.Sequence(
 			multiFetchCandidate(3, nil, 7, "ds1"),
 			multiFetchCandidate(4, nil, 7, "ds1"),
 		))
-		require.Equal(t, [][]int{{3, 4}}, groupFetchIDs(c.collectGroups(deferGroup)))
+		require.Equal(t, [][]int{{3, 4}}, groupFetchIDs(collectGroups(c, deferGroup)))
 	})
 
 	t.Run("defer candidates depending out of group stay serial", func(t *testing.T) {
@@ -161,7 +179,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(3, []int{0}, 7, "ds1"),
 			multiFetchCandidate(4, []int{0}, 7, "ds1"),
 		))
-		require.Empty(t, c.collectGroups(deferGroup))
+		require.Empty(t, collectGroups(c, deferGroup))
 	})
 
 	t.Run("nil Info is not a candidate", func(t *testing.T) {
@@ -172,7 +190,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
 		))
-		require.Empty(t, c.collectGroups(tree))
+		require.Empty(t, collectGroups(c, tree))
 	})
 
 	t.Run("nil SubgraphOperation is not a candidate", func(t *testing.T) {
@@ -183,7 +201,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
 		))
-		require.Empty(t, c.collectGroups(tree))
+		require.Empty(t, collectGroups(c, tree))
 	})
 
 	t.Run("non-entity fetch is not a candidate", func(t *testing.T) {
@@ -194,7 +212,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
 		))
-		require.Empty(t, c.collectGroups(tree))
+		require.Empty(t, collectGroups(c, tree))
 	})
 
 	t.Run("duplicate names is not a candidate", func(t *testing.T) {
@@ -209,7 +227,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
 		))
-		require.Empty(t, c.collectGroups(tree))
+		require.Empty(t, collectGroups(c, tree))
 	})
 
 	t.Run("representations token pointing at non-resolvable-object is not a candidate", func(t *testing.T) {
@@ -221,7 +239,7 @@ func TestCreateMultiFetch_CollectGroups(t *testing.T) {
 			multiFetchCandidate(1, []int{0}, 0, "ds1"),
 			bad,
 		))
-		require.Empty(t, c.collectGroups(tree))
+		require.Empty(t, collectGroups(c, tree))
 	})
 }
 

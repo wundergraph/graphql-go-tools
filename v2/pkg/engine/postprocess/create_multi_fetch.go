@@ -328,29 +328,6 @@ func mergedFetchInfo(members []*resolve.SingleFetch, pretty string) *resolve.Fet
 	return info
 }
 
-// collectGroups returns every candidate set to merge across the ORGANIZED tree:
-// it descends into each FetchTreeNodeKindParallel group and, within it, buckets
-// candidates by DataSourceID (see groupCandidatesByDataSource). It is a
-// read-only query used by ProcessFetchTree's walk and by unit tests; it does not
-// mutate the tree.
-func (c *createMultiFetch) collectGroups(root *resolve.FetchTreeNode) [][]*resolve.FetchTreeNode {
-	var result [][]*resolve.FetchTreeNode
-	var walk func(node *resolve.FetchTreeNode)
-	walk = func(node *resolve.FetchTreeNode) {
-		if node == nil {
-			return
-		}
-		if node.Kind == resolve.FetchTreeNodeKindParallel {
-			result = append(result, c.groupCandidatesByDataSource(node)...)
-		}
-		for _, child := range node.ChildNodes {
-			walk(child)
-		}
-	}
-	walk(root)
-	return result
-}
-
 // groupCandidatesByDataSource buckets the candidate children of a single
 // parallel node by DataSourceID, in first-seen order, keeping only buckets with
 // at least two members. Because every member of a parallel group is schedulable
