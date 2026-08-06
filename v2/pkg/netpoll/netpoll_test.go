@@ -60,7 +60,7 @@ func TestPoller(t *testing.T) {
 					t.Errorf("expect to write %d bytes but got %d bytes", len("hello world"), n)
 				}
 			}
-			conn.Close() // nolint: errcheck
+			conn.Close()
 		}()
 	}
 
@@ -87,9 +87,9 @@ func TestPoller(t *testing.T) {
 			for _, conn := range conns {
 				n, err := conn.Read(buf)
 				if err != nil {
-					if err == io.EOF || errors.Is(err, net.ErrClosed) {
-						poller.Remove(conn) // nolint: errcheck
-						conn.Close()        // nolint: errcheck
+					if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+						poller.Remove(conn) //nolint:errcheck
+						conn.Close()
 					} else {
 						t.Error(err)
 					}
@@ -173,9 +173,9 @@ func TestPoller_growstack(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 	for range 100 {
-		conn.Write([]byte("hello world")) // nolint: errcheck
+		conn.Write([]byte("hello world")) //nolint:errcheck
 	}
-	conn.Close() // nolint: errcheck
+	conn.Close()
 }
 
 func TestNetPollSupported(t *testing.T) {

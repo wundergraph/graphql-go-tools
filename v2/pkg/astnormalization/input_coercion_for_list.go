@@ -1,6 +1,7 @@
 package astnormalization
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -103,7 +104,7 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	variableTypeRef = i.operation.ResolveListOrNameType(variableTypeRef)
 
 	value, dataType, _, err := i.getVariableValue(variableNameString)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		// If the user doesn't provide any variable with that name,
 		// there is no need for coercion. Stop the operation
 		return

@@ -6605,7 +6605,7 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 	return
 }
 
-// nolint
+//nolint
 func federationSchema() (*graphql.Schema, error) {
 	rawSchema := `
 type Query {

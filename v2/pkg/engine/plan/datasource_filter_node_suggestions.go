@@ -104,12 +104,12 @@ func (n *NodeSuggestion) orphan() {
 }
 
 func (n *NodeSuggestion) String() string {
-	j, _ := json.Marshal(n)
+	j, _ := json.Marshal(n) //nolint:errchkjson // NodeSuggestions contains only JSON-safe fields.
 	return string(j)
 }
 
 func (n *NodeSuggestion) StringShort() string {
-	j, _ := json.Marshal(struct {
+	j, _ := json.Marshal(struct { //nolint:errchkjson // The debug structure contains only JSON-safe fields.
 		DsName           string   `json:"dsName"`
 		TypeName         string   `json:"typeName"`
 		Path             string   `json:"path"`
