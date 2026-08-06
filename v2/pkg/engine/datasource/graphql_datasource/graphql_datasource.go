@@ -908,22 +908,8 @@ func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {
 	p.addRepresentationsVariable()
 }
 
-// representationsVariableName returns the name of the planner-added synthetic
-// variable that carries the entity representations. It is normally
-// "representations", but if the downstream client operation already declares a
-// variable of that name, the synthetic is renamed (to "_representations",
-// "_representations2", ...) so it never collides with a client variable that
-// reaches the same upstream operation. The client variable always keeps its
-// name; only the synthetic moves. The result is computed once per document and
-// cached (reset in EnterDocument).
-//
-// Detection uses the downstream operation (p.visitor.Operation) because the
-// synthetic definition is added while scaffolding the upstream operation,
-// before client variables are imported into it — at write time the upstream
-// operation cannot yet reveal the collision. This makes the check conservative:
-// a client that declares $representations but never passes it to this subgraph
-// still triggers the rename, which is harmless because the renamed synthetic is
-// internal to the subgraph request.
+// representationsVariableName returns a collision-free name for the synthetic
+// representations variable.
 func (p *Planner[T]) representationsVariableName() string {
 	if p.representationsVariableNameCached != "" {
 		return p.representationsVariableNameCached
@@ -940,11 +926,8 @@ func (p *Planner[T]) representationsVariableName() string {
 	return name
 }
 
-// downstreamDeclaresVariable reports whether the downstream document declares a
-// variable with the given name. The scan is document-wide (ast.Document backing
-// store), not per-operation — deliberately conservative: it can over-detect and
-// rename the synthetic unnecessarily (harmless, internal to the subgraph
-// request) but can never miss a real collision.
+// downstreamDeclaresVariable reports whether the downstream document declares
+// a variable with the given name.
 func (p *Planner[T]) downstreamDeclaresVariable(name string) bool {
 	if p.visitor == nil || p.visitor.Operation == nil {
 		return false
