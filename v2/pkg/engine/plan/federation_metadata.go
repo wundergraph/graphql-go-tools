@@ -127,7 +127,7 @@ func (f *FederationFieldConfiguration) parseSelectionSet() error {
 // String - implements fmt.Stringer
 // NOTE: do not change to pointer receiver, it won't work for not pointer values
 func (f FederationFieldConfiguration) String() string {
-	b, _ := json.Marshal(f)
+	b, _ := json.Marshal(f) //nolint:errchkjson // Federation metadata contains only JSON-safe fields.
 	return string(b)
 }
 

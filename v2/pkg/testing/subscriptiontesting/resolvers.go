@@ -16,7 +16,7 @@ type ckey string
 
 type resolver struct {
 	Rooms map[string]*Chatroom
-	mu    sync.Mutex // nolint: structcheck
+	mu    sync.Mutex //nolint: structcheck
 }
 
 func (r *resolver) Mutation() MutationResolver {

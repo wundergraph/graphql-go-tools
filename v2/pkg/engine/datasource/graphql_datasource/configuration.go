@@ -176,12 +176,12 @@ func NewSchemaConfiguration(upstreamSchema string, federationCfg *FederationConf
 
 		federationSchema, err := federation.BuildFederationSchema(cfg.upstreamSchema, cfg.federation.ServiceSDL)
 		if err != nil {
-			return nil, fmt.Errorf("unable to build federation schema: %v", err)
+			return nil, fmt.Errorf("unable to build federation schema: %w", err)
 		}
 		definition.Input.ResetInputString(federationSchema)
 		definitionParser.Parse(definition, report)
 		if report.HasErrors() {
-			return nil, fmt.Errorf("unable to parse federation schema: %v", report)
+			return nil, fmt.Errorf("unable to parse federation schema: %w", report)
 		}
 
 		// As BuildFederationSchema is already merged with base definitions, we actually don't want to do it again,
@@ -189,17 +189,17 @@ func NewSchemaConfiguration(upstreamSchema string, federationCfg *FederationConf
 		// TODO: find a better way to do this
 		typeNamesVisitor := asttransform.NewTypeNameVisitor()
 		if err := typeNamesVisitor.ExtendSchema(definition); err != nil {
-			return nil, fmt.Errorf("unable to extend federation schema with type names: %v", err)
+			return nil, fmt.Errorf("unable to extend federation schema with type names: %w", err)
 		}
 	} else {
 		definition.Input.ResetInputString(cfg.upstreamSchema)
 		definitionParser.Parse(definition, report)
 		if report.HasErrors() {
-			return nil, fmt.Errorf("unable to parse upstream schema: %v", report)
+			return nil, fmt.Errorf("unable to parse upstream schema: %w", report)
 		}
 
 		if err := asttransform.MergeDefinitionWithBaseSchema(definition); err != nil {
-			return nil, fmt.Errorf("unable to merge upstream schema with base schema: %v", err)
+			return nil, fmt.Errorf("unable to merge upstream schema with base schema: %w", err)
 		}
 	}
 

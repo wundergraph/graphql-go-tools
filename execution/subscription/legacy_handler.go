@@ -353,7 +353,7 @@ func (h *Handler) sendData(id string, responseData []byte) {
 	}
 }
 
-// nolint
+//nolint
 // sendComplete will send a complete message to the client.
 func (h *Handler) sendComplete(id string) {
 	completeMessage := Message{

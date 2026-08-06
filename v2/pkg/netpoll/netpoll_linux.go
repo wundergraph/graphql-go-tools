@@ -69,7 +69,7 @@ func (e *Epoll) Close(closeConns bool) error {
 func (e *Epoll) Add(conn net.Conn) error {
 	conn = newConnImpl(conn)
 	fd := SocketFD(conn)
-	if e := syscall.SetNonblock(int(fd), true); e != nil {
+	if e := syscall.SetNonblock(fd, true); e != nil {
 		return errors.New("udev: unix.SetNonblock failed")
 	}
 

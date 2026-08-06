@@ -235,12 +235,12 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 				// and this iteration made no progress (per-walk state is reset in
 				// EnterDocument) - further iterations cannot change anything,
 				// so report the unresolved fields right away
-				report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
+				report.AddInternalError(fmt.Errorf("could not resolve a field: %w", resolvableReport))
 				return
 			}
 
 			if i > 100 {
-				report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
+				report.AddInternalError(fmt.Errorf("could not resolve a field: %w", resolvableReport))
 				return
 			}
 			continue

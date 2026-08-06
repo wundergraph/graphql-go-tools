@@ -167,7 +167,7 @@ type GraphQLWSWriteEventHandler struct {
 
 // Emit is an implementation of subscription.EventHandler. It forwards events to the HandleWriteEvent.
 func (g *GraphQLWSWriteEventHandler) Emit(eventType subscription.EventType, id string, data []byte, err error) {
-	messageType := GraphQLWSMessageType("")
+	var messageType GraphQLWSMessageType
 	switch eventType {
 	case subscription.EventTypeOnSubscriptionCompleted:
 		messageType = GraphQLWSMessageTypeComplete
