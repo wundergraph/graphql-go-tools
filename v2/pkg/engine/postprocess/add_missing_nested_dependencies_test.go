@@ -4,138 +4,28 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 func TestAddMissingNestedDependencies_ProcessFetchTree(t *testing.T) {
 	t.Run("add missing dependencies to nested fetches on same merge path", func(t *testing.T) {
-		input := resolve.Sequence(
-			resolve.Single(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "a",
-					PostProcessing: resolve.PostProcessingConfiguration{
-						MergePath: []string{"a"},
-					},
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: 0,
-				},
-			}),
-			resolve.Single(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "b",
-					PostProcessing: resolve.PostProcessingConfiguration{
-						MergePath: []string{"b"},
-					},
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: 1,
-				},
-			}),
-			resolve.SingleWithPath(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "c",
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: 2,
-				},
-			}, "a", resolve.ObjectPath("a")),
-			resolve.SingleWithPath(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "d",
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: 3,
-				},
-			}, "b.c", resolve.ObjectPath("b"), resolve.ObjectPath("c")),
-			resolve.SingleWithPath(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "x",
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID:           4,
-					DependsOnFetchIDs: []int{0},
-				},
-			}, "a", resolve.ObjectPath("a")),
-			resolve.Single(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "y",
-					PostProcessing: resolve.PostProcessingConfiguration{
-						MergePath: []string{"y"},
-					},
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: 5,
-				},
-			}),
-		)
-
-		expected := resolve.Sequence(
-			resolve.Single(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "a",
-					PostProcessing: resolve.PostProcessingConfiguration{
-						MergePath: []string{"a"},
-					},
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: 0,
-				},
-			}),
-			resolve.Single(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "b",
-					PostProcessing: resolve.PostProcessingConfiguration{
-						MergePath: []string{"b"},
-					},
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: 1,
-				},
-			}),
-			resolve.SingleWithPath(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "c",
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID:           2,
-					DependsOnFetchIDs: []int{0},
-				},
-			}, "a", resolve.ObjectPath("a")),
-			resolve.SingleWithPath(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "d",
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID:           3,
-					DependsOnFetchIDs: []int{1},
-				},
-			}, "b.c", resolve.ObjectPath("b"), resolve.ObjectPath("c")),
-			resolve.SingleWithPath(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "x",
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID:           4,
-					DependsOnFetchIDs: []int{0},
-				},
-			}, "a", resolve.ObjectPath("a")),
-			resolve.Single(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input: "y",
-					PostProcessing: resolve.PostProcessingConfiguration{
-						MergePath: []string{"y"},
-					},
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: 5,
-				},
-			}),
-		)
-
 		processor := &addMissingNestedDependencies{}
+		input := seq(
+			sf(0, provides("a")),
+			sf(1, provides("b")),
+			sf(2, at("a")),
+			sf(3, at("b.c")),
+			sf(4, at("a"), deps(0)),
+			sf(5, provides("y")),
+		)
 		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0, provides("a")),
+			sf(1, provides("b")),
+			sf(2, at("a"), deps(0)),
+			sf(3, at("b.c"), deps(1)),
+			sf(4, at("a"), deps(0)),
+			sf(5, provides("y")),
+		)
 		require.Equal(t, expected, input)
 	})
 }
