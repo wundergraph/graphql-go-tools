@@ -401,11 +401,7 @@ func TestImportSelectionSetWithVariableRename(t *testing.T) {
 	printed, err := astprinter.PrintString(to)
 	require.NoError(t, err)
 
-	assert.Contains(t, printed, "_entities(representations: $representations_f1)")
-	assert.Contains(t, printed, "p: products(first: $first_f1)")
-	assert.Contains(t, printed, "@custom(arg: $first_f1)")
-	assert.Contains(t, printed, "... on Employee")
-	assert.Contains(t, printed, "nested {id}")
+	assert.Equal(t, `{_entities(representations: $representations_f1){... on Employee {__typename p: products(first: $first_f1)@custom(arg: $first_f1) {upc nested {id}}}}}`, printed)
 }
 
 func TestImportSelectionSetFragmentSpreadError(t *testing.T) {
