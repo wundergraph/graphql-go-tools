@@ -100,8 +100,11 @@ func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group
 	// semantics for envelopes that do carry template tokens.
 	envelopeTokenSource := base.Envelope.Method + base.Envelope.URL + string(base.Envelope.Header)
 	for _, k := range envelopeTokenIndices(envelopeTokenSource) {
+		if k >= len(members[0].Variables) {
+			return
+		}
 		for i := 1; i < len(members); i++ {
-			if k >= len(members[i].Variables) || k >= len(members[0].Variables) ||
+			if k >= len(members[i].Variables) ||
 				!members[i].Variables[k].Equals(members[0].Variables[k]) {
 				return
 			}
