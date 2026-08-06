@@ -36,6 +36,8 @@ type Cache interface {
 	// SetMany stores every item, all of which must carry a positive TTL. When
 	// items contains the same key twice, the last one wins. An error means an
 	// unspecified subset of the items may already have been stored.
+	// In case any of the passed ttls are invalid, SetMany should return
+	// without saving any items that may have valid ttl values
 	SetMany(ctx context.Context, items []Item) error
 }
 
