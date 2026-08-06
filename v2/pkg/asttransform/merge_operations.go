@@ -45,11 +45,12 @@ func MergeOperationDocuments(operationName string, members []OperationMergeMembe
 	}
 
 	importer := &astimport.Importer{}
+	nonNullBool := merged.AddNonNullNamedType([]byte("Boolean"))
 	for i, member := range members {
 		if member.Document == nil {
 			return nil, fmt.Errorf("asttransform: member %d has no document", i+1)
 		}
-		mergeVariableDefinitions(merged, opRef, importer, member)
+		mergeVariableDefinitions(merged, opRef, importer, member, nonNullBool)
 		if err := mergeMemberSelection(merged, opSetRef, importer, member, i); err != nil {
 			return nil, err
 		}
@@ -60,15 +61,13 @@ func MergeOperationDocuments(operationName string, members []OperationMergeMembe
 // mergeVariableDefinitions imports the member's renamed variable definitions in
 // document order, then appends the synthetic non-null Boolean include
 // definition, matching the emit order the printed output depends on.
-func mergeVariableDefinitions(merged *ast.Document, opRef int, importer *astimport.Importer, member OperationMergeMember) {
+func mergeVariableDefinitions(merged *ast.Document, opRef int, importer *astimport.Importer, member OperationMergeMember, nonNullBool int) {
 	doc := member.Document
 	for _, defRef := range doc.OperationDefinitions[0].VariableDefinitions.Refs {
 		origName := doc.VariableDefinitionNameString(defRef)
 		importedRef := importer.ImportVariableDefinitionWithVariableNameRename(defRef, doc, merged, member.VariableRename[origName])
 		merged.AddImportedVariableDefinitionToOperationDefinition(opRef, importedRef)
 	}
-	boolType := merged.AddNamedType([]byte("Boolean"))
-	nonNullBool := merged.AddNonNullType(boolType)
 	includeVar := merged.ImportVariableValue([]byte(member.IncludeVariable))
 	merged.AddVariableDefinitionToOperationDefinition(opRef, includeVar, nonNullBool)
 }
