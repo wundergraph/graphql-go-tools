@@ -255,3 +255,45 @@ func (s *JsonSchema) WithNullable(nullable bool) *JsonSchema {
 	s.Nullable = nullable
 	return s
 }
+
+// Clone returns a deep copy of the schema. Callers that hand out schemas from
+// a shared map (e.g. scalar overrides) must clone per use: the builder mutates
+// Nullable on returned schemas depending on the variable's non-null context.
+func (s *JsonSchema) Clone() *JsonSchema {
+	if s == nil {
+		return nil
+	}
+	clone := *s
+	if s.Properties != nil {
+		clone.Properties = make(map[string]*JsonSchema, len(s.Properties))
+		for k, v := range s.Properties {
+			clone.Properties[k] = v.Clone()
+		}
+	}
+	if s.Required != nil {
+		clone.Required = append([]string(nil), s.Required...)
+	}
+	if s.AdditionalProperties != nil {
+		val := *s.AdditionalProperties
+		clone.AdditionalProperties = &val
+	}
+	if s.Defs != nil {
+		clone.Defs = make(map[string]*JsonSchema, len(s.Defs))
+		for k, v := range s.Defs {
+			clone.Defs[k] = v.Clone()
+		}
+	}
+	clone.Items = s.Items.Clone()
+	if s.Enum != nil {
+		clone.Enum = append([]string(nil), s.Enum...)
+	}
+	if s.Minimum != nil {
+		val := *s.Minimum
+		clone.Minimum = &val
+	}
+	if s.Maximum != nil {
+		val := *s.Maximum
+		clone.Maximum = &val
+	}
+	return &clone
+}

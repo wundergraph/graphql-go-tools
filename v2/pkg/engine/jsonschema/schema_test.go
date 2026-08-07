@@ -616,3 +616,46 @@ func TestSchemaFeatures(t *testing.T) {
 		assert.False(t, schema.Nullable)
 	})
 }
+
+func TestJsonSchemaClone(t *testing.T) {
+	t.Run("mutating the clone does not affect the original", func(t *testing.T) {
+		additionalProps := false
+		minimum := 1.0
+		original := &JsonSchema{
+			Type:                 TypeObject,
+			Properties:           map[string]*JsonSchema{"name": NewStringSchema()},
+			Required:             []string{"name"},
+			AdditionalProperties: &additionalProps,
+			Description:          "original",
+			Nullable:             true,
+			Items:                NewStringSchema(),
+			Enum:                 []string{"a", "b"},
+			Minimum:              &minimum,
+		}
+
+		clone := original.Clone()
+
+		clone.Nullable = false
+		clone.Description = "mutated"
+		clone.Properties["name"].Type = TypeInteger
+		clone.Required[0] = "changed"
+		*clone.AdditionalProperties = true
+		clone.Items.Type = TypeBoolean
+		clone.Enum[0] = "z"
+		*clone.Minimum = 99
+
+		assert.True(t, original.Nullable)
+		assert.Equal(t, "original", original.Description)
+		assert.Equal(t, TypeString, original.Properties["name"].Type)
+		assert.Equal(t, "name", original.Required[0])
+		assert.False(t, *original.AdditionalProperties)
+		assert.Equal(t, TypeString, original.Items.Type)
+		assert.Equal(t, "a", original.Enum[0])
+		assert.Equal(t, 1.0, *original.Minimum)
+	})
+
+	t.Run("nil receiver returns nil", func(t *testing.T) {
+		var s *JsonSchema
+		assert.Nil(t, s.Clone())
+	})
+}
