@@ -1835,6 +1835,58 @@ query Search($filter: JSON!, $after: Cursor, $cursor: Cursor!) {
 		assert.JSONEq(t, expectedJSON, string(actualJSON))
 	})
 
+	t.Run("same overridden scalar at two nullabilities yields independent schemas", func(t *testing.T) {
+		// The override type is deliberately non-object: object-typed top-level
+		// variables are unconditionally forced non-nullable elsewhere (see
+		// EnterVariableDefinition), which would mask the nullability leak this
+		// test exists to catch.
+		schemaSDL := scalarDefinitions + `
+schema {
+	query: Query
+}
+
+scalar BigInt
+
+type Query {
+	search(filter: BigInt!, meta: BigInt) : String
+}
+`
+		operation := `
+query Search($filter: BigInt!, $meta: BigInt) {
+	search(filter: $filter, meta: $meta)
+}
+`
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operation)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		overrides := map[string]*JsonSchema{
+			"BigInt": {Type: TypeInteger},
+		}
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc, WithScalarSchemas(overrides))
+		require.NoError(t, err)
+
+		actualJSON, err := json.Marshal(schema)
+		require.NoError(t, err)
+
+		// Both variables resolve the same override map entry. Without cloning
+		// per use, the second-processed variable's Nullable mutation would leak
+		// into the first via the shared *JsonSchema pointer.
+		expectedJSON := `{
+			"type": "object",
+			"properties": {
+				"filter": { "type": "integer" },
+				"meta":   { "type": ["integer", "null"] }
+			},
+			"required": ["filter"],
+			"additionalProperties": false
+		}`
+		assert.JSONEq(t, expectedJSON, string(actualJSON))
+	})
+
 	t.Run("DefaultedScalars reports unmapped custom scalars once, sorted", func(t *testing.T) {
 		schemaSDL := scalarDefinitions + `
 schema {
