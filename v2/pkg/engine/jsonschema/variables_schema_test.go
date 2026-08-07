@@ -1686,22 +1686,22 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("query with custom scalar variables defaults to string type", func(t *testing.T) {
 		schemaSDL := scalarDefinitions + `
-schema {
-	query: Query
-}
-
-"""An opaque pagination cursor"""
-scalar Cursor
-
-type Query {
-	items(after: Cursor, first: Int!): String
-}
-`
+			schema {
+				query: Query
+			}
+			
+			"""An opaque pagination cursor"""
+			scalar Cursor
+			
+			type Query {
+				items(after: Cursor, first: Int!): String
+			}
+		`
 		operation := `
-query Items($after: Cursor, $first: Int!) {
-	items(after: $after, first: $first)
-}
-`
+			query Items($after: Cursor, $first: Int!) {
+				items(after: $after, first: $first)
+			}
+		`
 		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
 		require.False(t, report.HasErrors(), "schema parsing failed")
 
@@ -1715,18 +1715,23 @@ query Items($after: Cursor, $first: Int!) {
 		require.NoError(t, err)
 
 		expectedJSON := `{
-	"type": "object",
-	"properties": {
-		"after": {
-			"type": ["string", "null"],
-			"description": "An opaque pagination cursor"
-		},
-		"first": {
-			"type": "integer"
-		}
-	},
-	"required": ["first"],
-	"additionalProperties": false
+  "additionalProperties": false,
+  "properties": {
+    "after": {
+      "description": "An opaque pagination cursor",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "first": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "first"
+  ],
+  "type": "object"
 }`
 
 		assert.JSONEq(t, expectedJSON, string(actualJSON))
@@ -1734,26 +1739,26 @@ query Items($after: Cursor, $first: Int!) {
 
 	t.Run("input object field with custom scalar defaults to string type", func(t *testing.T) {
 		schemaSDL := scalarDefinitions + `
-schema {
-	query: Query
-}
-
-scalar Cursor
-
-input Pagination {
-	after: Cursor
-	first: Int!
-}
-
-type Query {
-	items(page: Pagination!): String
-}
-`
+			schema {
+				query: Query
+			}
+			
+			scalar Cursor
+			
+			input Pagination {
+				after: Cursor
+				first: Int!
+			}
+			
+			type Query {
+				items(page: Pagination!): String
+			}
+		`
 		operation := `
-query Items($page: Pagination!) {
-	items(page: $page)
-}
-`
+			query Items($page: Pagination!) {
+				items(page: $page)
+			}
+		`
 		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
 		require.False(t, report.HasErrors(), "schema parsing failed")
 
@@ -1767,20 +1772,31 @@ query Items($page: Pagination!) {
 		require.NoError(t, err)
 
 		expectedJSON := `{
-	"type": "object",
-	"properties": {
-		"page": {
-			"type": "object",
-			"properties": {
-				"after": { "type": ["string", "null"] },
-				"first": { "type": "integer" }
-			},
-			"required": ["first"],
-			"additionalProperties": false
-		}
-	},
-	"required": ["page"],
-	"additionalProperties": false
+  "additionalProperties": false,
+  "properties": {
+    "page": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "first": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "first"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "page"
+  ],
+  "type": "object"
 }`
 
 		assert.JSONEq(t, expectedJSON, string(actualJSON))
@@ -1788,22 +1804,22 @@ query Items($page: Pagination!) {
 
 	t.Run("overridden scalar emits the mapped schema and unmapped scalars keep the string default", func(t *testing.T) {
 		schemaSDL := scalarDefinitions + `
-schema {
-	query: Query
-}
-
-scalar JSON
-scalar Cursor
-
-type Query {
-	search(filter: JSON!, after: Cursor, cursor: Cursor!) : String
-}
-`
+			schema {
+				query: Query
+			}
+			
+			scalar JSON
+			scalar Cursor
+			
+			type Query {
+				search(filter: JSON!, after: Cursor, cursor: Cursor!) : String
+			}
+		`
 		operation := `
-query Search($filter: JSON!, $after: Cursor, $cursor: Cursor!) {
-	search(filter: $filter, after: $after, cursor: $cursor)
-}
-`
+			query Search($filter: JSON!, $after: Cursor, $cursor: Cursor!) {
+				search(filter: $filter, after: $after, cursor: $cursor)
+			}
+		`
 		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
 		require.False(t, report.HasErrors(), "schema parsing failed")
 
@@ -1823,15 +1839,28 @@ query Search($filter: JSON!, $after: Cursor, $cursor: Cursor!) {
 		// - JSON! is mapped to object and non-null context strips the null union
 		// - after/cursor prove per-use cloning: same scalar, different nullability
 		expectedJSON := `{
-			"type": "object",
-			"properties": {
-				"filter": { "type": "object", "description": "Arbitrary JSON object" },
-				"after":  { "type": ["string", "null"] },
-				"cursor": { "type": "string" }
-			},
-			"required": ["filter", "cursor"],
-			"additionalProperties": false
-		}`
+  "additionalProperties": false,
+  "properties": {
+    "after": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cursor": {
+      "type": "string"
+    },
+    "filter": {
+      "description": "Arbitrary JSON object",
+      "type": "object"
+    }
+  },
+  "required": [
+    "filter",
+    "cursor"
+  ],
+  "type": "object"
+}`
 		assert.JSONEq(t, expectedJSON, string(actualJSON))
 	})
 
@@ -1844,21 +1873,21 @@ query Search($filter: JSON!, $after: Cursor, $cursor: Cursor!) {
 		// EnterVariableDefinition), which would mask the nullability leak this
 		// test exists to catch.
 		schemaSDL := scalarDefinitions + `
-schema {
-	query: Query
-}
-
-scalar BigInt
-
-type Query {
-	search(filter: BigInt!, meta: BigInt) : String
-}
-`
+			schema {
+				query: Query
+			}
+			
+			scalar BigInt
+			
+			type Query {
+				search(filter: BigInt!, meta: BigInt) : String
+			}
+		`
 		operation := `
-query Search($filter: BigInt!, $meta: BigInt) {
-	search(filter: $filter, meta: $meta)
-}
-`
+			query Search($filter: BigInt!, $meta: BigInt) {
+				search(filter: $filter, meta: $meta)
+			}
+		`
 		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
 		require.False(t, report.HasErrors(), "schema parsing failed")
 
@@ -1879,36 +1908,45 @@ query Search($filter: BigInt!, $meta: BigInt) {
 		// per use, the second-processed variable's Nullable mutation would leak
 		// into the first via the shared *JsonSchema pointer.
 		expectedJSON := `{
-			"type": "object",
-			"properties": {
-				"filter": { "type": "integer" },
-				"meta":   { "type": ["integer", "null"] }
-			},
-			"required": ["filter"],
-			"additionalProperties": false
-		}`
+  "additionalProperties": false,
+  "properties": {
+    "filter": {
+      "type": "integer"
+    },
+    "meta": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "filter"
+  ],
+  "type": "object"
+}`
 		assert.JSONEq(t, expectedJSON, string(actualJSON))
 	})
 
 	t.Run("DefaultedScalars reports unmapped custom scalars once, sorted", func(t *testing.T) {
 		schemaSDL := scalarDefinitions + `
-schema {
-	query: Query
-}
-
-scalar JSON
-scalar Cursor
-scalar BigInt
-
-type Query {
-	search(filter: JSON!, after: Cursor, before: Cursor, size: BigInt) : String
-}
-`
+			schema {
+				query: Query
+			}
+			
+			scalar JSON
+			scalar Cursor
+			scalar BigInt
+			
+			type Query {
+				search(filter: JSON!, after: Cursor, before: Cursor, size: BigInt) : String
+			}
+		`
 		operation := `
-query Search($filter: JSON!, $after: Cursor, $before: Cursor, $size: BigInt) {
-	search(filter: $filter, after: $after, before: $before, size: $size)
-}
-`
+			query Search($filter: JSON!, $after: Cursor, $before: Cursor, $size: BigInt) {
+				search(filter: $filter, after: $after, before: $before, size: $size)
+			}
+		`
 		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
 		require.False(t, report.HasErrors(), "schema parsing failed")
 
