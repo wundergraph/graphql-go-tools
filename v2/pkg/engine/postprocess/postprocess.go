@@ -60,6 +60,21 @@ func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResp
 // after this step fetches have tree structure of serial and parallel nodes.
 func (p *FetchTreeProcessors) organizeFetchTree(fetches *resolve.FetchTreeNode) {
 	if !p.scheduleFetches.disable {
+		if !p.createMultiFetch.disable {
+			// Merge-before-schedule: materialize the legacy wave structure only
+			// to discover maximal same-wave merge groups, merge them, then drop
+			// the wave structure and schedule the merged DAG. The scheduler sees
+			// each MultiEntityFetch as one node (min member ID, union
+			// dependencies), so batching is decided on wave granularity while
+			// the final execution tree still benefits from component splitting
+			// and chain inlining. The scheduler's dominance proof then holds
+			// against the merged wave tree — the result is never slower than
+			// the legacy waves + multi-fetch pipeline.
+			p.orderSequenceByDependencies.ProcessFetchTree(fetches)
+			p.createParallelNodes.ProcessFetchTree(fetches)
+			p.createMultiFetch.ProcessFetchTree(fetches)
+			flattenFetchTree(fetches)
+		}
 		p.scheduleFetches.ProcessFetchTree(fetches)
 		return
 	}
@@ -67,16 +82,46 @@ func (p *FetchTreeProcessors) organizeFetchTree(fetches *resolve.FetchTreeNode) 
 	p.createParallelNodes.ProcessFetchTree(fetches)
 }
 
+// flattenFetchTree collapses an organized tree back into the flat Sequence shape
+// the scheduler consumes: the root keeps its identity (Trigger, NormalizedQuery)
+// and its children become the in-order list of Single nodes. In-order collection
+// of a dependency-ordered tree is already topologically sorted, which the legacy
+// fallback inside scheduleFetches relies on.
+func flattenFetchTree(root *resolve.FetchTreeNode) {
+	if root == nil || root.Kind != resolve.FetchTreeNodeKindSequence {
+		return
+	}
+	var singles []*resolve.FetchTreeNode
+	var walk func(node *resolve.FetchTreeNode)
+	walk = func(node *resolve.FetchTreeNode) {
+		if node == nil {
+			return
+		}
+		if node.Kind == resolve.FetchTreeNodeKindSingle {
+			singles = append(singles, node)
+			return
+		}
+		for _, child := range node.ChildNodes {
+			walk(child)
+		}
+	}
+	for _, child := range root.ChildNodes {
+		walk(child)
+	}
+	root.ChildNodes = singles
+}
+
 // processOrganizedFetchTree runs the stages that operate on the ORGANIZED tree,
 // after organizeFetchTree has materialized the real sequence/parallel waves.
 // It is applied to every response tree, including each extracted defer group,
 // so that the same semantics hold for deferred fetches.
 func (p *FetchTreeProcessors) processOrganizedFetchTree(fetches *resolve.FetchTreeNode) {
-	// createMultiFetch runs unconditionally: it merges same-subgraph entity
-	// fetches within each real parallel group when enabled (a no-op when
-	// disabled). It walks the organized tree, so it must run after
-	// organizeFetchTree.
-	p.createMultiFetch.ProcessFetchTree(fetches)
+	// Under the scheduler, merging already happened inside organizeFetchTree
+	// (merge-before-schedule). On the legacy pipeline the organized tree IS
+	// the wave structure, so merging runs here, right after organizeFetchTree.
+	if p.scheduleFetches.disable {
+		p.createMultiFetch.ProcessFetchTree(fetches)
+	}
 	// renderSubgraphInputs runs unconditionally after createMultiFetch and before
 	// resolveInputTemplates: it renders the deferred entity-fetch input string
 	// for surviving (unmerged) fetches and clears the SubgraphOperation artifacts
