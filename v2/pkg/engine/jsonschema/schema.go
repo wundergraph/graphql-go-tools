@@ -259,6 +259,7 @@ func (s *JsonSchema) WithNullable(nullable bool) *JsonSchema {
 // Clone returns a deep copy of the schema. Callers that hand out schemas from
 // a shared map (e.g. scalar overrides) must clone per use: the builder mutates
 // Nullable on returned schemas depending on the variable's non-null context.
+// Clone returns nil if s is nil.
 func (s *JsonSchema) Clone() *JsonSchema {
 	if s == nil {
 		return nil
