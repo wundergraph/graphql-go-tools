@@ -1554,7 +1554,7 @@ func TestBuildJsonSchema(t *testing.T) {
 		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
-	t.Run("custom scalar types are represented as objects", func(t *testing.T) {
+	t.Run("custom scalar variables with descriptions default to string type", func(t *testing.T) {
 		// Define schema with custom scalar types
 		schemaSDL := scalarDefinitions + `
 			schema {
