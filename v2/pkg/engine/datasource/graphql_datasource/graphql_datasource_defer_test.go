@@ -168,7 +168,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 						},
 					},
 					planConfiguration,
-					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields(), postprocess.DisableExtractDeferFetches()),
+					WithPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields(), postprocess.DisableExtractDeferFetches()),
 					WithDefer(),
 					WithCalculateFieldDependencies(),
 				)
@@ -746,7 +746,7 @@ func TestGraphQLDataSourceDefer(t *testing.T) {
 						},
 					},
 					planConfiguration,
-					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields(), postprocess.DisableExtractDeferFetches()),
+					WithPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields(), postprocess.DisableExtractDeferFetches()),
 					WithDefer(),
 					WithCalculateFieldDependencies(),
 				)
