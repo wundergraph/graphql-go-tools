@@ -37,7 +37,7 @@ func (c *createMultiFetch) walk(root, node *resolve.FetchTreeNode) {
 	if node == nil {
 		return
 	}
-	for i := 0; i < len(node.ChildNodes); i++ {
+	for i := range node.ChildNodes {
 		child := node.ChildNodes[i]
 		if child.Kind == resolve.FetchTreeNodeKindParallel {
 			for _, group := range c.groupCandidatesByDataSource(child) {
@@ -100,8 +100,11 @@ func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group
 	// semantics for envelopes that do carry template tokens.
 	envelopeTokenSource := base.Envelope.Method + base.Envelope.URL + string(base.Envelope.Header)
 	for _, k := range envelopeTokenIndices(envelopeTokenSource) {
+		if k >= len(members[0].Variables) {
+			return
+		}
 		for i := 1; i < len(members); i++ {
-			if k >= len(members[i].Variables) || k >= len(members[0].Variables) ||
+			if k >= len(members[i].Variables) ||
 				!members[i].Variables[k].Equals(members[0].Variables[k]) {
 				return
 			}
@@ -206,11 +209,10 @@ func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group
 			DependsOnFetchIDs: unionDependencies(members, ids),
 			DeferID:           members[0].DeferID,
 		},
-		Input:                resolve.MultiEntityInput{Header: header, Entries: entries, Footer: footer},
-		DataSource:           members[0].DataSource,
-		DataSourceIdentifier: members[0].DataSourceIdentifier,
-		MergedFetchIDs:       ids,
-		Info:                 mergedFetchInfo(members, pretty),
+		Input:          resolve.MultiEntityInput{Header: header, Entries: entries, Footer: footer},
+		DataSource:     members[0].DataSource,
+		MergedFetchIDs: ids,
+		Info:           mergedFetchInfo(members, pretty),
 	}
 	// Entry items deliberately keep a nil Fetch: a backpointer to the multi
 	// would make the plan cyclic (breaking structural plan comparison), and
@@ -324,29 +326,6 @@ func mergedFetchInfo(members []*resolve.SingleFetch, pretty string) *resolve.Fet
 		info.QueryPlan = &resolve.QueryPlan{Query: pretty, DependsOnFields: dependsOnFields}
 	}
 	return info
-}
-
-// collectGroups returns every candidate set to merge across the ORGANIZED tree:
-// it descends into each FetchTreeNodeKindParallel group and, within it, buckets
-// candidates by DataSourceID (see groupCandidatesByDataSource). It is a
-// read-only query used by ProcessFetchTree's walk and by unit tests; it does not
-// mutate the tree.
-func (c *createMultiFetch) collectGroups(root *resolve.FetchTreeNode) [][]*resolve.FetchTreeNode {
-	var result [][]*resolve.FetchTreeNode
-	var walk func(node *resolve.FetchTreeNode)
-	walk = func(node *resolve.FetchTreeNode) {
-		if node == nil {
-			return
-		}
-		if node.Kind == resolve.FetchTreeNodeKindParallel {
-			result = append(result, c.groupCandidatesByDataSource(node)...)
-		}
-		for _, child := range node.ChildNodes {
-			walk(child)
-		}
-	}
-	walk(root)
-	return result
 }
 
 // groupCandidatesByDataSource buckets the candidate children of a single
