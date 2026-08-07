@@ -2,6 +2,7 @@ package jsonschema
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -21,6 +22,23 @@ type VariablesSchemaBuilder struct {
 	// defs accumulates schemas for recursive input types; attached to the root
 	// schema as "$defs".
 	defs map[string]*JsonSchema
+	// scalarSchemas overrides the schema emitted per custom scalar type name.
+	scalarSchemas map[string]*JsonSchema
+	// defaultedScalars records custom scalars that fell back to the string
+	// default, so callers can surface missing mappings.
+	defaultedScalars map[string]bool
+}
+
+// VariablesSchemaOption configures a VariablesSchemaBuilder.
+type VariablesSchemaOption func(*VariablesSchemaBuilder)
+
+// WithScalarSchemas overrides the JSON schema emitted for custom scalar types,
+// keyed by scalar type name. Unmapped custom scalars default to "string".
+// Built-in scalars (String, ID, Int, Float, Boolean) cannot be overridden.
+func WithScalarSchemas(schemas map[string]*JsonSchema) VariablesSchemaOption {
+	return func(v *VariablesSchemaBuilder) {
+		v.scalarSchemas = schemas
+	}
 }
 
 // Ensure VariablesSchemaBuilder implements the necessary astvisitor interfaces
@@ -30,15 +48,22 @@ var (
 )
 
 // NewVariablesSchemaBuilder creates a new VariablesSchemaBuilder.
-func NewVariablesSchemaBuilder(operationDocument, definitionDocument *ast.Document) *VariablesSchemaBuilder {
-	return &VariablesSchemaBuilder{
+func NewVariablesSchemaBuilder(operationDocument, definitionDocument *ast.Document, opts ...VariablesSchemaOption) *VariablesSchemaBuilder {
+	v := &VariablesSchemaBuilder{
 		operationDocument:  operationDocument,
 		definitionDocument: definitionDocument,
 		schema:             NewObjectSchema(),
 		report:             &operationreport.Report{},
 		recursiveTypes:     make(map[string]bool),
 		defs:               make(map[string]*JsonSchema),
+		defaultedScalars:   make(map[string]bool),
 	}
+
+	for _, opt := range opts {
+		opt(v)
+	}
+
+	return v
 }
 
 // EnterDocument implements the astvisitor.EnterDocumentVisitor interface
@@ -49,6 +74,7 @@ func (v *VariablesSchemaBuilder) EnterDocument(operation, definition *ast.Docume
 
 	v.schema = NewObjectSchema()
 	v.defs = make(map[string]*JsonSchema)             // Reset defs for each build
+	v.defaultedScalars = make(map[string]bool)        // Reset defaulted scalars for each build
 	v.recursiveTypes = v.computeRecursiveInputTypes() // Identify recursive input types
 
 	// Extract descriptions from root fields
@@ -174,6 +200,17 @@ func (v *VariablesSchemaBuilder) GetReport() *operationreport.Report {
 	return v.report
 }
 
+// DefaultedScalars returns the sorted names of custom scalars that fell back
+// to the default "string" schema during the last build.
+func (v *VariablesSchemaBuilder) DefaultedScalars() []string {
+	names := make([]string, 0, len(v.defaultedScalars))
+	for name := range v.defaultedScalars {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // Build traverses the operation and builds a unified JSON schema for its variables
 func (v *VariablesSchemaBuilder) Build() (*JsonSchema, error) {
 	// Create a new walker for AST traversal
@@ -267,10 +304,20 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 		return v.processInputObjectType(node)
 
 	case ast.NodeKindScalarTypeDefinition:
+		if override, ok := v.scalarSchemas[typeName]; ok {
+			// Clone per use: the builder mutates Nullable on returned schemas
+			// depending on each variable's non-null context.
+			schema := override.Clone()
+			if schema.Description == "" && v.definitionDocument.ScalarTypeDefinitions[node.Ref].Description.IsDefined {
+				schema.Description = v.definitionDocument.ScalarTypeDefinitionDescriptionString(node.Ref)
+			}
+			return schema
+		}
 		// Custom scalars are opaque to JSON Schema. Emit a best-effort "string"
 		// type: MCP/LLM tool consumers reject or degrade on untyped properties,
 		// and opaque scalars are overwhelmingly strings on the wire. Callers can
 		// override per scalar via WithScalarSchemas.
+		v.defaultedScalars[typeName] = true
 		schema := NewStringSchema()
 		if v.definitionDocument.ScalarTypeDefinitions[node.Ref].Description.IsDefined {
 			schema.Description = v.definitionDocument.ScalarTypeDefinitionDescriptionString(node.Ref)
@@ -537,10 +584,10 @@ func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value)
 // BuildJsonSchema builds a JSON schema for the variables of the given operation.
 // Recursive input types are represented via "$ref"/"$defs" and support arbitrary
 // nesting depth.
-func BuildJsonSchema(operationDocument, definitionDocument *ast.Document) (*JsonSchema, error) {
+func BuildJsonSchema(operationDocument, definitionDocument *ast.Document, opts ...VariablesSchemaOption) (*JsonSchema, error) {
 	if len(operationDocument.OperationDefinitions) == 0 {
 		return nil, fmt.Errorf("no operations found in document")
 	}
 
-	return NewVariablesSchemaBuilder(operationDocument, definitionDocument).Build()
+	return NewVariablesSchemaBuilder(operationDocument, definitionDocument, opts...).Build()
 }

@@ -1785,4 +1785,88 @@ query Items($page: Pagination!) {
 
 		assert.JSONEq(t, expectedJSON, string(actualJSON))
 	})
+
+	t.Run("scalar schema overrides", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+schema {
+	query: Query
+}
+
+scalar JSON
+scalar Cursor
+
+type Query {
+	search(filter: JSON!, after: Cursor, cursor: Cursor!) : String
+}
+`
+		operation := `
+query Search($filter: JSON!, $after: Cursor, $cursor: Cursor!) {
+	search(filter: $filter, after: $after, cursor: $cursor)
+}
+`
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operation)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		overrides := map[string]*JsonSchema{
+			"JSON": {Type: TypeObject, Description: "Arbitrary JSON object"},
+		}
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc, WithScalarSchemas(overrides))
+		require.NoError(t, err)
+
+		actualJSON, err := json.Marshal(schema)
+		require.NoError(t, err)
+
+		// - JSON! is mapped to object and non-null context strips the null union
+		// - after/cursor prove per-use cloning: same scalar, different nullability
+		expectedJSON := `{
+			"type": "object",
+			"properties": {
+				"filter": { "type": "object", "description": "Arbitrary JSON object" },
+				"after":  { "type": ["string", "null"] },
+				"cursor": { "type": "string" }
+			},
+			"required": ["filter", "cursor"],
+			"additionalProperties": false
+		}`
+		assert.JSONEq(t, expectedJSON, string(actualJSON))
+	})
+
+	t.Run("DefaultedScalars reports unmapped custom scalars once, sorted", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+schema {
+	query: Query
+}
+
+scalar JSON
+scalar Cursor
+scalar BigInt
+
+type Query {
+	search(filter: JSON!, after: Cursor, before: Cursor, size: BigInt) : String
+}
+`
+		operation := `
+query Search($filter: JSON!, $after: Cursor, $before: Cursor, $size: BigInt) {
+	search(filter: $filter, after: $after, before: $before, size: $size)
+}
+`
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operation)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		builder := NewVariablesSchemaBuilder(&operationDoc, &definitionDoc, WithScalarSchemas(map[string]*JsonSchema{
+			"JSON": {Type: TypeObject},
+		}))
+		_, err := builder.Build()
+		require.NoError(t, err)
+
+		// JSON is mapped -> not reported; Cursor used twice -> reported once
+		assert.Equal(t, []string{"BigInt", "Cursor"}, builder.DefaultedScalars())
+	})
 }
