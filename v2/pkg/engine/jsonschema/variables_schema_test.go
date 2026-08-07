@@ -1835,6 +1835,9 @@ query Search($filter: JSON!, $after: Cursor, $cursor: Cursor!) {
 		assert.JSONEq(t, expectedJSON, string(actualJSON))
 	})
 
+	// Guards the Clone-per-use invariant: if the override branch stops cloning,
+	// both variables below alias one *JsonSchema and the last-processed
+	// variable's nullability overwrites the first, failing this test.
 	t.Run("same overridden scalar at two nullabilities yields independent schemas", func(t *testing.T) {
 		// The override type is deliberately non-object: object-typed top-level
 		// variables are unconditionally forced non-nullable elsewhere (see
