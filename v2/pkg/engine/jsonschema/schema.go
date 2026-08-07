@@ -17,7 +17,8 @@ const (
 	TypeNull    SchemaType = "null"
 )
 
-// JsonSchema represents a JSON Schema definition
+// JsonSchema represents a JSON Schema definition.
+// When adding a reference-typed field (map, slice, pointer), update Clone or it will alias.
 type JsonSchema struct {
 	// Core schema fields
 	Type                 SchemaType             `json:"type,omitempty"`

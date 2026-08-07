@@ -1786,7 +1786,7 @@ query Items($page: Pagination!) {
 		assert.JSONEq(t, expectedJSON, string(actualJSON))
 	})
 
-	t.Run("scalar schema overrides", func(t *testing.T) {
+	t.Run("overridden scalar emits the mapped schema and unmapped scalars keep the string default", func(t *testing.T) {
 		schemaSDL := scalarDefinitions + `
 schema {
 	query: Query
