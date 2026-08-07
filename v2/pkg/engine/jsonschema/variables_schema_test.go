@@ -1609,10 +1609,12 @@ func TestBuildJsonSchema(t *testing.T) {
   "additionalProperties": false,
   "properties": {
     "filter": {
-      "description": "JSON object represented as string"
+      "description": "JSON object represented as string",
+      "type": ["string", "null"]
     },
     "from": {
-      "description": "ISO-8601 date time format"
+      "description": "ISO-8601 date time format",
+      "type": ["string", "null"]
     }
   },
   "type": "object"
@@ -1680,5 +1682,107 @@ func TestBuildJsonSchema(t *testing.T) {
 }`
 
 		assert.JSONEq(t, expectedJSON, string(data))
+	})
+
+	t.Run("query with custom scalar variables defaults to string type", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+schema {
+	query: Query
+}
+
+"""An opaque pagination cursor"""
+scalar Cursor
+
+type Query {
+	items(after: Cursor, first: Int!): String
+}
+`
+		operation := `
+query Items($after: Cursor, $first: Int!) {
+	items(after: $after, first: $first)
+}
+`
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operation)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		actualJSON, err := json.Marshal(schema)
+		require.NoError(t, err)
+
+		expectedJSON := `{
+	"type": "object",
+	"properties": {
+		"after": {
+			"type": ["string", "null"],
+			"description": "An opaque pagination cursor"
+		},
+		"first": {
+			"type": "integer"
+		}
+	},
+	"required": ["first"],
+	"additionalProperties": false
+}`
+
+		assert.JSONEq(t, expectedJSON, string(actualJSON))
+	})
+
+	t.Run("input object field with custom scalar defaults to string type", func(t *testing.T) {
+		schemaSDL := scalarDefinitions + `
+schema {
+	query: Query
+}
+
+scalar Cursor
+
+input Pagination {
+	after: Cursor
+	first: Int!
+}
+
+type Query {
+	items(page: Pagination!): String
+}
+`
+		operation := `
+query Items($page: Pagination!) {
+	items(page: $page)
+}
+`
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operation)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		actualJSON, err := json.Marshal(schema)
+		require.NoError(t, err)
+
+		expectedJSON := `{
+	"type": "object",
+	"properties": {
+		"page": {
+			"type": "object",
+			"properties": {
+				"after": { "type": ["string", "null"] },
+				"first": { "type": "integer" }
+			},
+			"required": ["first"],
+			"additionalProperties": false
+		}
+	},
+	"required": ["page"],
+	"additionalProperties": false
+}`
+
+		assert.JSONEq(t, expectedJSON, string(actualJSON))
 	})
 }

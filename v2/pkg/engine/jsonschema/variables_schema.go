@@ -267,8 +267,11 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 		return v.processInputObjectType(node)
 
 	case ast.NodeKindScalarTypeDefinition:
-		schema := NewAnySchema()
-		// Add description if available
+		// Custom scalars are opaque to JSON Schema. Emit a best-effort "string"
+		// type: MCP/LLM tool consumers reject or degrade on untyped properties,
+		// and opaque scalars are overwhelmingly strings on the wire. Callers can
+		// override per scalar via WithScalarSchemas.
+		schema := NewStringSchema()
 		if v.definitionDocument.ScalarTypeDefinitions[node.Ref].Description.IsDefined {
 			schema.Description = v.definitionDocument.ScalarTypeDefinitionDescriptionString(node.Ref)
 		}
