@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.15.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.14.2...v2.15.0) (2026-08-09)
+
+
+### Features
+
+* entitycache cache interface ([#1618](https://github.com/wundergraph/graphql-go-tools/issues/1618)) ([7ca8900](https://github.com/wundergraph/graphql-go-tools/commit/7ca89002d93cc7b446d62df2093ee50895267382))
+
+
+### Bug Fixes
+
+* add planner edge case fixes ([#1581](https://github.com/wundergraph/graphql-go-tools/issues/1581)) ([165b1f5](https://github.com/wundergraph/graphql-go-tools/commit/165b1f51dacc0e815b429e451329957fd91e552b))
+
 ## [2.14.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.14.1...v2.14.2) (2026-07-31)
 
 
