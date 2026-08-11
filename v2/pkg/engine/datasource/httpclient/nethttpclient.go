@@ -411,7 +411,7 @@ func multipartBytes(values map[string]io.Reader, files []*FileUpload) (*io.PipeR
 
 			for {
 				n, err := f.Read(buf)
-				if err != nil && err == io.EOF {
+				if err != nil && errors.Is(err, io.EOF) {
 					break
 				} else if err != nil {
 					return
