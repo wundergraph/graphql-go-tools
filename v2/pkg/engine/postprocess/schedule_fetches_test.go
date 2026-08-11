@@ -21,6 +21,7 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 		inlined   *resolve.FetchTreeNode // specify when it's not equal to winner
 		waves     *resolve.FetchTreeNode // specify when it's not equal to winner
 	}
+	deps := dependsOn
 
 	scenarios := []scenario{
 		{
@@ -930,19 +931,19 @@ func TestDisableScheduleFetches_OptionWiring(t *testing.T) {
 		return seq(
 			sf(0),
 			sf(1),
-			sf(2, deps(0)),
-			sf(3, deps(1)),
-			sf(4, deps(2, 3)))
+			sf(2, dependsOn(0)),
+			sf(3, dependsOn(1)),
+			sf(4, dependsOn(2, 3)))
 	}
 	wantWaves := seq(
 		par(sf(0), sf(1)),
-		par(sf(2, deps(0)),
-			sf(3, deps(1))),
-		sf(4, deps(2, 3)))
+		par(sf(2, dependsOn(0)),
+			sf(3, dependsOn(1))),
+		sf(4, dependsOn(2, 3)))
 	wantScheduled := seq(
-		par(seq(sf(0), sf(2, deps(0))),
-			seq(sf(1), sf(3, deps(1)))),
-		sf(4, deps(2, 3)))
+		par(seq(sf(0), sf(2, dependsOn(0))),
+			seq(sf(1), sf(3, dependsOn(1)))),
+		sf(4, dependsOn(2, 3)))
 
 	scheduled := input()
 	NewProcessor().fetchTreeProcessors.organizeFetchTree(scheduled)
@@ -984,8 +985,8 @@ func TestScheduleFetches_SubscriptionRootStaysSequence(t *testing.T) {
 
 func TestScheduleFetches_Validator(t *testing.T) {
 	t.Run("response-path nesting without a FetchID edge is valid", func(t *testing.T) {
-		y := sf(0, at("user"))
-		x := sf(1, at("user.details"), provides("user.details"))
+		y := sf(0, responsePath("user"))
+		x := sf(1, responsePath("user.details"), mergePath("user.details"))
 		tree := par(x, y)
 		dag, err := newFetchDAG(nodes(x, y))
 		require.NoError(t, err)
@@ -994,7 +995,7 @@ func TestScheduleFetches_Validator(t *testing.T) {
 
 	t.Run("explicit FetchID edge between parallel siblings is invalid", func(t *testing.T) {
 		y := sf(0)
-		x := sf(1, deps(0))
+		x := sf(1, dependsOn(0))
 		tree := par(x, y)
 		dag, err := newFetchDAG(nodes(x, y))
 		require.NoError(t, err)
@@ -1003,7 +1004,7 @@ func TestScheduleFetches_Validator(t *testing.T) {
 
 	t.Run("self-dependency is invalid", func(t *testing.T) {
 		y := sf(0)
-		x := sf(1, deps(1))
+		x := sf(1, dependsOn(1))
 		_, err := newFetchDAG(nodes(x, y))
 		require.EqualError(t, err, "self-dependent id 1")
 	})
@@ -1011,7 +1012,7 @@ func TestScheduleFetches_Validator(t *testing.T) {
 	// Conservation: a schedule must never lose or duplicate a fetch. The
 	// property tests lean on these rejections for their completeness checks.
 	t.Run("schedule missing a fetch is invalid", func(t *testing.T) {
-		input := nodes(sf(0), sf(1, deps(0)), sf(2, deps(0)))
+		input := nodes(sf(0), sf(1, dependsOn(0)), sf(2, dependsOn(0)))
 		dag, err := newFetchDAG(input)
 		require.NoError(t, err)
 		missing := seq(input[0], input[1])
@@ -1019,7 +1020,7 @@ func TestScheduleFetches_Validator(t *testing.T) {
 	})
 
 	t.Run("schedule duplicating a fetch is invalid", func(t *testing.T) {
-		input := nodes(sf(0), sf(1, deps(0)), sf(2, deps(0)))
+		input := nodes(sf(0), sf(1, dependsOn(0)), sf(2, dependsOn(0)))
 		dag, err := newFetchDAG(input)
 		require.NoError(t, err)
 		duplicated := seq(input[0], par(input[1], input[2]), input[1])
@@ -1031,7 +1032,7 @@ func TestScheduleFetches_ProcessorFallsBackOnError(t *testing.T) {
 	t.Parallel()
 	// on any scheduler/validator error the processor degrades to the LEGACY wave pipeline.
 	build := func() *resolve.FetchTreeNode {
-		return seq(sf(7), sf(7, deps(7)))
+		return seq(sf(7), sf(7, dependsOn(7)))
 	}
 
 	legacy := build()
@@ -1052,17 +1053,17 @@ func TestScheduleFetches_BigPlan(t *testing.T) {
 		return nodes(
 			sf(0),
 			sf(5),
-			sf(1, at("users"), deps(0)),
-			sf(6, at("topProducts"), deps(5)),
-			sf(11, at("topProducts"), deps(5)),
-			sf(2, at("users.@.reviews.@.product"), deps(1)),
-			sf(3, at("users.@.reviews.@.product.reviews.@.author"), deps(1)),
-			sf(4, at("users.@.reviews.@.product.reviews.@.author.reviews.@.product"), deps(1)),
-			sf(7, at("topProducts.@.reviews.@.author"), deps(6)),
-			sf(8, at("topProducts.@.reviews.@.author.reviews.@.product"), deps(6)),
-			sf(9, at("users.@.reviews.@.product"), deps(1, 2)),
-			sf(10, at("users.@.reviews.@.product.reviews.@.author.reviews.@.product"), deps(1, 4)),
-			sf(12, at("topProducts.@.reviews.@.author.reviews.@.product"), deps(6, 8)),
+			sf(1, responsePath("users"), dependsOn(0)),
+			sf(6, responsePath("topProducts"), dependsOn(5)),
+			sf(11, responsePath("topProducts"), dependsOn(5)),
+			sf(2, responsePath("users.@.reviews.@.product"), dependsOn(1)),
+			sf(3, responsePath("users.@.reviews.@.product.reviews.@.author"), dependsOn(1)),
+			sf(4, responsePath("users.@.reviews.@.product.reviews.@.author.reviews.@.product"), dependsOn(1)),
+			sf(7, responsePath("topProducts.@.reviews.@.author"), dependsOn(6)),
+			sf(8, responsePath("topProducts.@.reviews.@.author.reviews.@.product"), dependsOn(6)),
+			sf(9, responsePath("users.@.reviews.@.product"), dependsOn(1, 2)),
+			sf(10, responsePath("users.@.reviews.@.product.reviews.@.author.reviews.@.product"), dependsOn(1, 4)),
+			sf(12, responsePath("topProducts.@.reviews.@.author.reviews.@.product"), dependsOn(6, 8)),
 		)
 	}
 
@@ -1221,7 +1222,7 @@ func randomDAG(n int, averageDegree float64, rng *rand.Rand) []*resolve.FetchTre
 	}
 	out := make([]*resolve.FetchTreeNode, n)
 	for i := range out {
-		out[i] = sf(i, deps(depLists[i]...))
+		out[i] = sf(i, dependsOn(depLists[i]...))
 	}
 	return out
 }

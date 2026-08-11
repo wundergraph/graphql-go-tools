@@ -27,17 +27,7 @@ type scheduleFetches struct {
 	disable bool
 }
 
-func (b *scheduleFetches) ProcessFetchTree(root *resolve.FetchTreeNode) {
-	if b.disable || root == nil || root.Kind != resolve.FetchTreeNodeKindSequence {
-		return
-	}
-	if err := b.buildSchedule(root); err != nil {
-		(&orderSequenceByDependencies{}).ProcessFetchTree(root)
-		(&createParallelNodes{}).ProcessFetchTree(root)
-	}
-}
-
-func (b *scheduleFetches) buildSchedule(root *resolve.FetchTreeNode) error {
+func (b *scheduleFetches) ProcessFetchTree(root *resolve.FetchTreeNode) error {
 	dag, err := newFetchDAG(root.ChildNodes)
 	if err != nil {
 		return err

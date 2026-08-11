@@ -56,15 +56,23 @@ func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResp
 	p.addMissingNestedDependencies.ProcessFetchTree(fetches)
 }
 
-// organizeFetchTree organizes the fetch tree by ordering sequence nodes by dependencies and creating parallel nodes.
-// after this step fetches have tree structure of serial and parallel nodes.
+// organizeFetchTree organizes the fetch tree by merging entity fetches first and
+// then scheduling fetches in nested Parallel/Sequence trees. If scheduling failed, then
+// the fetches are organized as a Sequence of waves (Parallel groups).
+// After this step fetches have tree structure of serial and parallel nodes.
 func (p *FetchTreeProcessors) organizeFetchTree(fetches *resolve.FetchTreeNode) {
-	if !p.scheduleFetches.disable {
-		p.scheduleFetches.ProcessFetchTree(fetches)
-		return
+	if !p.scheduleFetches.disable && fetches != nil && fetches.Kind == resolve.FetchTreeNodeKindSequence {
+		if err := p.scheduleFetches.ProcessFetchTree(fetches); err == nil {
+			return
+		}
 	}
+	p.organizeFetchTreeInWaves(fetches)
+}
+
+func (p *FetchTreeProcessors) organizeFetchTreeInWaves(fetches *resolve.FetchTreeNode) {
 	p.orderSequenceByDependencies.ProcessFetchTree(fetches)
 	p.createParallelNodes.ProcessFetchTree(fetches)
+
 }
 
 // processOrganizedFetchTree runs the stages that operate on the tree organized in waves.

@@ -11,18 +11,18 @@ func TestCreateParallelNodes_ProcessFetchTree(t *testing.T) {
 		processor := &createParallelNodes{}
 		input := seq(
 			sf(0),
-			sf(1, deps(0)),
-			sf(2, deps(0)),
-			sf(3, deps(1)),
+			sf(1, dependsOn(0)),
+			sf(2, dependsOn(0)),
+			sf(3, dependsOn(1)),
 		)
 		processor.ProcessFetchTree(input)
 		expected := seq(
 			sf(0),
 			par(
-				sf(1, deps(0)),
-				sf(2, deps(0)),
+				sf(1, dependsOn(0)),
+				sf(2, dependsOn(0)),
 			),
-			sf(3, deps(1)),
+			sf(3, dependsOn(1)),
 		)
 		require.Equal(t, expected, input)
 	})
@@ -30,18 +30,18 @@ func TestCreateParallelNodes_ProcessFetchTree(t *testing.T) {
 		processor := &createParallelNodes{}
 		input := seq(
 			sf(0),
-			sf(1, deps(0)),
-			sf(2, deps(0)),
-			sf(3, deps(2)),
+			sf(1, dependsOn(0)),
+			sf(2, dependsOn(0)),
+			sf(3, dependsOn(2)),
 		)
 		processor.ProcessFetchTree(input)
 		expected := seq(
 			sf(0),
 			par(
-				sf(1, deps(0)),
-				sf(2, deps(0)),
+				sf(1, dependsOn(0)),
+				sf(2, dependsOn(0)),
 			),
-			sf(3, deps(2)),
+			sf(3, dependsOn(2)),
 		)
 		require.Equal(t, expected, input)
 	})
@@ -49,18 +49,18 @@ func TestCreateParallelNodes_ProcessFetchTree(t *testing.T) {
 		processor := &createParallelNodes{}
 		input := seq(
 			sf(0),
-			sf(1, deps(0)),
-			sf(2, deps(0)),
-			sf(3, deps(1, 2)),
+			sf(1, dependsOn(0)),
+			sf(2, dependsOn(0)),
+			sf(3, dependsOn(1, 2)),
 		)
 		processor.ProcessFetchTree(input)
 		expected := seq(
 			sf(0),
 			par(
-				sf(1, deps(0)),
-				sf(2, deps(0)),
+				sf(1, dependsOn(0)),
+				sf(2, dependsOn(0)),
 			),
-			sf(3, deps(1, 2)),
+			sf(3, dependsOn(1, 2)),
 		)
 		require.Equal(t, expected, input)
 	})
@@ -68,21 +68,21 @@ func TestCreateParallelNodes_ProcessFetchTree(t *testing.T) {
 		processor := &createParallelNodes{}
 		input := seq(
 			sf(0),
-			sf(1, deps(0)),
-			sf(2, deps(0)),
-			sf(3, deps(1, 2)),
-			sf(4, deps(1, 2)),
+			sf(1, dependsOn(0)),
+			sf(2, dependsOn(0)),
+			sf(3, dependsOn(1, 2)),
+			sf(4, dependsOn(1, 2)),
 		)
 		processor.ProcessFetchTree(input)
 		expected := seq(
 			sf(0),
 			par(
-				sf(1, deps(0)),
-				sf(2, deps(0)),
+				sf(1, dependsOn(0)),
+				sf(2, dependsOn(0)),
 			),
 			par(
-				sf(3, deps(1, 2)),
-				sf(4, deps(1, 2)),
+				sf(3, dependsOn(1, 2)),
+				sf(4, dependsOn(1, 2)),
 			),
 		)
 		require.Equal(t, expected, input)
@@ -91,24 +91,24 @@ func TestCreateParallelNodes_ProcessFetchTree(t *testing.T) {
 		processor := &createParallelNodes{}
 		input := seq(
 			sf(0),
-			sf(1, deps(0)),
-			sf(2, deps(0)),
-			sf(3, deps(1)),
-			sf(4, deps(2)),
-			sf(5, deps(4)),
+			sf(1, dependsOn(0)),
+			sf(2, dependsOn(0)),
+			sf(3, dependsOn(1)),
+			sf(4, dependsOn(2)),
+			sf(5, dependsOn(4)),
 		)
 		processor.ProcessFetchTree(input)
 		expected := seq(
 			sf(0),
 			par(
-				sf(1, deps(0)),
-				sf(2, deps(0)),
+				sf(1, dependsOn(0)),
+				sf(2, dependsOn(0)),
 			),
 			par(
-				sf(3, deps(1)),
-				sf(4, deps(2)),
+				sf(3, dependsOn(1)),
+				sf(4, dependsOn(2)),
 			),
-			sf(5, deps(4)),
+			sf(5, dependsOn(4)),
 		)
 		require.Equal(t, expected, input)
 	})
@@ -116,26 +116,26 @@ func TestCreateParallelNodes_ProcessFetchTree(t *testing.T) {
 		processor := &createParallelNodes{}
 		input := seq(
 			sf(0),
-			sf(1, deps(0)),
-			sf(2, deps(0)),
-			sf(3, deps(1, 2)),
-			sf(4, deps(1, 3)),
-			sf(5, deps(2, 3)),
-			sf(6, deps(4, 5)),
+			sf(1, dependsOn(0)),
+			sf(2, dependsOn(0)),
+			sf(3, dependsOn(1, 2)),
+			sf(4, dependsOn(1, 3)),
+			sf(5, dependsOn(2, 3)),
+			sf(6, dependsOn(4, 5)),
 		)
 		processor.ProcessFetchTree(input)
 		expected := seq(
 			sf(0),
 			par(
-				sf(1, deps(0)),
-				sf(2, deps(0)),
+				sf(1, dependsOn(0)),
+				sf(2, dependsOn(0)),
 			),
-			sf(3, deps(1, 2)),
+			sf(3, dependsOn(1, 2)),
 			par(
-				sf(4, deps(1, 3)),
-				sf(5, deps(2, 3)),
+				sf(4, dependsOn(1, 3)),
+				sf(5, dependsOn(2, 3)),
 			),
-			sf(6, deps(4, 5)),
+			sf(6, dependsOn(4, 5)),
 		)
 		require.Equal(t, expected, input)
 	})

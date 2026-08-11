@@ -16,18 +16,18 @@ func nodes(items ...*resolve.FetchTreeNode) []*resolve.FetchTreeNode {
 	return items
 }
 
-// sfOpt configures optional fields of a single-fetch node built by sf.
-type sfOpt func(node *resolve.FetchTreeNode)
+// singleFetchOption configures optional fields of a single-fetch node built by sf.
+type singleFetchOption func(node *resolve.FetchTreeNode)
 
-// deps sets the fetch IDs the fetch depends on.
-func deps(ids ...int) sfOpt {
+// dependsOn sets the fetch IDs the fetch depends on.
+func dependsOn(ids ...int) singleFetchOption {
 	return func(node *resolve.FetchTreeNode) {
 		node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies.DependsOnFetchIDs = ids
 	}
 }
 
-// at nests the fetch at responsePath, e.g. "a.b" becomes ObjectPath("a"), ObjectPath("b").
-func at(responsePath string) sfOpt {
+// responsePath nests the fetch responsePath responsePath, e.g. "a.b" becomes ObjectPath("a"), ObjectPath("b").
+func responsePath(responsePath string) singleFetchOption {
 	return func(node *resolve.FetchTreeNode) {
 		segments := strings.Split(responsePath, ".")
 		path := make([]resolve.FetchItemPathElement, len(segments))
@@ -40,14 +40,14 @@ func at(responsePath string) sfOpt {
 	}
 }
 
-// provides sets the merge path the fetch provides in the response.
-func provides(mergePath ...string) sfOpt {
+// mergePath sets the merge path the fetch mergePath in the response.
+func mergePath(mergePath ...string) singleFetchOption {
 	return func(node *resolve.FetchTreeNode) {
 		node.Item.Fetch.(*resolve.SingleFetch).PostProcessing.MergePath = mergePath
 	}
 }
 
-func sf(id int, opts ...sfOpt) *resolve.FetchTreeNode {
+func sf(id int, opts ...singleFetchOption) *resolve.FetchTreeNode {
 	node := resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: id}})
 	for _, opt := range opts {
 		opt(node)
@@ -80,21 +80,22 @@ func fetchesByID(input []*resolve.FetchTreeNode) map[int]*resolve.FetchTreeNode 
 	return byID
 }
 
-// materialize returns shape with every leaf replaced by the input node carrying the same fetch ID.
-func materialize(t *testing.T, shape *resolve.FetchTreeNode, byID map[int]*resolve.FetchTreeNode) *resolve.FetchTreeNode {
+// materialize returns shape with every leaf node replaced by the input node carrying the same fetch ID.
+// It needed to prevent clutter in the expected part of the test as not important.
+func materialize(t *testing.T, shape *resolve.FetchTreeNode, input map[int]*resolve.FetchTreeNode) *resolve.FetchTreeNode {
 	t.Helper()
 	if shape == nil {
 		return nil
 	}
 	if shape.Kind == resolve.FetchTreeNodeKindSingle {
 		id := shape.Item.Fetch.Dependencies().FetchID
-		node, ok := byID[id]
+		node, ok := input[id]
 		require.Truef(t, ok, "expected tree references fetch %d not present in input", id)
 		return node
 	}
 	children := make([]*resolve.FetchTreeNode, len(shape.ChildNodes))
 	for i, child := range shape.ChildNodes {
-		children[i] = materialize(t, child, byID)
+		children[i] = materialize(t, child, input)
 	}
 	return &resolve.FetchTreeNode{Kind: shape.Kind, ChildNodes: children}
 }
