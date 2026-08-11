@@ -23,6 +23,40 @@ type Fetch interface {
 	// FetchInfo returns additional fetch-related information.
 	// Callers must treat FetchInfo as read-only after planning; it may be nil when disabled by planner options.
 	FetchInfo() *FetchInfo
+
+	// CacheConfig returns the per-fetch cache config; nil means "not cached".
+	// All caching code reads it through this method (never via a switch over
+	// concrete fetch types).
+	CacheConfig() *FetchCacheConfig
+
+	// SetCacheConfig sets the per-fetch cache config; the caching planner passes
+	// call it after the concrete fetch types are created.
+	SetCacheConfig(cfg *FetchCacheConfig)
+
+	// IsEntityFetch reports whether this is a single-entity fetch (an _entities
+	// fetch on an object field).
+	IsEntityFetch() bool
+
+	// IsBatchEntityFetch reports whether this is a batched entity fetch (an
+	// _entities fetch over array items).
+	IsBatchEntityFetch() bool
+
+	// RepresentationInputTemplate returns the input template holding the
+	// fetch's `representations` element — the ResolvableObjectVariable segment
+	// whose node IS the merged representation the fetch sends. It is nil for
+	// fetches that send no representation (plain single fetches). Caching reads
+	// it through this method (never via a switch over concrete fetch types).
+	RepresentationInputTemplate() *InputTemplate
+
+	// LoadTrace returns the fetch's ART trace destination; nil when tracing is
+	// disabled for the request. Caching/observability code reads it through
+	// this method (never via a switch over concrete fetch types).
+	LoadTrace() *DataSourceLoadTrace
+
+	// SetDataSource replaces the fetch's transport, e.g. to swap in an
+	// in-process fake; it exists so no caller needs a switch over concrete
+	// fetch types.
+	SetDataSource(ds DataSource)
 }
 
 type FetchItem struct {
@@ -111,6 +145,33 @@ func (s *SingleFetch) FetchInfo() *FetchInfo {
 	return s.Info
 }
 
+func (s *SingleFetch) CacheConfig() *FetchCacheConfig {
+	return s.FetchConfiguration.Cache
+}
+
+func (s *SingleFetch) SetCacheConfig(cfg *FetchCacheConfig) {
+	s.FetchConfiguration.Cache = cfg
+}
+
+func (s *SingleFetch) IsEntityFetch() bool {
+	return false
+}
+
+func (s *SingleFetch) IsBatchEntityFetch() bool {
+	return false
+}
+
+// RepresentationInputTemplate returns nil: a plain single fetch sends no
+// representations element (createConcreteSingleFetchTypes converts the ones
+// that do into EntityFetch / BatchEntityFetch).
+func (s *SingleFetch) RepresentationInputTemplate() *InputTemplate {
+	return nil
+}
+
+func (s *SingleFetch) SetDataSource(ds DataSource) {
+	s.FetchConfiguration.DataSource = ds
+}
+
 // FetchDependencies holding current fetch id and ids of fetches that current fetch depends on
 // e.g. should be fetched only after all dependent fetches are fetched
 type FetchDependencies struct {
@@ -156,6 +217,10 @@ func (ppc *PostProcessingConfiguration) Equals(other *PostProcessingConfiguratio
 	return true
 }
 
+func (f *SingleFetch) LoadTrace() *DataSourceLoadTrace {
+	return f.Trace
+}
+
 func (*SingleFetch) FetchKind() FetchKind {
 	return FetchKindSingle
 }
@@ -169,6 +234,7 @@ type BatchEntityFetch struct {
 	Input                BatchInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
+	Cache                *FetchCacheConfig
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
@@ -180,6 +246,35 @@ func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
 
 func (b *BatchEntityFetch) FetchInfo() *FetchInfo {
 	return b.Info
+}
+
+func (b *BatchEntityFetch) CacheConfig() *FetchCacheConfig {
+	return b.Cache
+}
+
+func (b *BatchEntityFetch) SetCacheConfig(cfg *FetchCacheConfig) {
+	b.Cache = cfg
+}
+
+func (b *BatchEntityFetch) IsEntityFetch() bool {
+	return false
+}
+
+func (b *BatchEntityFetch) IsBatchEntityFetch() bool {
+	return true
+}
+
+// RepresentationInputTemplate returns the batch's per-item template; every
+// item renders the same representation node, so the first one identifies it.
+func (b *BatchEntityFetch) RepresentationInputTemplate() *InputTemplate {
+	if len(b.Input.Items) == 0 {
+		return nil
+	}
+	return &b.Input.Items[0]
+}
+
+func (b *BatchEntityFetch) SetDataSource(ds DataSource) {
+	b.DataSource = ds
 }
 
 type BatchInput struct {
@@ -197,6 +292,10 @@ type BatchInput struct {
 	Footer       InputTemplate
 }
 
+func (f *BatchEntityFetch) LoadTrace() *DataSourceLoadTrace {
+	return f.Trace
+}
+
 func (*BatchEntityFetch) FetchKind() FetchKind {
 	return FetchKindEntityBatch
 }
@@ -209,6 +308,7 @@ type EntityFetch struct {
 	Input                EntityInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
+	Cache                *FetchCacheConfig
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
@@ -222,11 +322,40 @@ func (e *EntityFetch) FetchInfo() *FetchInfo {
 	return e.Info
 }
 
+func (e *EntityFetch) CacheConfig() *FetchCacheConfig {
+	return e.Cache
+}
+
+func (e *EntityFetch) SetCacheConfig(cfg *FetchCacheConfig) {
+	e.Cache = cfg
+}
+
+func (e *EntityFetch) IsEntityFetch() bool {
+	return true
+}
+
+func (e *EntityFetch) IsBatchEntityFetch() bool {
+	return false
+}
+
+// RepresentationInputTemplate returns the single-item representation template.
+func (e *EntityFetch) RepresentationInputTemplate() *InputTemplate {
+	return &e.Input.Item
+}
+
+func (e *EntityFetch) SetDataSource(ds DataSource) {
+	e.DataSource = ds
+}
+
 type EntityInput struct {
 	Header      InputTemplate
 	Item        InputTemplate
 	SkipErrItem bool
 	Footer      InputTemplate
+}
+
+func (f *EntityFetch) LoadTrace() *DataSourceLoadTrace {
+	return f.Trace
 }
 
 func (*EntityFetch) FetchKind() FetchKind {
@@ -278,6 +407,10 @@ type FetchConfiguration struct {
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
+
+	// Cache is the per-fetch cache config; nil means "not cached". A pointer so
+	// most (uncached) fetches carry no inline struct.
+	Cache *FetchCacheConfig
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -302,6 +435,12 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 		return false
 	}
 	if fc.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
+		return false
+	}
+	if (fc.Cache == nil) != (other.Cache == nil) {
+		return false
+	}
+	if fc.Cache != nil && !fc.Cache.Equals(other.Cache) {
 		return false
 	}
 
@@ -391,7 +530,40 @@ type DataSourceLoadTrace struct {
 	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
 	LoadSkipped                bool            `json:"load_skipped"`
 	LoadStats                  *LoadStats      `json:"load_stats,omitempty"`
+	CacheTrace                 *CacheTrace     `json:"cache,omitempty"`
 	Path                       string          `json:"-"`
+}
+
+// CacheTrace is the per-fetch caching section of the ART trace output,
+// assembled by the cache observer at request end from the opaque
+// FetchCacheHandle — no caching internals leak onto the loader surface.
+type CacheTrace struct {
+	Decision       string                    `json:"decision"`
+	Hit            bool                      `json:"hit"`
+	Shadow         bool                      `json:"shadow,omitempty"`
+	Items          []CacheItemTrace          `json:"items,omitempty"`
+	ShadowCompares []CacheShadowCompareTrace `json:"shadow_compares,omitempty"`
+}
+
+// CacheItemTrace traces one item (or batch bucket) of a cached fetch.
+type CacheItemTrace struct {
+	// Key is the item's rendered cache key, shared by L1 and L2; hashed when the
+	// policy sets HashAnalyticsKeys, omitted when the key could not render (then
+	// the item is a plain miss with no write).
+	Key string `json:"key,omitempty"`
+	// ServedFrom is "l1" or "l2" when the item was served from cache.
+	ServedFrom  string `json:"served_from,omitempty"`
+	Hit         bool   `json:"hit"`
+	NegativeHit bool   `json:"negative_hit,omitempty"`
+	// RemainingTTLNano is the served value's remaining TTL (L2 hits).
+	RemainingTTLNano int64 `json:"remaining_ttl_nanoseconds,omitempty"`
+}
+
+// CacheShadowCompareTrace is one shadow staleness probe result.
+type CacheShadowCompareTrace struct {
+	Key          string `json:"key,omitempty"`
+	IsFresh      bool   `json:"is_fresh"`
+	CacheAgeNano int64  `json:"cache_age_nanoseconds"`
 }
 
 type LoadStats struct {

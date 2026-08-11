@@ -41,6 +41,24 @@ type GraphQLResponse struct {
 
 	Info        *GraphQLResponseInfo
 	DataSources []DataSourceInfo
+
+	// cacheProvidesData is the ProvidesData side-table the caching planner walk
+	// produces: per fetch (keyed by its *FetchInfo identity), the field tree the
+	// fetch returns. Kept OFF the response tree so defer's response-tree Copy
+	// never touches it; consumed by the caching postprocess passes.
+	cacheProvidesData map[*FetchInfo]*Object
+}
+
+// SetCacheProvidesData attaches the caching planner walk's ProvidesData
+// side-table to the response.
+func (g *GraphQLResponse) SetCacheProvidesData(m map[*FetchInfo]*Object) {
+	g.cacheProvidesData = m
+}
+
+// CacheProvidesData returns the ProvidesData side-table; nil when caching is
+// not configured.
+func (g *GraphQLResponse) CacheProvidesData() map[*FetchInfo]*Object {
+	return g.cacheProvidesData
 }
 
 func (g *GraphQLResponse) SingleFlightAllowed() bool {

@@ -30,12 +30,15 @@ import (
 type internalExecutionContext struct {
 	resolveContext *resolve.Context
 	postProcessor  *postprocess.Processor
+	// cacheResponseInfo, when set, receives this execution's client cache
+	// answer once resolution has completed (see WithCacheResponseInfo).
+	cacheResponseInfo *resolve.CacheResponseInfo
 }
 
-func newInternalExecutionContext() *internalExecutionContext {
+func newInternalExecutionContext(postProcessorOptions ...postprocess.ProcessorOption) *internalExecutionContext {
 	return &internalExecutionContext{
 		resolveContext: resolve.NewContext(context.Background()),
-		postProcessor:  postprocess.NewProcessor(),
+		postProcessor:  postprocess.NewProcessor(postProcessorOptions...),
 	}
 }
 
@@ -60,6 +63,9 @@ type ExecutionEngine struct {
 	executionPlanCache       *lru.Cache
 	apolloCompatibilityFlags apollocompatibility.Flags
 	validationOptions        []astvalidation.Option
+	// postProcessorOptions carry the caching wiring (postprocess.EnableCaching)
+	// into every per-execution postprocess.Processor; empty when caching is off.
+	postProcessorOptions []postprocess.ProcessorOption
 }
 
 type WebsocketBeforeStartHook interface {
@@ -101,6 +107,56 @@ func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	}
 }
 
+// WithCacheController attaches the runtime cache controller for this
+// execution — the counterpart of Configuration.SetCaching (which wires the
+// PLAN side): the controller serves and populates the request's L1/L2 caches.
+// Without it a cache-configured plan simply fetches everything (the runtime
+// no-op).
+func WithCacheController(controller resolve.CacheController) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SetCacheController(controller)
+	}
+}
+
+// WithCacheResponseInfo captures this execution's client cache answer — the
+// freshness and privacy the response may be kept under, plus the invalidation
+// tags of the entries it was built from — into dst once resolution completes.
+// It is where an embedder turns caching into response headers; without a cache
+// controller, or with client emission switched off, dst stays the zero value
+// (emit nothing).
+func WithCacheResponseInfo(dst *resolve.CacheResponseInfo) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.cacheResponseInfo = dst
+	}
+}
+
+// WithPrivatePartitionProvider supplies the requester identity that private
+// cache entries are partitioned by. Without it, private entries can only be
+// partitioned where the caching configuration keys a subgraph by its forwarded
+// headers — and a private fetch with neither identity source skips the store.
+func WithPrivatePartitionProvider(provider resolve.PrivatePartitionProvider) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SetPrivatePartitionProvider(provider)
+	}
+}
+
+// WithSubgraphHeadersBuilder defines the headers (and their hash) the engine
+// sends per subgraph. The hash also feeds the cache: it varies public entries
+// by header and identifies the requester of private ones.
+func WithSubgraphHeadersBuilder(builder resolve.SubgraphHeadersBuilder) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SubgraphHeadersBuilder = builder
+	}
+}
+
+// WithIncludeQueryPlanInResponse includes the fetch tree's QueryPlan in the
+// response extensions.
+func WithIncludeQueryPlanInResponse() ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.ExecutionOptions.IncludeQueryPlanInResponse = true
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {
@@ -128,6 +184,21 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		dsIDs[ds.Id()] = struct{}{}
 	}
 
+	var postProcessorOptions []postprocess.ProcessorOption
+	if engineConfig.caching != nil {
+		for id := range engineConfig.caching.Subgraphs {
+			if _, ok := dsIDs[id]; !ok {
+				return nil, fmt.Errorf("caching configured for unknown datasource id: %s", id)
+			}
+		}
+		engineConfig.plannerConfig.Caching = engineConfig.caching
+		// Caching requires FetchInfo: the configuration is matched to fetches
+		// via FetchInfo.DataSourceID, so a DisableIncludeInfo + caching
+		// combination must never degrade to silent uncached behavior.
+		engineConfig.plannerConfig.DisableIncludeInfo = false
+		postProcessorOptions = append(postProcessorOptions, postprocess.EnableCaching(engineConfig.caching))
+	}
+
 	var validationOpts []astvalidation.Option
 	if engineConfig.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability {
 		validationOpts = append(validationOpts, astvalidation.WithRelaxFieldSelectionMergingNullability())
@@ -141,7 +212,8 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
-		validationOptions: validationOpts,
+		validationOptions:    validationOpts,
+		postProcessorOptions: postProcessorOptions,
 	}, nil
 }
 
@@ -213,7 +285,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 	}
 
-	execContext := newInternalExecutionContext()
+	execContext := newInternalExecutionContext(e.postProcessorOptions...)
 	execContext.setContext(ctx)
 	execContext.setVariables(operation.Variables)
 	execContext.setRequest(operation.InternalRequest())
@@ -221,6 +293,14 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 
 	for i := range options {
 		options[i](execContext)
+	}
+
+	if execContext.cacheResponseInfo != nil {
+		// Deferred so it runs after resolution — including the resolver's own
+		// deferred cache-request end — whichever plan kind executes below.
+		defer func() {
+			*execContext.cacheResponseInfo = execContext.resolveContext.CacheResponseInfo()
+		}()
 	}
 
 	if execContext.resolveContext.TracingOptions.Enable {

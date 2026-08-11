@@ -1,0 +1,16 @@
+extend type Query {
+    products(first: Int = 5): [Product!]!
+    promotions: [Product!]!
+    product(upc: String!): Product
+    productBySku(sku: String!): Product
+}
+type Product @key(fields: "upc") @key(fields: "sku") {
+    upc: String!
+    sku: String!
+    name: String!
+    price: Int!
+}
+extend type User @key(fields: "id") {
+    id: ID! @external
+    favoriteProduct: Product
+}

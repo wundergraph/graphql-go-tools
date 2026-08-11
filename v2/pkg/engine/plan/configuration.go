@@ -3,6 +3,7 @@ package plan
 import (
 	"github.com/jensneuse/abstractlogger"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -14,6 +15,13 @@ type Configuration struct {
 	Fields                             FieldConfigurations
 	Types                              TypeConfigurations
 	EntityInterfaceNames               []string
+
+	// Caching holds the declarative caching configuration cascade, its
+	// per-subgraph overrides keyed by datasource ID. A non-nil value gates the
+	// cacheProvidesDataVisitor second walk; the same value feeds
+	// postprocess.EnableCaching. Populated by the engine Configuration's
+	// SetCaching — the engine entry point is the only public producer.
+	Caching *cacheconfig.CachingConfiguration
 	// DisableResolveFieldPositions should be set to true for testing purposes
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand

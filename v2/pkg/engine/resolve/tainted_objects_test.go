@@ -353,3 +353,17 @@ func (m *mockFetchWithInfo) FetchKind() FetchKind {
 func (m *mockFetchWithInfo) Dependencies() *FetchDependencies {
 	return nil
 }
+
+func (m *mockFetchWithInfo) LoadTrace() *DataSourceLoadTrace { return nil }
+
+func (m *mockFetchWithInfo) CacheConfig() *FetchCacheConfig { return nil }
+
+func (m *mockFetchWithInfo) SetCacheConfig(*FetchCacheConfig) {}
+
+func (m *mockFetchWithInfo) IsEntityFetch() bool { return false }
+
+func (m *mockFetchWithInfo) IsBatchEntityFetch() bool { return false }
+
+func (m *mockFetchWithInfo) RepresentationInputTemplate() *InputTemplate { return nil }
+
+func (m *mockFetchWithInfo) SetDataSource(DataSource) {}

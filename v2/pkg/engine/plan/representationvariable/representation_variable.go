@@ -1,4 +1,9 @@
-package graphql_datasource
+// Package representationvariable builds the resolve-node representation of a federation
+// entity key: it turns one `@key` selection set into a federation-pointer-free
+// *resolve.Object used to render the `representations` variable for entity fetches.
+// It is shared between the graphql datasource planner and cache-key construction,
+// so that both derive representation nodes from a single walker and can never skew.
+package representationvariable
 
 import (
 	"bytes"
@@ -18,7 +23,16 @@ type objectFields struct {
 
 // TODO: add support for remapping path
 
-func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData) (*resolve.Object, error) {
+// BuildRepresentationVariableNode turns one `@key` selection set (cfg.SelectionSet on
+// cfg.TypeName) into a federation-pointer-free *resolve.Object, with the
+// interfaceObject/entityInterface `__typename` remap from federationCfg baked in.
+//
+// markKeyFields records on every emitted field whether it came from a `@key`
+// set (an empty cfg.FieldName; a `@requires` set names the field carrying the
+// directive), so the merged node still tells the two apart. It is a CACHING
+// artifact and therefore opt-in: with caching off, plans carry no marks and
+// stay byte-identical.
+func BuildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData, markKeyFields bool) (*resolve.Object, error) {
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
 		return nil, report
@@ -48,6 +62,7 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 		entityInterfaceTypeName: entityInterfaceTypeName,
 		addOnType:               true,
 		addTypeName:             true,
+		keyFields:               markKeyFields && cfg.FieldName == "",
 		remapPaths:              cfg.RemappedPaths,
 		Walker:                  walker,
 	}
@@ -62,7 +77,12 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 	return visitor.rootObject, nil
 }
 
+// mergeFields deep-merges one field selected by two representation sources. A
+// field belonging to the `@key` set in EITHER source is a key field in the
+// merged node, so the flag is OR-ed rather than taken from the left.
 func mergeFields(left, right *resolve.Field) *resolve.Field {
+	left.CacheEntityKeyField = left.CacheEntityKeyField || right.CacheEntityKeyField
+
 	switch left.Value.NodeKind() {
 	case resolve.NodeKindObject:
 		left.Value = mergeObjects(left.Value, right.Value)
@@ -120,7 +140,10 @@ func fieldsHasField(fields []*resolve.Field, field *resolve.Field) (int, bool) {
 	return -1, false
 }
 
-func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
+// MergeRepresentationVariableNodes merges the per-key representation objects into the
+// single nullable object the graphql datasource renders as its `representations`
+// variable; fields with the same name and type conditions are deep-merged.
+func MergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
 	fieldCount := 0
 	for _, object := range objects {
 		fieldCount += len(object.Fields)
@@ -144,6 +167,8 @@ func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object
 	}
 }
 
+// representationVariableVisitor walks one `@key` selection set against the schema
+// definition and assembles the corresponding resolve-node tree.
 type representationVariableVisitor struct {
 	*astvisitor.Walker
 
@@ -158,7 +183,11 @@ type representationVariableVisitor struct {
 
 	addOnType   bool
 	addTypeName bool
-	remapPaths  map[string]string
+	// keyFields marks the walked selection set as the entity's `@key` set, which
+	// every emitted field records so the merged node keeps key and `@requires`
+	// provenance apart.
+	keyFields  bool
+	remapPaths map[string]string
 }
 
 func (v *representationVariableVisitor) EnterDocument(key, definition *ast.Document) {
@@ -219,9 +248,10 @@ func (v *representationVariableVisitor) EnterField(ref int) {
 	}
 
 	currentField := &resolve.Field{
-		Name:        fieldName,
-		Value:       v.resolveFieldValue(ref, fieldDefinitionType, true, []string{fieldPath}),
-		OnTypeNames: v.resolveOnTypeNames(ref),
+		Name:                fieldName,
+		Value:               v.resolveFieldValue(ref, fieldDefinitionType, true, []string{fieldPath}),
+		OnTypeNames:         v.resolveOnTypeNames(ref),
+		CacheEntityKeyField: v.keyFields,
 	}
 
 	if v.addOnType && v.currentFields[len(v.currentFields)-1].isRoot {

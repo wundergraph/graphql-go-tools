@@ -1,4 +1,4 @@
-package graphql_datasource
+package representationvariable
 
 import (
 	"testing"
@@ -18,7 +18,10 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			SelectionSet: keyStr,
 		}
 
-		node, err := buildRepresentationVariableNode(&definition, cfg, federationMeta)
+		// Without caching configured the planner asks for no @key marking, so
+		// these rows also pin that the node is what it was before the marking
+		// existed.
+		node, err := BuildRepresentationVariableNode(&definition, cfg, federationMeta, false)
 		require.NoError(t, err)
 
 		require.Equal(t, expectedNode, node)
@@ -27,7 +30,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		runTest(t, `
 			scalar String
-	
+
 			type User {
 				id: String!
 				name: String!
@@ -66,7 +69,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 	t.Run("with interface object", func(t *testing.T) {
 		runTest(t, `
 			scalar String
-	
+
 			type User {
 				id: String!
 				name: String!
@@ -110,12 +113,58 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			})
 	})
 
+	t.Run("with entity interface", func(t *testing.T) {
+		runTest(t, `
+			scalar String
+
+			type User {
+				id: String!
+				name: String!
+			}
+		`,
+			`id name`,
+			plan.FederationMetaData{
+				EntityInterfaces: []plan.EntityInterfaceConfiguration{
+					{
+						InterfaceTypeName: "Account",
+						ConcreteTypeNames: []string{"User", "Admin"},
+					},
+				},
+			},
+			&resolve.Object{
+				Nullable: true,
+				Fields: []*resolve.Field{
+					{
+						Name: []byte("__typename"),
+						Value: &resolve.String{
+							Path: []string{"__typename"},
+						},
+						OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+					},
+					{
+						Name: []byte("id"),
+						Value: &resolve.String{
+							Path: []string{"id"},
+						},
+						OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+					},
+					{
+						Name: []byte("name"),
+						Value: &resolve.String{
+							Path: []string{"name"},
+						},
+						OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+					},
+				},
+			})
+	})
+
 	t.Run("deeply nested", func(t *testing.T) {
 		runTest(t, `
 			scalar String
 			scalar Int
 			scalar Float
-	
+
 			type User {
 				id: String!
 				name: String!
@@ -130,7 +179,7 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			type Address {
 				zip: Float!
 			}
-				
+
 		`,
 			`id name account { accoundID address(home: true) { zip } }`,
 			plan.FederationMetaData{},
@@ -313,7 +362,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userRepresentation, adminRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userRepresentation, adminRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -362,7 +411,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -413,7 +462,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -567,7 +616,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
 	})
 
@@ -793,7 +842,216 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 			},
 		}
 
-		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		merged := MergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
 		require.Equal(t, expected, merged)
+	})
+}
+
+// TestBuildRepresentationVariableNodeKeyFieldMarking pins the @key provenance
+// the cache reads off the merged representation node: which fields carry it,
+// which do not, that a field selected by BOTH a @key and a @requires set stays
+// a key field, and that the marking is opt-in.
+func TestBuildRepresentationVariableNodeKeyFieldMarking(t *testing.T) {
+	definitionStr := `
+		scalar String
+		scalar Int
+
+		type User {
+			id: String!
+			name: String!
+			account: Account!
+		}
+
+		type Account {
+			accountID: Int!
+			balance: Int!
+		}
+	`
+
+	build := func(t *testing.T, cfg plan.FederationFieldConfiguration, markKeyFields bool) *resolve.Object {
+		t.Helper()
+		definition, _ := astparser.ParseGraphqlDocumentString(definitionStr)
+		node, err := BuildRepresentationVariableNode(&definition, cfg, plan.FederationMetaData{}, markKeyFields)
+		require.NoError(t, err)
+		return node
+	}
+
+	t.Run("a @key set marks every field it emits, at every depth", func(t *testing.T) {
+		node := build(t, plan.FederationFieldConfiguration{
+			TypeName:     "User",
+			SelectionSet: `id account { accountID }`,
+		}, true)
+		require.Equal(t, &resolve.Object{
+			Nullable: true,
+			Fields: []*resolve.Field{
+				{
+					// __typename is never part of the hashed key subset, so the
+					// builder leaves it unmarked.
+					Name: []byte("__typename"),
+					Value: &resolve.String{
+						Path: []string{"__typename"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames:         [][]byte{[]byte("User")},
+					CacheEntityKeyField: true,
+				},
+				{
+					Name: []byte("account"),
+					Value: &resolve.Object{
+						Path: []string{"account"},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("accountID"),
+								Value: &resolve.Integer{
+									Path: []string{"accountID"},
+								},
+								CacheEntityKeyField: true,
+							},
+						},
+					},
+					OnTypeNames:         [][]byte{[]byte("User")},
+					CacheEntityKeyField: true,
+				},
+			},
+		}, node)
+	})
+
+	t.Run("a @requires set marks nothing: it names the field carrying the directive", func(t *testing.T) {
+		node := build(t, plan.FederationFieldConfiguration{
+			TypeName:     "User",
+			FieldName:    "shippingEstimate",
+			SelectionSet: `name`,
+		}, true)
+		require.Equal(t, &resolve.Object{
+			Nullable: true,
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("__typename"),
+					Value: &resolve.String{
+						Path: []string{"__typename"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("name"),
+					Value: &resolve.String{
+						Path: []string{"name"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}, node)
+	})
+
+	t.Run("merging keeps a field the @key set claims, whichever side declared it first", func(t *testing.T) {
+		key := build(t, plan.FederationFieldConfiguration{
+			TypeName:     "User",
+			SelectionSet: `id account { accountID }`,
+		}, true)
+		requires := build(t, plan.FederationFieldConfiguration{
+			TypeName:     "User",
+			FieldName:    "shippingEstimate",
+			SelectionSet: `id name account { balance }`,
+		}, true)
+
+		// @requires FIRST, so the merge has to OR the flag onto a field it
+		// already collected unmarked.
+		require.Equal(t, &resolve.Object{
+			Nullable: true,
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("__typename"),
+					Value: &resolve.String{
+						Path: []string{"__typename"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames:         [][]byte{[]byte("User")},
+					CacheEntityKeyField: true,
+				},
+				{
+					Name: []byte("name"),
+					Value: &resolve.String{
+						Path: []string{"name"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("account"),
+					Value: &resolve.Object{
+						Path: []string{"account"},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("balance"),
+								Value: &resolve.Integer{
+									Path: []string{"balance"},
+								},
+							},
+							{
+								Name: []byte("accountID"),
+								Value: &resolve.Integer{
+									Path: []string{"accountID"},
+								},
+								CacheEntityKeyField: true,
+							},
+						},
+					},
+					OnTypeNames:         [][]byte{[]byte("User")},
+					CacheEntityKeyField: true,
+				},
+			},
+		}, MergeRepresentationVariableNodes([]*resolve.Object{requires, key}))
+	})
+
+	t.Run("without the marking a @key set emits exactly the unmarked node", func(t *testing.T) {
+		node := build(t, plan.FederationFieldConfiguration{
+			TypeName:     "User",
+			SelectionSet: `id account { accountID }`,
+		}, false)
+		require.Equal(t, &resolve.Object{
+			Nullable: true,
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("__typename"),
+					Value: &resolve.String{
+						Path: []string{"__typename"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("account"),
+					Value: &resolve.Object{
+						Path: []string{"account"},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("accountID"),
+								Value: &resolve.Integer{
+									Path: []string{"accountID"},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}, node)
 	})
 }

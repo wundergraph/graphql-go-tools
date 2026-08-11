@@ -20,6 +20,10 @@ type Planner struct {
 	planningVisitor *Visitor
 	costVisitor     *CostVisitor
 
+	// cacheProvidesData is the caching provides-data walk; constructed only
+	// when caching is configured (nil otherwise, the planner no-op gate).
+	cacheProvidesData *cacheProvidesDataVisitor
+
 	nodeSelectionBuilder *NodeSelectionBuilder
 	planningPathBuilder  *PathBuilder
 
@@ -66,10 +70,16 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	planningVisitor := NewVisitor(&planningWalker)
 	planningVisitor.disableResolveFieldPositions = config.DisableResolveFieldPositions
 
+	var cacheProvidesData *cacheProvidesDataVisitor
+	if config.Caching != nil {
+		cacheProvidesData = &cacheProvidesDataVisitor{}
+	}
+
 	p := &Planner{
 		config:                 config,
 		planningWalker:         &planningWalker,
 		planningVisitor:        planningVisitor,
+		cacheProvidesData:      cacheProvidesData,
 		prepareOperationWalker: &prepareOperationWalker,
 		deferInfoCollector:     deferInfoCollector,
 	}
@@ -222,6 +232,17 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		costCalc := NewCostCalculator(p.planningVisitor.Config)
 		costCalc.tree = p.costVisitor.finalCostTree()
 		p.planningVisitor.plan.SetCostCalculator(costCalc)
+	}
+
+	// The caching provides-data walk: a gated SECOND, filter-free walk on a
+	// DEDICATED walker, after all planning walks are done — the planning
+	// walker keeps its visitors and filter, and fieldPlanners is complete here.
+	if p.cacheProvidesData != nil {
+		p.cacheProvidesData.walk(operation, definition, p.config, plannersConfigurations, p.planningVisitor.fieldPlanners, report)
+		if report.HasErrors() {
+			return
+		}
+		p.cacheProvidesData.attachTo(p.planningVisitor.plan)
 	}
 
 	// Step 5. Plan is handed over to postprocess.Processor. It checks fetch dependencies and

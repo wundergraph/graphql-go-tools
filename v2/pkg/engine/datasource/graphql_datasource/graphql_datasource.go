@@ -29,6 +29,7 @@ import (
 	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/representationvariable"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/quotes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
@@ -850,9 +851,13 @@ func (p *Planner[T]) addRepresentationsVariable() {
 }
 
 func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
+	// Recording which representation fields are @key fields changes the plan, so
+	// it happens only where a consumer exists: the cache derives its per-entity
+	// invalidation tag from that subset.
+	markKeyFields := p.visitor.Config.Caching != nil
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
+		node, err := representationvariable.BuildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration(), markKeyFields)
 		if err != nil {
 			p.stopWithError(errors.WithStack(fmt.Errorf("buildRepresentationsVariable: failed to build representation variable node: %w", err)))
 			return nil
@@ -862,7 +867,7 @@ func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
 	}
 
 	return resolve.NewResolvableObjectVariable(
-		mergeRepresentationVariableNodes(objects),
+		representationvariable.MergeRepresentationVariableNodes(objects),
 	)
 }
 

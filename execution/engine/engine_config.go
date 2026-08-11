@@ -11,6 +11,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan/cacheconfig"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -22,6 +23,11 @@ type Configuration struct {
 	schema                   *graphql.Schema
 	plannerConfig            plan.Configuration
 	websocketBeforeStartHook WebsocketBeforeStartHook
+
+	// caching holds the declarative caching configuration cascade (see
+	// SetCaching); nil means caching was never configured. NewExecutionEngine
+	// hands it to the planner and to the postprocess EnableCaching option.
+	caching *cacheconfig.CachingConfiguration
 }
 
 func NewConfiguration(schema *graphql.Schema) Configuration {
@@ -59,8 +65,26 @@ func (e *Configuration) SetFieldConfigurations(fieldConfigs plan.FieldConfigurat
 	e.plannerConfig.Fields = fieldConfigs
 }
 
+// SetCaching configures caching: global defaults plus per-subgraph overrides
+// keyed by DATASOURCE ID (the same ID the datasource was created with;
+// configuration is matched to fetches via FetchInfo.DataSourceID at plan
+// time). It is the ONLY public entry point for caching: NewExecutionEngine
+// wires the planner's provides-data walk and the postprocess caching passes
+// from it. Not calling it keeps caching fully disabled (the planner no-op
+// gate).
+func (e *Configuration) SetCaching(caching cacheconfig.CachingConfiguration) {
+	e.caching = &caching
+}
+
 func (e *Configuration) DataSources() []plan.DataSource {
 	return e.plannerConfig.DataSources
+}
+
+// PlannerConfig returns the built planner configuration. It exists for test
+// harnesses that drive the real v2 planner directly from a composed router
+// config; production code goes through NewExecutionEngine.
+func (e *Configuration) PlannerConfig() plan.Configuration {
+	return e.plannerConfig
 }
 
 func (e *Configuration) FieldConfigurations() plan.FieldConfigurations {

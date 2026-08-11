@@ -43,6 +43,25 @@ type Context struct {
 	rateLimiter   RateLimiter
 	fieldRenderer FieldValueRenderer
 
+	// cacheController is the long-lived caching port (see SetCacheController);
+	// requestCache is the per-request working surface it hands back, created
+	// lazily under DataBuffer.Lock and shared by reference across all
+	// per-defer-group Loaders of this request.
+	cacheController CacheController
+	requestCache    RequestCache
+	// cacheResponseSource produces the client-facing cache answer of this
+	// request (see CacheResponseInfo). It is held separately from requestCache
+	// because it is read AFTER resolution, when endCacheRequest has already
+	// released that one.
+	cacheResponseSource CacheResponseInfoSource
+	// deferredResponse marks a resolution of a @defer plan. Parts of such a
+	// response resolve after the initial frame is on the wire, so no cache
+	// answer computed with it can describe the whole response.
+	deferredResponse bool
+	// privatePartitionProvider derives the requester identity private cache
+	// entries are partitioned by (see SetPrivatePartitionProvider).
+	privatePartitionProvider PrivatePartitionProvider
+
 	subgraphErrors map[string]error
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
@@ -190,6 +209,91 @@ func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
 }
 
+// SetCacheController wires the caching lifecycle port, mirroring SetAuthorizer.
+// A nil controller (the default) keeps the loader on its cache-free path.
+func (c *Context) SetCacheController(controller CacheController) {
+	c.cacheController = controller
+}
+
+// SetCacheResponseInfoSource installs the producer of this request's client
+// cache answer. The caching controller calls it when the request begins; it
+// survives endCacheRequest so the answer stays readable at response time.
+func (c *Context) SetCacheResponseInfoSource(source CacheResponseInfoSource) {
+	c.cacheResponseSource = source
+}
+
+// CacheResponseInfo returns the request's client cache answer, read once
+// resolution has completed. The zero value — no policy, no tags — is what a
+// request without caching, with client emission switched off, or with a @defer
+// plan reports, and it tells the integrator to emit no cache headers at all.
+func (c *Context) CacheResponseInfo() CacheResponseInfo {
+	if c.cacheResponseSource == nil {
+		return CacheResponseInfo{}
+	}
+	return c.cacheResponseSource.CacheResponseInfo()
+}
+
+// HasDeferredResponse reports whether this request resolves a @defer plan. The
+// cache reads it to suppress the client cache answer: the response headers ship
+// with the initial frame while the deferred parts are still being fetched.
+func (c *Context) HasDeferredResponse() bool {
+	return c.deferredResponse
+}
+
+// PrivatePartitionProvider derives the requester identity that private cache
+// entries are partitioned by — a JWT subject, a tenant, whatever the integrator
+// considers one audience. It is consulted at most once per subgraph per
+// request, and only when a statically-private fetch actually reaches the store.
+type PrivatePartitionProvider interface {
+	// PrivatePartition returns the requester identity for a subgraph's private
+	// entries. ok=false — and an empty value, which is treated the same — means
+	// the request carries NO identity: private-scoped fetches are then neither
+	// read from nor written to the store, and live in the request-lifetime
+	// layer alone. The returned value never reaches a key verbatim; it is
+	// hashed into the key's partition segment.
+	PrivatePartition(ctx *Context, subgraphName string) (value string, ok bool)
+}
+
+// SetPrivatePartitionProvider wires the requester-identity port, mirroring
+// SetCacheController. Without one, private entries can still be partitioned by
+// the forwarded subgraph header hash where the configuration asks for it.
+func (c *Context) SetPrivatePartitionProvider(provider PrivatePartitionProvider) {
+	c.privatePartitionProvider = provider
+}
+
+// PrivatePartition asks the wired provider for this request's identity at a
+// subgraph; ok=false when no provider is set or it identifies no requester.
+func (c *Context) PrivatePartition(subgraphName string) (string, bool) {
+	if c.privatePartitionProvider == nil {
+		return "", false
+	}
+	return c.privatePartitionProvider.PrivatePartition(c, subgraphName)
+}
+
+// endCacheRequest finalizes the per-request cache surface (flushing deferred
+// writes) and resets it. It is idempotent and a no-op when caching was never
+// used; deferred at every request entry function.
+func (c *Context) endCacheRequest() {
+	if c.requestCache != nil {
+		c.requestCache.EndRequest()
+		c.requestCache = nil
+	}
+}
+
+// flushCacheTraces asks the request cache to attach the per-fetch cache traces
+// NOW instead of at EndRequest: the trace extension serializes DURING Resolve,
+// while EndRequest runs after the response has been written, so a trace
+// rendered with the response would otherwise never carry the cache sections.
+// A no-op without a cache surface or when the surface doesn't support it.
+func (c *Context) flushCacheTraces() {
+	if c.requestCache == nil {
+		return
+	}
+	if flusher, ok := c.requestCache.(CacheTraceFlusher); ok {
+		flusher.FlushTraces()
+	}
+}
+
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
 }
@@ -283,6 +387,12 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 func (c *Context) clone(ctx context.Context) *Context {
 	cpy := *c
 	cpy.ctx = ctx
+	// A cloned resolution (e.g. a subscription event) is a separate request and
+	// must build its own per-request cache surface and its own client cache
+	// answer; the controller port itself is carried over by the value copy
+	// above.
+	cpy.requestCache = nil
+	cpy.cacheResponseSource = nil
 	if c.Variables != nil {
 		variablesData := c.Variables.MarshalTo(nil)
 		cpy.Variables = astjson.MustParseBytes(variablesData)
@@ -305,6 +415,9 @@ func (c *Context) clone(ctx context.Context) *Context {
 }
 
 func (c *Context) Free() {
+	// Defensive: the entry-function defers normally end the cache request; this
+	// covers a Context recycled without passing through one.
+	c.endCacheRequest()
 	c.ctx = nil
 	c.Variables = nil
 	c.Files = nil
@@ -315,6 +428,10 @@ func (c *Context) Free() {
 	c.Extensions = nil
 	c.subgraphErrors = nil
 	c.authorizer = nil
+	c.cacheController = nil
+	c.cacheResponseSource = nil
+	c.deferredResponse = false
+	c.privatePartitionProvider = nil
 	c.LoaderHooks = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
