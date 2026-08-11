@@ -20,6 +20,54 @@ Fix direction: derive the key from the argument values the fetch itself sends
 (its rendered input), mirroring entity keys.
 Until fixed: do not configure root-field caching for fields a single operation may call twice.
 
+## Entry thrash: disjoint selections over one entity share a key and replace each other
+
+Selection sets are not part of entity keys,
+so two operations selecting DISJOINT field sets of the same entity from the same subgraph
+(`User {a b}` vs `User {address}`) compete for ONE entry slot.
+Each read is a store HIT that the coverage walk rejects (the entry lacks the other shape's fields),
+and each refetch REPLACES the entry wholesale (storage is replace-only, no entry merging).
+
+Verified with a scratch engine test 2026-08-11:
+alternating `{upc stock}` / `{upc warehouse{...}}` four times produced four origin requests,
+four hit-but-rejected reads, and an entry ping-ponging between the two shapes —
+hit rate zero for both operations.
+Traffic converges only when some operation fetches a superset in a single fetch
+(the wider-serves-narrower behavior verified live, `5-testing-on-js-subgraphs.md` finding 3).
+
+Agreed direction: follow Apollo and add a selection-shape digest to the L2 key —
+`,"fields":"<16-hex>"` over the sorted NORMALIZED field paths of the fetch's ProvidesData tree,
+computable at plan time and frozen in the key spec.
+Because the digest is over normalized schema names,
+alias/order/fragment variants and argument-value variants still share entries
+(better than Apollo's raw query-shape hash),
+and the entity tag still covers all shape variants, so one purge clears them all.
+Coverage stays on the read path as a corruption guard only.
+
+Decided trade-offs to carry into the spec:
+
+- L1 keeps the coverage-based model WITHOUT the digest:
+  cross-defer-group superset reuse (initial `{stock, warehouse}` serving a deferred `{stock}`)
+  and the `optimizeL1Cache` provider/consumer proof depend on it.
+- Costs accepted: a narrow query after a wide one misses (per-shape warmup),
+  negative sentinels fragment per shape,
+  and the store holds one entry per (entity × shape × args × partition) — all Apollo-equivalent.
+
+## TTL churn: the last writer's TTL caps the shared entry
+
+Same root cause as the thrash issue, visible even for OVERLAPPING selections
+when the origin's `Cache-Control: max-age` differs per operation
+(the header is per HTTP response and beats static config).
+With `{a b c}` answered `max-age=86400` and `{a b c d}` answered `max-age=600`:
+whichever fetch wrote LAST owns the single entry and its TTL,
+so the 10-minute superset write discards the remaining day of the narrow entry,
+and after it expires the shapes alternate ownership indefinitely.
+This is a consequence of the one-write-moment/one-honest-TTL invariant
+(no field-level ages, no entry merging) — correct, but it makes a short-TTL operation
+cap the effective cache lifetime of every operation sharing the entry.
+The selection-shape digest above resolves this too:
+per-shape entries each keep their own honest TTL.
+
 ## Open design: detecting the NEED for invalidation on schema deploys
 
 The engine has NO schema-drift guard (the envelope `types` map was dropped 2026-08-10):
@@ -33,9 +81,9 @@ Belongs to the router/composition layer; the tag vocabulary already supports it.
 The router cache is a SHARED cache, so the semantically correct reading of `Cache-Control: max-age=30, s-maxage=600`
 is: router entry TTL = 600s (`s-maxage` wins for shared caches), client-facing aggregated header = 30s (`max-age`).
 Useful pattern once tag invalidation exists: long router TTL + active purge, short client TTL.
-Deliberately out of v1 (`docs/caching/specs/2026-08-06-header-driven-caching.md` §4.1): it needs a second freshness
-number through the pipeline — entry TTL from `s-maxage`, plus a separate `client_ttl` in the value envelope's `cc`
-metadata for the §10 client-header aggregation.
+Deliberately out of the initial model: it needs a second freshness number through the pipeline —
+entry TTL from `s-maxage`, plus a separate client TTL in the value envelope's `cc`
+metadata for the client-header aggregation.
 Additive change; implement when the long-edge/short-client pattern is requested.
 
 ## Check: entity interface caching support
@@ -55,7 +103,7 @@ Still to answer:
 
 - Cross-subgraph identity split: a concrete-type subgraph keys the entity as `Article` while the `@interfaceObject` subgraph keys it as `Personalized` —
   disjoint entries for the same logical entity.
-  Likely CORRECT (different subgraphs provide different data, and per-policy CacheName usually separates them anyway), but decide and document.
+  Likely CORRECT (different subgraphs provide different data and the subgraph segment separates their keyspaces anyway), but decide and document.
 - The `OnTypeNames`-aware key renderer (merged representation nodes for abstract-type batch fetches) must be tested against interface entity fixtures,
   not only union/concrete ones.
 - Coverage walk (`covers` / `skipFieldForTypeName`): verify type-conditioned fields behave for interface fetches where the cached value's `__typename`
