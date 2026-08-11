@@ -53,8 +53,8 @@ func buildMergedOperation(members []*resolve.SingleFetch) (compact string, prett
 }
 
 // buildVariableRename maps every variable name to name_f<k> over the union of
-// the document's variable definitions and the recorded fragment names (which
-// can include stale keys absent from the document).
+// the document's variable definitions and the recorded fragment names
+// (which can include stale keys absent from the document).
 func buildVariableRename(op *resolve.SubgraphOperation, kStr string) map[string]string {
 	doc := op.Document
 	rename := make(map[string]string, len(op.Variables))
@@ -69,11 +69,15 @@ func buildVariableRename(op *resolve.SubgraphOperation, kStr string) map[string]
 }
 
 // validateEntitiesRootField enforces the federation-specific requirement that a
-// member's root selection is the single field _entities. The generic
-// single-root-field check also lives in asttransform; this guard runs on the
-// member document before merging so the error is attributed per member.
+// member's root selection is the single field _entities.
 func validateEntitiesRootField(doc *ast.Document, i int) error {
+	if len(doc.OperationDefinitions) == 0 {
+		return fmt.Errorf("createMultiFetch: member %d document has no operation definition", i+1)
+	}
 	setRef := doc.OperationDefinitions[0].SelectionSet
+	if setRef < 0 || setRef >= len(doc.SelectionSets) {
+		return fmt.Errorf("createMultiFetch: member %d operation has no root selection set", i+1)
+	}
 	refs := doc.SelectionSets[setRef].SelectionRefs
 	if len(refs) == 1 && doc.Selections[refs[0]].Kind == ast.SelectionKindField {
 		if doc.FieldNameString(doc.Selections[refs[0]].Ref) == "_entities" {

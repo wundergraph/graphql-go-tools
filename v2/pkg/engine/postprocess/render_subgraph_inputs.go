@@ -66,21 +66,17 @@ func (r *renderSubgraphInputs) processSingleFetch(fetch *resolve.SingleFetch) {
 	fetch.SubgraphOperation = nil
 }
 
-// render assembles the fetch input from the structured artifact, byte-for-byte
-// as the planner would have (same httpclient assembly helper, same body.query
-// print reused from the print-once cache, same sjson variable writes), then
-// applies the fetchIDAppender operation-name suffix compensation.
+// render builds the fetch input from the op,
+// then applies the fetchIDAppender operation-name suffix compensation.
 func (r *renderSubgraphInputs) render(fetch *resolve.SingleFetch, op *resolve.SubgraphOperation) {
-	// Rebuild body.variables from the recorded fragments in write order,
-	// replicating the planner's sjson.SetRawBytes writes byte-for-byte.
+	// Rebuild body.variables from the recorded fragments in write order.
 	var variables []byte
 	for i := range op.Variables {
 		variables, _ = sjson.SetRawBytes(variables, op.Variables[i].Name, op.Variables[i].Value)
 	}
 
 	// Reuse the print-once cached minified operation (seeded by the planner);
-	// PrintedQuery falls back to printing Document for artifacts that were not
-	// printed eagerly (e.g. hand-built test fetches).
+	// PrintedQuery falls back to printing Document for artifacts that were not printed eagerly.
 	query, err := op.PrintedQuery()
 	if err != nil {
 		return

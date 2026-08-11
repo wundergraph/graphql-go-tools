@@ -492,6 +492,21 @@ func TestBuildMergedOperation(t *testing.T) {
 		_, _, err := buildMergedOperation(members)
 		require.Error(t, err)
 	})
+
+	t.Run("document without operation definition is an error", func(t *testing.T) {
+		members := []*resolve.SingleFetch{
+			{
+				FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+				FetchConfiguration: resolve.FetchConfiguration{
+					SubgraphOperation: &resolve.SubgraphOperation{
+						Document: ast.NewSmallDocument(),
+					},
+				},
+			},
+		}
+		_, _, err := buildMergedOperation(members)
+		require.EqualError(t, err, "createMultiFetch: member 1 document has no operation definition")
+	})
 }
 
 const (
