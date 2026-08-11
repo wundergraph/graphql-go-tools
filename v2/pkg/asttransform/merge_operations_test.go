@@ -120,6 +120,13 @@ func TestMergeOperationDocuments(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("missing variable rename is rejected", func(t *testing.T) {
+		member := mergeMember(t, m1, "_f1", "f1", "includeF1")
+		delete(member.VariableRename, "first")
+		_, err := MergeOperationDocuments("", []OperationMergeMember{member})
+		require.EqualError(t, err, `asttransform: member 1 has no rename for variable "first"`)
+	})
+
 	t.Run("nil document is rejected", func(t *testing.T) {
 		_, err := MergeOperationDocuments("", []OperationMergeMember{{Alias: "f1", IncludeVariable: "includeF1"}})
 		require.Error(t, err)

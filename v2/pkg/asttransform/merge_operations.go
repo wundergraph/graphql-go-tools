@@ -50,7 +50,9 @@ func MergeOperationDocuments(operationName string, members []OperationMergeMembe
 		if member.Document == nil {
 			return nil, fmt.Errorf("asttransform: member %d has no document", i+1)
 		}
-		mergeVariableDefinitions(merged, opRef, importer, member, nonNullBool)
+		if err := mergeVariableDefinitions(merged, opRef, importer, member, nonNullBool, i); err != nil {
+			return nil, err
+		}
 		if err := mergeMemberSelection(merged, opSetRef, importer, member, i); err != nil {
 			return nil, err
 		}
@@ -59,17 +61,23 @@ func MergeOperationDocuments(operationName string, members []OperationMergeMembe
 }
 
 // mergeVariableDefinitions imports the member's renamed variable definitions in
-// document order, then appends the synthetic non-null Boolean include
-// definition, matching the emit order the printed output depends on.
-func mergeVariableDefinitions(merged *ast.Document, opRef int, importer *astimport.Importer, member OperationMergeMember, nonNullBool int) {
+// document order, then appends the synthetic non-null Boolean include definition,
+// matching the emit order the printed output depends on.
+// A variable definition without a rename entry is an error.
+func mergeVariableDefinitions(merged *ast.Document, opRef int, importer *astimport.Importer, member OperationMergeMember, nonNullBool int, i int) error {
 	doc := member.Document
 	for _, defRef := range doc.OperationDefinitions[0].VariableDefinitions.Refs {
 		origName := doc.VariableDefinitionNameString(defRef)
-		importedRef := importer.ImportVariableDefinitionWithVariableNameRename(defRef, doc, merged, member.VariableRename[origName])
+		newName, ok := member.VariableRename[origName]
+		if !ok || newName == "" {
+			return fmt.Errorf("asttransform: member %d has no rename for variable %q", i+1, origName)
+		}
+		importedRef := importer.ImportVariableDefinitionWithVariableNameRename(defRef, doc, merged, newName)
 		merged.AddImportedVariableDefinitionToOperationDefinition(opRef, importedRef)
 	}
 	includeVar := merged.ImportVariableValue([]byte(member.IncludeVariable))
 	merged.AddVariableDefinitionToOperationDefinition(opRef, includeVar, nonNullBool)
+	return nil
 }
 
 // mergeMemberSelection imports the member's root selection set (renaming
