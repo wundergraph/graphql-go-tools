@@ -758,7 +758,7 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			t.Parallel()
 			dag, err := newFetchDAG(tc.input)
 			require.NoError(t, err)
-			ids := dag.sortedIDs()
+			ids := sortedIDs(dag)
 
 			actualInlined, inlinedErr := schedule(ids, dag, true)
 			actualWaves, wavesErr := schedule(ids, dag, false)
@@ -982,7 +982,7 @@ func TestScheduleFetches_BigPlan(t *testing.T) {
 	})
 }
 
-func (d *fetchDAG) sortedIDs() []int {
+func sortedIDs(d *fetchDAG) []int {
 	ids := make([]int, 0, len(d.nodes))
 	for id := range d.nodes {
 		ids = append(ids, id)
@@ -992,7 +992,7 @@ func (d *fetchDAG) sortedIDs() []int {
 }
 
 // hasCycle runs Kahn's algorithm over the full DAG.
-func (d *fetchDAG) hasCycle() bool {
+func hasCycle(d *fetchDAG) bool {
 	indegree := make(map[int]int, len(d.nodes))
 	queue := make([]int, 0, len(d.nodes))
 	for id, parents := range d.parents {
@@ -1039,11 +1039,11 @@ func checkScheduleProperties(t *testing.T, input []*resolve.FetchTreeNode, profi
 	t.Helper()
 	dag, err := newFetchDAG(input)
 	require.NoError(t, err)
-	ids := dag.sortedIDs()
+	ids := sortedIDs(dag)
 	inlined, inlinedErr := schedule(ids, dag, true)
 	waves, wavesErr := schedule(ids, dag, false)
 	winner, winnerErr := buildScheduleTree(input, dag)
-	if len(ids) > 0 && dag.hasCycle() {
+	if len(ids) > 0 && hasCycle(dag) {
 		require.EqualError(t, inlinedErr, "cycle detected in fetch dependency graph")
 		require.EqualError(t, wavesErr, "cycle detected in fetch dependency graph")
 		require.EqualError(t, winnerErr, "cycle detected in fetch dependency graph")
