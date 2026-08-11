@@ -22,8 +22,9 @@ type SubscriptionFilter struct {
 }
 
 type SubscriptionFieldFilter struct {
-	FieldPath []string
-	Values    []InputTemplate
+	FieldPath          []string
+	Values             []InputTemplate
+	BypassIfValuesNull bool
 }
 
 func (f *SubscriptionFilter) SkipEvent(ctx *Context, data []byte) (bool, error) {
@@ -88,6 +89,22 @@ var (
 func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte) (bool, error) {
 	if f == nil {
 		return false, nil
+	}
+
+	if f.BypassIfValuesNull && ctx != nil {
+		for i := range f.Values {
+			if len(f.Values[i].Segments) != 1 {
+				continue
+			}
+			seg := f.Values[i].Segments[0]
+			if seg.SegmentType != VariableSegmentType {
+				continue
+			}
+			value := ctx.Variables.Get(seg.VariableSourcePath...)
+			if value == nil || value.Type() == astjson.TypeNull {
+				return false, nil
+			}
+		}
 	}
 
 	expected, expectedDataType, _, _err := jsonparser.Get(data, f.FieldPath...)
