@@ -917,7 +917,7 @@ func TestScheduleFetches_ProcessorFallsBackOnError(t *testing.T) {
 
 	scheduled := build()
 	require.NotPanics(t, func() {
-		(&scheduleFetches{}).ProcessFetchTree(scheduled)
+		NewProcessor().fetchTreeProcessors.organizeFetchTree(scheduled)
 	})
 	require.Equal(t, legacy, scheduled)
 }
@@ -980,7 +980,7 @@ func TestScheduleFetches_BigPlan(t *testing.T) {
 
 	t.Run("scheduler does not fall back to legacy waves", func(t *testing.T) {
 		root := seq(input()...)
-		(&scheduleFetches{}).ProcessFetchTree(root)
+		NewProcessor().fetchTreeProcessors.organizeFetchTree(root)
 		requireEqualTrees(t, expected, root)
 	})
 }
