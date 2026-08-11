@@ -9,6 +9,8 @@ including an independent rerun reproducing the correctness bug.
 
 - Suite: `apollo-response-caching/gqlt-live/` (standalone Go module,
   `replace`-linked to the local graphql-go-tools checkout).
+  Its own `README.md` has the full setup for reproducing the environment on another machine
+  (subgraphs, Redis, composition, the directory-layout assumption of the `replace` directives).
   Run from that directory: `gotestsum --format=short -- ./... -count=1`.
 - Live origins: the two Apollo-federation subgraphs from the apollo-response-caching workspace,
   `products` on :4301 (`Cache-Control: max-age=60, public`) and `reviews` on :4302 (`max-age=30, public`),
