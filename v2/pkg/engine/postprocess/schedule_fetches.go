@@ -102,7 +102,7 @@ func buildScheduleTree(roots []*resolve.FetchTreeNode, dag *fetchDAG) (*resolve.
 		ids = append(ids, root.Item.Fetch.Dependencies().FetchID)
 	}
 	// Pick the best strategy on the top level for weakly connected trees.
-	components := weaklyConnectedComponents(sortedUnique(ids), dag)
+	components := weaklyConnectedComponents(sortedCopy(ids), dag)
 	winners := make([]*resolve.FetchTreeNode, 0, len(components))
 	for _, component := range components {
 		waves, err := schedule(component, dag, false)
@@ -132,7 +132,7 @@ func buildScheduleTree(roots []*resolve.FetchTreeNode, dag *fetchDAG) (*resolve.
 // within a component the ready roots run in Parallel followed by the remainder in Sequence.
 // When inlined, each root pulls the descendants reachable only through it into its branch.
 func schedule(set []int, dag *fetchDAG, inline bool) (*resolve.FetchTreeNode, error) {
-	sortedSet := sortedUnique(set)
+	sortedSet := sortedCopy(set)
 	switch len(sortedSet) {
 	case 0:
 		return nil, nil
@@ -488,13 +488,13 @@ func minReachableFetchID(node *resolve.FetchTreeNode) int {
 	return minID
 }
 
-func sortedUnique(ids []int) []int {
+func sortedCopy(ids []int) []int {
 	if len(ids) == 0 {
 		return nil
 	}
 	out := append([]int{}, ids...)
 	slices.Sort(out)
-	return slices.Compact(out)
+	return out
 }
 
 func asMap(ids []int) map[int]struct{} {

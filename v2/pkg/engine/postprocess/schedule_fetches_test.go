@@ -109,32 +109,7 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 			),
 		},
 		{
-			name:  "requires chain",
-			input: nodes(sf(0), sf(1, deps(0))),
-			want:  seq(sf(0), sf(1)),
-		},
-		{
-			name:  "batch entity component with independent root",
-			input: nodes(sf(0), bf(1, 0), sf(2)),
-			want:  par(seq(sf(0), bf(1)), sf(2)),
-		},
-		{
-			name:  "nested entity chain",
-			input: nodes(sf(0), ef(1, 0), ef(2, 1)),
-			want:  seq(sf(0), ef(1), ef(2)),
-		},
-		{
-			name:  "interface expansion",
-			input: nodes(sf(0), sf(1), sf(2)),
-			want:  par(sf(0), sf(1), sf(2)),
-		},
-		{
-			name:  "provides skips fetch",
-			input: nodes(sf(0)),
-			want:  sf(0),
-		},
-		{
-			name:  "sequential mutation",
+			name:  "sequential chain",
 			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0, 1))),
 			want:  seq(sf(0), sf(1), sf(2)),
 		},

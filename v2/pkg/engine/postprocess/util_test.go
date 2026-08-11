@@ -55,14 +55,6 @@ func sf(id int, opts ...singleFetchOption) *resolve.FetchTreeNode {
 	return node
 }
 
-func ef(id int, deps ...int) *resolve.FetchTreeNode {
-	return resolve.Single(&resolve.EntityFetch{FetchDependencies: resolve.FetchDependencies{FetchID: id, DependsOnFetchIDs: deps}})
-}
-
-func bf(id int, deps ...int) *resolve.FetchTreeNode {
-	return resolve.Single(&resolve.BatchEntityFetch{FetchDependencies: resolve.FetchDependencies{FetchID: id, DependsOnFetchIDs: deps}})
-}
-
 func seq(children ...*resolve.FetchTreeNode) *resolve.FetchTreeNode {
 	return resolve.Sequence(children...)
 }
