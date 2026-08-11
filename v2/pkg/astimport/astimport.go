@@ -244,7 +244,9 @@ func (i *Importer) ImportVariableDefinitionWithRename(ref int, from, to *ast.Doc
 // while writing newName as the variable value name. The type is imported
 // unchanged (unlike ImportVariableDefinitionWithRename, which renames the type).
 func (i *Importer) ImportVariableDefinitionWithVariableNameRename(ref int, from, to *ast.Document, newName string) int {
-
+	// Upstream operations can declare VARIABLE_DEFINITION directives,
+	// so the merged operation drops them.
+	// TODO: Import each directive with the variable-rename map and attach it to the imported variable definition.
 	variableDefinition := ast.VariableDefinition{
 		Description: i.ImportDescription(from.VariableDefinitions[ref].Description, from, to),
 		VariableValue: ast.Value{

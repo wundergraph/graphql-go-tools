@@ -48,9 +48,13 @@ func recordingClient(t *testing.T, rec *multiFetchRecorder, host, path string, r
 	rt := testRoundTripper(func(req *http.Request) *http.Response {
 		assert.Equal(t, host, req.URL.Host)
 		assert.Equal(t, path, req.URL.Path)
-		require.NotNil(t, req.Body)
+		if !assert.NotNil(t, req.Body) {
+			return &http.Response{StatusCode: 500, Body: io.NopCloser(bytes.NewBufferString("nil body"))}
+		}
 		body, err := io.ReadAll(req.Body)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return &http.Response{StatusCode: 500, Body: io.NopCloser(bytes.NewBufferString("read error"))}
+		}
 		if rec != nil {
 			rec.record(string(body))
 		}
