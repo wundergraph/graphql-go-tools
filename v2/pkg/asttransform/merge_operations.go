@@ -26,12 +26,12 @@ type OperationMergeMember struct {
 	VariableRename map[string]string
 }
 
-// MergeOperationDocuments builds a new document with a single query operation
-// (named operationName, anonymous if empty) containing every member's root
-// selection aliased and guarded by @include(if: $IncludeVariable). Variable
-// definitions are emitted per member in document order followed by that
+// MergeOperationDocuments builds a new document with a single query operation containing every
+// member's root selection aliased and guarded by @include(if: $IncludeVariable).
+// Variable definitions are emitted per member in document order followed by that
 // member's synthetic include definition. Each member's root selection must be a
 // single field; fragment spreads in member documents are rejected.
+// TODO: Directives on operations are not handled (merged).
 func MergeOperationDocuments(operationName string, members []OperationMergeMember) (*ast.Document, error) {
 	merged := ast.NewSmallDocument()
 	opSetRef := merged.AddSelectionSet().Ref
