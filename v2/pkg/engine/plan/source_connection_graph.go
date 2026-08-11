@@ -1,5 +1,7 @@
 package plan
 
+import "slices"
+
 // KeyJump represents possible jump from one data source to another
 type KeyJump struct {
 	From DSHash
@@ -199,13 +201,13 @@ func sourceKeyIsSubsetOfTargetKey(sourceKey, targetKey KeyInfo) bool {
 		return false
 	}
 
-	targetPaths := make(map[string]struct{}, len(targetKey.FieldPaths))
-	for _, path := range targetKey.FieldPaths {
-		targetPaths[path.Path] = struct{}{}
-	}
-
+	// keys have only a few field paths, so a nested scan is cheaper
+	// than building a lookup map: this runs for every (source key, target key)
+	// pair of every datasource pair sharing a type
 	for _, path := range sourceKey.FieldPaths {
-		if _, ok := targetPaths[path.Path]; !ok {
+		if !slices.ContainsFunc(targetKey.FieldPaths, func(targetPath KeyInfoFieldPath) bool {
+			return targetPath.Path == path.Path
+		}) {
 			return false
 		}
 	}
