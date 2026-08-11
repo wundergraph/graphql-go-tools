@@ -189,4 +189,3 @@ func TestOrderSequenceByDependencies_ProcessFetchTree(t *testing.T) {
 		require.Equal(t, expected, input)
 	})
 }
-
