@@ -838,21 +838,24 @@ func TestScheduleFetches_SubscriptionRootStaysSequence(t *testing.T) {
 
 	single := seq(sf(0))
 	single.Trigger = trigger
-	(&scheduleFetches{}).ProcessFetchTree(single)
+	err := (&scheduleFetches{}).ProcessFetchTree(single)
+	require.Nil(t, err)
 	require.Equal(t, resolve.FetchTreeNodeKindSequence, single.Kind)
 	require.Equal(t, trigger, single.Trigger)
 	require.Equal(t, nodes(sf(0)), single.ChildNodes)
 
 	parallel := seq(sf(0), sf(1))
 	parallel.Trigger = trigger
-	(&scheduleFetches{}).ProcessFetchTree(parallel)
+	err = (&scheduleFetches{}).ProcessFetchTree(parallel)
+	require.Nil(t, err)
 	require.Equal(t, resolve.FetchTreeNodeKindSequence, parallel.Kind)
 	require.Equal(t, trigger, parallel.Trigger)
 	require.Equal(t, nodes(par(sf(0), sf(1))), parallel.ChildNodes)
 
 	// Without a Trigger the root may collapse into the scheduled tree.
 	sync := seq(sf(0))
-	(&scheduleFetches{}).ProcessFetchTree(sync)
+	err = (&scheduleFetches{}).ProcessFetchTree(sync)
+	require.Nil(t, err)
 	require.Equal(t, sf(0), sync)
 }
 
