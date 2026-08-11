@@ -554,6 +554,16 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 			},
 		},
 		{
+			TypeName:  "Storage",
+			FieldName: "tagsByLengths",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "lengths",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
 			TypeName:  "Category",
 			FieldName: "productCount",
 			Arguments: []plan.ArgumentConfiguration{
@@ -815,6 +825,26 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					SelectionSet: "tags",
 				},
 				{
+					TypeName:     "Storage",
+					FieldName:    "optionalProcessedMetadataHistory",
+					SelectionSet: "metadataHistory { capacity zone }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalRecommendedItems",
+					SelectionSet: "tags",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalOperationHistory",
+					SelectionSet: "storageKind",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagsByLengths",
+					SelectionSet: "tags",
+				},
+				{
 					TypeName:     "Warehouse",
 					FieldName:    "stockHealthScore",
 					SelectionSet: "inventoryCount restockData { lastRestockDate }",
@@ -924,6 +954,10 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"filteredTagSummary",
 					"multiFilteredTagSummary",
 					"nullableFilteredTagSummary",
+					"optionalProcessedMetadataHistory",
+					"optionalRecommendedItems",
+					"optionalOperationHistory",
+					"tagsByLengths",
 				},
 				ExternalFieldNames: []string{
 					"itemCount",
@@ -1009,6 +1043,10 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"filteredTagSummary",
 					"multiFilteredTagSummary",
 					"nullableFilteredTagSummary",
+					"optionalProcessedMetadataHistory",
+					"optionalRecommendedItems",
+					"optionalOperationHistory",
+					"tagsByLengths",
 				},
 				ExternalFieldNames: []string{
 					"itemCount",

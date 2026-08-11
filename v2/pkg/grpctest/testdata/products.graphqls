@@ -30,7 +30,7 @@ type Storage @key(fields: "id") {
   optionalTags: [String!] @external
   metadata: StorageMetadata! @external
   metadataHistory: [StorageMetadata!]! @external
-  
+
   # @requires fields returning scalars
   tagSummary: String! @requires(fields: "tags")
   optionalTagSummary: String @requires(fields: "optionalTags")
@@ -46,6 +46,16 @@ type Storage @key(fields: "id") {
   
   # @requires fields returning lists of complex types
   processedMetadataHistory: [StorageMetadata!]! @requires(fields: "metadataHistory { capacity zone }")
+
+  # @requires fields returning nullable lists.
+  # A nullable list is modelled with a ListOfX wrapper message so that a null list can be
+  # distinguished from an empty one. The wrapper must be emitted even when no other field
+  # in the schema registers it.
+  # Pattern A: nullable list of a concrete object type -> ListOfStorageMetadata
+  optionalProcessedMetadataHistory: [StorageMetadata!] @requires(fields: "metadataHistory { capacity zone }")
+
+  # @requires field with a nullable list field argument -> ListOfInt
+  tagsByLengths(lengths: [Int!]): [String!] @requires(fields: "tags")
 
   # External enum field for direct @requires testing
   storageKind: CategoryKind! @external
@@ -85,6 +95,10 @@ type Storage @key(fields: "id") {
   latestOperation: StorageOperationResult! @requires(fields: "storageKind")
   # Pattern 10: nullable union return type
   optionalLatestOperation: StorageOperationResult @requires(fields: "optionalTags")
+  # Pattern B: nullable list of an interface type -> ListOfStorageItem
+  optionalRecommendedItems: [StorageItem!] @requires(fields: "tags")
+  # Pattern C: nullable list of a union type -> ListOfStorageOperationResult
+  optionalOperationHistory: [StorageOperationResult!] @requires(fields: "storageKind")
 
   # @connect_fieldResolver fields
   storageStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")

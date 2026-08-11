@@ -2596,3 +2596,401 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_AbstractReturnTypes(t *t
 		})
 	}
 }
+
+// Test_DataSource_Load_WithEntity_Calls_And_Requires_NullableLists exercises @requires fields whose
+// return type, field argument, or required selection set is a nullable list. Nullable lists are
+// carried in a generated ListOfX wrapper message, so these cases verify that the wrapper survives
+// the round trip and that a null list stays distinguishable from an empty one.
+func Test_DataSource_Load_WithEntity_Calls_And_Requires_NullableLists(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]any `json:"data"`
+		Errors []graphqlError `json:"errors,omitempty"`
+	}
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]any)
+		validateError     func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			/*
+				optionalProcessedMetadataHistory: [StorageMetadata!] @requires(fields: "metadataHistory { capacity zone }")
+
+				The result is wrapped in ListOfStorageMetadata.
+			*/
+			name:  "Query Storage with optionalProcessedMetadataHistory returning a nullable list of objects",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id optionalProcessedMetadataHistory { capacity zone priority } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","metadataHistory":[{"capacity":10,"zone":"A"},{"capacity":20,"zone":"B"}]},
+				{"__typename":"Storage","id":"2","metadataHistory":[{"capacity":100,"zone":"X"}]},
+				{"__typename":"Storage","id":"3","metadataHistory":[]}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalProcessedMetadataHistory",
+					SelectionSet: "metadataHistory { capacity zone }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				// Storage 1 (index 0, even, non-empty history): populated list
+				storage1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				history1, ok := storage1["optionalProcessedMetadataHistory"].([]any)
+				require.True(t, ok, "optionalProcessedMetadataHistory should be an array")
+				require.Len(t, history1, 2)
+				entry1, ok := history1[0].(map[string]any)
+				require.True(t, ok, "history entry should be an object")
+				require.Equal(t, float64(10), entry1["capacity"])
+				require.Equal(t, "OPT_HIST_A", entry1["zone"])
+				require.Equal(t, float64(1), entry1["priority"])
+				entry2, ok := history1[1].(map[string]any)
+				require.True(t, ok, "history entry should be an object")
+				require.Equal(t, float64(40), entry2["capacity"])
+				require.Equal(t, "OPT_HIST_B", entry2["zone"])
+				require.Equal(t, float64(2), entry2["priority"])
+
+				// Storage 2 (index 1, odd): empty but non-null list
+				storage2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				history2, ok := storage2["optionalProcessedMetadataHistory"].([]any)
+				require.True(t, ok, "optionalProcessedMetadataHistory should be an empty array, not null")
+				require.Empty(t, history2)
+
+				// Storage 3 (empty history): null list
+				storage3, ok := entities[2].(map[string]any)
+				require.True(t, ok, "storage3 should be an object")
+				require.Equal(t, "3", storage3["id"])
+				require.Nil(t, storage3["optionalProcessedMetadataHistory"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			/*
+				optionalRecommendedItems: [StorageItem!] @requires(fields: "tags")
+
+				The result is wrapped in ListOfStorageItem, the item type being an interface.
+			*/
+			name:  "Query Storage with optionalRecommendedItems returning a nullable list of interfaces",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id optionalRecommendedItems { __typename id name ... on PalletItem { palletCount } ... on ContainerItem { containerSize } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","tags":["alpha","beta"]},
+				{"__typename":"Storage","id":"2","tags":["gamma"]},
+				{"__typename":"Storage","id":"3","tags":[]}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalRecommendedItems",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				// Storage 1 (index 0, even, tags present): one item per tag, alternating concrete types
+				storage1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				items1, ok := storage1["optionalRecommendedItems"].([]any)
+				require.True(t, ok, "optionalRecommendedItems should be an array")
+				require.Len(t, items1, 2)
+
+				pallet, ok := items1[0].(map[string]any)
+				require.True(t, ok, "first item should be an object")
+				require.Equal(t, "PalletItem", pallet["__typename"])
+				require.Equal(t, "opt-pallet-alpha", pallet["id"])
+				require.Equal(t, "Optional pallet alpha", pallet["name"])
+				require.Equal(t, float64(1), pallet["palletCount"])
+				require.NotContains(t, pallet, "containerSize")
+
+				container, ok := items1[1].(map[string]any)
+				require.True(t, ok, "second item should be an object")
+				require.Equal(t, "ContainerItem", container["__typename"])
+				require.Equal(t, "opt-container-beta", container["id"])
+				require.Equal(t, "Optional container beta", container["name"])
+				require.Equal(t, "BETA", container["containerSize"])
+				require.NotContains(t, container, "palletCount")
+
+				// Storage 2 (index 1, odd): empty but non-null list
+				storage2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				items2, ok := storage2["optionalRecommendedItems"].([]any)
+				require.True(t, ok, "optionalRecommendedItems should be an empty array, not null")
+				require.Empty(t, items2)
+
+				// Storage 3 (no tags): null list
+				storage3, ok := entities[2].(map[string]any)
+				require.True(t, ok, "storage3 should be an object")
+				require.Equal(t, "3", storage3["id"])
+				require.Nil(t, storage3["optionalRecommendedItems"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			/*
+				optionalOperationHistory: [StorageOperationResult!] @requires(fields: "storageKind")
+
+				The result is wrapped in ListOfStorageOperationResult, the item type being a union.
+			*/
+			name:  "Query Storage with optionalOperationHistory returning a nullable list of unions",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Storage { id optionalOperationHistory { __typename ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","storageKind":"BOOK"},
+				{"__typename":"Storage","id":"2","storageKind":"FURNITURE"},
+				{"__typename":"Storage","id":"3","storageKind":"OTHER"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalOperationHistory",
+					SelectionSet: "storageKind",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				// Storage 1 (BOOK): a success followed by a failure
+				storage1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				history1, ok := storage1["optionalOperationHistory"].([]any)
+				require.True(t, ok, "optionalOperationHistory should be an array")
+				require.Len(t, history1, 2)
+
+				success, ok := history1[0].(map[string]any)
+				require.True(t, ok, "first entry should be an object")
+				require.Equal(t, "StorageSuccess", success["__typename"])
+				require.Equal(t, "History entry completed for CATEGORY_KIND_BOOK", success["message"])
+				require.Equal(t, "2024-01-03T00:00:00Z", success["completedAt"])
+				require.NotContains(t, success, "errorCode")
+
+				failure, ok := history1[1].(map[string]any)
+				require.True(t, ok, "second entry should be an object")
+				require.Equal(t, "StorageFailure", failure["__typename"])
+				require.Equal(t, "History entry failed for CATEGORY_KIND_BOOK", failure["message"])
+				require.Equal(t, "HISTORIC_FAILURE", failure["errorCode"])
+				require.NotContains(t, failure, "completedAt")
+
+				// Storage 2 (FURNITURE): empty but non-null list
+				storage2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				history2, ok := storage2["optionalOperationHistory"].([]any)
+				require.True(t, ok, "optionalOperationHistory should be an empty array, not null")
+				require.Empty(t, history2)
+
+				// Storage 3 (OTHER): null list
+				storage3, ok := entities[2].(map[string]any)
+				require.True(t, ok, "storage3 should be an object")
+				require.Equal(t, "3", storage3["id"])
+				require.Nil(t, storage3["optionalOperationHistory"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			/*
+				tagsByLengths(lengths: [Int!]): [String!] @requires(fields: "tags")
+
+				Both the field argument and the result are wrapped (ListOfInt and ListOfString).
+			*/
+			name:  "Query Storage with tagsByLengths passing a populated nullable list argument",
+			query: `query($representations: [_Any!]!, $lengths: [Int!]) { _entities(representations: $representations) { ...on Storage { id tagsByLengths(lengths: $lengths) } } }`,
+			vars: `{"variables":{
+				"lengths": [4, 5],
+				"representations":[
+					{"__typename":"Storage","id":"1","tags":["book","chair","electronics"]},
+					{"__typename":"Storage","id":"2","tags":["electronics"]}
+				]
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagsByLengths",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				// Storage 1: "book" (4) and "chair" (5) match, "electronics" (11) does not
+				storage1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				tags1, ok := storage1["tagsByLengths"].([]any)
+				require.True(t, ok, "tagsByLengths should be an array")
+				require.Equal(t, []any{"book", "chair"}, tags1)
+
+				// Storage 2: nothing matches -> empty but non-null list
+				storage2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				tags2, ok := storage2["tagsByLengths"].([]any)
+				require.True(t, ok, "tagsByLengths should be an empty array, not null")
+				require.Empty(t, tags2)
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with tagsByLengths passing an empty nullable list argument",
+			query: `query($representations: [_Any!]!, $lengths: [Int!]) { _entities(representations: $representations) { ...on Storage { id tagsByLengths(lengths: $lengths) } } }`,
+			vars: `{"variables":{
+				"lengths": [],
+				"representations":[
+					{"__typename":"Storage","id":"1","tags":["book","chair"]}
+				]
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagsByLengths",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 1, "Should return 1 entity")
+
+				// An empty argument list is not a null one: the mock still returns a list.
+				storage1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				tags1, ok := storage1["tagsByLengths"].([]any)
+				require.True(t, ok, "tagsByLengths should be an empty array, not null")
+				require.Empty(t, tags1)
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query Storage with tagsByLengths passing a null nullable list argument",
+			query: `query($representations: [_Any!]!, $lengths: [Int!]) { _entities(representations: $representations) { ...on Storage { id tagsByLengths(lengths: $lengths) } } }`,
+			vars: `{"variables":{
+				"lengths": null,
+				"representations":[
+					{"__typename":"Storage","id":"1","tags":["book","chair"]}
+				]
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagsByLengths",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 1, "Should return 1 entity")
+
+				// A null argument list reaches the service as null, so the result is null too.
+				storage1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "1", storage1["id"])
+				require.Nil(t, storage1["tagsByLengths"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			data, err := ds.Load(context.Background(), nil, []byte(input))
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+
+			err = json.Unmarshal(data, &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
+		})
+	}
+}
