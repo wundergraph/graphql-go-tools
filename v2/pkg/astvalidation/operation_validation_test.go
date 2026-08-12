@@ -888,6 +888,52 @@ func TestExecutionValidation(t *testing.T) {
 								}
 							}`, FieldSelectionMerging(), Valid)
 					})
+					t.Run("allows different composite return type names with the same response shape", func(t *testing.T) {
+						runWithDefinition(t, `
+							scalar String
+
+							interface X {
+								value: String
+							}
+
+							interface Y {
+								value: String
+							}
+
+							type A {
+								field: X
+							}
+
+							type B {
+								field: Y
+							}
+
+							union Result = A | B
+
+							type Query {
+								result: Result
+							}
+
+							schema {
+								query: Query
+							}
+						`, `
+							query {
+								result {
+									... on A {
+										field {
+											value
+										}
+									}
+									... on B {
+										field {
+											value
+										}
+									}
+								}
+							}
+						`, FieldSelectionMerging(), Valid)
+					})
 					t.Run("disallows differing return types despite no overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
 								{
