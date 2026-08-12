@@ -348,7 +348,6 @@ func TestDataSourceInput_Process(t *testing.T) {
 		DisableCreateConcreteSingleFetchTypes(),
 		DisableCreateParallelNodes(),
 		DisableAddMissingNestedDependencies(),
-		DisableScheduleFetches(),
 	)
 	processor.Process(pre)
 
@@ -466,7 +465,6 @@ func TestDataSourceInput_ProcessTrigger(t *testing.T) {
 		DisableDeduplicateSingleFetches(),
 		DisableCreateConcreteSingleFetchTypes(),
 		DisableAddMissingNestedDependencies(),
-		DisableScheduleFetches(),
 	)
 	processor.Process(pre)
 

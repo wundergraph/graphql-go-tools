@@ -144,15 +144,13 @@ type processorOptions struct {
 	disableBuildDeferTree                  bool
 	disableCollectAuthorizationCoordinates bool
 	enableMultiFetch                       bool
-	scheduleFetches                        bool
-	disableScheduleFetches                 bool
+	enableScheduleFetches                  bool
 }
 
-// DisableScheduleFetches replaces the nested schedule-tree scheduler with the
-// legacy orderSequenceByDependencies and createParallelNodes pair.
-func DisableScheduleFetches() ProcessorOption {
+// EnableScheduleFetches activates the nested schedule-tree scheduler.
+func EnableScheduleFetches() ProcessorOption {
 	return func(o *processorOptions) {
-		o.disableScheduleFetches = true
+		o.enableScheduleFetches = true
 	}
 }
 
@@ -279,7 +277,7 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 				disable: opts.disableCreateParallelNodes,
 			},
 			scheduleFetches: &scheduleFetches{
-				disable: opts.disableScheduleFetches,
+				disable: !opts.enableScheduleFetches,
 			},
 		},
 		responseTreeProcessors: &ResponseTreeProcessors{
@@ -364,7 +362,7 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	children := make([]*resolve.FetchTreeNode, len(fetches))
 
 	if p.collectDataSourceInfo {
-		var list = make([]resolve.DataSourceInfo, 0, len(fetches))
+		list := make([]resolve.DataSourceInfo, 0, len(fetches))
 		for _, fetch := range fetches {
 			info := fetch.Fetch.FetchInfo()
 			if info != nil {

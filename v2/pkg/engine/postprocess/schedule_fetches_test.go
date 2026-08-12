@@ -798,7 +798,7 @@ func TestScheduleFetches_Scenarios(t *testing.T) {
 	}
 }
 
-func TestDisableScheduleFetches_OptionWiring(t *testing.T) {
+func TestScheduleFetches_OptionWiring(t *testing.T) {
 	t.Parallel()
 	input := func() *resolve.FetchTreeNode {
 		return seq(
@@ -818,13 +818,14 @@ func TestDisableScheduleFetches_OptionWiring(t *testing.T) {
 			seq(sf(1), sf(3, dependsOn(1)))),
 		sf(4, dependsOn(2, 3)))
 
-	scheduled := input()
-	NewProcessor().fetchTreeProcessors.organizeFetchTree(scheduled)
-	requireEqualTrees(t, wantScheduled, scheduled)
+	// The scheduler is opt-in: the default pipeline organizes legacy waves.
+	def := input()
+	NewProcessor().fetchTreeProcessors.organizeFetchTree(def)
+	requireEqualTrees(t, wantWaves, def)
 
-	waves := input()
-	NewProcessor(DisableScheduleFetches()).fetchTreeProcessors.organizeFetchTree(waves)
-	requireEqualTrees(t, wantWaves, waves)
+	scheduled := input()
+	NewProcessor(EnableScheduleFetches()).fetchTreeProcessors.organizeFetchTree(scheduled)
+	requireEqualTrees(t, wantScheduled, scheduled)
 }
 
 func TestScheduleFetches_SubscriptionRootStaysSequence(t *testing.T) {
@@ -917,7 +918,7 @@ func TestScheduleFetches_ProcessorFallsBackOnError(t *testing.T) {
 
 	scheduled := build()
 	require.NotPanics(t, func() {
-		NewProcessor().fetchTreeProcessors.organizeFetchTree(scheduled)
+		NewProcessor(EnableScheduleFetches()).fetchTreeProcessors.organizeFetchTree(scheduled)
 	})
 	require.Equal(t, legacy, scheduled)
 }
@@ -980,7 +981,7 @@ func TestScheduleFetches_BigPlan(t *testing.T) {
 
 	t.Run("scheduler does not fall back to legacy waves", func(t *testing.T) {
 		root := seq(input()...)
-		NewProcessor().fetchTreeProcessors.organizeFetchTree(root)
+		NewProcessor(EnableScheduleFetches()).fetchTreeProcessors.organizeFetchTree(root)
 		requireEqualTrees(t, expected, root)
 	})
 }
