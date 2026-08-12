@@ -84,6 +84,7 @@ func NewSchemaFromBytes(schema []byte) (*Schema, error) {
 func ValidateSchemaString(schema string) (result ValidationResult, err error) {
 	parsedSchema, err := NewSchemaFromString(schema)
 	if err != nil {
+		//nolint:nilerr // Validation failures are returned in ValidationResult.
 		return ValidationResult{
 			Valid: false,
 			Errors: SchemaValidationErrors{
@@ -280,7 +281,7 @@ func (s *Schema) addTypeFieldArgsForFieldRef(ref int, typeName string, fieldName
 
 	for _, argRef := range s.document.FieldDefinitions[ref].ArgumentsDefinition.Refs {
 		argName := s.document.InputValueDefinitionNameString(argRef)
-		currentTypeFieldArgs.ArgumentNames = append(currentTypeFieldArgs.ArgumentNames, string(argName))
+		currentTypeFieldArgs.ArgumentNames = append(currentTypeFieldArgs.ArgumentNames, argName)
 	}
 
 	*fieldArguments = append(*fieldArguments, currentTypeFieldArgs)

@@ -303,7 +303,7 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 	// before we can parse the schema.
 	for i := 0; i < schemaFile.Imports().Len(); i++ {
 		protoImport := schemaFile.Imports().Get(i)
-		pc.doc.Imports = append(pc.doc.Imports, string(protoImport.Path()))
+		pc.doc.Imports = append(pc.doc.Imports, protoImport.Path())
 		pc.processFile(protoImport, mapping)
 	}
 

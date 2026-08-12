@@ -1,6 +1,7 @@
 package astvalidation
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 
@@ -27,7 +28,7 @@ type options struct {
 
 type option func(options *options)
 
-// nolint
+//nolint
 func withDisableNormalization() option {
 	return func(options *options) {
 		options.disableNormalization = true
@@ -49,7 +50,8 @@ func withValidationErrors(errMsgs ...string) option {
 
 func TestExecutionValidation(t *testing.T) {
 	must := func(err error) {
-		if report, ok := err.(operationreport.Report); ok {
+		var report operationreport.Report
+		if errors.As(err, &report) {
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}

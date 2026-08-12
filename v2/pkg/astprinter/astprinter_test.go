@@ -2,6 +2,7 @@ package astprinter
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"testing"
 
@@ -17,7 +18,8 @@ import (
 
 func must(t *testing.T, err error) {
 	t.Helper()
-	if report, ok := err.(operationreport.Report); ok {
+	var report operationreport.Report
+	if errors.As(err, &report) {
 		if report.HasErrors() {
 			t.Fatalf("report has errors %s", report.Error())
 		}

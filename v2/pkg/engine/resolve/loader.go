@@ -1510,7 +1510,7 @@ func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, it
 	if err != nil {
 		res.out = l.renderErrorsInvalidInput(fetchItem)
 		prepared.skipLoad = true
-		return nil
+		return nil //nolint:nilerr // The render error is represented in the GraphQL response.
 	}
 	fetchInput := buf.Bytes()
 	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
@@ -1676,10 +1676,8 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 		// we need to clear the batchStats slice to avoid memory corruption
 		// once the outer func returns, we must not keep pointers to items on the arena
 		for i := range batchStats {
-			// nolint:ineffassign
 			batchStats[i] = nil
 		}
-		// nolint:ineffassign
 		batchStats = nil
 	}()
 
@@ -1700,7 +1698,6 @@ WithNextItem:
 			err = fetch.Input.Items[j].Render(l.ctx, item, itemInput)
 			if err != nil {
 				if fetch.Input.SkipErrItems {
-					err = nil // nolint:ineffassign
 					continue
 				}
 				if l.ctx.TracingOptions.Enable {

@@ -1,6 +1,7 @@
 package astnormalization
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/buger/jsonparser"
@@ -37,7 +38,7 @@ func (v *inputFieldDefaultInjectionVisitor) EnterVariableDefinition(ref int) {
 	v.variableName = v.operation.VariableDefinitionNameString(ref)
 
 	variableVal, _, _, err := jsonparser.Get(v.operation.Input.Variables, v.variableName)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		return
 	}
 	if err != nil {
@@ -82,11 +83,11 @@ func (v *inputFieldDefaultInjectionVisitor) recursiveInjectInputFields(inputObje
 		hasDefault := valDef.DefaultValue.IsDefined
 
 		varVal, _, _, err := jsonparser.Get(varValue, fieldName)
-		if err != nil && err != jsonparser.KeyPathNotFoundError {
+		if err != nil && !errors.Is(err, jsonparser.KeyPathNotFoundError) {
 			v.StopWithInternalErr(err)
 			return nil, false, err
 		}
-		existsInVal := err != jsonparser.KeyPathNotFoundError
+		existsInVal := !errors.Is(err, jsonparser.KeyPathNotFoundError)
 
 		if !isTypeScalarOrEnum {
 			var valToUse []byte

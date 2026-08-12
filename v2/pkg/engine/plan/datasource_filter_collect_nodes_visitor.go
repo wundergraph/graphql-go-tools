@@ -166,7 +166,7 @@ func (c *nodesCollector) collectNodes() {
 
 			for _, node := range nodesToVisit {
 				if err := visitor.EnterField(node.fieldRef, node.treeNodeData, node.treeNodeId); err != nil {
-					report.AddInternalError(fmt.Errorf("data source %s: %v", visitor.dataSource.Name(), err))
+					report.AddInternalError(fmt.Errorf("data source %s: %w", visitor.dataSource.Name(), err))
 					// stop processing on error
 					return
 				}
@@ -402,7 +402,7 @@ func (f *collectNodesDSVisitor) handleProvidesSuggestions(fieldRef int, typeName
 	}
 	selection, report := providesSuggestions(input)
 	if report.HasErrors() {
-		return fmt.Errorf("failed to get provides suggestions for %s.%s at path %s: %v", typeName, fieldName, currentPath, report)
+		return fmt.Errorf("failed to get provides suggestions for %s.%s at path %s: %w", typeName, fieldName, currentPath, report)
 	}
 
 	if len(selection) > 0 {
