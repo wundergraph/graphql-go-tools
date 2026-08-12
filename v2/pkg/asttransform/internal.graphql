@@ -1,0 +1,5 @@
+directive @__defer_internal(
+    id: Int!
+    parentDeferId: Int
+    label: String
+) repeatable on FIELD

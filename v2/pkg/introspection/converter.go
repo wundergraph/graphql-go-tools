@@ -21,7 +21,7 @@ type JsonConverter struct {
 func (j *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) (*ast.Document, error) {
 	var data Data
 	if err := json.NewDecoder(introspectionJSON).Decode(&data); err != nil {
-		return nil, fmt.Errorf("failed to parse inrospection json: %v", err)
+		return nil, fmt.Errorf("failed to parse inrospection json: %w", err)
 	}
 
 	j.schema = &data.Schema
@@ -29,7 +29,7 @@ func (j *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) (*ast.Docum
 	j.parser = astparser.NewParser()
 
 	if err := j.importSchema(); err != nil {
-		return nil, fmt.Errorf("failed to convert graphql schema: %v", err)
+		return nil, fmt.Errorf("failed to convert graphql schema: %w", err)
 	}
 
 	return j.doc, nil
@@ -78,7 +78,7 @@ func (j *JsonConverter) importObject(fullType *FullType) error {
 	}
 
 	iRefs := make([]int, len(fullType.Interfaces))
-	for i := 0; i < len(iRefs); i++ {
+	for i := range iRefs {
 		iRefs[i] = j.importType(fullType.Interfaces[i])
 	}
 
@@ -136,7 +136,7 @@ func (j *JsonConverter) importInputObject(fullType *FullType) error {
 
 func (j *JsonConverter) importEnum(fullType *FullType) {
 	valueRefs := make([]int, len(fullType.EnumValues))
-	for i := 0; i < len(valueRefs); i++ {
+	for i := range valueRefs {
 		var directiveRefs []int
 		if fullType.EnumValues[i].IsDeprecated {
 			directiveRefs = append(directiveRefs, j.importDeprecatedDirective(fullType.EnumValues[i].DeprecationReason))
@@ -157,7 +157,7 @@ func (j *JsonConverter) importEnum(fullType *FullType) {
 
 func (j *JsonConverter) importUnion(fullType *FullType) error {
 	typeRefs := make([]int, len(fullType.PossibleTypes))
-	for i := 0; i < len(typeRefs); i++ {
+	for i := range typeRefs {
 		typeRefs[i] = j.importType(fullType.PossibleTypes[i])
 	}
 

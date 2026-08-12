@@ -23,7 +23,7 @@ func (d *Document) ListValuesAreEqual(left, right int) bool {
 	if len(leftValues) != len(rightValues) {
 		return false
 	}
-	for i := 0; i < len(leftValues); i++ {
+	for i := range leftValues {
 		left, right = leftValues[i], rightValues[i]
 		leftValue, rightValue := d.Value(left), d.Value(right)
 		if !d.ValuesAreEqual(leftValue, rightValue) {

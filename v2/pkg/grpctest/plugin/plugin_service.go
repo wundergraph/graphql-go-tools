@@ -25,7 +25,7 @@ func (p *GRPCDataSourcePlugin) GRPCServer(broker *plugin.GRPCBroker, server *grp
 	return nil
 }
 
-func (p *GRPCDataSourcePlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+func (p *GRPCDataSourcePlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (any, error) {
 	return nil, nil
 }
 

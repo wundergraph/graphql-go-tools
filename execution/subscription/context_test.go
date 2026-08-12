@@ -12,8 +12,8 @@ import (
 )
 
 func TestNewInitialHttpRequestContext(t *testing.T) {
-	ctx, cancelFn := context.WithCancel(context.Background())
-	defer cancelFn()
+	t.Parallel()
+	ctx := t.Context()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost:8080", bytes.NewBufferString("lorem ipsum"))
 	require.NoError(t, err)
@@ -23,7 +23,9 @@ func TestNewInitialHttpRequestContext(t *testing.T) {
 	assert.Equal(t, req, initialReqCtx.Request)
 }
 
+//nolint:tparallel // Subtests intentionally share the same cancellation map and context state.
 func TestSubscriptionCancellations(t *testing.T) {
+	t.Parallel()
 	cancellations := subscriptionCancellations{}
 	var ctx context.Context
 	var err error
@@ -31,7 +33,7 @@ func TestSubscriptionCancellations(t *testing.T) {
 	t.Run("should add a cancellation func to map", func(t *testing.T) {
 		require.Equal(t, 0, cancellations.Len())
 
-		ctx, err = cancellations.AddWithParent("1", context.Background())
+		ctx, err = cancellations.AddWithParent("1", context.Background()) //nolint:fatcontext // Sequential subtests share this context.
 		assert.Nil(t, err)
 		assert.Equal(t, 1, cancellations.Len())
 		assert.NotNil(t, ctx)
@@ -52,6 +54,7 @@ func TestSubscriptionCancellations(t *testing.T) {
 }
 
 func TestSubscriptionIdsShouldBeUnique(t *testing.T) {
+	t.Parallel()
 	sc := subscriptionCancellations{}
 	var ctx context.Context
 	var err error

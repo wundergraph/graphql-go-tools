@@ -3,6 +3,7 @@ package graphql
 import (
 	"bytes"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -83,6 +84,7 @@ func NewSchemaFromBytes(schema []byte) (*Schema, error) {
 func ValidateSchemaString(schema string) (result ValidationResult, err error) {
 	parsedSchema, err := NewSchemaFromString(schema)
 	if err != nil {
+		//nolint:nilerr // Validation failures are returned in ValidationResult.
 		return ValidationResult{
 			Valid: false,
 			Errors: SchemaValidationErrors{
@@ -279,7 +281,7 @@ func (s *Schema) addTypeFieldArgsForFieldRef(ref int, typeName string, fieldName
 
 	for _, argRef := range s.document.FieldDefinitions[ref].ArgumentsDefinition.Refs {
 		argName := s.document.InputValueDefinitionNameString(argRef)
-		currentTypeFieldArgs.ArgumentNames = append(currentTypeFieldArgs.ArgumentNames, string(argName))
+		currentTypeFieldArgs.ArgumentNames = append(currentTypeFieldArgs.ArgumentNames, argName)
 	}
 
 	*fieldArguments = append(*fieldArguments, currentTypeFieldArgs)
@@ -309,7 +311,7 @@ func (s *Schema) findInterfaceImplementations(node ast.Node, childNodes *[]TypeF
 	}
 
 	implementingNodes := s.document.InterfaceTypeDefinitionImplementedByRootNodes(node.Ref)
-	for i := 0; i < len(implementingNodes); i++ {
+	for i := range implementingNodes {
 		var typeName string
 		switch implementingNodes[i].Kind {
 		case ast.NodeKindObjectTypeDefinition:
@@ -377,10 +379,8 @@ func (s *Schema) putChildNode(nodes *[]TypeFields, typeName, fieldName string) (
 		if typeName != (*nodes)[i].TypeName {
 			continue
 		}
-		for j := range (*nodes)[i].FieldNames {
-			if fieldName == (*nodes)[i].FieldNames[j] {
-				return false
-			}
+		if slices.Contains((*nodes)[i].FieldNames, fieldName) {
+			return false
 		}
 		(*nodes)[i].FieldNames = append((*nodes)[i].FieldNames, fieldName)
 		return true

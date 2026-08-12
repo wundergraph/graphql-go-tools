@@ -116,7 +116,7 @@ func TestStack(t *testing.T) {
 		s.push(200)
 
 		// Multiple peeks should return same value and not change length
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			require.Equal(t, 200, s.peek())
 			require.Equal(t, 2, s.len())
 		}
@@ -163,14 +163,14 @@ func TestStack(t *testing.T) {
 		s := newStack[int](10)
 
 		// Push 100 items
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			s.push(i)
 		}
 		require.Equal(t, 100, s.len())
 		require.Equal(t, 99, s.peek())
 
 		// Pop 50 items
-		for i := 0; i < 50; i++ {
+		for range 50 {
 			s.pop()
 		}
 		require.Equal(t, 50, s.len())

@@ -204,7 +204,7 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 		variableValue, dataType, _, err := jsonparser.Get(d.Input.Variables, variableName)
 		if err != nil {
 			buf.Write(literal.NULL)
-			return nil
+			return nil //nolint:nilerr // A missing variable is rendered as GraphQL null.
 		}
 		if dataType == jsonparser.String {
 			buf.WriteByte('"')
@@ -227,7 +227,7 @@ func (d *Document) ValueToJSON(value Value) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// nolint
+//nolint
 func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
 	switch value.Kind {
 	case ValueKindBoolean:
@@ -359,4 +359,15 @@ func (d *Document) ValuesAreEqual(left, right Value) bool {
 func (d *Document) AddValue(value Value) (ref int) {
 	d.Values = append(d.Values, value)
 	return len(d.Values) - 1
+}
+
+func (d *Document) GetBooleanValue(value Value) (out, valid bool) {
+	switch value.Kind {
+	case ValueKindBoolean:
+		return bool(d.BooleanValue(value.Ref)), true
+	case ValueKindVariable:
+		return d.GetVariableBooleanValue(d.VariableValueNameString(value.Ref))
+	default:
+		return false, false
+	}
 }

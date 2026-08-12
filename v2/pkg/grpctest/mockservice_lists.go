@@ -410,7 +410,7 @@ func (s *MockService) QueryBlogPostsWithFilter(ctx context.Context, in *productv
 
 		var tags []string
 		tagsCount := minTags + int32(i)
-		for j := int32(0); j < tagsCount; j++ {
+		for j := range tagsCount {
 			tags = append(tags, fmt.Sprintf("tag%d", j+1))
 		}
 
@@ -876,7 +876,7 @@ func (s *MockService) QueryAuthorsWithFilter(ctx context.Context, in *productv1.
 
 		var skills []string
 		skillsNeeded := skillCount + int32(i)
-		for j := int32(0); j < skillsNeeded; j++ {
+		for j := range skillsNeeded {
 			skills = append(skills, fmt.Sprintf("Skill%d", j+1))
 		}
 

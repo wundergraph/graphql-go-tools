@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -198,6 +199,66 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		assert.Equal(t, common.MessageTypeComplete, msg.Type)
 		assert.Nil(t, msg.Err)
 		assert.Nil(t, msg.Payload)
+
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			require.Equal(c, 0, tr.ConnCount(), "Naturally closed connections should be removed from the transport")
+		}, time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("Should kepp connections that are not naturally closed", func(t *testing.T) {
+		t.Parallel()
+
+		keepAliveChan := make(chan struct{})
+		defer close(keepAliveChan)
+
+		keepAliveServer := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+
+			flusher := w.(http.Flusher)
+
+			fmt.Fprintf(w, "event: next\ndata: {\"data\": {\"user\": {\"name\": \"Bob\"}}}\n\n")
+			flusher.Flush()
+
+			<-keepAliveChan
+		})
+
+		completeServer := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+
+			fmt.Fprintf(w, "event: complete\ndata:\n\n")
+		})
+
+		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
+
+		handler, receive := collectingHandler()
+
+		cancel1, err1 := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { user { name } }",
+		}, common.Options{Endpoint: keepAliveServer.URL, SSEMethod: common.SSEMethodPOST}, handler)
+		require.NoError(t, err1)
+		defer cancel1()
+
+		cancel2, err2 := tr.Subscribe(context.Background(), &common.Request{
+			Query: "subscription { user { name } }",
+		}, common.Options{Endpoint: completeServer.URL, SSEMethod: common.SSEMethodPOST}, handler)
+		require.NoError(t, err2)
+		defer cancel2()
+
+		msgs := make([]*common.Message, 0, 2)
+
+		msgs = append(msgs, receive(t, time.Second))
+		msgs = append(msgs, receive(t, time.Second))
+
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			require.Equal(c, 2, len(msgs), "Should receive 2 messages")
+			require.True(c, slices.ContainsFunc(msgs, func(msg *common.Message) bool {
+				return msg.Type == common.MessageTypeComplete
+			}))
+
+			require.Equal(c, 1, tr.ConnCount(), "Connection with done event should have been removed")
+		}, time.Second, 10*time.Millisecond)
 	})
 
 	t.Run("handles multi-line data", func(t *testing.T) {

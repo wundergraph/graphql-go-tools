@@ -2,23 +2,41 @@ version: "2"
 linters:
   default: none
   enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - durationcheck
     - errcheck
+    - errchkjson
+    - errorlint
+    - fatcontext
+    - gocheckcompilerdirectives
     - govet
     - ineffassign
-    - staticcheck
-    - bodyclose
+    - loggercheck
+    - makezero
+    - nilerr
+    - nilnesserr
+    - nolintlint
+    - reassign
+    - spancheck
     - embeddedstructfieldcheck
+    - modernize
+    - staticcheck
     - tparallel
-    # - unused
+    - unconvert
+    - wastedassign
 
   exclusions:
     generated: lax
     presets:
       - comments
       - common-false-positives
-      - legacy
       - std-error-handling
     rules:
+      - path: _test\.go
+        linters:
+          - errchkjson
       - linters:
           - staticcheck
         text: "QF1008:"

@@ -19,7 +19,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/execution/subscription"
 )
 
-type queryVariables map[string]interface{}
+type queryVariables map[string]any
 
 func requestBody(t *testing.T, query string, variables queryVariables) []byte {
 	var variableJsonBytes []byte

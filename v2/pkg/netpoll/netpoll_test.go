@@ -43,7 +43,7 @@ func TestPoller(t *testing.T) {
 	}()
 
 	// create num connections and send msgPerConn messages per connection
-	for i := 0; i < num; i++ {
+	for range num {
 		go func() {
 			conn, err := net.Dial("tcp", ln.Addr().String())
 			if err != nil {
@@ -51,7 +51,7 @@ func TestPoller(t *testing.T) {
 				return
 			}
 			time.Sleep(time.Second)
-			for i := 0; i < msgPerConn; i++ {
+			for range msgPerConn {
 				n, err := conn.Write([]byte("hello world"))
 				if err != nil {
 					t.Error(err)
@@ -60,7 +60,7 @@ func TestPoller(t *testing.T) {
 					t.Errorf("expect to write %d bytes but got %d bytes", len("hello world"), n)
 				}
 			}
-			conn.Close() // nolint: errcheck
+			conn.Close()
 		}()
 	}
 
@@ -87,9 +87,9 @@ func TestPoller(t *testing.T) {
 			for _, conn := range conns {
 				n, err := conn.Read(buf)
 				if err != nil {
-					if err == io.EOF || errors.Is(err, net.ErrClosed) {
-						poller.Remove(conn) // nolint: errcheck
-						conn.Close()        // nolint: errcheck
+					if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+						poller.Remove(conn) //nolint:errcheck
+						conn.Close()
 					} else {
 						t.Error(err)
 					}
@@ -128,7 +128,7 @@ func TestPoller_growstack(t *testing.T) {
 		t.SkipNow()
 	}
 	var nps []netPoller
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		poller, err := NewPoller(128, time.Second)
 		if err != nil {
 			t.Fatal(err)
@@ -172,10 +172,10 @@ func TestPoller_growstack(t *testing.T) {
 		return
 	}
 	time.Sleep(200 * time.Millisecond)
-	for i := 0; i < 100; i++ {
-		conn.Write([]byte("hello world")) // nolint: errcheck
+	for range 100 {
+		conn.Write([]byte("hello world")) //nolint:errcheck
 	}
-	conn.Close() // nolint: errcheck
+	conn.Close()
 }
 
 func TestNetPollSupported(t *testing.T) {

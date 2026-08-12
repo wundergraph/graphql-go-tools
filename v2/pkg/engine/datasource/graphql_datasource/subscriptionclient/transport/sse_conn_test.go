@@ -21,7 +21,7 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		))
 		resp := &http.Response{Body: body}
 		handler, receive := collectingHandler()
-		conn := newSSEConnection(resp, handler)
+		conn := newSSEConnection(resp, handler, nil)
 
 		go conn.readLoop()
 
@@ -35,7 +35,7 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		body := io.NopCloser(strings.NewReader(""))
 		resp := &http.Response{Body: body}
 		handler, receive := collectingHandler()
-		conn := newSSEConnection(resp, handler)
+		conn := newSSEConnection(resp, handler, nil)
 
 		go conn.readLoop()
 
@@ -48,7 +48,7 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		body := &errorReader{err: io.ErrUnexpectedEOF}
 		resp := &http.Response{Body: io.NopCloser(body)}
 		handler, receive := collectingHandler()
-		conn := newSSEConnection(resp, handler)
+		conn := newSSEConnection(resp, handler, nil)
 
 		go conn.readLoop()
 
@@ -66,7 +66,7 @@ func TestSSEConnection_ReadLoop(t *testing.T) {
 		resp := &http.Response{Body: body}
 		handler, receive := collectingHandler()
 		wrappedHandler, collect := waitForMessages(handler)
-		conn := newSSEConnection(resp, wrappedHandler)
+		conn := newSSEConnection(resp, wrappedHandler, nil)
 
 		go conn.readLoop()
 
@@ -91,7 +91,7 @@ func TestSSEConnection_Close(t *testing.T) {
 		body := &trackingCloser{Reader: pr}
 		resp := &http.Response{Body: body}
 		handler, _ := collectingHandler()
-		conn := newSSEConnection(resp, handler)
+		conn := newSSEConnection(resp, handler, nil)
 
 		go conn.readLoop()
 
@@ -107,7 +107,7 @@ func TestSSEConnection_Close(t *testing.T) {
 		body := io.NopCloser(strings.NewReader(""))
 		resp := &http.Response{Body: body}
 		handler, _ := collectingHandler()
-		conn := newSSEConnection(resp, handler)
+		conn := newSSEConnection(resp, handler, nil)
 
 		conn.closeConn()
 		conn.closeConn() // second call is a no-op

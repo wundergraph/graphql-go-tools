@@ -36,7 +36,7 @@ type CostVisitor struct {
 func NewCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Document) *CostVisitor {
 	stack := make([]*CostTreeNode, 0, 16)
 	rootNode := CostTreeNode{
-		fieldCoords: FieldCoordinate{"_none", "_root"},
+		fieldCoords: costTreeRootNodeCoords,
 	}
 	stack = append(stack, &rootNode)
 	return &CostVisitor{
@@ -48,9 +48,32 @@ func NewCostVisitor(walker *astvisitor.Walker, operation, definition *ast.Docume
 	}
 }
 
+var costTreeRootNodeCoords = FieldCoordinate{"_none", "_root"}
+
+func (v *CostVisitor) operationTypeName() string {
+	if v.operationDefinition == nil {
+		return ""
+	}
+	switch v.Operation.OperationDefinitions[*v.operationDefinition].OperationType {
+	case ast.OperationTypeQuery:
+		return "Query"
+	case ast.OperationTypeMutation:
+		return "Mutation"
+	case ast.OperationTypeSubscription:
+		return "Subscription"
+	default:
+		return ""
+	}
+}
+
 // EnterField creates a partial cost node when entering a field.
 // The node is filled in full in the LeaveField when fieldPlanners data is available.
 func (v *CostVisitor) EnterField(fieldRef int) {
+	if v.tree.fieldPath == "" {
+		// Seed the root with the operation type name, so every node's fieldPath matches the
+		// key convention of the resolver's runtime stats (renderFieldPath): "Query.user.secret".
+		v.tree.fieldPath = v.operationTypeName()
+	}
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameUnsafeString(fieldRef)
 
@@ -62,7 +85,6 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinitionRef)
 	isListType := v.Definition.TypeIsList(fieldDefinitionTypeRef)
-	isSimpleType := v.Definition.TypeIsEnum(fieldDefinitionTypeRef, v.Definition) || v.Definition.TypeIsScalar(fieldDefinitionTypeRef, v.Definition)
 	unwrappedTypeName := v.Definition.ResolveTypeNameString(fieldDefinitionTypeRef)
 
 	arguments := v.extractFieldArguments(fieldRef)
@@ -70,33 +92,37 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 	// Check and push through if the unwrapped type of this field is interface or union.
 	unwrappedTypeNode, exists := v.Definition.NodeByNameStr(unwrappedTypeName)
 	var implementingTypeNames []string
-	var isAbstractType bool
+	var isAbstractType, isSimpleType bool
 	if exists {
-		if unwrappedTypeNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+		kind := unwrappedTypeNode.Kind
+		if kind == ast.NodeKindInterfaceTypeDefinition {
 			impl, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(unwrappedTypeNode.Ref)
 			if ok {
 				implementingTypeNames = append(implementingTypeNames, impl...)
 				isAbstractType = true
 			}
 		}
-		if unwrappedTypeNode.Kind == ast.NodeKindUnionTypeDefinition {
+		if kind == ast.NodeKindUnionTypeDefinition {
 			impl, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(unwrappedTypeNode.Ref)
 			if ok {
 				implementingTypeNames = append(implementingTypeNames, impl...)
 				isAbstractType = true
 			}
 		}
+		if kind == ast.NodeKindScalarTypeDefinition || kind == ast.NodeKindEnumTypeDefinition {
+			isSimpleType = true
+		}
 	}
 
 	aliasOrName := v.Operation.FieldAliasOrNameString(fieldRef)
 
-	var jsonPath string
+	var fieldPath string
 	if len(v.stack) > 0 {
 		parent := v.stack[len(v.stack)-1]
-		if parent.jsonPath != "" {
-			jsonPath = parent.jsonPath + "." + aliasOrName
+		if parent.fieldPath != "" {
+			fieldPath = parent.fieldPath + "." + aliasOrName
 		} else {
-			jsonPath = aliasOrName
+			fieldPath = aliasOrName
 		}
 	}
 
@@ -112,7 +138,7 @@ func (v *CostVisitor) EnterField(fieldRef int) {
 		returnsAbstractType:     isAbstractType,
 		isEnclosingTypeAbstract: isEnclosingTypeAbstract,
 		arguments:               arguments,
-		jsonPath:                jsonPath,
+		fieldPath:               fieldPath,
 	}
 
 	// Attach to the parent

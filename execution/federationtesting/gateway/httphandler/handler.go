@@ -2,6 +2,7 @@ package httphandler
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/gobwas/ws"
 	log "github.com/jensneuse/abstractlogger"
@@ -63,10 +64,5 @@ func (g *GraphQLHTTPRequestHandler) upgradeWithNewGoroutine(w http.ResponseWrite
 }
 
 func (g *GraphQLHTTPRequestHandler) isWebsocketUpgrade(r *http.Request) bool {
-	for _, header := range r.Header[httpHeaderUpgrade] {
-		if header == "websocket" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(r.Header[httpHeaderUpgrade], "websocket")
 }

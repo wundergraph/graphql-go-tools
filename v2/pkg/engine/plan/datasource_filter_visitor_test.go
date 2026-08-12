@@ -189,7 +189,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			},
 			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "provider", DataSourceHash: 11, Path: "query.provider", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
-				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}, hasUnionReturnType: true},
 				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$0User.name", ParentPath: "query.provider.accounts.$0User", onFragment: true, parentPathWithoutFragment: "query.provider.accounts", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 			}),
 		},
@@ -249,7 +249,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			},
 			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
 				{TypeName: "Query", FieldName: "provider", DataSourceHash: 11, Path: "query.provider", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
-				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
+				{TypeName: "AccountProvider", FieldName: "accounts", DataSourceHash: 11, Path: "query.provider.accounts", ParentPath: "query.provider", Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}, hasUnionReturnType: true},
 				{TypeName: "User", FieldName: "name", DataSourceHash: 22, Path: "query.provider.accounts.$0User.name", ParentPath: "query.provider.accounts.$0User", onFragment: true, parentPathWithoutFragment: "query.provider.accounts", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 				{TypeName: "Account", FieldName: "__typename", DataSourceHash: 11, Path: "query.provider.accounts.__typename", ParentPath: "query.provider.accounts", IsRootNode: false, isTypeName: true, possibleTypeNames: []string{"User"}, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
 			}),
@@ -1083,7 +1083,6 @@ func TestFindBestDataSourceSet(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.Description, func(t *testing.T) {
 
 			if tc.ExpectedSuggestions != nil {
@@ -1100,7 +1099,6 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			}
 
 			for i, variant := range tc.ExpectedVariants {
-				variant := variant
 				t.Run(fmt.Sprintf("Variant: %d", i), func(t *testing.T) {
 					run(t, tc.Definition, tc.Query, permutations.OrderDS(tc.DataSources, variant.dsOrder), variant.suggestions)
 				})

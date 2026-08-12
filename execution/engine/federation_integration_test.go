@@ -44,8 +44,7 @@ func testQueryPath(name string) string {
 }
 
 func TestFederationIntegrationTestWithArt(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	setup, err := federationtesting.NewFederationSetup(addGateway(true))
 	require.NoError(t, err)

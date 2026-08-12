@@ -16,7 +16,7 @@ type ckey string
 
 type resolver struct {
 	Rooms map[string]*Chatroom
-	mu    sync.Mutex // nolint: structcheck
+	mu    sync.Mutex
 }
 
 func (r *resolver) Mutation() MutationResolver {
@@ -37,7 +37,7 @@ func New() Config {
 			Rooms: map[string]*Chatroom{},
 		},
 		Directives: DirectiveRoot{
-			User: func(ctx context.Context, obj interface{}, next graphql.Resolver, username string) (res interface{}, err error) {
+			User: func(ctx context.Context, obj any, next graphql.Resolver, username string) (res any, err error) {
 				return next(context.WithValue(ctx, ckey("username"), username))
 			},
 		},

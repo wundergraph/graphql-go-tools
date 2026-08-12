@@ -17,8 +17,8 @@ func TestKeyInfo(t *testing.T) {
 		parentPath string
 		typeName   string
 
-		dataSource      DataSource
-		providesEntries map[string]struct{}
+		dataSource        DataSource
+		providedSelection providesSelection
 
 		expectPaths          []KeyInfoFieldPath
 		expectExternalFields bool
@@ -166,9 +166,9 @@ func TestKeyInfo(t *testing.T) {
 						SelectionSet: "id name",
 					},
 				}).DS(),
-			providesEntries: map[string]struct{}{
-				"User|id|query.me.id":     {},
-				"User|name|query.me.name": {},
+			providedSelection: providesSelection{
+				"id":   {{allowedTypes: pTypes("User")}},
+				"name": {{allowedTypes: pTypes("User")}},
 			},
 			expectPaths: []KeyInfoFieldPath{
 				{Path: "query.me.id"},
@@ -192,8 +192,8 @@ func TestKeyInfo(t *testing.T) {
 				report:     report,
 				parentPath: tc.parentPath,
 
-				dataSource:      tc.dataSource,
-				providesEntries: tc.providesEntries,
+				dataSource:        tc.dataSource,
+				providedSelection: tc.providedSelection,
 			}
 
 			keyPaths, hasExternalFields := getKeyPaths(input)
@@ -212,8 +212,8 @@ func TestCollectKeysForPath(t *testing.T) {
 		parentPath string
 		typeName   string
 
-		dataSource      DataSource
-		providesEntries map[string]struct{}
+		dataSource        DataSource
+		providedSelection providesSelection
 
 		expectKeys []DSKeyInfo
 	}{
@@ -318,9 +318,9 @@ func TestCollectKeysForPath(t *testing.T) {
 					},
 				}).
 				DS(),
-			providesEntries: map[string]struct{}{
-				"User|id|query.me.id":     {},
-				"User|name|query.me.name": {},
+			providedSelection: providesSelection{
+				"id":   {{allowedTypes: pTypes("User")}},
+				"name": {{allowedTypes: pTypes("User")}},
 			},
 			expectKeys: []DSKeyInfo{
 				{
@@ -470,15 +470,14 @@ func TestCollectKeysForPath(t *testing.T) {
 			collectNodesVisitor := &collectNodesDSVisitor{
 				definition:          &definition,
 				dataSource:          c.dataSource,
-				providesEntries:     c.providesEntries,
 				keys:                make([]DSKeyInfo, 0, 2),
 				localSeenKeys:       make(map[SeenKeyPath]struct{}),
 				notExternalKeyPaths: make(map[string]struct{}),
 			}
 
-			assert.NoError(t, collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath))
+			assert.NoError(t, collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath, c.providedSelection))
 			// call it again to test the deduplication
-			assert.NoError(t, collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath))
+			assert.NoError(t, collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath, c.providedSelection))
 
 			assert.Equal(t, len(c.expectKeys), len(collectNodesVisitor.keys))
 			assert.Equal(t, c.expectKeys, collectNodesVisitor.keys)

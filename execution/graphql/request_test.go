@@ -12,7 +12,9 @@ import (
 )
 
 func TestUnmarshalRequest(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when request is empty", func(t *testing.T) {
+		t.Parallel()
 		requestBytes := []byte("")
 		requestBuffer := bytes.NewBuffer(requestBytes)
 
@@ -24,6 +26,7 @@ func TestUnmarshalRequest(t *testing.T) {
 	})
 
 	t.Run("should successfully unmarshal request", func(t *testing.T) {
+		t.Parallel()
 		requestBytes := []byte(`{"operationName": "Hello", "variables": "", "query": "query Hello { hello }"}`)
 		requestBuffer := bytes.NewBuffer(requestBytes)
 
@@ -37,6 +40,7 @@ func TestUnmarshalRequest(t *testing.T) {
 }
 
 func TestRequest_Print(t *testing.T) {
+	t.Parallel()
 	query := "query Hello { hello }"
 	request := Request{
 		OperationName: "Hello",
@@ -53,6 +57,7 @@ func TestRequest_Print(t *testing.T) {
 }
 
 func TestRequest_parseQueryOnce(t *testing.T) {
+	t.Parallel()
 	request := func() *Request {
 		return &Request{
 			OperationName: "Hello",
@@ -62,6 +67,7 @@ func TestRequest_parseQueryOnce(t *testing.T) {
 	}
 
 	t.Run("valid query", func(t *testing.T) {
+		t.Parallel()
 		req := request()
 		report := req.parseQueryOnce()
 		assert.False(t, report.HasErrors())
@@ -69,6 +75,7 @@ func TestRequest_parseQueryOnce(t *testing.T) {
 	})
 
 	t.Run("should not parse again", func(t *testing.T) {
+		t.Parallel()
 		req := request()
 		report := req.parseQueryOnce()
 		assert.False(t, report.HasErrors())
@@ -80,6 +87,7 @@ func TestRequest_parseQueryOnce(t *testing.T) {
 	})
 
 	t.Run("should not set is parsed for invalid query", func(t *testing.T) {
+		t.Parallel()
 		req := request()
 		req.Query = "{"
 		report := req.parseQueryOnce()
@@ -89,7 +97,9 @@ func TestRequest_parseQueryOnce(t *testing.T) {
 }
 
 func TestRequest_CalculateComplexity(t *testing.T) {
+	t.Parallel()
 	t.Run("should successfully calculate the complexity of request", func(t *testing.T) {
+		t.Parallel()
 		schema := StarwarsSchema(t)
 		request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 
@@ -118,6 +128,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 	})
 
 	t.Run("should successfully calculate the complexity of request with multiple query fields", func(t *testing.T) {
+		t.Parallel()
 		schema := StarwarsSchema(t)
 		request := StarwarsRequestForQuery(t, starwars.FileHeroWithAliasesQuery)
 
@@ -156,8 +167,10 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 }
 
 func TestRequest_IsIntrospectionQuery(t *testing.T) {
+	t.Parallel()
 	run := func(queryPayload string, expectedIsIntrospection bool) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			t.Helper()
 
 			var request Request
@@ -171,6 +184,7 @@ func TestRequest_IsIntrospectionQuery(t *testing.T) {
 	}
 
 	t.Run("schema introspection query", func(t *testing.T) {
+		t.Parallel()
 		t.Run("with operation name IntrospectionQuery", run(namedIntrospectionQuery, true))
 		t.Run("without operation name IntrospectionQuery but as single query", run(singleNamedIntrospectionQueryWithoutOperationName, true))
 		t.Run("with empty operation name", run(silentIntrospectionQuery, true))
@@ -182,11 +196,13 @@ func TestRequest_IsIntrospectionQuery(t *testing.T) {
 	})
 
 	t.Run("type introspection query", func(t *testing.T) {
+		t.Parallel()
 		t.Run("as single introspection", run(typeIntrospectionQuery, true))
 		t.Run("with multiple queries in payload", run(typeIntrospectionQueryWithMultipleQueries, true))
 	})
 
 	t.Run("not introspection query", func(t *testing.T) {
+		t.Parallel()
 		t.Run("query with operation name IntrospectionQuery", run(nonIntrospectionQueryWithIntrospectionQueryName, false))
 		t.Run("Foo query", run(nonIntrospectionQuery, false))
 		t.Run("Foo mutation", run(mutationQuery, false))
@@ -200,69 +216,62 @@ func TestRequest_IsIntrospectionQuery(t *testing.T) {
 }
 
 func TestRequest_OperationType(t *testing.T) {
-	request := Request{
-		OperationName: "",
-		Variables:     nil,
-		Query:         "query HelloQuery { hello: String } mutation HelloMutation { hello: String } subscription HelloSubscription { hello: String }",
-	}
+	t.Parallel()
+
+	multiOpQuery := "query HelloQuery { hello: String } mutation HelloMutation { hello: String } subscription HelloSubscription { hello: String }"
 
 	t.Run("should return operation type 'Query'", func(t *testing.T) {
-		request.OperationName = "HelloQuery"
+		t.Parallel()
+		request := Request{OperationName: "HelloQuery", Query: multiOpQuery}
 		opType, err := request.OperationType()
 		assert.NoError(t, err)
 		assert.Equal(t, OperationTypeQuery, opType)
 	})
 
 	t.Run("should return operation type 'Mutation'", func(t *testing.T) {
-		request.OperationName = "HelloMutation"
+		t.Parallel()
+		request := Request{OperationName: "HelloMutation", Query: multiOpQuery}
 		opType, err := request.OperationType()
 		assert.NoError(t, err)
 		assert.Equal(t, OperationTypeMutation, opType)
 	})
 
 	t.Run("should return operation type 'Subscription'", func(t *testing.T) {
-		request.OperationName = "HelloSubscription"
+		t.Parallel()
+		request := Request{OperationName: "HelloSubscription", Query: multiOpQuery}
 		opType, err := request.OperationType()
 		assert.NoError(t, err)
 		assert.Equal(t, OperationTypeSubscription, opType)
 	})
 
 	t.Run("should return operation type 'Unknown' on error", func(t *testing.T) {
-		emptyRequest := Request{
-			Query: "Broken Query",
-		}
-		opType, err := emptyRequest.OperationType()
+		t.Parallel()
+		request := Request{Query: "Broken Query"}
+		opType, err := request.OperationType()
 		assert.Error(t, err)
 		assert.Equal(t, OperationTypeUnknown, opType)
 	})
 
 	t.Run("should return operation type 'Unknown' when empty and parsable", func(t *testing.T) {
-		emptyRequest := Request{}
-		opType, err := emptyRequest.OperationType()
+		t.Parallel()
+		request := Request{}
+		opType, err := request.OperationType()
 		assert.NoError(t, err)
 		assert.Equal(t, OperationTypeUnknown, opType)
 	})
 
 	t.Run("should return operation type 'Query' if no name and a single operation is provided", func(t *testing.T) {
-		singleOperationQueryRequest := Request{
-			OperationName: "",
-			Variables:     nil,
-			Query:         "{ hello: String }",
-		}
-
-		opType, err := singleOperationQueryRequest.OperationType()
+		t.Parallel()
+		request := Request{Query: "{ hello: String }"}
+		opType, err := request.OperationType()
 		assert.NoError(t, err)
 		assert.Equal(t, OperationTypeQuery, opType)
 	})
 
 	t.Run("should return operation type 'Mutation' if mutation is the only operation", func(t *testing.T) {
-		singleOperationMutationRequest := Request{
-			OperationName: "",
-			Variables:     nil,
-			Query:         "mutation HelloMutation { hello: String }",
-		}
-
-		opType, err := singleOperationMutationRequest.OperationType()
+		t.Parallel()
+		request := Request{Query: "mutation HelloMutation { hello: String }"}
+		opType, err := request.OperationType()
 		assert.NoError(t, err)
 		assert.Equal(t, OperationTypeMutation, opType)
 	})

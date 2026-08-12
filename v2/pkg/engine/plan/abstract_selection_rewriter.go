@@ -8,8 +8,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 var (
@@ -66,13 +64,32 @@ type fieldSelectionRewriter struct {
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
 
-	skipFieldRefs []int
-	alwaysRewrite bool
+	skipFieldRefs       []int
+	alwaysRewrite       bool
+	fieldIsUnresolvable bool
+
+	intersectUnion        bool
+	additionalDatasources []DataSource
+
+	// copyLog and mergeLog are never reset - the rewriter is single-use:
+	// construct a fresh instance per RewriteFieldSelection call.
+	copyLog  []refPair // (original field ref -> new field ref) for each field created during the rewrite
+	mergeLog []refPair // (removed field ref -> surviving field ref) for each field merged away during the post-rewrite normalization, chronological
 }
 
 type RewriteResult struct {
 	rewritten        bool
-	changedFieldRefs map[int][]int // map[fieldRef][]fieldRef - for each original fieldRef list of new fieldRefs
+	changedFieldRefs map[int][]int // map[originalFieldRef][]newFieldRef - for each original field ref, the new field refs it was rewritten into
+	fieldRefOrigins  map[int][]int // map[newFieldRef][]originalFieldRef - for each field ref created by the rewrite, the original field refs it represents
+	// unfetchableFieldRefs holds fields of the union members which are outside the intersection
+	// of the union members across the candidate datasources, but are members of the union
+	// in the current datasource. Such fields are kept in the operation to preserve
+	// the response shape, but must not be planned on any datasource - they resolve to null.
+	unfetchableFieldRefs []int
+	// fieldIsUnresolvable indicates that the rewrite has dropped all requested field selections,
+	// because the interface has no possible runtime types able to provide them,
+	// so the field could never be resolved to the requested shape.
+	fieldIsUnresolvable bool
 }
 
 var resultNotRewritten = RewriteResult{}
@@ -80,12 +97,21 @@ var resultNotRewritten = RewriteResult{}
 type rewriterOption func(*rewriterOptions)
 
 type rewriterOptions struct {
-	forceRewrite bool
+	forceRewrite          bool
+	intersectUnion        bool
+	additionalDatasources []DataSource
 }
 
 func withForceRewrite() rewriterOption {
 	return func(o *rewriterOptions) {
 		o.forceRewrite = true
+	}
+}
+
+func withIntersectUnion(additional []DataSource) rewriterOption {
+	return func(o *rewriterOptions) {
+		o.intersectUnion = true
+		o.additionalDatasources = additional
 	}
 }
 
@@ -101,11 +127,13 @@ func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document
 	}
 
 	return &fieldSelectionRewriter{
-		operation:          operation,
-		definition:         definition,
-		upstreamDefinition: upstreamDefinition,
-		dsConfiguration:    dsConfiguration,
-		alwaysRewrite:      dsConfiguration.PlanningBehavior().AlwaysFlattenFragments || opts.forceRewrite,
+		operation:             operation,
+		definition:            definition,
+		upstreamDefinition:    upstreamDefinition,
+		dsConfiguration:       dsConfiguration,
+		alwaysRewrite:         dsConfiguration.PlanningBehavior().AlwaysFlattenFragments || opts.forceRewrite,
+		intersectUnion:        opts.intersectUnion,
+		additionalDatasources: opts.additionalDatasources,
 	}, nil
 }
 
@@ -115,6 +143,21 @@ func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNo
 	if !ok {
 		return resultNotRewritten, nil
 	}
+
+	// Record provenance of field refs touched by the rewrite. Every new field is copied
+	// from an original field (createFragmentSelection) or recreated from one
+	// (preserveTypeNameSelection, which appends to copyLog directly). Fields merged away
+	// during the post-rewrite normalization transfer their origins to the surviving field.
+	r.operation.OnCopyField = func(originalFieldRef, copyRef int) {
+		r.copyLog = append(r.copyLog, refPair{from: originalFieldRef, to: copyRef})
+	}
+	r.operation.OnMergeFields = func(survivorRef, removedRef int) {
+		r.mergeLog = append(r.mergeLog, refPair{from: removedRef, to: survivorRef})
+	}
+	defer func() {
+		r.operation.OnCopyField = nil
+		r.operation.OnMergeFields = nil
+	}()
 
 	enclosingTypeName := r.definition.NodeNameBytes(enclosingNode)
 
@@ -155,36 +198,51 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		return resultNotRewritten, err
 	}
 
-	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
-
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
 	if err != nil {
 		return resultNotRewritten, err
 	}
+
+	// when the query requests union members which are outside the intersection of the
+	// union members across the candidate datasources able to resolve the union field,
+	// the planner choice between the datasources should not affect the response shape,
+	// so we shrink the allowed members to the intersection of the datasources union members.
+	// The current datasource own members outside the intersection are kept in the operation
+	// to preserve the response shape, but must not be fetched.
+	var unfetchableTypeNames []string
+	if r.intersectUnion && len(r.additionalDatasources) > 0 {
+		unionTypeName := r.definition.UnionTypeDefinitionNameString(unionDefRef)
+		intersection := r.intersectUnionMemberTypeNames(unionTypeName, unionTypeNames)
+		if r.shouldShrinkUnionMembers(selectionSetInfo, unionTypeName, unionTypeNames, intersection) {
+			for _, typeName := range unionTypeNames {
+				if !slices.Contains(intersection, typeName) {
+					unfetchableTypeNames = append(unfetchableTypeNames, typeName)
+				}
+			}
+
+			unionTypeNames = intersection
+		}
+	}
+
+	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
 
 	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, unionTypeNames, entityNames)
 	if !needRewrite {
 		return resultNotRewritten, nil
 	}
 
-	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
+	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, append(unionTypeNames, unfetchableTypeNames...))
 	if err != nil {
 		return resultNotRewritten, err
 	}
 
-	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, unionTypeNames)
-	if err != nil {
-		return resultNotRewritten, err
-	}
-
-	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
-	if err != nil {
-		return resultNotRewritten, err
-	}
+	changedRefs, originRefs := buildRefMappings(r.copyLog, r.mergeLog)
 
 	return RewriteResult{
-		rewritten:        true,
-		changedFieldRefs: changedRefs,
+		rewritten:            true,
+		changedFieldRefs:     changedRefs,
+		fieldRefOrigins:      originRefs,
+		unfetchableFieldRefs: r.collectFragmentsFieldRefs(fieldRef, unfetchableTypeNames),
 	}, nil
 }
 
@@ -260,8 +318,6 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo selectionSetInfo, unionTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(unionTypeNames)+1) // 1 for __typename
 
-	r.preserveTypeNameSelection(fieldInfo, &newSelectionRefs)
-
 	r.flattenFragmentOnUnion(fieldInfo, unionTypeNames, &newSelectionRefs)
 
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
@@ -276,10 +332,14 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 	}
 
 	if len(newSelectionRefs) == 0 {
+		deferID, _ := r.operation.FieldInternalDeferID(fieldRef)
 		// we have to add __typename selection in case there is no other selections
-		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection(deferID)
 		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
+
+		// if there is no other selections we could skip normalization
+		return nil
 	}
 
 	normalizer := astnormalization.NewAbstractFieldNormalizer(r.operation, r.definition, fieldRef)
@@ -341,24 +401,17 @@ func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefR
 		return resultNotRewritten, nil
 	}
 
-	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
-	if err != nil {
-		return resultNotRewritten, err
-	}
-
 	err = r.rewriteObjectSelection(fieldRef, selectionSetInfo, fieldTypeNameStr)
 	if err != nil {
 		return resultNotRewritten, err
 	}
 
-	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
-	if err != nil {
-		return resultNotRewritten, err
-	}
+	changedRefs, originRefs := buildRefMappings(r.copyLog, r.mergeLog)
 
 	return RewriteResult{
 		rewritten:        true,
 		changedFieldRefs: changedRefs,
+		fieldRefOrigins:  originRefs,
 	}, nil
 }
 
@@ -423,24 +476,18 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		return resultNotRewritten, nil
 	}
 
-	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
-	if err != nil {
-		return resultNotRewritten, err
-	}
-
 	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, interfaceTypeNames)
 	if err != nil {
 		return resultNotRewritten, err
 	}
 
-	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
-	if err != nil {
-		return resultNotRewritten, err
-	}
+	changedRefs, originRefs := buildRefMappings(r.copyLog, r.mergeLog)
 
 	return RewriteResult{
-		rewritten:        true,
-		changedFieldRefs: changedRefs,
+		rewritten:           true,
+		changedFieldRefs:    changedRefs,
+		fieldRefOrigins:     originRefs,
+		fieldIsUnresolvable: r.fieldIsUnresolvable,
 	}, nil
 }
 
@@ -511,7 +558,7 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 		// into a single fragment or just a flattened query.
 		// So it should be safe to rewrite a field.
 		if selectionSetInfo.isInterfaceObject {
-			return !selectionSetInfo.hasTypeNameSelection
+			return !selectionSetInfo.hasTypeNameSelection()
 		}
 	}
 
@@ -578,8 +625,14 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	// When interface is an interface object
 	// When we have fragments on concrete types,
 	// And we do not have __typename selection - we are adding it
-	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection && fieldInfo.hasInlineFragmentsOnObjects {
-		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection() && fieldInfo.hasInlineFragmentsOnObjects {
+		deferID, _ := r.operation.FieldInternalDeferID(fieldRef)
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection(deferID)
+		// This branch runs only when the user has no __typename selection on this level
+		// (hasTypeNameSelection is false), so there is no original field to preserve -
+		// the synthesized __typename intentionally has no copyLog entry.
+		// It is pre-registered as skipped; if normalization later dedup-merges into it a user-requested
+		// __typename preserved from a nested fragment, updateSkipFieldRefs unskips it via its recorded origins.
 		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
 	}
@@ -590,6 +643,15 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 		interfaceTypeNames,
 		&newSelectionRefs,
 	)
+
+	// When the interface has no possible runtime types, flattening drops all requested
+	// field selections, and there is no other datasource able to provide them.
+	// Dropping fields when implementing types exist is a regular cleanup - requested
+	// fields belong to types resolvable elsewhere. Without a single implementing type
+	// resolving the field is impossible at all, so we mark the field as unresolvable.
+	if len(newSelectionRefs) == 0 && len(interfaceTypeNames) == 0 && fieldInfo.hasNonTypenameFields() {
+		r.fieldIsUnresolvable = true
+	}
 
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }
@@ -608,35 +670,15 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 		}
 	}
 
-	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
-		// for object fragments it is necessary to check if inline fragment type is allowed
-		if !slices.Contains(allowedImplementingTypes, inlineFragmentInfo.typeName) {
-			// remove fragment which not allowed
-			continue
-		}
-
-		r.flattenFragmentOnObject(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeName, selectionRefs)
-	}
-
-	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnInterfaces {
-		// We do not check if interface fragment type not exists in the current datasource
-		// in case of interfaces the only thing which is matter is an interception of implementing types
-		// and parent allowed types
-
-		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, allowedImplementingTypes, selectionRefs)
-	}
-
-	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnUnions {
-		// We do not check if union fragment type not exists in the current datasource
-		// in case of unions the only thing which is matter is an interception of implementing types
-		// and parent allowed types
-		r.flattenFragmentOnUnion(inlineFragmentInfo.selectionSetInfo, allowedImplementingTypes, selectionRefs)
-	}
+	r.flattenFragments(selectionSetInfo, allowedImplementingTypes, selectionRefs)
 }
 
 func (r *fieldSelectionRewriter) flattenFragmentOnUnion(selectionSetInfo selectionSetInfo, allowedTypeNames []string, selectionRefs *[]int) {
 	r.preserveTypeNameSelection(selectionSetInfo, selectionRefs)
+	r.flattenFragments(selectionSetInfo, allowedTypeNames, selectionRefs)
+}
 
+func (r *fieldSelectionRewriter) flattenFragments(selectionSetInfo selectionSetInfo, allowedTypeNames []string, selectionRefs *[]int) {
 	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
 		// for object fragments it is necessary to check if inline fragment type is allowed
 		if !slices.Contains(allowedTypeNames, inlineFragmentInfo.typeName) {
@@ -681,122 +723,5 @@ func (r *fieldSelectionRewriter) flattenFragmentOnObject(selectionSetInfo select
 		// in case of unions the only thing which is matter is an interception of implementing types
 		// and parent allowed types
 		r.flattenFragmentOnUnion(inlineFragmentInfo.selectionSetInfo, []string{typeName}, selectionRefs)
-	}
-}
-
-func (r *fieldSelectionRewriter) collectChangedRefs(fieldRef int, fieldRefsPaths map[int]string) (map[int][]int, error) {
-	_, pathsToRefs, err := collectPath(r.operation, r.definition, fieldRef, false)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make(map[int][]int, len(fieldRefsPaths))
-
-	for fieldRef, path := range fieldRefsPaths {
-		newRefs, ok := pathsToRefs[path]
-		if !ok {
-			// TODO: some paths could actually disappear due to rewrite
-			continue
-		}
-
-		if len(newRefs) == 0 {
-			continue
-		}
-
-		if len(newRefs) == 1 && newRefs[0] == fieldRef {
-			continue
-		}
-
-		out[fieldRef] = newRefs
-	}
-
-	return out, nil
-}
-
-type AbstractFieldPathCollector struct {
-	*astvisitor.Walker
-
-	operation  *ast.Document
-	definition *ast.Document
-
-	targetFieldRef int
-	fieldRefPaths  map[int]string
-	pathFieldRefs  map[string][]int
-	fieldToPath    bool
-}
-
-func (v *AbstractFieldPathCollector) EnterField(ref int) {
-	parentPath := v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
-	currentFieldName := v.operation.FieldNameString(ref)
-	currentPath := parentPath + "." + currentFieldName
-
-	if v.fieldToPath {
-		v.fieldRefPaths[ref] = currentPath
-		return
-	}
-
-	if _, ok := v.pathFieldRefs[currentPath]; !ok {
-		v.pathFieldRefs[currentPath] = make([]int, 0, 1)
-	}
-	v.pathFieldRefs[currentPath] = append(v.pathFieldRefs[currentPath], ref)
-}
-
-func collectPath(operation *ast.Document, definition *ast.Document, fieldRef int, fieldToPath bool) (fieldRefPaths map[int]string, pathFieldRefs map[string][]int, err error) {
-	walker := astvisitor.NewWalkerWithID(4, "AbstractFieldPathCollector")
-
-	c := &AbstractFieldPathCollector{
-		Walker:         &walker,
-		operation:      operation,
-		definition:     definition,
-		targetFieldRef: fieldRef,
-		fieldRefPaths:  make(map[int]string),
-		pathFieldRefs:  make(map[string][]int),
-		fieldToPath:    fieldToPath,
-	}
-
-	filter := &FieldLimitedVisitor{
-		Walker:         &walker,
-		targetFieldRef: fieldRef,
-	}
-
-	walker.RegisterFieldVisitor(filter)
-	walker.SetVisitorFilter(filter)
-	walker.RegisterEnterFieldVisitor(c)
-
-	report := &operationreport.Report{}
-	walker.Walk(c.operation, c.definition, report)
-	if report.HasErrors() {
-		return nil, nil, report
-	}
-
-	return c.fieldRefPaths, c.pathFieldRefs, nil
-}
-
-type FieldLimitedVisitor struct {
-	*astvisitor.Walker
-
-	targetFieldRef int
-	allow          bool
-}
-
-func (v *FieldLimitedVisitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, skipFor astvisitor.SkipVisitors) bool {
-	if visitor == v {
-		return true
-	}
-
-	return v.allow
-}
-
-func (v *FieldLimitedVisitor) EnterField(ref int) {
-	if ref == v.targetFieldRef {
-		v.allow = true
-		return
-	}
-}
-
-func (v *FieldLimitedVisitor) LeaveField(ref int) {
-	if ref == v.targetFieldRef {
-		v.allow = false
-		v.Stop()
 	}
 }

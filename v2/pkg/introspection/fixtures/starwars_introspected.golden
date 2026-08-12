@@ -1817,7 +1817,7 @@
       {
         "kind": "SCALAR",
         "name": "Boolean",
-        "description": "The `Boolean` scalar type represents `true` or `false` .",
+        "description": "The `Boolean` scalar type represents `true` or `false`.",
         "inputFields": [],
         "interfaces": [],
         "possibleTypes": [],
@@ -1826,7 +1826,7 @@
       {
         "kind": "SCALAR",
         "name": "ID",
-        "description": "The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `4`) or integer (such as 4) input value will be accepted as an ID.",
+        "description": "The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as \"4\") or integer (such as 4) input value will be accepted as an ID.",
         "inputFields": [],
         "interfaces": [],
         "possibleTypes": [],
@@ -1918,8 +1918,8 @@
               "__typename": "__Type"
             },
             "defaultValue": "\"No longer supported\"",
-            "isDeprecated": true,
-            "deprecationReason": "No longer supported",
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           }
         ],
@@ -1927,16 +1927,15 @@
         "__typename": "__Directive"
       },
       {
-        "name": "delegateField",
-        "description": "",
+        "name": "specifiedBy",
+        "description": "Exposes a URL that specifies the behavior of this scalar",
         "locations": [
-          "OBJECT",
-          "INTERFACE"
+          "SCALAR"
         ],
         "args": [
           {
-            "name": "name",
-            "description": "",
+            "name": "url",
+            "description": "The URL that specifies the behavior of this scalar.",
             "type": {
               "kind": "NON_NULL",
               "name": null,
@@ -1954,7 +1953,62 @@
             "__typename": "__InputValue"
           }
         ],
-        "isRepeatable": true,
+        "isRepeatable": false,
+        "__typename": "__Directive"
+      },
+      {
+        "name": "oneOf",
+        "description": "The @oneOf built-in directive marks an input object as a OneOf Input Object.\nExactly one field must be provided and its value must be non-null at runtime.\nAll fields defined within a @oneOf input must be nullable in the schema.",
+        "locations": [
+          "INPUT_OBJECT"
+        ],
+        "args": [],
+        "isRepeatable": false,
+        "__typename": "__Directive"
+      },
+      {
+        "name": "defer",
+        "description": "Directs the executor to defer this fragment when the if argument is true or undefined.",
+        "locations": [
+          "FRAGMENT_SPREAD",
+          "INLINE_FRAGMENT"
+        ],
+        "args": [
+          {
+            "name": "label",
+            "description": "A unique identifier for the results.",
+            "type": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null,
+              "__typename": "__Type"
+            },
+            "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "__typename": "__InputValue"
+          },
+          {
+            "name": "if",
+            "description": "Controls whether the fragment will be deferred, usually via a variable.",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
+            },
+            "defaultValue": "true",
+            "isDeprecated": false,
+            "deprecationReason": null,
+            "__typename": "__InputValue"
+          }
+        ],
+        "isRepeatable": false,
         "__typename": "__Directive"
       }
     ],

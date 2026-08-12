@@ -37,7 +37,7 @@ func TestInboundSingleFlight_ConcurrentFollowerTimeout(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(numFollowers)
 
-	for i := 0; i < numFollowers; i++ {
+	for range numFollowers {
 		go func() {
 			defer wg.Done()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -78,10 +78,8 @@ func TestInboundSingleFlight_FollowerReceivesLeaderError(t *testing.T) {
 	// The follower calls GetOrCreate which blocks on inflight.Done.
 	// We wait for followerCount to confirm it has entered before calling FinishErr.
 	var wg sync.WaitGroup
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		followerCtx := NewContext(context.Background())
 		followerCtx.Request.ID = 2
 
@@ -89,7 +87,7 @@ func TestInboundSingleFlight_FollowerReceivesLeaderError(t *testing.T) {
 		if followerErr == nil {
 			t.Error("expected error from follower after leader FinishErr")
 		}
-	}()
+	})
 
 	// Poll until the follower has actually registered inside GetOrCreate.
 	deadline := time.After(3 * time.Second)

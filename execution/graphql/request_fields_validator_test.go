@@ -9,10 +9,13 @@ import (
 )
 
 func TestFieldsValidator_Validate(t *testing.T) {
-	schema := StarwarsSchema(t)
-	request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
+	t.Parallel()
 
 	t.Run("should invalidate if blocked fields are used", func(t *testing.T) {
+		t.Parallel()
+
+		schema := StarwarsSchema(t)
+		request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 
 		blockedFields := []Type{
 			{
@@ -29,6 +32,10 @@ func TestFieldsValidator_Validate(t *testing.T) {
 	})
 
 	t.Run("should validate if non-blocked fields are used", func(t *testing.T) {
+		t.Parallel()
+
+		schema := StarwarsSchema(t)
+		request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 
 		blockedFields := []Type{
 			{
@@ -46,11 +53,14 @@ func TestFieldsValidator_Validate(t *testing.T) {
 }
 
 func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
-	schema := StarwarsSchema(t)
-	request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
+	t.Parallel()
 
 	t.Run("block list", func(t *testing.T) {
+		t.Parallel()
 		t.Run("should invalidate if blocked fields are used", func(t *testing.T) {
+			t.Parallel()
+			schema := StarwarsSchema(t)
+			request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 			blockList := FieldRestrictionList{
 				Kind: BlockList,
 				Types: []Type{
@@ -69,6 +79,9 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 		})
 
 		t.Run("should validate if non-blocked fields are used", func(t *testing.T) {
+			t.Parallel()
+			schema := StarwarsSchema(t)
+			request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 			blockList := FieldRestrictionList{
 				Kind: BlockList,
 				Types: []Type{
@@ -88,7 +101,11 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 	})
 
 	t.Run("allow list", func(t *testing.T) {
+		t.Parallel()
 		t.Run("should invalidate if a field which is not allowed is used", func(t *testing.T) {
+			t.Parallel()
+			schema := StarwarsSchema(t)
+			request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 			allowList := FieldRestrictionList{
 				Kind: AllowList,
 				Types: []Type{
@@ -111,6 +128,9 @@ func TestFieldsValidator_ValidateByFieldList(t *testing.T) {
 		})
 
 		t.Run("should validate if all fields are allowed", func(t *testing.T) {
+			t.Parallel()
+			schema := StarwarsSchema(t)
+			request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
 			allowList := FieldRestrictionList{
 				Kind: AllowList,
 				Types: []Type{

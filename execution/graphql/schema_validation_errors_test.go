@@ -7,6 +7,7 @@ import (
 )
 
 func TestSchemaValidationErrors_Error(t *testing.T) {
+	t.Parallel()
 	validationErrs := SchemaValidationErrors{
 		SchemaValidationError{
 			Message: "there can be only one query type in schema",
@@ -17,6 +18,7 @@ func TestSchemaValidationErrors_Error(t *testing.T) {
 }
 
 func TestSchemaValidationErrors_Count(t *testing.T) {
+	t.Parallel()
 	validationErrs := SchemaValidationErrors{
 		SchemaValidationError{
 			Message: "there can be only one query type in schema",
@@ -27,6 +29,7 @@ func TestSchemaValidationErrors_Count(t *testing.T) {
 }
 
 func TestSchemaValidationErrors_ErrorByIndex(t *testing.T) {
+	t.Parallel()
 	existingValidationError := SchemaValidationError{
 		Message: "there can be only one query type in schema",
 	}
@@ -40,6 +43,7 @@ func TestSchemaValidationErrors_ErrorByIndex(t *testing.T) {
 }
 
 func TestSchemaValidationError_Error(t *testing.T) {
+	t.Parallel()
 	validationError := SchemaValidationError{
 		Message: "there can be only one query type in schema",
 	}

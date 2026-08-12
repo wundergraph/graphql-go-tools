@@ -652,7 +652,7 @@ func TestInlineFragments(t *testing.T) {
 				}
 				fragment sentientFragment on Sentient {
 					name
-				}`, true)
+				}`, withIndent())
 	})
 	t.Run("implicitly intersecting interfaces should merge", func(t *testing.T) {
 		run(t, fragmentSpreadInline, `

@@ -38,7 +38,7 @@ type kit struct {
 
 var (
 	kitPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &kit{
 				parser:  astparser.NewParser(),
 				printer: astprinter.NewPrinter(nil),

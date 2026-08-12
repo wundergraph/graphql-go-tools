@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
@@ -90,8 +91,8 @@ type Planner[T Configuration] struct {
 
 	minifier *astminify.Minifier
 
-	// gRPC
-	grpcClient grpc.ClientConnInterface
+	// gRPC / Connect
+	rpcTransport grpcdatasource.RPCTransport
 
 	printKitPool *sync.Pool
 }
@@ -151,6 +152,11 @@ func (p *Planner[T]) EnterDirective(ref int) {
 }
 
 func (p *Planner[T]) addDirectiveToNode(directiveRef int, node ast.Node) {
+	// do not propagate internal directives to upstream query document
+	if bytes.Equal(p.visitor.Operation.DirectiveNameBytes(directiveRef), literal.DEFER_INTERNAL) {
+		return
+	}
+
 	directiveName := p.visitor.Operation.DirectiveNameString(directiveRef)
 	operationType := ast.OperationTypeQuery
 	if !p.dataSourcePlannerConfig.IsNested {
@@ -360,7 +366,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			return resolve.FetchConfiguration{}
 		}
 
-		dataSource, err = grpcdatasource.NewDataSource(p.grpcClient, grpcdatasource.DataSourceConfig{
+		dataSource, err = grpcdatasource.NewDataSource(p.rpcTransport, grpcdatasource.DataSourceConfig{
 			Operation:         &opDocument,
 			Definition:        p.config.schemaConfiguration.upstreamSchemaAst,
 			Mapping:           p.config.grpc.Mapping,
@@ -372,7 +378,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			SubgraphName: p.dataSourceConfig.Name(),
 		})
 		if err != nil {
-			p.stopWithError(errors.WithStack(fmt.Errorf("failed to create gRPC datasource: %w", err)))
+			p.stopWithError(errors.WithStack(fmt.Errorf("failed to create datasource: %w", err)))
 			return resolve.FetchConfiguration{}
 		}
 	}
@@ -572,19 +578,12 @@ func (p *Planner[T]) EnterSelectionSet(ref int) {
 		p.addRepresentationsQuery()
 	}
 
-	if p.visitor.Walker.EnclosingTypeDefinition.Kind != ast.NodeKindInterfaceTypeDefinition {
-		return
-	}
-
-	// handle adding typename for the InterfaceObject
-	// In case we are inside selection set which returns an interface object
-	// we need to add __typename field to the selection set to get an initial typename value
-	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationConfiguration().InterfaceObjects {
-		if interfaceObjectCfg.InterfaceTypeName == typeName {
-			p.addTypenameToSelectionSet(set.Ref)
-			return
-		}
+	// abstract values are validated against the contract by their runtime type,
+	// so the upstream must always report it. This also covers the InterfaceObject
+	// case, which needs __typename for an initial typename value.
+	switch p.visitor.Walker.EnclosingTypeDefinition.Kind {
+	case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+		p.addTypenameToSelectionSet(set.Ref)
 	}
 }
 
@@ -840,7 +839,7 @@ func (p *Planner[T]) addRepresentationsVariable() {
 
 	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
 
-	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))
+	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", fmt.Appendf(nil, "[%s]", variable))
 }
 
 func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
@@ -1331,7 +1330,7 @@ func (p *Planner[T]) debugPrintOperation() {
 	p.DebugPrint("printed operation:\n", op)
 }
 
-func (p *Planner[T]) DebugPrint(args ...interface{}) {
+func (p *Planner[T]) DebugPrint(args ...any) {
 	if !p.debug {
 		return
 	}
@@ -1339,9 +1338,12 @@ func (p *Planner[T]) DebugPrint(args ...interface{}) {
 	p.debugPrintln(args...)
 }
 
-func (p *Planner[T]) debugPrintln(args ...interface{}) {
-	// TODO! no panic when no fetch url
-	allArgs := []interface{}{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), p.config.fetch.URL)}
+func (p *Planner[T]) debugPrintln(args ...any) {
+	var fetchUrl string
+	if p.config.fetch != nil {
+		fetchUrl = p.config.fetch.URL
+	}
+	allArgs := []any{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), fetchUrl)}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
@@ -1357,7 +1359,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 		return
 	}
 
-	args := []interface{}{
+	args := []any{
 		"Execution plan:\n",
 		"Planner path: ",
 		p.dataSourcePlannerConfig.ParentPath,
@@ -1728,12 +1730,12 @@ func getRelaxedPrintKitPool() *sync.Pool {
 }
 
 type Factory[T Configuration] struct {
-	executionContext   context.Context
-	httpClient         *http.Client
-	grpcClient         grpc.ClientConnInterface
-	grpcClientProvider func() grpc.ClientConnInterface
-	subscriptionClient GraphQLSubscriptionClient
-	printKitPool       *sync.Pool
+	executionContext     context.Context
+	httpClient           *http.Client
+	rpcTransport         grpcdatasource.RPCTransport
+	rpcTransportProvider func() grpcdatasource.RPCTransport
+	subscriptionClient   GraphQLSubscriptionClient
+	printKitPool         *sync.Pool
 }
 
 // NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
@@ -1771,7 +1773,7 @@ func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConn
 
 	return &Factory[Configuration]{
 		executionContext: executionContext,
-		grpcClient:       grpcClient,
+		rpcTransport:     grpcdatasource.NewGRPCTransport(grpcClient),
 	}, nil
 }
 
@@ -1789,9 +1791,34 @@ func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvid
 		return nil, fmt.Errorf("provider function is required")
 	}
 
+	transportProvider := func() grpcdatasource.RPCTransport {
+		client := clientProvider()
+		if client == nil {
+			return nil
+		}
+		return grpcdatasource.NewGRPCTransport(client)
+	}
+
 	return &Factory[Configuration]{
-		executionContext:   executionContext,
-		grpcClientProvider: clientProvider,
+		executionContext:     executionContext,
+		rpcTransportProvider: transportProvider,
+	}, nil
+}
+
+// NewFactoryRPCTransport creates an RPC transport factory for the GraphQL
+// datasource planner. Callers can provide either a gRPC or Connect RPCTransport.
+func NewFactoryRPCTransport(executionContext context.Context, rpcTransport grpcdatasource.RPCTransport) (*Factory[Configuration], error) {
+	if executionContext == nil {
+		return nil, fmt.Errorf("execution context is required")
+	}
+
+	if rpcTransport == nil {
+		return nil, fmt.Errorf("rpc transport is required")
+	}
+
+	return &Factory[Configuration]{
+		executionContext: executionContext,
+		rpcTransport:     rpcTransport,
 	}, nil
 }
 
@@ -1829,14 +1856,14 @@ func (f *Factory[T]) getPrintKitPool() *sync.Pool {
 }
 
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
-	grpcClient := f.grpcClient
-	if f.grpcClientProvider != nil {
-		grpcClient = f.grpcClientProvider()
+	rpcTransport := f.rpcTransport
+	if f.rpcTransportProvider != nil {
+		rpcTransport = f.rpcTransportProvider()
 	}
 
 	return &Planner[T]{
 		fetchClient:        f.httpClient,
-		grpcClient:         grpcClient,
+		rpcTransport:       rpcTransport,
 		subscriptionClient: f.subscriptionClient,
 		printKitPool:       f.getPrintKitPool(),
 	}
@@ -1862,7 +1889,7 @@ func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
 		MergeAliasedRootNodes:      true,
 		OverrideFieldPathFromAlias: true,
 		AllowPlanningTypeName:      true,
-		AlwaysFlattenFragments:     f.grpcClient != nil || f.grpcClientProvider != nil,
+		AlwaysFlattenFragments:     f.rpcTransport != nil || f.rpcTransportProvider != nil,
 	}
 	return b
 }
@@ -1992,6 +2019,11 @@ type RegularExpression struct {
 type SubscriptionSource struct {
 	client                 GraphQLSubscriptionClient
 	subscriptionOnStartFns []SubscriptionOnStartFn
+}
+
+func (s *SubscriptionSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
+	_, err := xxh.Write(input)
+	return err
 }
 
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.

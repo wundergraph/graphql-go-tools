@@ -3,6 +3,7 @@ package astvisitor
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/wundergraph/go-arena"
@@ -19,22 +20,17 @@ var (
 
 type SkipVisitors []int
 
-func (s SkipVisitors) Allow(planner interface{}) bool {
+func (s SkipVisitors) Allow(planner any) bool {
 	p, ok := planner.(VisitorIdentifier)
 	if !ok {
 		return true
 	}
 	currentID := p.ID()
 
-	for _, skippedID := range s {
-		if skippedID == currentID {
-			return false
-		}
-	}
-	return true
+	return !slices.Contains(s, currentID)
 }
 
-func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) SkipVisitors {
+func newSkipVisitors(skips []int, planner any, allowedToVisit bool) SkipVisitors {
 	p, ok := planner.(VisitorIdentifier)
 	if !ok {
 		return skips
@@ -723,7 +719,7 @@ type (
 	}
 	// VisitorFilter can be defined to prevent specific visitors from getting invoked
 	VisitorFilter interface {
-		AllowVisitor(kind VisitorKind, ref int, visitor interface{}, ancestorSkip SkipVisitors) bool
+		AllowVisitor(kind VisitorKind, ref int, visitor any, ancestorSkip SkipVisitors) bool
 	}
 
 	VisitorIdentifier interface {
@@ -1413,9 +1409,9 @@ func (w *Walker) Walk(document, definition *ast.Document, report *operationrepor
 	w.walk()
 }
 
-// DefferOnEnterField runs the provided func() after the current batch of visitors
-// This gives you the possibility to execute some code that should e.g. run after all EnterField Visitors
-func (w *Walker) DefferOnEnterField(fn func()) {
+// RunAfterEnterField runs the provided func() after the current batch of EnterField visitors.
+// This gives you the possibility to execute code that should run only after all EnterField visitors have run.
+func (w *Walker) RunAfterEnterField(fn func()) {
 	w.deferred = append(w.deferred, fn)
 }
 

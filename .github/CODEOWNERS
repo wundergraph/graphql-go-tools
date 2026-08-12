@@ -2,9 +2,5 @@
 * @wundergraph/Router
 
 # Protect the CODEOWNERS file
-/.github/CODEOWNERS @devsergiy @StarpTech
+/.github/CODEOWNERS @wundergraph/Owners
 
-v2 @devsergiy @Noroth @StarpTech @jensneuse @ysmolski @dkorittki
-
-# Releases
-v2/CHANGELOG.md @wundergraph/Router

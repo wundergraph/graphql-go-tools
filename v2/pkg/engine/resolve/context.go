@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"sort"
 	"time"
@@ -20,6 +21,7 @@ type Context struct {
 
 	// Variables contains the variables to be used to render values of variables for the subgraph.
 	// Resolver takes into account RemapVariables for variable names.
+	// Recommented read-only use via variables.VariablesView returned by VariablesView().
 	Variables *astjson.Value
 
 	// RemapVariables contains a map from new names to old names. When variables are renamed,
@@ -37,18 +39,26 @@ type Context struct {
 	Extensions       []byte
 	LoaderHooks      LoaderHooks
 
-	authorizer    Authorizer
-	rateLimiter   RateLimiter
-	fieldRenderer FieldValueRenderer
+	InlineArguments []string
+
+	authorizer Authorizer
+	// preFetchFieldAuthorizer, when non-nil, enables pre-fetch field authorization: fields protected by
+	// an authorization rule are authorized in a single batch call before any subgraph fetch executes
+	// (scope-only, independent of the returned data), instead of being filtered out of the response after
+	// the fetch. Leaving it nil keeps the default post-fetch authorization behavior. It is distinct from
+	// authorizer, which performs post-fetch field filtering and renders the authorization response extension.
+	preFetchFieldAuthorizer BatchAuthorizer
+	rateLimiter             RateLimiter
+	fieldRenderer           FieldValueRenderer
 
 	subgraphErrors map[string]error
 
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
 
-	// ActualListSizes is populated by the resolver after resolution completes,
-	// before the response body is written. Maps JSON path to actual list size.
+	// TypeNameStats is populated by the resolver after resolution completes,
+	// before the response body is written. Maps JSON path to array stats.
 	// Used to compute the actual cost.
-	ActualListSizes map[string]int
+	TypeNameStats map[string]TypeNameStats
 
 	// GetDeduplicationData is called after the leader of an inbound singleflight request
 	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
@@ -184,8 +194,26 @@ type Authorizer interface {
 	RenderResponseExtension(ctx *Context, out io.Writer) error
 }
 
+// AuthorizationDecision is an explicit allow/deny decision for a single field coordinate.
+type AuthorizationDecision struct {
+	Allowed bool
+	Reason  string
+}
+
+// BatchAuthorizer authorizes field coordinates in one call before execution.
+type BatchAuthorizer interface {
+	AuthorizeFields(ctx *Context, coordinates []GraphCoordinate) (decisions []AuthorizationDecision, err error)
+}
+
 func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
+}
+
+// SetPreFetchFieldAuthorizer enables pre-fetch field authorization by supplying the batch authorizer
+// used to resolve every protected field coordinate in one call before execution. Passing a non-nil
+// authorizer turns the mode on; leaving it unset preserves the default post-fetch authorization behavior.
+func (c *Context) SetPreFetchFieldAuthorizer(authorizer BatchAuthorizer) {
+	c.preFetchFieldAuthorizer = authorizer
 }
 
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
@@ -288,19 +316,16 @@ func (c *Context) clone(ctx context.Context) *Context {
 	cpy.Files = append([]*httpclient.FileUpload(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
+	cpy.InlineArguments = append([]string(nil), c.InlineArguments...)
 
 	if c.RemapVariables != nil {
 		cpy.RemapVariables = make(map[string]string, len(c.RemapVariables))
-		for k, v := range c.RemapVariables {
-			cpy.RemapVariables[k] = v
-		}
+		maps.Copy(cpy.RemapVariables, c.RemapVariables)
 	}
 
 	if c.subgraphErrors != nil {
 		cpy.subgraphErrors = make(map[string]error, len(c.subgraphErrors))
-		for k, v := range c.subgraphErrors {
-			cpy.subgraphErrors[k] = v
-		}
+		maps.Copy(cpy.subgraphErrors, c.subgraphErrors)
 	}
 
 	return &cpy
@@ -315,12 +340,18 @@ func (c *Context) Free() {
 	c.RemapVariables = nil
 	c.TracingOptions.DisableAll()
 	c.Extensions = nil
+	c.InlineArguments = nil
 	c.subgraphErrors = nil
 	c.authorizer = nil
+	c.preFetchFieldAuthorizer = nil
 	c.LoaderHooks = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
-	c.ActualListSizes = nil
+	c.TypeNameStats = nil
+}
+
+func (c *Context) VariablesView() VariablesView {
+	return NewVariablesView(c.Variables, c.RemapVariables)
 }
 
 type traceStartKey struct{}

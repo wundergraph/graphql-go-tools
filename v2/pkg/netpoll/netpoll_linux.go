@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 package netpoll
 
@@ -70,7 +69,7 @@ func (e *Epoll) Close(closeConns bool) error {
 func (e *Epoll) Add(conn net.Conn) error {
 	conn = newConnImpl(conn)
 	fd := SocketFD(conn)
-	if e := syscall.SetNonblock(int(fd), true); e != nil {
+	if e := syscall.SetNonblock(fd, true); e != nil {
 		return errors.New("udev: unix.SetNonblock failed")
 	}
 
@@ -121,7 +120,7 @@ retry:
 		conns = e.connbuf[:0]
 	}
 	e.lock.RLock()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		conn := e.conns[int(e.events[i].Fd)]
 		if conn != nil {
 			conns = append(conns, conn)

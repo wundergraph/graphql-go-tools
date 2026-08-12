@@ -6,10 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
-	"strings"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
@@ -26,45 +25,159 @@ import (
 const invalidPath = "invalid path"
 
 type Resolvable struct {
+	// options holds the resolver-level toggles (Apollo compatibility, allowed
+	// subgraph extensions, extension-forwarding algorithm) consulted while rendering.
 	options ResolvableOptions
 
-	data                 *astjson.Value
-	errors               *astjson.Value
-	valueCompletion      *astjson.Value
+	// data is the response tree being walked and rendered.
+	// In the case of defer it is injected before each render; during deferred delivery it points at the shared DataBuffer tree.
+	data *astjson.Value
+
+	// errors is the accumulated GraphQL `errors` array (arena-allocated) written
+	// into the response envelope.
+	errors *astjson.Value
+
+	// valueCompletion collects Apollo "value completion" extension entries for
+	// non-nullable fields that resolved to null; emitted under extensions when the
+	// ApolloCompatibilityValueCompletionInExtensions option is set.
+	valueCompletion *astjson.Value
+
+	// skipAddingNullErrors suppresses further "cannot return null" errors when the
+	// response already carries errors but no data (set per render in Resolve).
 	skipAddingNullErrors bool
+
 	// astjsonArena is the arena to handle json, supplied by Resolver
 	// not thread safe, but Resolvable is single threaded anyways
 	astjsonArena arena.Arena
-	parsers      []*astjson.Parser
 
-	print              bool
-	out                io.Writer
-	printErr           error
-	path               []fastjsonext.PathElement
-	depth              int
-	operationType      ast.OperationType
-	renameTypeNames    []RenameTypeName
-	ctx                *Context
+	// parsers are pooled astjson parsers reused across walks to avoid per-call allocation.
+	parsers []*astjson.Parser
+
+	// enableRender - controls whether we are doing the validation pre-walk (collect errors, detect null-bubbling)
+	// or we are doing the render pass that actually writes output.
+	enableRender bool
+
+	// enableDeferRender gates the defer-envelope output (open/close, deferred-field
+	// emission, item separation) so it happens only within a single deferred
+	// item's render.
+	enableDeferRender bool
+
+	// out is the destination writer for the rendered response
+	out io.Writer
+
+	// printErr is the first error hit while writing output; once set, rendering short-circuits.
+	printErr error
+
+	// path is the current JSON path during the walk, used for error `path` and
+	// defer subPath computation.
+	path []fastjsonext.PathElement
+
+	// depth is the current object-nesting depth of the walk (e.g. root is depth < 2).
+	depth int
+
+	// operationType is the operation kind (query/mutation/subscription). It only
+	// supplies the root type name prefix (Query/Mutation/Subscription) when
+	// rendering error paths and field coordinates.
+	operationType ast.OperationType
+
+	// renameTypeNames holds the __typename rewrite rules, applied while rendering.
+	renameTypeNames []RenameTypeName
+
+	// ctx is the request Context (authorizer, rate limiter, field renderer, options).
+	ctx *Context
+
+	// authorization holds the per-request field-authorization decisions, shared with the Loader.
+	// Set via SetFieldAuthorization by the resolver entry points; lazily created in Init as a
+	// fallback for directly constructed Resolvables (tests).
+	authorization *FieldAuthorization
+
+	// unreachedAuthWalk arms the synthetic authorization descent (pre-fetch mode, initial
+	// pre-render walk only): where the data ends but the plan continues, the walk descends the
+	// plan alone to emit errors for denied protected fields the data walk cannot reach.
+	unreachedAuthWalk bool
+
+	// inUnreachedSubtree is true while inside such a descent; ordinary null semantics are
+	// suppressed there — the walk only reads the decision cache and emits errors.
+	inUnreachedSubtree bool
+
+	// authorizationError holds an auth error raised mid-walk;
+	// in case of defer it is scoped to the current field/defer and converted into a defer local error.
 	authorizationError error
-	xxh                *xxhash.Digest
-	authorizationAllow map[uint64]struct{}
-	authorizationDeny  map[uint64]string
 
-	wroteErrors         bool
-	wroteData           bool
+	// wroteErrors records whether the `errors` array has been written to the response
+	wroteErrors bool
+
+	// wroteData records whether the `data` section has been written; together with
+	// wroteErrors it detects the errors-without-data case.
+	wroteData bool
+
+	// skipValueCompletion suppresses value-completion extension output for this
+	// render (set from the loader when a fetch had errors but no data).
 	skipValueCompletion bool
 
+	// deferMode switches rendering between a single complete response and
+	// incremental (@defer) delivery.
+	// when enabled, we walk object fields in a different way
+	deferMode bool
+
+	// currentDefer is the defer descriptor currently being rendered (nil for the
+	// initial response frame).
+	currentDefer *DeferDescriptor
+
+	// deferDescriptors holds every defer descriptor for the operation, keyed by defer id.
+	deferDescriptors map[int]DeferDescriptor
+
+	// typeNames is a stack of the runtime `__typename` at each object layer; it is
+	// indexed by depth to evaluate `... on Type` fragment type conditions.
 	typeNames [][]byte
 
+	// marshalBuf is a reusable scratch buffer for marshaling scalar values before
+	// writing them out.
 	marshalBuf []byte
 
+	// enclosingTypeNames is a stack of the schema type name (Object.TypeName) per
+	// object layer; enclosingTypeName() returns the current one for error messages.
 	enclosingTypeNames []string
 
+	// currentFieldInfo is the FieldInfo of the field currently being rendered,
+	// passed to a custom field-value renderer.
 	currentFieldInfo *FieldInfo
 
-	// actualListSizes maps the JSON path to the list size in the final response.
+	// typeNameStats maps the field path to its accumulated array/object stats in the final response.
 	// Used to compute the actual cost of the operation.
-	actualListSizes map[string]int
+	// Only populated when ResolvableOptions.EnableCostControl is true.
+	typeNameStats map[string]TypeNameStats
+
+	// reachedFields memoizes plan fields whose response path was already marked as reached in
+	// typeNameStats, so array elements do not re-render the same path string. A plan field
+	// occupies exactly one response position, so the pointer identifies the path.
+	// Only populated when ResolvableOptions.EnableCostControl is true.
+	reachedFields map[*Field]struct{}
+
+	// subgraphExtensions holds the `extensions` objects collected from subgraph
+	// fetches, merged into the response extensions during rendering.
+	subgraphExtensions []*astjson.Object
+
+	// allowedExtensions filters which subgraph extension keys are forwarded into
+	// the response.
+	allowedExtensions map[string]*astjson.Value
+
+	// deferIncrementalItemWritten records whether an incremental item has already been
+	// written in the current defer batch, so the next item is separated from it by
+	// a comma. Reset to false at the start of every batch and on Init.
+	deferIncrementalItemWritten bool
+
+	// deferItemDataNull marks that the deferred fragment produced no deliverable
+	// data — null-bubbled through a non-nullable chain, or scoped out by an
+	// authorizer error — so its error goes on the completed entry instead of an
+	// incremental item. Reset at the start of every batch (ResolveDeferBatch) and
+	// on Init, so it never leaks across defer batches.
+	deferItemDataNull bool
+}
+
+type TypeNameStats struct {
+	Size      int            // the Size of the resolved array/list. It is 1 for non-list objects.
+	TypeNames map[string]int // distribution of TypeNames in the array
 }
 
 type ResolvableOptions struct {
@@ -72,17 +185,51 @@ type ResolvableOptions struct {
 	ApolloCompatibilityTruncateFloatValues         bool
 	ApolloCompatibilitySuppressFetchErrors         bool
 	ApolloCompatibilityReplaceInvalidVarError      bool
+	AllowedSubgraphExtensions                      map[string]struct{}
+	ExtensionForwardingAlgorithm                   ExtensionForwardingAlgorithm
+
+	// EnableCostControl gates whether typeNameStats are computed during the walk.
+	EnableCostControl bool
+}
+
+type ExtensionForwardingAlgorithm string
+
+const (
+	ExtensionForwardingAlgorithmFirstWrite ExtensionForwardingAlgorithm = "first_write"
+	ExtensionForwardingAlgorithmLastWrite  ExtensionForwardingAlgorithm = "last_write"
+)
+
+func (a ExtensionForwardingAlgorithm) isValid() bool {
+	switch a {
+	case ExtensionForwardingAlgorithmFirstWrite, ExtensionForwardingAlgorithmLastWrite:
+		return true
+	default:
+		return false
+	}
+}
+
+func MapExtensionForwardingAlgorithm(algorithm string) ExtensionForwardingAlgorithm {
+	switch ExtensionForwardingAlgorithm(algorithm) {
+	case ExtensionForwardingAlgorithmFirstWrite, ExtensionForwardingAlgorithmLastWrite:
+		return ExtensionForwardingAlgorithm(algorithm)
+	default:
+		return ExtensionForwardingAlgorithmFirstWrite
+	}
 }
 
 func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 	return &Resolvable{
-		options:            options,
-		xxh:                xxhash.New(),
-		authorizationAllow: make(map[uint64]struct{}),
-		authorizationDeny:  make(map[uint64]string),
-		astjsonArena:       a,
-		actualListSizes:    make(map[string]int),
+		options:       options,
+		astjsonArena:  a,
+		typeNameStats: make(map[string]TypeNameStats),
 	}
+}
+
+// SetFieldAuthorization wires the per-request field-authorization decisions produced and read
+// during resolution. The resolver entry points call it right after NewResolvable; when unset,
+// Init creates one from the request Context.
+func (r *Resolvable) SetFieldAuthorization(authorization *FieldAuthorization) {
+	r.authorization = authorization
 }
 
 func (r *Resolvable) Reset() {
@@ -96,30 +243,51 @@ func (r *Resolvable) Reset() {
 	r.errors = nil
 	r.valueCompletion = nil
 	r.depth = 0
-	r.print = false
+	r.enableRender = false
 	r.out = nil
 	r.printErr = nil
 	r.path = r.path[:0]
 	r.operationType = ast.OperationTypeUnknown
 	r.renameTypeNames = r.renameTypeNames[:0]
+	r.authorization = nil
+	r.unreachedAuthWalk = false
+	r.inUnreachedSubtree = false
 	r.authorizationError = nil
 	r.astjsonArena = nil
-	r.xxh.Reset()
-	for k := range r.authorizationAllow {
-		delete(r.authorizationAllow, k)
+	r.allowedExtensions = nil
+	clear(r.subgraphExtensions)
+	clear(r.typeNameStats)
+	clear(r.reachedFields)
+
+	r.deferMode = false
+	r.currentDefer = nil
+	r.deferDescriptors = nil
+	r.enableDeferRender = false
+	r.deferIncrementalItemWritten = false
+	r.deferItemDataNull = false
+}
+
+// initCostControl prepares typeNameStats collection for this walk when cost control is active.
+func (r *Resolvable) initCostControl() {
+	if !r.options.EnableCostControl {
+		return
 	}
-	for k := range r.authorizationDeny {
-		delete(r.authorizationDeny, k)
+	if r.typeNameStats == nil {
+		r.typeNameStats = make(map[string]TypeNameStats)
 	}
-	for k := range r.actualListSizes {
-		delete(r.actualListSizes, k)
+	if r.reachedFields == nil {
+		r.reachedFields = make(map[*Field]struct{})
 	}
 }
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
 	r.ctx = ctx
+	if r.authorization == nil {
+		r.authorization = NewFieldAuthorization(ctx)
+	}
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
+	r.initCostControl()
 	r.data = astjson.ObjectValue(r.astjsonArena)
 	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
@@ -138,8 +306,12 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 
 func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProcessing PostProcessingConfiguration) (err error) {
 	r.ctx = ctx
+	if r.authorization == nil {
+		r.authorization = NewFieldAuthorization(ctx)
+	}
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
+	r.initCostControl()
 	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
 	if initialData != nil {
@@ -176,7 +348,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 
 func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) error {
 	r.out = out
-	r.print = false
+	r.enableRender = false
 	r.printErr = nil
 	r.authorizationError = nil
 	// don't init errors! It will heavily increase memory usage
@@ -187,7 +359,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 		return fmt.Errorf("error resolving node")
 	}
 
-	r.print = true
+	r.enableRender = true
 	hasErrors = r.walkNode(node, data)
 	if hasErrors {
 		return fmt.Errorf("error resolving node: %w", r.printErr)
@@ -197,7 +369,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 
 func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *FetchTreeNode, out io.Writer) error {
 	r.out = out
-	r.print = false
+	r.enableRender = false
 	r.printErr = nil
 	r.authorizationError = nil
 
@@ -220,7 +392,15 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 
 	r.skipAddingNullErrors = r.hasErrors() && !r.hasData()
 
+	if r.authorization.preFetchEnabled() {
+		// Also report denied protected fields the data walk cannot reach (empty list / null
+		// parent): past such points the walk descends the plan alone. A denied field stops the
+		// descent into its own subtree, so a denied parent is never re-reported via its children.
+		r.unreachedAuthWalk = true
+	}
+
 	hasErrors := r.walkObject(rootData, r.data)
+	r.unreachedAuthWalk = false
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
@@ -242,8 +422,405 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 		r.printBytes(comma)
 		r.printErr = r.printExtensions(ctx, fetchTree)
 	}
+
+	if r.deferMode {
+		// Announce only the top-level defers whose anchor survived. Nested defers
+		// are announced lazily when their parent is released. A recoverable error
+		// that null-propagated onto a defer's own anchor cancels just that defer.
+		live := r.liveChildDescriptors(0)
+		r.printPendingEntries(live)
+		r.printHasNext(len(live) > 0)
+	}
+
 	r.printBytes(rBrace)
+
 	return r.printErr
+}
+
+// ResolveDeferBatch renders the incremental chunk for r.currentDefer, announces
+// the pending entries for its direct children whose anchor survived, adjusts the
+// outstanding counter (announce children, complete self), writes this frame's
+// terminal hasNext, and returns the ids of the live direct children so the caller
+// can schedule exactly those. Nested children are announced lazily here, in their
+// parent's release frame.
+func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstanding *int64) (liveChildren map[int]DeferDescriptor, err error) {
+	r.out = out
+	r.printErr = nil
+	r.authorizationError = nil
+
+	// First pass (pre-walk): validate, collect errors, decide whether the
+	// fragment root survived null-propagation. r.deferItemDataNull is set
+	// inside walkObject when null propagated through a non-nullable chain.
+	r.enableRender = false
+	r.deferMode = true
+	r.enableDeferRender = false
+	r.deferIncrementalItemWritten = false
+	r.deferItemDataNull = false
+
+	_ = r.walkObject(rootData, r.data)
+	if r.authorizationError != nil {
+		// Scope the authorizer error to this defer: record it as the fragment's
+		// error and route it to the completed-with-errors form, completing the
+		// announced pending.
+		r.addError(r.authorizationError.Error(), nil)
+		r.authorizationError = nil
+		r.deferItemDataNull = true
+	}
+
+	shouldSkipIncremental := r.deferItemDataNull
+
+	// Second pass: render incremental data into a scratch buffer first so a
+	// render-phase error (e.g. a custom field-value renderer failing) never leaves
+	// a partial frame on the wire — on error the buffer is discarded and the error
+	// is scoped to this defer's completed entry.
+	var incrementalItems []byte
+	if !shouldSkipIncremental {
+		savedOut := r.out
+		// The scratch buffer is arena-backed (heap fallback when no arena is set),
+		// keeping the intermediate bytes on the engine's memory model.
+		scratch := arena.NewArenaBuffer(r.astjsonArena)
+		r.out = scratch
+
+		r.enableRender = true
+		r.deferIncrementalItemWritten = false
+		r.enableDeferRender = false
+
+		_ = r.walkObject(rootData, r.data)
+
+		r.out = savedOut
+		if r.printErr != nil {
+			r.addError(r.printErr.Error(), nil)
+			r.printErr = nil
+			shouldSkipIncremental = true
+		} else {
+			incrementalItems = scratch.Bytes()
+		}
+	}
+
+	// Direct children whose anchor survived the render are announced now (lazily)
+	// and scheduled by the caller; the rest are cancelled.
+	liveChildren = r.liveChildDescriptors(r.currentDefer.ID)
+
+	// Counter: announce live children, complete self. The frame that drives the
+	// outstanding count to zero writes the terminal hasNext:false. Every defer's
+	// render runs under dc.db.Lock() (held by the caller), which serialises this
+	// mutation with the frame writes.
+	*outstanding += int64(len(liveChildren)) - 1
+	isLast := *outstanding == 0
+
+	// Open the per-defer envelope.
+	r.printBytes(lBrace)
+
+	if !shouldSkipIncremental {
+		r.printBytes(quote)
+		r.printBytes(literalIncremental)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(lBrack)
+		r.printBytes(incrementalItems)
+		r.printBytes(rBrack)
+		r.printBytes(comma)
+	}
+
+	// Always emit completed for this defer id. Errors are attached only when the
+	// fragment had no deliverable incremental data (they ride in incremental[]
+	// otherwise).
+	r.renderCompleted(shouldSkipIncremental && r.hasErrors())
+
+	// Announce the surviving direct children (lazy nested pending). No-op when
+	// there are none.
+	r.printPendingEntries(liveChildren)
+
+	// hasNext is independent of internal defer errors — they're scoped
+	// to this defer's `completed.errors` and do not terminate the response.
+	r.printHasNext(!isLast)
+
+	r.printBytes(rBrace)
+
+	return liveChildren, r.printErr
+}
+
+// renderCompleted writes `"completed":[{"id":"<n>"[,"errors":[...]]}]` for the
+// current defer. When withErrors is true the accumulated r.errors are attached
+// to the completed entry (used when the fragment had no deliverable incremental
+// data, e.g. it null-bubbled or failed before/around its render).
+func (r *Resolvable) renderCompleted(withErrors bool) {
+	r.printBytes(quote)
+	r.printBytes(literalCompleted)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrack)
+	r.printBytes(lBrace)
+	// "id":"<n>"
+	r.printBytes(quote)
+	r.printBytes(literalId)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(quote)
+	r.printBytes([]byte(strconv.Itoa(r.currentDefer.ID)))
+	r.printBytes(quote)
+	if withErrors {
+		r.printBytes(comma)
+		r.printBytes(quote)
+		r.printBytes(literalErrors)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printNode(r.errors)
+	}
+	r.printBytes(rBrace)
+	r.printBytes(rBrack)
+}
+
+// ResolveDeferError writes a terminal defer envelope that reports a
+// fragment-scoped error on the completed entry (no incremental data) and
+// terminates with hasNext. It is used when a deferred group fails in its fetch
+// phase (e.g. a hard pre-fetch authorizer/rate-limiter error): the announced
+// pending is completed with the error and the multipart stream terminates.
+func (r *Resolvable) ResolveDeferError(out io.Writer, message string, outstanding *int64) error {
+	r.out = out
+	r.printErr = nil
+	r.path = r.path[:0]
+	r.errors = nil
+	r.addError(message, nil)
+
+	// The failing defer completes; drive the outstanding count down by one. The
+	// frame that reaches zero writes the terminal hasNext:false. Serialised by
+	// dc.db.Lock() (held by the caller), so a plain mutation is safe.
+	*outstanding--
+	isLast := *outstanding == 0
+
+	// {"completed":[{"id":"<n>","errors":[...]}],"hasNext":<bool>}
+	r.printBytes(lBrace)
+	r.renderCompleted(true)
+	r.printHasNext(!isLast)
+	r.printBytes(rBrace)
+
+	return r.printErr
+}
+
+func (r *Resolvable) renderPath() {
+	r.printBytes(lBrack)
+	for i, p := range r.path {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		if p.Name != "" {
+			r.printBytes(quote)
+			r.printBytes(unsafebytes.StringToBytes(p.Name))
+			r.printBytes(quote)
+		} else {
+			r.printBytes(unsafebytes.StringToBytes(strconv.Itoa(p.Idx)))
+		}
+	}
+	r.printBytes(rBrack)
+}
+
+// deferAnchorAlive reports whether the object a @defer fragment is mounted on
+// survived the initial render. The initial validation walk sets nullable objects
+// to null in r.data when a non-null child null-propagated, so a dead anchor reads
+// back as null/absent here. An empty path refers to the root data object.
+func (r *Resolvable) deferAnchorAlive(path []string) bool {
+	if r.data == nil {
+		return false
+	}
+	v := r.data.Get(path...)
+	return v != nil && v.Type() != astjson.TypeNull
+}
+
+// liveChildDescriptors returns the descriptors of the defers whose parent is
+// parentID and whose anchor survived the render (present and non-null in r.data).
+// parentID 0 selects the top-level defers (announced in the initial frame); any
+// other id selects that defer's direct children (announced lazily when it is
+// released). The result feeds both the pending announcement (printPendingEntries)
+// and the execution-tree pruning (pruneDeadDefers), so it carries the full
+// descriptors, not just ids.
+func (r *Resolvable) liveChildDescriptors(parentID int) map[int]DeferDescriptor {
+	var live map[int]DeferDescriptor
+	for id, d := range r.deferDescriptors {
+		if d.ParentID == parentID && r.deferAnchorAlive(d.Path) {
+			if live == nil {
+				live = make(map[int]DeferDescriptor)
+			}
+			live[id] = d
+		}
+	}
+	return live
+}
+
+// printPendingEntries writes `,"pending":[...]` listing every descriptor in
+// the map, sorted by id ascending. Writes nothing if the map is empty/nil.
+func (r *Resolvable) printPendingEntries(descriptors map[int]DeferDescriptor) {
+	if len(descriptors) == 0 {
+		return
+	}
+	ids := make([]int, 0, len(descriptors))
+	for id := range descriptors {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalPending)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrack)
+	for i, id := range ids {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		d := descriptors[id]
+		r.printBytes(lBrace)
+		// "id":"<n>"
+		r.printBytes(quote)
+		r.printBytes(literalId)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(quote)
+		r.printBytes([]byte(strconv.Itoa(d.ID)))
+		r.printBytes(quote)
+		// "path":[...]
+		r.printBytes(comma)
+		r.printBytes(quote)
+		r.printBytes(literalPath)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printPathArray(d.Path)
+		// "label":"<l>"  — only if non-empty
+		if d.Label != "" {
+			r.printBytes(comma)
+			r.printBytes(quote)
+			r.printBytes(literalLabel)
+			r.printBytes(quote)
+			r.printBytes(colon)
+			r.printBytes(strconv.AppendQuote(nil, d.Label))
+		}
+		r.printBytes(rBrace)
+	}
+	r.printBytes(rBrack)
+}
+
+// printPathArray writes a precomputed []string path as a JSON string array.
+func (r *Resolvable) printPathArray(path []string) {
+	r.printBytes(lBrack)
+	for i, segment := range path {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		r.printBytes(strconv.AppendQuote(nil, segment))
+	}
+	r.printBytes(rBrack)
+}
+
+func (r *Resolvable) printHasNext(hasNext bool) {
+	if r.printErr != nil {
+		return
+	}
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalHasNext)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	if hasNext {
+		r.printBytes(literalTrue)
+	} else {
+		r.printBytes(literalFalse)
+	}
+}
+
+func (r *Resolvable) printDeferEnvelopeOpen() {
+	if !r.render() {
+		return
+	}
+
+	// Render Incremental Item Envelope: {"data":{...},"path":[...]}
+	r.printBytes(lBrace)
+	r.printBytes(quote)
+	r.printBytes(literalData)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+}
+
+// printDeferIdAndErrors writes "id":"<n>" optionally followed by
+// ,"errors":[...] when recoverable errors are pending on this incremental item.
+func (r *Resolvable) printDeferIdAndErrors() {
+	r.printBytes(quote)
+	r.printBytes(literalId)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(quote)
+	r.printBytes([]byte(strconv.Itoa(r.currentDefer.ID)))
+	r.printBytes(quote)
+	r.printDeferSubPathIfAny()
+	if r.hasErrors() {
+		r.printBytes(comma)
+		r.printBytes(quote)
+		r.printBytes(literalErrors)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printNode(r.errors)
+	}
+}
+
+// printDeferSubPathIfAny writes ,"subPath":[...] when the resolver's runtime
+// path goes deeper than the current defer's descriptor path.
+//
+// Rule: subPath = runtime_path − descriptor.path. Walk r.path; track a
+// cursor into descriptor.Path. When a runtime segment's name matches the
+// cursor's named segment, advance the cursor and skip the segment (it's
+// "consumed" by the descriptor prefix). Every other segment — unmatched
+// names AND list indices — flows into subPath. Emit nothing when subPath
+// is empty.
+func (r *Resolvable) printDeferSubPathIfAny() {
+	descPath := r.currentDefer.Path
+	descIdx := 0
+
+	suffixStart := -1
+	for i, p := range r.path {
+		if descIdx < len(descPath) && p.Name != "" && p.Name == descPath[descIdx] {
+			descIdx++
+			continue
+		}
+		suffixStart = i
+		break
+	}
+	if suffixStart < 0 {
+		return
+	}
+
+	r.printBytes(comma)
+	r.printBytes(quote)
+	r.printBytes(literalSubPath)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrack)
+	first := true
+	for i := suffixStart; i < len(r.path); i++ {
+		if !first {
+			r.printBytes(comma)
+		}
+		first = false
+		p := r.path[i]
+		if p.Name != "" {
+			r.printBytes(quote)
+			r.printBytes(unsafebytes.StringToBytes(p.Name))
+			r.printBytes(quote)
+		} else {
+			r.printBytes(unsafebytes.StringToBytes(strconv.Itoa(p.Idx)))
+		}
+	}
+	r.printBytes(rBrack)
+}
+
+func (r *Resolvable) printDeferEnvelopeClose() {
+	if !r.render() {
+		return
+	}
+
+	r.printBytes(rBrace)
+	r.printBytes(comma)
+	r.printDeferIdAndErrors()
+	r.printBytes(rBrace)
 }
 
 // ensureErrorsInitialized is used to lazily init r.errors if needed
@@ -264,6 +841,14 @@ func (r *Resolvable) err() bool {
 	return true
 }
 
+func (r *Resolvable) render() bool {
+	if !r.deferMode {
+		return r.enableRender
+	}
+
+	return r.enableRender && r.enableDeferRender
+}
+
 func (r *Resolvable) printErrors() {
 	r.printBytes(quote)
 	r.printBytes(literalErrors)
@@ -280,9 +865,9 @@ func (r *Resolvable) printData(root *Object) {
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(lBrace)
-	r.print = true
+	r.enableRender = true
 	_ = r.walkObject(root, r.data)
-	r.print = false
+	r.enableRender = false
 	r.printBytes(rBrace)
 	r.wroteData = true
 }
@@ -326,6 +911,14 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
+	if len(r.ctx.InlineArguments) > 0 {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		r.printInlineArgumentsExtension()
+	}
+
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		if writeComma {
 			r.printBytes(comma)
@@ -341,10 +934,31 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		if writeComma {
 			r.printBytes(comma)
 		}
-		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
+		writeComma = true
 		err := r.printValueCompletionExtension()
 		if err != nil {
 			return err
+		}
+	}
+
+	if len(r.allowedExtensions) > 0 {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
+
+		counter := 0
+		for key, value := range r.allowedExtensions {
+			if counter > 0 {
+				r.printBytes(comma)
+			}
+			counter++
+			r.printBytes(quote)
+			r.printBytes([]byte(key))
+			r.printBytes(quote)
+			r.printBytes(colon)
+			r.printNode(value)
+
 		}
 	}
 
@@ -405,7 +1019,51 @@ func (r *Resolvable) printValueCompletionExtension() error {
 	return nil
 }
 
+func getDefaultReservedExtensions() map[string]struct{} {
+	return map[string]struct{}{
+		string(literalAuthorization):   {},
+		string(literalRateLimit):       {},
+		string(literalQueryPlan):       {},
+		string(literalTrace):           {},
+		string(literalValueCompletion): {},
+	}
+}
+
+func (r *Resolvable) printInlineArgumentsExtension() {
+	r.printBytes(quote)
+	r.printBytes(literalInlineArguments)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+
+	r.printBytes(quote)
+	r.printBytes(literalCount)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(strconv.AppendInt(nil, int64(len(r.ctx.InlineArguments)), 10))
+	r.printBytes(comma)
+
+	r.printBytes(quote)
+	r.printBytes(literalArguments)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrack)
+	for i, name := range r.ctx.InlineArguments {
+		if i > 0 {
+			r.printBytes(comma)
+		}
+		r.printBytes(strconv.AppendQuote(nil, name))
+	}
+	r.printBytes(rBrack)
+
+	r.printBytes(rBrace)
+}
+
 func (r *Resolvable) hasExtensions() bool {
+	// Apply the filter first to avoid missing extensions or applying empty extensions.
+	if r.filterAllowedSubgraphExtensions(getDefaultReservedExtensions()) {
+		return true
+	}
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		return true
 	}
@@ -418,10 +1076,52 @@ func (r *Resolvable) hasExtensions() bool {
 	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
 		return true
 	}
+	if len(r.ctx.InlineArguments) > 0 {
+		return true
+	}
 	if !r.skipValueCompletion && r.valueCompletion != nil {
 		return true
 	}
 	return false
+}
+
+func (r *Resolvable) filterAllowedSubgraphExtensions(writtenExtensions map[string]struct{}) bool {
+	if len(r.subgraphExtensions) == 0 {
+		return false
+	}
+
+	r.allowedExtensions = make(map[string]*astjson.Value)
+	algorithm := r.options.ExtensionForwardingAlgorithm
+
+	if !algorithm.isValid() {
+		algorithm = ExtensionForwardingAlgorithmFirstWrite
+	}
+
+	override := algorithm == ExtensionForwardingAlgorithmLastWrite
+
+	// filter only allowed extensions. If the allowed extensions are empty, all extensions are allowed
+	for _, extension := range r.subgraphExtensions {
+		extension.Visit(func(key []byte, v *astjson.Value) {
+			keyString := string(key)
+			if len(r.options.AllowedSubgraphExtensions) > 0 {
+				if _, ok := r.options.AllowedSubgraphExtensions[keyString]; !ok {
+					return
+				}
+			}
+
+			// don't print the same extension twice
+			if _, exists := writtenExtensions[keyString]; exists {
+				return
+			}
+
+			// We either add the extension to the valid extension map or we override it when we're in last write mode
+			if _, exists := r.allowedExtensions[keyString]; !exists || (exists && override) {
+				r.allowedExtensions[string(key)] = v
+			}
+		})
+	}
+
+	return len(r.allowedExtensions) > 0
 }
 
 func (r *Resolvable) WroteErrorsWithoutData() bool {
@@ -583,13 +1283,35 @@ func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 	}
 }
 
-func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
+func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bool) {
+	if obj.Unresolvable {
+		// The object selection set was dropped during planning because the abstract type
+		// has no possible runtime types able to provide the requested fields.
+		// The field could never be resolved, so we always fail, regardless of the data.
+		if !r.render() {
+			fieldName := ""
+			if len(obj.Path) > 0 {
+				fieldName = obj.Path[len(obj.Path)-1]
+			}
+			r.addError(fmt.Sprintf("Unable to resolve field '%s' of abstract type '%s': no runtime types are able to provide the requested fields.", fieldName, obj.TypeName), obj.Path)
+		}
+		return r.err()
+	}
 	r.enclosingTypeNames = append(r.enclosingTypeNames, obj.TypeName)
 	defer func() {
 		r.enclosingTypeNames = r.enclosingTypeNames[:len(r.enclosingTypeNames)-1]
 	}()
 	value := parent.Get(obj.Path...)
 	if value == nil || value.Type() == astjson.TypeNull {
+		if r.unreachedAuthWalk {
+			r.pushNodePathElement(obj.Path)
+			r.walkUnreachedFields(obj)
+			r.popNodePathElement(obj.Path)
+			if r.inUnreachedSubtree {
+				// synthetic level: no data to render or null-propagate
+				return false
+			}
+		}
 		if obj.Nullable {
 			return r.walkNull()
 		}
@@ -605,14 +1327,33 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 	}
 
 	typeName := value.GetStringBytes("__typename")
+	if typeName == nil && obj.isAbstract() {
+		// an abstract value without a runtime type cannot be validated against
+		// the contract, so it must be rejected
+		if !r.render() {
+			if r.options.ApolloCompatibilityValueCompletionInExtensions {
+				r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), errorcodes.InvalidGraphql)
+			} else {
+				r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned an invalid value for __typename field.", obj.SourceName), errorcodes.InvalidGraphql)
+			}
+			if !obj.Nullable {
+				return r.err()
+			}
+			return false
+		}
+		return r.walkNull()
+	}
 	if typeName != nil && len(obj.PossibleTypes) > 0 {
 		// when we have a typename field present in a json object, we need to check if the type is valid
 
 		if _, ok := obj.PossibleTypes[string(typeName)]; !ok {
-			if !r.print {
+			if !r.render() {
 				// during pre-walk we need to add an error when the typename do not match a possible type
 				if r.options.ApolloCompatibilityValueCompletionInExtensions {
 					r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), errorcodes.InvalidGraphql)
+				} else if _, inaccessible := obj.InaccessibleTypes[string(typeName)]; inaccessible {
+					// the type is a member of the abstract type but @inaccessible so the error must not leak its name
+					r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned an invalid value for __typename field.", obj.SourceName), errorcodes.InvalidGraphql)
 				} else {
 					r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", obj.SourceName, string(typeName)), errorcodes.InvalidGraphql)
 				}
@@ -634,27 +1375,210 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 	}
 
-	if r.print && !isRoot {
+	// Cost-control stats are recorded during the render pass: by then the pre-walk has
+	// applied all nulls (denials and non-null violations alike), so the stats describe
+	// exactly the response the client receives.
+	if r.render() && r.options.EnableCostControl {
+		r.recordObjectTypeStats(obj, typeName)
+	}
+
+	// render opening object brace for defer and non defer situation
+	if r.render() && !isRoot {
 		r.printBytes(lBrace)
 	}
-	addComma := false
 
 	r.typeNames = append(r.typeNames, typeName)
 	defer func() {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
 	}()
+
+	if !r.deferMode {
+		if r.walkFields(obj, value, parent, walkFieldsFilter{}) {
+			return true
+		}
+
+		// close the object brace for non defer mode
+		if r.render() && !isRoot {
+			r.printBytes(rBrace)
+		}
+		return false
+	}
+
+	renderFields, passThroughFields := r.collectDeferFields(obj)
+
+	if len(renderFields) > 0 {
+		startedRender := false
+
+		if !r.enableDeferRender {
+			r.enableDeferRender = true
+			startedRender = true
+
+			if r.enableRender && r.deferIncrementalItemWritten {
+				r.printBytes(comma)
+			}
+
+			if r.currentDefer != nil {
+				r.printDeferEnvelopeOpen()
+			}
+		}
+
+		// render the initial batch of fields
+		hasErrors := r.walkFields(obj, value, parent, walkFieldsFilter{renderFields: renderFields, passThrough: false, enabled: true})
+
+		if startedRender {
+			if r.currentDefer != nil {
+				if !r.enableRender && hasErrors {
+					// Pre-walk: null propagated through a non-nullable chain; signal render pass.
+					r.deferItemDataNull = true
+				}
+				r.printDeferEnvelopeClose()
+				r.deferIncrementalItemWritten = true
+			}
+			r.enableDeferRender = false
+		}
+
+		if hasErrors {
+			return true
+		}
+	}
+
+	// we do not search for the other fields when defer is 0 because it is impossible to have non-deferred fields under the deferred parent
+	if r.currentDefer != nil && len(passThroughFields) > 0 {
+		// look for additional nested fields which may have matching defer id
+		if r.walkFields(obj, value, parent, walkFieldsFilter{passThroughFields: passThroughFields, passThrough: true, enabled: true}) {
+			return true
+		}
+	}
+
+	// close the object brace in the defer mode
+	if r.render() && !isRoot {
+		r.printBytes(rBrace)
+	}
+	return false
+}
+
+func (r *Resolvable) collectDeferFields(obj *Object) (renderFields map[int]struct{}, passThroughFields map[int]struct{}) {
+	renderFields = make(map[int]struct{})
+	passThroughFields = make(map[int]struct{})
+
 	for i := range obj.Fields {
-		if obj.Fields[i].ParentOnTypeNames != nil {
-			if r.skipFieldOnParentTypeNames(obj.Fields[i]) {
+		if r.shouldSkipFieldByTypeCondition(obj.Fields[i]) {
+			continue
+		}
+
+		if r.currentDefer == nil {
+			// we are rendering the initial response
+
+			// skip all fields with defer
+			if obj.Fields[i].Defer != nil {
+				continue
+			}
+
+			// collect object fields without defer
+			renderFields[i] = struct{}{}
+		}
+
+		// we are rendering defer response
+
+		// collect fields without defer into passThrough fields
+		if obj.Fields[i].Defer == nil {
+			if !r.fieldNodeKindAllowsSeek(obj.Fields[i]) {
+				continue
+			}
+
+			passThroughFields[i] = struct{}{}
+			continue
+		}
+
+		// allow looking into the fields with other defer ids
+		if obj.Fields[i].Defer.DeferID != r.currentDefer.ID {
+			// but only if they are ancestor to the current defer id
+			if !r.isDeferAncestor(obj.Fields[i].Defer.DeferID, r.currentDefer.ParentID) {
+				continue
+			}
+
+			if !r.fieldNodeKindAllowsSeek(obj.Fields[i]) {
+				continue
+			}
+
+			passThroughFields[i] = struct{}{}
+			continue
+		}
+
+		// store fields with matching defer id
+		renderFields[i] = struct{}{}
+	}
+
+	return
+}
+
+func (r *Resolvable) isDeferAncestor(fieldDeferID, parentID int) bool {
+	for {
+		// top level defer can't have a parent
+		if parentID == 0 {
+			return false
+		}
+
+		if fieldDeferID == parentID {
+			return true
+		}
+
+		descriptor := r.deferDescriptors[parentID]
+		parentID = descriptor.ParentID
+	}
+}
+
+func (r *Resolvable) fieldNodeKindAllowsSeek(field *Field) bool {
+	kind := field.Value.NodeKind()
+	if kind != NodeKindObject {
+		if kind != NodeKindArray {
+			// skip scalar fields
+			return false
+		}
+
+		// Skip array if its item type is not an object kind.
+		if field.Value.(*Array).Item.NodeKind() != NodeKindObject {
+			// we could have a nested array,
+			// but we do not care for now
+			return false
+		}
+	}
+
+	return true
+}
+
+type walkFieldsFilter struct {
+	renderFields      map[int]struct{}
+	passThroughFields map[int]struct{}
+	passThrough       bool
+	enabled           bool
+}
+
+func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjson.Value, filter walkFieldsFilter) (hasErrors bool) {
+	addComma := false
+
+	for i := range obj.Fields {
+		if filter.enabled {
+			// if mode is passThrough
+			if filter.passThrough {
+				// skip all fields to which we should not go into
+				if _, ok := filter.passThroughFields[i]; !ok {
+					continue
+				}
+			} else {
+				// if mode is render
+				// skip all fields that we should not render
+				if _, ok := filter.renderFields[i]; !ok {
+					continue
+				}
+			}
+		} else {
+			if r.shouldSkipFieldByTypeCondition(obj.Fields[i]) {
 				continue
 			}
 		}
-		if obj.Fields[i].OnTypeNames != nil {
-			if r.skipFieldOnTypeNames(obj.Fields[i]) {
-				continue
-			}
-		}
-		if !r.print {
+
+		if !r.render() {
 			skip := r.authorizeField(value, obj.Fields[i])
 			if skip {
 				if obj.Fields[i].Value.NodeNullable() {
@@ -665,20 +1589,21 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 					if field != nil {
 						astjson.SetNull(r.astjsonArena, value, path...)
 					}
+
+					continue
 				} else if obj.Nullable && len(obj.Path) > 0 {
 					// if the field value is not nullable, but the object is nullable
 					// we can just set the whole object to null
 					astjson.SetNull(r.astjsonArena, parent, obj.Path...)
 					return false
-				} else {
-					// if the field value is not nullable and the object is not nullable
-					// we return true to indicate an error
-					return true
 				}
-				continue
+
+				// if the field value is not nullable and the object is not nullable
+				// we return true to indicate an error
+				return true
 			}
 		}
-		if r.print {
+		if r.render() {
 			if addComma {
 				r.printBytes(comma)
 			}
@@ -686,10 +1611,22 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			r.printBytes(obj.Fields[i].Name)
 			r.printBytes(quote)
 			r.printBytes(colon)
+			r.recordFieldReached(value, obj.Fields[i])
 		}
 		r.currentFieldInfo = obj.Fields[i].Info
 		err := r.walkNode(obj.Fields[i].Value, value)
 		if err {
+			if r.render() {
+				// Field key already written; complete with null to produce valid JSON.
+				r.printBytes(null)
+				if obj.Nullable {
+					// Nullable parent: absorb the error, render null, continue to next field.
+					addComma = true
+					continue
+				}
+				// Non-nullable parent: propagate error; caller closes the envelope.
+				return err
+			}
 			if obj.Nullable {
 				if len(obj.Path) > 0 {
 					astjson.SetNull(r.astjsonArena, parent, obj.Path...)
@@ -700,9 +1637,19 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		}
 		addComma = true
 	}
-	if r.print && !isRoot {
-		r.printBytes(rBrace)
+
+	return false
+}
+
+func (r *Resolvable) shouldSkipFieldByTypeCondition(field *Field) bool {
+	if field.ParentOnTypeNames != nil && r.skipFieldOnParentTypeNames(field) {
+		return true
 	}
+
+	if field.OnTypeNames != nil && r.skipFieldOnTypeNames(field) {
+		return true
+	}
+
 	return false
 }
 
@@ -713,7 +1660,7 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	if !field.Info.HasAuthorizationRule {
 		return false
 	}
-	if r.ctx.authorizer == nil {
+	if r.ctx.authorizer == nil && !r.authorization.preFetchEnabled() {
 		return false
 	}
 	if len(field.Info.Source.IDs) == 0 {
@@ -721,12 +1668,8 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	}
 	dataSourceID := field.Info.Source.IDs[0]
 	dataSourceName := field.Info.Source.Names[0]
-	typeName := r.objectFieldTypeName(value, field)
-	gc := GraphCoordinate{
-		TypeName:  typeName,
-		FieldName: field.Info.Name,
-	}
-	result, authErr := r.authorize(value, dataSourceID, gc)
+	gc := r.fieldAuthorizationCoordinate(value, field)
+	result, authErr := r.authorization.decide(value, dataSourceID, gc)
 	if authErr != nil {
 		r.authorizationError = authErr
 		return true
@@ -741,29 +1684,20 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	return false
 }
 
-func (r *Resolvable) authorize(value *astjson.Value, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
-	r.xxh.Reset()
-	_, _ = r.xxh.WriteString(dataSourceID)
-	_, _ = r.xxh.WriteString(coordinate.TypeName)
-	_, _ = r.xxh.WriteString(coordinate.FieldName)
-	decisionID := r.xxh.Sum64()
-	if _, ok := r.authorizationAllow[decisionID]; ok {
-		return nil, nil
+// fieldAuthorizationCoordinate derives the graph coordinate under which authorization
+// decisions for this field are cached.
+// Pre-fetch decisions are seeded from plan-time coordinates,
+// while post-fetch decisions are memoized under the runtime type of the enclosing object.
+// value is the enclosing object's data, it may be nil for unreached fields.
+func (r *Resolvable) fieldAuthorizationCoordinate(value *astjson.Value, field *Field) GraphCoordinate {
+	typeName := field.Info.ExactParentTypeName
+	if !r.authorization.preFetchEnabled() && value != nil {
+		typeName = r.objectFieldTypeName(value, field)
 	}
-	if reason, ok := r.authorizationDeny[decisionID]; ok {
-		return &AuthorizationDeny{Reason: reason}, nil
+	return GraphCoordinate{
+		TypeName:  typeName,
+		FieldName: field.Info.Name,
 	}
-	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.marshalBuf, coordinate)
-	if err != nil {
-		return nil, err
-	}
-	if result == nil {
-		r.authorizationAllow[decisionID] = struct{}{}
-	} else {
-		r.authorizationDeny[decisionID] = result.Reason
-	}
-	return result, nil
 }
 
 func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field *Field) {
@@ -790,6 +1724,76 @@ func (r *Resolvable) objectFieldTypeName(v *astjson.Value, field *Field) string 
 		return unsafebytes.BytesToString(typeName)
 	}
 	return field.Info.ExactParentTypeName
+}
+
+// walkUnreachedFields descends the plan below a point the data walk cannot reach (null/missing
+// object, empty array) and emits UNAUTHORIZED_FIELD_OR_TYPE errors for denied protected fields
+// there. A denied field stops the descent — its error covers its subtree. Decisions are pure
+// cache reads (pre-fetch mode only); no authorizer calls, no data mutation. Recursion goes
+// through the regular walk functions with a null value, re-entering their null branches, so
+// r.path — and with it error paths and messages — comes from the ordinary walk bookkeeping.
+func (r *Resolvable) walkUnreachedFields(obj *Object) {
+	if obj == nil {
+		return
+	}
+	wasInside := r.inUnreachedSubtree
+	r.inUnreachedSubtree = true
+	for i := range obj.Fields {
+		field := obj.Fields[i]
+		if r.emitUnreachedFieldDeny(field) {
+			continue
+		}
+		switch field.Value.NodeKind() {
+		case NodeKindObject, NodeKindArray:
+			r.walkNode(field.Value, astjson.NullValue)
+		}
+	}
+	r.inUnreachedSubtree = wasInside
+}
+
+// walkUnreachedItem descends into an array item the data walk has no element for (empty or null
+// array)
+func (r *Resolvable) walkUnreachedItem(item Node) {
+	switch item.NodeKind() {
+	case NodeKindObject, NodeKindArray:
+	default:
+		return
+	}
+
+	wasInside := r.inUnreachedSubtree
+	r.inUnreachedSubtree = true
+
+	// push the "@" wildcard position any element would occupy
+	r.pushNodePathElement([]string{"@"})
+	r.walkNode(item, astjson.NullValue)
+	r.popNodePathElement([]string{"@"})
+
+	r.inUnreachedSubtree = wasInside
+}
+
+// emitUnreachedFieldDeny reports whether the field carries a seeded deny decision, emitting the
+// corresponding UNAUTHORIZED_FIELD_OR_TYPE error if so.
+func (r *Resolvable) emitUnreachedFieldDeny(field *Field) bool {
+	if field.Info == nil || !field.Info.HasAuthorizationRule || len(field.Info.Source.IDs) == 0 {
+		return false
+	}
+	dataSourceID := field.Info.Source.IDs[0]
+	reason, denied := r.authorization.denyReason(dataSourceID, r.fieldAuthorizationCoordinate(nil, field))
+	if !denied {
+		return false
+	}
+	r.addRejectFieldError(reason, DataSourceInfo{
+		ID:   dataSourceID,
+		Name: firstString(field.Info.Source.Names),
+	}, field)
+	return true
+}
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 func (r *Resolvable) skipFieldOnParentTypeNames(field *Field) bool {
@@ -834,6 +1838,15 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	parent := value
 	value = value.Get(arr.Path...)
 	if astjson.ValueIsNull(value) {
+		if r.unreachedAuthWalk {
+			r.pushNodePathElement(arr.Path)
+			r.walkUnreachedItem(arr.Item)
+			r.popNodePathElement(arr.Path)
+			if r.inUnreachedSubtree {
+				// synthetic level: no data to render or null-propagate
+				return false
+			}
+		}
 		if arr.Nullable {
 			return r.walkNull()
 		}
@@ -846,20 +1859,47 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.addError("Array cannot represent non-array value.", arr.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.printBytes(lBrack)
 	}
 	values := value.GetArray()
 
-	if !r.print {
-		pathKey := r.currentFieldPath()
-		r.actualListSizes[pathKey] += len(values)
+	if len(values) == 0 && r.unreachedAuthWalk && !r.inUnreachedSubtree {
+		// no elements to walk: check the item's plan subtree for denied protected fields
+		r.walkUnreachedItem(arr.Item)
+	}
+
+	if r.render() && r.options.EnableCostControl {
+		// Record array stats for Cost Control. Size counts only non-null elements: the
+		// pre-walk nulls elements the client does not receive (denied or invalid), and
+		// those must not be charged.
+		fieldPath := r.renderFieldPath()
+		stats := r.typeNameStats[fieldPath]
+		for _, arrayValue := range values {
+			if arrayValue.Type() == astjson.TypeNull {
+				continue
+			}
+			stats.Size++
+			var typeName string
+			if b := arrayValue.GetStringBytes("__typename"); b != nil {
+				typeName = string(b)
+			} else if obj, ok := arr.Item.(*Object); ok {
+				typeName = obj.TypeName
+			}
+			if typeName != "" {
+				if stats.TypeNames == nil {
+					stats.TypeNames = make(map[string]int)
+				}
+				stats.TypeNames[typeName]++
+			}
+		}
+		r.typeNameStats[fieldPath] = stats
 	}
 
 	hasPrintedValue := false
 	for i, arrayValue := range values {
 		skip := false
-		if r.print && arr.SkipItem != nil {
+		if r.render() && arr.SkipItem != nil {
 			skip = arr.SkipItem(r.ctx, arrayValue)
 		}
 
@@ -867,7 +1907,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 			continue
 		}
 
-		if r.print && i != 0 && hasPrintedValue {
+		if r.render() && i != 0 && hasPrintedValue {
 			r.printBytes(comma)
 		}
 
@@ -888,32 +1928,74 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 			return err
 		}
 	}
-	if r.print {
+	if r.render() {
 		r.printBytes(rBrack)
 	}
 	return false
 }
 
-// Helper to build JSON path (field names only, no array indices)
-func (r *Resolvable) currentFieldPath() string {
-	var parts []string
-	for _, elem := range r.path {
-		if elem.Name != "" {
-			parts = append(parts, elem.Name)
-		}
+// recordObjectTypeStats records the runtime __typename of a single (non-array) object.
+func (r *Resolvable) recordObjectTypeStats(obj *Object, typeName []byte) {
+	// An array item Object has an empty Path
+	if len(obj.Path) == 0 {
+		return
 	}
-	return strings.Join(parts, ".")
+	fieldPath := r.renderFieldPath()
+	stats := r.typeNameStats[fieldPath]
+	stats.Size++
+	if stats.TypeNames == nil {
+		stats.TypeNames = make(map[string]int, 1)
+	}
+	// Fall back to the declared abstract type name when the subgraph did not return __typename.
+	name := obj.TypeName
+	if typeName != nil {
+		name = string(typeName)
+	}
+	stats.TypeNames[name]++
+	r.typeNameStats[fieldPath] = stats
+}
+
+// recordFieldReached marks the rendered field's response path in typeNameStats for cost
+// control, creating an empty entry if none exists. Denied fields are skipped.
+// value is the enclosing object's data, used to resolve the field's runtime type.
+func (r *Resolvable) recordFieldReached(value *astjson.Value, field *Field) {
+	if !r.options.EnableCostControl {
+		return
+	}
+	if _, ok := r.reachedFields[field]; ok {
+		return
+	}
+	if r.fieldHasDenyDecision(value, field) {
+		return
+	}
+	r.reachedFields[field] = struct{}{}
+	nodePath := field.Value.NodePath()
+	r.pushNodePathElement(nodePath)
+	fieldPath := r.renderFieldPath()
+	r.popNodePathElement(nodePath)
+	if _, ok := r.typeNameStats[fieldPath]; !ok {
+		r.typeNameStats[fieldPath] = TypeNameStats{}
+	}
+}
+
+// fieldHasDenyDecision reports whether the field carries a cached authorization deny decision.
+func (r *Resolvable) fieldHasDenyDecision(value *astjson.Value, field *Field) bool {
+	if field.Info == nil || !field.Info.HasAuthorizationRule || len(field.Info.Source.IDs) == 0 {
+		return false
+	}
+	_, denied := r.authorization.denyReason(field.Info.Source.IDs[0], r.fieldAuthorizationCoordinate(value, field))
+	return denied
 }
 
 func (r *Resolvable) walkNull() bool {
-	if r.print {
+	if r.render() {
 		r.printBytes(null)
 	}
 	return false
 }
 
 func (r *Resolvable) walkStaticString(str *StaticString) bool {
-	if r.print {
+	if r.render() {
 		r.printBytes(quote)
 		r.printBytes([]byte(str.Value))
 		r.printBytes(quote)
@@ -936,7 +2018,7 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 		r.addError(fmt.Sprintf("String cannot represent non-string value: \"%s\"", string(r.marshalBuf)), s.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		if s.IsTypeName {
 			content := value.GetStringBytes()
 			for i := range r.renameTypeNames {
@@ -982,7 +2064,7 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \"%s\"", string(r.marshalBuf)), b.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldValue(value, b.Nullable)
 	}
 	return false
@@ -1003,7 +2085,7 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \"%s\"", string(r.marshalBuf)), i.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldValue(value, i.Nullable)
 	}
 	return false
@@ -1019,14 +2101,14 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 		r.addNonNullableFieldError(f.Path, parent)
 		return r.err()
 	}
-	if !r.print {
+	if !r.render() {
 		if value.Type() != astjson.TypeNumber {
 			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 			r.addError(fmt.Sprintf("Float cannot represent non-float value: \"%s\"", string(r.marshalBuf)), f.Path)
 			return r.err()
 		}
 	}
-	if r.print {
+	if r.render() {
 		if r.options.ApolloCompatibilityTruncateFloatValues {
 			floatValue := value.GetFloat64()
 			if floatValue == float64(int64(floatValue)) {
@@ -1049,7 +2131,7 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
 		r.addNonNullableFieldError(b.Path, parent)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldValue(value, b.Nullable)
 	}
 	return false
@@ -1065,14 +2147,14 @@ func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
 		r.addNonNullableFieldError(s.Path, parent)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldValue(value, s.Nullable)
 	}
 	return false
 }
 
 func (r *Resolvable) walkEmptyObject(_ *EmptyObject) bool {
-	if r.print {
+	if r.render() {
 		r.printBytes(lBrace)
 		r.printBytes(rBrace)
 	}
@@ -1080,7 +2162,7 @@ func (r *Resolvable) walkEmptyObject(_ *EmptyObject) bool {
 }
 
 func (r *Resolvable) walkEmptyArray(_ *EmptyArray) bool {
-	if r.print {
+	if r.render() {
 		r.printBytes(lBrack)
 		r.printBytes(rBrack)
 	}
@@ -1103,7 +2185,7 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 		r.addError(err.Error(), c.Path)
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderScalarFieldBytes(resolved, c.Nullable)
 	}
 	return false
@@ -1188,7 +2270,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		 * To avoid appending an error twice, the appending only happens on the first walk
 		 * and not the second walk (which prints the data).
 		 */
-		if !r.print {
+		if !r.render() {
 			if r.options.ApolloCompatibilityValueCompletionInExtensions {
 				r.renderInaccessibleEnumValueError(e)
 			} else {
@@ -1206,7 +2288,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		 * To avoid appending an error/value completion twice, the appending only happens on the first walk
 		 * and not the second walk (which prints the data).
 		 */
-		if !r.print {
+		if !r.render() {
 			r.renderInaccessibleEnumValueError(e)
 		}
 		// Inaccessible enum values are always converted to null
@@ -1215,7 +2297,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		}
 		return r.err()
 	}
-	if r.print {
+	if r.render() {
 		r.renderEnumValue(value, e.Nullable)
 	}
 	return false

@@ -13,56 +13,56 @@ func TestSelectObjectAndIndex(t *testing.T) {
 	tests := []struct {
 		name           string
 		responseJSON   string
-		pathElements   []interface{} // Can be strings or numbers
-		expectedEntity string        // JSON string of expected entity, or "nil" for nil
+		pathElements   []any  // Can be strings or numbers
+		expectedEntity string // JSON string of expected entity, or "nil" for nil
 		expectedIndex  int
 	}{
 		{
 			name:           "complex federation-like structure",
 			responseJSON:   `[{"__typename": "User", "id": "1", "name": "John"}, {"__typename": "User", "id": "2", "name": null}]`,
-			pathElements:   []interface{}{1},
+			pathElements:   []any{1},
 			expectedEntity: `{"__typename": "User", "id": "2", "name": null}`,
 			expectedIndex:  1,
 		},
 		{
 			name:           "mixed path with number then string",
 			responseJSON:   `[{"user": {"name": "John"}}, {"user": {"name": "Jane"}}]`,
-			pathElements:   []interface{}{1, "user"},
+			pathElements:   []any{1, "user"},
 			expectedEntity: `{"name": "Jane"}`,
 			expectedIndex:  1,
 		},
 		{
 			name:           "multiple numbers in path",
 			responseJSON:   `[[{"name": "A"}, {"name": "B"}], [{"name": "C"}, {"name": "D"}]]`,
-			pathElements:   []interface{}{1, 0},
+			pathElements:   []any{1, 0},
 			expectedEntity: `{"name": "C"}`,
 			expectedIndex:  1,
 		},
 		{
 			name:           "path leads to non-existent key",
 			responseJSON:   `[{"user": {"name": "John"}}]`,
-			pathElements:   []interface{}{0, "user", "nonexistent"},
+			pathElements:   []any{0, "user", "nonexistent"},
 			expectedEntity: "nil",
 			expectedIndex:  -1,
 		},
 		{
 			name:           "negative index is an error",
 			responseJSON:   `[{"name": "A"}, {"name": "negative"}]`,
-			pathElements:   []interface{}{-2},
+			pathElements:   []any{-2},
 			expectedEntity: "nil",
 			expectedIndex:  -1,
 		},
 		{
 			name:           "out of bound index is an error",
 			responseJSON:   `[{"name": "A"}, {"name": "negative"}]`,
-			pathElements:   []interface{}{9},
+			pathElements:   []any{9},
 			expectedEntity: "nil",
 			expectedIndex:  -1,
 		},
 		{
 			name:           "empty path is an error",
 			responseJSON:   `[{"name": "A"}, {"name": "negative"}]`,
-			pathElements:   []interface{}{},
+			pathElements:   []any{},
 			expectedEntity: "nil",
 			expectedIndex:  -1,
 		},
@@ -97,10 +97,15 @@ func TestSelectObjectAndIndex(t *testing.T) {
 				expectedEntity, err := astjson.ParseBytes([]byte(tt.expectedEntity))
 				assert.NoError(t, err, "Failed to parse expected entity JSON")
 
-				// Compare JSON representations
+				// Compare the full entity shape with canonical JSON so object key order
+				// differences do not hide value regressions.
 				actualJSON := entity.MarshalTo(nil)
 				expectedJSON := expectedEntity.MarshalTo(nil)
-				assert.JSONEq(t, string(expectedJSON), string(actualJSON), "Entity content mismatch")
+				assert.Equal(t,
+					compactJSONForAssert(t, string(expectedJSON)),
+					compactJSONForAssert(t, string(actualJSON)),
+					"Entity content mismatch",
+				)
 			}
 		})
 	}

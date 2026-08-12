@@ -2,6 +2,7 @@ package ast
 
 import (
 	"bytes"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -72,7 +73,7 @@ func (i *Input) ByteSliceReferenceContentEquals(left, right ByteSliceReference) 
 		return false
 	}
 	length := int(left.Length())
-	for k := 0; k < length; k++ {
+	for k := range length {
 		if i.RawBytes[int(left.Start)+k] != i.RawBytes[int(right.Start)+k] {
 			return false
 		}
@@ -102,15 +103,16 @@ func (b ByteSlice) MarshalJSON() ([]byte, error) {
 type ByteSlices []ByteSlice
 
 func (b ByteSlices) String() string {
-	out := "["
+	var out strings.Builder
+	out.WriteString("[")
 	for i := range b {
 		if i != 0 {
-			out += ","
+			out.WriteString(",")
 		}
-		out += string(b[i])
+		out.WriteString(string(b[i]))
 	}
-	out += "]"
-	return out
+	out.WriteString("]")
+	return out.String()
 }
 
 type ByteSliceReference struct {
@@ -128,7 +130,7 @@ func ByteSliceEquals(left ByteSliceReference, leftInput Input, right ByteSliceRe
 		return false
 	}
 	length := int(left.Length())
-	for i := 0; i < length; i++ {
+	for i := range length {
 		if leftInput.RawBytes[int(left.Start)+i] != rightInput.RawBytes[int(right.Start)+i] {
 			return false
 		}
@@ -139,17 +141,18 @@ func ByteSliceEquals(left ByteSliceReference, leftInput Input, right ByteSliceRe
 type ByteSliceReferences []ByteSliceReference
 
 func (b ByteSliceReferences) String(input *Input) string {
-	out := "["
+	var out strings.Builder
+	out.WriteString("[")
 	for i := range b {
 		if i != 0 {
-			out += ","
+			out.WriteString(",")
 		}
 		if b[i].Length() == 0 {
-			out += "query"
+			out.WriteString("query")
 		} else {
-			out += input.ByteSliceString(b[i])
+			out.WriteString(input.ByteSliceString(b[i]))
 		}
 	}
-	out += "]"
-	return out
+	out.WriteString("]")
+	return out.String()
 }

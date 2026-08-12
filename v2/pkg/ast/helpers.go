@@ -56,3 +56,23 @@ func leadingWhitespaceCount(line []byte) int {
 	}
 	return count
 }
+
+// commonBlockStringIndent returns the common leading-whitespace length of
+// every non-empty line after the first, per step 3 of the GraphQL spec's
+// BlockStringValue() canonicalization. Lines that are all whitespace are
+// excluded. Returns -1 when there is nothing to strip.
+func commonBlockStringIndent(lines [][]byte) int {
+	common := -1
+	for i, line := range lines {
+		if i == 0 {
+			continue
+		}
+		indent := leadingWhitespaceCount(line)
+		if indent < len(line) {
+			if common == -1 || indent < common {
+				common = indent
+			}
+		}
+	}
+	return common
+}

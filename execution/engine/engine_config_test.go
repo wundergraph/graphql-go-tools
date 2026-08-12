@@ -15,7 +15,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
+//nolint:tparallel // Subtests mutate shared engineConfig state within the parent test.
 func TestNewConfiguration(t *testing.T) {
+	t.Parallel()
 	var engineConfig Configuration
 
 	t.Run("should create a new engine v2 config", func(t *testing.T) {
@@ -72,10 +74,11 @@ func TestNewConfiguration(t *testing.T) {
 }
 
 func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
+	t.Parallel()
 	client := &http.Client{}
 	streamingClient := &http.Client{}
 	engineCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	doc, report := astparser.ParseGraphqlDocumentString(graphqlGeneratorSchema)
 	require.Falsef(t, report.HasErrors(), "document parser report has errors")
@@ -106,6 +109,7 @@ func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
 	}
 
 	t.Run("without subscription configuration", func(t *testing.T) {
+		t.Parallel()
 		dataSourceConfig := mustConfiguration(t, graphqlDataSource.ConfigurationInput{
 			Fetch: &graphqlDataSource.FetchConfiguration{
 				URL:    "http://localhost:8080",
@@ -137,6 +141,7 @@ func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
 	})
 
 	t.Run("with subscription configuration (SSE)", func(t *testing.T) {
+		t.Parallel()
 		dataSourceConfig := mustConfiguration(t, graphqlDataSource.ConfigurationInput{
 			Fetch: &graphqlDataSource.FetchConfiguration{
 				URL:    "http://localhost:8080",
@@ -174,10 +179,12 @@ func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
 }
 
 func TestGraphqlFieldConfigurationsGenerator_Generate(t *testing.T) {
+	t.Parallel()
 	schema, err := graphql.NewSchemaFromString(graphqlGeneratorSchema)
 	require.NoError(t, err)
 
 	t.Run("should generate field configs without predefined field configs", func(t *testing.T) {
+		t.Parallel()
 		fieldConfigurations := newGraphQLFieldConfigsGenerator(schema).Generate()
 		sort.Slice(fieldConfigurations, func(i, j int) bool { // make the resulting slice deterministic again
 			return fieldConfigurations[i].TypeName < fieldConfigurations[j].TypeName
@@ -218,6 +225,7 @@ func TestGraphqlFieldConfigurationsGenerator_Generate(t *testing.T) {
 	})
 
 	t.Run("should generate field configs with predefined field configs", func(t *testing.T) {
+		t.Parallel()
 		predefinedFieldConfigs := plan.FieldConfigurations{
 			{
 				TypeName:  "User",
@@ -358,19 +366,21 @@ type Language {
     __typename: String!
 }
 
-"The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1."
+"The ` + "`Int`" + ` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1."
 scalar Int
 
-"The 'Float' scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point)."
+"The ` + "`Float`" + ` scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point)."
 scalar Float
 
-"The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text."
+"The ` + "`String`" + ` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text."
 scalar String
 
-"The 'Boolean' scalar type represents 'true' or 'false' ."
+"The ` + "`Boolean` scalar type represents `true` or `false`." + `"
 scalar Boolean
 
-"The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID."
+"""
+The ` + "`ID`" + ` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as "4") or integer (such as 4) input value will be accepted as an ID.
+"""
 scalar ID
 
 "Directs the executor to include this field or fragment only when the argument is true."
@@ -395,7 +405,9 @@ directive @deprecated(
     reason: String = "No longer supported"
 ) on FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM_VALUE | INPUT_FIELD_DEFINITION
 
+"Exposes a URL that specifies the behavior of this scalar"
 directive @specifiedBy(
+    "The URL that specifies the behavior of this scalar."
     url: String!
 ) on SCALAR
 
@@ -405,6 +417,14 @@ Exactly one field must be provided and its value must be non-null at runtime.
 All fields defined within a @oneOf input must be nullable in the schema.
 """
 directive @oneOf on INPUT_OBJECT
+
+"Directs the executor to defer this fragment when the if argument is true or undefined."
+directive @defer(
+    "A unique identifier for the results."
+    label: String
+    "Controls whether the fragment will be deferred, usually via a variable."
+    if: Boolean! = true
+) on FRAGMENT_SPREAD | INLINE_FRAGMENT
 
 """
 A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.
@@ -571,4 +591,10 @@ enum __TypeKind {
     LIST
     "Indicates this type is a non-null. 'ofType' is a valid field."
     NON_NULL
-}`
+}
+
+directive @__defer_internal(
+    id: Int!
+    parentDeferId: Int
+    label: String
+) repeatable on FIELD`

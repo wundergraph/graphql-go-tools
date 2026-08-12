@@ -71,7 +71,7 @@ func buildPath(path string) ast.Path {
 	b := make([]byte, len(path))
 	copy(b, path)
 	n := 1
-	for i := 0; i < len(b); i++ {
+	for i := range b {
 		if b[i] == '.' {
 			n++
 		}

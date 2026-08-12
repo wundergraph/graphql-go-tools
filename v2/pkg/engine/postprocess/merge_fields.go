@@ -37,7 +37,7 @@ func (m *mergeFields) traverseNode(node resolve.Node) {
 				additionalTypeNames := make([][]byte, len(n.Fields[i].OnTypeNames)-1)
 				copy(additionalTypeNames, n.Fields[i].OnTypeNames[1:])
 				n.Fields[i].OnTypeNames = [][]byte{n.Fields[i].OnTypeNames[0]}
-				for j := 0; j < len(additionalTypeNames); j++ {
+				for j := range additionalTypeNames {
 					additionalField := &resolve.Field{
 						Name:        n.Fields[i].Name,
 						Value:       n.Fields[i].Value.Copy(),

@@ -10,13 +10,7 @@ import (
 )
 
 func (r *fieldSelectionRewriter) datasourceHasEntitiesWithName(typeNames []string) (entityNames []string, ok bool) {
-	hasEntities := false
-	for _, typeName := range typeNames {
-		if r.dsConfiguration.HasEntity(typeName) {
-			hasEntities = true
-			break
-		}
-	}
+	hasEntities := slices.ContainsFunc(typeNames, r.dsConfiguration.HasEntity)
 
 	if !hasEntities {
 		return nil, false
@@ -437,10 +431,18 @@ func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields
 	})
 }
 
-func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef int) {
+func (r *fieldSelectionRewriter) typeNameSelection(deferID int) (selectionRef int, fieldRef int) {
 	field := r.operation.AddField(ast.Field{
-		Name: r.operation.Input.AppendInputString("__typename"),
+		Name: r.operation.Input.AppendInputString(typeNameField),
 	})
+
+	if deferID != 0 {
+		// label="" and parentDeferId=0: the synthesized __typename carries only the
+		// defer id. AddDeferInternalDirectiveToField omits an empty label / zero
+		// parentDeferId from the @__defer_internal directive.
+		r.operation.AddDeferInternalDirectiveToField(field.Ref, deferID, "", 0)
+	}
+
 	return r.operation.AddSelectionToDocument(ast.Selection{
 		Ref:  field.Ref,
 		Kind: ast.SelectionKindField,
@@ -449,12 +451,13 @@ func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef
 
 func (r *fieldSelectionRewriter) preserveTypeNameSelection(selectionSetInfo selectionSetInfo, selectionRefs *[]int) {
 	// we should preserve __typename if it was in the original query as it is explicitly requested
-	if !selectionSetInfo.hasTypeNameSelection {
+	if !selectionSetInfo.hasTypeNameSelection() {
 		return
 	}
 
-	selectionRef, _ := r.typeNameSelection()
-	*selectionRefs = append(*selectionRefs, selectionRef)
+	// copying the original selection preserves its directives (e.g. defer) and
+	// records provenance automatically via the OnCopyField hook
+	*selectionRefs = append(*selectionRefs, r.operation.CopySelection(selectionSetInfo.typenameSelectionRef))
 }
 
 func (r *fieldSelectionRewriter) fieldTypeNameFromUpstreamSchema(fieldRef int, enclosingTypeName ast.ByteSlice) (typeName string, ok bool) {
@@ -532,6 +535,126 @@ func (r *fieldSelectionRewriter) getAllowedUnionMemberTypeNames(fieldRef int, un
 	sort.Strings(unionTypeNames)
 
 	return unionTypeNames, nil
+}
+
+// unionMemberTypeNamesForDataSource returns members of the union with the given name
+// in the datasource's upstream schema, or nil when the union is not defined there.
+func (r *fieldSelectionRewriter) unionMemberTypeNamesForDataSource(unionTypeName string, ds DataSource) []string {
+	upstreamSchema, ok := ds.UpstreamSchema()
+	if !ok {
+		return nil
+	}
+
+	unionNode, ok := upstreamSchema.NodeByNameStr(unionTypeName)
+	if !ok || unionNode.Kind != ast.NodeKindUnionTypeDefinition {
+		return nil
+	}
+
+	memberTypeNames, ok := upstreamSchema.UnionTypeDefinitionMemberTypeNames(unionNode.Ref)
+	if !ok {
+		return nil
+	}
+
+	return memberTypeNames
+}
+
+// shouldShrinkUnionMembers reports whether the selection set contains inline fragments
+// on union members which are outside the intersection of the union members across
+// the current and the additional datasources, but are members of the union in at least
+// one of them. Such fragments must not be resolved, as the planner choice
+// of the datasource should not affect the response shape.
+// Fragments on types which are not members of the union in any of the datasources
+// are left to the regular cleanup, which does not affect the other members.
+func (r *fieldSelectionRewriter) shouldShrinkUnionMembers(selectionSetInfo selectionSetInfo, unionTypeName string, currentMemberNames []string, intersection []string) bool {
+	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
+		if slices.Contains(intersection, inlineFragmentInfo.typeName) {
+			continue
+		}
+
+		if slices.Contains(currentMemberNames, inlineFragmentInfo.typeName) {
+			return true
+		}
+
+		for _, ds := range r.additionalDatasources {
+			if slices.Contains(r.unionMemberTypeNamesForDataSource(unionTypeName, ds), inlineFragmentInfo.typeName) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// collectFragmentsFieldRefs returns the refs of all fields nested in the inline fragments
+// of the given field selection set which have a type condition matching one of the given type names
+func (r *fieldSelectionRewriter) collectFragmentsFieldRefs(fieldRef int, typeNames []string) []int {
+	if len(typeNames) == 0 {
+		return nil
+	}
+
+	selectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
+	if !ok {
+		return nil
+	}
+
+	var fieldRefs []int
+	for _, inlineFragmentSelectionRef := range r.operation.SelectionSetInlineFragmentSelections(selectionSetRef) {
+		inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionRef].Ref
+		typeCondition := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
+		if !slices.Contains(typeNames, typeCondition) {
+			continue
+		}
+
+		fragmentSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
+		if !ok {
+			continue
+		}
+
+		fieldRefs = append(fieldRefs, collectNestedFieldRefs(r.operation, fragmentSelectionSetRef)...)
+	}
+
+	return fieldRefs
+}
+
+// collectNestedFieldRefs returns the refs of all fields in the selection set, recursively
+func collectNestedFieldRefs(operation *ast.Document, selectionSetRef int) []int {
+	var fieldRefs []int
+	for _, selectionRef := range operation.SelectionSets[selectionSetRef].SelectionRefs {
+		selection := operation.Selections[selectionRef]
+		switch selection.Kind {
+		case ast.SelectionKindField:
+			fieldRefs = append(fieldRefs, selection.Ref)
+			if nestedSelectionSetRef, ok := operation.FieldSelectionSet(selection.Ref); ok {
+				fieldRefs = append(fieldRefs, collectNestedFieldRefs(operation, nestedSelectionSetRef)...)
+			}
+		case ast.SelectionKindInlineFragment:
+			if nestedSelectionSetRef, ok := operation.InlineFragmentSelectionSet(selection.Ref); ok {
+				fieldRefs = append(fieldRefs, collectNestedFieldRefs(operation, nestedSelectionSetRef)...)
+			}
+		}
+	}
+
+	return fieldRefs
+}
+
+// intersectUnionMemberTypeNames shrinks the allowed union member type names to the
+// intersection of the current datasource's members with the members of the same union
+// in each additional datasource.
+func (r *fieldSelectionRewriter) intersectUnionMemberTypeNames(unionTypeName string, currentMemberNames []string) []string {
+	intersection := slices.Clone(currentMemberNames)
+
+	for _, ds := range r.additionalDatasources {
+		dsMemberNames := r.unionMemberTypeNamesForDataSource(unionTypeName, ds)
+		if dsMemberNames == nil {
+			continue
+		}
+
+		intersection = slices.DeleteFunc(intersection, func(typeName string) bool {
+			return !slices.Contains(dsMemberNames, typeName)
+		})
+	}
+
+	return intersection
 }
 
 func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (interfaceTypeName string, typeNames []string, isInterfaceObject bool, err error) {

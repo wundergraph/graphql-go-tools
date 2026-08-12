@@ -371,8 +371,8 @@ func TestProcess_ExtractFetches(t *testing.T) {
 			processor.Process(c.plan)
 
 			if !assert.Equal(t, c.expected, c.plan) {
-				formatterConfig := map[reflect.Type]interface{}{
-					reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+				formatterConfig := map[reflect.Type]any{
+					reflect.TypeFor[[]byte](): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
 				}
 
 				prettyCfg := &pretty.Config{
@@ -682,8 +682,8 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 			processor.Process(c.plan)
 
 			if !assert.Equal(t, c.expected, c.plan) {
-				formatterConfig := map[reflect.Type]interface{}{
-					reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+				formatterConfig := map[reflect.Type]any{
+					reflect.TypeFor[[]byte](): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
 				}
 
 				prettyCfg := &pretty.Config{

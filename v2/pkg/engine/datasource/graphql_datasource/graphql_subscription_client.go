@@ -309,7 +309,7 @@ func formatUpstreamServiceError(err error, code string) []byte {
 	}{
 		Errors: []graphqlError{gqlErr},
 	}
-	data, _ := json.Marshal(resp)
+	data, _ := json.Marshal(resp) //nolint:errchkjson // The response contains only JSON-safe fields.
 	return data
 }
 
@@ -326,7 +326,7 @@ func formatSubscriptionError(err error) []byte {
 			{Message: err.Error()},
 		},
 	}
-	data, _ := json.Marshal(errResponse)
+	data, _ := json.Marshal(errResponse) //nolint:errchkjson // The response contains only JSON-safe fields.
 	return data
 }
 

@@ -4,12 +4,21 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
 
+// pTypes builds an allowed types set for provides selection assertions
+func pTypes(names ...string) map[string]struct{} {
+	out := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		out[name] = struct{}{}
+	}
+	return out
+}
+
 func TestProvidesSuggestions(t *testing.T) {
-	keySDL := `name info {age} address {street zip}`
 	definitionSDL := `
 		type Query {
 			me: User! @provides(fields: "name info {age} address {street zip}")
@@ -35,64 +44,30 @@ func TestProvidesSuggestions(t *testing.T) {
 
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
 
-	cases := []struct {
-		expected map[string]struct{}
-	}{
-		{
-			expected: map[string]struct{}{
-				"User|name|query.me.name":                        {},
-				"User|info|query.me.info":                        {},
-				"Info|age|query.me.info.age":                     {},
-				"Info|__typename|query.me.info.__typename":       {},
-				"User|address|query.me.address":                  {},
-				"Address|street|query.me.address.street":         {},
-				"Address|zip|query.me.address.zip":               {},
-				"Address|__typename|query.me.address.__typename": {},
-				"User|__typename|query.me.__typename":            {},
-			},
-		},
+	input := &providesInput{
+		parentTypeName:       "User",
+		providesSelectionSet: `name info {age} address {street zip}`,
+		definition:           &definition,
 	}
 
-	for _, c := range cases {
-		t.Run(keySDL, func(t *testing.T) {
-			meta := &DataSourceMetadata{
-				RootNodes: []TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"me"},
-					},
-					{
-						TypeName:           "User",
-						FieldNames:         []string{"address"},
-						ExternalFieldNames: []string{"name", "info"},
-					},
+	suggestions, report := providesSuggestions(input)
+	require.False(t, report.HasErrors())
 
-					{
-						TypeName:           "Address",
-						ExternalFieldNames: []string{"street", "zip"},
-					},
-				},
-				ChildNodes: []TypeField{
-					{
-						TypeName:           "Info",
-						ExternalFieldNames: []string{"age"},
-					},
-				},
-			}
-			meta.InitNodesIndex()
-
-			input := &providesInput{
-				parentTypeName:       "User",
-				providesSelectionSet: keySDL,
-				definition:           &definition,
-				parentPath:           "query.me",
-			}
-
-			suggestions, report := providesSuggestions(input)
-			assert.False(t, report.HasErrors())
-			assert.Equal(t, c.expected, suggestions)
-		})
+	expected := providesSelection{
+		"name": {{allowedTypes: pTypes("User")}},
+		"info": {{allowedTypes: pTypes("User"), selection: providesSelection{
+			"age":        {{allowedTypes: pTypes("Info")}},
+			"__typename": {{allowedTypes: pTypes("Info")}},
+		}}},
+		"address": {{allowedTypes: pTypes("User"), selection: providesSelection{
+			"street":     {{allowedTypes: pTypes("Address")}},
+			"zip":        {{allowedTypes: pTypes("Address")}},
+			"__typename": {{allowedTypes: pTypes("Address")}},
+		}}},
+		"__typename": {{allowedTypes: pTypes("User")}},
 	}
+
+	assert.Equal(t, expected, suggestions)
 }
 
 func TestProvidesSuggestionsWithFragments(t *testing.T) {
@@ -121,88 +96,305 @@ func TestProvidesSuggestionsWithFragments(t *testing.T) {
 
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
 
-	cases := []struct {
-		parentPath           string
-		fieldTypeName        string
-		providesSelectionSet string
-		expected             map[string]struct{}
-	}{
-		{
-			parentPath:           "query.ab",
-			fieldTypeName:        "AB",
+	t.Run("fragments on union", func(t *testing.T) {
+		input := &providesInput{
+			parentTypeName:       "AB",
 			providesSelectionSet: `... on A {a} ... on B {b}`,
-			expected: map[string]struct{}{
-				"A|a|query.ab.a":                    {},
-				"A|__typename|query.ab.__typename":  {},
-				"B|b|query.ab.b":                    {},
-				"B|__typename|query.ab.__typename":  {},
-				"AB|__typename|query.ab.__typename": {},
-			},
-		},
-		{
-			parentPath:           "query.nestedAB.ab",
-			fieldTypeName:        "AB",
-			providesSelectionSet: `... on A {a} ... on B {b}`,
-			expected: map[string]struct{}{
-				"A|a|query.nestedAB.ab.a":                    {},
-				"A|__typename|query.nestedAB.ab.__typename":  {},
-				"B|b|query.nestedAB.ab.b":                    {},
-				"B|__typename|query.nestedAB.ab.__typename":  {},
-				"AB|__typename|query.nestedAB.ab.__typename": {},
-			},
-		},
-		{
-			parentPath:           "query.nestedAB",
-			fieldTypeName:        "NestedAB",
-			providesSelectionSet: `ab { ... on A {a} ... on B {b} }`,
-			expected: map[string]struct{}{
-				"NestedAB|ab|query.nestedAB.ab":                 {},
-				"A|a|query.nestedAB.ab.a":                       {},
-				"A|__typename|query.nestedAB.ab.__typename":     {},
-				"B|b|query.nestedAB.ab.b":                       {},
-				"B|__typename|query.nestedAB.ab.__typename":     {},
-				"AB|__typename|query.nestedAB.ab.__typename":    {},
-				"NestedAB|__typename|query.nestedAB.__typename": {},
-			},
-		},
-	}
+			definition:           &definition,
+		}
 
-	for _, c := range cases {
-		t.Run(c.providesSelectionSet, func(t *testing.T) {
-			meta := &DataSourceMetadata{
-				RootNodes: []TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"ab", "nestedAB"},
-					},
-					{
-						TypeName:           "A",
-						FieldNames:         []string{"a"},
-						ExternalFieldNames: []string{"b"},
-					},
-					{
-						TypeName:           "B",
-						FieldNames:         []string{"b"},
-						ExternalFieldNames: []string{"a"},
-					},
-					{
-						TypeName:   "NestedAB",
-						FieldNames: []string{"ab"},
+		suggestions, report := providesSuggestions(input)
+		require.False(t, report.HasErrors())
+
+		expected := providesSelection{
+			"a": {{allowedTypes: pTypes("A")}},
+			"b": {{allowedTypes: pTypes("B")}},
+			"__typename": {
+				{allowedTypes: pTypes("A")},
+				{allowedTypes: pTypes("B")},
+				{allowedTypes: pTypes("AB", "A", "B")},
+			},
+		}
+
+		assert.Equal(t, expected, suggestions)
+	})
+
+	t.Run("nested fragments on union", func(t *testing.T) {
+		input := &providesInput{
+			parentTypeName:       "NestedAB",
+			providesSelectionSet: `ab { ... on A {a} ... on B {b} }`,
+			definition:           &definition,
+		}
+
+		suggestions, report := providesSuggestions(input)
+		require.False(t, report.HasErrors())
+
+		expected := providesSelection{
+			"ab": {{
+				allowedTypes: pTypes("NestedAB"),
+				selection: providesSelection{
+					"a": {{allowedTypes: pTypes("A")}},
+					"b": {{allowedTypes: pTypes("B")}},
+					"__typename": {
+						{allowedTypes: pTypes("A")},
+						{allowedTypes: pTypes("B")},
+						{allowedTypes: pTypes("AB", "A", "B")},
 					},
 				},
-			}
-			meta.InitNodesIndex()
+			}},
+			"__typename": {{allowedTypes: pTypes("NestedAB")}},
+		}
 
-			input := &providesInput{
-				parentTypeName:       c.fieldTypeName,
-				providesSelectionSet: c.providesSelectionSet,
-				definition:           &definition,
-				parentPath:           c.parentPath,
-			}
+		assert.Equal(t, expected, suggestions)
+	})
+}
 
-			suggestions, report := providesSuggestions(input)
-			assert.False(t, report.HasErrors())
-			assert.Equal(t, c.expected, suggestions)
-		})
+func TestProvidesSuggestionsOnInterfaceSelections(t *testing.T) {
+	definitionSDL := `
+		type Query {
+			media: Media
+		}
+
+		interface Media {
+			id: ID!
+			animals: [Animal]
+		}
+
+		type Book implements Media {
+			id: ID!
+			animals: [Animal]
+		}
+
+		interface Animal {
+			id: ID!
+			name: String
+		}
+
+		type Cat implements Animal {
+			id: ID!
+			name: String
+		}
+
+		type Dog implements Animal {
+			id: ID!
+			name: String
+		}`
+
+	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
+
+	input := &providesInput{
+		parentTypeName:       "Media",
+		providesSelectionSet: `animals { id name }`,
+		definition:           &definition,
 	}
+
+	suggestions, report := providesSuggestions(input)
+	require.False(t, report.HasErrors())
+
+	// fields on abstract types are allowed for the abstract type itself and every
+	// implementer, so the selection matches the query both before and after
+	// abstract to concrete rewriting
+	expected := providesSelection{
+		"animals": {{allowedTypes: pTypes("Media", "Book"), selection: providesSelection{
+			"id":         {{allowedTypes: pTypes("Animal", "Cat", "Dog")}},
+			"name":       {{allowedTypes: pTypes("Animal", "Cat", "Dog")}},
+			"__typename": {{allowedTypes: pTypes("Animal", "Cat", "Dog")}},
+		}}},
+		"__typename": {{allowedTypes: pTypes("Media", "Book")}},
+	}
+
+	assert.Equal(t, expected, suggestions)
+}
+
+func TestProvidesSuggestionsNestedInterfaces(t *testing.T) {
+	definitionSDL := `
+		type Query {
+			f: I1
+		}
+
+		interface I1 {
+			i2: I2
+		}
+
+		type A1 implements I1 {
+			i2: I2
+		}
+
+		type B1 implements I1 {
+			i2: I2
+		}
+
+		interface I2 {
+			i3: I3
+		}
+
+		type A2 implements I2 {
+			i3: I3
+		}
+
+		type B2 implements I2 {
+			i3: I3
+		}
+
+		interface I3 {
+			x: String
+		}
+
+		type A3 implements I3 {
+			x: String
+		}
+
+		type B3 implements I3 {
+			x: String
+		}`
+
+	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
+
+	suggestionsFor := func(t *testing.T, providesSelectionSet string) providesSelection {
+		t.Helper()
+
+		suggestions, report := providesSuggestions(&providesInput{
+			parentTypeName:       "I1",
+			providesSelectionSet: providesSelectionSet,
+			definition:           &definition,
+		})
+		require.False(t, report.HasErrors())
+
+		return suggestions
+	}
+
+	t.Run("no fragments", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { i3 { x } }`)
+
+		// without fragments every field sits on an abstract type - allowed for the
+		// interface itself and every implementer
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {{allowedTypes: pTypes("I2", "A2", "B2"), selection: providesSelection{
+					"x":          {{allowedTypes: pTypes("I3", "A3", "B3")}},
+					"__typename": {{allowedTypes: pTypes("I3", "A3", "B3")}},
+				}}},
+				"__typename": {{allowedTypes: pTypes("I2", "A2", "B2")}},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
+
+		assert.Equal(t, expected, suggestions)
+	})
+
+	t.Run("fragment on the outer level only", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { ... on A2 { i3 { x } } }`)
+
+		// i3 is pinned to A2, but below the fragment x sits on the abstract I3 again
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {{allowedTypes: pTypes("A2"), selection: providesSelection{
+					"x":          {{allowedTypes: pTypes("I3", "A3", "B3")}},
+					"__typename": {{allowedTypes: pTypes("I3", "A3", "B3")}},
+				}}},
+				"__typename": {
+					{allowedTypes: pTypes("A2")},
+					{allowedTypes: pTypes("I2", "A2", "B2")},
+				},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
+
+		assert.Equal(t, expected, suggestions)
+	})
+
+	t.Run("fragment on the inner level only", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { i3 { ... on A3 { x } } }`)
+
+		// i3 stays on the abstract I2, only x is pinned to A3
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {{allowedTypes: pTypes("I2", "A2", "B2"), selection: providesSelection{
+					"x": {{allowedTypes: pTypes("A3")}},
+					"__typename": {
+						{allowedTypes: pTypes("A3")},
+						{allowedTypes: pTypes("I3", "A3", "B3")},
+					},
+				}}},
+				"__typename": {{allowedTypes: pTypes("I2", "A2", "B2")}},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
+
+		assert.Equal(t, expected, suggestions)
+	})
+
+	t.Run("sibling fragments on both implementers", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { ... on A2 { i3 { x } } ... on B2 { i3 { x } } }`)
+
+		// each fragment contributes its own i3 branch, so what is provided below i3
+		// stays correlated with the enclosing concrete type
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {
+					{allowedTypes: pTypes("A2"), selection: providesSelection{
+						"x":          {{allowedTypes: pTypes("I3", "A3", "B3")}},
+						"__typename": {{allowedTypes: pTypes("I3", "A3", "B3")}},
+					}},
+					{allowedTypes: pTypes("B2"), selection: providesSelection{
+						"x":          {{allowedTypes: pTypes("I3", "A3", "B3")}},
+						"__typename": {{allowedTypes: pTypes("I3", "A3", "B3")}},
+					}},
+				},
+				"__typename": {
+					{allowedTypes: pTypes("A2")},
+					{allowedTypes: pTypes("B2")},
+					{allowedTypes: pTypes("I2", "A2", "B2")},
+				},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
+
+		assert.Equal(t, expected, suggestions)
+	})
+
+	t.Run("fragments on every level", func(t *testing.T) {
+		suggestions := suggestionsFor(t, `i2 { ... on A2 { i3 { ... on A3 { x } } } }`)
+
+		expected := providesSelection{
+			"i2": {{allowedTypes: pTypes("I1", "A1", "B1"), selection: providesSelection{
+				"i3": {{allowedTypes: pTypes("A2"), selection: providesSelection{
+					"x": {{allowedTypes: pTypes("A3")}},
+					"__typename": {
+						{allowedTypes: pTypes("A3")},
+						{allowedTypes: pTypes("I3", "A3", "B3")},
+					},
+				}}},
+				"__typename": {
+					{allowedTypes: pTypes("A2")},
+					{allowedTypes: pTypes("I2", "A2", "B2")},
+				},
+			}}},
+			"__typename": {{allowedTypes: pTypes("I1", "A1", "B1")}},
+		}
+
+		assert.Equal(t, expected, suggestions)
+
+		// i2 sits on the abstract I1 - allowed for I1 and each implementer
+		i2Selection, ok := suggestions.providedTypeSelection("i2", "I1")
+		require.True(t, ok)
+		_, ok = suggestions.providedTypeSelection("i2", "A1")
+		assert.True(t, ok)
+		_, ok = suggestions.providedTypeSelection("i2", "B1")
+		assert.True(t, ok)
+
+		// i3 is pinned by the inline fragment to A2 - B2 must not match
+		i3Selection, ok := i2Selection.providedTypeSelection("i3", "A2")
+		require.True(t, ok)
+		_, ok = i2Selection.providedTypeSelection("i3", "B2")
+		assert.False(t, ok, "i3 under B2 is not promised by the provides selection")
+		_, ok = i2Selection.providedTypeSelection("i3", "I2")
+		assert.False(t, ok, "i3 on the abstract I2 is not promised, provides pinned it to A2")
+
+		// x is pinned to A3 - B3 must not match
+		_, ok = i3Selection.providedTypeSelection("x", "A3")
+		assert.True(t, ok)
+		_, ok = i3Selection.providedTypeSelection("x", "B3")
+		assert.False(t, ok, "x under B3 is not promised by the provides selection")
+	})
 }

@@ -247,7 +247,6 @@ func (d *Document) MessageRefByName(name string) int {
 		return InvalidRef
 	}
 	return node.ref
-
 }
 
 // MessageByRef returns a Message by its reference index.
@@ -304,7 +303,7 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 	// before we can parse the schema.
 	for i := 0; i < schemaFile.Imports().Len(); i++ {
 		protoImport := schemaFile.Imports().Get(i)
-		pc.doc.Imports = append(pc.doc.Imports, string(protoImport.Path()))
+		pc.doc.Imports = append(pc.doc.Imports, protoImport.Path())
 		pc.processFile(protoImport, mapping)
 	}
 
@@ -490,7 +489,6 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		Output:      response,
 		RPC:         call,
 	}, nil
-
 }
 
 func (p *RPCCompiler) resolveServiceName(call *RPCCall) (string, bool) {
@@ -846,6 +844,10 @@ func (p *RPCCompiler) resolveDataForPath(message protoref.Message, path ast.Path
 				return nil
 			}
 
+			if path.Len() > 1 {
+				return p.resolveListDataForPath(field.List(), fd, path[1:])
+			}
+
 			return []protoref.Value{protoref.ValueOfList(field.List())}
 		}
 
@@ -892,7 +894,6 @@ func (p *RPCCompiler) resolveUnderlyingList(msg protoref.Message, fieldName stri
 	}
 
 	return p.resolveUnderlyingListItems(listFieldValue, nestingLevel)
-
 }
 
 // resolveUnderlyingListItems resolves the items in a list message.
@@ -930,7 +931,7 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 
 	if nestingLevel > 1 {
 		items := make([]protoref.Value, 0, itemsListLen)
-		for i := 0; i < itemsListLen; i++ {
+		for i := range itemsListLen {
 			items = append(items, p.resolveUnderlyingListItems(itemsList.Get(i), nestingLevel-1)...)
 		}
 
@@ -938,7 +939,7 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 	}
 
 	result := make([]protoref.Value, itemsListLen)
-	for i := 0; i < itemsListLen; i++ {
+	for i := range itemsListLen {
 		result[i] = itemsList.Get(i)
 	}
 
@@ -1263,7 +1264,6 @@ func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field *F
 		rpcField,
 		data.Get(rpcField.JSONPath),
 	)
-
 	if err != nil {
 		return nil, err
 	}

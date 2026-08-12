@@ -14,7 +14,9 @@ import (
 )
 
 func TestNewSchemaFromReader(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when an error occurs internally", func(t *testing.T) {
+		t.Parallel()
 		schemaBytes := []byte("query: Query")
 		schemaReader := bytes.NewBuffer(schemaBytes)
 		schema, err := NewSchemaFromReader(schemaReader)
@@ -24,6 +26,7 @@ func TestNewSchemaFromReader(t *testing.T) {
 	})
 
 	t.Run("should successfully read from io.Reader", func(t *testing.T) {
+		t.Parallel()
 		schemaBytes := []byte("schema { query: Query } type Query { hello: String }")
 		schemaReader := bytes.NewBuffer(schemaBytes)
 		schema, err := NewSchemaFromReader(schemaReader)
@@ -34,7 +37,9 @@ func TestNewSchemaFromReader(t *testing.T) {
 }
 
 func TestNewSchemaFromString(t *testing.T) {
+	t.Parallel()
 	t.Run("should return error when an error occurs internally", func(t *testing.T) {
+		t.Parallel()
 		schemaBytes := []byte("query: Query")
 		schema, err := NewSchemaFromString(string(schemaBytes))
 
@@ -43,6 +48,7 @@ func TestNewSchemaFromString(t *testing.T) {
 	})
 
 	t.Run("should successfully read from string", func(t *testing.T) {
+		t.Parallel()
 		schemaBytes := []byte("schema { query: Query } type Query { hello: String }")
 		schema, err := NewSchemaFromString(string(schemaBytes))
 
@@ -52,7 +58,9 @@ func TestNewSchemaFromString(t *testing.T) {
 }
 
 func TestSchema_Normalize(t *testing.T) {
+	t.Parallel()
 	t.Run("should successfully normalize schema", func(t *testing.T) {
+		t.Parallel()
 		parsedSchema, err := NewSchemaFromString("type Query { me: String } extend type Query { you: String }")
 		require.NoError(t, err)
 
@@ -72,8 +80,10 @@ func TestSchema_Normalize(t *testing.T) {
 }
 
 func TestSchema_HasQueryType(t *testing.T) {
+	t.Parallel()
 	run := func(schema string, expectation bool) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			parsedSchema, err := createSchema([]byte(schema), false)
 			require.NoError(t, err)
 
@@ -83,6 +93,7 @@ func TestSchema_HasQueryType(t *testing.T) {
 	}
 
 	t.Run("schema without base definition", func(t *testing.T) {
+		t.Parallel()
 		t.Run("should return false when there is no query type present", run(`
 				schema {
 					mutation: Mutation
@@ -104,8 +115,10 @@ func TestSchema_HasQueryType(t *testing.T) {
 }
 
 func TestSchema_QueryTypeName(t *testing.T) {
+	t.Parallel()
 	run := func(schema string, expectation string) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			parsedSchema, err := NewSchemaFromString(schema)
 			require.NoError(t, err)
 
@@ -143,8 +156,10 @@ func TestSchema_QueryTypeName(t *testing.T) {
 }
 
 func TestSchema_HasMutationType(t *testing.T) {
+	t.Parallel()
 	run := func(schema string, expectation bool) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			parsedSchema, err := NewSchemaFromString(schema)
 			require.NoError(t, err)
 
@@ -173,8 +188,10 @@ func TestSchema_HasMutationType(t *testing.T) {
 }
 
 func TestSchema_MutationTypeName(t *testing.T) {
+	t.Parallel()
 	run := func(schema string, expectation string) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			parsedSchema, err := NewSchemaFromString(schema)
 			require.NoError(t, err)
 
@@ -212,8 +229,10 @@ func TestSchema_MutationTypeName(t *testing.T) {
 }
 
 func TestSchema_HasSubscriptionType(t *testing.T) {
+	t.Parallel()
 	run := func(schema string, expectation bool) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			parsedSchema, err := NewSchemaFromString(schema)
 			require.NoError(t, err)
 
@@ -242,8 +261,10 @@ func TestSchema_HasSubscriptionType(t *testing.T) {
 }
 
 func TestSchema_SubscriptionTypeName(t *testing.T) {
+	t.Parallel()
 	run := func(schema string, expectation string) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			parsedSchema, err := NewSchemaFromString(schema)
 			require.NoError(t, err)
 
@@ -281,6 +302,7 @@ func TestSchema_SubscriptionTypeName(t *testing.T) {
 }
 
 func TestSchema_Document(t *testing.T) {
+	t.Parallel()
 	schemaBytes := []byte("schema { query: Query } type Query { hello: String }")
 	schema, err := NewSchemaFromString(string(schemaBytes))
 	require.NoError(t, err)
@@ -299,8 +321,10 @@ func TestSchema_Document(t *testing.T) {
 }
 
 func TestValidateSchemaString(t *testing.T) {
+	t.Parallel()
 	run := func(schema string, expectedValid bool, expectedValidationErrorCount int) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			validationResult, err := ValidateSchemaString(schema)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedValid, validationResult.Valid)
@@ -346,8 +370,10 @@ func TestValidateSchemaString(t *testing.T) {
 }
 
 func TestSchema_Validate(t *testing.T) {
+	t.Parallel()
 	run := func(schema string, expectedValid bool, expectedValidationErrorCount int) func(t *testing.T) {
 		return func(t *testing.T) {
+			t.Parallel()
 			parsedSchema, err := NewSchemaFromString(schema)
 			require.NoError(t, err)
 
@@ -390,10 +416,12 @@ func TestSchema_Validate(t *testing.T) {
 }
 
 func TestSchema_GetAllFieldArguments(t *testing.T) {
+	t.Parallel()
 	schema, err := NewSchemaFromString(schemaWithChildren)
 	require.NoError(t, err)
 
 	t.Run("should get all field arguments without skip function", func(t *testing.T) {
+		t.Parallel()
 		fieldArguments := schema.GetAllFieldArguments()
 		expectedFieldArguments := []TypeFieldArguments{
 			{
@@ -456,6 +484,7 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 	})
 
 	t.Run("should get all field arguments excluding skipped fields by skip field funcs", func(t *testing.T) {
+		t.Parallel()
 		fieldArguments := schema.GetAllFieldArguments(NewSkipReservedNamesFunc())
 		expectedFieldArguments := []TypeFieldArguments{
 			{
@@ -489,15 +518,18 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 }
 
 func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
+	t.Parallel()
 	schema, err := NewSchemaFromString(schemaWithChildren)
 	require.NoError(t, err)
 
 	t.Run("should return nil when type or field does not exist", func(t *testing.T) {
+		t.Parallel()
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Not", "existent")
 		assert.Equal(t, []TypeFields(nil), typeFields)
 	})
 
 	t.Run("should get field children without skip function", func(t *testing.T) {
+		t.Parallel()
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "withChildren")
 		expectedTypeFields := []TypeFields{
 			{
@@ -514,6 +546,7 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 	})
 
 	t.Run("should get field children without skip function on field with interface type", func(t *testing.T) {
+		t.Parallel()
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "idType")
 		expectedTypeFields := []TypeFields{
 			{
@@ -534,6 +567,7 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 	})
 
 	t.Run("should get field children with skip function for engine v2 data source config", func(t *testing.T) {
+		t.Parallel()
 		dsCfg, _ := plan.NewDataSourceConfiguration[any](
 			"test",
 			nil,
@@ -561,6 +595,7 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 	})
 
 	t.Run("should get field children from schema with recursive references", func(t *testing.T) {
+		t.Parallel()
 		schema := CreateCountriesSchema(t)
 
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "countries")
@@ -587,6 +622,7 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 	})
 
 	t.Run("should get field children from schema with recursive references on field with interface type", func(t *testing.T) {
+		t.Parallel()
 		schema := CreateCountriesSchema(t)
 
 		typeFields := schema.GetAllNestedFieldChildrenFromTypeField("Query", "codeType")

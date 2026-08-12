@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,6 +65,11 @@ func (f *FakeSubscriptionWriter) Error([]byte) {
 type FakeSource struct {
 	updates  []string
 	interval time.Duration
+}
+
+func (f *FakeSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
+	_, err := xxh.Write(input)
+	return err
 }
 
 func (f *FakeSource) Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error {
@@ -202,8 +208,7 @@ func TestEventLoop(t *testing.T) {
 }
 
 func TestResolver_HeartbeatError_DoesNotDeadlockOnUnsubscribe(t *testing.T) {
-	resolverCtx, cancelResolver := context.WithCancel(context.Background())
-	defer cancelResolver()
+	resolverCtx := t.Context()
 
 	resolver := New(resolverCtx, ResolverOptions{
 		MaxConcurrency:                1,

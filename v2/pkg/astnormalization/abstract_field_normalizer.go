@@ -48,7 +48,7 @@ func (v *AbstractFieldNormalizer) Normalize() error {
 	return nil
 }
 
-func (v *AbstractFieldNormalizer) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, skipFor astvisitor.SkipVisitors) bool {
+func (v *AbstractFieldNormalizer) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
 		return true
 	}

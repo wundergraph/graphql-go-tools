@@ -11,10 +11,11 @@ import (
 )
 
 func TestExecutionEngine_Cost(t *testing.T) {
-
+	t.Parallel()
 	t.Run("common on star wars scheme", func(t *testing.T) {
+		t.Parallel()
 		rootNodes := []plan.TypeField{
-			{TypeName: "Query", FieldNames: []string{"hero", "droid", "search"}},
+			{TypeName: "Query", FieldNames: []string{"hero", "droid", "search", "searchResults"}},
 			{TypeName: "Human", FieldNames: []string{"name", "height", "friends"}},
 			{TypeName: "Droid", FieldNames: []string{"name", "primaryFunction", "friends"}},
 			{TypeName: "Starship", FieldNames: []string{"name", "length"}},
@@ -63,7 +64,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
 								},
-							}},
+							},
+						},
 						customConfig,
 					),
 				},
@@ -81,6 +83,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse:      `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
 				expectedEstimatedCost: intPtr(18), // Query.droid (1) + droid.name (17)
+				expectedActualCost:    intPtr(18),
 			},
 			computeCosts(),
 		))
@@ -118,7 +121,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 									},
 									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
 								},
-							}},
+							},
+						},
 						customConfig,
 					),
 				},
@@ -136,6 +140,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse:      `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
 				expectedEstimatedCost: intPtr(21), // Query.droid (1) + Query.droid.id (3) + droid.name (17)
+				expectedActualCost:    intPtr(21),
 			},
 			computeCosts(),
 		))
@@ -178,7 +183,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 								Types: map[string]int{
 									"Droid": -1, // Negative type weight
 								},
-							}},
+							},
+						},
 						customConfig,
 					),
 				},
@@ -198,11 +204,12 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// All weights are negative.
 				// But cost should be floored to 0 (never negative)
 				expectedEstimatedCost: intPtr(0),
+				expectedActualCost:    intPtr(0),
 			},
 			computeCosts(),
 		))
 
-		t.Run("hero field has weight (returns interface) and with concrete fragment", runWithoutError(
+		t.Run("hero field returning interface with concrete fragment", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: graphql.StarwarsSchema(t),
 				operation: func(t *testing.T) graphql.Request {
@@ -240,6 +247,128 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
 				expectedEstimatedCost: intPtr(22), // Query.hero (2) + Human.height (3) + Droid.name (17=max(7, 17))
+				// hero resolved to Human: the interface-selected name is billed at Human.name, not max.
+				expectedActualCost: intPtr(12), // Query.hero (2) + Human.height (3) + Human.name (7)
+			},
+			computeCosts(),
+		))
+
+		t.Run("hero field returning interface with concrete fragment with no matching typename", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: graphql.StarwarsSchema(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ 
+								hero { 
+									... on Droid { name }
+								}
+							}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker","height":"12"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
+							Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+								{TypeName: "Query", FieldName: "hero"}:   {HasWeight: true, Weight: 2},
+								{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 3},
+								{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 7},
+								{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 17},
+							},
+							Types: map[string]int{
+								"Human": 13,
+							},
+						}},
+						customConfig,
+					),
+				},
+				expectedResponse:      `{"data":{"hero":{}}}`,
+				expectedEstimatedCost: intPtr(19), // Query.hero (2) + Droid.name (17=max(7, 17))
+				expectedActualCost:    intPtr(2),
+			},
+			computeCosts(),
+		))
+
+		t.Run("single abstract field without __typename is rejected and bills nothing", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: graphql.StarwarsSchema(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ hero { ... on Human { height } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// No __typename returned for the abstract hero field.
+								sendResponseBody: `{"data":{"hero":{"height":"12"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
+							Weights: map[plan.FieldCoordinate]*plan.FieldCost{},
+							Types: map[string]int{
+								"Human": 13,
+								"Droid": 7,
+							},
+						}},
+						customConfig,
+					),
+				},
+				expectedEstimatedCost: intPtr(13), // Query.hero(13)
+				// the abstract hero value is rejected and nulled, so nothing is billed
+				expectedActualCost: intPtr(0),
+			},
+			computeCosts(),
+		))
+
+		t.Run("field returning a list of abstracts with partial fragments considers only actual type counts", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: graphql.StarwarsSchema(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ 
+								searchResults { 
+									... on Droid { name }
+									... on Human { name height }
+								}
+							}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"searchResults":[{"__typename":"Human","name":"Luke","height":"12"},{"__typename":"Droid","name":"D2","primaryFunction":"charge"}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
+							Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+								{TypeName: "Query", FieldName: "searchResults"}: {HasWeight: true, Weight: 2},
+								{TypeName: "Human", FieldName: "height"}:        {HasWeight: true, Weight: 3},
+								{TypeName: "Human", FieldName: "name"}:          {HasWeight: true, Weight: 7},
+								{TypeName: "Droid", FieldName: "name"}:          {HasWeight: true, Weight: 17},
+							},
+							Types: map[string]int{
+								"Human": 13,
+							},
+						}},
+						customConfig,
+					),
+				},
+				expectedResponse:      `{"data":{"searchResults":[{"name":"Luke","height":"12"},{"name":"D2"}]}}`,
+				expectedEstimatedCost: intPtr(190), // 190 = 10 * (2+max(17, 7+3))
+				expectedActualCost:    intPtr(31),  // 31 = 2 * (2) + 1 * (17) + 1 * (7+3)
 			},
 			computeCosts(),
 		))
@@ -278,6 +407,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 				expectedEstimatedCost: intPtr(30), // Query.Human (13) + Droid.name (17=max(7, 17))
+				// name is selected on the interface; hero resolved to Human, so its actual weight is Human.name.
+				expectedActualCost: intPtr(20), // Human (13) + Human.name (7)
 			},
 			computeCosts(),
 		))
@@ -302,7 +433,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
-								sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
+								sendResponseBody: `{"data":{"hero":{"__typename":"Droid","friends":[
 									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
 									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
 								]}}}`,
@@ -328,7 +459,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(127), // Query.hero(max(7,5))+10*(Human(max(7,5))+Human.name(2)+Human.height(1)+Droid.name(2))
+				expectedEstimatedCost: intPtr(107), // 7 + 10*(max(7,5) + max(Human(2+1),Droid(2)))
+				expectedActualCost:    intPtr(22),  // 5 +  2*(       6 + 0.5 * (2+0+2+1))
 			},
 			computeCosts(),
 		))
@@ -383,12 +515,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(247), // Query.hero(max(7,5))+ 20 * (7+2+2+1)
-				// We pick maximum on every path independently. This is to reveal the upper boundary.
-				// Query.hero: picked maximum weight (Human=7) out of two types (Human, Droid)
-				// Query.hero.friends: the max possible weight (7) is for implementing class Human
-				// of the returned type of Character; the multiplier picked for the Droid since
-				// it is the maximum possible value - we considered the enclosing type that contains it.
+				expectedEstimatedCost: intPtr(207), // max(7,5)+ 20 * (7 + max(2,2+1))
+				expectedActualCost:    intPtr(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
 			},
 			computeCosts(),
 		))
@@ -445,7 +573,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(187), // Query.hero(max(7,5))+ 20 * (4+2+2+1)
+				expectedEstimatedCost: intPtr(147), // hero(max(7,5))+ 20 * (4+max(2, 2+1))
+				expectedActualCost:    intPtr(18),  // 7       +  2 * (3+0.5*(2+2+1))
 			},
 			computeCosts(),
 		))
@@ -487,6 +616,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
 				expectedEstimatedCost: intPtr(11), // Query.hero(max(1,1))+ 10 * 1
+				expectedActualCost:    intPtr(3),  // Query.hero(1) + 2 * 1
 			},
 			computeCosts(),
 		))
@@ -541,15 +671,15 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse: `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				// Estimated with default list size 10: hero(7) + 10 * (7 + 2 + 2 + 1) = 127
-				expectedEstimatedCost: intPtr(127),
-				// Actual uses real list size 2: hero(7) + 2 * (7 + 2 + 2 + 1) = 31
-				expectedActualCost: intPtr(31),
+				// Estimated with default list size 10: hero(7) + 10 * (7 + max(2, 2+1))
+				expectedEstimatedCost: intPtr(107),
+				// Actual uses real list size 2:        hero(7) +  2 * (6 + 0.5 * (2 + 2 + 1))
+				expectedActualCost: intPtr(24),
 			},
 			computeCosts(),
 		))
 
-		t.Run("actual cost with empty list", runWithoutError(
+		t.Run("actual cost with empty nested list", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: graphql.StarwarsSchema(t),
 				operation: func(t *testing.T) graphql.Request {
@@ -592,17 +722,80 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse: `{"data":{"hero":{"friends":[]}}}`,
-				// Estimated with default list size 10: hero(7) + 10 * (7 + 2 + 2) = 117
-				expectedEstimatedCost: intPtr(117),
-				// Actual with empty list: hero(7) + 1 * (7 + 2 + 2) = 18
-				// We consider empty lists as lists containing one item to account for the
-				// resolver work.
-				expectedActualCost: intPtr(18),
+				// default list size 10: hero(7) + 10 * (max(7,5) + max(2, 2))
+				expectedEstimatedCost: intPtr(97),
+				// empty list returned: hero(7) + 0 * (7 + 2 + 2)
+				expectedActualCost: intPtr(7),
 			},
 			computeCosts(),
 		))
 
-		t.Run("named fragment on interface", runWithoutError(
+		t.Run("named fragment on interface without typenames on friends", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: graphql.StarwarsSchema(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `
+								fragment CharacterFields on Character {
+									name
+									friends { name }
+								}
+								{ hero { ...CharacterFields } }
+								`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com",
+								expectedPath: "/",
+								expectedBody: "",
+								// Is it possible that friends items would be returned without __typename?
+								sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke","friends":[{"name":"Leia"}]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Query", FieldName: "hero"}: {HasWeight: true, Weight: 2},
+									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 3},
+									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 5},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 4},
+									{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 6},
+								},
+								Types: map[string]int{
+									"Human": 2,
+									"Droid": 3,
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				// friends items carry no __typename, so they are rejected and nulled
+				expectedResponse: `{"errors":[{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["hero","friends",0],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"hero":{"name":"Luke","friends":[null]}}}`,
+				// Cost calculation:
+				// Query.hero: 2
+				// Character.name: max(Human.name=3, Droid.name=5) = 5
+				//   friends listSize: max(4, 6) = 6
+				//   Character type: max(Human=2, Droid=3) = 3
+				//   name: max(Human.name=3, Droid.name=5) = 5
+				expectedEstimatedCost: intPtr(55), // 2 + 1*(5 + 6*(3 + 1*5))
+				// hero returned __typename Human, so its name is billed at Human.name (3).
+				// The rejected friends element is nulled: its max type weight is still
+				// counted for the returned element, but no field weights are billed.
+				expectedActualCost: intPtr(8), // 2 + 1*(3 + 1*3)
+			},
+			computeCosts(),
+		))
+
+		t.Run("named fragment on interface with typename on friends", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: graphql.StarwarsSchema(t),
 				operation: func(t *testing.T) graphql.Request {
@@ -623,7 +816,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     "",
-								sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke","friends":[{"name":"Leia"}]}}}`,
+								sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke","friends":[{"__typename":"Human","name":"Leia"}]}}}`,
 								sendStatusCode:   200,
 							}),
 						),
@@ -658,6 +851,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//   name: max(Human.name=3, Droid.name=5) = 5
 				// Total: 2 + 5 + 6 * (3 + 5)
 				expectedEstimatedCost: intPtr(55),
+				// Both hero and the friends item resolved to Human: both names billed at Human.name (3).
+				expectedActualCost: intPtr(10), // 2 + 1*3 + 1*(2 + 1*3)
 			},
 			computeCosts(),
 		))
@@ -709,6 +904,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"hero":{"name":"Luke","height":"1.72"}}}`,
 				// Total: 2 + 3 + 7
 				expectedEstimatedCost: intPtr(12),
+				expectedActualCost:    intPtr(12),
 			},
 			computeCosts(),
 		))
@@ -849,7 +1045,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
 										{TypeName: "Droid", FieldName: "primaryFunction"}: {HasWeight: true, Weight: 17},
 									},
-								}},
+								},
+							},
 							customConfig,
 						),
 					},
@@ -874,9 +1071,319 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			))
 		})
 
+		t.Run("skipImplementingTypesOnAbstract", func(t *testing.T) {
+			t.Run("returned abstract field should return 0 cost", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+									hero { name }
+								}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 7},
+									{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
+								},
+								Types: map[string]int{
+									"Human": 13,
+									"Droid": 11,
+								},
+							}},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+					expectedEstimatedCost: intPtr(13), // Query.Human (13)
+					expectedActualCost:    intPtr(13),
+				},
+				computeCosts(),
+				costsIgnoreImplementingTypeWeights(),
+			))
+			t.Run("hero field returning interface with concrete fragment", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+								hero { 
+									name 
+									... on Human { height }
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker","height":"12"}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Query", FieldName: "hero"}:   {HasWeight: true, Weight: 2},
+									{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 3},
+									{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 7},
+									{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 17},
+								},
+								Types: map[string]int{
+									"Human": 13,
+								},
+							}},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
+					expectedEstimatedCost: intPtr(5), // Query.hero (2) + Human.height (3)
+					expectedActualCost:    intPtr(5),
+				},
+				computeCosts(),
+				costsIgnoreImplementingTypeWeights(),
+			))
+			t.Run("query hero with assumedSize on friends", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+								hero {
+									friends {
+										...on Droid { name primaryFunction }
+										...on Human { name height }
+									}
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
+									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
+									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
+								]}}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Human", FieldName: "height"}: {HasWeight: true, Weight: 1},
+										{TypeName: "Human", FieldName: "name"}:   {HasWeight: true, Weight: 2},
+										{TypeName: "Droid", FieldName: "name"}:   {HasWeight: true, Weight: 2},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 5},
+										{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 20},
+									},
+									Types: map[string]int{
+										"Human": 7,
+										"Droid": 5,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+					expectedEstimatedCost: intPtr(207), // max(7,5)+ 20 * (7 + max(2,2+1))
+					expectedActualCost:    intPtr(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
+				},
+				computeCosts(),
+				costsIgnoreImplementingTypeWeights(),
+			))
+			t.Run("query hero with assumedSize on friends and weight defined", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{ 
+							hero {
+								friends {
+									...on Droid { name primaryFunction }
+									...on Human { name height }
+								}
+							}
+						}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","friends":[
+									{"__typename":"Human","name":"Luke Skywalker","height":"12"},
+									{"__typename":"Droid","name":"R2DO","primaryFunction":"joke"}
+								]}}}`,
+									sendStatusCode: 200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Human", FieldName: "friends"}: {HasWeight: true, Weight: 3},
+										{TypeName: "Droid", FieldName: "friends"}: {HasWeight: true, Weight: 4},
+										{TypeName: "Human", FieldName: "height"}:  {HasWeight: true, Weight: 1},
+										{TypeName: "Human", FieldName: "name"}:    {HasWeight: true, Weight: 2},
+										{TypeName: "Droid", FieldName: "name"}:    {HasWeight: true, Weight: 2},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 5},
+										{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 20},
+									},
+									Types: map[string]int{
+										"Human": 7,
+										"Droid": 5,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
+					expectedEstimatedCost: intPtr(207), // hero(max(7,5))+ 20 * (7+max(2, 2+1))
+					expectedActualCost:    intPtr(24),  // hero(7)       +  2 * (6+0.5*(2+2+1))
+				},
+				computeCosts(),
+				costsIgnoreImplementingTypeWeights(),
+			))
+			t.Run("named fragment on interface without typenames on friends", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `
+								fragment CharacterFields on Character {
+									name
+									friends { name }
+								}
+								{ hero { ...CharacterFields } }
+								`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com",
+									expectedPath: "/",
+									expectedBody: "",
+									// Is it possible that friends items would be returned without __typename?
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke","friends":[{"name":"Leia"}]}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Query", FieldName: "hero"}: {HasWeight: true, Weight: 2},
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 3},
+										{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 5},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 4},
+										{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 6},
+									},
+									Types: map[string]int{
+										"Human": 2,
+										"Droid": 3,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					// friends items carry no __typename, so they are rejected and nulled
+					expectedResponse:      `{"errors":[{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["hero","friends",0],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"hero":{"name":"Luke","friends":[null]}}}`,
+					expectedEstimatedCost: intPtr(20), // 2 + 1*(0 + 6*(3 + 1*0))
+					expectedActualCost:    intPtr(5),  // 2 + 1*(0 + 1*3)
+				},
+				computeCosts(),
+				costsIgnoreImplementingTypeWeights(),
+			))
+
+			t.Run("named fragment on interface with typename on friends", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: graphql.StarwarsSchema(t),
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `
+								fragment CharacterFields on Character {
+									name
+									friends { name }
+								}
+								{ hero { ...CharacterFields } }
+								`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke","friends":[{"__typename":"Human","name":"Leia"}]}}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Query", FieldName: "hero"}: {HasWeight: true, Weight: 2},
+										{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 3},
+										{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 5},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Human", FieldName: "friends"}: {AssumedSize: 4},
+										{TypeName: "Droid", FieldName: "friends"}: {AssumedSize: 6},
+									},
+									Types: map[string]int{
+										"Human": 2,
+										"Droid": 3,
+									},
+								},
+							},
+							customConfig,
+						),
+					},
+					expectedResponse:      `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
+					expectedEstimatedCost: intPtr(20), // 2 + 1*(0 + 6*(3 + 1*0))
+					expectedActualCost:    intPtr(4),  // 2 + 1*(0 + 1*(2 + 1*0))
+				},
+				computeCosts(),
+				costsIgnoreImplementingTypeWeights(),
+			))
+		})
 	})
 
 	t.Run("union types", func(t *testing.T) {
+		t.Parallel()
 		unionSchema := `
 			type Query {
 			   search(term: String!): [SearchResult!]
@@ -976,13 +1483,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"search":[{"name":"John","email":"john@test.com"}]}}`,
 				// search listSize: 10
 				// For each SearchResult, use max across all union members:
-				//   Type weight: max(User=2, Post=3, Comment=1) = 3
-				//   Fields: all fields from all fragments are counted
-				//     (2 + 3) + (4 + 5) + (1) = 15
-				// TODO: this is not correct, we should pick a maximum sum among types implementing union.
-				//  9 should be used instead of 15
-				// Total: 5 * (3 + 15)
-				expectedEstimatedCost: intPtr(90),
+				//   Type weight: max(User=5, Post=9, Comment=1) = 9
+				expectedEstimatedCost: intPtr(60), // 5 * (3 + max(5, 9, 1))
+				expectedActualCost:    intPtr(7),  // 1 * (2 + 1*2 + 1*3)
 			},
 			computeCosts(),
 		))
@@ -1030,34 +1533,38 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						customConfig,
 					),
 				},
-				fields:           fieldConfig,
-				expectedResponse: `{"data":{"search":[{"name":"John"}]}}`,
-				// Query.search: max(User=10, Post=6)
-				// search listSize: 3
-				// Union members:
-				//   All fields from all fragments: User.name(2) + Post.title(5)
-				// Total: 3 * (10+2+5)
-				// TODO: we might correct this by counting only members of one implementing types
-				//  of a union when fragments are used.
-				expectedEstimatedCost: intPtr(51),
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"search":[{"name":"John"}]}}`,
+				expectedEstimatedCost: intPtr(45), // 3 * (max(6,10) + max(2,5))
+				expectedActualCost:    intPtr(8),  // 1 * (6 + 1*2)
 			},
 			computeCosts(),
 		))
 	})
 
 	t.Run("listSize", func(t *testing.T) {
+		t.Parallel()
 		listSchema := `
+			input Search {
+                pagination: Page
+                query: String
+			}
+			input Page {
+                first: Int
+			}
 			type Query {
-			   items(first: Int, last: Int): [Item!] 
+			    items(first: Int, last: Int): [Item!]
+			    search(input: Search): [Item!]
 			}
 			type Item @key(fields: "id") {
-			  id: ID
-			} 
+			    id: ID
+			}
 			`
 		schemaSlicing, err := graphql.NewSchemaFromString(listSchema)
 		require.NoError(t, err)
 		rootNodes := []plan.TypeField{
 			{TypeName: "Query", FieldNames: []string{"items"}},
+			{TypeName: "Query", FieldNames: []string{"search"}},
 			{TypeName: "Item", FieldNames: []string{"id"}},
 		}
 		childNodes := []plan.TypeField{}
@@ -1081,6 +1588,18 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 					{
 						Name:         "last",
+						SourceType:   plan.FieldArgumentSource,
+						RenderConfig: plan.RenderArgumentAsGraphQLValue,
+					},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "search",
+				Path:      []string{"search"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:         "input",
 						SourceType:   plan.FieldArgumentSource,
 						RenderConfig: plan.RenderArgumentAsGraphQLValue,
 					},
@@ -1130,6 +1649,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
 				expectedEstimatedCost: intPtr(48), // slicingArgument(12) * (Item(3)+Item.id(1))
+				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -1177,9 +1697,424 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
 				expectedEstimatedCost: intPtr(100), // slicingArgument($limit=25) * (Item(3)+Item.id(1))
+				expectedActualCost:    intPtr(8),   // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
+
+		t.Run("dot-path slicing argument passed as literal is valid", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput{
+							  search(input: { pagination: { first: 8 }, query: "abc" }) { id }
+							}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[ {"id":"2"}, {"id":"3"} ]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										RequireOneSlicingArgument: true,
+										SlicingArguments:          []string{"input.pagination.first"},
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
+				expectedEstimatedCost: intPtr(32), // slicingArgument(8) * (Item(3)+Item.id(1))
+				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("slicing argument as nested input literal missing leaf fallbacks to defaultListSize", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput{
+							  search(input: { pagination: { first: null }, query: "abc" }) { id }
+							}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[ {"id":"2"}, {"id":"3"} ]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										RequireOneSlicingArgument: false,
+										SlicingArguments:          []string{"input.pagination.first"},
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
+				expectedEstimatedCost: intPtr(40), // defaultListSize(10) * (Item(3)+Item.id(1))
+				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("slicing argument as nested input literal with null at the middle fallbacks to AssumedSize", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput{
+							  search(input: { pagination: null, query: "abc" }) { id }
+							}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[ {"id":"2"}, {"id":"3"} ]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										RequireOneSlicingArgument: false,
+										AssumedSize:               15,
+										SlicingArguments:          []string{"input.pagination.first"},
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
+				expectedEstimatedCost: intPtr(60), // AssumedSize(15) * (Item(3)+Item.id(1))
+				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("slicing argument as nested input literal starting with null fallbacks to defaultListSize", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput{
+							  search(input: null) { id }
+							}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[ {"id":"2"}, {"id":"3"} ]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										RequireOneSlicingArgument: false,
+										SlicingArguments:          []string{"input.pagination.first"},
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
+				expectedEstimatedCost: intPtr(40), // defaultListSize(10) * (Item(3)+Item.id(1))
+				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("slicing argument as nested input variable is valid", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput($input: Search) {
+							  search(input: $input) { id }
+							}`,
+						Variables: []byte(`{"input":{"pagination":{"first":12},"query":"abc"}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[ {"id":"2"}, {"id":"3"} ]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										SlicingArguments: []string{"input.pagination.first"},
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
+				expectedEstimatedCost: intPtr(48), // slicingArgument($input.pagination.first=12) * (Item(3)+Item.id(1))
+				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("required dot-path slicing argument passed as var is valid", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput($input: Search) {
+							  search(input: $input) { id }
+							}`,
+						Variables: []byte(`{"input":{"pagination":{"first":7},"query":"abc"}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[ {"id":"2"}, {"id":"3"} ]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										SlicingArguments:          []string{"input.pagination.first"},
+										RequireOneSlicingArgument: true,
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
+				expectedEstimatedCost: intPtr(28), // slicingArgument(7) * (Item(3)+Item.id(1))
+				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+			},
+			computeCosts(),
+		))
+
+		t.Run("required dot-path slicing argument missing intermediate is invalid", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput($input: Search) {
+							  search(input: $input) { id }
+							}`,
+						Variables: []byte(`{"input":{"query":"abc"}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										SlicingArguments:          []string{"input.pagination.first"},
+										RequireOneSlicingArgument: true,
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			"external: field 'Query.search' requires exactly one slicing argument, but none was provided, locations: [], path: [search]",
+			computeCosts(),
+		))
+
+		t.Run("required dot-path slicing argument missing leaf is invalid", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput($input: Search) {
+							  search(input: $input) { id }
+							}`,
+						Variables: []byte(`{"input":{"pagination":{"first":null},"query":"abc"}}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										SlicingArguments:          []string{"input.pagination.first"},
+										RequireOneSlicingArgument: true,
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			"external: field 'Query.search' requires exactly one slicing argument, but none was provided, locations: [], path: [search]",
+			computeCosts(),
+		))
+
+		t.Run("required dot-path slicing argument with empty variables is invalid", runWithAndCompareError(
+			ExecutionEngineTestCase{
+				schema: schemaSlicing,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query NestedInput($input: Search) {
+							  search(input: $input) { id }
+							}`,
+						Variables: []byte(`{}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"search":[]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+								},
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "search"}: {
+										SlicingArguments:          []string{"input.pagination.first"},
+										RequireOneSlicingArgument: true,
+									},
+								},
+								Types: map[string]int{"Item": 3},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+			},
+			"external: field 'Query.search' requires exactly one slicing argument, but none was provided, locations: [], path: [search]",
+			computeCosts(),
+		))
+
 		t.Run("slicing argument not provided falls back to assumedSize", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schemaSlicing,
@@ -1224,6 +2159,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"},{"id":"2"}]}}`,
 				expectedEstimatedCost: intPtr(45), // Total: 15 * (2 + 1)
+				expectedActualCost:    intPtr(6),  // 2 * (2 + 1)
 			},
 			computeCosts(),
 		))
@@ -1270,6 +2206,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[]}}`,
 				expectedEstimatedCost: intPtr(60), // 20 * (2 + 1)
+				expectedActualCost:    intPtr(0),  // empty response list
 			},
 			computeCosts(),
 		))
@@ -1316,28 +2253,292 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[]}}`,
 				expectedEstimatedCost: intPtr(75), //  25 * (2 + 1)
+				expectedActualCost:    intPtr(0),  // empty response list
 			},
 			computeCosts(),
 		))
 
+		t.Run("sliceArguments with defaulted arguments", func(t *testing.T) {
+			// When a slicing argument is omitted from the operation,
+			// the engine must fall back to the upstream SDL default.
+			listSchemaWithDefaults := `
+				input Search {
+					pagination: Page
+					query: String
+				}
+				input Page {
+					first: Int = 10
+				}
+				type Query {
+					items(first: Int = 25, last: Int = 10): [Item!]
+					search(input: Search = { pagination: { first: 8 } }): [Item!]
+				}
+				type Item @key(fields: "id") {
+					id: ID
+				}
+			`
+			schemaSlicingDefaults, err := graphql.NewSchemaFromString(listSchemaWithDefaults)
+			require.NoError(t, err)
+			customConfigDefaults := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, listSchemaWithDefaults),
+			})
+
+			t.Run("flat slicing arg omitted - uses schema Int default", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicingDefaults,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query FlatDefault { items { id } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"items":[ {"id":"2"}, {"id":"3"} ]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "items"}: {
+											AssumedSize:      8,
+											SlicingArguments: []string{"first", "last"},
+										},
+									},
+									Types: map[string]int{"Item": 3},
+								},
+							},
+							customConfigDefaults,
+						),
+					},
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
+					expectedEstimatedCost: intPtr(100), // max(first=25, last=10) * (Item(3)+Item.id(1))
+					expectedActualCost:    intPtr(8),   // 2 * (Item(3)+Item.id(1))
+				},
+				computeCosts(),
+			))
+
+			t.Run("when dot-path arg omitted, outer object-literal default supplies leaf", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicingDefaults,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query OuterObjectDefault { search { id } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"search":[ {"id":"2"} ]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "search"}: {
+											RequireOneSlicingArgument: true,
+											SlicingArguments:          []string{"input.pagination.first"},
+										},
+									},
+									Types: map[string]int{"Item": 3},
+								},
+							},
+							customConfigDefaults,
+						),
+					},
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"search":[{"id":"2"}]}}`,
+					expectedEstimatedCost: intPtr(32), // outer default { pagination: { first: 8 } } * (Item(3)+Item.id(1))
+					expectedActualCost:    intPtr(4),  // 1 * (Item(3)+Item.id(1))
+				},
+				computeCosts(),
+			))
+
+			t.Run("when dot-path with partially provided input, inner field default supplies leaf", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicingDefaults,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							// `pagination` is provided as an empty object — `first` is absent
+							// and must resolve to the Page.first schema default (= 10).
+							Query: `query InnerFieldDefault { search(input: { pagination: {}, query: "q" }) { id } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"search":[ {"id":"2"} ]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "search"}: {
+											RequireOneSlicingArgument: true,
+											SlicingArguments:          []string{"input.pagination.first"},
+										},
+									},
+									Types: map[string]int{"Item": 3},
+								},
+							},
+							customConfigDefaults,
+						),
+					},
+					fields:                fieldConfig,
+					expectedResponse:      `{"data":{"search":[{"id":"2"}]}}`,
+					expectedEstimatedCost: intPtr(40), // inner Page.first default (10) * (Item(3)+Item.id(1))
+					expectedActualCost:    intPtr(4),  // 1 * (Item(3)+Item.id(1))
+				},
+				computeCosts(),
+			))
+
+			t.Run("explicit null at dot-path leaf must not use schema default", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicingDefaults,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query ExplicitNullLeaf { search(input: { pagination: { first: null }, query: "q" }) { id } }`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"search":[ {"id":"2"} ]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "search"}: {
+											AssumedSize:      5,
+											SlicingArguments: []string{"input.pagination.first"},
+										},
+									},
+									Types: map[string]int{"Item": 3},
+								},
+							},
+							customConfigDefaults,
+						),
+					},
+					fields:           fieldConfig,
+					expectedResponse: `{"data":{"search":[{"id":"2"}]}}`,
+					// AssumedSize (5) * (Item(3)+Item.id(1))
+					expectedEstimatedCost: intPtr(20),
+					// 1 * (Item(3)+Item.id(1))
+					expectedActualCost: intPtr(4),
+				},
+				computeCosts(),
+			))
+
+			t.Run("variable-nulled dot-path leaf must not use schema default", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaSlicingDefaults,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query VarNullLeaf($input: Search) { search(input: $input) { id } }`,
+							Variables: []byte(`{"input":{"pagination":{"first":null},"query":"q"}}`),
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+									sendResponseBody: `{"data":{"search":[ {"id":"2"} ]}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  rootNodes,
+								ChildNodes: childNodes,
+								CostConfig: &plan.DataSourceCostConfig{
+									Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+										{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+									},
+									ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+										{TypeName: "Query", FieldName: "search"}: {
+											AssumedSize:      5,
+											SlicingArguments: []string{"input.pagination.first"},
+										},
+									},
+									Types: map[string]int{"Item": 3},
+								},
+							},
+							customConfigDefaults,
+						),
+					},
+					fields:           fieldConfig,
+					expectedResponse: `{"data":{"search":[{"id":"2"}]}}`,
+					// AssumedSize (5) * (Item(3)+Item.id(1))
+					expectedEstimatedCost: intPtr(20),
+					// 1 * (Item(3)+Item.id(1))
+					expectedActualCost: intPtr(4),
+				},
+				computeCosts(),
+			))
+		})
 	})
 
 	t.Run("nested lists with compounding multipliers", func(t *testing.T) {
+		t.Parallel()
 		nestedSchema := `
 			type Query {
-			   users(first: Int): [User!]
+				users(first: Int): [User!]
 			}
 			type User @key(fields: "id") {
-			  id: ID!
-			  posts(first: Int): [Post!]
+				id: ID!
+				posts(first: Int): [Post!]
 			}
 			type Post @key(fields: "id") {
-			  id: ID!
-			  comments(first: Int): [Comment!]
+				id: ID!
+				comments(first: Int): [Comment!]
 			}
 			type Comment @key(fields: "id") {
-			  id: ID!
-			  text: String!
+				id: ID!
+				text: String!
+				texts: [[String!]!]!
+				enums: [CommentType]
+			}
+			enum CommentType {
+				FLAME
+				SPAM
 			}
 			`
 		schemaNested, err := graphql.NewSchemaFromString(nestedSchema)
@@ -1347,7 +2548,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			{TypeName: "Query", FieldNames: []string{"users"}},
 			{TypeName: "User", FieldNames: []string{"id", "posts"}},
 			{TypeName: "Post", FieldNames: []string{"id", "comments"}},
-			{TypeName: "Comment", FieldNames: []string{"id", "text"}},
+			{TypeName: "Comment", FieldNames: []string{"id", "text", "texts", "enums"}},
 		}
 		childNodes := []plan.TypeField{}
 		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -1444,8 +2645,96 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//     comments(first:3): multiplier 3
 				//       Comment type weight: 2
 				//       text weight: 1
-				// Total: 10 * (4 + 5 * (3 + 3 * (2 + 1)))
-				expectedEstimatedCost: intPtr(640),
+				expectedEstimatedCost: intPtr(640), // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
+				expectedActualCost:    intPtr(10),
+			},
+			computeCosts(),
+		))
+
+		t.Run("a scalar nested inside lists with slicing arguments should not cost anything", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaNested,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{
+							  users(first: 10) {
+							    posts(first: 5) {
+							      comments(first: 3) { texts }
+							  } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"users":[{"posts":[{"comments":[{"texts":[["hello"]]}]}]}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}:   {SlicingArguments: []string{"first"}},
+									{TypeName: "User", FieldName: "posts"}:    {SlicingArguments: []string{"first"}},
+									{TypeName: "Post", FieldName: "comments"}: {SlicingArguments: []string{"first"}},
+								},
+								Types: map[string]int{"User": 4, "Post": 3, "Comment": 2},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"texts":[["hello"]]}]}]}]}}`,
+				expectedEstimatedCost: intPtr(490), // 10 * (4 + 5 * (3 + 3 * (2 + 10 * 0)))
+				expectedActualCost:    intPtr(9),   //  1 * (4 + 1 * (3 + 1 * (2 +  1 * 0)))
+			},
+			computeCosts(),
+		))
+
+		t.Run("an enum nested inside lists with slicing arguments should not cost anything", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaNested,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{
+							  users(first: 10) {
+							    posts(first: 5) {
+							      comments(first: 3) { enums }
+							  } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"users":[{"posts":[{"comments":[{"enums":["SPAM"]}]}]}]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+									{TypeName: "Query", FieldName: "users"}:   {SlicingArguments: []string{"first"}},
+									{TypeName: "User", FieldName: "posts"}:    {SlicingArguments: []string{"first"}},
+									{TypeName: "Post", FieldName: "comments"}: {SlicingArguments: []string{"first"}},
+								},
+								Types: map[string]int{"User": 4, "Post": 3, "Comment": 2},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"enums":["SPAM"]}]}]}]}}`,
+				expectedEstimatedCost: intPtr(490), // 10 * (4 + 5 * (3 + 3 * (2 + 10 * 0)))
+				expectedActualCost:    intPtr(9),   //  1 * (4 + 1 * (3 + 1 * (2 +  1 * 0)))
 			},
 			computeCosts(),
 		))
@@ -1505,18 +2794,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						customConfig,
 					),
 				},
-				fields:           fieldConfig,
-				expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"hi"}]}]}]}}`,
-				// Cost calculation:
-				// users(first:2): multiplier 2
-				//   User type weight: 4
-				//   posts (no arg): assumedSize 50
-				//     Post type weight: 3
-				//     comments(first:4): multiplier 4
-				//       Comment type weight: 2
-				//       text weight: 1
-				// Total: 2 * (4 + 50 * (3 + 4 * (2 + 1)))
-				expectedEstimatedCost: intPtr(1508),
+				fields:                fieldConfig,
+				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"hi"}]}]}]}}`,
+				expectedEstimatedCost: intPtr(1508), // 2 * (4 + 50 * (3 + 4 * (2 + 1)))
+				expectedActualCost:    intPtr(10),
 			},
 			computeCosts(),
 		))
@@ -2095,22 +3376,766 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// Ideal calculation without rounding:
 				// cost = 3 * (1 + 1.33 * (1 + 1.75 * (1 + 1.57 * (1 + 1.18 * (1 + 1)))))
 				//      = 50.806584 ~= 51
-				//
-				// Current implementation:
-				// Level5: RoundToEven((1 +  1) * 1.18) = 2
-				// Level4: RoundToEven((1 +  2) * 1.57) = 5
-				// Level3: RoundToEven((1 +  5) * 1.75) = 10 (rounds to even)
-				// Level2: RoundToEven((1 + 10) * 1.33) = 15
-				// Level1: RoundToEven((1 + 15) * 3.00) = 48
-				//
-				// The compounding rounding error: 48 vs 51 (6% underestimate)
-				expectedActualCost: intPtr(48),
+				expectedActualCost: intPtr(51),
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("abstract list with concrete fragment charges only matched items", func(t *testing.T) {
+		t.Parallel()
+		schemaStr := `
+			type Query {
+			  boards(ids: [ID!]!, limit: Int): [Board!]!
+				  # @listSize(slicingArguments: ["limit"]) 
+				  # @cost(weight: 10)
+			}
+			type Board {
+			  items_page(limit: Int!): ItemsPage!
+				  # @listSize(slicingArguments: ["limit"], sizedFields: ["items"]) 
+				  # @cost(weight: 10)
+			}
+			type ItemsPage {
+			  items: [Item!]!   # @cost(weight: 10)
+			}
+			type Item {
+			  column_values: [ColumnValue!]!
+			}
+			interface ColumnValue {
+			  text: String
+			}
+			type PeopleValue implements ColumnValue {
+			  text: String    # @cost(weight: 10)
+			  person: Person  
+			}
+			type StatusValue implements ColumnValue {
+			  text: String
+			}
+			type Person {
+			  name: String    # @cost(weight: 10)
+			} `
+		schemaAbs, err := graphql.NewSchemaFromString(schemaStr)
+		require.NoError(t, err)
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"boards"}},
+			{TypeName: "Board", FieldNames: []string{"items_page"}},
+			{TypeName: "ItemsPage", FieldNames: []string{"items"}},
+			{TypeName: "Item", FieldNames: []string{"column_values"}},
+			{TypeName: "PeopleValue", FieldNames: []string{"text", "person"}},
+			{TypeName: "StatusValue", FieldNames: []string{"text"}},
+			{TypeName: "Person", FieldNames: []string{"name"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "ColumnValue", FieldNames: []string{"text"}},
+		}
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, schemaStr),
+		})
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName: "Query", FieldName: "boards", Path: []string{"boards"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "ids", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					{Name: "limit", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName: "Board", FieldName: "items_page", Path: []string{"items_page"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "limit", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+		}
+
+		costConfig := &plan.DataSourceCostConfig{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "Query", FieldName: "boards"}:     {HasWeight: true, Weight: 10},
+				{TypeName: "Board", FieldName: "items_page"}: {HasWeight: true, Weight: 10},
+				{TypeName: "ItemsPage", FieldName: "items"}:  {HasWeight: true, Weight: 10},
+				{TypeName: "PeopleValue", FieldName: "text"}: {HasWeight: true, Weight: 10},
+				{TypeName: "Person", FieldName: "name"}:      {HasWeight: true, Weight: 10},
+			},
+			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+				{TypeName: "Query", FieldName: "boards"}: {
+					SlicingArguments: []string{"limit"},
+				},
+				{TypeName: "Board", FieldName: "items_page"}: {
+					SlicingArguments: []string{"limit"},
+					SizedFields:      []string{"items"},
+				},
+			},
+		}
+
+		query := `{
+			boards(ids: ["b1"], limit: 1) {
+				items_page(limit: 1) {
+					items {
+						column_values {
+							... on PeopleValue { text }
+						}
+					}
+				}
+			}
+		}`
+
+		t.Run("no matching items: text contributes 0", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: query}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// 3 column_values (0 PeopleValue).
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"StatusValue","text":"s1"},` +
+									`{"__typename":"StatusValue","text":"s2"},` +
+									`{"__typename":"StatusValue","text":"s3"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{},{},{}]}]}}]}}`,
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
+				expectedEstimatedCost: intPtr(140),
+				// 1 * (10 + 1 * (10 + 1 * (10 + 1 * (1 + 0*10))))
+				expectedActualCost: intPtr(33),
+			},
+			computeCosts(),
+		))
+
+		t.Run("partial match: text charged per PeopleValue only", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: query}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// 10 column_values, 4 PeopleValue
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"PeopleValue","text":"p1"},` +
+									`{"__typename":"PeopleValue","text":"p2"},` +
+									`{"__typename":"PeopleValue","text":"p3"},` +
+									`{"__typename":"PeopleValue","text":"p4"},` +
+									`{"__typename":"StatusValue","text":"s1"},` +
+									`{"__typename":"StatusValue","text":"s2"},` +
+									`{"__typename":"StatusValue","text":"s3"},` +
+									`{"__typename":"StatusValue","text":"s4"},` +
+									`{"__typename":"StatusValue","text":"s5"},` +
+									`{"__typename":"StatusValue","text":"s6"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+					`{"text":"p1"},{"text":"p2"},{"text":"p3"},{"text":"p4"},{},{},{},{},{},{}]}]}}]}}`,
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
+				expectedEstimatedCost: intPtr(140),
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 0.4*10))))
+				expectedActualCost: intPtr(80),
+			},
+			computeCosts(),
+		))
+
+		t.Run("nested field charged per matched PeopleValue", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{
+						boards(ids: ["b1"], limit: 1) {
+							items_page(limit: 1) {
+								items {
+									column_values {
+										... on PeopleValue { person { name } }
+									}
+								}
+							}
+						}}`}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// 10 column_values, 4 PeopleValue with nested person
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"PeopleValue","person":{"name":"p1"}},` +
+									`{"__typename":"PeopleValue","person":{"name":"p2"}},` +
+									`{"__typename":"PeopleValue","person":{"name":"p3"}},` +
+									`{"__typename":"PeopleValue","person":{"name":"p4"}},` +
+									`{"__typename":"StatusValue"},` +
+									`{"__typename":"StatusValue"},` +
+									`{"__typename":"StatusValue"},` +
+									`{"__typename":"StatusValue"},` +
+									`{"__typename":"StatusValue"},` +
+									`{"__typename":"StatusValue"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields: fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+					`{"person":{"name":"p1"}},{"person":{"name":"p2"}},{"person":{"name":"p3"}},{"person":{"name":"p4"}},` +
+					`{},{},{},{},{},{}]}]}}]}}`,
+				// Estimation (default list size 10): abstract picks the max-cost member subtree.
+				//   PeopleValue member subtree = person(1) + name(10) = 11
+				//   1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 11))))
+				expectedEstimatedCost: intPtr(150),
+				// Actual: 10 column_values, 4 matched PeopleValue.
+				//   name multiplier = 1 (one Person per matched item), person multiplier = 4/10.
+				//   1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 0.4 * (1 + 10)))))
+				expectedActualCost: intPtr(84),
+			},
+			computeCosts(),
+		))
+
+		t.Run("nested field charged per matched PeopleValue once for duplicates", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{
+						boards(ids: ["b1"], limit: 1) {
+							items_page(limit: 1) {
+								items {
+									column_values {
+										text
+										... on PeopleValue { text person { name } }
+									}
+								}
+							}
+						}}`}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// 10 column_values, 4 PeopleValue with nested person
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"PeopleValue","text":"p1","person":{"name":"p1"}},` +
+									`{"__typename":"PeopleValue","text":"p2","person":{"name":"p2"}},` +
+									`{"__typename":"PeopleValue","text":"p3","person":{"name":"p3"}},` +
+									`{"__typename":"PeopleValue","text":"p4","person":{"name":"p4"}},` +
+									`{"__typename":"StatusValue","text":"s1"},` +
+									`{"__typename":"StatusValue","text":"s2"},` +
+									`{"__typename":"StatusValue","text":"s3"},` +
+									`{"__typename":"StatusValue","text":"s4"},` +
+									`{"__typename":"StatusValue","text":"s5"},` +
+									`{"__typename":"StatusValue","text":"s6"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1","person":{"name":"p1"}},{"text":"p2","person":{"name":"p2"}},{"text":"p3","person":{"name":"p3"}},{"text":"p4","person":{"name":"p4"}},{"text":"s1"},{"text":"s2"},{"text":"s3"},{"text":"s4"},{"text":"s5"},{"text":"s6"}]}]}}]}}`,
+				//   1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 10 + 1 + 10))))
+				expectedEstimatedCost: intPtr(250),
+				// Actual: 10 column_values, 4 matched PeopleValue.
+				//   name multiplier = 1 (one Person per matched item), person multiplier = 4/10.
+				//   1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 0.4*10 + 0.4 * (1 + 10)))))
+				expectedActualCost: intPtr(124),
+			},
+			computeCosts(),
+		))
+
+		t.Run("a field selected directly on the interface should be charged only for implementing fields with weights", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{
+						boards(ids: ["b1"], limit: 1) {
+							items_page(limit: 1) {
+								items {
+									column_values {
+										text
+									}
+								}
+							}
+						}}`}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"PeopleValue","text":"p1"},` +
+									`{"__typename":"PeopleValue","text":"p2"},` +
+									`{"__typename":"StatusValue","text":"s1"},` +
+									`{"__typename":"StatusValue","text":"s2"},` +
+									`{"__typename":"StatusValue","text":"s3"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
+				expectedEstimatedCost: intPtr(140),
+				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*10))))
+				expectedActualCost: intPtr(55),
+			},
+			computeCosts(),
+		))
+
+		t.Run("IgnoreImplementingTypeWeights: a field selected directly on the interface should not be charged", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{
+						boards(ids: ["b1"], limit: 1) {
+							items_page(limit: 1) {
+								items {
+									column_values {
+										text
+									}
+								}
+							}
+						}}`}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"PeopleValue","text":"p1"},` +
+									`{"__typename":"PeopleValue","text":"p2"},` +
+									`{"__typename":"StatusValue","text":"s1"},` +
+									`{"__typename":"StatusValue","text":"s2"},` +
+									`{"__typename":"StatusValue","text":"s3"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*0))))
+				expectedEstimatedCost: intPtr(40),
+				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*0))))
+				expectedActualCost: intPtr(35),
+			},
+			computeCosts(),
+			costsIgnoreImplementingTypeWeights(),
+		))
+
+		t.Run("a field selected on the interface and fragments should be charged once", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{
+						boards(ids: ["b1"], limit: 1) {
+							items_page(limit: 1) {
+								items {
+									column_values {
+										text
+										... on PeopleValue { text }
+										... on StatusValue { text }
+									}
+								}
+							}
+						}}`}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"PeopleValue","text":"p1"},` +
+									`{"__typename":"PeopleValue","text":"p2"},` +
+									`{"__typename":"StatusValue","text":"s1"},` +
+									`{"__typename":"StatusValue","text":"s2"},` +
+									`{"__typename":"StatusValue","text":"s3"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
+				expectedEstimatedCost: intPtr(140),
+				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*10))))
+				expectedActualCost: intPtr(55),
+			},
+			computeCosts(),
+		))
+
+		t.Run("a field selected on fragments should be charged once", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{
+						boards(ids: ["b1"], limit: 1) {
+							items_page(limit: 1) {
+								items {
+									column_values {
+										... on PeopleValue { text }
+										... on StatusValue { text }
+									}
+								}
+							}
+						}}`}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"PeopleValue","text":"p1"},` +
+									`{"__typename":"PeopleValue","text":"p2"},` +
+									`{"__typename":"StatusValue","text":"s1"},` +
+									`{"__typename":"StatusValue","text":"s2"},` +
+									`{"__typename":"StatusValue","text":"s3"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
+				expectedEstimatedCost: intPtr(140),
+				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*10))))
+				expectedActualCost: intPtr(55),
+			},
+			computeCosts(),
+		))
+
+		// An explicit `HasWeight: true, Weight: 0` on a per-type fragment field must be
+		// respected; the cost calculator must NOT fall back to type-default weights.
+		zeroWeightCostConfig := &plan.DataSourceCostConfig{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "Query", FieldName: "boards"}:     {HasWeight: true, Weight: 10},
+				{TypeName: "Board", FieldName: "items_page"}: {HasWeight: true, Weight: 10},
+				{TypeName: "ItemsPage", FieldName: "items"}:  {HasWeight: true, Weight: 10},
+				{TypeName: "PeopleValue", FieldName: "text"}: {HasWeight: true, Weight: 0}, // explicit zero
+			},
+			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+				{TypeName: "Query", FieldName: "boards"}: {
+					SlicingArguments: []string{"limit"},
+				},
+				{TypeName: "Board", FieldName: "items_page"}: {
+					SlicingArguments: []string{"limit"},
+					SizedFields:      []string{"items"},
+				},
+			},
+			Types: map[string]int{"String": 5},
+		}
+
+		t.Run("explicit Weight: 0 on a fragment field stays zero", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schemaAbs,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: `{
+						boards(ids: ["b1"], limit: 1) {
+							items_page(limit: 1) {
+								items {
+									column_values {
+										... on PeopleValue { text }
+									}
+								}
+							}
+						}}`}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// 5 column_values: 2 PeopleValue + 3 StatusValue. text present on all.
+								sendResponseBody: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
+									`{"__typename":"PeopleValue","text":"p1"},` +
+									`{"__typename":"PeopleValue","text":"p2"},` +
+									`{"__typename":"StatusValue","text":"s1"},` +
+									`{"__typename":"StatusValue","text":"s2"},` +
+									`{"__typename":"StatusValue","text":"s3"}` +
+									`]}]}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: zeroWeightCostConfig},
+						customConfig,
+					),
+				},
+				fields:           fieldConfig,
+				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{},{},{}]}]}}]}}`,
+				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*0))))
+				expectedEstimatedCost: intPtr(40), //
+				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0*0.4))))
+				expectedActualCost: intPtr(35),
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("nested abstract lists", func(t *testing.T) {
+		t.Parallel()
+		schemaStr := `
+			type Query {
+			  things: [Thing!]!
+			}
+			interface Thing {
+			  id: ID
+			}
+			type Foo implements Thing {
+			  id: ID
+			  related: [Related!]!
+			}
+			type Bar implements Thing {
+			  id: ID
+			}
+			interface Related {
+			  code: ID
+			}
+			type Alpha implements Related {
+			  code: ID
+			  name: String
+			}
+			type Beta implements Related {
+			  code: ID
+			} `
+		schema, err := graphql.NewSchemaFromString(schemaStr)
+		require.NoError(t, err)
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"things"}},
+			{TypeName: "Foo", FieldNames: []string{"id", "related"}},
+			{TypeName: "Bar", FieldNames: []string{"id"}},
+			{TypeName: "Alpha", FieldNames: []string{"code", "name"}},
+			{TypeName: "Beta", FieldNames: []string{"code"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Thing", FieldNames: []string{"id"}},
+			{TypeName: "Related", FieldNames: []string{"code"}},
+		}
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, schemaStr),
+		})
+
+		costConfig := &plan.DataSourceCostConfig{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "Query", FieldName: "things"}: {HasWeight: true, Weight: 10},
+				{TypeName: "Foo", FieldName: "related"}:  {HasWeight: true, Weight: 5},
+				{TypeName: "Alpha", FieldName: "name"}:   {HasWeight: true, Weight: 20},
+			},
+			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+				{TypeName: "Query", FieldName: "things"}: {AssumedSize: 8},
+				{TypeName: "Foo", FieldName: "related"}:  {AssumedSize: 7},
+			},
+		}
+
+		query := `{ things {
+			... on Bar { id }
+			... on Foo {
+				related {
+					... on Alpha { name } } } } }`
+
+		t.Run("name charged per matched Alpha across all Foos", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: query}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// 4 things: 2 Foo + 2 Bar. Each Foo's related: 3 items.
+								// All Foos have 3 Alpha + 3 Beta.
+								sendResponseBody: `{"data":{"things":[` +
+									`{"__typename":"Foo","related":[` +
+									`{"__typename":"Alpha","name":"a1"},` +
+									`{"__typename":"Alpha","name":"a2"},` +
+									`{"__typename":"Beta"}` +
+									`]},` +
+									`{"__typename":"Foo","related":[` +
+									`{"__typename":"Alpha","name":"a3"},` +
+									`{"__typename":"Beta"},` +
+									`{"__typename":"Beta"}` +
+									`]},` +
+									`{"__typename":"Bar","id":"1"},` +
+									`{"__typename":"Bar","id":"2"}` +
+									`]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				expectedResponse: `{"data":{"things":[` +
+					`{"related":[{"name":"a1"},{"name":"a2"},{}]},` +
+					`{"related":[{"name":"a3"},{},{}]},` +
+					`{"id":"1"},{"id":"2"}` +
+					`]}}`,
+				// 8 * (10 + 1   * 0 + 7   * (5 + 1*20))
+				expectedEstimatedCost: intPtr(1480),
+				// 4 * (10 + 0.5 * 0 + 1.5 * (5 + 0.5*20))
+				expectedActualCost: intPtr(130),
+			},
+			computeCosts(),
+		))
+		t.Run("name is not charged when related's alphas are empty", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: query}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// 4 things: 2 Foo + 2 Bar. Related are empty.
+								sendResponseBody: `{"data":{"things":[` +
+									`{"__typename":"Foo","related":[` +
+									`{"__typename":"Beta"}` +
+									`]},` +
+									`{"__typename":"Foo","related":[` +
+									`{"__typename":"Beta"},` +
+									`{"__typename":"Beta"}` +
+									`]},` +
+									`{"__typename":"Bar","id":"1"},` +
+									`{"__typename":"Bar","id":"2"}` +
+									`]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				expectedResponse: `{"data":{"things":[` +
+					`{"related":[{}]},` +
+					`{"related":[{},{}]},` +
+					`{"id":"1"},{"id":"2"}` +
+					`]}}`,
+				// 8 * (10 + 1   * 0 + 7    * (5 + 1*20))
+				expectedEstimatedCost: intPtr(1480),
+				// 4 * (10 + 0.5 * 0 + 0.75 * (5 + 0*20)))
+				expectedActualCost: intPtr(55),
+			},
+			computeCosts(),
+		))
+		t.Run("Alpha is not charged at all", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: query}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// 2 things: 2 Bar.
+								sendResponseBody: `{"data":{"things":[` +
+									`{"__typename":"Bar","id":"1"},` +
+									`{"__typename":"Bar","id":"2"}` +
+									`]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				expectedResponse: `{"data":{"things":[` +
+					`{"id":"1"},{"id":"2"}` +
+					`]}}`,
+				// 8 * (10 + 1 * 0 + 7 * (5 + 1*20))
+				expectedEstimatedCost: intPtr(1480),
+				// 2 * (10 + 1 * 0 + 0 * (5 + 1*20))
+				expectedActualCost: intPtr(20),
+			},
+			computeCosts(),
+		))
+		t.Run("empty response returns zero cost", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: query}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								// 2 things: 2 Bar.
+								sendResponseBody: `{"data":{"things":[` +
+									`]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				expectedResponse: `{"data":{"things":[` +
+					`]}}`,
+				// 8 * (10 + 1 * 0 + 7 * (5 + 1*20))
+				expectedEstimatedCost: intPtr(1480),
+				// 0 * (10 + 0 * 0 + 0 * (5 + 1*20))
+				expectedActualCost: intPtr(0),
 			},
 			computeCosts(),
 		))
 	})
 
 	t.Run("sizedFields", func(t *testing.T) {
+		t.Parallel()
 		connSchema := `
 			type Query {
 				users(first: Int, last: Int): UserConnection!
@@ -2596,9 +4621,139 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			},
 			computeCosts(),
 		))
+
+		t.Run("sizedFields parent is non-list wrapper inside outer list", func(t *testing.T) {
+			// Regression test for ENG-9574.
+			// When a non-list wrapper field (Board.items_page: ItemsPage!) is configured as a
+			// @listSize sizedFields parent, the wrapper itself is never recorded in
+			// typeNameStats (population happens in walkArray only). The child list's
+			// averaging denominator therefore falls back to 1 instead of the number of
+			// wrapper occurrences, inflating the combined actual cost.
+			boardsSchema := `
+				type Query {
+					boards(ids: [ID!]!, limit: Int): [Board!]! 
+						@listSize(slicingArguments: ["limit"]) 
+						@cost(weight: 10)
+				}
+				type Board @key(fields: "id") {
+					id: ID!
+					items_page(limit: Int!): ItemsPage! 
+						@listSize(slicingArguments: ["limit"], sizedFields: ["items"]) 
+						@cost(weight: 10)
+				}
+				type ItemsPage {
+					items: [Item!]! 
+						@cost(weight: 10)
+				}
+				type Item @key(fields: "id") {
+					id: ID!
+				}
+			`
+			schemaBoards, err := graphql.NewSchemaFromString(boardsSchema)
+			require.NoError(t, err)
+
+			boardsRootNodes := []plan.TypeField{
+				{TypeName: "Query", FieldNames: []string{"boards"}},
+				{TypeName: "Board", FieldNames: []string{"id", "items_page"}},
+				{TypeName: "ItemsPage", FieldNames: []string{"items"}},
+				{TypeName: "Item", FieldNames: []string{"id"}},
+			}
+			boardsCustomConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+				Fetch: &graphql_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+				SchemaConfiguration: mustSchemaConfig(t, nil, boardsSchema),
+			})
+			boardsFieldConfig := []plan.FieldConfiguration{
+				{
+					TypeName: "Query", FieldName: "boards", Path: []string{"boards"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "ids", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+						{Name: "limit", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+				{
+					TypeName: "Board", FieldName: "items_page", Path: []string{"items_page"},
+					Arguments: []plan.ArgumentConfiguration{
+						{Name: "limit", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					},
+				},
+			}
+			boardsCostConfig := &plan.DataSourceCostConfig{
+				Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+					{TypeName: "Query", FieldName: "boards"}:     {HasWeight: true, Weight: 10},
+					{TypeName: "Board", FieldName: "items_page"}: {HasWeight: true, Weight: 10},
+					{TypeName: "ItemsPage", FieldName: "items"}:  {HasWeight: true, Weight: 10},
+				},
+				ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+					{TypeName: "Query", FieldName: "boards"}: {
+						SlicingArguments: []string{"limit"},
+					},
+					{TypeName: "Board", FieldName: "items_page"}: {
+						SlicingArguments: []string{"limit"},
+						SizedFields:      []string{"items"},
+					},
+				},
+			}
+
+			expectedResponse := `{"data":{"boards":[` +
+				`{"id":"A","items_page":{"items":[{"id":"a1"}]}},` +
+				`{"id":"B","items_page":{"items":[{"id":"b1"}]}},` +
+				`{"id":"C","items_page":{"items":[{"id":"c1"}]}},` +
+				`{"id":"D","items_page":{"items":[{"id":"d1"}]}}` +
+				`]}}`
+
+			// Correct behavior:
+			//     parentCount should resolve to the nearest list ancestor,
+			//     count (4 boards), giving items multiplier = 4/4 = 1.
+			t.Run("actual cost averages by wrapper occurrences", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schemaBoards,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `{
+								boards(ids: ["A","B","C","D"], limit: 4) {
+									id
+									items_page(limit: 1) {
+										items { id }
+									}
+								}
+							}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t, "id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     "",
+									sendResponseBody: expectedResponse,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes:  boardsRootNodes,
+								ChildNodes: []plan.TypeField{},
+								CostConfig: boardsCostConfig,
+							},
+							boardsCustomConfig,
+						),
+					},
+					fields:           boardsFieldConfig,
+					expectedResponse: expectedResponse,
+					// 4 * ( 10 + 1 * (10 + 1 * 10))
+					expectedEstimatedCost: intPtr(120),
+					expectedActualCost:    intPtr(120),
+				},
+				computeCosts(),
+			))
+		})
 	})
 
 	t.Run("sizedFields on abstract types", func(t *testing.T) {
+		t.Parallel()
 		t.Run("parent returns interface, child via inline fragment", func(t *testing.T) {
 			s2Schema := `
 					interface Connection {
@@ -2709,6 +4864,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					type Edge {
 						cursor: String
 					}
+					type UserConn implements Connection {
+						edges: [Edge]
+					}
 					type Query {
 						users(first: Int): Connection
 					}
@@ -2719,6 +4877,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			rootNodes := []plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"users"}},
 				{TypeName: "Edge", FieldNames: []string{"cursor"}},
+				{TypeName: "UserConn", FieldNames: []string{"edges"}},
 			}
 			childNodes := []plan.TypeField{
 				{TypeName: "Connection", FieldNames: []string{"edges"}},
@@ -2754,7 +4913,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 									expectedHost:     "example.com",
 									expectedPath:     "/",
 									expectedBody:     "",
-									sendResponseBody: `{"data":{"users":{"edges":[{"cursor":"abc"}]}}}`,
+									sendResponseBody: `{"data":{"users":{"__typename":"UserConn","edges":[{"cursor":"abc"}]}}}`,
 									sendStatusCode:   200,
 								}),
 							),
@@ -2787,6 +4946,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 
 		t.Run("sizedFields on interface field", func(t *testing.T) {
+			t.Parallel()
 			s4Schema := `
 					interface Paginated {
 						items(first: Int): ItemConnection
@@ -3023,6 +5183,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 		})
 
 		t.Run("sizedField returns list of abstract type", func(t *testing.T) {
+			t.Parallel()
 			s7Schema := `
 					interface Publishable {
 						id: ID!
@@ -3081,7 +5242,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 									expectedHost:     "example.com",
 									expectedPath:     "/",
 									expectedBody:     "",
-									sendResponseBody: `{"data":{"feed":{"items":[{"id":"1"},{"id":"2"}],"count":2}}}`,
+									sendResponseBody: `{"data":{"feed":{"items":[{"__typename":"Post","id":"1"},{"__typename":"Post","id":"2"}],"count":2}}}`,
 									sendStatusCode:   200,
 								}),
 							),
@@ -3112,10 +5273,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				computeCosts(),
 			))
 		})
-
 	})
 
 	t.Run("validate requireOneSlicingArgument on concrete types", func(t *testing.T) {
+		t.Parallel()
 		listSchema := `
 			type Query {
 			   items(first: Int, last: Int): [Item!] # @listSize(assumedSize: 10, SlicingArguments: ["first", "last"], RequireOneSlicingArgument: true/false)
@@ -3228,6 +5389,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"itemsNoSlicing":[{"id":"1"}]}}`,
 				expectedEstimatedCost: intPtr(15), // assumedSize(5) * (Item(2) + Item.id(1))
+				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3260,6 +5422,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
 				expectedEstimatedCost: intPtr(12), // 4 * (Item(2) + Item.id(1))
+				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3354,6 +5517,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
 				expectedEstimatedCost: intPtr(30), // assumedSize(10) * (Item(2) + Item.id(1))
+				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3386,6 +5550,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
 				expectedEstimatedCost: intPtr(15), // max(5,3)=5 * (Item(2) + Item.id(1))
+				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3419,6 +5584,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
 				expectedEstimatedCost: intPtr(21), // 7 * (Item(2) + Item.id(1))
+				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -3506,7 +5672,328 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			))
 		})
 	})
+
+	t.Run("validate requireOneSlicingArgument with schema defaults", func(t *testing.T) {
+		t.Parallel()
+		listSchema := `
+			input Page {
+				first: Int = 8
+			}
+			type Query {
+			   search(input: Page): [Item!]
+			   items1(first: Int = 5, last: Int): [Item!]
+			   items2(first: Int = 5, last: Int = 3): [Item!]
+			}
+			type Item @key(fields: "id") {
+			  id: ID
+			}
+			`
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"items1", "items2", "search"}},
+			{TypeName: "Item", FieldNames: []string{"id"}},
+			{TypeName: "Page", FieldNames: []string{"first"}},
+		}
+		childNodes := []plan.TypeField{}
+
+		fieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "items1",
+				Path:      []string{"items1"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "items2",
+				Path:      []string{"items2"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "first", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+					{Name: "last", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "search",
+				Path:      []string{"search"},
+				Arguments: []plan.ArgumentConfiguration{
+					{Name: "input", SourceType: plan.FieldArgumentSource, RenderConfig: plan.RenderArgumentAsGraphQLValue},
+				},
+			},
+		}
+
+		costConfig := &plan.DataSourceCostConfig{
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "Item", FieldName: "id"}: {HasWeight: true, Weight: 1},
+			},
+			ListSizes: map[plan.FieldCoordinate]*plan.FieldListSize{
+				{TypeName: "Query", FieldName: "items1"}: {
+					AssumedSize:               10,
+					SlicingArguments:          []string{"first", "last"},
+					RequireOneSlicingArgument: true,
+				},
+				{TypeName: "Query", FieldName: "items2"}: {
+					AssumedSize:               10,
+					SlicingArguments:          []string{"first", "last"},
+					RequireOneSlicingArgument: true,
+				},
+				{TypeName: "Query", FieldName: "search"}: {
+					SlicingArguments:          []string{"input.first"},
+					RequireOneSlicingArgument: true,
+				},
+			},
+			Types: map[string]int{"Item": 2},
+		}
+		items1Body := `{"data":{"items1":[{"id":"1"}]}}`
+		items2Body := `{"data":{"items2":[{"id":"1"}]}}`
+		searchBody := `{"data":{"search":[{"id":"1"}]}}`
+		makeDS := func(t *testing.T, body string, schema string) []plan.DataSource {
+			t.Helper()
+			return []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t, "id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+							sendResponseBody: body,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes:  rootNodes,
+						ChildNodes: childNodes,
+						CostConfig: costConfig,
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(t, nil, schema),
+					}),
+				),
+			}
+		}
+
+		t.Run("single slicing arg supplied entirely by schema default is valid", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{Query: `{ items1 { id } }`}
+					},
+					dataSources:           makeDS(t, items1Body, listSchema),
+					fields:                fieldConfig,
+					expectedResponse:      items1Body,
+					expectedEstimatedCost: intPtr(15), // first default (5) * (Item(2)+Item.id(1))
+					expectedActualCost:    intPtr(3),
+				},
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("flat slicing arg with omitted variables falls back to schema default", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query: `query ($limit: Int) { items1(first: $limit) { id } }`,
+						}
+					},
+					dataSources:           makeDS(t, items1Body, listSchema),
+					fields:                fieldConfig,
+					expectedResponse:      items1Body,
+					expectedEstimatedCost: intPtr(15), // first default (5) * (Item(2)+Item.id(1))
+					expectedActualCost:    intPtr(3),  // 1 * (Item(2)+Item.id(1))
+				},
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("flat slicing arg with empty variable falls back to schema default", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query ($limit: Int) { items1(first: $limit) { id } }`,
+							Variables: []byte(`{}`),
+							// An absent variable is treated as omitted, schema default applies.
+						}
+					},
+					dataSources:           makeDS(t, items1Body, listSchema),
+					fields:                fieldConfig,
+					expectedResponse:      items1Body,
+					expectedEstimatedCost: intPtr(15), // first default (5) * (Item(2)+Item.id(1))
+					expectedActualCost:    intPtr(3),  // 1 * (Item(2)+Item.id(1))
+				},
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("two slicing args, both supplied by schema defaults, are not valid", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithAndCompareError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{Query: `{ items2 { id } }`}
+					},
+					dataSources: makeDS(t, items2Body, listSchema),
+					fields:      fieldConfig,
+				},
+				"external: field 'Query.items2' requires exactly one slicing argument, but 2 were provided, locations: [], path: [items2]",
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("one explicit slicing arg and defaulted arg are invalid", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithAndCompareError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{Query: `{ items2(first: 7) { id } }`}
+					},
+					dataSources: makeDS(t, items2Body, listSchema),
+					fields:      fieldConfig,
+				},
+				"external: field 'Query.items2' requires exactly one slicing argument, but 2 were provided, locations: [], path: [items2]",
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("one explicit slicing arg and variable-nulled arg are valid", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query ($n: Int) { items2(first: 7, last: $n) { id } }`,
+							Variables: []byte(`{"n": null}`),
+						}
+					},
+					dataSources:           makeDS(t, items2Body, listSchema),
+					fields:                fieldConfig,
+					expectedResponse:      items2Body,
+					expectedEstimatedCost: intPtr(21), // first (7) * (Item(2)+Item.id(1))
+					expectedActualCost:    intPtr(3),
+				},
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("one explicit slicing arg and nulled arg are valid", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{Query: `{ items2(first: 7, last: null) { id } }`}
+					},
+					dataSources:           makeDS(t, items2Body, listSchema),
+					fields:                fieldConfig,
+					expectedResponse:      items2Body,
+					expectedEstimatedCost: intPtr(21), // first default (7) * (Item(2)+Item.id(1))
+					expectedActualCost:    intPtr(3),
+				},
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("dot-path slicing arg supplied by input field default is valid", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{Query: `{ search(input: {}) { id } }`}
+					},
+					dataSources:           makeDS(t, searchBody, listSchema),
+					fields:                fieldConfig,
+					expectedResponse:      searchBody,
+					expectedEstimatedCost: intPtr(24), // Page.first default (8) * (Item(2)+Item.id(1))
+					expectedActualCost:    intPtr(3),
+				},
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("explicit null at dot-path leaf must not satisfy RequireOneSlicingArgument", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithAndCompareError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{Query: `{ search(input: { first: null }) { id } }`}
+					},
+					dataSources: makeDS(t, searchBody, listSchema),
+					fields:      fieldConfig,
+				},
+				"external: field 'Query.search' requires exactly one slicing argument, but none was provided, locations: [], path: [search]",
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("explicit null at dot-path leaf variable must not satisfy RequireOneSlicingArgument", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithAndCompareError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query ($n: Int) { search(input: { first: $n }) { id } }`,
+							Variables: []byte(`{"n": null}`),
+						}
+					},
+					dataSources: makeDS(t, searchBody, listSchema),
+					fields:      fieldConfig,
+				},
+				"external: field 'Query.search' requires exactly one slicing argument, but none was provided, locations: [], path: [search]",
+				computeCosts(),
+			)(t)
+		})
+
+		t.Run("explicit null at dot-path variable must not satisfy RequireOneSlicingArgument", func(t *testing.T) {
+			schema, err := graphql.NewSchemaFromString(listSchema)
+			require.NoError(t, err)
+			runWithAndCompareError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							Query:     `query ($n: Page) { search(input: $n) { id } }`,
+							Variables: []byte(`{"n": null}`),
+						}
+					},
+					dataSources: makeDS(t, searchBody, listSchema),
+					fields:      fieldConfig,
+				},
+				"external: field 'Query.search' requires exactly one slicing argument, but none was provided, locations: [], path: [search]",
+				computeCosts(),
+			)(t)
+		})
+	})
+
 	t.Run("validate requireOneSlicingArgument on abstract types", func(t *testing.T) {
+		t.Parallel()
 		// Abstract type tests: @listSize with requireOneSlicingArgument on concrete types,
 		// accessed through an interface field.
 		abstractSchema := `
@@ -3616,6 +6103,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:                abstractFieldConfig,
 				expectedResponse:      `{"data":{"search":{"items":[{"id":"1"}]}}}`,
 				expectedEstimatedCost: intPtr(11), // Paginated(1) + 5 * (Item(2) + Item.id(0))
+				expectedActualCost:    intPtr(3),  // Paginated(1) + 1 * (Item(2) + Item.id(0))
 			},
 			computeCosts(),
 		))
@@ -3681,10 +6169,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 			"external: field 'Paginated.items' requires exactly one slicing argument, but 2 were provided, locations: [], path: [search,items]",
 			computeCosts(),
 		))
-
 	})
 
 	t.Run("input object cost", func(t *testing.T) {
+		t.Parallel()
 		inputObjectSchema := `
 			type Query {
 				create(input: CreateInput!): User
@@ -4321,5 +6809,924 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				computeCosts(),
 			))
 		})
+	})
+
+	t.Run("cost of children with parent as null", func(t *testing.T) {
+		// It verifies that child fields nested under a nullable object field
+		// are not charged when that object resolves to null at runtime.
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+			type Query {
+				items(ids: [ID!]!): [Item]
+				item: Item
+			}
+			type Item  {
+				id: ID!
+				parent_item: Item
+				group: Group
+				board: Board
+			}
+			type Group { id: ID! }
+			type Board { id: ID! }
+		`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"items", "item"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Item", FieldNames: []string{"id", "parent_item", "group", "board"}},
+			{TypeName: "Group", FieldNames: []string{"id"}},
+			{TypeName: "Board", FieldNames: []string{"id"}},
+		}
+		itemsFieldConfig := []plan.FieldConfiguration{
+			{
+				TypeName: "Query", FieldName: "items",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:         "ids",
+						SourceType:   plan.FieldArgumentSource,
+						RenderConfig: plan.RenderArgumentAsGraphQLValue,
+					},
+				},
+			},
+		}
+
+		makeCase := func(query, response, expectedResponse string, costConfig *plan.DataSourceCostConfig, estimatedCost, actualCost int) ExecutionEngineTestCase {
+			if expectedResponse == "" {
+				expectedResponse = response
+			}
+			return ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: query}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: response,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                itemsFieldConfig,
+				expectedResponse:      expectedResponse,
+				expectedEstimatedCost: intPtr(estimatedCost),
+				expectedActualCost:    intPtr(actualCost),
+			}
+		}
+		t.Run("with child fields group and board", runWithoutError(
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
+							id
+							group { id }
+							board { id }
+						}
+					}
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":{"id":"1","group":{"id":"1"},"board":{"id":"2"}}},`+
+					`{"id":"3","parent_item":null}]}}`,
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5, "Board": 7},
+				},
+				160, // 10 * (2 + (2 + 5 + 7))
+				24,  //  3 * (2 + (2 + 0.33*(5 + 7)))
+			),
+			computeCosts(),
+		))
+		t.Run("without child fields group and board", runWithoutError(
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
+							id
+						}
+					}
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":{"id":"1"}},`+
+					`{"id":"3","parent_item":null}]}}`,
+				// group/board are not selected, so the engine strips them from the response.
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":{"id":"1"}},`+
+					`{"id":"3","parent_item":null}]}}`,
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5, "Board": 7},
+				},
+				40, // 10 * (2 + (2))
+				12, //  3 * (2 + (2))
+			),
+			computeCosts(),
+		))
+		t.Run("weighted field two levels under null parent is charged once", runWithoutError(
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
+							id
+							group { id }
+						}
+					}
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":{"id":"1","group":{"id":"1"}}},`+
+					`{"id":"3","parent_item":null}]}}`,
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				390, // 10 * (2 + (2 + (5 + 30)))
+				47,  //  3 * (2 + (2 + 0.33*(5 + 30)))
+			),
+			computeCosts(),
+		))
+
+		t.Run("weighted field two levels under not-null parents is not charged", runWithoutError(
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
+							id
+							group { id }
+						}
+					}
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":{"id":"1","group":null}},`+
+					`{"id":"2","parent_item":{"id":"2","group":null}},`+
+					`{"id":"3","parent_item":{"id":"3","group":null}}]}}`,
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				390, // 10 * (2 + (2 + 5))
+				27,  //  3 * (2 + (2 + 5))
+			),
+			computeCosts(),
+		))
+		t.Run("weighted field two levels under parent that is always null is never charged", runWithoutError(
+			makeCase(`query getItems {
+					items(ids: ["1", "2", "3"]) {
+						id
+						parent_item {
+							id
+							group { id }
+						}
+					}
+				}`,
+				`{"data":{"items":[`+
+					`{"id":"1","parent_item":null},`+
+					`{"id":"2","parent_item":null},`+
+					`{"id":"3","parent_item":null}]}}`,
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				390, // 10 * (2 + (2 + (5 + 30)))
+				12,  //  3 * (2 + 2 + 0*(5 + 30))
+			),
+			computeCosts(),
+		))
+		t.Run("children of null top-level object are not charged", runWithoutError(
+			makeCase(`query getItem {
+					item {
+						id
+						group { id }
+					}
+				}`,
+				`{"data":{"item":null}}`,
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				37, // 2 + (5 + 30)
+				2,  // 2 + 0*(5 + 30)
+			),
+			computeCosts(),
+		))
+		t.Run("children of non-null top-level object are charged", runWithoutError(
+			makeCase(`query getItem {
+					item {
+						id
+						group { id }
+					}
+				}`,
+				`{"data":{"item":{"id":"1","group":{"id":"g1"}}}}`,
+				"",
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Item": 2, "Group": 5},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Group", FieldName: "id"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				37, // 2 + (5 + 30)
+				37, // 2 + 1*(5 + 30)
+			),
+			computeCosts(),
+		))
+	})
+
+	t.Run("a list nested under a partially-null object that is itself under a list", func(t *testing.T) {
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+			type Query { users: [User] }
+			type User { id: ID!  profile: Profile }
+			type Profile { id: ID!  tags: [Tag] }
+			type Tag { id: ID!  name: String }
+		`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"users"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "User", FieldNames: []string{"id", "profile"}},
+			{TypeName: "Profile", FieldNames: []string{"id", "tags"}},
+			{TypeName: "Tag", FieldNames: []string{"id", "name"}},
+		}
+
+		response := `{"data":{"users":[` +
+			`{"id":"1","profile":null},` +
+			`{"id":"2","profile":{"id":"p2","tags":[` +
+			`{"id":"t1","name":"a"},{"id":"t2","name":"b"},{"id":"t3","name":"c"}]}}]}}`
+
+		t.Run("list under a partially-null object", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getUsers {
+						users {
+							id
+							profile {
+								id
+								tags { id name }
+							}
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: response,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Tag", FieldName: "name"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                []plan.FieldConfiguration{},
+				expectedResponse:      response,
+				expectedEstimatedCost: intPtr(3120), // 10 * (1 + (1 +  10 * (1 + 30)))
+				expectedActualCost:    intPtr(97),   //  2 * (1 + (1 + 0.5 * (3 * (1 + 30))))
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("an abstract non-list field that is null for some elements of an enclosing list", func(t *testing.T) {
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+			type Query { items: [Item] }
+			type Item { id: ID!  hero: Character }
+			interface Character { id: ID! }
+			type Human implements Character { id: ID!  name: String }
+			type Droid implements Character { id: ID!  name: String }
+		`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"items"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Item", FieldNames: []string{"id", "hero"}},
+			{TypeName: "Character", FieldNames: []string{"id"}},
+			{TypeName: "Human", FieldNames: []string{"id", "name"}},
+			{TypeName: "Droid", FieldNames: []string{"id", "name"}},
+		}
+
+		sendResponse := `{"data":{"items":[` +
+			`{"id":"1","hero":null},` +
+			`{"id":"2","hero":{"__typename":"Human","id":"h1","name":"Luke"}},` +
+			`{"id":"3","hero":null}]}}`
+
+		t.Run("abstract null object under list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items {
+							id
+							hero { ... on Human { name } }
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: sendResponse,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Item": 0, "Human": 0, "Droid": 0},
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"items":[` +
+					`{"id":"1","hero":null},` +
+					`{"id":"2","hero":{"name":"Luke"}},` +
+					`{"id":"3","hero":null}]}}`,
+				expectedEstimatedCost: intPtr(300), // 10 * (1 * 30)
+				// Human.name is resolved exactly once (only 1 of 3 heroes is non-null) => 30.
+				expectedActualCost: intPtr(30), // 3 * (0.33 * 30)
+			},
+			computeCosts(),
+		))
+
+		t.Run("abstract mixed types under list scales fragment by type count", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items {
+							id
+							hero { 
+								id
+								... on Human { name }
+							}
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[` +
+									`{"id":"1","hero":{"__typename":"Human","id":"h1","name":"Luke"}},` +
+									`{"id":"2","hero":{"__typename":"Human","id":"h2","name":"Han"}},` +
+									`{"id":"3","hero":{"__typename":"Droid","id":"d1"}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Item": 0, "Human": 0, "Droid": 0},
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"items":[` +
+					`{"id":"1","hero":{"id":"h1","name":"Luke"}},` +
+					`{"id":"2","hero":{"id":"h2","name":"Han"}},` +
+					`{"id":"3","hero":{"id":"d1"}}]}}`,
+				expectedEstimatedCost: intPtr(300), // 10 * (1    * 30)
+				expectedActualCost:    intPtr(60),  //  3 * (0.67 * 30)
+			},
+			computeCosts(),
+		))
+
+		t.Run("abstract mixed types with nulls under list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `query getItems {
+						items {
+							id
+							hero { id ... on Human { name } }
+						}
+					}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[` +
+									`{"id":"1","hero":{"__typename":"Human","id":"h1","name":"Luke"}},` +
+									`{"id":"2","hero":{"__typename":"Human","id":"h2","name":"Han"}},` +
+									`{"id":"3","hero":{"__typename":"Droid","id":"d1"}},` +
+									`{"id":"4","hero":null}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Item": 0, "Human": 0, "Droid": 0},
+								Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+									{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 30},
+								},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields: []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"items":[` +
+					`{"id":"1","hero":{"id":"h1","name":"Luke"}},` +
+					`{"id":"2","hero":{"id":"h2","name":"Han"}},` +
+					`{"id":"3","hero":{"id":"d1"}},` +
+					`{"id":"4","hero":null}]}}`,
+				expectedEstimatedCost: intPtr(300), // 10 * (1    * (1    * 30))
+				expectedActualCost:    intPtr(60),  //  4 * (0.75 * (0.67 * 30))
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("interface-selected field without explicit weights keeps its type weight", func(t *testing.T) {
+		// pet is selected on the interface Character and has no explicit weight on any
+		// implementing type, so its weight is the returned type's default (Pet = 1).
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+			type Query { heroes: [Character] }
+			interface Character { id: ID!  pet: Pet }
+			type Human implements Character { id: ID!  pet: Pet }
+			type Droid implements Character { id: ID!  pet: Pet }
+			type Pet { id: ID!  name: String }
+		`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"heroes"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Character", FieldNames: []string{"id", "pet"}},
+			{TypeName: "Human", FieldNames: []string{"id", "pet"}},
+			{TypeName: "Droid", FieldNames: []string{"id", "pet"}},
+			{TypeName: "Pet", FieldNames: []string{"id", "name"}},
+		}
+
+		response := `{"data":{"heroes":[` +
+			`{"__typename":"Human","pet":{"id":"p1","name":"a"}},` +
+			`{"__typename":"Droid","pet":{"id":"p2","name":"b"}}]}}`
+
+		t.Run("under abstract list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ heroes { pet { id name } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: response,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes:  rootNodes,
+							ChildNodes: childNodes,
+							CostConfig: &plan.DataSourceCostConfig{
+								Types: map[string]int{"Human": 0, "Droid": 0},
+							},
+						},
+						customConfig,
+					),
+				},
+				fields:                []plan.FieldConfiguration{},
+				expectedResponse:      `{"data":{"heroes":[{"pet":{"id":"p1","name":"a"}},{"pet":{"id":"p2","name":"b"}}]}}`,
+				expectedEstimatedCost: intPtr(10), // 10 * (0 + (Pet 1))
+				expectedActualCost:    intPtr(2),  //  2 * (0 + (Pet 1))
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("interface field weights on an abstract object under a concrete list", func(t *testing.T) {
+		// name is selected on the interface Character and has a different weight per implementing type.
+		// In actual mode, each occurrence must be billed at the weight of the concrete type
+		// that was returned, not at the max implementing weight.
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+			type Query { items: [Item] }
+			type Item { id: ID!  hero: Character }
+			interface Character { id: ID!  name: String }
+			type Human implements Character { id: ID!  name: String }
+			type Droid implements Character { id: ID!  name: String }
+		`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"items"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Item", FieldNames: []string{"id", "hero"}},
+			{TypeName: "Character", FieldNames: []string{"id", "name"}},
+			{TypeName: "Human", FieldNames: []string{"id", "name"}},
+			{TypeName: "Droid", FieldNames: []string{"id", "name"}},
+		}
+		costConfig := &plan.DataSourceCostConfig{
+			Types: map[string]int{"Item": 0, "Human": 0, "Droid": 0},
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "Human", FieldName: "name"}: {HasWeight: true, Weight: 7},
+				{TypeName: "Droid", FieldName: "name"}: {HasWeight: true, Weight: 17},
+			},
+		}
+
+		t.Run("with typenames bills actual type weights", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ items { hero { name } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[` +
+									`{"hero":{"__typename":"Human","name":"Luke"}},` +
+									`{"hero":{"__typename":"Human","name":"Han"}},` +
+									`{"hero":{"__typename":"Droid","name":"R2D2"}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields: []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"items":[` +
+					`{"hero":{"name":"Luke"}},` +
+					`{"hero":{"name":"Han"}},` +
+					`{"hero":{"name":"R2D2"}}]}}`,
+				expectedEstimatedCost: intPtr(170), // 10 * (0 + (0 + max(7, 17)))
+				// 2 Human heroes and 1 Droid hero: name billed per returned type.
+				expectedActualCost: intPtr(31), // 2*7 + 1*17
+			},
+			computeCosts(),
+		))
+
+		t.Run("without typenames rejects the values and bills nothing for them", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						Query: `{ items { hero { name } } }`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: `{"data":{"items":[` +
+									`{"hero":{"name":"Luke"}},` +
+									`{"hero":{"name":"Han"}},` +
+									`{"hero":{"name":"R2D2"}}]}}`,
+								sendStatusCode: 200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields: []plan.FieldConfiguration{},
+				// Abstract values without a __typename are rejected and nulled,
+				// so the actual cost bills nothing for them.
+				expectedResponse: `{"errors":[` +
+					`{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["items",0,"hero"],"extensions":{"code":"INVALID_GRAPHQL"}},` +
+					`{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["items",1,"hero"],"extensions":{"code":"INVALID_GRAPHQL"}},` +
+					`{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["items",2,"hero"],"extensions":{"code":"INVALID_GRAPHQL"}}],` +
+					`"data":{"items":[{"hero":null},{"hero":null},{"hero":null}]}}`,
+				expectedEstimatedCost: intPtr(170), // 10 * (0 + (0 + max(7, 17)))
+				expectedActualCost:    intPtr(0),
+			},
+			computeCosts(),
+		))
+	})
+
+	t.Run("fragment fields sharing a response path under an abstract list", func(t *testing.T) {
+		// Several cost-tree nodes resolve into the same response path when the same field
+		// is selected in multiple fragments. Runtime type stats are keyed by response path,
+		// so they aggregate occurrences across those nodes and cannot be attributed to a
+		// single node. The cases below document the correct actual costs.
+		t.Skip("not implemented yet")
+		t.Parallel()
+
+		schema, err := graphql.NewSchemaFromString(`
+			type Query { heroes: [Character] }
+			interface Character { id: ID! }
+			type Human implements Character { id: ID!  pet: Pet  friends: [Friend] }
+			type Droid implements Character { id: ID!  pet: Pet  friends: [Friend] }
+			type Pet { id: ID!  name: String  toy: Toy }
+			type Toy { id: ID!  name: String }
+			type Friend { id: ID!  name: String }
+		`)
+		require.NoError(t, err)
+
+		customConfig := mustConfiguration(t, graphql_datasource.ConfigurationInput{
+			Fetch: &graphql_datasource.FetchConfiguration{
+				URL:    "https://example.com/",
+				Method: "GET",
+			},
+			SchemaConfiguration: mustSchemaConfig(t, nil, string(schema.RawSchema())),
+		})
+
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"heroes"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Character", FieldNames: []string{"id"}},
+			{TypeName: "Human", FieldNames: []string{"id", "pet", "friends"}},
+			{TypeName: "Droid", FieldNames: []string{"id", "pet", "friends"}},
+			{TypeName: "Pet", FieldNames: []string{"id", "name", "toy"}},
+			{TypeName: "Toy", FieldNames: []string{"id", "name"}},
+			{TypeName: "Friend", FieldNames: []string{"id", "name"}},
+		}
+
+		makeCase := func(query string, costConfig *plan.DataSourceCostConfig, sendResponse, expectedResponse string, estimatedCost, actualCost int) ExecutionEngineTestCase {
+			return ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{Query: query}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t, "id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost: "example.com", expectedPath: "/", expectedBody: "",
+								sendResponseBody: sendResponse,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{RootNodes: rootNodes, ChildNodes: childNodes, CostConfig: costConfig},
+						customConfig,
+					),
+				},
+				fields:                []plan.FieldConfiguration{},
+				expectedResponse:      expectedResponse,
+				expectedEstimatedCost: intPtr(estimatedCost),
+				expectedActualCost:    intPtr(actualCost),
+			}
+		}
+
+		petNameCostConfig := &plan.DataSourceCostConfig{
+			Types: map[string]int{"Human": 0, "Droid": 0, "Pet": 0},
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "Pet", FieldName: "name"}: {HasWeight: true, Weight: 30},
+			},
+		}
+
+		// pet is selected in the Human fragment only and is null for one of the two Humans:
+		// its child name (weight 30) is resolved exactly once and must be billed once.
+		t.Run("null pet is not charged for its children", runWithoutError(
+			makeCase(
+				`{
+					heroes {
+						...on Human {
+							pet { name }
+						}
+					}
+				}`,
+				petNameCostConfig,
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","pet":{"id":"p1","name":"a"}},`+
+					`{"__typename":"Human","pet":null},`+
+					`{"__typename":"Droid"}]}}`,
+				`{"data":{"heroes":[`+
+					`{"pet":{"name":"a"}},`+
+					`{"pet":null},`+
+					`{}]}}`,
+				300, // 10 * (0 + (0 + 30))
+				// name is resolved once: pet is present for 1 of 2 Humans (3rd hero is a Droid).
+				30, // 3 * (0.67 * (0.5 * 30))
+			),
+			computeCosts(),
+		))
+
+		// The same nullable pet is selected in BOTH fragments; the shared-path guard fires
+		// and disables the null-discount for both nodes, so children are charged at the full
+		// type-share even where pet was null.
+		// 2 Humans (one null pet) and 1 Droid with a pet => 2 names resolved in total.
+		t.Run("nullable object selected in both fragments", runWithoutError(
+			makeCase(
+				`{
+					heroes {
+						...on Human {
+							pet { name }
+						}
+						...on Droid {
+							pet { name }
+						}
+					}
+				}`,
+				petNameCostConfig,
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","pet":{"name":"a"}},`+
+					`{"__typename":"Human","pet":null},`+
+					`{"__typename":"Droid","pet":{"name":"b"}}]}}`,
+				`{"data":{"heroes":[`+
+					`{"pet":{"name":"a"}},`+
+					`{"pet":null},`+
+					`{"pet":{"name":"b"}}]}}`,
+				300, // 10 * (0 + max(30, 30))
+				60,  // 2 names * 30
+			),
+			computeCosts(),
+		))
+
+		// A list field with the same response path in two fragments: the list-multiplier
+		// branch reads stats aggregated over both fragments and charges each node for the
+		// union of friends.
+		// 1 Human with 2 friends, 1 Droid with 1 friend => 3 names resolved in total.
+		t.Run("list field selected in both fragments", runWithoutError(
+			makeCase(
+				`{
+					heroes {
+						...on Human {
+							friends { name }
+						}
+						...on Droid {
+							friends { name }
+						}
+					}
+				}`,
+				&plan.DataSourceCostConfig{
+					Types: map[string]int{"Human": 0, "Droid": 0, "Friend": 0},
+					Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+						{TypeName: "Friend", FieldName: "name"}: {HasWeight: true, Weight: 30},
+					},
+				},
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","friends":[{"name":"a"},{"name":"b"}]},`+
+					`{"__typename":"Droid","friends":[{"name":"c"}]}]}}`,
+				`{"data":{"heroes":[`+
+					`{"friends":[{"name":"a"},{"name":"b"}]},`+
+					`{"friends":[{"name":"c"}]}]}}`,
+				3000, // 10 heroes * 10 friends * 30
+				90,   // 3 names * 30
+			),
+			computeCosts(),
+		))
+
+		// toy is nested one level deeper inside two fragments: the colliding pet nodes are
+		// siblings, but the toy nodes under them are not, so each toy node scales its
+		// children by the AVERAGE toy presence across both fragments instead of its own.
+		// Human's fragment selects the weighted toy.name; Droid's selects only toy.id (weight 0).
+		toyNameCostConfig := &plan.DataSourceCostConfig{
+			Types: map[string]int{"Human": 0, "Droid": 0, "Pet": 0, "Toy": 0},
+			Weights: map[plan.FieldCoordinate]*plan.FieldCost{
+				{TypeName: "Toy", FieldName: "name"}: {HasWeight: true, Weight: 30},
+			},
+		}
+		descendantQuery := `{
+			heroes {
+				...on Human {
+					pet { toy { name } }
+				}
+				...on Droid {
+					pet { toy { id } }
+				}
+			}
+		}`
+
+		t.Run("descendant of fragments, weighted name never resolved", runWithoutError(
+			makeCase(
+				descendantQuery,
+				toyNameCostConfig,
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","pet":{"toy":null}},`+
+					`{"__typename":"Droid","pet":{"toy":{"id":"t1"}}}]}}`,
+				`{"data":{"heroes":[`+
+					`{"pet":{"toy":null}},`+
+					`{"pet":{"toy":{"id":"t1"}}}]}}`,
+				300, // 10 * max(30, 0)
+				0,   // name never resolved
+			),
+			computeCosts(),
+		))
+
+		t.Run("descendant of fragments, weighted name resolved once", runWithoutError(
+			makeCase(
+				descendantQuery,
+				toyNameCostConfig,
+				`{"data":{"heroes":[`+
+					`{"__typename":"Human","pet":{"toy":{"name":"ball"}}},`+
+					`{"__typename":"Droid","pet":{"toy":null}}]}}`,
+				`{"data":{"heroes":[`+
+					`{"pet":{"toy":{"name":"ball"}}},`+
+					`{"pet":{"toy":null}}]}}`,
+				300, // 10 * max(30, 0)
+				30,  // name resolved once
+			),
+			computeCosts(),
+		))
 	})
 }

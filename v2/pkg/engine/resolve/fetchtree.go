@@ -254,6 +254,9 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 }
 
 func (n *FetchTreeQueryPlanNode) PrettyPrint() string {
+	if n == nil {
+		return ""
+	}
 	printer := PlanPrinter{}
 	return printer.Print(n)
 }

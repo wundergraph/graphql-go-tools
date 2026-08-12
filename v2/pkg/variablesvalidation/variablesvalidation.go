@@ -205,7 +205,7 @@ func (v *variablesVisitor) traverseOperationType(jsonValue *astjson.Value, opera
 			return
 		}
 
-		if jsonValue.Type() == astjson.TypeNull && varTypeName.String() != "Upload" {
+		if jsonValue.Type() == astjson.TypeNull && varTypeName.String() != "Upload" && !v.opts.ApolloRouterCompatibilityFlags.SkipNullVariablesError {
 			v.renderVariableInvalidNullError(v.currentVariableName, operationTypeRef)
 			return
 		}

@@ -130,7 +130,11 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	)
 
 	// Create connection
-	conn := newSSEConnection(resp, handler)
+	var conn *sseConnection
+	// When a connection's read loop terminates (terminal message, EOF, or read error),
+	// the onClose callback immediately removes it from the transport's connection map.
+	// This prevents naturally-completed streams from leaking until the transport is closed.
+	conn = newSSEConnection(resp, handler, func() { t.removeConn(conn) })
 
 	t.mu.Lock()
 	t.conns[conn] = struct{}{}

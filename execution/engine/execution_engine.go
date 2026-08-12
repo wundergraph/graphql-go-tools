@@ -101,6 +101,24 @@ func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	}
 }
 
+// WithAuthorizer sets the post-fetch authorizer on the resolve context.
+// Fields with an authorization rule are checked via AuthorizeObjectField
+// while the response is resolved.
+func WithAuthorizer(authorizer resolve.Authorizer) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SetAuthorizer(authorizer)
+	}
+}
+
+// WithPreFetchFieldAuthorizer enables pre-fetch field authorization: all protected
+// field coordinates of the operation are decided in one batch call before any fetch
+// executes, and fetches serving only denied fields are skipped.
+func WithPreFetchFieldAuthorizer(authorizer resolve.BatchAuthorizer) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SetPreFetchFieldAuthorizer(authorizer)
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {
@@ -153,6 +171,12 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			astnormalization.WithRemoveFragmentDefinitions(),
 			astnormalization.WithRemoveUnusedVariables(),
 			astnormalization.WithInlineFragmentSpreads(),
+			astnormalization.WithEnableDefer(),
+			astnormalization.WithPrevalidationRules(
+				astvalidation.DeferStreamOnValidOperations(),
+				astvalidation.DeferStreamHaveUniqueLabels(),
+				astvalidation.DirectivesAreInValidLocations(),
+				astvalidation.StreamAppliedToListFieldsOnly()),
 		)
 		if err != nil {
 			return err
@@ -181,12 +205,28 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 	}
 
-	// Validate user-supplied and extracted variables against the operation.
+	// Remap operation variables to canonical names. This mirrors what the cosmo
+	// router does so that downstream code (planner, cost calc, resolver) always
+	// goes through VariablesView/RemapVariables when reading variables.
+	var remapVariables map[string]string
+	if normalize {
+		var remapReport operationreport.Report
+		remapVariables = astnormalization.NewVariablesMapper().NormalizeOperation(
+			operation.Document(), e.config.schema.Document(), &remapReport,
+		)
+		if remapReport.HasErrors() {
+			return remapReport
+		}
+	}
+
+	// Validate user-supplied and extracted variables against the (remapped) operation.
+	// ValidateWithRemap translates renamed names back to originals for both JSON lookup
+	// and error messages, so users still see their declared variable names in errors.
 	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
 		validator := variablesvalidation.NewVariablesValidator(variablesvalidation.VariablesValidatorOptions{
 			ApolloCompatibilityFlags: e.apolloCompatibilityFlags,
 		})
-		if err := validator.Validate(operation.Document(), e.config.schema.Document(), operation.Variables); err != nil {
+		if err := validator.ValidateWithRemap(operation.Document(), e.config.schema.Document(), operation.Variables, remapVariables); err != nil {
 			return err
 		}
 	}
@@ -195,6 +235,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	execContext.setContext(ctx)
 	execContext.setVariables(operation.Variables)
 	execContext.setRequest(operation.InternalRequest())
+	execContext.resolveContext.RemapVariables = remapVariables
 
 	for i := range options {
 		options[i](execContext)
@@ -215,13 +256,14 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	if report.HasErrors() {
 		return report
 	}
+	varsView := execContext.resolveContext.VariablesView()
 	if costCalculator != nil {
-		costCalculator.ValidateSliceArguments(execContext.resolveContext.Variables, &report)
+		costCalculator.ValidateSliceArguments(varsView, &report)
 		if report.HasErrors() {
 			return report
 		}
 	}
-	operation.ComputeEstimatedCost(costCalculator, execContext.resolveContext.Variables)
+	operation.ComputeEstimatedCost(costCalculator, varsView)
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
@@ -240,9 +282,12 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			return err
 		}
 		if resp != nil {
-			operation.ComputeActualCost(costCalculator, execContext.resolveContext.Variables, execContext.resolveContext.ActualListSizes)
+			operation.ComputeActualCost(costCalculator, varsView, execContext.resolveContext)
 		}
 		return nil
+	case *plan.DeferResponsePlan:
+		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, writer)
+		return err
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:

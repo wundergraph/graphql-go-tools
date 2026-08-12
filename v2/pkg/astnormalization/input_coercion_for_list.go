@@ -1,6 +1,7 @@
 package astnormalization
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -103,7 +104,7 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	variableTypeRef = i.operation.ResolveListOrNameType(variableTypeRef)
 
 	value, dataType, _, err := i.getVariableValue(variableNameString)
-	if err == jsonparser.KeyPathNotFoundError {
+	if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 		// If the user doesn't provide any variable with that name,
 		// there is no need for coercion. Stop the operation
 		return
@@ -136,7 +137,7 @@ func (i *inputCoercionForListVisitor) makeJSONArray(nestingDepth int, value []by
 	defer pool.BytesBuffer.Put(out)
 
 	// value type is a non-array. Let's build an array from it.
-	for idx := 0; idx < nestingDepth; idx++ {
+	for range nestingDepth {
 		_, err := out.Write(literal.LBRACK)
 		if err != nil {
 			return nil, err
@@ -162,7 +163,7 @@ func (i *inputCoercionForListVisitor) makeJSONArray(nestingDepth int, value []by
 		}
 	}
 
-	for idx := 0; idx < nestingDepth; idx++ {
+	for range nestingDepth {
 		_, err = out.Write(literal.RBRACK)
 		if err != nil {
 			return nil, err

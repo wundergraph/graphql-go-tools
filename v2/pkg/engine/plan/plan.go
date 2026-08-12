@@ -9,6 +9,7 @@ type Kind int
 const (
 	SynchronousResponseKind Kind = iota + 1
 	SubscriptionResponseKind
+	DeferResponsePlanKind
 )
 
 type Plan interface {
@@ -60,4 +61,26 @@ func (s *SubscriptionResponsePlan) GetCostCalculator() *CostCalculator {
 
 func (s *SubscriptionResponsePlan) SetCostCalculator(c *CostCalculator) {
 	s.CostCalculator = c
+}
+
+type DeferResponsePlan struct {
+	Response       *resolve.GraphQLDeferResponse
+	FlushInterval  int64
+	CostCalculator *CostCalculator
+}
+
+func (d *DeferResponsePlan) PlanKind() Kind {
+	return DeferResponsePlanKind
+}
+
+func (d *DeferResponsePlan) SetFlushInterval(interval int64) {
+	d.FlushInterval = interval
+}
+
+func (d *DeferResponsePlan) GetCostCalculator() *CostCalculator {
+	return d.CostCalculator
+}
+
+func (d *DeferResponsePlan) SetCostCalculator(c *CostCalculator) {
+	d.CostCalculator = c
 }

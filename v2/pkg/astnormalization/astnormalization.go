@@ -98,8 +98,9 @@ func NormalizeNamedOperation(operation, definition *ast.Document, operationName 
 }
 
 type walkerStage struct {
-	name   string
-	walker *astvisitor.Walker
+	name          string
+	walker        *astvisitor.Walker
+	skipCondition func() bool // optional; stage is skipped when this returns true
 }
 
 // OperationNormalizer walks a given AST and applies all registered rules
@@ -107,6 +108,8 @@ type OperationNormalizer struct {
 	operationWalkers []walkerStage
 
 	removeOperationDefinitionsVisitor *removeOperationDefinitionsVisitor
+	inlineDeferVisitor                *deferExpandIntoInternalVisitor
+	inlineArgumentsVisitor            *inlineArgumentsVisitor
 
 	options              options
 	definitionNormalizer *DefinitionNormalizer
@@ -151,6 +154,9 @@ type options struct {
 	removeNotMatchingOperationDefinitions bool
 	normalizeDefinition                   bool
 	ignoreSkipInclude                     bool
+	enableDefer                           bool
+	prevalidationRules                    []func(walker *astvisitor.Walker)
+	inlineArgumentsValidation             *InlineArgumentsValidationOptions
 }
 
 type Option func(options *options)
@@ -158,6 +164,12 @@ type Option func(options *options)
 func WithExtractVariables() Option {
 	return func(options *options) {
 		options.extractVariables = true
+	}
+}
+
+func WithEnableDefer() Option {
+	return func(options *options) {
+		options.enableDefer = true
 	}
 }
 
@@ -197,6 +209,23 @@ func WithIgnoreSkipInclude() Option {
 	}
 }
 
+func WithPrevalidationRules(rules ...func(walker *astvisitor.Walker)) Option {
+	return func(options *options) {
+		options.prevalidationRules = rules
+	}
+}
+
+// WithInlineArgumentsValidation enables detection of arguments whose values are
+// supplied inline (as literals) instead of as variables. Findings are returned
+// from NormalizeNamedOperationWithResult as a NormalizationResult. When opts.Enforce
+// is set, normalization aborts on the first inline argument and surfaces the error
+// via the report instead of collecting findings.
+func WithInlineArgumentsValidation(opts InlineArgumentsValidationOptions) Option {
+	return func(options *options) {
+		options.inlineArgumentsValidation = &opts
+	}
+}
+
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 9)
 
@@ -218,8 +247,22 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	preventFragmentCycles(&directivesIncludeSkip)
 	directiveIncludeSkipKeepNodes(&directivesIncludeSkip, o.options.ignoreSkipInclude)
 
+	if len(o.options.prevalidationRules) > 0 {
+		for _, rule := range o.options.prevalidationRules {
+			rule(&directivesIncludeSkip)
+		}
+	}
+
+	if o.options.inlineArgumentsValidation != nil {
+		o.inlineArgumentsVisitor = registerInlineArgumentsValidation(&directivesIncludeSkip, *o.options.inlineArgumentsValidation)
+	}
+
 	cleanup := astvisitor.NewWalkerWithID(8, "Cleanup")
 	deduplicateFields(&cleanup)
+	if o.options.enableDefer {
+		// should happen after inlining defer fragments, to not produce unnecessary typename placeholders
+		deferEnsureTypename(&cleanup)
+	}
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
 		// register variable usage detection on the first stage
@@ -242,6 +285,13 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 			walker: &fragmentInline,
 		})
 	}
+
+	inlineDefer := astvisitor.NewWalkerWithID(8, "Inline defer")
+	o.inlineDeferVisitor = deferExpandIntoInternalWithDisabled(&inlineDefer, !o.options.enableDefer)
+	o.operationWalkers = append(o.operationWalkers, walkerStage{
+		name:   "inlineDefer",
+		walker: &inlineDefer,
+	})
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalkerWithID(8, "ExtractVariables")
@@ -282,6 +332,36 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &cleanup,
 	})
 
+	// deferAlignTypenameScope and deferPopulateParentIds MUST be two separate
+	// walker stages, in this order — they cannot be merged onto one walker.
+	// deferAlignTypenameScope rewrites __typename defer ids during EnterField,
+	// while deferPopulateParentIds builds a whole-tree set of live defer ids in
+	// EnterDocument (collectExistingDeferIds) to detect stale parentDeferIds. On a
+	// shared walker every EnterDocument runs once, up front — before any field
+	// rewrite — so the liveness pre-scan would observe the pre-alignment tree and
+	// keep parents pointing at defer ids that alignment is about to remove (e.g. a
+	// defer whose only field was a now-stripped __typename). Running them as
+	// sequential stages guarantees the pre-scan sees the aligned tree.
+	if o.options.enableDefer {
+		alignTypename := astvisitor.NewWalkerWithID(8, "AlignDeferTypenameScope")
+		deferAlignTypenameScope(&alignTypename)
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:          "alignDeferTypenameScope",
+			walker:        &alignTypename,
+			skipCondition: func() bool { return !o.inlineDeferVisitor.hasDefers() },
+		})
+	}
+
+	if o.options.enableDefer {
+		populateParentIds := astvisitor.NewWalkerWithID(8, "PopulateDeferParentIds")
+		deferPopulateParentIds(&populateParentIds)
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:          "populateDeferParentIds",
+			walker:        &populateParentIds,
+			skipCondition: func() bool { return !o.inlineDeferVisitor.hasDefers() },
+		})
+	}
+
 	if o.options.extractVariables {
 		variablesProcessing := astvisitor.NewWalkerWithID(8, "VariablesProcessing")
 		inputCoercionForList(&variablesProcessing)
@@ -311,6 +391,9 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 	}
 
 	for i := range o.operationWalkers {
+		if sc := o.operationWalkers[i].skipCondition; sc != nil && sc() {
+			continue
+		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
 		if report.HasErrors() {
 			return
@@ -318,12 +401,25 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 	}
 }
 
-// NormalizeNamedOperation applies all registered rules to one specific named operation in the AST
 func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast.Document, operationName []byte, report *operationreport.Report) {
+	o.NormalizeNamedOperationWithResult(operation, definition, operationName, report, RunOptions{})
+}
+
+func (o *OperationNormalizer) NormalizeNamedOperationWithResult(
+	operation, definition *ast.Document,
+	operationName []byte,
+	report *operationreport.Report,
+	runOpts RunOptions,
+) *NormalizationResult {
+	if o.inlineArgumentsVisitor != nil {
+		o.inlineArgumentsVisitor.disabled = runOpts.SkipInlineArguments
+		o.inlineArgumentsVisitor.result.InlineArguments = o.inlineArgumentsVisitor.result.InlineArguments[:0]
+	}
+
 	if o.options.normalizeDefinition {
 		o.prepareDefinition(definition, report)
 		if report.HasErrors() {
-			return
+			return nil
 		}
 	}
 
@@ -332,9 +428,12 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 	}
 
 	for i := range o.operationWalkers {
+		if sc := o.operationWalkers[i].skipCondition; sc != nil && sc() {
+			continue
+		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
 		if report.HasErrors() {
-			return
+			return nil
 		}
 
 		// NOTE: debug code - do not remove
@@ -343,6 +442,11 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 		// fmt.Println(printed)
 		// fmt.Println("variables:", string(operation.Input.Variables))
 	}
+
+	if o.inlineArgumentsVisitor != nil {
+		return &o.inlineArgumentsVisitor.result
+	}
+	return nil
 }
 
 type VariablesNormalizer struct {

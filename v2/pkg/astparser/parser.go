@@ -1557,17 +1557,22 @@ func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList)
 		case keyword.RPAREN:
 			list.RPAREN = p.read().TextPosition
 			return
+		case keyword.STRING, keyword.BLOCKSTRING:
+			// Description before variable definition (September 2025 spec)
+			description := p.parseDescription()
+			if cap(list.Refs) == 0 {
+				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
+			}
+			ref := p.parseVariableDefinition(&description)
+			list.Refs = append(list.Refs, ref)
 		case keyword.DOLLAR:
 			if cap(list.Refs) == 0 {
 				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
 			}
-			ref := p.parseVariableDefinition()
-			if cap(list.Refs) == 0 {
-				list.Refs = p.document.Refs[p.document.NextRefIndex()][:0]
-			}
+			ref := p.parseVariableDefinition(nil)
 			list.Refs = append(list.Refs, ref)
 		default:
-			p.errUnexpectedToken(p.read(), keyword.RPAREN, keyword.DOLLAR)
+			p.errUnexpectedToken(p.read(), keyword.RPAREN, keyword.DOLLAR, keyword.STRING, keyword.BLOCKSTRING)
 			return
 		}
 
@@ -1577,9 +1582,13 @@ func (p *Parser) parseVariableDefinitionList() (list ast.VariableDefinitionList)
 	}
 }
 
-func (p *Parser) parseVariableDefinition() int {
+func (p *Parser) parseVariableDefinition(description *ast.Description) int {
 
 	var variableDefinition ast.VariableDefinition
+
+	if description != nil {
+		variableDefinition.Description = *description
+	}
 
 	variableDefinition.VariableValue.Kind = ast.ValueKindVariable
 	variableDefinition.VariableValue.Ref, variableDefinition.VariableValue.Position = p.parseVariableValue()

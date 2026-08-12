@@ -41,10 +41,11 @@ func (w *websocketHook) OnBeforeStart(reqCtx context.Context, operation *graphql
 	return nil
 }
 
+//nolint:tparallel // Subtests share websocket clients, hooks, and test servers; parallel execution is unsafe here.
 func TestHandler_Handle(t *testing.T) {
+	t.Parallel()
 	t.Run("engine v2", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
@@ -250,8 +251,7 @@ func TestHandler_Handle(t *testing.T) {
 
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
-				defer cancelFunc()
+				ctx := t.Context()
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
 
@@ -672,7 +672,7 @@ func setupSubscriptionHandlerWithInitFuncTest(
 	return subscriptionHandler, client, routine
 }
 
-func jsonizePayload(t *testing.T, payload interface{}) json.RawMessage {
+func jsonizePayload(t *testing.T, payload any) json.RawMessage {
 	jsonBytes, err := json.Marshal(payload)
 	require.NoError(t, err)
 

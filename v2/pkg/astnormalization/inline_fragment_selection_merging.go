@@ -70,6 +70,8 @@ func (f *inlineFragmentSelectionMergeVisitor) fieldsCanMerge(left, right int) bo
 	leftDirectives := f.operation.FieldDirectives(left)
 	rightDirectives := f.operation.FieldDirectives(right)
 
+	// For fields with selections, check that all directives are equal
+	// This ensures @skip, @include, @defer and @stream all match
 	return f.operation.DirectiveSetsAreEqual(leftDirectives, rightDirectives)
 }
 
@@ -87,6 +89,8 @@ func (f *inlineFragmentSelectionMergeVisitor) mergeFields(left, right int) (ok b
 	if !ok {
 		return false
 	}
+
+	f.operation.MergeFieldsDefer(left, right)
 
 	f.operation.AppendSelectionSet(leftSet, rightSet)
 	return true
@@ -119,6 +123,7 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 				if !f.fragmentsCanBeMerged(leftRef, rightRef) {
 					continue
 				}
+
 				if f.mergeInlineFragments(leftRef, rightRef) {
 					f.operation.RemoveFromSelectionSet(ref, j)
 					f.RevisitNode()
