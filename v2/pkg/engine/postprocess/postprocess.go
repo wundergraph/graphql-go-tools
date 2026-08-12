@@ -62,20 +62,12 @@ func (p *FetchTreeProcessors) organizeFetchTree(fetches *resolve.FetchTreeNode) 
 	p.createParallelNodes.ProcessFetchTree(fetches)
 }
 
-// processOrganizedFetchTree runs the stages that operate on the ORGANIZED tree,
-// after organizeFetchTree has materialized the real sequence/parallel waves.
-// It is applied to every response tree, including each extracted defer group,
-// so that the same semantics hold for deferred fetches.
+// processOrganizedFetchTree runs the stages that operate on the tree organized in waves.
 func (p *FetchTreeProcessors) processOrganizedFetchTree(fetches *resolve.FetchTreeNode) {
-	// createMultiFetch runs unconditionally: it merges same-subgraph entity
-	// fetches within each real parallel group when enabled (a no-op when
-	// disabled). It walks the organized tree, so it must run after
-	// organizeFetchTree.
+	// merge same-subgraph entity fetches within each real parallel group when enabled.
 	p.createMultiFetch.ProcessFetchTree(fetches)
-	// renderSubgraphInputs runs unconditionally after createMultiFetch and before
-	// resolveInputTemplates: it renders the deferred entity-fetch input string
-	// for surviving (unmerged) fetches and clears the SubgraphOperation artifacts
-	// so no AST survives postprocessing.
+	// render the deferred entity-fetch input string for unmerged fetches and
+	// clear the SubgraphOperation artifacts so no AST survives postprocessing.
 	p.renderSubgraphInputs.ProcessFetchTree(fetches)
 	p.resolveInputTemplates.ProcessFetchTree(fetches)
 	p.createConcreteSingleFetchTypes.ProcessFetchTree(fetches)
