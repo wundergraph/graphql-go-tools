@@ -129,7 +129,7 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 		err = entry.Representations.Render(l.ctx, item, itemInput)
 		if err != nil {
 			if entry.SkipErrItems {
-				err = nil // nolint:ineffassign
+				err = nil //nolint:ineffassign,wastedassign
 				continue
 			}
 			return nil, false, errors.WithStack(err)
