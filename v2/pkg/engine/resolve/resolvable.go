@@ -356,7 +356,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 
 	hasErrors := r.walkNode(node, data)
 	if hasErrors {
-		return fmt.Errorf("error resolving node")
+		return errors.New("error resolving node")
 	}
 
 	r.enableRender = true
@@ -2366,11 +2366,11 @@ func (r *Resolvable) renderApolloCompatibleNonNullableErrorMessage() string {
 func (r *Resolvable) renderRootFieldCoordinates(fieldName string) string {
 	switch r.operationType {
 	case ast.OperationTypeQuery:
-		return fmt.Sprintf("Query.%s", fieldName)
+		return "Query." + fieldName
 	case ast.OperationTypeMutation:
-		return fmt.Sprintf("Mutation.%s", fieldName)
+		return "Mutation." + fieldName
 	case ast.OperationTypeSubscription:
-		return fmt.Sprintf("Subscription.%s", fieldName)
+		return "Subscription." + fieldName
 	default:
 		return invalidPath
 	}

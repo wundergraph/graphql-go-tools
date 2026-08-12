@@ -270,7 +270,7 @@ func (s *MockService) RequireStorageKindSummaryById(_ context.Context, req *prod
 
 	for _, ctx := range req.GetContext() {
 		fields := ctx.GetFields()
-		kindSummary := fmt.Sprintf("Kind: %s", fields.GetStorageKind().String())
+		kindSummary := "Kind: " + fields.GetStorageKind().String()
 
 		results = append(results, &productv1.RequireStorageKindSummaryByIdResult{
 			KindSummary: kindSummary,
@@ -392,9 +392,9 @@ func (s *MockService) RequireStorageItemHandlerInfoById(_ context.Context, req *
 		var info string
 		switch v := item.GetInstance().(type) {
 		case *productv1.RequireStorageItemHandlerInfoByIdFields_StorageItem_PalletItem:
-			info = fmt.Sprintf("PalletHandler: %s", v.PalletItem.GetHandler().GetName())
+			info = "PalletHandler: " + v.PalletItem.GetHandler().GetName()
 		case *productv1.RequireStorageItemHandlerInfoByIdFields_StorageItem_ContainerItem:
-			info = fmt.Sprintf("ContainerHandler: %s", v.ContainerItem.GetHandler().GetName())
+			info = "ContainerHandler: " + v.ContainerItem.GetHandler().GetName()
 		default:
 			info = "Unknown handler"
 		}
@@ -461,7 +461,7 @@ func (s *MockService) RequireStorageDeepItemInfoById(_ context.Context, req *pro
 				info = "PalletHandler->Unknown"
 			}
 		case *productv1.RequireStorageDeepItemInfoByIdFields_StorageItem_ContainerItem:
-			info = fmt.Sprintf("ContainerHandler: %s", v.ContainerItem.GetHandler().GetName())
+			info = "ContainerHandler: " + v.ContainerItem.GetHandler().GetName()
 		default:
 			info = "Unknown deep item"
 		}
@@ -563,13 +563,13 @@ func (s *MockService) RequireStorageRecommendedItemById(_ context.Context, req *
 		if capacity > 100 {
 			item = newHandledPalletStorageItem(
 				fmt.Sprintf("pallet-%s-%d", zone, capacity),
-				fmt.Sprintf("Pallet for zone %s", zone),
+				"Pallet for zone "+zone,
 				capacity/10,
 			)
 		} else {
 			item = newHandledContainerStorageItem(
 				fmt.Sprintf("container-%s-%d", zone, capacity),
-				fmt.Sprintf("Container for zone %s", zone),
+				"Container for zone "+zone,
 				fmt.Sprintf("%dL", capacity),
 			)
 		}
@@ -595,14 +595,14 @@ func (s *MockService) RequireStorageRecommendedItemsById(_ context.Context, req 
 			// Alternate between both concrete types so every list contains a mix.
 			if i%2 == 0 {
 				items = append(items, newHandledPalletStorageItem(
-					fmt.Sprintf("pallet-%s", tag),
-					fmt.Sprintf("Pallet %s", tag),
+					"pallet-"+tag,
+					"Pallet "+tag,
 					int32(i+1),
 				))
 			} else {
 				items = append(items, newHandledContainerStorageItem(
-					fmt.Sprintf("container-%s", tag),
-					fmt.Sprintf("Container %s", tag),
+					"container-"+tag,
+					"Container "+tag,
 					strings.ToUpper(tag),
 				))
 			}
@@ -632,14 +632,14 @@ func (s *MockService) RequireStorageLatestOperationById(_ context.Context, req *
 			productv1.CategoryKind_CATEGORY_KIND_FURNITURE:
 			operation.Value = &productv1.StorageOperationResult_StorageSuccess{
 				StorageSuccess: &productv1.StorageSuccess{
-					Message:     fmt.Sprintf("Operation completed for %s", kind.String()),
+					Message:     "Operation completed for " + kind.String(),
 					CompletedAt: "2024-01-01T00:00:00Z",
 				},
 			}
 		default:
 			operation.Value = &productv1.StorageOperationResult_StorageFailure{
 				StorageFailure: &productv1.StorageFailure{
-					Message:   fmt.Sprintf("Operation failed for %s", kind.String()),
+					Message:   "Operation failed for " + kind.String(),
 					ErrorCode: "UNSUPPORTED_KIND",
 				},
 			}
@@ -671,7 +671,7 @@ func (s *MockService) RequireStorageOptionalLatestOperationById(_ context.Contex
 			operation = &productv1.StorageOperationResult{
 				Value: &productv1.StorageOperationResult_StorageFailure{
 					StorageFailure: &productv1.StorageFailure{
-						Message:   fmt.Sprintf("Operation failed for tags: %s", strings.Join(items, ", ")),
+						Message:   "Operation failed for tags: " + strings.Join(items, ", "),
 						ErrorCode: "EVEN_TAG_COUNT",
 					},
 				},
@@ -680,7 +680,7 @@ func (s *MockService) RequireStorageOptionalLatestOperationById(_ context.Contex
 			operation = &productv1.StorageOperationResult{
 				Value: &productv1.StorageOperationResult_StorageSuccess{
 					StorageSuccess: &productv1.StorageSuccess{
-						Message:     fmt.Sprintf("Operation completed for tags: %s", strings.Join(items, ", ")),
+						Message:     "Operation completed for tags: " + strings.Join(items, ", "),
 						CompletedAt: "2024-01-02T00:00:00Z",
 					},
 				},

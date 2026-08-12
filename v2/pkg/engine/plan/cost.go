@@ -1137,7 +1137,7 @@ func (node *CostTreeNode) debugPrint(sb *strings.Builder, input *costInput, dept
 					argStrs = append(argStrs, fmt.Sprintf("%s=%s($%s)", name, v, arg.varName))
 				}
 			} else {
-				argStrs = append(argStrs, fmt.Sprintf("%s=<obj>", name))
+				argStrs = append(argStrs, name+"=<obj>")
 			}
 		}
 		fmt.Fprintf(sb, "%s  args: {%s}\n", indent, strings.Join(argStrs, ", "))

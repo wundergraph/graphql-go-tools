@@ -1743,13 +1743,13 @@ type Factory[T Configuration] struct {
 // make sure you are using the same execution context for all datasources
 func NewFactory(executionContext context.Context, httpClient *http.Client, subscriptionClient GraphQLSubscriptionClient) (*Factory[Configuration], error) {
 	if executionContext == nil {
-		return nil, fmt.Errorf("execution context is required")
+		return nil, errors.New("execution context is required")
 	}
 	if httpClient == nil {
-		return nil, fmt.Errorf("http client is required")
+		return nil, errors.New("http client is required")
 	}
 	if subscriptionClient == nil {
-		return nil, fmt.Errorf("subscription client is required")
+		return nil, errors.New("subscription client is required")
 	}
 
 	return &Factory[Configuration]{
@@ -1764,11 +1764,11 @@ func NewFactory(executionContext context.Context, httpClient *http.Client, subsc
 // make sure you are using the same execution context for all datasources.
 func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConnInterface) (*Factory[Configuration], error) {
 	if executionContext == nil {
-		return nil, fmt.Errorf("execution context is required")
+		return nil, errors.New("execution context is required")
 	}
 
 	if grpcClient == nil {
-		return nil, fmt.Errorf("grpc client is required")
+		return nil, errors.New("grpc client is required")
 	}
 
 	return &Factory[Configuration]{
@@ -1784,11 +1784,11 @@ func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConn
 // For example, when you need to recreate the client in case of a connection error.
 func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvider func() grpc.ClientConnInterface) (*Factory[Configuration], error) {
 	if executionContext == nil {
-		return nil, fmt.Errorf("execution context is required")
+		return nil, errors.New("execution context is required")
 	}
 
 	if clientProvider == nil {
-		return nil, fmt.Errorf("provider function is required")
+		return nil, errors.New("provider function is required")
 	}
 
 	transportProvider := func() grpcdatasource.RPCTransport {
@@ -1809,11 +1809,11 @@ func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvid
 // datasource planner. Callers can provide either a gRPC or Connect RPCTransport.
 func NewFactoryRPCTransport(executionContext context.Context, rpcTransport grpcdatasource.RPCTransport) (*Factory[Configuration], error) {
 	if executionContext == nil {
-		return nil, fmt.Errorf("execution context is required")
+		return nil, errors.New("execution context is required")
 	}
 
 	if rpcTransport == nil {
-		return nil, fmt.Errorf("rpc transport is required")
+		return nil, errors.New("rpc transport is required")
 	}
 
 	return &Factory[Configuration]{

@@ -1,6 +1,7 @@
 package jsonschema
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -536,7 +537,7 @@ func (v *VariablesSchemaBuilder) convertDefinitionValueToNative(value ast.Value)
 // nesting depth.
 func BuildJsonSchema(operationDocument, definitionDocument *ast.Document) (*JsonSchema, error) {
 	if len(operationDocument.OperationDefinitions) == 0 {
-		return nil, fmt.Errorf("no operations found in document")
+		return nil, errors.New("no operations found in document")
 	}
 
 	return NewVariablesSchemaBuilder(operationDocument, definitionDocument).Build()

@@ -285,7 +285,7 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 	}
 
 	if len(fd) == 0 {
-		return nil, fmt.Errorf("no files compiled")
+		return nil, errors.New("no files compiled")
 	}
 
 	schemaFile := fd[0]
@@ -528,11 +528,11 @@ func (p *RPCCompiler) newEmptyMessage(message Message) (protoref.Message, error)
 //	}
 func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result, context []FetchItem) (protoref.Message, error) {
 	if rpcMessage == nil {
-		return nil, fmt.Errorf("rpc message is nil")
+		return nil, errors.New("rpc message is nil")
 	}
 
 	if len(context) == 0 {
-		return nil, fmt.Errorf("context is required for resolve calls")
+		return nil, errors.New("context is required for resolve calls")
 	}
 
 	// If the context is empty, we can skip the invocation
@@ -622,7 +622,7 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 //	}
 func (p *RPCCompiler) buildRequiredFieldsMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) (protoref.Message, error) {
 	if rpcMessage == nil {
-		return nil, fmt.Errorf("rpc message is nil")
+		return nil, errors.New("rpc message is nil")
 	}
 
 	if p.doc.MessageRefByName(rpcMessage.Name) == InvalidRef {
@@ -962,7 +962,7 @@ func (p *RPCCompiler) setMessageValue(message protoref.Message, fieldName string
 		list := message.Mutable(fd).List()
 		source, ok := value.Interface().(protoref.List)
 		if !ok {
-			return fmt.Errorf("value is not a list")
+			return errors.New("value is not a list")
 		}
 
 		p.copyListValues(source, list)

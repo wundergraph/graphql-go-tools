@@ -18,6 +18,7 @@ linters:
     - nilerr
     - nilnesserr
     - nolintlint
+    - perfsprint
     - reassign
     - spancheck
     - embeddedstructfieldcheck

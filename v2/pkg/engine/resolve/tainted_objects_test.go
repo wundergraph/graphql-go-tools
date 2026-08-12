@@ -1,7 +1,7 @@
 package resolve
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,7 +80,7 @@ func TestSelectObjectAndIndex(t *testing.T) {
 				case string:
 					path[i] = astjson.MustParse(`"` + v + `"`)
 				case int:
-					path[i] = astjson.MustParse(fmt.Sprintf("%d", v))
+					path[i] = astjson.MustParse(strconv.Itoa(v))
 				default:
 					t.Fatalf("Unsupported path element type: %T", v)
 				}

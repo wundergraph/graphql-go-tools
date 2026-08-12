@@ -484,7 +484,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		enumValues := []string{"BOOK", "ELECTRONICS", "FURNITURE", "OTHER"}
 
 		for _, enumValue := range enumValues {
-			t.Run(fmt.Sprintf("Test with enum value %s", enumValue), func(t *testing.T) {
+			t.Run("Test with enum value "+enumValue, func(t *testing.T) {
 				operation := graphql.Request{
 					OperationName: "CategoriesByKindQuery",
 					Variables: stringify(map[string]any{

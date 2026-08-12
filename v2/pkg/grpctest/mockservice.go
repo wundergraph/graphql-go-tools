@@ -27,8 +27,8 @@ func (s *MockService) QueryTestContainer(_ context.Context, req *productv1.Query
 	return &productv1.QueryTestContainerResponse{
 		TestContainer: &productv1.TestContainer{
 			Id:          id,
-			Name:        fmt.Sprintf("TestContainer-%s", id),
-			Description: &wrapperspb.StringValue{Value: fmt.Sprintf("Description for TestContainer %s", id)},
+			Name:        "TestContainer-" + id,
+			Description: &wrapperspb.StringValue{Value: "Description for TestContainer " + id},
 		},
 	}, nil
 }
@@ -254,7 +254,7 @@ func (s *MockService) QueryUser(ctx context.Context, in *productv1.QueryUserRequ
 	}
 
 	// Include existing metadata value in the name if present
-	userName := fmt.Sprintf("User %s", userId)
+	userName := "User " + userId
 	if existingValue != "" {
 		userName = fmt.Sprintf("User %s (existing: %s)", userId, existingValue)
 	}

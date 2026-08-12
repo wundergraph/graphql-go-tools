@@ -162,7 +162,7 @@ func NewSchemaConfiguration(upstreamSchema string, federationCfg *FederationConf
 	cfg := &SchemaConfiguration{upstreamSchema: upstreamSchema, federation: federationCfg}
 
 	if cfg.upstreamSchema == "" {
-		return nil, fmt.Errorf("upstream schema is required")
+		return nil, errors.New("upstream schema is required")
 	}
 
 	definition := ast.NewSmallDocument()
@@ -171,7 +171,7 @@ func NewSchemaConfiguration(upstreamSchema string, federationCfg *FederationConf
 
 	if cfg.federation != nil && cfg.federation.Enabled {
 		if cfg.federation.ServiceSDL == "" {
-			return nil, fmt.Errorf("federation service SDL is required")
+			return nil, errors.New("federation service SDL is required")
 		}
 
 		federationSchema, err := federation.BuildFederationSchema(cfg.upstreamSchema, cfg.federation.ServiceSDL)

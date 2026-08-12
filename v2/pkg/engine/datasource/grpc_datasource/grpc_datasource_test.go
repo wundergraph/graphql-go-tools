@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -109,7 +110,7 @@ func (m mockInterface) Invoke(ctx context.Context, method string, args any, repl
 
 	msg, ok := reply.(*dynamicpb.Message)
 	if !ok {
-		return fmt.Errorf("reply is not a dynamicpb.Message")
+		return errors.New("reply is not a dynamicpb.Message")
 	}
 
 	// Based on the method name, populate the response with appropriate test data

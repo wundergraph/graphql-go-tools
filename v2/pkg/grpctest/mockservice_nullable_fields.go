@@ -199,12 +199,12 @@ func (s *MockService) QueryNullableFieldsTypeById(ctx context.Context, in *produ
 		// Generic response for any other ID
 		result = &productv1.NullableFieldsType{
 			Id:              id,
-			Name:            fmt.Sprintf("Nullable Type %s", id),
-			OptionalString:  &wrapperspb.StringValue{Value: fmt.Sprintf("Optional for %s", id)},
+			Name:            "Nullable Type " + id,
+			OptionalString:  &wrapperspb.StringValue{Value: "Optional for " + id},
 			OptionalInt:     &wrapperspb.Int32Value{Value: int32(len(id) * 10)},
 			OptionalFloat:   &wrapperspb.DoubleValue{Value: float64(len(id)) * 1.5},
 			OptionalBoolean: &wrapperspb.BoolValue{Value: len(id)%2 == 0},
-			RequiredString:  fmt.Sprintf("Required for %s", id),
+			RequiredString:  "Required for " + id,
 			RequiredInt:     int32(len(id) * 100),
 		}
 	}

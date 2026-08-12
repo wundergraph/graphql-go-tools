@@ -1,6 +1,7 @@
 package grpcdatasource
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -64,7 +65,7 @@ func (g *DependencyGraph) TopologicalSortResolve(resolver func(nodes []FetchItem
 	var visit func(index int) error
 	visit = func(index int) error {
 		if cycleChecks[index] {
-			return fmt.Errorf("cycle detected")
+			return errors.New("cycle detected")
 		}
 
 		// We are marking the call as visited to avoid cycles.

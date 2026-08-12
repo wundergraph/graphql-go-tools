@@ -3,7 +3,6 @@ package graphqljsonschema
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/buger/jsonparser"
 	"github.com/santhosh-tekuri/jsonschema/v5"
@@ -102,7 +101,7 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 		name := operation.Input.ByteSliceString(t.Name)
 		storeAsName := name
 		if nonNull {
-			storeAsName = fmt.Sprintf("%sNotNull", name)
+			storeAsName = name + "NotNull"
 		}
 
 		if schema, ok := r.overrides[name]; ok {
@@ -383,7 +382,7 @@ func (Ref) Kind() Kind {
 
 func NewRef(definitionName string) Ref {
 	return Ref{
-		Ref: fmt.Sprintf("#/$defs/%s", definitionName),
+		Ref: "#/$defs/" + definitionName,
 	}
 }
 

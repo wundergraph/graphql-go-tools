@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -146,7 +147,7 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 					require.True(t, ok, "entity should be an object")
 					productID := index + 1
 
-					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
+					require.Equal(t, strconv.Itoa(productID), entity["id"])
 					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
 					require.InDelta(t, float64(99.99), entity["price"], 0.01)
 					require.InDelta(t, float64(77.49), entity["shippingEstimate"], 0.01)
@@ -396,7 +397,7 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 					require.True(t, ok, "entity should be an object")
 					productID := index + 1
 
-					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
+					require.Equal(t, strconv.Itoa(productID), entity["id"])
 					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
 
 					mascot, ok := entity["mascotRecommendation"].(map[string]any)
@@ -470,7 +471,7 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 					require.True(t, ok, "entity should be an object")
 					productID := index + 1
 
-					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
+					require.Equal(t, strconv.Itoa(productID), entity["id"])
 					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
 
 					stockStatus, ok := entity["stockStatus"].(map[string]any)
@@ -528,7 +529,7 @@ func Test_DataSource_Load_WithEntity_Calls_WithCompositeTypes(t *testing.T) {
 					require.True(t, ok, "entity should be an object")
 					productID := index + 1
 
-					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
+					require.Equal(t, strconv.Itoa(productID), entity["id"])
 					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
 
 					details, ok := entity["productDetails"].(map[string]any)
@@ -817,7 +818,7 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 				for i, expectedScore := range expectedScores {
 					storage, ok := entities[i].(map[string]any)
 					require.True(t, ok, "storage%d should be an object", i+1)
-					require.Equal(t, fmt.Sprintf("%d", i+1), storage["id"])
+					require.Equal(t, strconv.Itoa(i+1), storage["id"])
 					require.Equal(t, fmt.Sprintf("Storage %d", i+1), storage["name"])
 					require.Equal(t, expectedScore, storage["stockHealthScore"], "plain response key of storage%d", i+1)
 					require.Equal(t, expectedScore, storage["aliasedScore"], "aliased response key of storage%d", i+1)

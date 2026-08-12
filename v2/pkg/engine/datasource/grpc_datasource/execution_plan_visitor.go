@@ -134,7 +134,7 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 	r.operationFieldRefs = r.operation.SelectionSetFieldRefs(selectionSetRef)
 
 	if len(r.operationFieldRefs) == 0 {
-		r.walker.StopWithInternalErr(fmt.Errorf("internal: unexpected operation definition with no fields"))
+		r.walker.StopWithInternalErr(errors.New("internal: unexpected operation definition with no fields"))
 		return
 	}
 
