@@ -714,7 +714,7 @@ func TestParser_Parse(t *testing.T) {
 					wantValue := func(index int, name string) {
 						enum := doc.EnumValueDefinitions[direction.EnumValuesDefinition.Refs[index]]
 						if doc.Input.ByteSliceString(enum.EnumValue) != name {
-							panic("want " + name)
+							panic(fmt.Sprintf("want %s", name))
 						}
 					}
 
@@ -1425,7 +1425,7 @@ func TestParser_Parse(t *testing.T) {
 					wantValue := func(index int, name string) {
 						enum := doc.EnumValueDefinitions[direction.EnumValuesDefinition.Refs[index]]
 						if doc.Input.ByteSliceString(enum.EnumValue) != name {
-							panic("want " + name)
+							panic(fmt.Sprintf("want %s", name))
 						}
 					}
 

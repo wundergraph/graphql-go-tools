@@ -3,6 +3,7 @@ package imports
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -83,5 +84,5 @@ func TestScannerImportCycle(t *testing.T) {
 	require.Error(t, err)
 
 	cycleFilePath := filepath.Join("testdata", "/cycle/a/a.graphql")
-	assert.Equal(t, "file forms import cycle: "+cycleFilePath, err.Error())
+	assert.Equal(t, fmt.Sprintf("file forms import cycle: %s", cycleFilePath), err.Error())
 }

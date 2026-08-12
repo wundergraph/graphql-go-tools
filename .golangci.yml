@@ -38,6 +38,7 @@ linters:
       - path: _test\.go
         linters:
           - errchkjson
+          - perfsprint
       - linters:
           - staticcheck
         text: "QF1008:"

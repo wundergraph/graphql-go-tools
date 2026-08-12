@@ -181,9 +181,9 @@ func TestMinifier_Minify(t *testing.T) {
 			if !tc.sort {
 				assert.Equal(t, origNormalized, bestNormalized)
 			}
-			goldie.Assert(t, tc.name+".min.graphql", []byte(minified))
-			goldie.Assert(t, tc.name+".min.normalized.graphql", []byte(bestNormalized))
-			goldie.Assert(t, tc.name+".normalized.graphql", []byte(origNormalized))
+			goldie.Assert(t, fmt.Sprintf("%s.min.graphql", tc.name), []byte(minified))
+			goldie.Assert(t, fmt.Sprintf("%s.min.normalized.graphql", tc.name), []byte(bestNormalized))
+			goldie.Assert(t, fmt.Sprintf("%s.normalized.graphql", tc.name), []byte(origNormalized))
 			fmt.Printf("originalSize: %d, minifiedSize: %d, compression: %f\n", len(operation), len(minified), float64(len(minified))/float64(len(operation)))
 		})
 	}
