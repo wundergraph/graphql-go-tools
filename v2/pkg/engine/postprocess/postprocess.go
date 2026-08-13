@@ -35,6 +35,7 @@ type FetchTreeProcessors struct {
 	addMissingNestedDependencies    *addMissingNestedDependencies
 	createConcreteSingleFetchTypes  *createConcreteSingleFetchTypes
 	orderSequenceByDependencies     *orderSequenceByDependencies
+	mergeEntityFetches              *mergeEntityFetches
 	createParallelNodes             *createParallelNodes
 }
 
@@ -54,6 +55,9 @@ func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResp
 // after this step fetches have tree structure of serial and parallel nodes.
 func (p *FetchTreeProcessors) organizeFetchTree(fetches *resolve.FetchTreeNode) {
 	p.orderSequenceByDependencies.ProcessFetchTree(fetches)
+	// Merge same-subgraph entity fetches into a single aliased _entities request
+	// while the tree is still flat and dependency-ordered, before parallel grouping.
+	p.mergeEntityFetches.ProcessFetchTree(fetches)
 	p.createParallelNodes.ProcessFetchTree(fetches)
 }
 
@@ -75,6 +79,7 @@ type processorOptions struct {
 	disableExtractDeferFetches             bool
 	disableBuildDeferTree                  bool
 	disableCollectAuthorizationCoordinates bool
+	disableMergeEntityFetches              bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -146,6 +151,14 @@ func DisableCollectAuthorizationCoordinates() ProcessorOption {
 	}
 }
 
+// DisableMergeEntityFetches disables merging same-subgraph entity fetches into a
+// single aliased _entities request (ROUTER-62). Merging is enabled by default.
+func DisableMergeEntityFetches() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableMergeEntityFetches = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
@@ -177,6 +190,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			},
 			orderSequenceByDependencies: &orderSequenceByDependencies{
 				disable: opts.disableOrderSequenceByDependencies,
+			},
+			mergeEntityFetches: &mergeEntityFetches{
+				disable: opts.disableMergeEntityFetches,
 			},
 			createParallelNodes: &createParallelNodes{
 				disable: opts.disableCreateParallelNodes,
