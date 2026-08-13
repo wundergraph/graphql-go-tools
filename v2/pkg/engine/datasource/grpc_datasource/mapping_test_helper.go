@@ -610,6 +610,22 @@ func testMapping() *GRPCMapping {
 								Response: "RequireStorageProcessedMetadataHistoryByIdResponse",
 							},
 						},
+						"optionalProcessedMetadataHistory": {
+							TargetName: "optional_processed_metadata_history",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageOptionalProcessedMetadataHistoryById",
+								Request:  "RequireStorageOptionalProcessedMetadataHistoryByIdRequest",
+								Response: "RequireStorageOptionalProcessedMetadataHistoryByIdResponse",
+							},
+						},
+						"tagsByLengths": {
+							TargetName: "tags_by_lengths",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageTagsByLengthsById",
+								Request:  "RequireStorageTagsByLengthsByIdRequest",
+								Response: "RequireStorageTagsByLengthsByIdResponse",
+							},
+						},
 						"kindSummary": {
 							TargetName: "kind_summary",
 							RPCConfig: RPCConfig{
@@ -704,6 +720,22 @@ func testMapping() *GRPCMapping {
 								RPC:      "RequireStorageOptionalLatestOperationById",
 								Request:  "RequireStorageOptionalLatestOperationByIdRequest",
 								Response: "RequireStorageOptionalLatestOperationByIdResponse",
+							},
+						},
+						"optionalRecommendedItems": {
+							TargetName: "optional_recommended_items",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageOptionalRecommendedItemsById",
+								Request:  "RequireStorageOptionalRecommendedItemsByIdRequest",
+								Response: "RequireStorageOptionalRecommendedItemsByIdResponse",
+							},
+						},
+						"optionalOperationHistory": {
+							TargetName: "optional_operation_history",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageOptionalOperationHistoryById",
+								Request:  "RequireStorageOptionalOperationHistoryByIdRequest",
+								Response: "RequireStorageOptionalOperationHistoryByIdResponse",
 							},
 						},
 						"filteredTagSummary": {
@@ -1120,6 +1152,15 @@ func testMapping() *GRPCMapping {
 				"processedMetadataHistory": {
 					TargetName: "processed_metadata_history",
 				},
+				"optionalProcessedMetadataHistory": {
+					TargetName: "optional_processed_metadata_history",
+				},
+				"tagsByLengths": {
+					TargetName: "tags_by_lengths",
+					ArgumentMappings: FieldArgumentMap{
+						"lengths": "lengths",
+					},
+				},
 				"storageKind": {
 					TargetName: "storage_kind",
 				},
@@ -1170,6 +1211,12 @@ func testMapping() *GRPCMapping {
 				},
 				"optionalLatestOperation": {
 					TargetName: "optional_latest_operation",
+				},
+				"optionalRecommendedItems": {
+					TargetName: "optional_recommended_items",
+				},
+				"optionalOperationHistory": {
+					TargetName: "optional_operation_history",
 				},
 				"storageStatus": {
 					TargetName: "storage_status",

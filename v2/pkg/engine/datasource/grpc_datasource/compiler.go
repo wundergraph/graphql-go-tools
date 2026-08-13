@@ -1288,7 +1288,8 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field *F
 	elements := data.Array()
 	newListField := rootMsg.NewField(listFieldDesc)
 	if len(elements) == 0 {
-		if rpcField.ListMetadata.LevelInfo[level-1].Optional {
+		// We need to explicitly check for null because an empty list must still initialize the wrapper
+		if isNullValue(data) && rpcField.ListMetadata.LevelInfo[level-1].Optional {
 			return nil, nil
 		}
 

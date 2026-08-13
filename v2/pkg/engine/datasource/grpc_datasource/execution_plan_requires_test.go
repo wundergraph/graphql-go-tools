@@ -5719,3 +5719,598 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 		})
 	}
 }
+
+// TestExecutionPlan_FederationRequires_NullableLists covers @requires fields whose return type or
+// field argument is a nullable list. Nullable lists are transported in a generated ListOfX wrapper
+// message, which the planner represents with IsListType plus an optional ListMetadata level.
+func TestExecutionPlan_FederationRequires_NullableLists(t *testing.T) {
+	t.Parallel()
+
+	// storageEntityLookupCall returns the entity lookup call shared by all tests below.
+	storageEntityLookupCall := func() RPCCall {
+		return RPCCall{
+			ServiceName:         "Products",
+			MethodName:          "LookupStorageById",
+			Kind:                CallKindEntity,
+			RequestedEntityType: "Storage",
+			Request: RPCMessage{
+				Name: "LookupStorageByIdRequest",
+				Fields: []RPCField{
+					{
+						Name:          "keys",
+						ProtoTypeName: DataTypeMessage,
+						Repeated:      true,
+						JSONPath:      "representations",
+						Message: &RPCMessage{
+							Name:        "LookupStorageByIdRequestKey",
+							MemberTypes: []string{"Storage"},
+							Fields: []RPCField{
+								{
+									Name:          "id",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "id",
+								},
+							},
+						},
+					},
+				},
+			},
+			Response: RPCMessage{
+				Name: "LookupStorageByIdResponse",
+				Fields: []RPCField{
+					{
+						Name:          "result",
+						ProtoTypeName: DataTypeMessage,
+						Repeated:      true,
+						JSONPath:      "_entities",
+						Message: &RPCMessage{
+							Name: "Storage",
+							Fields: []RPCField{
+								{
+									Name:          "__typename",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "__typename",
+									StaticValue:   "Storage",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
+	// storageKeyField returns the entity key carried in every required fields context message.
+	storageKeyField := func() RPCField {
+		return RPCField{
+			Name:          "key",
+			ProtoTypeName: DataTypeMessage,
+			Message: &RPCMessage{
+				Name:        "LookupStorageByIdRequestKey",
+				MemberTypes: []string{"Storage"},
+				Fields: []RPCField{
+					{
+						Name:          "id",
+						ProtoTypeName: DataTypeString,
+						JSONPath:      "id",
+					},
+				},
+			},
+		}
+	}
+
+	// nullableListMetadata describes a single level nullable list.
+	nullableListMetadata := func() *ListMetadata {
+		return &ListMetadata{
+			NestingLevel: 1,
+			LevelInfo: []LevelInfo{
+				{
+					Optional: true,
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name              string
+		query             string
+		expectedPlan      *RPCExecutionPlan
+		mapping           *GRPCMapping
+		federationConfigs plan.FederationFieldConfigurations
+	}{
+		{
+			name:    "Should create an execution plan for a required field returning a nullable list of objects",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename optionalProcessedMetadataHistory { capacity zone priority } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalProcessedMetadataHistory",
+					SelectionSet: "metadataHistory { capacity zone }",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageOptionalProcessedMetadataHistoryById",
+						ResponsePath: buildPath("_entities.optionalProcessedMetadataHistory"),
+						Request: RPCMessage{
+							Name: "RequireStorageOptionalProcessedMetadataHistoryByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageOptionalProcessedMetadataHistoryByIdContext",
+										Fields: []RPCField{
+											storageKeyField(),
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageOptionalProcessedMetadataHistoryByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "metadata_history",
+															ProtoTypeName: DataTypeMessage,
+															Repeated:      true,
+															JSONPath:      "metadataHistory",
+															Message: &RPCMessage{
+																Name: "RequireStorageOptionalProcessedMetadataHistoryByIdFields.StorageMetadata",
+																Fields: []RPCField{
+																	{
+																		Name:          "capacity",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "capacity",
+																	},
+																	{
+																		Name:          "zone",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "zone",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageOptionalProcessedMetadataHistoryByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageOptionalProcessedMetadataHistoryByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "optional_processed_metadata_history",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalProcessedMetadataHistory",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata:  nullableListMetadata(),
+												Message: &RPCMessage{
+													Name: "StorageMetadata",
+													Fields: []RPCField{
+														{
+															Name:          "capacity",
+															ProtoTypeName: DataTypeInt32,
+															JSONPath:      "capacity",
+														},
+														{
+															Name:          "zone",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "zone",
+														},
+														{
+															Name:          "priority",
+															ProtoTypeName: DataTypeInt32,
+															JSONPath:      "priority",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Should create an execution plan for a required field returning a nullable list of an interface",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename optionalRecommendedItems { __typename id name ... on PalletItem { palletCount } ... on ContainerItem { containerSize } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalRecommendedItems",
+					SelectionSet: "tags",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageOptionalRecommendedItemsById",
+						ResponsePath: buildPath("_entities.optionalRecommendedItems"),
+						Request: RPCMessage{
+							Name: "RequireStorageOptionalRecommendedItemsByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageOptionalRecommendedItemsByIdContext",
+										Fields: []RPCField{
+											storageKeyField(),
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageOptionalRecommendedItemsByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "tags",
+															ProtoTypeName: DataTypeString,
+															Repeated:      true,
+															JSONPath:      "tags",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageOptionalRecommendedItemsByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageOptionalRecommendedItemsByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "optional_recommended_items",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalRecommendedItems",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata:  nullableListMetadata(),
+												Message: &RPCMessage{
+													Name:        "StorageItem",
+													OneOfType:   OneOfTypeInterface,
+													MemberTypes: []string{"PalletItem", "ContainerItem"},
+													Fields: []RPCField{
+														{
+															Name:          "__typename",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "__typename",
+															StaticValue:   "StorageItem",
+														},
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+														},
+													},
+													FragmentFields: map[string]RPCFields{
+														"PalletItem": {
+															{
+																Name:          "pallet_count",
+																ProtoTypeName: DataTypeInt32,
+																JSONPath:      "palletCount",
+															},
+														},
+														"ContainerItem": {
+															{
+																Name:          "container_size",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "containerSize",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Should create an execution plan for a required field returning a nullable list of a union",
+			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { __typename optionalOperationHistory { __typename ... on StorageSuccess { message completedAt } ... on StorageFailure { message errorCode } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalOperationHistory",
+					SelectionSet: "storageKind",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageOptionalOperationHistoryById",
+						ResponsePath: buildPath("_entities.optionalOperationHistory"),
+						Request: RPCMessage{
+							Name: "RequireStorageOptionalOperationHistoryByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageOptionalOperationHistoryByIdContext",
+										Fields: []RPCField{
+											storageKeyField(),
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageOptionalOperationHistoryByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "storage_kind",
+															ProtoTypeName: DataTypeEnum,
+															EnumName:      "CategoryKind",
+															JSONPath:      "storageKind",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageOptionalOperationHistoryByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageOptionalOperationHistoryByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "optional_operation_history",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "optionalOperationHistory",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata:  nullableListMetadata(),
+												Message: &RPCMessage{
+													Name:        "StorageOperationResult",
+													OneOfType:   OneOfTypeUnion,
+													MemberTypes: []string{"StorageSuccess", "StorageFailure"},
+													Fields: []RPCField{
+														{
+															Name:          "__typename",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "__typename",
+															StaticValue:   "StorageOperationResult",
+														},
+													},
+													FragmentFields: map[string]RPCFields{
+														"StorageSuccess": {
+															{
+																Name:          "message",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "message",
+															},
+															{
+																Name:          "completed_at",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "completedAt",
+															},
+														},
+														"StorageFailure": {
+															{
+																Name:          "message",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "message",
+															},
+															{
+																Name:          "error_code",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "errorCode",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "Should create an execution plan for a required field with a nullable list argument and a nullable list return type",
+			query:   `query EntityLookup($representations: [_Any!]!, $lengths: [Int!]) { _entities(representations: $representations) { ... on Storage { __typename tagsByLengths(lengths: $lengths) } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagsByLengths",
+					SelectionSet: "tags",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					storageEntityLookupCall(),
+					{
+						ID:           1,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageTagsByLengthsById",
+						ResponsePath: buildPath("_entities.tagsByLengths"),
+						Request: RPCMessage{
+							Name: "RequireStorageTagsByLengthsByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageTagsByLengthsByIdContext",
+										Fields: []RPCField{
+											storageKeyField(),
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageTagsByLengthsByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "tags",
+															ProtoTypeName: DataTypeString,
+															Repeated:      true,
+															JSONPath:      "tags",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "RequireStorageTagsByLengthsByIdArgs",
+										Fields: []RPCField{
+											{
+												Name:          "lengths",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "lengths",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata:  nullableListMetadata(),
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageTagsByLengthsByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageTagsByLengthsByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "tags_by_lengths",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "tagsByLengths",
+												Optional:      true,
+												IsListType:    true,
+												ListMetadata:  nullableListMetadata(),
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tt.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			planner, err := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			if err != nil {
+				t.Fatalf("failed to create planner: %s", err)
+			}
+			plan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+			if err != nil {
+				t.Fatalf("failed to plan operation: %s", err)
+			}
+
+			diff := cmp.Diff(tt.expectedPlan, plan)
+			if diff != "" {
+				t.Fatalf("execution plan mismatch: %s", diff)
+			}
+		})
+	}
+}
