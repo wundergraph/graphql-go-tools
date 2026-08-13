@@ -15,12 +15,59 @@ func (o *orderSequenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNo
 	if o.disable {
 		return
 	}
+	// Precompute, once per call, a fetchID->node index so dependency resolution
+	// looks up nodes in O(1) instead of scanning root.ChildNodes per lookup.
+	nodeByID := make(map[int]*resolve.FetchTreeNode, len(root.ChildNodes))
+	for _, node := range root.ChildNodes {
+		nodeByID[o.nodeFetchID(node)] = node
+	}
+	// deps caches, per fetch ID, the recursively-resolved transitive dependency
+	// set (sorted, deduped, excluding the node's own ID). A memoized DFS computes
+	// each set once and the SortFunc comparator reads the cache, so transitive sets
+	// are never re-derived per comparison.
+	deps := make(map[int][]int, len(root.ChildNodes))
+	inProgress := make(map[int]bool, len(root.ChildNodes))
+	var resolveDeps func(id int) []int
+	resolveDeps = func(id int) []int {
+		if cached, ok := deps[id]; ok {
+			return cached
+		}
+		if inProgress[id] {
+			// cycle guard; fetch trees are expected to be DAGs
+			return nil
+		}
+		inProgress[id] = true
+		// each direct dep is included even when the dependency node is absent from
+		// the tree; its transitive deps are unioned in only when the node is present.
+		var direct []int
+		if node := nodeByID[id]; node != nil {
+			direct = node.Item.Fetch.Dependencies().DependsOnFetchIDs
+		}
+		seen := make(map[int]struct{}, len(direct))
+		for _, dep := range direct {
+			seen[dep] = struct{}{}
+			for _, t := range resolveDeps(dep) {
+				seen[t] = struct{}{}
+			}
+		}
+		result := make([]int, 0, len(seen))
+		for d := range seen {
+			result = append(result, d)
+		}
+		slices.Sort(result)
+		inProgress[id] = false
+		deps[id] = result
+		return result
+	}
+	for id := range nodeByID {
+		resolveDeps(id)
+	}
 	slices.SortFunc(root.ChildNodes, func(_a, _b *resolve.FetchTreeNode) int {
 		// get the fetch IDs of both nodes
 		a, b := o.nodeFetchID(_a), o.nodeFetchID(_b)
-		// for each node, recursively get the fetch IDs of all dependencies
+		// for each node, the precomputed transitive dependency set
 		// this means that if a node depends on ID 1 and 2, and 2 depends on 3, the result will be [1, 2, 3]
-		aDeps, bDeps := o.nodeDependsOn(_a, root), o.nodeDependsOn(_b, root)
+		aDeps, bDeps := deps[a], deps[b]
 		// if both nodes have the exact same dependencies, the node with the lower fetch ID should come first
 		if slices.Equal(aDeps, bDeps) {
 			return a - b
@@ -41,36 +88,6 @@ func (o *orderSequenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNo
 		// the node with fewer dependencies should come first
 		return len(aDeps) - len(bDeps)
 	})
-}
-
-func (o *orderSequenceByDependencies) nodeByFetchID(id int, root *resolve.FetchTreeNode) *resolve.FetchTreeNode {
-	for _, node := range root.ChildNodes {
-		if o.nodeFetchID(node) == id {
-			return node
-		}
-	}
-	return nil
-}
-
-func (o *orderSequenceByDependencies) nodeDependsOn(node, root *resolve.FetchTreeNode) []int {
-	dependencies := node.Item.Fetch.Dependencies().DependsOnFetchIDs
-	result := make([]int, 0, len(dependencies))
-	for _, dep := range dependencies {
-		result = append(result, dep)
-		if child := o.nodeByFetchID(dep, root); child != nil {
-			result = append(result, o.nodeDependsOn(child, root)...)
-		}
-	}
-	index := make(map[int]struct{}, len(result))
-	for _, id := range result {
-		index[id] = struct{}{}
-	}
-	result = make([]int, 0, len(index))
-	for id := range index {
-		result = append(result, id)
-	}
-	slices.Sort(result)
-	return result
 }
 
 func (o *orderSequenceByDependencies) nodeFetchID(node *resolve.FetchTreeNode) int {
