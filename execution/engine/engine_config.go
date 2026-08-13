@@ -72,6 +72,13 @@ func (e *Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHoo
 	e.websocketBeforeStartHook = hook
 }
 
+// EnableMultiFetch merges same-subgraph entity fetches of the same parallel wave
+// into a single aliased _entities request. One switch drives both required flags:
+// the planner artifact recording and, via NewExecutionEngine, the postprocess merge stage.
+func (e *Configuration) EnableMultiFetch() {
+	e.plannerConfig.EnableMultiFetch = true
+}
+
 type dataSourceGeneratorOptions struct {
 	streamingClient           *http.Client
 	subscriptionType          SubscriptionType
