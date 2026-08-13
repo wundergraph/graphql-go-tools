@@ -353,7 +353,7 @@ func TestGraphQLDataSourceFederation_MultiFetch(t *testing.T) {
 		},
 		multiFetchPlanConfig(t, true),
 		WithFieldInfo(),
-		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+		WithPostProcessor(postprocess.EnableMultiFetch()),
 	))
 
 	t.Run("flag off keeps two separate entity fetches", RunTest(
@@ -490,7 +490,9 @@ func TestGraphQLDataSourceFederation_MultiFetch(t *testing.T) {
 		},
 		multiFetchPlanConfig(t, false),
 		WithFieldInfo(),
-		WithDefaultCustomPostProcessor(),
+		// Full default pipeline with only the scheduler replaced by the legacy
+		// organizers — the fixture pins rendered inputs and legacy wave shapes.
+		WithPostProcessor(),
 	))
 }
 
@@ -817,7 +819,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_ThreeFetchGroup(t *testing.T) {
 		},
 		config,
 		WithFieldInfo(),
-		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+		WithPostProcessor(postprocess.EnableMultiFetch()),
 	))
 }
 
@@ -1102,7 +1104,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_AdditionalVariables(t *testing.T
 		},
 		multiFetchArgPlanConfig(t),
 		WithFieldInfo(),
-		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+		WithPostProcessor(postprocess.EnableMultiFetch()),
 	))
 
 	t.Run("same client variable through both members", RunTest(
@@ -1162,7 +1164,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_AdditionalVariables(t *testing.T
 		},
 		multiFetchArgPlanConfig(t),
 		WithFieldInfo(),
-		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+		WithPostProcessor(postprocess.EnableMultiFetch()),
 	))
 
 	// A default-valued client variable ($first: Int = 10) merges without error.
@@ -1230,7 +1232,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_AdditionalVariables(t *testing.T
 		},
 		multiFetchArgPlanConfig(t),
 		WithFieldInfo(),
-		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+		WithPostProcessor(postprocess.EnableMultiFetch()),
 	))
 }
 
@@ -1571,7 +1573,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_WaveSeparation(t *testing.T) {
 		},
 		config,
 		WithFieldInfo(),
-		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+		WithPostProcessor(postprocess.EnableMultiFetch()),
 	))
 }
 
@@ -1996,7 +1998,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_Subscription(t *testing.T) {
 		},
 		config,
 		WithFieldInfo(),
-		WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+		WithPostProcessor(postprocess.EnableMultiFetch()),
 	))
 }
 
@@ -2100,7 +2102,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_RepresentationsCollision(t *test
 			},
 			multiFetchArgPlanConfig(t),
 			WithFieldInfo(),
-			WithDefaultCustomPostProcessor(postprocess.EnableMultiFetch()),
+			WithPostProcessor(postprocess.EnableMultiFetch()),
 		)(t)
 	})
 }

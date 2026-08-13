@@ -22,6 +22,7 @@ type Configuration struct {
 	schema                   *graphql.Schema
 	plannerConfig            plan.Configuration
 	websocketBeforeStartHook WebsocketBeforeStartHook
+	enableScheduleFetches    bool
 }
 
 func NewConfiguration(schema *graphql.Schema) Configuration {
@@ -77,6 +78,11 @@ func (e *Configuration) SetWebsocketBeforeStartHook(hook WebsocketBeforeStartHoo
 // the planner artifact recording and, via NewExecutionEngine, the postprocess merge stage.
 func (e *Configuration) EnableMultiFetch() {
 	e.plannerConfig.EnableMultiFetch = true
+}
+
+// EnableScheduleFetches organizes fetches into component-split, chain-inlined trees.
+func (e *Configuration) EnableScheduleFetches() {
+	e.enableScheduleFetches = true
 }
 
 type dataSourceGeneratorOptions struct {

@@ -158,6 +158,9 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 	if engineConfig.plannerConfig.EnableMultiFetch {
 		postProcessorOptions = append(postProcessorOptions, postprocess.EnableMultiFetch())
 	}
+	if engineConfig.enableScheduleFetches {
+		postProcessorOptions = append(postProcessorOptions, postprocess.EnableScheduleFetches())
+	}
 
 	return &ExecutionEngine{
 		logger:             logger,
