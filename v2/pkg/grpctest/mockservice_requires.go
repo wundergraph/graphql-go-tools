@@ -860,14 +860,14 @@ func (s *MockService) RequireStorageOptionalRecommendedItemsById(_ context.Conte
 			for j, tag := range tags {
 				if j%2 == 0 {
 					items = append(items, newHandledPalletStorageItem(
-						fmt.Sprintf("opt-pallet-%s", tag),
-						fmt.Sprintf("Optional pallet %s", tag),
+						"opt-pallet-"+tag,
+						"Optional pallet "+tag,
 						int32(j+1),
 					))
 				} else {
 					items = append(items, newHandledContainerStorageItem(
-						fmt.Sprintf("opt-container-%s", tag),
-						fmt.Sprintf("Optional container %s", tag),
+						"opt-container-"+tag,
+						"Optional container "+tag,
 						strings.ToUpper(tag),
 					))
 				}
@@ -907,7 +907,7 @@ func (s *MockService) RequireStorageOptionalOperationHistoryById(_ context.Conte
 						{
 							Value: &productv1.StorageOperationResult_StorageSuccess{
 								StorageSuccess: &productv1.StorageSuccess{
-									Message:     fmt.Sprintf("History entry completed for %s", kind.String()),
+									Message:     "History entry completed for " + kind.String(),
 									CompletedAt: "2024-01-03T00:00:00Z",
 								},
 							},
@@ -915,7 +915,7 @@ func (s *MockService) RequireStorageOptionalOperationHistoryById(_ context.Conte
 						{
 							Value: &productv1.StorageOperationResult_StorageFailure{
 								StorageFailure: &productv1.StorageFailure{
-									Message:   fmt.Sprintf("History entry failed for %s", kind.String()),
+									Message:   "History entry failed for " + kind.String(),
 									ErrorCode: "HISTORIC_FAILURE",
 								},
 							},
