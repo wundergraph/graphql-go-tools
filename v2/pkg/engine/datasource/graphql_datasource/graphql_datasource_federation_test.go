@@ -1775,7 +1775,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				planConfiguration,
 				WithFieldInfo(),
 				// default post-processor options, but with authorization coordinate collection enabled
-				WithDefaultCustomPostProcessor(
+				WithPostProcessor(
 					postprocess.DisableResolveInputTemplates(),
 					postprocess.DisableCreateConcreteSingleFetchTypes(),
 					postprocess.DisableCreateParallelNodes(),
@@ -16439,7 +16439,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					"Query",
 					expectedPlans,
 					planConfiguration,
-					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
+					WithPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
 				)
 			})
 
@@ -16573,7 +16573,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					"Query",
 					expectedPlan,
 					planConfiguration,
-					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
+					WithPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
 				)
 			})
 
@@ -16706,7 +16706,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					"Query",
 					expectedPlan,
 					planConfiguration,
-					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
+					WithPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
 				)
 			})
 		})

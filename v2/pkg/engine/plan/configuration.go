@@ -20,7 +20,14 @@ type Configuration struct {
 	DisableResolveFieldPositions bool
 	// EnableOperationNamePropagation appends the operation name from nested operations
 	EnableOperationNamePropagation bool
-	CustomResolveMap               map[string]resolve.CustomResolve
+
+	// EnableMultiFetch records planner artifacts on entity fetches so the
+	// postprocess MultiFetch stage can merge same-subgraph, same-wave entity
+	// fetches into one request. Default false; the artifacts never reach the
+	// executable plan (they are cleared during postprocessing).
+	EnableMultiFetch bool
+
+	CustomResolveMap map[string]resolve.CustomResolve
 
 	// Debug - configure debug options
 	Debug DebugConfiguration
