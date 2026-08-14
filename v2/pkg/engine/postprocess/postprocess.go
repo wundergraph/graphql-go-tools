@@ -33,28 +33,96 @@ type FetchTreeProcessors struct {
 	appendFetchID                   *fetchIDAppender
 	dedupe                          *deduplicateSingleFetches
 	addMissingNestedDependencies    *addMissingNestedDependencies
+	createMultiFetch                *createMultiFetch
+	renderSubgraphInputs            *renderSubgraphInputs
 	createConcreteSingleFetchTypes  *createConcreteSingleFetchTypes
 	orderSequenceByDependencies     *orderSequenceByDependencies
 	createParallelNodes             *createParallelNodes
+	scheduleFetches                 *scheduleFetches
 }
 
-// processFlatFetchTree - process a flat fetch tree - single serial fetch with a flat list of child fetches
+// processFlatFetchTree runs the stages that operate on the still-flat fetch tree
+// (a single serial node with a flat list of child SingleFetches), before
+// organizeFetchTree builds the sequence/parallel structure. These stages read
+// only paths and dependency fields and require every child to be a SingleFetch.
 func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResponse) {
 	p.collectAuthorizationCoordinates.Process(response)
 	fetches := response.Fetches
 	p.dedupe.ProcessFetchTree(fetches)
 	// Appending fetchIDs makes query content unique, thus it should happen after "dedupe".
 	p.appendFetchID.ProcessFetchTree(fetches)
-	p.resolveInputTemplates.ProcessFetchTree(fetches)
+	// addMissingNestedDependencies reads only paths and dependency fields and must run while every
+	// child is still a SingleFetch, so it runs before organizeFetchTree.
 	p.addMissingNestedDependencies.ProcessFetchTree(fetches)
-	p.createConcreteSingleFetchTypes.ProcessFetchTree(fetches)
 }
 
-// organizeFetchTree organizes the fetch tree by ordering sequence nodes by dependencies and creating parallel nodes.
-// after this step fetches have tree structure of serial and parallel nodes.
+// organizeFetchTree merges same-subgraph entity fetches and organizes the tree into
+// a nested Parallel/Sequence structure, either via the scheduler or
+// as a Sequence of waves (Parallel groups) when the scheduler is disabled
 func (p *FetchTreeProcessors) organizeFetchTree(fetches *resolve.FetchTreeNode) {
+	merged := false
+	if !p.scheduleFetches.disable && fetches != nil && fetches.Kind == resolve.FetchTreeNodeKindSequence {
+		if !p.createMultiFetch.disable {
+			// Merge-before-schedule: materialize the legacy wave structure only
+			// to discover maximal same-wave merge groups, merge them,
+			// then drop the wave structure and schedule the merged DAG.
+			p.organizeFetchTreeInWaves(fetches)
+			p.createMultiFetch.ProcessFetchTree(fetches)
+			flattenFetchTree(fetches)
+			merged = true
+		}
+		if err := p.scheduleFetches.ProcessFetchTree(fetches); err == nil {
+			return
+		}
+	}
+	p.organizeFetchTreeInWaves(fetches)
+	if !merged {
+		p.createMultiFetch.ProcessFetchTree(fetches)
+	}
+}
+
+func (p *FetchTreeProcessors) organizeFetchTreeInWaves(fetches *resolve.FetchTreeNode) {
 	p.orderSequenceByDependencies.ProcessFetchTree(fetches)
 	p.createParallelNodes.ProcessFetchTree(fetches)
+}
+
+// flattenFetchTree collapses an organized tree back into the flat Sequence shape
+// the scheduler consumes: the root keeps its identity (Trigger, NormalizedQuery)
+// and its children become the in-order list of Single nodes. In-order collection
+// of a dependency-ordered tree is already topologically sorted, which the legacy
+// fallback inside scheduleFetches relies on.
+func flattenFetchTree(root *resolve.FetchTreeNode) {
+	if root == nil || root.Kind != resolve.FetchTreeNodeKindSequence {
+		return
+	}
+	var singles []*resolve.FetchTreeNode
+	var walk func(node *resolve.FetchTreeNode)
+	walk = func(node *resolve.FetchTreeNode) {
+		if node == nil {
+			return
+		}
+		if node.Kind == resolve.FetchTreeNodeKindSingle {
+			singles = append(singles, node)
+			return
+		}
+		for _, child := range node.ChildNodes {
+			walk(child)
+		}
+	}
+	for _, child := range root.ChildNodes {
+		walk(child)
+	}
+	root.ChildNodes = singles
+}
+
+// processOrganizedFetchTree runs the stages that operate on the ORGANIZED tree,
+// after organizeFetchTree has materialized the real sequence/parallel waves.
+// It is applied to every response tree, including each extracted defer group,
+// so that the same semantics hold for deferred fetches.
+func (p *FetchTreeProcessors) processOrganizedFetchTree(fetches *resolve.FetchTreeNode) {
+	p.renderSubgraphInputs.ProcessFetchTree(fetches)
+	p.resolveInputTemplates.ProcessFetchTree(fetches)
+	p.createConcreteSingleFetchTypes.ProcessFetchTree(fetches)
 }
 
 type ResponseTreeProcessors struct {
@@ -75,6 +143,15 @@ type processorOptions struct {
 	disableExtractDeferFetches             bool
 	disableBuildDeferTree                  bool
 	disableCollectAuthorizationCoordinates bool
+	enableMultiFetch                       bool
+	enableScheduleFetches                  bool
+}
+
+// EnableScheduleFetches activates the nested schedule-tree scheduler.
+func EnableScheduleFetches() ProcessorOption {
+	return func(o *processorOptions) {
+		o.enableScheduleFetches = true
+	}
 }
 
 type ProcessorOption func(*processorOptions)
@@ -146,11 +223,23 @@ func DisableCollectAuthorizationCoordinates() ProcessorOption {
 	}
 }
 
+// EnableMultiFetch activates the MultiFetch stage, which merges same-subgraph
+// entity fetches executing in the same wave into a single MultiEntityFetch.
+// It has no effect when DisableResolveInputTemplates is also set.
+func EnableMultiFetch() ProcessorOption {
+	return func(o *processorOptions) {
+		o.enableMultiFetch = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
 		o(opts)
 	}
+	// A merged fetch has no Input string, so it cannot coexist with the readable-Input
+	// mode used by plan tests; DisableResolveInputTemplates forces the stage off.
+	enableMultiFetch := opts.enableMultiFetch && !opts.disableResolveInputTemplates
 	return &Processor{
 		collectDataSourceInfo: opts.collectDataSourceInfo,
 		disableExtractFetches: opts.disableExtractFetches,
@@ -171,6 +260,12 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			addMissingNestedDependencies: &addMissingNestedDependencies{
 				disable: opts.disableAddMissingNestedDependencies,
 			},
+			createMultiFetch: &createMultiFetch{
+				disable: !enableMultiFetch,
+			},
+			renderSubgraphInputs: &renderSubgraphInputs{
+				disableRewriteOpNames: opts.disableRewriteOpNames,
+			},
 			// this must go after deduplication because it relies on the existence of a "sequence" fetch node in the root
 			createConcreteSingleFetchTypes: &createConcreteSingleFetchTypes{
 				disable: opts.disableCreateConcreteSingleFetchTypes,
@@ -180,6 +275,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			},
 			createParallelNodes: &createParallelNodes{
 				disable: opts.disableCreateParallelNodes,
+			},
+			scheduleFetches: &scheduleFetches{
+				disable: !opts.enableScheduleFetches,
 			},
 		},
 		responseTreeProcessors: &ResponseTreeProcessors{
@@ -208,21 +306,26 @@ func (p *Processor) Process(pre plan.Plan) {
 		p.createFetchTree(t.Response)
 		p.fetchTreeProcessors.processFlatFetchTree(t.Response)
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Fetches)
+		p.fetchTreeProcessors.processOrganizedFetchTree(t.Response.Fetches)
 
 	case *plan.DeferResponsePlan:
 		p.responseTreeProcessors.mergeFields.Process(t.Response.Response.Data)
 		p.createFetchTree(t.Response.Response)
 		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Response)
 
-		// extract deferred fetches into their own fetch trees
+		// extract deferred fetches into their own fetch trees while the tree is
+		// still flat, so each group is organized (and merged) independently.
 		p.extractDeferFetches.Process(t)
 
 		// process the initial response fetch tree
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Response.Fetches)
+		p.fetchTreeProcessors.processOrganizedFetchTree(t.Response.Response.Fetches)
 
-		// process each deferred response fetch tree
+		// process each deferred response fetch tree: same organize + merge/render/
+		// resolve/concretize pipeline as the initial response, per defer group.
 		for _, deferResp := range t.Response.Defers {
 			p.fetchTreeProcessors.organizeFetchTree(deferResp.Fetches)
+			p.fetchTreeProcessors.processOrganizedFetchTree(deferResp.Fetches)
 		}
 
 		// order defer fetches into parallel/sequence groups
@@ -238,9 +341,11 @@ func (p *Processor) Process(pre plan.Plan) {
 		p.fetchTreeProcessors.processFlatFetchTree(t.Response.Response)
 
 		// resolve input template for the root query in the subscription trigger
+		// (the trigger is never merged and keeps its separate resolution path)
 		p.fetchTreeProcessors.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
 
 		p.fetchTreeProcessors.organizeFetchTree(t.Response.Response.Fetches)
+		p.fetchTreeProcessors.processOrganizedFetchTree(t.Response.Response.Fetches)
 	}
 }
 
@@ -257,7 +362,7 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	children := make([]*resolve.FetchTreeNode, len(fetches))
 
 	if p.collectDataSourceInfo {
-		var list = make([]resolve.DataSourceInfo, 0, len(fetches))
+		list := make([]resolve.DataSourceInfo, 0, len(fetches))
 		for _, fetch := range fetches {
 			info := fetch.Fetch.FetchInfo()
 			if info != nil {
