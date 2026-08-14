@@ -273,7 +273,7 @@ func fieldNamesArgument(arg directiveArgument, fields *FieldNames) {
 	}
 
 	var added bool
-	for _, field := range strings.Split(arg.text, ",") {
+	for field := range strings.SplitSeq(arg.text, ",") {
 		field = strings.TrimSpace(field)
 		if field == "" {
 			continue
