@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"net/textproto"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -15,9 +16,14 @@ import (
 
 // FieldNames is a map of field names.
 type FieldNames struct {
+	// lockFields is a flag to prevent adding any fields.
+	// This is set when an empty field list is parsed.
+	lockFields bool
+
 	// Present indicates whether the directive is present in the response.
 	Present bool
 	// Fields is a list of field names.
+	// Do not add any fields to this map directly. Use the add method instead
 	Fields map[string]struct{}
 }
 
@@ -33,15 +39,28 @@ func (f *FieldNames) Add(name string) {
 		f.Fields = make(map[string]struct{})
 	}
 
-	f.Fields[strings.ToLower(name)] = struct{}{}
+	if f.lockFields {
+		return
+	}
+
+	// Stored verbatim. These names may be GraphQL field names, which are
+	// case-sensitive, so normalising here would conflate distinct fields
+	// (productName vs productname) with no way to recover the difference.
+	f.Fields[name] = struct{}{}
 }
 
-func (f *FieldNames) Contains(name string) bool {
+func (f *FieldNames) has(name string) bool {
 	if f == nil || !f.Present {
 		return false
 	}
-	_, ok := f.Fields[strings.ToLower(name)]
+
+	_, ok := f.Fields[name]
 	return ok
+}
+
+func (f *FieldNames) ClearAndLock() {
+	clear(f.Fields)
+	f.lockFields = true
 }
 
 // DeltaSeconds is a signed 32-bit integer representing the number of seconds.
@@ -93,7 +112,7 @@ type CacheControlResponse struct {
 	//
 	// The "max-age" response directive indicates that the response is to be
 	// considered stale after its age is greater than the specified number of seconds.
-	MaxAge DeltaSeconds
+	MaxAge *DeltaSeconds
 
 	// SMaxAge is the maximum age of the response in seconds for shared caches.
 	//
@@ -106,7 +125,7 @@ type CacheControlResponse struct {
 	//
 	// The s-maxage directive also implies the semantics of the
 	// proxy-revalidate response directive.
-	SMaxAge DeltaSeconds
+	SMaxAge *DeltaSeconds
 
 	// NoStore indicates that a cache MUST NOT
 	// store any part of either the immediate request or response.
@@ -183,7 +202,7 @@ func ParseCacheControlResponse(headers http.Header) (*CacheControlResponse, erro
 
 func parse(s string) (*CacheControlResponse, error) {
 	if len(s) == 0 {
-		return nil, errors.New("Cache-Control header is empty")
+		return &CacheControlResponse{}, nil
 	}
 
 	l := newLexer(s)
@@ -207,8 +226,11 @@ outer:
 		case tokenTypeComma:
 			continue
 		case tokenTypeEOF:
+			// We've reached the end of the input.
 			break outer
 		default:
+			// The inner logic should handle advancing the lexer to the next comma or ident.
+			// The outer logic should always expect a comma or ident next.
 			return nil, fmt.Errorf("unexpected token: %s", token.lit)
 		}
 
@@ -267,6 +289,19 @@ func (l *lexer) readToken(offset int) token {
 	return token{tt: tokenTypeEOF}
 }
 
+func (l *lexer) skipToNextCommaOrIdent() {
+	for {
+		token := l.peekToken()
+
+		switch token.tt {
+		case tokenTypeComma, tokenTypeIdent, tokenTypeEOF:
+			return
+		default:
+			l.readToken(0)
+		}
+	}
+}
+
 // isWhitespace checks if the rune is a whitespace character.
 func (l *lexer) isWhitespace(r byte) bool {
 	return r == runes.SPACE || r == runes.TAB || r == runes.CARRIAGERETURN || r == runes.LINETERMINATOR
@@ -276,6 +311,15 @@ func (l *lexer) isWhitespace(r byte) bool {
 // ASCII control characters are ranged from 0-31 and 127.
 func (l *lexer) isControlCharacter(r byte) bool {
 	return r <= 0x1F || r == 0x7F // 0-31 and 127
+}
+
+func (l *lexer) isInvalidTokenCharacter(r byte) bool {
+	switch r {
+	case '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']', '?', '=', '{', '}', ' ', '\t':
+		return true
+	}
+
+	return false
 }
 
 // isPrintableCharacter checks if the rune is a printable character.
@@ -519,42 +563,76 @@ func parseDeltaSecondsIDent(l *lexer) (DeltaSeconds, error) {
 func parseFieldNamesIdent(l *lexer, fieldNames *FieldNames) error {
 	next := l.peekToken()
 
-	if next.tt == tokenTypeEquals {
+	switch next.tt {
+	case tokenTypeEquals:
 		next := l.readToken(1)
 		if next.tt != tokenTypeString {
 			return fmt.Errorf("unexpected token: %s", next.lit)
 		}
 
-		fields := strings.Split(next.lit, ",")
-		for _, field := range fields {
-			fieldNames.Add(strings.TrimSpace(field))
+		fields := slices.DeleteFunc(strings.Split(next.lit, ","), func(field string) bool {
+			return strings.TrimSpace(field) == ""
+		})
+
+		if len(fields) == 0 {
+			fieldNames.ClearAndLock()
+			return nil
 		}
 
-		return nil
+		for _, field := range fields {
+			field = strings.TrimSpace(field)
+			if field == "" {
+				continue
+			}
 
+			fieldNames.Add(field)
+		}
+
+	case tokenTypeComma, tokenTypeEOF, tokenTypeIdent:
+		// If the field list is empty, we clear the field names and lock the field names.
+		// The empty field list has more weight than the presence of field names
+		fieldNames.ClearAndLock()
+	default:
+		return fmt.Errorf("unexpected token: %s", next.lit)
 	}
 
 	return nil
 }
 
 func parseIdent(token token, l *lexer, cc *CacheControlResponse) error {
+
 	switch strings.ToLower(token.lit) {
 	case "max-age":
+		if cc.MaxAge != nil {
+			l.skipToNextCommaOrIdent()
+			// We already have a max-age directive, so we skip the rest of the ident.
+			return nil
+		}
+
 		deltaSeconds, err := parseDeltaSecondsIDent(l)
 		if err != nil {
 			return err
 		}
-		cc.MaxAge = deltaSeconds
+		cc.MaxAge = &deltaSeconds
 	case "s-maxage":
+		if cc.SMaxAge != nil {
+			l.skipToNextCommaOrIdent()
+			// We already have a s-maxage directive, so we skip the rest of the ident.
+			return nil
+		}
+
 		deltaSeconds, err := parseDeltaSecondsIDent(l)
 		if err != nil {
 			return err
 		}
-		cc.SMaxAge = deltaSeconds
+		cc.SMaxAge = &deltaSeconds
 	case "no-store":
 		cc.NoStore = true
 	case "no-cache":
-		cc.NoCache = NewFieldNames()
+		if cc.NoCache == nil {
+			cc.NoCache = NewFieldNames()
+		}
+
 		err := parseFieldNamesIdent(l, cc.NoCache)
 		if err != nil {
 			return err
@@ -562,7 +640,10 @@ func parseIdent(token token, l *lexer, cc *CacheControlResponse) error {
 	case "public":
 		cc.Public = true
 	case "private":
-		cc.Private = NewFieldNames()
+		if cc.Private == nil {
+			cc.Private = NewFieldNames()
+		}
+
 		err := parseFieldNamesIdent(l, cc.Private)
 		if err != nil {
 			return err
