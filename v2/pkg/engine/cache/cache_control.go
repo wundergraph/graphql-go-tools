@@ -1,17 +1,13 @@
 package cache
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"net/http"
 	"net/textproto"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/runes"
 )
 
 // FieldNames is a map of field names.
@@ -43,9 +39,7 @@ func (f *FieldNames) Add(name string) {
 		return
 	}
 
-	// Stored verbatim. These names may be GraphQL field names, which are
-	// case-sensitive, so normalising here would conflate distinct fields
-	// (productName vs productname) with no way to recover the difference.
+	// Stored verbatim: these may be GraphQL field names, which are case-sensitive.
 	f.Fields[name] = struct{}{}
 }
 
@@ -179,32 +173,32 @@ type CacheControlResponse struct {
 	Private *FieldNames
 }
 
-// THIS COULD GO INTO A SEPARATE FILE
-
 func ParseCacheControlResponse(headers http.Header) (*CacheControlResponse, error) {
 	if len(headers) == 0 {
 		return nil, nil
 	}
 
 	cacheControl := headers[textproto.CanonicalMIMEHeaderKey("Cache-Control")]
-
-	if len(cacheControl) == 1 {
-		return parse(cacheControl[0])
+	if len(cacheControl) == 0 {
+		return nil, nil
 	}
 
-	var value string
+	// Repeated field lines are one comma-joined value (RFC 9110 §5.3).
+	value := cacheControl[0]
 	if len(cacheControl) > 1 {
 		value = strings.Join(cacheControl, ",")
+	}
+
+	// Nothing but whitespace and delimiters carries no directives, which is
+	// indistinguishable from the header being absent.
+	if strings.Trim(value, " \t\r\n,") == "" {
+		return nil, nil
 	}
 
 	return parse(value)
 }
 
 func parse(s string) (*CacheControlResponse, error) {
-	if len(s) == 0 {
-		return &CacheControlResponse{}, nil
-	}
-
 	l := newLexer(s)
 
 	if err := l.tokenize(); err != nil {
@@ -212,444 +206,145 @@ func parse(s string) (*CacheControlResponse, error) {
 	}
 
 	cc := &CacheControlResponse{}
+	seen := seenDirectives{}
 
-outer:
 	for {
 		token := l.readToken(0)
 
 		switch token.tt {
 		case tokenTypeIdent:
-			err := parseIdent(token, l, cc)
-			if err != nil {
+			if err := parseIdent(token, l, cc, &seen); err != nil {
 				return nil, err
+			}
+
+			if after := l.peekToken(); after.tt != tokenTypeComma && after.tt != tokenTypeEOF {
+				return nil, fmt.Errorf("expected , or end of input after directive %q at position %d", token.lit, after.start)
 			}
 		case tokenTypeComma:
 			continue
 		case tokenTypeEOF:
-			// We've reached the end of the input.
-			break outer
+			return cc, nil
 		default:
-			// The inner logic should handle advancing the lexer to the next comma or ident.
-			// The outer logic should always expect a comma or ident next.
-			return nil, fmt.Errorf("unexpected token: %s", token.lit)
-		}
-
-	}
-
-	return cc, nil
-}
-
-type lexer struct {
-	pos      int
-	tokenPos int
-	input    string
-	tokens   []token
-}
-
-func newLexer(input string) *lexer {
-	return &lexer{
-		pos:      0,
-		tokenPos: 0,
-		input:    input,
-		tokens:   make([]token, 0, 64),
-	}
-}
-
-func (l *lexer) tokenize() error {
-	for {
-		token, err := l.nextToken()
-		if err != nil {
-			return err
-		}
-
-		if token.tt == tokenTypeEOF {
-			return nil
-		}
-
-		l.tokens = append(l.tokens, token)
-	}
-}
-
-func (l *lexer) peekToken() token {
-	if l.tokenPos < len(l.tokens) {
-		return l.tokens[l.tokenPos]
-	}
-
-	return token{tt: tokenTypeEOF}
-}
-
-func (l *lexer) readToken(offset int) token {
-	if l.tokenPos+offset < len(l.tokens) {
-		nextIndex := l.tokenPos + offset
-		token := l.tokens[nextIndex]
-		l.tokenPos = nextIndex + 1
-		return token
-	}
-
-	return token{tt: tokenTypeEOF}
-}
-
-func (l *lexer) skipToNextCommaOrIdent() {
-	for {
-		token := l.peekToken()
-
-		switch token.tt {
-		case tokenTypeComma, tokenTypeIdent, tokenTypeEOF:
-			return
-		default:
-			l.readToken(0)
+			return nil, fmt.Errorf("unexpected token %q at position %d", token.lit, token.start)
 		}
 	}
 }
 
-// isWhitespace checks if the rune is a whitespace character.
-func (l *lexer) isWhitespace(r byte) bool {
-	return r == runes.SPACE || r == runes.TAB || r == runes.CARRIAGERETURN || r == runes.LINETERMINATOR
-}
-
-// isControlCharacter checks if the rune is a control character.
-// ASCII control characters are ranged from 0-31 and 127.
-func (l *lexer) isControlCharacter(r byte) bool {
-	return r <= 0x1F || r == 0x7F // 0-31 and 127
-}
-
-func (l *lexer) isInvalidTokenCharacter(r byte) bool {
-	switch r {
-	case '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']', '?', '=', '{', '}', ' ', '\t':
-		return true
+// deltaSecondsArgument interprets an argument as delta-seconds. The second
+// result reports whether to record the directive at all: an unusable argument
+// drops it rather than failing the field.
+func deltaSecondsArgument(arg directiveArgument) (DeltaSeconds, bool) {
+	if !arg.present || arg.text == "" {
+		return 0, false
 	}
 
-	return false
-}
-
-// isPrintableCharacter checks if the rune is a printable character.
-// Printable characters are ranged from 32 to 126.
-func (l *lexer) isPrintableCharacter(r byte) bool {
-	return r >= 0x20 && r <= 0x7E // 32-126
-}
-
-func (l *lexer) isDigit(r byte) bool {
-	return r >= 0x30 && r <= 0x39 // 0-9
-}
-
-func (l *lexer) nextToken() (token, error) {
-	tok := token{}
-
-	if l.pos >= len(l.input) {
-		tok.tt = tokenTypeEOF
-		tok.setEnd(l.pos, l.input)
-		return tok, nil
-	}
-
-	var next byte
-
-	for {
-		tok.setStart(l.pos)
-		next = l.read()
-
-		// control characters are not allowed in the input
-		if l.isControlCharacter(next) {
-			return tok, errors.New("control character found in input at position " + strconv.Itoa(l.pos))
-		}
-
-		if !l.isWhitespace(next) {
-			break
+	// delta-seconds is 1*DIGIT; strconv alone would also accept "+60".
+	for i := 0; i < len(arg.text); i++ {
+		if arg.text[i] < '0' || arg.text[i] > '9' {
+			return 0, false
 		}
 	}
 
-	if l.matchSingleByteToken(next, &tok) {
-		tok.setEnd(l.pos, l.input)
-		return tok, nil
+	value, err := parseDeltaSeconds(arg.text)
+	if err != nil {
+		return math.MaxInt32, true
 	}
 
-	switch next {
-	case runes.QUOTE:
-		err := l.readString(&tok)
-		return tok, err
+	if value < 0 {
+		return 0, false
 	}
 
-	if l.isDigit(next) {
-		err := l.readNumber(&tok)
-		return tok, err
-	}
-
-	err := l.readIdent(&tok)
-	return tok, err
+	return value, true
 }
 
-func (l *lexer) matchSingleByteToken(r byte, tok *token) bool {
-	switch r {
-	case runes.EOF:
-		tok.tt = tokenTypeEOF
-	case runes.EQUALS:
-		tok.tt = tokenTypeEquals
-	case runes.COMMA:
-		tok.tt = tokenTypeComma
-	default:
-		return false
+// fieldNamesArgument merges an argument into a field-name list. An argument
+// with no usable names collapses the directive to its unqualified form, which
+// outranks any names present already or added later.
+func fieldNamesArgument(arg directiveArgument, fields *FieldNames) {
+	// Make sure we don't allow adding subsequent field names to the list. when we have no arguments.
+	//
+	// Example:
+	// no-cache on its own is stricter than no-cache="A": it blocks reuse of the
+	// whole response, not just a few fields. So an empty argument wins, and we
+	// lock the set so a later occurrence can't weaken it.
+	if !arg.present {
+		fields.ClearAndLock()
+		return
 	}
 
-	return true
-}
-
-func (l *lexer) readIdent(tok *token) error {
-	tok.tt = tokenTypeIdent
-
-	for {
-		next := l.peek(0)
-
-		if next == runes.EOF {
-			tok.setEnd(l.pos, l.input)
-			return nil
+	var added bool
+	for _, field := range strings.Split(arg.text, ",") {
+		field = strings.TrimSpace(field)
+		if field == "" {
+			continue
 		}
 
-		if l.isControlCharacter(next) {
-			return fmt.Errorf("control character %x found in input at position %d", next, l.pos)
-		}
+		fields.Add(field)
+		added = true
+	}
 
-		switch next {
-		case runes.QUOTE:
-			return fmt.Errorf("unexpected character %x found in input at position %d", next, l.pos)
-		case runes.CARRIAGERETURN, runes.LINETERMINATOR, runes.COMMA, runes.EQUALS, runes.SPACE, runes.TAB:
-			tok.setEnd(l.pos, l.input)
-			return nil
-		}
-
-		l.advance(1)
+	if !added {
+		fields.ClearAndLock()
 	}
 }
 
-func (l *lexer) readString(tok *token) error {
-	tok.setStart(l.pos)
-	tok.tt = tokenTypeString
-
-	for {
-		next := l.peek(0)
-
-		switch next {
-		case runes.EOF, runes.CARRIAGERETURN, runes.LINETERMINATOR:
-			return fmt.Errorf("unexpected end of input at position %d", l.pos)
-		}
-
-		if l.isControlCharacter(next) {
-			return fmt.Errorf("control character %x found in input at position %d", next, l.pos)
-		}
-
-		switch next {
-		case runes.QUOTE, runes.CARRIAGERETURN, runes.LINETERMINATOR:
-			tok.setEnd(l.pos, l.input)
-			l.advance(1) // consume the quote
-			return nil
-		}
-
-		l.advance(1)
-	}
+// seenDirectives tracks first-occurrence resolution. It is separate from the
+// parsed value because a dropped first occurrence still counts as seen.
+type seenDirectives struct {
+	maxAge  bool
+	sMaxAge bool
 }
 
-func (l *lexer) readNumber(tok *token) error {
-	tok.tt = tokenTypeNumber
-
-	for {
-		next := l.peek(0)
-
-		switch next {
-		case runes.EOF, runes.CARRIAGERETURN, runes.LINETERMINATOR:
-			tok.setEnd(l.pos, l.input)
-			return nil
-
-		// We only allow integer numbers in the Cache-Control header.
-		// So we shouldn't allow a dot in the number input.
-		case runes.DOT:
-			return fmt.Errorf("unexpected character %x found in input at position %d - Only integer numbers are allowed", next, l.pos)
-
-		case runes.COMMA:
-			peek := l.peek(1)
-
-			if l.isDigit(peek) {
-				return fmt.Errorf("unexpected character %x found in input at position %d - Unsupported character in number", next, l.pos)
-			}
-		}
-
-		if l.isControlCharacter(next) {
-			return fmt.Errorf("control character %x found in input at position %d", next, l.pos)
-		}
-
-		// We allow only integer numbers in the Cache-Control header.
-		if !l.isDigit(next) {
-			tok.setEnd(l.pos, l.input)
-			return nil
-		}
-
-		l.advance(1)
-
-	}
-}
-
-func (l *lexer) peek(n int) byte {
-	if l.pos+n >= len(l.input) {
-		return byte(runes.EOF)
+func parseIdent(name token, l *lexer, cc *CacheControlResponse, seen *seenDirectives) error {
+	// Read the argument whatever the directive, so unknown and boolean ones
+	// consume theirs instead of leaving it for the outer loop.
+	arg, err := l.readArgument()
+	if err != nil {
+		return err
 	}
 
-	return l.input[l.pos+n]
-}
-
-func (l *lexer) advance(n int) {
-	if l.pos+n >= len(l.input) {
-		l.pos = len(l.input)
-	} else {
-		l.pos += n
-	}
-}
-
-func (l *lexer) read() byte {
-	if l.pos >= len(l.input) {
-		return runes.EOF
-	}
-
-	b := l.input[l.pos]
-	l.pos++
-	return b
-}
-
-type token struct {
-	tt    tokenType
-	lit   string
-	start int
-	end   int
-}
-
-func (t *token) setStart(start int) {
-	t.start = start
-}
-
-func (t *token) setEnd(end int, input string) {
-	t.end = end
-	t.lit = input[t.start:t.end]
-}
-
-type tokenType int
-
-const (
-	tokenTypeIdent tokenType = iota
-	tokenTypeEOF
-
-	tokenTypeComma
-	tokenTypeEquals
-
-	tokenTypeNumber
-	tokenTypeString
-)
-
-func parseDeltaSecondsIDent(l *lexer) (DeltaSeconds, error) {
-	next := l.peekToken()
-	if next.tt == tokenTypeEquals {
-		next := l.readToken(1)
-		if next.tt != tokenTypeNumber {
-			return 0, fmt.Errorf("unexpected token: %s", next.lit)
-		}
-
-		deltaSeconds, err := parseDeltaSeconds(next.lit)
-		if err != nil {
-			return 0, err
-		}
-
-		return deltaSeconds, nil
-
-	}
-
-	return -1, nil
-}
-
-func parseFieldNamesIdent(l *lexer, fieldNames *FieldNames) error {
-	next := l.peekToken()
-
-	switch next.tt {
-	case tokenTypeEquals:
-		next := l.readToken(1)
-		if next.tt != tokenTypeString {
-			return fmt.Errorf("unexpected token: %s", next.lit)
-		}
-
-		fields := slices.DeleteFunc(strings.Split(next.lit, ","), func(field string) bool {
-			return strings.TrimSpace(field) == ""
-		})
-
-		if len(fields) == 0 {
-			fieldNames.ClearAndLock()
-			return nil
-		}
-
-		for _, field := range fields {
-			field = strings.TrimSpace(field)
-			if field == "" {
-				continue
-			}
-
-			fieldNames.Add(field)
-		}
-
-	case tokenTypeComma, tokenTypeEOF, tokenTypeIdent:
-		// If the field list is empty, we clear the field names and lock the field names.
-		// The empty field list has more weight than the presence of field names
-		fieldNames.ClearAndLock()
-	default:
-		return fmt.Errorf("unexpected token: %s", next.lit)
-	}
-
-	return nil
-}
-
-func parseIdent(token token, l *lexer, cc *CacheControlResponse) error {
-
-	switch strings.ToLower(token.lit) {
+	switch strings.ToLower(name.lit) {
 	case "max-age":
-		if cc.MaxAge != nil {
-			l.skipToNextCommaOrIdent()
-			// We already have a max-age directive, so we skip the rest of the ident.
+		if seen.maxAge {
 			return nil
 		}
+		seen.maxAge = true
 
-		deltaSeconds, err := parseDeltaSecondsIDent(l)
-		if err != nil {
-			return err
+		if value, ok := deltaSecondsArgument(arg); ok {
+			cc.MaxAge = &value
 		}
-		cc.MaxAge = &deltaSeconds
+
 	case "s-maxage":
-		if cc.SMaxAge != nil {
-			l.skipToNextCommaOrIdent()
-			// We already have a s-maxage directive, so we skip the rest of the ident.
+		if seen.sMaxAge {
 			return nil
 		}
+		seen.sMaxAge = true
 
-		deltaSeconds, err := parseDeltaSecondsIDent(l)
-		if err != nil {
-			return err
+		if value, ok := deltaSecondsArgument(arg); ok {
+			cc.SMaxAge = &value
 		}
-		cc.SMaxAge = &deltaSeconds
+
 	case "no-store":
+		// A stray argument means nothing to a boolean directive; discard it.
 		cc.NoStore = true
+
+	case "public":
+		cc.Public = true
+
 	case "no-cache":
 		if cc.NoCache == nil {
 			cc.NoCache = NewFieldNames()
 		}
+		fieldNamesArgument(arg, cc.NoCache)
 
-		err := parseFieldNamesIdent(l, cc.NoCache)
-		if err != nil {
-			return err
-		}
-	case "public":
-		cc.Public = true
 	case "private":
 		if cc.Private == nil {
 			cc.Private = NewFieldNames()
 		}
+		fieldNamesArgument(arg, cc.Private)
 
-		err := parseFieldNamesIdent(l, cc.Private)
-		if err != nil {
-			return err
-		}
 	default:
-		return fmt.Errorf("unexpected ident: %s", token.lit)
+		// We ignore directives that we don't specify here.
 	}
 
 	return nil

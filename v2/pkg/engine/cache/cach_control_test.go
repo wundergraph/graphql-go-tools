@@ -228,9 +228,11 @@ func TestParse(t *testing.T) {
 		requireParses(t, "\t", &CacheControlResponse{})
 	})
 
+	// OWS is SP / HTAB only (RFC 9110 §5.6.3). A bare CR or LF is malformed
+	// rather than blank, and is covered by the D17 subtests below.
 	t.Run("mixed whitespace only", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "  \t \r\n ", &CacheControlResponse{})
+		requireParses(t, "  \t \t ", &CacheControlResponse{})
 	})
 
 	// --- single boolean directives ------------------------------------------
@@ -892,14 +894,26 @@ func TestParse(t *testing.T) {
 		requireParseError(t, "max age=60")
 	})
 
-	t.Run("space before equals", func(t *testing.T) {
+	// Whitespace around "=" is not permitted by the grammar, but it is
+	// tolerated rather than rejected: discarding the whole field over a
+	// cosmetic space is exactly what D0 exists to prevent. `max-age=6 0`
+	// below still fails, because two values with a gap and no comma is a
+	// structural problem rather than a stray space.
+	t.Run("space before equals is tolerated", func(t *testing.T) {
 		t.Parallel()
-		requireParseError(t, "max-age =60")
+		requireParses(t, "max-age =60", &CacheControlResponse{MaxAge: seconds(60)})
 	})
 
-	t.Run("space after equals", func(t *testing.T) {
+	t.Run("space after equals is tolerated", func(t *testing.T) {
 		t.Parallel()
-		requireParseError(t, "max-age= 60")
+		requireParses(t, "max-age= 60", &CacheControlResponse{MaxAge: seconds(60)})
+	})
+
+	t.Run("space on both sides of equals is tolerated", func(t *testing.T) {
+		t.Parallel()
+		requireParses(t, `no-cache = "Set-Cookie"`, &CacheControlResponse{
+			NoCache: fieldNames("Set-Cookie"),
+		})
 	})
 
 	t.Run("directive name with slash", func(t *testing.T) {
@@ -1181,9 +1195,20 @@ func TestParseCacheControlResponse(t *testing.T) {
 		)
 	})
 
-	t.Run("invalid Cache-Control", func(t *testing.T) {
+	// D0 — a malformed *structure* still propagates as an error.
+	t.Run("malformed Cache-Control", func(t *testing.T) {
 		t.Parallel()
-		requireHeaderParseError(t, http.Header{"Cache-Control": []string{"max-age=abc"}})
+		requireHeaderParseError(t, http.Header{"Cache-Control": []string{`no-cache="unterminated`}})
+	})
+
+	// D5 — a bad value is not malformed. The directive is dropped and the
+	// response still parses.
+	t.Run("Cache-Control with an unusable value", func(t *testing.T) {
+		t.Parallel()
+		requireHeaderParses(t,
+			http.Header{"Cache-Control": []string{"no-store, max-age=abc"}},
+			&CacheControlResponse{NoStore: true},
+		)
 	})
 
 	t.Run("header name lookup is case-insensitive", func(t *testing.T) {
@@ -1206,9 +1231,19 @@ func TestParseCacheControlResponse(t *testing.T) {
 		)
 	})
 
-	t.Run("multiple values where the second one is invalid", func(t *testing.T) {
+	// D14 — joined into one field, so the first occurrence wins and the
+	// unusable repeat is skipped rather than failing the header.
+	t.Run("multiple values where the second one is unusable", func(t *testing.T) {
 		t.Parallel()
-		requireHeaderParseError(t, http.Header{"Cache-Control": []string{"max-age=60", "max-age=abc"}})
+		requireHeaderParses(t,
+			http.Header{"Cache-Control": []string{"max-age=60", "max-age=abc"}},
+			&CacheControlResponse{MaxAge: seconds(60)},
+		)
+	})
+
+	t.Run("multiple values where the second one is malformed", func(t *testing.T) {
+		t.Parallel()
+		requireHeaderParseError(t, http.Header{"Cache-Control": []string{"max-age=60", `no-cache="x`}})
 	})
 
 	t.Run("multiple values with a quoted field list split across lines", func(t *testing.T) {
