@@ -16,7 +16,7 @@ type Description struct {
 	Position      position.Position
 }
 
-// nolint
+//nolint
 func (d *Document) PrintDescription(description Description, indent []byte, depth int, writer io.Writer) (err error) {
 	for i := 0; i < depth; i++ {
 		_, err = writer.Write(indent)

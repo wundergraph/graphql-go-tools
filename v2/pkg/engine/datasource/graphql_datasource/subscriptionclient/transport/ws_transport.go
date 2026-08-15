@@ -321,7 +321,7 @@ func (t *WSTransport) negotiateSubprotocol(requested common.WSSubprotocol, accep
 	// that strip the Sec-WebSocket-Protocol header). That fallback was
 	// intentionally removed. Re-add it here if such compatibility is needed
 	// again.
-	switch common.WSSubprotocol(accepted) {
+	switch accepted {
 	case common.SubprotocolGraphQLTransportWS:
 		return protocol.NewGraphQLTransportWS(), nil
 	case common.SubprotocolGraphQLWS:

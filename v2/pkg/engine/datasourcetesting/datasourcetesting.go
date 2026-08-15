@@ -61,8 +61,7 @@ func WithDefaultPostProcessor() func(*testOptions) {
 	}
 }
 
-func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
-	// TODO: rename to WithPostProcessor
+func WithPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
 	return func(o *testOptions) {
 		o.postProcessor = postprocess.NewProcessor(options...)
 	}

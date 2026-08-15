@@ -303,7 +303,7 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 	// before we can parse the schema.
 	for i := 0; i < schemaFile.Imports().Len(); i++ {
 		protoImport := schemaFile.Imports().Get(i)
-		pc.doc.Imports = append(pc.doc.Imports, string(protoImport.Path()))
+		pc.doc.Imports = append(pc.doc.Imports, protoImport.Path())
 		pc.processFile(protoImport, mapping)
 	}
 
@@ -1288,7 +1288,8 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field *F
 	elements := data.Array()
 	newListField := rootMsg.NewField(listFieldDesc)
 	if len(elements) == 0 {
-		if rpcField.ListMetadata.LevelInfo[level-1].Optional {
+		// We need to explicitly check for null because an empty list must still initialize the wrapper
+		if isNullValue(data) && rpcField.ListMetadata.LevelInfo[level-1].Optional {
 			return nil, nil
 		}
 

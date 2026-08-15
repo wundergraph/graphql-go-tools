@@ -19,105 +19,109 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProductService_LookupProductById_FullMethodName                            = "/productv1.ProductService/LookupProductById"
-	ProductService_LookupStorageById_FullMethodName                            = "/productv1.ProductService/LookupStorageById"
-	ProductService_LookupWarehouseById_FullMethodName                          = "/productv1.ProductService/LookupWarehouseById"
-	ProductService_MutationBulkCreateAuthors_FullMethodName                    = "/productv1.ProductService/MutationBulkCreateAuthors"
-	ProductService_MutationBulkCreateBlogPosts_FullMethodName                  = "/productv1.ProductService/MutationBulkCreateBlogPosts"
-	ProductService_MutationBulkUpdateAuthors_FullMethodName                    = "/productv1.ProductService/MutationBulkUpdateAuthors"
-	ProductService_MutationBulkUpdateBlogPosts_FullMethodName                  = "/productv1.ProductService/MutationBulkUpdateBlogPosts"
-	ProductService_MutationCreateAuthor_FullMethodName                         = "/productv1.ProductService/MutationCreateAuthor"
-	ProductService_MutationCreateBlogPost_FullMethodName                       = "/productv1.ProductService/MutationCreateBlogPost"
-	ProductService_MutationCreateNullableFieldsType_FullMethodName             = "/productv1.ProductService/MutationCreateNullableFieldsType"
-	ProductService_MutationCreateUser_FullMethodName                           = "/productv1.ProductService/MutationCreateUser"
-	ProductService_MutationPerformAction_FullMethodName                        = "/productv1.ProductService/MutationPerformAction"
-	ProductService_MutationUpdateAuthor_FullMethodName                         = "/productv1.ProductService/MutationUpdateAuthor"
-	ProductService_MutationUpdateBlogPost_FullMethodName                       = "/productv1.ProductService/MutationUpdateBlogPost"
-	ProductService_MutationUpdateNullableFieldsType_FullMethodName             = "/productv1.ProductService/MutationUpdateNullableFieldsType"
-	ProductService_QueryAllAuthors_FullMethodName                              = "/productv1.ProductService/QueryAllAuthors"
-	ProductService_QueryAllBlogPosts_FullMethodName                            = "/productv1.ProductService/QueryAllBlogPosts"
-	ProductService_QueryAllNullableFieldsTypes_FullMethodName                  = "/productv1.ProductService/QueryAllNullableFieldsTypes"
-	ProductService_QueryAllPets_FullMethodName                                 = "/productv1.ProductService/QueryAllPets"
-	ProductService_QueryAuthor_FullMethodName                                  = "/productv1.ProductService/QueryAuthor"
-	ProductService_QueryAuthorById_FullMethodName                              = "/productv1.ProductService/QueryAuthorById"
-	ProductService_QueryAuthorsWithFilter_FullMethodName                       = "/productv1.ProductService/QueryAuthorsWithFilter"
-	ProductService_QueryBlogPost_FullMethodName                                = "/productv1.ProductService/QueryBlogPost"
-	ProductService_QueryBlogPostById_FullMethodName                            = "/productv1.ProductService/QueryBlogPostById"
-	ProductService_QueryBlogPostsWithFilter_FullMethodName                     = "/productv1.ProductService/QueryBlogPostsWithFilter"
-	ProductService_QueryBulkSearchAuthors_FullMethodName                       = "/productv1.ProductService/QueryBulkSearchAuthors"
-	ProductService_QueryBulkSearchBlogPosts_FullMethodName                     = "/productv1.ProductService/QueryBulkSearchBlogPosts"
-	ProductService_QueryCalculateTotals_FullMethodName                         = "/productv1.ProductService/QueryCalculateTotals"
-	ProductService_QueryCategories_FullMethodName                              = "/productv1.ProductService/QueryCategories"
-	ProductService_QueryCategoriesByKind_FullMethodName                        = "/productv1.ProductService/QueryCategoriesByKind"
-	ProductService_QueryCategoriesByKinds_FullMethodName                       = "/productv1.ProductService/QueryCategoriesByKinds"
-	ProductService_QueryCategory_FullMethodName                                = "/productv1.ProductService/QueryCategory"
-	ProductService_QueryComplexFilterType_FullMethodName                       = "/productv1.ProductService/QueryComplexFilterType"
-	ProductService_QueryConditionalSearch_FullMethodName                       = "/productv1.ProductService/QueryConditionalSearch"
-	ProductService_QueryFilterCategories_FullMethodName                        = "/productv1.ProductService/QueryFilterCategories"
-	ProductService_QueryNestedType_FullMethodName                              = "/productv1.ProductService/QueryNestedType"
-	ProductService_QueryNullableFieldsType_FullMethodName                      = "/productv1.ProductService/QueryNullableFieldsType"
-	ProductService_QueryNullableFieldsTypeById_FullMethodName                  = "/productv1.ProductService/QueryNullableFieldsTypeById"
-	ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName            = "/productv1.ProductService/QueryNullableFieldsTypeWithFilter"
-	ProductService_QueryRandomPet_FullMethodName                               = "/productv1.ProductService/QueryRandomPet"
-	ProductService_QueryRandomSearchResult_FullMethodName                      = "/productv1.ProductService/QueryRandomSearchResult"
-	ProductService_QueryRecursiveType_FullMethodName                           = "/productv1.ProductService/QueryRecursiveType"
-	ProductService_QuerySearch_FullMethodName                                  = "/productv1.ProductService/QuerySearch"
-	ProductService_QueryTestContainer_FullMethodName                           = "/productv1.ProductService/QueryTestContainer"
-	ProductService_QueryTestContainers_FullMethodName                          = "/productv1.ProductService/QueryTestContainers"
-	ProductService_QueryTypeFilterWithArguments_FullMethodName                 = "/productv1.ProductService/QueryTypeFilterWithArguments"
-	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName            = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
-	ProductService_QueryUser_FullMethodName                                    = "/productv1.ProductService/QueryUser"
-	ProductService_QueryUsers_FullMethodName                                   = "/productv1.ProductService/QueryUsers"
-	ProductService_RequireStorageCategoryInfoSummaryById_FullMethodName        = "/productv1.ProductService/RequireStorageCategoryInfoSummaryById"
-	ProductService_RequireStorageDeepItemInfoById_FullMethodName               = "/productv1.ProductService/RequireStorageDeepItemInfoById"
-	ProductService_RequireStorageFilteredTagSummaryById_FullMethodName         = "/productv1.ProductService/RequireStorageFilteredTagSummaryById"
-	ProductService_RequireStorageItemHandlerInfoById_FullMethodName            = "/productv1.ProductService/RequireStorageItemHandlerInfoById"
-	ProductService_RequireStorageItemInfoById_FullMethodName                   = "/productv1.ProductService/RequireStorageItemInfoById"
-	ProductService_RequireStorageItemSpecsInfoById_FullMethodName              = "/productv1.ProductService/RequireStorageItemSpecsInfoById"
-	ProductService_RequireStorageKindSummaryById_FullMethodName                = "/productv1.ProductService/RequireStorageKindSummaryById"
-	ProductService_RequireStorageLatestOperationById_FullMethodName            = "/productv1.ProductService/RequireStorageLatestOperationById"
-	ProductService_RequireStorageMetadataScoreById_FullMethodName              = "/productv1.ProductService/RequireStorageMetadataScoreById"
-	ProductService_RequireStorageMultiFilteredTagSummaryById_FullMethodName    = "/productv1.ProductService/RequireStorageMultiFilteredTagSummaryById"
-	ProductService_RequireStorageNullableFilteredTagSummaryById_FullMethodName = "/productv1.ProductService/RequireStorageNullableFilteredTagSummaryById"
-	ProductService_RequireStorageOperationReportById_FullMethodName            = "/productv1.ProductService/RequireStorageOperationReportById"
-	ProductService_RequireStorageOptionalLatestOperationById_FullMethodName    = "/productv1.ProductService/RequireStorageOptionalLatestOperationById"
-	ProductService_RequireStorageOptionalProcessedMetadataById_FullMethodName  = "/productv1.ProductService/RequireStorageOptionalProcessedMetadataById"
-	ProductService_RequireStorageOptionalProcessedTagsById_FullMethodName      = "/productv1.ProductService/RequireStorageOptionalProcessedTagsById"
-	ProductService_RequireStorageOptionalTagSummaryById_FullMethodName         = "/productv1.ProductService/RequireStorageOptionalTagSummaryById"
-	ProductService_RequireStorageProcessedMetadataById_FullMethodName          = "/productv1.ProductService/RequireStorageProcessedMetadataById"
-	ProductService_RequireStorageProcessedMetadataHistoryById_FullMethodName   = "/productv1.ProductService/RequireStorageProcessedMetadataHistoryById"
-	ProductService_RequireStorageProcessedTagsById_FullMethodName              = "/productv1.ProductService/RequireStorageProcessedTagsById"
-	ProductService_RequireStorageRecommendedItemById_FullMethodName            = "/productv1.ProductService/RequireStorageRecommendedItemById"
-	ProductService_RequireStorageRecommendedItemsById_FullMethodName           = "/productv1.ProductService/RequireStorageRecommendedItemsById"
-	ProductService_RequireStorageSecuritySummaryById_FullMethodName            = "/productv1.ProductService/RequireStorageSecuritySummaryById"
-	ProductService_RequireStorageStockHealthScoreById_FullMethodName           = "/productv1.ProductService/RequireStorageStockHealthScoreById"
-	ProductService_RequireStorageTagSummaryById_FullMethodName                 = "/productv1.ProductService/RequireStorageTagSummaryById"
-	ProductService_RequireWarehouseStockHealthScoreById_FullMethodName         = "/productv1.ProductService/RequireWarehouseStockHealthScoreById"
-	ProductService_ResolveCategoryActiveSubcategories_FullMethodName           = "/productv1.ProductService/ResolveCategoryActiveSubcategories"
-	ProductService_ResolveCategoryCategoryMetrics_FullMethodName               = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
-	ProductService_ResolveCategoryCategoryStatus_FullMethodName                = "/productv1.ProductService/ResolveCategoryCategoryStatus"
-	ProductService_ResolveCategoryChildCategories_FullMethodName               = "/productv1.ProductService/ResolveCategoryChildCategories"
-	ProductService_ResolveCategoryMascot_FullMethodName                        = "/productv1.ProductService/ResolveCategoryMascot"
-	ProductService_ResolveCategoryMetricsAverageScore_FullMethodName           = "/productv1.ProductService/ResolveCategoryMetricsAverageScore"
-	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName        = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
-	ProductService_ResolveCategoryMetricsRelatedCategory_FullMethodName        = "/productv1.ProductService/ResolveCategoryMetricsRelatedCategory"
-	ProductService_ResolveCategoryOptionalCategories_FullMethodName            = "/productv1.ProductService/ResolveCategoryOptionalCategories"
-	ProductService_ResolveCategoryPopularityScore_FullMethodName               = "/productv1.ProductService/ResolveCategoryPopularityScore"
-	ProductService_ResolveCategoryProductCount_FullMethodName                  = "/productv1.ProductService/ResolveCategoryProductCount"
-	ProductService_ResolveCategoryTopSubcategory_FullMethodName                = "/productv1.ProductService/ResolveCategoryTopSubcategory"
-	ProductService_ResolveCategoryTotalProducts_FullMethodName                 = "/productv1.ProductService/ResolveCategoryTotalProducts"
-	ProductService_ResolveProductMascotRecommendation_FullMethodName           = "/productv1.ProductService/ResolveProductMascotRecommendation"
-	ProductService_ResolveProductProductDetails_FullMethodName                 = "/productv1.ProductService/ResolveProductProductDetails"
-	ProductService_ResolveProductRecommendedCategory_FullMethodName            = "/productv1.ProductService/ResolveProductRecommendedCategory"
-	ProductService_ResolveProductShippingEstimate_FullMethodName               = "/productv1.ProductService/ResolveProductShippingEstimate"
-	ProductService_ResolveProductStockStatus_FullMethodName                    = "/productv1.ProductService/ResolveProductStockStatus"
-	ProductService_ResolveStorageLinkedStorages_FullMethodName                 = "/productv1.ProductService/ResolveStorageLinkedStorages"
-	ProductService_ResolveStorageNearbyStorages_FullMethodName                 = "/productv1.ProductService/ResolveStorageNearbyStorages"
-	ProductService_ResolveStorageStorageStatus_FullMethodName                  = "/productv1.ProductService/ResolveStorageStorageStatus"
-	ProductService_ResolveSubcategoryFeaturedCategory_FullMethodName           = "/productv1.ProductService/ResolveSubcategoryFeaturedCategory"
-	ProductService_ResolveSubcategoryItemCount_FullMethodName                  = "/productv1.ProductService/ResolveSubcategoryItemCount"
-	ProductService_ResolveSubcategoryParentCategory_FullMethodName             = "/productv1.ProductService/ResolveSubcategoryParentCategory"
-	ProductService_ResolveTestContainerDetails_FullMethodName                  = "/productv1.ProductService/ResolveTestContainerDetails"
+	ProductService_LookupProductById_FullMethodName                                  = "/productv1.ProductService/LookupProductById"
+	ProductService_LookupStorageById_FullMethodName                                  = "/productv1.ProductService/LookupStorageById"
+	ProductService_LookupWarehouseById_FullMethodName                                = "/productv1.ProductService/LookupWarehouseById"
+	ProductService_MutationBulkCreateAuthors_FullMethodName                          = "/productv1.ProductService/MutationBulkCreateAuthors"
+	ProductService_MutationBulkCreateBlogPosts_FullMethodName                        = "/productv1.ProductService/MutationBulkCreateBlogPosts"
+	ProductService_MutationBulkUpdateAuthors_FullMethodName                          = "/productv1.ProductService/MutationBulkUpdateAuthors"
+	ProductService_MutationBulkUpdateBlogPosts_FullMethodName                        = "/productv1.ProductService/MutationBulkUpdateBlogPosts"
+	ProductService_MutationCreateAuthor_FullMethodName                               = "/productv1.ProductService/MutationCreateAuthor"
+	ProductService_MutationCreateBlogPost_FullMethodName                             = "/productv1.ProductService/MutationCreateBlogPost"
+	ProductService_MutationCreateNullableFieldsType_FullMethodName                   = "/productv1.ProductService/MutationCreateNullableFieldsType"
+	ProductService_MutationCreateUser_FullMethodName                                 = "/productv1.ProductService/MutationCreateUser"
+	ProductService_MutationPerformAction_FullMethodName                              = "/productv1.ProductService/MutationPerformAction"
+	ProductService_MutationUpdateAuthor_FullMethodName                               = "/productv1.ProductService/MutationUpdateAuthor"
+	ProductService_MutationUpdateBlogPost_FullMethodName                             = "/productv1.ProductService/MutationUpdateBlogPost"
+	ProductService_MutationUpdateNullableFieldsType_FullMethodName                   = "/productv1.ProductService/MutationUpdateNullableFieldsType"
+	ProductService_QueryAllAuthors_FullMethodName                                    = "/productv1.ProductService/QueryAllAuthors"
+	ProductService_QueryAllBlogPosts_FullMethodName                                  = "/productv1.ProductService/QueryAllBlogPosts"
+	ProductService_QueryAllNullableFieldsTypes_FullMethodName                        = "/productv1.ProductService/QueryAllNullableFieldsTypes"
+	ProductService_QueryAllPets_FullMethodName                                       = "/productv1.ProductService/QueryAllPets"
+	ProductService_QueryAuthor_FullMethodName                                        = "/productv1.ProductService/QueryAuthor"
+	ProductService_QueryAuthorById_FullMethodName                                    = "/productv1.ProductService/QueryAuthorById"
+	ProductService_QueryAuthorsWithFilter_FullMethodName                             = "/productv1.ProductService/QueryAuthorsWithFilter"
+	ProductService_QueryBlogPost_FullMethodName                                      = "/productv1.ProductService/QueryBlogPost"
+	ProductService_QueryBlogPostById_FullMethodName                                  = "/productv1.ProductService/QueryBlogPostById"
+	ProductService_QueryBlogPostsWithFilter_FullMethodName                           = "/productv1.ProductService/QueryBlogPostsWithFilter"
+	ProductService_QueryBulkSearchAuthors_FullMethodName                             = "/productv1.ProductService/QueryBulkSearchAuthors"
+	ProductService_QueryBulkSearchBlogPosts_FullMethodName                           = "/productv1.ProductService/QueryBulkSearchBlogPosts"
+	ProductService_QueryCalculateTotals_FullMethodName                               = "/productv1.ProductService/QueryCalculateTotals"
+	ProductService_QueryCategories_FullMethodName                                    = "/productv1.ProductService/QueryCategories"
+	ProductService_QueryCategoriesByKind_FullMethodName                              = "/productv1.ProductService/QueryCategoriesByKind"
+	ProductService_QueryCategoriesByKinds_FullMethodName                             = "/productv1.ProductService/QueryCategoriesByKinds"
+	ProductService_QueryCategory_FullMethodName                                      = "/productv1.ProductService/QueryCategory"
+	ProductService_QueryComplexFilterType_FullMethodName                             = "/productv1.ProductService/QueryComplexFilterType"
+	ProductService_QueryConditionalSearch_FullMethodName                             = "/productv1.ProductService/QueryConditionalSearch"
+	ProductService_QueryFilterCategories_FullMethodName                              = "/productv1.ProductService/QueryFilterCategories"
+	ProductService_QueryNestedType_FullMethodName                                    = "/productv1.ProductService/QueryNestedType"
+	ProductService_QueryNullableFieldsType_FullMethodName                            = "/productv1.ProductService/QueryNullableFieldsType"
+	ProductService_QueryNullableFieldsTypeById_FullMethodName                        = "/productv1.ProductService/QueryNullableFieldsTypeById"
+	ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName                  = "/productv1.ProductService/QueryNullableFieldsTypeWithFilter"
+	ProductService_QueryRandomPet_FullMethodName                                     = "/productv1.ProductService/QueryRandomPet"
+	ProductService_QueryRandomSearchResult_FullMethodName                            = "/productv1.ProductService/QueryRandomSearchResult"
+	ProductService_QueryRecursiveType_FullMethodName                                 = "/productv1.ProductService/QueryRecursiveType"
+	ProductService_QuerySearch_FullMethodName                                        = "/productv1.ProductService/QuerySearch"
+	ProductService_QueryTestContainer_FullMethodName                                 = "/productv1.ProductService/QueryTestContainer"
+	ProductService_QueryTestContainers_FullMethodName                                = "/productv1.ProductService/QueryTestContainers"
+	ProductService_QueryTypeFilterWithArguments_FullMethodName                       = "/productv1.ProductService/QueryTypeFilterWithArguments"
+	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName                  = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
+	ProductService_QueryUser_FullMethodName                                          = "/productv1.ProductService/QueryUser"
+	ProductService_QueryUsers_FullMethodName                                         = "/productv1.ProductService/QueryUsers"
+	ProductService_RequireStorageCategoryInfoSummaryById_FullMethodName              = "/productv1.ProductService/RequireStorageCategoryInfoSummaryById"
+	ProductService_RequireStorageDeepItemInfoById_FullMethodName                     = "/productv1.ProductService/RequireStorageDeepItemInfoById"
+	ProductService_RequireStorageFilteredTagSummaryById_FullMethodName               = "/productv1.ProductService/RequireStorageFilteredTagSummaryById"
+	ProductService_RequireStorageItemHandlerInfoById_FullMethodName                  = "/productv1.ProductService/RequireStorageItemHandlerInfoById"
+	ProductService_RequireStorageItemInfoById_FullMethodName                         = "/productv1.ProductService/RequireStorageItemInfoById"
+	ProductService_RequireStorageItemSpecsInfoById_FullMethodName                    = "/productv1.ProductService/RequireStorageItemSpecsInfoById"
+	ProductService_RequireStorageKindSummaryById_FullMethodName                      = "/productv1.ProductService/RequireStorageKindSummaryById"
+	ProductService_RequireStorageLatestOperationById_FullMethodName                  = "/productv1.ProductService/RequireStorageLatestOperationById"
+	ProductService_RequireStorageMetadataScoreById_FullMethodName                    = "/productv1.ProductService/RequireStorageMetadataScoreById"
+	ProductService_RequireStorageMultiFilteredTagSummaryById_FullMethodName          = "/productv1.ProductService/RequireStorageMultiFilteredTagSummaryById"
+	ProductService_RequireStorageNullableFilteredTagSummaryById_FullMethodName       = "/productv1.ProductService/RequireStorageNullableFilteredTagSummaryById"
+	ProductService_RequireStorageOperationReportById_FullMethodName                  = "/productv1.ProductService/RequireStorageOperationReportById"
+	ProductService_RequireStorageOptionalLatestOperationById_FullMethodName          = "/productv1.ProductService/RequireStorageOptionalLatestOperationById"
+	ProductService_RequireStorageOptionalOperationHistoryById_FullMethodName         = "/productv1.ProductService/RequireStorageOptionalOperationHistoryById"
+	ProductService_RequireStorageOptionalProcessedMetadataById_FullMethodName        = "/productv1.ProductService/RequireStorageOptionalProcessedMetadataById"
+	ProductService_RequireStorageOptionalProcessedMetadataHistoryById_FullMethodName = "/productv1.ProductService/RequireStorageOptionalProcessedMetadataHistoryById"
+	ProductService_RequireStorageOptionalProcessedTagsById_FullMethodName            = "/productv1.ProductService/RequireStorageOptionalProcessedTagsById"
+	ProductService_RequireStorageOptionalRecommendedItemsById_FullMethodName         = "/productv1.ProductService/RequireStorageOptionalRecommendedItemsById"
+	ProductService_RequireStorageOptionalTagSummaryById_FullMethodName               = "/productv1.ProductService/RequireStorageOptionalTagSummaryById"
+	ProductService_RequireStorageProcessedMetadataById_FullMethodName                = "/productv1.ProductService/RequireStorageProcessedMetadataById"
+	ProductService_RequireStorageProcessedMetadataHistoryById_FullMethodName         = "/productv1.ProductService/RequireStorageProcessedMetadataHistoryById"
+	ProductService_RequireStorageProcessedTagsById_FullMethodName                    = "/productv1.ProductService/RequireStorageProcessedTagsById"
+	ProductService_RequireStorageRecommendedItemById_FullMethodName                  = "/productv1.ProductService/RequireStorageRecommendedItemById"
+	ProductService_RequireStorageRecommendedItemsById_FullMethodName                 = "/productv1.ProductService/RequireStorageRecommendedItemsById"
+	ProductService_RequireStorageSecuritySummaryById_FullMethodName                  = "/productv1.ProductService/RequireStorageSecuritySummaryById"
+	ProductService_RequireStorageStockHealthScoreById_FullMethodName                 = "/productv1.ProductService/RequireStorageStockHealthScoreById"
+	ProductService_RequireStorageTagSummaryById_FullMethodName                       = "/productv1.ProductService/RequireStorageTagSummaryById"
+	ProductService_RequireStorageTagsByLengthsById_FullMethodName                    = "/productv1.ProductService/RequireStorageTagsByLengthsById"
+	ProductService_RequireWarehouseStockHealthScoreById_FullMethodName               = "/productv1.ProductService/RequireWarehouseStockHealthScoreById"
+	ProductService_ResolveCategoryActiveSubcategories_FullMethodName                 = "/productv1.ProductService/ResolveCategoryActiveSubcategories"
+	ProductService_ResolveCategoryCategoryMetrics_FullMethodName                     = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
+	ProductService_ResolveCategoryCategoryStatus_FullMethodName                      = "/productv1.ProductService/ResolveCategoryCategoryStatus"
+	ProductService_ResolveCategoryChildCategories_FullMethodName                     = "/productv1.ProductService/ResolveCategoryChildCategories"
+	ProductService_ResolveCategoryMascot_FullMethodName                              = "/productv1.ProductService/ResolveCategoryMascot"
+	ProductService_ResolveCategoryMetricsAverageScore_FullMethodName                 = "/productv1.ProductService/ResolveCategoryMetricsAverageScore"
+	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName              = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
+	ProductService_ResolveCategoryMetricsRelatedCategory_FullMethodName              = "/productv1.ProductService/ResolveCategoryMetricsRelatedCategory"
+	ProductService_ResolveCategoryOptionalCategories_FullMethodName                  = "/productv1.ProductService/ResolveCategoryOptionalCategories"
+	ProductService_ResolveCategoryPopularityScore_FullMethodName                     = "/productv1.ProductService/ResolveCategoryPopularityScore"
+	ProductService_ResolveCategoryProductCount_FullMethodName                        = "/productv1.ProductService/ResolveCategoryProductCount"
+	ProductService_ResolveCategoryTopSubcategory_FullMethodName                      = "/productv1.ProductService/ResolveCategoryTopSubcategory"
+	ProductService_ResolveCategoryTotalProducts_FullMethodName                       = "/productv1.ProductService/ResolveCategoryTotalProducts"
+	ProductService_ResolveProductMascotRecommendation_FullMethodName                 = "/productv1.ProductService/ResolveProductMascotRecommendation"
+	ProductService_ResolveProductProductDetails_FullMethodName                       = "/productv1.ProductService/ResolveProductProductDetails"
+	ProductService_ResolveProductRecommendedCategory_FullMethodName                  = "/productv1.ProductService/ResolveProductRecommendedCategory"
+	ProductService_ResolveProductShippingEstimate_FullMethodName                     = "/productv1.ProductService/ResolveProductShippingEstimate"
+	ProductService_ResolveProductStockStatus_FullMethodName                          = "/productv1.ProductService/ResolveProductStockStatus"
+	ProductService_ResolveStorageLinkedStorages_FullMethodName                       = "/productv1.ProductService/ResolveStorageLinkedStorages"
+	ProductService_ResolveStorageNearbyStorages_FullMethodName                       = "/productv1.ProductService/ResolveStorageNearbyStorages"
+	ProductService_ResolveStorageStorageStatus_FullMethodName                        = "/productv1.ProductService/ResolveStorageStorageStatus"
+	ProductService_ResolveSubcategoryFeaturedCategory_FullMethodName                 = "/productv1.ProductService/ResolveSubcategoryFeaturedCategory"
+	ProductService_ResolveSubcategoryItemCount_FullMethodName                        = "/productv1.ProductService/ResolveSubcategoryItemCount"
+	ProductService_ResolveSubcategoryParentCategory_FullMethodName                   = "/productv1.ProductService/ResolveSubcategoryParentCategory"
+	ProductService_ResolveTestContainerDetails_FullMethodName                        = "/productv1.ProductService/ResolveTestContainerDetails"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -191,8 +195,11 @@ type ProductServiceClient interface {
 	RequireStorageNullableFilteredTagSummaryById(ctx context.Context, in *RequireStorageNullableFilteredTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageNullableFilteredTagSummaryByIdResponse, error)
 	RequireStorageOperationReportById(ctx context.Context, in *RequireStorageOperationReportByIdRequest, opts ...grpc.CallOption) (*RequireStorageOperationReportByIdResponse, error)
 	RequireStorageOptionalLatestOperationById(ctx context.Context, in *RequireStorageOptionalLatestOperationByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalLatestOperationByIdResponse, error)
+	RequireStorageOptionalOperationHistoryById(ctx context.Context, in *RequireStorageOptionalOperationHistoryByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalOperationHistoryByIdResponse, error)
 	RequireStorageOptionalProcessedMetadataById(ctx context.Context, in *RequireStorageOptionalProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedMetadataByIdResponse, error)
+	RequireStorageOptionalProcessedMetadataHistoryById(ctx context.Context, in *RequireStorageOptionalProcessedMetadataHistoryByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedMetadataHistoryByIdResponse, error)
 	RequireStorageOptionalProcessedTagsById(ctx context.Context, in *RequireStorageOptionalProcessedTagsByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedTagsByIdResponse, error)
+	RequireStorageOptionalRecommendedItemsById(ctx context.Context, in *RequireStorageOptionalRecommendedItemsByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalRecommendedItemsByIdResponse, error)
 	RequireStorageOptionalTagSummaryById(ctx context.Context, in *RequireStorageOptionalTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalTagSummaryByIdResponse, error)
 	RequireStorageProcessedMetadataById(ctx context.Context, in *RequireStorageProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedMetadataByIdResponse, error)
 	RequireStorageProcessedMetadataHistoryById(ctx context.Context, in *RequireStorageProcessedMetadataHistoryByIdRequest, opts ...grpc.CallOption) (*RequireStorageProcessedMetadataHistoryByIdResponse, error)
@@ -202,6 +209,7 @@ type ProductServiceClient interface {
 	RequireStorageSecuritySummaryById(ctx context.Context, in *RequireStorageSecuritySummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageSecuritySummaryByIdResponse, error)
 	RequireStorageStockHealthScoreById(ctx context.Context, in *RequireStorageStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageStockHealthScoreByIdResponse, error)
 	RequireStorageTagSummaryById(ctx context.Context, in *RequireStorageTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageTagSummaryByIdResponse, error)
+	RequireStorageTagsByLengthsById(ctx context.Context, in *RequireStorageTagsByLengthsByIdRequest, opts ...grpc.CallOption) (*RequireStorageTagsByLengthsByIdResponse, error)
 	RequireWarehouseStockHealthScoreById(ctx context.Context, in *RequireWarehouseStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireWarehouseStockHealthScoreByIdResponse, error)
 	ResolveCategoryActiveSubcategories(ctx context.Context, in *ResolveCategoryActiveSubcategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryActiveSubcategoriesResponse, error)
 	ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error)
@@ -858,6 +866,16 @@ func (c *productServiceClient) RequireStorageOptionalLatestOperationById(ctx con
 	return out, nil
 }
 
+func (c *productServiceClient) RequireStorageOptionalOperationHistoryById(ctx context.Context, in *RequireStorageOptionalOperationHistoryByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalOperationHistoryByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageOptionalOperationHistoryByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageOptionalOperationHistoryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) RequireStorageOptionalProcessedMetadataById(ctx context.Context, in *RequireStorageOptionalProcessedMetadataByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedMetadataByIdResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequireStorageOptionalProcessedMetadataByIdResponse)
@@ -868,10 +886,30 @@ func (c *productServiceClient) RequireStorageOptionalProcessedMetadataById(ctx c
 	return out, nil
 }
 
+func (c *productServiceClient) RequireStorageOptionalProcessedMetadataHistoryById(ctx context.Context, in *RequireStorageOptionalProcessedMetadataHistoryByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedMetadataHistoryByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageOptionalProcessedMetadataHistoryByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageOptionalProcessedMetadataHistoryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) RequireStorageOptionalProcessedTagsById(ctx context.Context, in *RequireStorageOptionalProcessedTagsByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalProcessedTagsByIdResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequireStorageOptionalProcessedTagsByIdResponse)
 	err := c.cc.Invoke(ctx, ProductService_RequireStorageOptionalProcessedTagsById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageOptionalRecommendedItemsById(ctx context.Context, in *RequireStorageOptionalRecommendedItemsByIdRequest, opts ...grpc.CallOption) (*RequireStorageOptionalRecommendedItemsByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageOptionalRecommendedItemsByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageOptionalRecommendedItemsById_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -962,6 +1000,16 @@ func (c *productServiceClient) RequireStorageTagSummaryById(ctx context.Context,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequireStorageTagSummaryByIdResponse)
 	err := c.cc.Invoke(ctx, ProductService_RequireStorageTagSummaryById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) RequireStorageTagsByLengthsById(ctx context.Context, in *RequireStorageTagsByLengthsByIdRequest, opts ...grpc.CallOption) (*RequireStorageTagsByLengthsByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageTagsByLengthsByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageTagsByLengthsById_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1299,8 +1347,11 @@ type ProductServiceServer interface {
 	RequireStorageNullableFilteredTagSummaryById(context.Context, *RequireStorageNullableFilteredTagSummaryByIdRequest) (*RequireStorageNullableFilteredTagSummaryByIdResponse, error)
 	RequireStorageOperationReportById(context.Context, *RequireStorageOperationReportByIdRequest) (*RequireStorageOperationReportByIdResponse, error)
 	RequireStorageOptionalLatestOperationById(context.Context, *RequireStorageOptionalLatestOperationByIdRequest) (*RequireStorageOptionalLatestOperationByIdResponse, error)
+	RequireStorageOptionalOperationHistoryById(context.Context, *RequireStorageOptionalOperationHistoryByIdRequest) (*RequireStorageOptionalOperationHistoryByIdResponse, error)
 	RequireStorageOptionalProcessedMetadataById(context.Context, *RequireStorageOptionalProcessedMetadataByIdRequest) (*RequireStorageOptionalProcessedMetadataByIdResponse, error)
+	RequireStorageOptionalProcessedMetadataHistoryById(context.Context, *RequireStorageOptionalProcessedMetadataHistoryByIdRequest) (*RequireStorageOptionalProcessedMetadataHistoryByIdResponse, error)
 	RequireStorageOptionalProcessedTagsById(context.Context, *RequireStorageOptionalProcessedTagsByIdRequest) (*RequireStorageOptionalProcessedTagsByIdResponse, error)
+	RequireStorageOptionalRecommendedItemsById(context.Context, *RequireStorageOptionalRecommendedItemsByIdRequest) (*RequireStorageOptionalRecommendedItemsByIdResponse, error)
 	RequireStorageOptionalTagSummaryById(context.Context, *RequireStorageOptionalTagSummaryByIdRequest) (*RequireStorageOptionalTagSummaryByIdResponse, error)
 	RequireStorageProcessedMetadataById(context.Context, *RequireStorageProcessedMetadataByIdRequest) (*RequireStorageProcessedMetadataByIdResponse, error)
 	RequireStorageProcessedMetadataHistoryById(context.Context, *RequireStorageProcessedMetadataHistoryByIdRequest) (*RequireStorageProcessedMetadataHistoryByIdResponse, error)
@@ -1310,6 +1361,7 @@ type ProductServiceServer interface {
 	RequireStorageSecuritySummaryById(context.Context, *RequireStorageSecuritySummaryByIdRequest) (*RequireStorageSecuritySummaryByIdResponse, error)
 	RequireStorageStockHealthScoreById(context.Context, *RequireStorageStockHealthScoreByIdRequest) (*RequireStorageStockHealthScoreByIdResponse, error)
 	RequireStorageTagSummaryById(context.Context, *RequireStorageTagSummaryByIdRequest) (*RequireStorageTagSummaryByIdResponse, error)
+	RequireStorageTagsByLengthsById(context.Context, *RequireStorageTagsByLengthsByIdRequest) (*RequireStorageTagsByLengthsByIdResponse, error)
 	RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error)
 	ResolveCategoryActiveSubcategories(context.Context, *ResolveCategoryActiveSubcategoriesRequest) (*ResolveCategoryActiveSubcategoriesResponse, error)
 	ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error)
@@ -1532,11 +1584,20 @@ func (UnimplementedProductServiceServer) RequireStorageOperationReportById(conte
 func (UnimplementedProductServiceServer) RequireStorageOptionalLatestOperationById(context.Context, *RequireStorageOptionalLatestOperationByIdRequest) (*RequireStorageOptionalLatestOperationByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalLatestOperationById not implemented")
 }
+func (UnimplementedProductServiceServer) RequireStorageOptionalOperationHistoryById(context.Context, *RequireStorageOptionalOperationHistoryByIdRequest) (*RequireStorageOptionalOperationHistoryByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalOperationHistoryById not implemented")
+}
 func (UnimplementedProductServiceServer) RequireStorageOptionalProcessedMetadataById(context.Context, *RequireStorageOptionalProcessedMetadataByIdRequest) (*RequireStorageOptionalProcessedMetadataByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalProcessedMetadataById not implemented")
 }
+func (UnimplementedProductServiceServer) RequireStorageOptionalProcessedMetadataHistoryById(context.Context, *RequireStorageOptionalProcessedMetadataHistoryByIdRequest) (*RequireStorageOptionalProcessedMetadataHistoryByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalProcessedMetadataHistoryById not implemented")
+}
 func (UnimplementedProductServiceServer) RequireStorageOptionalProcessedTagsById(context.Context, *RequireStorageOptionalProcessedTagsByIdRequest) (*RequireStorageOptionalProcessedTagsByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalProcessedTagsById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageOptionalRecommendedItemsById(context.Context, *RequireStorageOptionalRecommendedItemsByIdRequest) (*RequireStorageOptionalRecommendedItemsByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalRecommendedItemsById not implemented")
 }
 func (UnimplementedProductServiceServer) RequireStorageOptionalTagSummaryById(context.Context, *RequireStorageOptionalTagSummaryByIdRequest) (*RequireStorageOptionalTagSummaryByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageOptionalTagSummaryById not implemented")
@@ -1564,6 +1625,9 @@ func (UnimplementedProductServiceServer) RequireStorageStockHealthScoreById(cont
 }
 func (UnimplementedProductServiceServer) RequireStorageTagSummaryById(context.Context, *RequireStorageTagSummaryByIdRequest) (*RequireStorageTagSummaryByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageTagSummaryById not implemented")
+}
+func (UnimplementedProductServiceServer) RequireStorageTagsByLengthsById(context.Context, *RequireStorageTagsByLengthsByIdRequest) (*RequireStorageTagsByLengthsByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageTagsByLengthsById not implemented")
 }
 func (UnimplementedProductServiceServer) RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireWarehouseStockHealthScoreById not implemented")
@@ -2780,6 +2844,24 @@ func _ProductService_RequireStorageOptionalLatestOperationById_Handler(srv inter
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_RequireStorageOptionalOperationHistoryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageOptionalOperationHistoryByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageOptionalOperationHistoryById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageOptionalOperationHistoryById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageOptionalOperationHistoryById(ctx, req.(*RequireStorageOptionalOperationHistoryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_RequireStorageOptionalProcessedMetadataById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RequireStorageOptionalProcessedMetadataByIdRequest)
 	if err := dec(in); err != nil {
@@ -2798,6 +2880,24 @@ func _ProductService_RequireStorageOptionalProcessedMetadataById_Handler(srv int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_RequireStorageOptionalProcessedMetadataHistoryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageOptionalProcessedMetadataHistoryByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageOptionalProcessedMetadataHistoryById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageOptionalProcessedMetadataHistoryById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageOptionalProcessedMetadataHistoryById(ctx, req.(*RequireStorageOptionalProcessedMetadataHistoryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_RequireStorageOptionalProcessedTagsById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RequireStorageOptionalProcessedTagsByIdRequest)
 	if err := dec(in); err != nil {
@@ -2812,6 +2912,24 @@ func _ProductService_RequireStorageOptionalProcessedTagsById_Handler(srv interfa
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).RequireStorageOptionalProcessedTagsById(ctx, req.(*RequireStorageOptionalProcessedTagsByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageOptionalRecommendedItemsById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageOptionalRecommendedItemsByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageOptionalRecommendedItemsById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageOptionalRecommendedItemsById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageOptionalRecommendedItemsById(ctx, req.(*RequireStorageOptionalRecommendedItemsByIdRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2974,6 +3092,24 @@ func _ProductService_RequireStorageTagSummaryById_Handler(srv interface{}, ctx c
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).RequireStorageTagSummaryById(ctx, req.(*RequireStorageTagSummaryByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_RequireStorageTagsByLengthsById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageTagsByLengthsByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageTagsByLengthsById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageTagsByLengthsById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageTagsByLengthsById(ctx, req.(*RequireStorageTagsByLengthsByIdRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3702,12 +3838,24 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_RequireStorageOptionalLatestOperationById_Handler,
 		},
 		{
+			MethodName: "RequireStorageOptionalOperationHistoryById",
+			Handler:    _ProductService_RequireStorageOptionalOperationHistoryById_Handler,
+		},
+		{
 			MethodName: "RequireStorageOptionalProcessedMetadataById",
 			Handler:    _ProductService_RequireStorageOptionalProcessedMetadataById_Handler,
 		},
 		{
+			MethodName: "RequireStorageOptionalProcessedMetadataHistoryById",
+			Handler:    _ProductService_RequireStorageOptionalProcessedMetadataHistoryById_Handler,
+		},
+		{
 			MethodName: "RequireStorageOptionalProcessedTagsById",
 			Handler:    _ProductService_RequireStorageOptionalProcessedTagsById_Handler,
+		},
+		{
+			MethodName: "RequireStorageOptionalRecommendedItemsById",
+			Handler:    _ProductService_RequireStorageOptionalRecommendedItemsById_Handler,
 		},
 		{
 			MethodName: "RequireStorageOptionalTagSummaryById",
@@ -3744,6 +3892,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RequireStorageTagSummaryById",
 			Handler:    _ProductService_RequireStorageTagSummaryById_Handler,
+		},
+		{
+			MethodName: "RequireStorageTagsByLengthsById",
+			Handler:    _ProductService_RequireStorageTagsByLengthsById_Handler,
 		},
 		{
 			MethodName: "RequireWarehouseStockHealthScoreById",

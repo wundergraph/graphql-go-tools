@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ const (
 	FetchKindSingle FetchKind = iota + 1
 	FetchKindEntity
 	FetchKindEntityBatch
+	FetchKindMultiEntity
 )
 
 type Fetch interface {
@@ -278,10 +280,29 @@ type FetchConfiguration struct {
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
+
+	// SubgraphOperation carries planner artifacts consumed by the postprocess
+	// MultiFetch stage; it is cleared during postprocessing and never reaches
+	// the executable plan. Nil unless plan.Configuration.EnableMultiFetch is set.
+	SubgraphOperation *SubgraphOperation
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
-	if fc.Input != other.Input {
+	// When both sides deferred input assembly (empty Input) and carry a
+	// SubgraphOperation artifact, compare the structured artifact (envelope,
+	// recorded variables, and the print-once operation bytes) instead of the
+	// printed Input string. When only one side has such an artifact, they are
+	// not equal. Otherwise fall back to the byte comparison of the printed Input.
+	aArtifact := fc.Input == "" && fc.SubgraphOperation != nil
+	bArtifact := other.Input == "" && other.SubgraphOperation != nil
+	if aArtifact != bArtifact {
+		return false
+	}
+	if aArtifact {
+		if !subgraphOperationsEqual(fc.SubgraphOperation, other.SubgraphOperation) {
+			return false
+		}
+	} else if fc.Input != other.Input {
 		return false
 	}
 	if !slices.EqualFunc(fc.Variables, other.Variables, func(a, b Variable) bool {
@@ -306,6 +327,44 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	}
 
 	return true
+}
+
+// subgraphOperationsEqual reports whether two deferred SubgraphOperation
+// artifacts would render to the same fetch input: identical envelope
+// (method/url/header bytes), identical recorded variables (name + raw value,
+// order-sensitive), and identical printed operation. The operation print is
+// obtained via the print-once cache, so after this call both sides have their
+// print cached.
+func subgraphOperationsEqual(a, b *SubgraphOperation) bool {
+	if a.Envelope.Method != b.Envelope.Method {
+		return false
+	}
+	if a.Envelope.URL != b.Envelope.URL {
+		return false
+	}
+	if !bytes.Equal(a.Envelope.Header, b.Envelope.Header) {
+		return false
+	}
+	if len(a.Variables) != len(b.Variables) {
+		return false
+	}
+	for i := range a.Variables {
+		if a.Variables[i].Name != b.Variables[i].Name {
+			return false
+		}
+		if !bytes.Equal(a.Variables[i].Value, b.Variables[i].Value) {
+			return false
+		}
+	}
+	aQuery, err := a.PrintedQuery()
+	if err != nil {
+		return false
+	}
+	bQuery, err := b.PrintedQuery()
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(aQuery, bQuery)
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
@@ -481,4 +540,5 @@ var (
 	_ Fetch = (*SingleFetch)(nil)
 	_ Fetch = (*BatchEntityFetch)(nil)
 	_ Fetch = (*EntityFetch)(nil)
+	_ Fetch = (*MultiEntityFetch)(nil)
 )

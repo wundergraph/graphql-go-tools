@@ -33,7 +33,7 @@ func SocketFD(conn net.Conn) int {
 			return 0
 		}
 		sfd := 0
-		raw.Control(func(fd uintptr) { // nolint: errcheck
+		raw.Control(func(fd uintptr) { //nolint: errcheck
 			sfd = int(fd)
 		})
 		return sfd
@@ -86,7 +86,7 @@ func Supported() error {
 			return fmt.Errorf("failed to remove connection from poller: %w", err)
 		}
 
-		return nil //nolint intentionally return nil
+		return nil
 
 	})
 
