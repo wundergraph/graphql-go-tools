@@ -24,20 +24,24 @@ func (r *RecordingHeartbeatWriter) Heartbeat() error {
 
 var _ SubscriptionResponseWriter = (*RecordingHeartbeatWriter)(nil)
 
-// TestResolver_StuckWriteBlocksHeartbeatForUnrelatedTrigger reproduces, at the
-// unit level, the mechanism found live in a production pprof capture: one
-// subscriber's writeMu, held for the duration of a stuck downstream write,
-// blocks the pod-wide heartbeat sweep from ever reaching a completely
-// unrelated subscriber on a different trigger — because heartbeatLoop /
-// sendTriggerHeartbeats process every trigger sequentially in one goroutine,
-// not concurrently.
+// TestResolver_StuckWriteDoesNotBlockHeartbeatForUnrelatedTrigger proves the
+// fix for the blast-radius mechanism found live in a production pprof
+// capture: one subscriber's writeMu, held for the duration of a stuck
+// downstream write, used to block the pod-wide heartbeat sweep from ever
+// reaching a completely unrelated subscriber on a different trigger, because
+// heartbeatLoop / sendTriggerHeartbeats process every trigger sequentially
+// in one goroutine, not concurrently. sendHeartbeat now uses writeMu.TryLock
+// rather than Lock, so a stuck write simply causes that one trigger's own
+// heartbeat to be skipped for this cycle instead of blocking the sweep.
 //
 // This does not use a real network write. subA.writeMu is locked directly by
 // the test to stand in for a real stuck sub.writer.Flush() (resolve.go:1077,
 // inside executeSubscriptionUpdate) that has acquired writeMu but not yet
 // released it — mechanically identical from the heartbeat sweep's point of
 // view, since it only ever contends on the mutex, never on the write itself.
-func TestResolver_StuckWriteBlocksHeartbeatForUnrelatedTrigger(t *testing.T) {
+// See TestResolver_RealDeadTCPClientBlocksHeartbeatForUnrelatedTrigger for
+// the real-transport sibling proving the same fix over an actual TCP write.
+func TestResolver_StuckWriteDoesNotBlockHeartbeatForUnrelatedTrigger(t *testing.T) {
 	resolverCtx := t.Context()
 
 	resolver := New(resolverCtx, ResolverOptions{
@@ -60,7 +64,10 @@ func TestResolver_StuckWriteBlocksHeartbeatForUnrelatedTrigger(t *testing.T) {
 	// Stand in for a real stuck sub.writer.Flush(): a data push has acquired
 	// writeMu and not released it, exactly as goroutine 5563916 was captured
 	// doing in production, blocked on the OS write with the lock still held.
+	// Deliberately never released within this test: the fix means the
+	// healthy trigger's heartbeat no longer needs to wait for it to be.
 	subA.writeMu.Lock()
+	defer subA.writeMu.Unlock()
 
 	heartbeatReceived := make(chan struct{})
 	var closeOnce sync.Once
@@ -99,25 +106,14 @@ func TestResolver_StuckWriteBlocksHeartbeatForUnrelatedTrigger(t *testing.T) {
 		close(done)
 	}()
 
-	// While subA's write stays stuck, trigger 2's heartbeat must NOT fire —
-	// even though subB's own writeMu was never touched.
+	// Even with subA's write still stuck and never released, trigger 2's
+	// heartbeat must fire promptly — sendHeartbeat's TryLock skips subA's
+	// contended heartbeat instead of blocking the sweep behind it.
 	select {
 	case <-heartbeatReceived:
-		t.Fatal("healthy trigger's heartbeat fired while the unrelated trigger's write was still stuck — bug not reproduced")
+		// expected: the fix means this doesn't wait on the stuck trigger at all.
 	case <-time.After(200 * time.Millisecond):
-		// expected: still blocked behind the stuck trigger
-	}
-
-	// Release the stuck write, exactly as a dead connection eventually
-	// getting torn down would release it in production.
-	subA.writeMu.Unlock()
-
-	select {
-	case <-heartbeatReceived:
-		// expected: now that the stuck trigger's sweep can complete, the
-		// healthy trigger's heartbeat goes through promptly.
-	case <-time.After(time.Second):
-		t.Fatal("healthy trigger's heartbeat never fired after the stuck write was released")
+		t.Fatal("healthy trigger's heartbeat did not fire promptly — stuck write is still blocking the sweep, fix not effective")
 	}
 
 	select {

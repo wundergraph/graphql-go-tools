@@ -38,15 +38,18 @@ func (w *tcpFlushWriter) Heartbeat() error {
 
 var _ SubscriptionResponseWriter = (*tcpFlushWriter)(nil)
 
-// TestResolver_RealDeadTCPClientBlocksHeartbeatForUnrelatedTrigger is the
-// real-transport sibling of TestResolver_StuckWriteBlocksHeartbeatForUnrelatedTrigger.
-// Instead of locking writeMu directly to simulate a stuck write, it uses a
-// real TCP connection to a "client" that stops reading without closing the
-// socket -- the exact scenario caught live in production -- so the server's
-// actual Flush() call genuinely blocks at the OS level, not a simulated
-// stand-in, and shows that block still freezes an entirely unrelated
-// trigger's heartbeat.
-func TestResolver_RealDeadTCPClientBlocksHeartbeatForUnrelatedTrigger(t *testing.T) {
+// TestResolver_RealDeadTCPClientDoesNotBlockHeartbeatForUnrelatedTrigger is
+// the real-transport sibling of
+// TestResolver_StuckWriteDoesNotBlockHeartbeatForUnrelatedTrigger. Instead of
+// locking writeMu directly to simulate a stuck write, it uses a real TCP
+// connection to a "client" that stops reading without closing the socket --
+// the exact scenario caught live in production -- so the server's actual
+// Flush() call genuinely blocks at the OS level, not a simulated stand-in,
+// and proves the fix (sendHeartbeat's TryLock) still decouples an unrelated
+// trigger's heartbeat from that real block, without claiming the stuck write
+// itself is in any way resolved by the fix -- it stays genuinely blocked
+// throughout, exactly as a real dead connection would.
+func TestResolver_RealDeadTCPClientDoesNotBlockHeartbeatForUnrelatedTrigger(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
@@ -156,26 +159,25 @@ func TestResolver_RealDeadTCPClientBlocksHeartbeatForUnrelatedTrigger(t *testing
 		close(done)
 	}()
 
+	// Even with the real write still genuinely stuck, trigger 2's heartbeat
+	// must fire promptly -- sendHeartbeat's TryLock skips subA's contended
+	// heartbeat instead of blocking the sweep behind it.
 	select {
 	case <-heartbeatReceived:
-		t.Fatal("healthy trigger's heartbeat fired while the real dead-client write was still blocked — bug not reproduced")
+		// expected: the fix means this doesn't wait on the real stuck write.
 	case <-writeUnblocked:
 		t.Fatal("the real TCP write unblocked on its own — the client-side buffer wasn't shrunk enough to force a genuine block; test setup needs a larger payload or smaller receive buffer")
-	case <-time.After(500 * time.Millisecond):
-		// expected: still genuinely blocked on the real socket write
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("healthy trigger's heartbeat did not fire promptly — stuck write is still blocking the sweep, fix not effective")
 	}
 
-	// Unblock it the way production eventually would: the client actually
-	// starts draining its socket again (or the dead connection gets torn
-	// down some other way).
-	go io.Copy(io.Discard, clientConn)
-
+	// The real write itself is unaffected by the fix -- it's still
+	// genuinely blocked at this point, exactly as a real dead connection
+	// would be. The fix only decouples the heartbeat sweep from it.
 	select {
-	case <-heartbeatReceived:
-		// expected: once the real write can complete, the healthy trigger's
-		// heartbeat goes through promptly.
-	case <-time.After(2 * time.Second):
-		t.Fatal("healthy trigger's heartbeat never fired after the real write unblocked")
+	case <-writeUnblocked:
+		t.Fatal("the stuck write unblocked before the client ever read anything — test setup invalid")
+	default:
 	}
 
 	select {
@@ -183,6 +185,11 @@ func TestResolver_RealDeadTCPClientBlocksHeartbeatForUnrelatedTrigger(t *testing
 	case <-time.After(time.Second):
 		t.Fatal("heartbeat sweep never completed")
 	}
+
+	// Clean up: let the client actually start draining, confirming the
+	// underlying stuck write resolves normally once a real client would
+	// (or the connection is torn down).
+	go io.Copy(io.Discard, clientConn)
 
 	select {
 	case <-writeUnblocked:
