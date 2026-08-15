@@ -346,7 +346,7 @@ type PlanVisitor interface {
 // gRPC services.
 func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs plan.FederationFieldConfigurations) (PlanVisitor, error) {
 	if mapping == nil {
-		return nil, errors.New("mapping is required")
+		return nil, fmt.Errorf("mapping is required")
 	}
 
 	if len(federationConfigs) > 0 {
@@ -1105,7 +1105,7 @@ func (r *rpcPlanningContext) parseFieldArguments(walker *astvisitor.Walker, fiel
 func (r *rpcPlanningContext) getFieldsFromFieldResolverDirective(parentNode ast.Node, contextRef int) ([]int, error) {
 	val, exists := r.definition.DirectiveArgumentValueByName(contextRef, []byte("context"))
 	if !exists {
-		return nil, errors.New("context directive argument not found")
+		return nil, fmt.Errorf("context directive argument not found")
 	}
 
 	fieldsString := r.definition.ValueContentString(val)

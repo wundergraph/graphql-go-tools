@@ -2,7 +2,7 @@ package astvisitor
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	ErrDocumentMustNotBeNil   = errors.New("document must not be nil")
-	ErrDefinitionMustNotBeNil = errors.New("definition must not be nil when walking operations")
+	ErrDocumentMustNotBeNil   = fmt.Errorf("document must not be nil")
+	ErrDefinitionMustNotBeNil = fmt.Errorf("definition must not be nil when walking operations")
 )
 
 type SkipVisitors []int

@@ -1,7 +1,7 @@
 package astvisitor
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -33,7 +33,7 @@ func (w *SimpleWalker) Walk(document, definition *ast.Document) error {
 func (w *SimpleWalker) WalkDocument(document *ast.Document) error {
 
 	if w.visitor == nil {
-		return errors.New("visitor must not be nil, use SetVisitor()")
+		return fmt.Errorf("visitor must not be nil, use SetVisitor()")
 	}
 
 	w.err = nil
@@ -66,7 +66,7 @@ func (w *SimpleWalker) decreaseDepth() {
 func (w *SimpleWalker) walk() {
 
 	if w.document == nil {
-		w.err = errors.New("document must not be nil")
+		w.err = fmt.Errorf("document must not be nil")
 		return
 	}
 

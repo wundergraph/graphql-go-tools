@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -249,7 +248,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 		// if we have revisited operation more than 100 times, we have a bug
 		if i > 100 {
-			report.AddInternalError(errors.New("something went wrong"))
+			report.AddInternalError(fmt.Errorf("something went wrong"))
 			return
 		}
 	}

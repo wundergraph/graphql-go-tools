@@ -2,7 +2,7 @@ package ast
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -172,7 +172,7 @@ func (p Path) DotDelimitedString() string {
 
 func (p *PathItem) UnmarshalJSON(data []byte) error {
 	if data == nil {
-		return errors.New("data must not be nil")
+		return fmt.Errorf("data must not be nil")
 	}
 	if data[0] == '"' && data[len(data)-1] == '"' {
 		p.FieldName = data[1 : len(data)-1]
@@ -199,6 +199,6 @@ func (p *PathItem) MarshalJSON() ([]byte, error) {
 	case FieldName, InlineFragmentName:
 		return append([]byte("\""), append(p.FieldName, []byte("\"")...)...), nil
 	default:
-		return nil, errors.New("cannot marshal unknown PathKind")
+		return nil, fmt.Errorf("cannot marshal unknown PathKind")
 	}
 }

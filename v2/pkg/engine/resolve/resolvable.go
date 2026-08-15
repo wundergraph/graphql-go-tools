@@ -356,7 +356,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 
 	hasErrors := r.walkNode(node, data)
 	if hasErrors {
-		return errors.New("error resolving node")
+		return fmt.Errorf("error resolving node")
 	}
 
 	r.enableRender = true
