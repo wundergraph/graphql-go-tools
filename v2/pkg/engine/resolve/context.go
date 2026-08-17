@@ -7,12 +7,14 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"reflect"
 	"sort"
 	"time"
 
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/entitycaching"
 )
 
 // Context should not ever be initialized directly, and should be initialized via the NewContext function
@@ -50,6 +52,8 @@ type Context struct {
 	preFetchFieldAuthorizer BatchAuthorizer
 	rateLimiter             RateLimiter
 	fieldRenderer           FieldValueRenderer
+
+	entityCache *entityCache
 
 	subgraphErrors map[string]error
 
@@ -253,6 +257,22 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 	c.rateLimiter = limiter
 }
 
+type entityCache struct {
+	store      entitycaching.Cache
+	defaultTTL time.Duration
+	onError    func(error)
+}
+
+func (c *Context) SetEntityCache(cache entitycaching.Cache, defaultTTL time.Duration, onError func(error)) {
+	if cache == nil {
+		return
+	}
+	if v := reflect.ValueOf(cache); v.Kind() == reflect.Ptr && v.IsNil() {
+		return
+	}
+	c.entityCache = &entityCache{store: cache, defaultTTL: defaultTTL, onError: onError}
+}
+
 func (c *Context) SubgraphErrors() error {
 	if len(c.subgraphErrors) == 0 {
 		return nil
@@ -348,6 +368,7 @@ func (c *Context) Free() {
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
+	c.entityCache = nil
 }
 
 func (c *Context) VariablesView() VariablesView {

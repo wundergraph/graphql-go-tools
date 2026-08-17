@@ -27,6 +27,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/entitycaching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
@@ -409,10 +410,23 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	if prepared.skipLoad {
 		return nil
 	}
+	if l.entityCacheEnabled() && l.entityCacheLookup(prepared) {
+		if prepared.trace != nil {
+			prepared.trace.LoadSkipped = true
+		}
+		return nil
+	}
+
 	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
 	if prepared.res.err != nil {
 		l.recordErroredFetchID(prepared.item)
+		return nil
 	}
+
+	if l.entityCacheEnabled() {
+		l.entityCacheStore(prepared)
+	}
+
 	return nil
 }
 
@@ -472,6 +486,13 @@ type preparedFetch struct {
 	trace      *DataSourceLoadTrace
 	skipLoad   bool
 	batchFetch bool
+
+	// entityCacheKeys holds one cache key per unique representation in the
+	// request, in the order those representations were written, which is the
+	// order the subgraph must answer them in and the order res.batchStats is
+	// indexed by. Nil whenever this fetch is not a cacheable entity fetch or
+	// the request was not given a cache. See entity_cache.go.
+	entityCacheKeys []string
 
 	multiEntries []preparedMultiEntry
 }
@@ -1650,6 +1671,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	entityCacheHeaderEnd := preparedInput.Len()
 
 	err = fetch.Input.Item.Render(l.ctx, input, item)
 	if err != nil {
@@ -1685,10 +1707,26 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 			return nil
 		}
 	}
+
 	_, _ = item.WriteTo(preparedInput)
+
+	entityCacheFooterStart := preparedInput.Len()
+
 	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+
+	// Built before SetInputUndefinedVariables rewrites the buffer in place, so
+	// the offsets above still point at what they were taken from.
+	if l.entityCacheEnabled() {
+		rendered := preparedInput.Bytes()
+		selectionHash := entityCacheSelectionHash(
+			rendered[:entityCacheHeaderEnd],
+			rendered[entityCacheFooterStart:],
+		)
+		entityCacheItemHash := xxhash.Sum64(renderedItem)
+		prepared.entityCacheKeys = []string{entitycaching.Key(entityCacheItemHash, selectionHash)}
 	}
 
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
@@ -1799,6 +1837,9 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	entityCacheHeaderEnd := preparedInput.Len()
+	var entityCacheItemHashes []uint64
+
 	batchItemIndex := 0
 	addSeparator := false
 
@@ -1839,6 +1880,9 @@ WithNextItem:
 				_, _ = itemInput.WriteTo(preparedInput)
 				// new unique representation
 				res.tools.batchHashToIndex[itemHash] = batchItemIndex
+				if l.entityCacheEnabled() {
+					entityCacheItemHashes = append(entityCacheItemHashes, itemHash)
+				}
 				// A new targets bucket for the unique index must be allocated on the arena:
 				// a heap-allocated bucket would only be referenced from arena memory,
 				// so the GC could collect its backing array while it is still in use.
@@ -1862,9 +1906,23 @@ WithNextItem:
 		}
 	}
 
+	entityCacheFooterStart := preparedInput.Len()
+
 	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
+	}
+
+	if l.entityCacheEnabled() && len(entityCacheItemHashes) > 0 {
+		rendered := preparedInput.Bytes()
+		selectionHash := entityCacheSelectionHash(
+			rendered[:entityCacheHeaderEnd],
+			rendered[entityCacheFooterStart:],
+		)
+		prepared.entityCacheKeys = make([]string, len(entityCacheItemHashes))
+		for i, itemHash := range entityCacheItemHashes {
+			prepared.entityCacheKeys[i] = entitycaching.Key(itemHash, selectionHash)
+		}
 	}
 
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)

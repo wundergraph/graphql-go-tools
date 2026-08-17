@@ -68,6 +68,14 @@ func (f *FieldNames) Fields() iter.Seq[string] {
 	}
 }
 
+func (f *FieldNames) HasFields() bool {
+	if f == nil || f.noFields {
+		return false
+	}
+
+	return len(f.fields) > 0
+}
+
 func (f *FieldNames) has(name string) bool {
 	if f == nil {
 		return false
