@@ -420,10 +420,7 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
 	if prepared.res.err != nil {
 		l.recordErroredFetchID(prepared.item)
-		return nil
-	}
-
-	if l.entityCacheEnabled() {
+	} else if l.entityCacheEnabled() {
 		l.entityCacheStore(prepared)
 	}
 
