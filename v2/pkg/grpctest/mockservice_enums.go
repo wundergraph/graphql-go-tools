@@ -25,7 +25,7 @@ func (s *MockService) QueryCategories(ctx context.Context, in *productv1.QueryCa
 	for i, kind := range categoryKinds {
 		categories = append(categories, &productv1.Category{
 			Id:            fmt.Sprintf("category-%d", i+1),
-			Name:          kind.String() + " Category",
+			Name:          fmt.Sprintf("%s Category", kind.String()),
 			Kind:          kind,
 			Subcategories: createSubcategories(fmt.Sprintf("category-%d", i+1), kind, i+1),
 		})
@@ -42,7 +42,7 @@ func (s *MockService) QueryCategory(ctx context.Context, in *productv1.QueryCate
 	return &productv1.QueryCategoryResponse{
 		Category: &productv1.Category{
 			Id:   id,
-			Name: "Category " + id,
+			Name: fmt.Sprintf("Category %s", id),
 			Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK,
 		},
 	}, nil

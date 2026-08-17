@@ -31,13 +31,13 @@ func (s *MockService) ResolveProductMascotRecommendation(_ context.Context, req 
 			animal = &productv1.Animal{
 				Instance: &productv1.Animal_Cat{
 					Cat: &productv1.Cat{
-						Id:         "mascot-cat-" + ctx.GetId(),
-						Name:       "MascotCat for " + ctx.GetName(),
+						Id:         fmt.Sprintf("mascot-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("MascotCat for %s", ctx.GetName()),
 						Kind:       "Cat",
 						MeowVolume: volume,
 						Owner: &productv1.Owner{
-							Id:   "owner-cat-" + ctx.GetId(),
-							Name: "OwnerCat for " + ctx.GetName(),
+							Id:   fmt.Sprintf("owner-cat-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerCat for %s", ctx.GetName()),
 							Contact: &productv1.ContactInfo{
 								Email: "owner-cat@example.com",
 								Phone: "123-456-7890",
@@ -50,8 +50,8 @@ func (s *MockService) ResolveProductMascotRecommendation(_ context.Context, req 
 							},
 						},
 						Breed: &productv1.CatBreed{
-							Id:     "breed-cat-" + ctx.GetId(),
-							Name:   "BreedCat for " + ctx.GetName(),
+							Id:     fmt.Sprintf("breed-cat-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedCat for %s", ctx.GetName()),
 							Origin: "USA",
 							Characteristics: &productv1.BreedCharacteristics{
 								Size:        "Small",
@@ -70,13 +70,13 @@ func (s *MockService) ResolveProductMascotRecommendation(_ context.Context, req 
 			animal = &productv1.Animal{
 				Instance: &productv1.Animal_Dog{
 					Dog: &productv1.Dog{
-						Id:         "mascot-dog-" + ctx.GetId(),
-						Name:       "MascotDog for " + ctx.GetName(),
+						Id:         fmt.Sprintf("mascot-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("MascotDog for %s", ctx.GetName()),
 						Kind:       "Dog",
 						BarkVolume: volume,
 						Owner: &productv1.Owner{
-							Id:   "owner-dog-" + ctx.GetId(),
-							Name: "OwnerDog for " + ctx.GetName(),
+							Id:   fmt.Sprintf("owner-dog-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerDog for %s", ctx.GetName()),
 							Contact: &productv1.ContactInfo{
 								Email: "owner-dog@example.com",
 								Phone: "123-456-7890",
@@ -89,8 +89,8 @@ func (s *MockService) ResolveProductMascotRecommendation(_ context.Context, req 
 							},
 						},
 						Breed: &productv1.DogBreed{
-							Id:     "breed-dog-" + ctx.GetId(),
-							Name:   "BreedDog for " + ctx.GetName(),
+							Id:     fmt.Sprintf("breed-dog-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedDog for %s", ctx.GetName()),
 							Origin: "USA",
 							Characteristics: &productv1.BreedCharacteristics{
 								Size:        "Medium",
@@ -129,13 +129,13 @@ func (s *MockService) ResolveProductProductDetails(_ context.Context, req *produ
 			pet = &productv1.Animal{
 				Instance: &productv1.Animal_Cat{
 					Cat: &productv1.Cat{
-						Id:         "details-cat-" + ctx.GetId(),
-						Name:       "RecommendedCat for " + ctx.GetName(),
+						Id:         fmt.Sprintf("details-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("RecommendedCat for %s", ctx.GetName()),
 						Kind:       "Cat",
 						MeowVolume: int32((i + 1) * 6),
 						Owner: &productv1.Owner{
-							Id:   "owner-details-cat-" + ctx.GetId(),
-							Name: "OwnerDetailsCat for " + ctx.GetName(),
+							Id:   fmt.Sprintf("owner-details-cat-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerDetailsCat for %s", ctx.GetName()),
 							Contact: &productv1.ContactInfo{
 								Email: "owner-details-cat@example.com",
 								Phone: "555-111-2222",
@@ -148,8 +148,8 @@ func (s *MockService) ResolveProductProductDetails(_ context.Context, req *produ
 							},
 						},
 						Breed: &productv1.CatBreed{
-							Id:     "breed-details-cat-" + ctx.GetId(),
-							Name:   "BreedDetailsCat for " + ctx.GetName(),
+							Id:     fmt.Sprintf("breed-details-cat-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedDetailsCat for %s", ctx.GetName()),
 							Origin: "France",
 							Characteristics: &productv1.BreedCharacteristics{
 								Size:        "Medium",
@@ -164,13 +164,13 @@ func (s *MockService) ResolveProductProductDetails(_ context.Context, req *produ
 			pet = &productv1.Animal{
 				Instance: &productv1.Animal_Dog{
 					Dog: &productv1.Dog{
-						Id:         "details-dog-" + ctx.GetId(),
-						Name:       "RecommendedDog for " + ctx.GetName(),
+						Id:         fmt.Sprintf("details-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("RecommendedDog for %s", ctx.GetName()),
 						Kind:       "Dog",
 						BarkVolume: int32((i + 1) * 9),
 						Owner: &productv1.Owner{
-							Id:   "owner-details-dog-" + ctx.GetId(),
-							Name: "OwnerDetailsDog for " + ctx.GetName(),
+							Id:   fmt.Sprintf("owner-details-dog-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerDetailsDog for %s", ctx.GetName()),
 							Contact: &productv1.ContactInfo{
 								Email: "owner-details-dog@example.com",
 								Phone: "555-333-4444",
@@ -183,8 +183,8 @@ func (s *MockService) ResolveProductProductDetails(_ context.Context, req *produ
 							},
 						},
 						Breed: &productv1.DogBreed{
-							Id:     "breed-details-dog-" + ctx.GetId(),
-							Name:   "BreedDetailsDog for " + ctx.GetName(),
+							Id:     fmt.Sprintf("breed-details-dog-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedDetailsDog for %s", ctx.GetName()),
 							Origin: "Germany",
 							Characteristics: &productv1.BreedCharacteristics{
 								Size:        "Large",
@@ -219,7 +219,7 @@ func (s *MockService) ResolveProductProductDetails(_ context.Context, req *produ
 			}
 		}
 
-		description := "Standard details for " + ctx.GetName()
+		description := fmt.Sprintf("Standard details for %s", ctx.GetName())
 		if includeExtended {
 			description = fmt.Sprintf("Extended details for %s with comprehensive information", ctx.GetName())
 		}
@@ -298,13 +298,13 @@ func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *produc
 			pet = &productv1.Animal{
 				Instance: &productv1.Animal_Cat{
 					Cat: &productv1.Cat{
-						Id:         "test-cat-" + ctx.GetId(),
-						Name:       "TestCat-" + ctx.GetName(),
+						Id:         fmt.Sprintf("test-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("TestCat-%s", ctx.GetName()),
 						Kind:       "Cat",
 						MeowVolume: int32((i + 1) * 5),
 						Owner: &productv1.Owner{
-							Id:   "owner-test-cat-" + ctx.GetId(),
-							Name: "OwnerTestCat for " + ctx.GetName(),
+							Id:   fmt.Sprintf("owner-test-cat-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerTestCat for %s", ctx.GetName()),
 							Contact: &productv1.ContactInfo{
 								Email: "owner-test-cat@example.com",
 								Phone: "555-555-5555",
@@ -317,8 +317,8 @@ func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *produc
 							},
 						},
 						Breed: &productv1.CatBreed{
-							Id:     "breed-test-cat-" + ctx.GetId(),
-							Name:   "BreedTestCat for " + ctx.GetName(),
+							Id:     fmt.Sprintf("breed-test-cat-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedTestCat for %s", ctx.GetName()),
 							Origin: "Egypt",
 							Characteristics: &productv1.BreedCharacteristics{
 								Size:        "Small",
@@ -333,13 +333,13 @@ func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *produc
 			pet = &productv1.Animal{
 				Instance: &productv1.Animal_Dog{
 					Dog: &productv1.Dog{
-						Id:         "test-dog-" + ctx.GetId(),
-						Name:       "TestDog-" + ctx.GetName(),
+						Id:         fmt.Sprintf("test-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("TestDog-%s", ctx.GetName()),
 						Kind:       "Dog",
 						BarkVolume: int32((i + 1) * 7),
 						Owner: &productv1.Owner{
-							Id:   "owner-test-dog-" + ctx.GetId(),
-							Name: "OwnerTestDog for " + ctx.GetName(),
+							Id:   fmt.Sprintf("owner-test-dog-%s", ctx.GetId()),
+							Name: fmt.Sprintf("OwnerTestDog for %s", ctx.GetName()),
 							Contact: &productv1.ContactInfo{
 								Email: "owner-test-dog@example.com",
 								Phone: "555-666-7777",
@@ -352,8 +352,8 @@ func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *produc
 							},
 						},
 						Breed: &productv1.DogBreed{
-							Id:     "breed-test-dog-" + ctx.GetId(),
-							Name:   "BreedTestDog for " + ctx.GetName(),
+							Id:     fmt.Sprintf("breed-test-dog-%s", ctx.GetId()),
+							Name:   fmt.Sprintf("BreedTestDog for %s", ctx.GetName()),
 							Origin: "England",
 							Characteristics: &productv1.BreedCharacteristics{
 								Size:        "Medium",
@@ -373,7 +373,7 @@ func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *produc
 			status = &productv1.ActionResult{
 				Value: &productv1.ActionResult_ActionError{
 					ActionError: &productv1.ActionError{
-						Message: "Extended check failed for " + ctx.GetName(),
+						Message: fmt.Sprintf("Extended check failed for %s", ctx.GetName()),
 						Code:    "EXTENDED_CHECK_FAILED",
 					},
 				},
@@ -390,7 +390,7 @@ func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *produc
 			}
 		}
 
-		summary := "Summary for " + ctx.GetName()
+		summary := fmt.Sprintf("Summary for %s", ctx.GetName())
 		if includeExtended {
 			summary = fmt.Sprintf("Extended summary for %s with additional details", ctx.GetName())
 		}
@@ -424,7 +424,7 @@ func (s *MockService) ResolveCategoryMetricsRelatedCategory(_ context.Context, r
 		if include {
 			relatedCategory = &productv1.Category{
 				Id:   fmt.Sprintf("related-category-%s-%d", ctx.GetCategoryId(), i),
-				Name: "Related Category for " + ctx.GetCategoryId(),
+				Name: fmt.Sprintf("Related Category for %s", ctx.GetCategoryId()),
 				Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK,
 			}
 		}
@@ -490,13 +490,13 @@ func (s *MockService) ResolveCategoryMascot(_ context.Context, req *productv1.Re
 				animal = &productv1.Animal{
 					Instance: &productv1.Animal_Cat{
 						Cat: &productv1.Cat{
-							Id:         "cat-mascot-" + ctx.GetId(),
-							Name:       "Whiskers-" + ctx.GetId(),
+							Id:         fmt.Sprintf("cat-mascot-%s", ctx.GetId()),
+							Name:       fmt.Sprintf("Whiskers-%s", ctx.GetId()),
 							Kind:       "Cat",
 							MeowVolume: volume,
 							Owner: &productv1.Owner{
-								Id:   "owner-cat-mascot-" + ctx.GetId(),
-								Name: "OwnerCatMascot for " + ctx.GetId(),
+								Id:   fmt.Sprintf("owner-cat-mascot-%s", ctx.GetId()),
+								Name: fmt.Sprintf("OwnerCatMascot for %s", ctx.GetId()),
 								Contact: &productv1.ContactInfo{
 									Email: "owner-cat-mascot@example.com",
 									Phone: "555-777-8888",
@@ -509,8 +509,8 @@ func (s *MockService) ResolveCategoryMascot(_ context.Context, req *productv1.Re
 								},
 							},
 							Breed: &productv1.CatBreed{
-								Id:     "breed-cat-mascot-" + ctx.GetId(),
-								Name:   "BreedCatMascot for " + ctx.GetId(),
+								Id:     fmt.Sprintf("breed-cat-mascot-%s", ctx.GetId()),
+								Name:   fmt.Sprintf("BreedCatMascot for %s", ctx.GetId()),
 								Origin: "Scotland",
 								Characteristics: &productv1.BreedCharacteristics{
 									Size:        "Large",
@@ -529,13 +529,13 @@ func (s *MockService) ResolveCategoryMascot(_ context.Context, req *productv1.Re
 				animal = &productv1.Animal{
 					Instance: &productv1.Animal_Dog{
 						Dog: &productv1.Dog{
-							Id:         "dog-mascot-" + ctx.GetId(),
-							Name:       "Buddy-" + ctx.GetId(),
+							Id:         fmt.Sprintf("dog-mascot-%s", ctx.GetId()),
+							Name:       fmt.Sprintf("Buddy-%s", ctx.GetId()),
 							Kind:       "Dog",
 							BarkVolume: volume,
 							Owner: &productv1.Owner{
-								Id:   "owner-dog-mascot-" + ctx.GetId(),
-								Name: "OwnerDogMascot for " + ctx.GetId(),
+								Id:   fmt.Sprintf("owner-dog-mascot-%s", ctx.GetId()),
+								Name: fmt.Sprintf("OwnerDogMascot for %s", ctx.GetId()),
 								Contact: &productv1.ContactInfo{
 									Email: "owner-dog-mascot@example.com",
 									Phone: "555-888-9999",
@@ -548,8 +548,8 @@ func (s *MockService) ResolveCategoryMascot(_ context.Context, req *productv1.Re
 								},
 							},
 							Breed: &productv1.DogBreed{
-								Id:     "breed-dog-mascot-" + ctx.GetId(),
-								Name:   "BreedDogMascot for " + ctx.GetId(),
+								Id:     fmt.Sprintf("breed-dog-mascot-%s", ctx.GetId()),
+								Name:   fmt.Sprintf("BreedDogMascot for %s", ctx.GetId()),
 								Origin: "Australia",
 								Characteristics: &productv1.BreedCharacteristics{
 									Size:        "Medium",
@@ -591,7 +591,7 @@ func (s *MockService) ResolveCategoryCategoryStatus(_ context.Context, req *prod
 			actionResult = &productv1.ActionResult{
 				Value: &productv1.ActionResult_ActionError{
 					ActionError: &productv1.ActionError{
-						Message: "Health check failed for category " + ctx.GetName(),
+						Message: fmt.Sprintf("Health check failed for category %s", ctx.GetName()),
 						Code:    "HEALTH_CHECK_FAILED",
 					},
 				},
@@ -719,10 +719,10 @@ func (s *MockService) ResolveProductRecommendedCategory(_ context.Context, req *
 
 			results = append(results, &productv1.ResolveProductRecommendedCategoryResult{
 				RecommendedCategory: &productv1.Category{
-					Id:            "recommended-cat-" + ctx.GetId(),
-					Name:          "Recommended for " + ctx.GetName(),
+					Id:            fmt.Sprintf("recommended-cat-%s", ctx.GetId()),
+					Name:          fmt.Sprintf("Recommended for %s", ctx.GetName()),
 					Kind:          categoryKind,
-					Subcategories: createSubcategories("recommended-cat-"+ctx.GetId(), categoryKind, 2),
+					Subcategories: createSubcategories(fmt.Sprintf("recommended-cat-%s", ctx.GetId()), categoryKind, 2),
 				},
 			})
 		}
@@ -904,7 +904,7 @@ func (s *MockService) ResolveStorageStorageStatus(_ context.Context, req *produc
 			actionResult = &productv1.ActionResult{
 				Value: &productv1.ActionResult_ActionError{
 					ActionError: &productv1.ActionError{
-						Message: "Health check failed for storage " + ctx.GetName(),
+						Message: fmt.Sprintf("Health check failed for storage %s", ctx.GetName()),
 						Code:    "STORAGE_HEALTH_CHECK_FAILED",
 					},
 				},
@@ -1035,8 +1035,8 @@ func (s *MockService) ResolveCategoryTopSubcategory(_ context.Context, req *prod
 		if i%2 == 0 {
 			subcategory = &productv1.Subcategory{
 				Id:          fmt.Sprintf("top-sub-%s-%d", ctx.GetId(), i),
-				Name:        "Top Subcategory for " + ctx.GetName(),
-				Description: wrapperspb.String("Top subcategory of " + ctx.GetName()),
+				Name:        fmt.Sprintf("Top Subcategory for %s", ctx.GetName()),
+				Description: wrapperspb.String(fmt.Sprintf("Top subcategory of %s", ctx.GetName())),
 				IsActive:    true,
 			}
 		}
@@ -1059,12 +1059,12 @@ func (s *MockService) ResolveCategoryActiveSubcategories(_ context.Context, req 
 			ActiveSubcategories: []*productv1.Subcategory{
 				{
 					Id:       fmt.Sprintf("active-sub-%s-%d-0", ctx.GetId(), i),
-					Name:     "Active Sub 0 for " + ctx.GetId(),
+					Name:     fmt.Sprintf("Active Sub 0 for %s", ctx.GetId()),
 					IsActive: true,
 				},
 				{
 					Id:       fmt.Sprintf("active-sub-%s-%d-1", ctx.GetId(), i),
-					Name:     "Active Sub 1 for " + ctx.GetId(),
+					Name:     fmt.Sprintf("Active Sub 1 for %s", ctx.GetId()),
 					IsActive: true,
 				},
 			},
@@ -1086,7 +1086,7 @@ func (s *MockService) ResolveSubcategoryParentCategory(_ context.Context, req *p
 		if i%2 == 0 {
 			category = &productv1.Category{
 				Id:   fmt.Sprintf("parent-cat-%s-%d", ctx.GetId(), i),
-				Name: "Parent Category for " + ctx.GetId(),
+				Name: fmt.Sprintf("Parent Category for %s", ctx.GetId()),
 				Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK,
 			}
 		}

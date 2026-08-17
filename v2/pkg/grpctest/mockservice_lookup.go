@@ -31,7 +31,7 @@ func (s *MockService) LookupWarehouseById(ctx context.Context, in *productv1.Loo
 		warehouseId := input.GetId()
 		results = append(results, &productv1.Warehouse{
 			Id:       warehouseId,
-			Name:     "Warehouse " + warehouseId,
+			Name:     fmt.Sprintf("Warehouse %s", warehouseId),
 			Location: fmt.Sprintf("Location %d", rand.Intn(100)),
 		})
 	}
@@ -48,7 +48,7 @@ func (s *MockService) LookupProductById(ctx context.Context, in *productv1.Looku
 		productId := input.GetId()
 		results = append(results, &productv1.Product{
 			Id:    productId,
-			Name:  "Product " + productId,
+			Name:  fmt.Sprintf("Product %s", productId),
 			Price: 99.99,
 		})
 	}
@@ -65,7 +65,7 @@ func (s *MockService) LookupStorageById(ctx context.Context, in *productv1.Looku
 		storageId := input.GetId()
 		results = append(results, &productv1.Storage{
 			Id:       storageId,
-			Name:     "Storage " + storageId,
+			Name:     fmt.Sprintf("Storage %s", storageId),
 			Location: fmt.Sprintf("Location %d", rand.Intn(100)),
 		})
 	}

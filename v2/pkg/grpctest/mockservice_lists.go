@@ -316,17 +316,17 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 		// Generic response for any other ID
 		result = &productv1.BlogPost{
 			Id:         id,
-			Title:      "Blog Post " + id,
-			Content:    "Content for blog post " + id,
-			Tags:       []string{"tag-" + id, "general"},
-			Categories: []string{"General", "Category-" + id},
+			Title:      fmt.Sprintf("Blog Post %s", id),
+			Content:    fmt.Sprintf("Content for blog post %s", id),
+			Tags:       []string{fmt.Sprintf("tag-%s", id), "general"},
+			Categories: []string{"General", fmt.Sprintf("Category-%s", id)},
 			ViewCounts: []int32{int32(len(id) * 10), int32(len(id) * 20)},
 			// Required nested lists must have data
 			TagGroups: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
 						{List: &productv1.ListOfString_List{
-							Items: []string{"tag-" + id, "group"},
+							Items: []string{fmt.Sprintf("tag-%s", id), "group"},
 						}},
 					},
 				},
@@ -335,7 +335,7 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
 						{List: &productv1.ListOfString_List{
-							Items: []string{"topic-" + id},
+							Items: []string{fmt.Sprintf("topic-%s", id)},
 						}},
 					},
 				},
@@ -344,24 +344,24 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
 						{List: &productv1.ListOfString_List{
-							Items: []string{"Comment on " + id},
+							Items: []string{fmt.Sprintf("Comment on %s", id)},
 						}},
 					},
 				},
 			},
 			// Required complex lists must have data
 			RelatedCategories: []*productv1.Category{
-				{Id: "cat-" + id, Name: "Category " + id, Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+				{Id: fmt.Sprintf("cat-%s", id), Name: fmt.Sprintf("Category %s", id), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
 			},
 			Contributors: []*productv1.User{
-				{Id: "user-" + id, Name: "Author " + id},
+				{Id: fmt.Sprintf("user-%s", id), Name: fmt.Sprintf("Author %s", id)},
 			},
 			CategoryGroups: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
 						{List: &productv1.ListOfCategory_List{
 							Items: []*productv1.Category{
-								{Id: "cat-group-" + id, Name: "Group Category " + id, Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+								{Id: fmt.Sprintf("cat-group-%s", id), Name: fmt.Sprintf("Group Category %s", id), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
 							},
 						}},
 					},
@@ -802,31 +802,31 @@ func (s *MockService) QueryAuthorById(ctx context.Context, in *productv1.QueryAu
 	default:
 		result = &productv1.Author{
 			Id:   id,
-			Name: "Author " + id,
+			Name: fmt.Sprintf("Author %s", id),
 			Email: &wrapperspb.StringValue{
-				Value: id + "@example.com",
+				Value: fmt.Sprintf("%s@example.com", id),
 			},
-			Skills:    []string{"Skill-" + id, "General"},
-			Languages: []string{"English", "Language-" + id},
+			Skills:    []string{fmt.Sprintf("Skill-%s", id), "General"},
+			Languages: []string{"English", fmt.Sprintf("Language-%s", id)},
 			TeamsByProject: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
 						{List: &productv1.ListOfString_List{
-							Items: []string{"Team-" + id},
+							Items: []string{fmt.Sprintf("Team-%s", id)},
 						}},
 					},
 				},
 			},
 			// Required complex lists must have data
 			FavoriteCategories: []*productv1.Category{
-				{Id: "cat-" + id, Name: "Favorite Category " + id, Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+				{Id: fmt.Sprintf("cat-%s", id), Name: fmt.Sprintf("Favorite Category %s", id), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
 			},
 			CategoryPreferences: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
 						{List: &productv1.ListOfCategory_List{
 							Items: []*productv1.Category{
-								{Id: "cat-pref-" + id, Name: "Preference " + id, Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+								{Id: fmt.Sprintf("cat-pref-%s", id), Name: fmt.Sprintf("Preference %s", id), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
 							},
 						}},
 					},

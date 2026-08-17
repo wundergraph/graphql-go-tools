@@ -39,6 +39,10 @@ linters:
         linters:
           - errchkjson
           - perfsprint
+      # grpctest contains test support code in non-_test.go files.
+      - path: pkg/grpctest/
+        linters:
+          - perfsprint
       - linters:
           - staticcheck
         text: "QF1008:"
