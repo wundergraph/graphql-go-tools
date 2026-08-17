@@ -35,13 +35,9 @@ linters:
       - common-false-positives
       - std-error-handling
     rules:
-      - path: _test\.go
+      - path: (_test\.go|pkg/grpctest/)
         linters:
           - errchkjson
-          - perfsprint
-      # grpctest contains test support code in non-_test.go files.
-      - path: pkg/grpctest/
-        linters:
           - perfsprint
       - linters:
           - staticcheck
