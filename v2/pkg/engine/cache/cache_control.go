@@ -2,9 +2,9 @@ package cache
 
 import (
 	"fmt"
+	"iter"
 	"math"
 	"net/http"
-	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -12,49 +12,73 @@ import (
 
 // FieldNames is a map of field names.
 type FieldNames struct {
-	// lockFields is a flag to prevent adding any fields.
+	// noFields is a flag to prevent adding any fields.
 	// This is set when an empty field list is parsed.
-	lockFields bool
+	noFields bool
 
-	// Present indicates whether the directive is present in the response.
-	Present bool
-	// Fields is a list of field names.
+	// fields is a list of field names.
 	// Do not add any fields to this map directly. Use the add method instead
-	Fields map[string]struct{}
+	fields map[string]struct{}
 }
 
 func NewFieldNames() *FieldNames {
 	return &FieldNames{
-		// By default, when a FieldNames is created, it is present.
-		Present: true,
+		fields: make(map[string]struct{}),
 	}
 }
 
 func (f *FieldNames) Add(name string) {
-	if f.Fields == nil {
-		f.Fields = make(map[string]struct{})
+	if f.fields == nil {
+		f.fields = make(map[string]struct{})
 	}
 
-	if f.lockFields {
+	if f.noFields {
 		return
 	}
 
 	// Stored verbatim: these may be GraphQL field names, which are case-sensitive.
-	f.Fields[name] = struct{}{}
+	f.fields[name] = struct{}{}
+}
+
+// Fields returns an iterator over the field names.
+//
+// Example:
+//
+//	 ```
+//	 fields := NewFieldNames()
+//		fields.Add("field1")
+//		fields.Add("field2")
+//
+//		for field := range f.Fields() {
+//			fmt.Println(field)
+//		}
+//
+// ```
+func (f *FieldNames) Fields() iter.Seq[string] {
+	return func(yield func(s string) bool) {
+		if f.fields == nil || f.noFields {
+			return
+		}
+
+		for field := range f.fields {
+			if !yield(field) {
+				return
+			}
+		}
+	}
 }
 
 func (f *FieldNames) has(name string) bool {
-	if f == nil || !f.Present {
+	if f == nil {
 		return false
 	}
 
-	_, ok := f.Fields[name]
+	_, ok := f.fields[name]
 	return ok
 }
 
-func (f *FieldNames) ClearAndLock() {
-	clear(f.Fields)
-	f.lockFields = true
+func (f *FieldNames) LockFields() {
+	f.noFields = true
 }
 
 // DeltaSeconds is a signed 32-bit integer representing the number of seconds.
@@ -174,25 +198,11 @@ type CacheControlResponse struct {
 }
 
 func ParseCacheControlResponse(headers http.Header) (*CacheControlResponse, error) {
-	if len(headers) == 0 {
-		return nil, nil
-	}
-
-	cacheControl := headers[textproto.CanonicalMIMEHeaderKey("Cache-Control")]
-	if len(cacheControl) == 0 {
-		return nil, nil
-	}
-
-	// Repeated field lines are one comma-joined value (RFC 9110 §5.3).
-	value := cacheControl[0]
-	if len(cacheControl) > 1 {
-		value = strings.Join(cacheControl, ",")
-	}
-
 	// Nothing but whitespace and delimiters carries no directives, which is
 	// indistinguishable from the header being absent.
-	if strings.Trim(value, " \t\r\n,") == "" {
-		return nil, nil
+	value := strings.Trim(strings.Join(headers.Values("Cache-Control"), ","), "\t\r\n")
+	if value == "" {
+		return &CacheControlResponse{}, nil
 	}
 
 	return parse(value)
@@ -206,14 +216,13 @@ func parse(s string) (*CacheControlResponse, error) {
 	}
 
 	cc := &CacheControlResponse{}
-	seen := seenDirectives{}
 
 	for {
 		token := l.readToken(0)
 
 		switch token.tt {
 		case tokenTypeIdent:
-			if err := parseIdent(token, l, cc, &seen); err != nil {
+			if err := parseIdent(token, l, cc); err != nil {
 				return nil, err
 			}
 
@@ -230,31 +239,30 @@ func parse(s string) (*CacheControlResponse, error) {
 	}
 }
 
-// deltaSecondsArgument interprets an argument as delta-seconds. The second
-// result reports whether to record the directive at all: an unusable argument
-// drops it rather than failing the field.
-func deltaSecondsArgument(arg directiveArgument) (DeltaSeconds, bool) {
+// deltaSecondsArgument interprets an argument as delta-seconds. An unusable
+// argument is an error, so a non-nil MaxAge/SMaxAge always means we parsed one
+// successfully.
+func deltaSecondsArgument(name string, arg directiveArgument) (DeltaSeconds, error) {
 	if !arg.present || arg.text == "" {
-		return 0, false
+		return 0, fmt.Errorf("%s requires a value", name)
 	}
 
-	// delta-seconds is 1*DIGIT; strconv alone would also accept "+60".
+	// delta-seconds is one or more digits, nothing else; strconv would also
+	// accept "+60" and "-60".
 	for i := 0; i < len(arg.text); i++ {
 		if arg.text[i] < '0' || arg.text[i] > '9' {
-			return 0, false
+			return 0, fmt.Errorf("%s value %q is not a number", name, arg.text)
 		}
 	}
 
 	value, err := parseDeltaSeconds(arg.text)
 	if err != nil {
-		return math.MaxInt32, true
+		// Overflowing int64 is the only failure left, and RFC 9111 §1.2.2
+		// says to clamp it.
+		return math.MaxInt32, nil
 	}
 
-	if value < 0 {
-		return 0, false
-	}
-
-	return value, true
+	return value, nil
 }
 
 // fieldNamesArgument merges an argument into a field-name list. An argument
@@ -268,7 +276,7 @@ func fieldNamesArgument(arg directiveArgument, fields *FieldNames) {
 	// whole response, not just a few fields. So an empty argument wins, and we
 	// lock the set so a later occurrence can't weaken it.
 	if !arg.present {
-		fields.ClearAndLock()
+		fields.LockFields()
 		return
 	}
 
@@ -284,18 +292,11 @@ func fieldNamesArgument(arg directiveArgument, fields *FieldNames) {
 	}
 
 	if !added {
-		fields.ClearAndLock()
+		fields.LockFields()
 	}
 }
 
-// seenDirectives tracks first-occurrence resolution. It is separate from the
-// parsed value because a dropped first occurrence still counts as seen.
-type seenDirectives struct {
-	maxAge  bool
-	sMaxAge bool
-}
-
-func parseIdent(name token, l *lexer, cc *CacheControlResponse, seen *seenDirectives) error {
+func parseIdent(name token, l *lexer, cc *CacheControlResponse) error {
 	// Read the argument whatever the directive, so unknown and boolean ones
 	// consume theirs instead of leaving it for the outer loop.
 	arg, err := l.readArgument()
@@ -305,30 +306,35 @@ func parseIdent(name token, l *lexer, cc *CacheControlResponse, seen *seenDirect
 
 	switch strings.ToLower(name.lit) {
 	case "max-age":
-		if seen.maxAge {
+		// First occurrence wins, and a later one is ignored without being
+		// validated.
+		if cc.MaxAge != nil {
 			return nil
 		}
-		seen.maxAge = true
 
-		if value, ok := deltaSecondsArgument(arg); ok {
-			cc.MaxAge = &value
+		value, err := deltaSecondsArgument("max-age", arg)
+		if err != nil {
+			return err
 		}
+		cc.MaxAge = &value
 
 	case "s-maxage":
-		if seen.sMaxAge {
+		if cc.SMaxAge != nil {
 			return nil
 		}
-		seen.sMaxAge = true
 
-		if value, ok := deltaSecondsArgument(arg); ok {
-			cc.SMaxAge = &value
+		value, err := deltaSecondsArgument("s-maxage", arg)
+		if err != nil {
+			return err
 		}
+		cc.SMaxAge = &value
 
 	case "no-store":
-		// A stray argument means nothing to a boolean directive; discard it.
+		// A boolean directive cannot have an argument, so we ignore it.
 		cc.NoStore = true
 
 	case "public":
+		// A boolean directive cannot have an argument, so we ignore it.
 		cc.Public = true
 
 	case "no-cache":

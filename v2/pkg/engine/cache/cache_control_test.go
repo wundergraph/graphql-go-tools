@@ -3,6 +3,7 @@ package cache
 import (
 	"math"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,24 +18,28 @@ import (
 // SPEC DECISIONS — each is exercised by at least one subtest tagged with its
 // number. Flip a decision here and the tagged subtests tell you what to change.
 //
-//	D0  THE GOVERNING RULE: syntax errors reject the field, semantic problems
-//	    do not. If the field cannot be tokenised (unbalanced quotes, control
-//	    bytes, a directive name that is not a token, junk between directives)
-//	    parse returns an error. If a directive is understood but its argument
-//	    is nonsense, out of range, or repeated, the directive is resolved or
-//	    dropped and the rest of the field still parses.
+//	D0  THE GOVERNING RULE: a directive we understand must parse completely or
+//	    the whole field is rejected. Unknown directives are still ignored (D3)
+//	    and field-list contents are still taken as given (D19), but a max-age
+//	    or s-maxage we cannot read is an error, not a shrug.
 //
-//	    RFC 9111 §4.2.1 requires this: caches are "encouraged to consider
-//	    responses that have invalid freshness information ... to be stale",
-//	    not to discard the field. The safety argument is concrete — rejecting
-//	    `no-store, max-age=abc` outright would throw away the no-store and
-//	    cache a response that must never be stored.
+//	    CALLER CONTRACT: a parse error means DO NOT CACHE. Rejecting the field
+//	    discards everything in it, so `no-store, max-age=abc` yields an error
+//	    and the no-store with it. That is only safe if the caller fails closed;
+//	    a caller that falls back to a default TTL on error would store a
+//	    response the subgraph forbade storing.
+//
+//	    This trades RFC 9111 §4.2.1's advice — treat invalid freshness
+//	    information as stale rather than discarding the field — for an
+//	    invariant that is much easier to hold onto: a non-nil MaxAge means we
+//	    parsed one, so nil unambiguously means "no max-age was given" and no
+//	    separate seen-flag is needed to tell "absent" from "dropped".
 //
 //	D1  "No directives" is never an error, however it arises. An empty field, a
 //	    whitespace-only field, a field of nothing but commas, and a field of
 //	    nothing but directives we do not model all parse to a non-nil, zero
-//	    CacheControlResponse. Only ParseCacheControlResponse returns nil, and
-//	    only when the header is absent or blank.
+//	    CacheControlResponse. ParseCacheControlResponse never returns nil on
+//	    success either, so callers never have to nil-check.
 //
 //	    This was three inconsistent rules before: "" and "   " were errors,
 //	    "," was an error, but `must-revalidate` produced a non-nil zero value —
@@ -47,25 +52,18 @@ import (
 //	    rejected. RFC 9111 §5.2: unknown directives MUST be ignored. A header
 //	    consisting only of such directives still parses to a non-nil, zero
 //	    CacheControlResponse.
-//	D4  UNUSABLE-ARGUMENT RULE (D4, D5 and D19 are one rule, stated once):
-//	    when a directive is understood but its argument is missing, empty or
-//	    unusable, the argument is discarded and the directive survives if and
-//	    only if it still means something unqualified.
+//	D4  A boolean directive (no-store, public) that carries an argument keeps
+//	    its meaning; the stray argument is discarded. `no-store=true` still
+//	    sets NoStore, since the argument tells us nothing the directive name
+//	    did not. Unlike max-age there is no value to get wrong, so there is
+//	    nothing to reject.
+//	D5  max-age / s-maxage with a missing, empty or non-numeric argument is an
+//	    error (D0). Overflow is not: RFC 9111 §1.2.2 says to clamp, so a huge
+//	    value is still a successful parse.
 //
-//	      no-store, public        meaningful bare  → kept  (`no-store=true`
-//	                                                        still sets NoStore)
-//	      no-cache, private       meaningful bare  → kept, unqualified (D19)
-//	      max-age, s-maxage       argument IS the
-//	                              whole meaning    → dropped to zero value
-//
-//	    So the three cases only look like separate policies; they are one test
-//	    applied to directives with different amounts of standalone meaning.
-//	D5  See D4. max-age / s-maxage with a missing, empty or non-numeric
-//	    argument is dropped, never an error. "Dropped" means the field is left
-//	    nil, NOT zero: MaxAge and SMaxAge are pointers precisely so that an
-//	    absent or unusable directive is distinguishable from `max-age=0`, which
-//	    is a real value meaning "already stale". A caller that wants to apply
-//	    its own default TTL can only do so if it can tell those apart.
+//	    MaxAge and SMaxAge stay pointers so that nil ("no max-age given") is
+//	    distinguishable from `max-age=0` ("already stale"), which a caller
+//	    applying its own default TTL needs to tell apart.
 //	D6  delta-seconds content is 1*DIGIT — no sign, no decimal point, no
 //	    underscores. Leading zeros are fine. Content that is not 1*DIGIT drops
 //	    the directive (D0). The *form* is irrelevant: RFC 9111 §5.2 tells
@@ -419,79 +417,79 @@ func TestParse(t *testing.T) {
 		requireParses(t, `s-maxage="60"`, &CacheControlResponse{SMaxAge: seconds(60)})
 	})
 
-	// --- D5/D6: delta-seconds, invalid content drops the directive ----------
+	// --- D5/D6: an unusable delta-seconds argument is an error --------------
 
 	t.Run("max-age with no argument", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age", &CacheControlResponse{})
+		requireParseError(t, "max-age")
 	})
 
 	t.Run("s-maxage with no argument", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "s-maxage", &CacheControlResponse{})
+		requireParseError(t, "s-maxage")
 	})
 
 	t.Run("max-age with empty argument", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=", &CacheControlResponse{})
+		requireParseError(t, "max-age=")
 	})
 
 	t.Run("s-maxage with empty argument", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "s-maxage=", &CacheControlResponse{})
+		requireParseError(t, "s-maxage=")
 	})
 
 	t.Run("max-age non-numeric", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=abc", &CacheControlResponse{})
+		requireParseError(t, "max-age=abc")
 	})
 
 	t.Run("max-age float", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60.5", &CacheControlResponse{})
+		requireParseError(t, "max-age=60.5")
 	})
 
 	t.Run("max-age negative", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=-1", &CacheControlResponse{})
+		requireParseError(t, "max-age=-1")
 	})
 
 	t.Run("s-maxage negative", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "s-maxage=-100", &CacheControlResponse{})
+		requireParseError(t, "s-maxage=-100")
 	})
 
 	t.Run("max-age explicit plus sign", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=+60", &CacheControlResponse{})
+		requireParseError(t, "max-age=+60")
 	})
 
 	t.Run("max-age with underscore separator", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=1_000", &CacheControlResponse{})
+		requireParseError(t, "max-age=1_000")
 	})
 
 	t.Run("max-age hex", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=0x3c", &CacheControlResponse{})
+		requireParseError(t, "max-age=0x3c")
 	})
 
 	t.Run("max-age with trailing unit", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60s", &CacheControlResponse{})
+		requireParseError(t, "max-age=60s")
 	})
 
-	// D0 — the safety case. A broken max-age must not cost us the no-store.
-	t.Run("invalid max-age does not discard the rest of the field", func(t *testing.T) {
+	// An unusable max-age fails the whole field, so the no-store here is lost
+	// too. That is only safe because a parse error must be treated as "do not
+	// cache" — see the note on D5.
+	t.Run("invalid max-age discards the rest of the field", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "no-store, max-age=abc", &CacheControlResponse{NoStore: true})
+		requireParseError(t, "no-store, max-age=abc")
 	})
 
-	t.Run("invalid max-age does not discard a later valid directive", func(t *testing.T) {
+	t.Run("invalid max-age discards a later valid directive", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, `max-age=abc, private="Set-Cookie"`, &CacheControlResponse{
-			Private: fieldNames("Set-Cookie"),
-		})
+		requireParseError(t, `max-age=abc, private="Set-Cookie"`)
 	})
 
 	// This one stays an error: the space breaks the list structure, so it is a
@@ -983,15 +981,14 @@ func TestParse(t *testing.T) {
 		requireParses(t, "max-age=2147483648, max-age=4294967296", &CacheControlResponse{MaxAge: seconds(math.MaxInt32)})
 	})
 
-	// D14 + D4 — evaluation stops at the first occurrence even when it is the
-	// unusable one, so the valid later value is not resurrected.
-	t.Run("invalid first occurrence does not promote the second", func(t *testing.T) {
+	t.Run("invalid first occurrence fails the field", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=abc, max-age=60", &CacheControlResponse{})
+		requireParseError(t, "max-age=abc, max-age=60")
 	})
 
-	// D14 — and the mirror image: a usable first occurrence stands, whatever
-	// follows it.
+	// D14 — a later occurrence is skipped before it is validated, so a broken
+	// repeat cannot undo a value we already accepted. This asymmetry is what
+	// lets a non-nil MaxAge stand in for "seen".
 	t.Run("invalid second occurrence does not disturb the first", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, "max-age=60, max-age=abc", &CacheControlResponse{MaxAge: seconds(60)})
@@ -1144,37 +1141,41 @@ func TestParse(t *testing.T) {
 func TestParseCacheControlResponse(t *testing.T) {
 	t.Parallel()
 
+	// An absent header and a header carrying no directives both yield an empty
+	// response rather than nil, so callers never have to nil-check. Nothing is
+	// lost: every field is already optional, so "absent" and "present but
+	// modelled nothing" are the same answer to every question a caller asks.
+
 	t.Run("nil headers", func(t *testing.T) {
 		t.Parallel()
-		requireHeaderParses(t, nil, nil)
+		requireHeaderParses(t, nil, &CacheControlResponse{})
 	})
 
 	t.Run("empty headers", func(t *testing.T) {
 		t.Parallel()
-		requireHeaderParses(t, http.Header{}, nil)
+		requireHeaderParses(t, http.Header{}, &CacheControlResponse{})
 	})
 
 	t.Run("no Cache-Control header", func(t *testing.T) {
 		t.Parallel()
-		requireHeaderParses(t, http.Header{"Content-Type": []string{"application/json"}}, nil)
+		requireHeaderParses(t, http.Header{"Content-Type": []string{"application/json"}}, &CacheControlResponse{})
 	})
 
 	t.Run("Cache-Control present but empty", func(t *testing.T) {
 		t.Parallel()
-		requireHeaderParses(t, http.Header{"Cache-Control": []string{""}}, nil)
+		requireHeaderParses(t, http.Header{"Cache-Control": []string{""}}, &CacheControlResponse{})
 	})
 
 	// D1 — same content as the empty case above, so it must reach the same
-	// answer. Erroring here while returning (nil, nil) for "" was a difference
-	// of pure whitespace.
+	// answer.
 	t.Run("Cache-Control whitespace only", func(t *testing.T) {
 		t.Parallel()
-		requireHeaderParses(t, http.Header{"Cache-Control": []string{"   "}}, nil)
+		requireHeaderParses(t, http.Header{"Cache-Control": []string{"   "}}, &CacheControlResponse{})
 	})
 
 	t.Run("Cache-Control commas only", func(t *testing.T) {
 		t.Parallel()
-		requireHeaderParses(t, http.Header{"Cache-Control": []string{" , "}}, nil)
+		requireHeaderParses(t, http.Header{"Cache-Control": []string{" , "}}, &CacheControlResponse{})
 	})
 
 	// D1 + D3 — a field we understood but modelled none of still parsed, so it
@@ -1201,14 +1202,10 @@ func TestParseCacheControlResponse(t *testing.T) {
 		requireHeaderParseError(t, http.Header{"Cache-Control": []string{`no-cache="unterminated`}})
 	})
 
-	// D5 — a bad value is not malformed. The directive is dropped and the
-	// response still parses.
+	// D5 — an unusable value fails the field, and the error reaches the caller.
 	t.Run("Cache-Control with an unusable value", func(t *testing.T) {
 		t.Parallel()
-		requireHeaderParses(t,
-			http.Header{"Cache-Control": []string{"no-store, max-age=abc"}},
-			&CacheControlResponse{NoStore: true},
-		)
+		requireHeaderParseError(t, http.Header{"Cache-Control": []string{"no-store, max-age=abc"}})
 	})
 
 	t.Run("header name lookup is case-insensitive", func(t *testing.T) {
@@ -1384,14 +1381,11 @@ func TestDeltaSecondsToGoSeconds(t *testing.T) {
 func TestFieldNames(t *testing.T) {
 	t.Parallel()
 
-	t.Run("new field names is present and empty", func(t *testing.T) {
+	t.Run("new field names are empty", func(t *testing.T) {
 		t.Parallel()
 
 		f := NewFieldNames()
-		assert.True(t, f.Present)
-		// The map is allocated lazily by Add, so it is nil until first use.
-		// Anything reading Fields must tolerate a nil map.
-		assert.Empty(t, f.Fields)
+		assert.Empty(t, fieldsOf(f))
 		assert.False(t, f.has("set-cookie"))
 	})
 
@@ -1410,27 +1404,16 @@ func TestFieldNames(t *testing.T) {
 		f := NewFieldNames()
 		f.Add("set-cookie")
 		f.Add("set-cookie")
-		assert.Len(t, f.Fields, 1)
+		assert.Len(t, f.fields, 1)
 	})
 
-	t.Run("add lazily initialises the map on a zero value", func(t *testing.T) {
+	t.Run("the zero value is usable", func(t *testing.T) {
 		t.Parallel()
 
 		f := &FieldNames{}
 		f.Add("set-cookie")
-		assert.NotNil(t, f.Fields)
-		// Present is false on a zero value, so Contains reports false even
-		// though the name was added.
-		assert.False(t, f.has("set-cookie"))
-	})
-
-	t.Run("contains is false when not present", func(t *testing.T) {
-		t.Parallel()
-
-		f := NewFieldNames()
-		f.Add("set-cookie")
-		f.Present = false
-		assert.False(t, f.has("set-cookie"))
+		assert.True(t, f.has("set-cookie"))
+		assert.Equal(t, []string{"set-cookie"}, fieldsOf(f))
 	})
 
 	// D9 — no normalisation, so lookups must match exactly.
@@ -1449,7 +1432,7 @@ func TestFieldNames(t *testing.T) {
 
 		f := NewFieldNames()
 		f.Add("Set-Cookie")
-		assert.Equal(t, []string{"Set-Cookie"}, keys(f.Fields))
+		assert.Equal(t, []string{"Set-Cookie"}, fieldsOf(f))
 	})
 
 	t.Run("add keeps names differing only in case apart", func(t *testing.T) {
@@ -1459,7 +1442,7 @@ func TestFieldNames(t *testing.T) {
 		f.Add("Set-Cookie")
 		f.Add("SET-COOKIE")
 		f.Add("set-cookie")
-		assert.Len(t, f.Fields, 3)
+		assert.Len(t, f.fields, 3)
 	})
 
 	// The GraphQL case: two distinct fields that lowercasing would have merged.
@@ -1469,7 +1452,7 @@ func TestFieldNames(t *testing.T) {
 		f := NewFieldNames()
 		f.Add("productName")
 		f.Add("productname")
-		assert.Len(t, f.Fields, 2)
+		assert.Len(t, f.fields, 2)
 		assert.True(t, f.has("productName"))
 		assert.True(t, f.has("productname"))
 	})
@@ -1481,56 +1464,49 @@ func TestFieldNames(t *testing.T) {
 		assert.False(t, f.has("set-cookie"))
 	})
 
-	// ClearAndLock is the D15 tier-1 mechanism: an unqualified occurrence must
-	// win over a qualified one in either order, so it both drops the names
-	// already collected and prevents later ones from re-qualifying the
-	// directive.
+	// LockFields is what makes an unqualified occurrence win over a qualified
+	// one in either order: names already collected stop being emitted, and
+	// later ones are refused.
 
-	t.Run("clear and lock drops names collected so far", func(t *testing.T) {
+	t.Run("lock hides names collected so far", func(t *testing.T) {
 		t.Parallel()
 
 		f := NewFieldNames()
 		f.Add("Set-Cookie")
-		f.ClearAndLock()
+		f.LockFields()
 
-		assert.Empty(t, f.Fields)
-		assert.False(t, f.has("set-cookie"))
-		// Still present — unqualified is the strongest form, not an absence.
-		assert.True(t, f.Present)
+		assert.Empty(t, fieldsOf(f))
 	})
 
-	t.Run("clear and lock rejects later names", func(t *testing.T) {
+	t.Run("lock refuses later names", func(t *testing.T) {
 		t.Parallel()
 
 		f := NewFieldNames()
-		f.ClearAndLock()
+		f.LockFields()
 		f.Add("Set-Cookie")
 
-		assert.Empty(t, f.Fields)
-		assert.False(t, f.has("set-cookie"))
+		assert.Empty(t, fieldsOf(f))
 	})
 
-	t.Run("clear and lock is idempotent", func(t *testing.T) {
+	t.Run("lock is idempotent", func(t *testing.T) {
 		t.Parallel()
 
 		f := NewFieldNames()
 		f.Add("Set-Cookie")
-		f.ClearAndLock()
+		f.LockFields()
 		f.Add("Authorization")
-		f.ClearAndLock()
+		f.LockFields()
 
-		assert.Empty(t, f.Fields)
-		assert.True(t, f.Present)
+		assert.Empty(t, fieldsOf(f))
 	})
 
-	t.Run("clear and lock on a fresh value leaves it unqualified", func(t *testing.T) {
+	t.Run("lock on a fresh value leaves it empty", func(t *testing.T) {
 		t.Parallel()
 
 		f := NewFieldNames()
-		f.ClearAndLock()
+		f.LockFields()
 
-		assert.Empty(t, f.Fields)
-		assert.True(t, f.Present)
+		assert.Empty(t, fieldsOf(f))
 	})
 }
 
@@ -1684,15 +1660,15 @@ func assertFieldNames(t *testing.T, name string, expected, actual *FieldNames) {
 		return
 	}
 
-	assert.Equal(t, expected.Present, actual.Present, "%s.Present", name)
-	assert.ElementsMatch(t, keys(expected.Fields), keys(actual.Fields), "%s.Fields", name)
+	assert.ElementsMatch(t, fieldsOf(expected), fieldsOf(actual), "%s fields", name)
 }
 
-func keys(m map[string]struct{}) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
+// fieldsOf collects a FieldNames through its iterator. LockFields leaves the
+// underlying map alone, so this is the only view that reflects the lock.
+func fieldsOf(f *FieldNames) []string {
+	if f == nil {
+		return nil
 	}
 
-	return out
+	return slices.Collect(f.Fields())
 }
