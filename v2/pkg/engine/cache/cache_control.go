@@ -259,6 +259,7 @@ func deltaSecondsArgument(name string, arg directiveArgument) (DeltaSeconds, err
 	if err != nil {
 		// Overflowing int64 is the only failure left, and RFC 9111 §1.2.2
 		// says to clamp it.
+		//nolint:nilerr
 		return math.MaxInt32, nil
 	}
 
