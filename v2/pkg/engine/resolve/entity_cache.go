@@ -75,9 +75,17 @@ func (l *Loader) entityCacheLookup(prepared *preparedFetch) bool {
 	return true
 }
 
-func (l *Loader) entityCacheStore(prepared *preparedFetch) {
+func (l *Loader) entityCacheCollect(prepared *preparedFetch) {
+	if !l.entityCacheEnabled() {
+		return
+	}
+
 	keys := prepared.entityCacheKeys
 	if len(keys) == 0 {
+		return
+	}
+
+	if prepared.skipLoad || prepared.entityCacheHit {
 		return
 	}
 
@@ -126,6 +134,19 @@ func (l *Loader) entityCacheStore(prepared *preparedFetch) {
 			TTL:   ttl,
 		}
 	}
+
+	prepared.entityCacheItems = items
+}
+
+// entityCacheFlush writes what entityCacheCollect gathered. It is called with
+// the data lock released so a slow cache never blocks the fetches queued behind
+// it; the item values are heap copies, so they are still valid here.
+func (l *Loader) entityCacheFlush(prepared *preparedFetch) {
+	items := prepared.entityCacheItems
+	if len(items) == 0 {
+		return
+	}
+	prepared.entityCacheItems = nil
 
 	if err := l.ctx.entityCache.store.SetMany(l.ctx.ctx, items); err != nil {
 		l.reportEntityCacheError(fmt.Errorf("entity cache write of %d entities: %w", len(items), err))

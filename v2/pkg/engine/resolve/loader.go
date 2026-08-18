@@ -111,9 +111,8 @@ type result struct {
 	//	[item1, item3], // merge response[1] into item1 and item3
 	//
 	// ]
-	batchStats       [][]*astjson.Value
-	fetchSkipped     bool
-	nestedMergeItems []*result
+	batchStats   [][]*astjson.Value
+	fetchSkipped bool
 
 	statusCode int
 	err        error
@@ -143,6 +142,8 @@ type result struct {
 
 	// multi is set on per-entry result views during MultiEntityFetch merging.
 	multi *multiEntryMergeConfig
+
+	parsed *astjson.Value
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -157,12 +158,23 @@ func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInf
 
 // parsedResponse returns the response body as an astjson value. Multi entries
 // reuse the response the parent parsed once; every other result parses its own
-// res.out. The status-code fallback for a parse error stays with the caller.
+// res.out exactly once and memoizes it, so the entity cache store and the merge
+// share one parse. A body that does not parse is not memoized, so the rare
+// unparseable response is re-parsed rather than costing a field to remember;
+// the status-code fallback for the error stays with the caller. Only called
+// with the data lock held: the arena is not thread safe.
 func (r *result) parsedResponse(l *Loader) (*astjson.Value, error) {
 	if r.multi != nil && r.multi.response != nil {
 		return r.multi.response, nil
 	}
-	return astjson.ParseBytesWithArena(l.jsonArena, r.out)
+	if r.parsed == nil {
+		parsed, err := astjson.ParseBytesWithArena(l.jsonArena, r.out)
+		if err != nil {
+			return nil, err
+		}
+		r.parsed = parsed
+	}
+	return r.parsed, nil
 }
 
 // responseErrors returns the subgraph errors to merge for this result: a multi
@@ -411,6 +423,7 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 		return nil
 	}
 	if l.entityCacheEnabled() && l.entityCacheLookup(prepared) {
+		prepared.entityCacheHit = true
 		if prepared.trace != nil {
 			prepared.trace.LoadSkipped = true
 		}
@@ -420,10 +433,12 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
 	if prepared.res.err != nil {
 		l.recordErroredFetchID(prepared.item)
-	} else if l.entityCacheEnabled() {
-		l.entityCacheStore(prepared)
 	}
 
+	// The response is not read here: this phase runs unlocked and concurrently
+	// across parallel fetches, and parsing it would allocate on the arena
+	// without holding the data lock. The entity cache collects its entities in
+	// the merge phase instead, off the parse the merge already pays for.
 	return nil
 }
 
@@ -435,20 +450,10 @@ func (l *Loader) mergePhase(prepared *preparedFetch) error {
 		return l.mergeMultiEntityResult(prepared)
 	}
 
-	res := prepared.res
-	var err error
-	if res.nestedMergeItems != nil {
-		for j := range res.nestedMergeItems {
-			err = l.mergeResult(prepared.item, res.nestedMergeItems[j], prepared.items[j:j+1])
-			l.callOnFinished(res.nestedMergeItems[j])
-			if err != nil {
-				return errors.WithStack(err)
-			}
-		}
-		return nil
-	}
-	err = l.mergeResult(prepared.item, res, prepared.items)
-	l.callOnFinished(res)
+	l.entityCacheCollect(prepared)
+
+	err := l.mergeResult(prepared.item, prepared.res, prepared.items)
+	l.callOnFinished(prepared.res)
 	return err
 }
 
@@ -471,7 +476,12 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	if err := l.loadPhase(ctx, prepared); err != nil {
 		return errors.WithStack(err)
 	}
-	return l.mergePhase(prepared)
+	err = l.mergePhase(prepared)
+	// After mergePhase released the data lock: the cache round trip must not
+	// hold up the fetches waiting on it. Runs regardless of the merge outcome,
+	// matching the store that used to sit in the load phase.
+	l.entityCacheFlush(prepared)
+	return err
 }
 
 type preparedFetch struct {
@@ -490,6 +500,10 @@ type preparedFetch struct {
 	// indexed by. Nil whenever this fetch is not a cacheable entity fetch or
 	// the request was not given a cache. See entity_cache.go.
 	entityCacheKeys []string
+
+	entityCacheHit bool
+
+	entityCacheItems []entitycaching.Item
 
 	multiEntries []preparedMultiEntry
 }
