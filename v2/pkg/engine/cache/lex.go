@@ -93,23 +93,27 @@ func (l *lexer) readToken(offset int) token {
 
 // OWS is SP / HTAB only. CR and LF are excluded on purpose: they are malformed
 // inside a field value, not skippable.
-func (l *lexer) isWhitespace(r byte) bool {
+func (l *lexer) isWhitespace(r rune) bool {
 	return r == runes.SPACE || r == runes.TAB
 }
 
 // HTAB is a control character but is legal as both OWS and qdtext, so it is
 // excluded here.
-func (l *lexer) isForbiddenCharacter(r byte) bool {
+func (l *lexer) isForbiddenCharacter(r rune) bool {
 	return r != runes.TAB && l.isControlCharacter(r)
 }
 
 // isControlCharacter checks if the rune is a control character.
 // ASCII control characters are ranged from 0-31 and 127.
-func (l *lexer) isControlCharacter(r byte) bool {
-	return r <= 0x1F || r == 0x7F // 0-31 and 127
+//
+// The r >= 0 guard keeps the end-of-input sentinel out: -1 is not a character
+// at all, and without it every caller that reads past the end would be told it
+// found a control byte.
+func (l *lexer) isControlCharacter(r rune) bool {
+	return r >= 0 && (r <= 0x1F || r == 0x7F) // 0-31 and 127
 }
 
-func (l *lexer) isInvalidTokenCharacter(r byte) bool {
+func (l *lexer) isInvalidTokenCharacter(r rune) bool {
 	switch r {
 	case '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']', '?', '=', '{', '}', ' ', '\t':
 		return true
@@ -120,20 +124,14 @@ func (l *lexer) isInvalidTokenCharacter(r byte) bool {
 
 // isPrintableCharacter checks if the rune is a printable character.
 // Printable characters are ranged from 32 to 126.
-func (l *lexer) isPrintableCharacter(r byte) bool {
+func (l *lexer) isPrintableCharacter(r rune) bool {
 	return r >= 0x20 && r <= 0x7E // 32-126
 }
 
 func (l *lexer) nextToken() (token, error) {
 	tok := token{}
 
-	if l.pos >= len(l.input) {
-		tok.tt = tokenTypeEOF
-		tok.setEnd(l.pos, l.input)
-		return tok, nil
-	}
-
-	var next byte
+	var next rune
 
 	// Consume all whitespace characters until we encounter a valid token character.
 	for {
@@ -142,7 +140,7 @@ func (l *lexer) nextToken() (token, error) {
 
 		// Check if we have reached the end of the input.
 		// If so, we return an EOF token.
-		if l.pos >= len(l.input) {
+		if l.atEnd() {
 			tok.tt = tokenTypeEOF
 			tok.setEnd(l.pos, l.input)
 			return tok, nil
@@ -163,7 +161,7 @@ func (l *lexer) nextToken() (token, error) {
 	}
 
 	// Check if our next byte is a single byte token.
-	if l.matchSingleByteToken(next, &tok) {
+	if l.matchSingleRuneToken(next, &tok) {
 		tok.setEnd(l.pos, l.input)
 		return tok, nil
 	}
@@ -184,9 +182,9 @@ func (l *lexer) nextToken() (token, error) {
 }
 
 // matchSingleByteToken matches a single byte token.
-func (l *lexer) matchSingleByteToken(r byte, tok *token) bool {
+func (l *lexer) matchSingleRuneToken(r rune, tok *token) bool {
 	switch r {
-	case runes.EOF:
+	case -1:
 		tok.tt = tokenTypeEOF
 	case runes.EQUALS:
 		tok.tt = tokenTypeEquals
@@ -203,12 +201,12 @@ func (l *lexer) readIdent(tok *token) error {
 	tok.tt = tokenTypeIdent
 
 	for {
-		next := l.peek(0)
-
-		if next == runes.EOF {
+		if l.atEnd() {
 			tok.setEnd(l.pos, l.input)
 			return nil
 		}
+
+		next := l.peek(0)
 
 		if l.isForbiddenCharacter(next) {
 			return fmt.Errorf("control character %#x found in input at position %d", next, l.pos)
@@ -234,12 +232,11 @@ func (l *lexer) readString(tok *token) error {
 	tok.tt = tokenTypeString
 
 	for {
-		next := l.peek(0)
-
-		switch next {
-		case runes.EOF, runes.CARRIAGERETURN, runes.LINETERMINATOR:
+		if l.atEnd() {
 			return fmt.Errorf("unexpected end of input at position %d", l.pos)
 		}
+
+		next := l.peek(0)
 
 		if l.isForbiddenCharacter(next) {
 			return fmt.Errorf("control character %#x found in input at position %d", next, l.pos)
@@ -256,12 +253,12 @@ func (l *lexer) readString(tok *token) error {
 	}
 }
 
-func (l *lexer) peek(n int) byte {
+func (l *lexer) peek(n int) rune {
 	if l.pos+n >= len(l.input) {
-		return byte(runes.EOF)
+		return -1
 	}
 
-	return l.input[l.pos+n]
+	return rune(l.input[l.pos+n])
 }
 
 func (l *lexer) advance(n int) {
@@ -272,14 +269,18 @@ func (l *lexer) advance(n int) {
 	}
 }
 
-func (l *lexer) read() byte {
+func (l *lexer) read() rune {
 	if l.pos >= len(l.input) {
-		return runes.EOF
+		return -1
 	}
 
 	b := l.input[l.pos]
 	l.pos++
-	return b
+	return rune(b)
+}
+
+func (l *lexer) atEnd() bool {
+	return l.pos >= len(l.input)
 }
 
 // readArgument consumes the "=" and value that may follow a directive name.
