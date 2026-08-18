@@ -934,6 +934,104 @@ func TestExecutionValidation(t *testing.T) {
 							}
 						`, FieldSelectionMerging(), Valid)
 					})
+					t.Run("allows object and interface return types with the same response shape", func(t *testing.T) {
+						runWithDefinition(t, `
+							scalar String
+
+							type ThinTicket {
+								id: String
+								subject: String
+							}
+
+							interface Ticket {
+								id: String
+								subject: String
+							}
+
+							type ThinTicketFollowUp {
+								ticket: ThinTicket
+							}
+
+							type TicketFollowUp {
+								ticket: Ticket
+							}
+
+							union OriginatedFrom = ThinTicketFollowUp | TicketFollowUp
+
+							type Query {
+								originatedFrom: OriginatedFrom
+							}
+
+							schema {
+								query: Query
+							}
+						`, `
+							query {
+								originatedFrom {
+									... on ThinTicketFollowUp {
+										ticket {
+											id
+											subject
+										}
+									}
+									... on TicketFollowUp {
+										ticket {
+											id
+											subject
+										}
+									}
+								}
+							}
+						`, FieldSelectionMerging(), Valid)
+					})
+					t.Run("disallows different composite return types with incompatible nested leaves", func(t *testing.T) {
+						runWithDefinition(t, `
+							scalar String
+							scalar Int
+
+							interface X {
+								value: String
+							}
+
+							interface Y {
+								value: Int
+							}
+
+							type A {
+								field: X
+							}
+
+							type B {
+								field: Y
+							}
+
+							union Result = A | B
+
+							type Query {
+								result: Result
+							}
+
+							schema {
+								query: Query
+							}
+						`, `
+							query {
+								result {
+									... on A {
+										field {
+											value
+										}
+									}
+									... on B {
+										field {
+											value
+										}
+									}
+								}
+							}
+						`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'value' conflict because they return conflicting types 'String' and 'Int'`))
+					})
 					t.Run("disallows differing return types despite no overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
 								{
