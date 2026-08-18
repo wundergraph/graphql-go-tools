@@ -205,7 +205,7 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 		variableValue, dataType, _, err := jsonparser.Get(d.Input.Variables, variableName)
 		if errors.Is(err, jsonparser.KeyPathNotFoundError) {
 			buf.Write(literal.NULL)
-			return nil //nolint:nilerr // A missing variable is rendered as GraphQL null.
+			return nil // A missing variable is rendered as GraphQL null.
 		}
 		if err != nil {
 			return fmt.Errorf("get variable %q: %w", variableName, err)
