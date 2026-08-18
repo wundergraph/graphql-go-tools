@@ -318,7 +318,13 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 // requires extra gather fetches for the missing key members, so it is always the last resort.
 // Fallback paths are present in possiblePaths only when includeFallback is true.
 func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash, includeFallback bool) (bestPath *SourceConnection, exists bool) {
-	possiblePaths, exists := jumps.getPaths(from, to, includeFallback)
+	// An exact key path always wins over a fallback one, so ask for the exact paths first:
+	// enumerating the fallback-inclusive paths - which is much more expensive because
+	// fallback edges densify the jump graph - is only needed when no exact path exists.
+	possiblePaths, exists := jumps.getPaths(from, to, false)
+	if !exists && includeFallback {
+		possiblePaths, exists = jumps.getPaths(from, to, true)
+	}
 	if !exists {
 		return nil, false
 	}

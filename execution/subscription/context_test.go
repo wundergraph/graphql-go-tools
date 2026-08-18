@@ -33,7 +33,7 @@ func TestSubscriptionCancellations(t *testing.T) {
 	t.Run("should add a cancellation func to map", func(t *testing.T) {
 		require.Equal(t, 0, cancellations.Len())
 
-		ctx, err = cancellations.AddWithParent("1", context.Background())
+		ctx, err = cancellations.AddWithParent("1", context.Background()) //nolint:fatcontext // Sequential subtests share this context.
 		assert.Nil(t, err)
 		assert.Equal(t, 1, cancellations.Len())
 		assert.NotNil(t, ctx)

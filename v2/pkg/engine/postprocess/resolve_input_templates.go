@@ -34,7 +34,9 @@ func (r *resolveInputTemplates) traverseNode(node *resolve.FetchTreeNode) {
 	}
 	switch node.Kind {
 	case resolve.FetchTreeNodeKindSingle:
-		r.traverseSingleFetch(node.Item.Fetch.(*resolve.SingleFetch))
+		if fetch, ok := node.Item.Fetch.(*resolve.SingleFetch); ok {
+			r.traverseSingleFetch(fetch)
+		}
 	case resolve.FetchTreeNodeKindParallel:
 		for i := range node.ChildNodes {
 			r.traverseNode(node.ChildNodes[i])
@@ -55,7 +57,10 @@ func (r *resolveInputTemplates) traverseSingleFetch(fetch *resolve.SingleFetch) 
 }
 
 func (r *resolveInputTemplates) resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate) {
+	resolveInputTemplate(variables, input, template)
+}
 
+func resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate) {
 	if input == "" {
 		return
 	}

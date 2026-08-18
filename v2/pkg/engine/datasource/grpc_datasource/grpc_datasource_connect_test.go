@@ -10,8 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -36,8 +34,10 @@ func setupTestConnectServer(t testing.TB) (baseURL string, cleanup func()) {
 	mux := http.NewServeMux()
 	mux.Handle(productv1connect.NewProductServiceHandler(connectImpl))
 
-	srv := httptest.NewUnstartedServer(h2c.NewHandler(mux, &http2.Server{}))
-	srv.EnableHTTP2 = true
+	srv := httptest.NewUnstartedServer(mux)
+	srv.Config.Protocols = new(http.Protocols)
+	srv.Config.Protocols.SetHTTP1(true)
+	srv.Config.Protocols.SetUnencryptedHTTP2(true)
 	srv.Start()
 
 	cleanup = srv.Close

@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.16.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.15.1...v2.16.0) (2026-08-13)
+
+
+### Features
+
+* implement multi fetch to the same subgraph ([#1594](https://github.com/wundergraph/graphql-go-tools/issues/1594)) ([22584e2](https://github.com/wundergraph/graphql-go-tools/commit/22584e2f691fffe29e8dd91d6e868826eeb55460))
+* schedule fetch trees optimally ([#1612](https://github.com/wundergraph/graphql-go-tools/issues/1612)) ([bd03deb](https://github.com/wundergraph/graphql-go-tools/commit/bd03deb2be134e7402fdd8c32b1d2ff3ae1376df))
+
+
+### Bug Fixes
+
+* check interface implementation in `potentiallySameObject` for nullability relaxation ([#1454](https://github.com/wundergraph/graphql-go-tools/issues/1454)) ([5bacb9e](https://github.com/wundergraph/graphql-go-tools/commit/5bacb9e75a5e23b1624519385440dd7ce45b8f0e))
+* improve handling of nullable lists for required fields ([#1631](https://github.com/wundergraph/graphql-go-tools/issues/1631)) ([0af4dd3](https://github.com/wundergraph/graphql-go-tools/commit/0af4dd310eba110873e48fa188238afeb4f2d942))
+
+## [2.15.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.15.0...v2.15.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* query planning time regression ([#1627](https://github.com/wundergraph/graphql-go-tools/issues/1627)) ([b90db54](https://github.com/wundergraph/graphql-go-tools/commit/b90db54de72311c4a0c96cb9c2672bbd5079e71c))
+
 ## [2.15.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.14.2...v2.15.0) (2026-08-09)
 
 

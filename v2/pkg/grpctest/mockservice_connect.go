@@ -592,6 +592,15 @@ func (s *MockServiceConnect) RequireStorageOperationReportById(ctx context.Conte
 	return connect.NewResponse(resp), nil
 }
 
+// RequireStorageOptionalOperationHistoryById forwards the Connect call to the gRPC implementation.
+func (s *MockServiceConnect) RequireStorageOptionalOperationHistoryById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalOperationHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalOperationHistoryByIdResponse], error) {
+	resp, err := s.inner.RequireStorageOptionalOperationHistoryById(connectCtxToGRPC(ctx, req.Header()), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
 // RequireStorageOptionalProcessedMetadataById forwards the Connect call to the gRPC implementation.
 func (s *MockServiceConnect) RequireStorageOptionalProcessedMetadataById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataByIdResponse], error) {
 	resp, err := s.inner.RequireStorageOptionalProcessedMetadataById(connectCtxToGRPC(ctx, req.Header()), req.Msg)
@@ -601,9 +610,27 @@ func (s *MockServiceConnect) RequireStorageOptionalProcessedMetadataById(ctx con
 	return connect.NewResponse(resp), nil
 }
 
+// RequireStorageOptionalProcessedMetadataHistoryById forwards the Connect call to the gRPC implementation.
+func (s *MockServiceConnect) RequireStorageOptionalProcessedMetadataHistoryById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResponse], error) {
+	resp, err := s.inner.RequireStorageOptionalProcessedMetadataHistoryById(connectCtxToGRPC(ctx, req.Header()), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
 // RequireStorageOptionalProcessedTagsById forwards the Connect call to the gRPC implementation.
 func (s *MockServiceConnect) RequireStorageOptionalProcessedTagsById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedTagsByIdResponse], error) {
 	resp, err := s.inner.RequireStorageOptionalProcessedTagsById(connectCtxToGRPC(ctx, req.Header()), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// RequireStorageOptionalRecommendedItemsById forwards the Connect call to the gRPC implementation.
+func (s *MockServiceConnect) RequireStorageOptionalRecommendedItemsById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalRecommendedItemsByIdResponse], error) {
+	resp, err := s.inner.RequireStorageOptionalRecommendedItemsById(connectCtxToGRPC(ctx, req.Header()), req.Msg)
 	if err != nil {
 		return nil, err
 	}
@@ -667,6 +694,15 @@ func (s *MockServiceConnect) RequireStorageStockHealthScoreById(ctx context.Cont
 // RequireStorageTagSummaryById forwards the Connect call to the gRPC implementation.
 func (s *MockServiceConnect) RequireStorageTagSummaryById(ctx context.Context, req *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error) {
 	resp, err := s.inner.RequireStorageTagSummaryById(connectCtxToGRPC(ctx, req.Header()), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// RequireStorageTagsByLengthsById forwards the Connect call to the gRPC implementation.
+func (s *MockServiceConnect) RequireStorageTagsByLengthsById(ctx context.Context, req *connect.Request[productv1.RequireStorageTagsByLengthsByIdRequest]) (*connect.Response[productv1.RequireStorageTagsByLengthsByIdResponse], error) {
+	resp, err := s.inner.RequireStorageTagsByLengthsById(connectCtxToGRPC(ctx, req.Header()), req.Msg)
 	if err != nil {
 		return nil, err
 	}

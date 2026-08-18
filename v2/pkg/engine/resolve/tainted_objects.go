@@ -19,8 +19,7 @@ import (
 // 3. It validates that the failed field was actually requested for @requires;
 // 4. Marks object at index 1 as "tainted";
 // 5. Later fetches will ignore this tainted object.
-func getTaintedIndices(fetch Fetch, data *astjson.Value, errors *astjson.Value) (indices []int) {
-	info := fetch.FetchInfo()
+func getTaintedIndices(info *FetchInfo, rootName string, data *astjson.Value, errors *astjson.Value) (indices []int) {
 	if info == nil {
 		return nil
 	}
@@ -47,7 +46,7 @@ func getTaintedIndices(fetch Fetch, data *astjson.Value, errors *astjson.Value) 
 			continue
 		}
 		for i, item := range pathItems {
-			if unsafebytes.BytesToString(item.GetStringBytes()) != "_entities" {
+			if unsafebytes.BytesToString(item.GetStringBytes()) != rootName {
 				continue
 			}
 

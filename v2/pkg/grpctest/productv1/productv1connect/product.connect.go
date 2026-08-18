@@ -219,12 +219,21 @@ const (
 	// ProductServiceRequireStorageOptionalLatestOperationByIdProcedure is the fully-qualified name of
 	// the ProductService's RequireStorageOptionalLatestOperationById RPC.
 	ProductServiceRequireStorageOptionalLatestOperationByIdProcedure = "/productv1.ProductService/RequireStorageOptionalLatestOperationById"
+	// ProductServiceRequireStorageOptionalOperationHistoryByIdProcedure is the fully-qualified name of
+	// the ProductService's RequireStorageOptionalOperationHistoryById RPC.
+	ProductServiceRequireStorageOptionalOperationHistoryByIdProcedure = "/productv1.ProductService/RequireStorageOptionalOperationHistoryById"
 	// ProductServiceRequireStorageOptionalProcessedMetadataByIdProcedure is the fully-qualified name of
 	// the ProductService's RequireStorageOptionalProcessedMetadataById RPC.
 	ProductServiceRequireStorageOptionalProcessedMetadataByIdProcedure = "/productv1.ProductService/RequireStorageOptionalProcessedMetadataById"
+	// ProductServiceRequireStorageOptionalProcessedMetadataHistoryByIdProcedure is the fully-qualified
+	// name of the ProductService's RequireStorageOptionalProcessedMetadataHistoryById RPC.
+	ProductServiceRequireStorageOptionalProcessedMetadataHistoryByIdProcedure = "/productv1.ProductService/RequireStorageOptionalProcessedMetadataHistoryById"
 	// ProductServiceRequireStorageOptionalProcessedTagsByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageOptionalProcessedTagsById RPC.
 	ProductServiceRequireStorageOptionalProcessedTagsByIdProcedure = "/productv1.ProductService/RequireStorageOptionalProcessedTagsById"
+	// ProductServiceRequireStorageOptionalRecommendedItemsByIdProcedure is the fully-qualified name of
+	// the ProductService's RequireStorageOptionalRecommendedItemsById RPC.
+	ProductServiceRequireStorageOptionalRecommendedItemsByIdProcedure = "/productv1.ProductService/RequireStorageOptionalRecommendedItemsById"
 	// ProductServiceRequireStorageOptionalTagSummaryByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageOptionalTagSummaryById RPC.
 	ProductServiceRequireStorageOptionalTagSummaryByIdProcedure = "/productv1.ProductService/RequireStorageOptionalTagSummaryById"
@@ -252,6 +261,9 @@ const (
 	// ProductServiceRequireStorageTagSummaryByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageTagSummaryById RPC.
 	ProductServiceRequireStorageTagSummaryByIdProcedure = "/productv1.ProductService/RequireStorageTagSummaryById"
+	// ProductServiceRequireStorageTagsByLengthsByIdProcedure is the fully-qualified name of the
+	// ProductService's RequireStorageTagsByLengthsById RPC.
+	ProductServiceRequireStorageTagsByLengthsByIdProcedure = "/productv1.ProductService/RequireStorageTagsByLengthsById"
 	// ProductServiceRequireWarehouseStockHealthScoreByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireWarehouseStockHealthScoreById RPC.
 	ProductServiceRequireWarehouseStockHealthScoreByIdProcedure = "/productv1.ProductService/RequireWarehouseStockHealthScoreById"
@@ -399,8 +411,11 @@ type ProductServiceClient interface {
 	RequireStorageNullableFilteredTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageNullableFilteredTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageNullableFilteredTagSummaryByIdResponse], error)
 	RequireStorageOperationReportById(context.Context, *connect.Request[productv1.RequireStorageOperationReportByIdRequest]) (*connect.Response[productv1.RequireStorageOperationReportByIdResponse], error)
 	RequireStorageOptionalLatestOperationById(context.Context, *connect.Request[productv1.RequireStorageOptionalLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalLatestOperationByIdResponse], error)
+	RequireStorageOptionalOperationHistoryById(context.Context, *connect.Request[productv1.RequireStorageOptionalOperationHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalOperationHistoryByIdResponse], error)
 	RequireStorageOptionalProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataByIdResponse], error)
+	RequireStorageOptionalProcessedMetadataHistoryById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResponse], error)
 	RequireStorageOptionalProcessedTagsById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedTagsByIdResponse], error)
+	RequireStorageOptionalRecommendedItemsById(context.Context, *connect.Request[productv1.RequireStorageOptionalRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalRecommendedItemsByIdResponse], error)
 	RequireStorageOptionalTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageOptionalTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalTagSummaryByIdResponse], error)
 	RequireStorageProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedMetadataByIdResponse], error)
 	RequireStorageProcessedMetadataHistoryById(context.Context, *connect.Request[productv1.RequireStorageProcessedMetadataHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedMetadataHistoryByIdResponse], error)
@@ -410,6 +425,7 @@ type ProductServiceClient interface {
 	RequireStorageSecuritySummaryById(context.Context, *connect.Request[productv1.RequireStorageSecuritySummaryByIdRequest]) (*connect.Response[productv1.RequireStorageSecuritySummaryByIdResponse], error)
 	RequireStorageStockHealthScoreById(context.Context, *connect.Request[productv1.RequireStorageStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireStorageStockHealthScoreByIdResponse], error)
 	RequireStorageTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error)
+	RequireStorageTagsByLengthsById(context.Context, *connect.Request[productv1.RequireStorageTagsByLengthsByIdRequest]) (*connect.Response[productv1.RequireStorageTagsByLengthsByIdResponse], error)
 	RequireWarehouseStockHealthScoreById(context.Context, *connect.Request[productv1.RequireWarehouseStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireWarehouseStockHealthScoreByIdResponse], error)
 	ResolveCategoryActiveSubcategories(context.Context, *connect.Request[productv1.ResolveCategoryActiveSubcategoriesRequest]) (*connect.Response[productv1.ResolveCategoryActiveSubcategoriesResponse], error)
 	ResolveCategoryCategoryMetrics(context.Context, *connect.Request[productv1.ResolveCategoryCategoryMetricsRequest]) (*connect.Response[productv1.ResolveCategoryCategoryMetricsResponse], error)
@@ -821,16 +837,34 @@ func NewProductServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalLatestOperationById")),
 			connect.WithClientOptions(opts...),
 		),
+		requireStorageOptionalOperationHistoryById: connect.NewClient[productv1.RequireStorageOptionalOperationHistoryByIdRequest, productv1.RequireStorageOptionalOperationHistoryByIdResponse](
+			httpClient,
+			baseURL+ProductServiceRequireStorageOptionalOperationHistoryByIdProcedure,
+			connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalOperationHistoryById")),
+			connect.WithClientOptions(opts...),
+		),
 		requireStorageOptionalProcessedMetadataById: connect.NewClient[productv1.RequireStorageOptionalProcessedMetadataByIdRequest, productv1.RequireStorageOptionalProcessedMetadataByIdResponse](
 			httpClient,
 			baseURL+ProductServiceRequireStorageOptionalProcessedMetadataByIdProcedure,
 			connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalProcessedMetadataById")),
 			connect.WithClientOptions(opts...),
 		),
+		requireStorageOptionalProcessedMetadataHistoryById: connect.NewClient[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdRequest, productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResponse](
+			httpClient,
+			baseURL+ProductServiceRequireStorageOptionalProcessedMetadataHistoryByIdProcedure,
+			connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalProcessedMetadataHistoryById")),
+			connect.WithClientOptions(opts...),
+		),
 		requireStorageOptionalProcessedTagsById: connect.NewClient[productv1.RequireStorageOptionalProcessedTagsByIdRequest, productv1.RequireStorageOptionalProcessedTagsByIdResponse](
 			httpClient,
 			baseURL+ProductServiceRequireStorageOptionalProcessedTagsByIdProcedure,
 			connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalProcessedTagsById")),
+			connect.WithClientOptions(opts...),
+		),
+		requireStorageOptionalRecommendedItemsById: connect.NewClient[productv1.RequireStorageOptionalRecommendedItemsByIdRequest, productv1.RequireStorageOptionalRecommendedItemsByIdResponse](
+			httpClient,
+			baseURL+ProductServiceRequireStorageOptionalRecommendedItemsByIdProcedure,
+			connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalRecommendedItemsById")),
 			connect.WithClientOptions(opts...),
 		),
 		requireStorageOptionalTagSummaryById: connect.NewClient[productv1.RequireStorageOptionalTagSummaryByIdRequest, productv1.RequireStorageOptionalTagSummaryByIdResponse](
@@ -885,6 +919,12 @@ func NewProductServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+ProductServiceRequireStorageTagSummaryByIdProcedure,
 			connect.WithSchema(productServiceMethods.ByName("RequireStorageTagSummaryById")),
+			connect.WithClientOptions(opts...),
+		),
+		requireStorageTagsByLengthsById: connect.NewClient[productv1.RequireStorageTagsByLengthsByIdRequest, productv1.RequireStorageTagsByLengthsByIdResponse](
+			httpClient,
+			baseURL+ProductServiceRequireStorageTagsByLengthsByIdProcedure,
+			connect.WithSchema(productServiceMethods.ByName("RequireStorageTagsByLengthsById")),
 			connect.WithClientOptions(opts...),
 		),
 		requireWarehouseStockHealthScoreById: connect.NewClient[productv1.RequireWarehouseStockHealthScoreByIdRequest, productv1.RequireWarehouseStockHealthScoreByIdResponse](
@@ -1048,105 +1088,109 @@ func NewProductServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // productServiceClient implements ProductServiceClient.
 type productServiceClient struct {
-	lookupProductById                            *connect.Client[productv1.LookupProductByIdRequest, productv1.LookupProductByIdResponse]
-	lookupStorageById                            *connect.Client[productv1.LookupStorageByIdRequest, productv1.LookupStorageByIdResponse]
-	lookupWarehouseById                          *connect.Client[productv1.LookupWarehouseByIdRequest, productv1.LookupWarehouseByIdResponse]
-	mutationBulkCreateAuthors                    *connect.Client[productv1.MutationBulkCreateAuthorsRequest, productv1.MutationBulkCreateAuthorsResponse]
-	mutationBulkCreateBlogPosts                  *connect.Client[productv1.MutationBulkCreateBlogPostsRequest, productv1.MutationBulkCreateBlogPostsResponse]
-	mutationBulkUpdateAuthors                    *connect.Client[productv1.MutationBulkUpdateAuthorsRequest, productv1.MutationBulkUpdateAuthorsResponse]
-	mutationBulkUpdateBlogPosts                  *connect.Client[productv1.MutationBulkUpdateBlogPostsRequest, productv1.MutationBulkUpdateBlogPostsResponse]
-	mutationCreateAuthor                         *connect.Client[productv1.MutationCreateAuthorRequest, productv1.MutationCreateAuthorResponse]
-	mutationCreateBlogPost                       *connect.Client[productv1.MutationCreateBlogPostRequest, productv1.MutationCreateBlogPostResponse]
-	mutationCreateNullableFieldsType             *connect.Client[productv1.MutationCreateNullableFieldsTypeRequest, productv1.MutationCreateNullableFieldsTypeResponse]
-	mutationCreateUser                           *connect.Client[productv1.MutationCreateUserRequest, productv1.MutationCreateUserResponse]
-	mutationPerformAction                        *connect.Client[productv1.MutationPerformActionRequest, productv1.MutationPerformActionResponse]
-	mutationUpdateAuthor                         *connect.Client[productv1.MutationUpdateAuthorRequest, productv1.MutationUpdateAuthorResponse]
-	mutationUpdateBlogPost                       *connect.Client[productv1.MutationUpdateBlogPostRequest, productv1.MutationUpdateBlogPostResponse]
-	mutationUpdateNullableFieldsType             *connect.Client[productv1.MutationUpdateNullableFieldsTypeRequest, productv1.MutationUpdateNullableFieldsTypeResponse]
-	queryAllAuthors                              *connect.Client[productv1.QueryAllAuthorsRequest, productv1.QueryAllAuthorsResponse]
-	queryAllBlogPosts                            *connect.Client[productv1.QueryAllBlogPostsRequest, productv1.QueryAllBlogPostsResponse]
-	queryAllNullableFieldsTypes                  *connect.Client[productv1.QueryAllNullableFieldsTypesRequest, productv1.QueryAllNullableFieldsTypesResponse]
-	queryAllPets                                 *connect.Client[productv1.QueryAllPetsRequest, productv1.QueryAllPetsResponse]
-	queryAuthor                                  *connect.Client[productv1.QueryAuthorRequest, productv1.QueryAuthorResponse]
-	queryAuthorById                              *connect.Client[productv1.QueryAuthorByIdRequest, productv1.QueryAuthorByIdResponse]
-	queryAuthorsWithFilter                       *connect.Client[productv1.QueryAuthorsWithFilterRequest, productv1.QueryAuthorsWithFilterResponse]
-	queryBlogPost                                *connect.Client[productv1.QueryBlogPostRequest, productv1.QueryBlogPostResponse]
-	queryBlogPostById                            *connect.Client[productv1.QueryBlogPostByIdRequest, productv1.QueryBlogPostByIdResponse]
-	queryBlogPostsWithFilter                     *connect.Client[productv1.QueryBlogPostsWithFilterRequest, productv1.QueryBlogPostsWithFilterResponse]
-	queryBulkSearchAuthors                       *connect.Client[productv1.QueryBulkSearchAuthorsRequest, productv1.QueryBulkSearchAuthorsResponse]
-	queryBulkSearchBlogPosts                     *connect.Client[productv1.QueryBulkSearchBlogPostsRequest, productv1.QueryBulkSearchBlogPostsResponse]
-	queryCalculateTotals                         *connect.Client[productv1.QueryCalculateTotalsRequest, productv1.QueryCalculateTotalsResponse]
-	queryCategories                              *connect.Client[productv1.QueryCategoriesRequest, productv1.QueryCategoriesResponse]
-	queryCategoriesByKind                        *connect.Client[productv1.QueryCategoriesByKindRequest, productv1.QueryCategoriesByKindResponse]
-	queryCategoriesByKinds                       *connect.Client[productv1.QueryCategoriesByKindsRequest, productv1.QueryCategoriesByKindsResponse]
-	queryCategory                                *connect.Client[productv1.QueryCategoryRequest, productv1.QueryCategoryResponse]
-	queryComplexFilterType                       *connect.Client[productv1.QueryComplexFilterTypeRequest, productv1.QueryComplexFilterTypeResponse]
-	queryConditionalSearch                       *connect.Client[productv1.QueryConditionalSearchRequest, productv1.QueryConditionalSearchResponse]
-	queryFilterCategories                        *connect.Client[productv1.QueryFilterCategoriesRequest, productv1.QueryFilterCategoriesResponse]
-	queryNestedType                              *connect.Client[productv1.QueryNestedTypeRequest, productv1.QueryNestedTypeResponse]
-	queryNullableFieldsType                      *connect.Client[productv1.QueryNullableFieldsTypeRequest, productv1.QueryNullableFieldsTypeResponse]
-	queryNullableFieldsTypeById                  *connect.Client[productv1.QueryNullableFieldsTypeByIdRequest, productv1.QueryNullableFieldsTypeByIdResponse]
-	queryNullableFieldsTypeWithFilter            *connect.Client[productv1.QueryNullableFieldsTypeWithFilterRequest, productv1.QueryNullableFieldsTypeWithFilterResponse]
-	queryRandomPet                               *connect.Client[productv1.QueryRandomPetRequest, productv1.QueryRandomPetResponse]
-	queryRandomSearchResult                      *connect.Client[productv1.QueryRandomSearchResultRequest, productv1.QueryRandomSearchResultResponse]
-	queryRecursiveType                           *connect.Client[productv1.QueryRecursiveTypeRequest, productv1.QueryRecursiveTypeResponse]
-	querySearch                                  *connect.Client[productv1.QuerySearchRequest, productv1.QuerySearchResponse]
-	queryTestContainer                           *connect.Client[productv1.QueryTestContainerRequest, productv1.QueryTestContainerResponse]
-	queryTestContainers                          *connect.Client[productv1.QueryTestContainersRequest, productv1.QueryTestContainersResponse]
-	queryTypeFilterWithArguments                 *connect.Client[productv1.QueryTypeFilterWithArgumentsRequest, productv1.QueryTypeFilterWithArgumentsResponse]
-	queryTypeWithMultipleFilterFields            *connect.Client[productv1.QueryTypeWithMultipleFilterFieldsRequest, productv1.QueryTypeWithMultipleFilterFieldsResponse]
-	queryUser                                    *connect.Client[productv1.QueryUserRequest, productv1.QueryUserResponse]
-	queryUsers                                   *connect.Client[productv1.QueryUsersRequest, productv1.QueryUsersResponse]
-	requireStorageCategoryInfoSummaryById        *connect.Client[productv1.RequireStorageCategoryInfoSummaryByIdRequest, productv1.RequireStorageCategoryInfoSummaryByIdResponse]
-	requireStorageDeepItemInfoById               *connect.Client[productv1.RequireStorageDeepItemInfoByIdRequest, productv1.RequireStorageDeepItemInfoByIdResponse]
-	requireStorageFilteredTagSummaryById         *connect.Client[productv1.RequireStorageFilteredTagSummaryByIdRequest, productv1.RequireStorageFilteredTagSummaryByIdResponse]
-	requireStorageItemHandlerInfoById            *connect.Client[productv1.RequireStorageItemHandlerInfoByIdRequest, productv1.RequireStorageItemHandlerInfoByIdResponse]
-	requireStorageItemInfoById                   *connect.Client[productv1.RequireStorageItemInfoByIdRequest, productv1.RequireStorageItemInfoByIdResponse]
-	requireStorageItemSpecsInfoById              *connect.Client[productv1.RequireStorageItemSpecsInfoByIdRequest, productv1.RequireStorageItemSpecsInfoByIdResponse]
-	requireStorageKindSummaryById                *connect.Client[productv1.RequireStorageKindSummaryByIdRequest, productv1.RequireStorageKindSummaryByIdResponse]
-	requireStorageLatestOperationById            *connect.Client[productv1.RequireStorageLatestOperationByIdRequest, productv1.RequireStorageLatestOperationByIdResponse]
-	requireStorageMetadataScoreById              *connect.Client[productv1.RequireStorageMetadataScoreByIdRequest, productv1.RequireStorageMetadataScoreByIdResponse]
-	requireStorageMultiFilteredTagSummaryById    *connect.Client[productv1.RequireStorageMultiFilteredTagSummaryByIdRequest, productv1.RequireStorageMultiFilteredTagSummaryByIdResponse]
-	requireStorageNullableFilteredTagSummaryById *connect.Client[productv1.RequireStorageNullableFilteredTagSummaryByIdRequest, productv1.RequireStorageNullableFilteredTagSummaryByIdResponse]
-	requireStorageOperationReportById            *connect.Client[productv1.RequireStorageOperationReportByIdRequest, productv1.RequireStorageOperationReportByIdResponse]
-	requireStorageOptionalLatestOperationById    *connect.Client[productv1.RequireStorageOptionalLatestOperationByIdRequest, productv1.RequireStorageOptionalLatestOperationByIdResponse]
-	requireStorageOptionalProcessedMetadataById  *connect.Client[productv1.RequireStorageOptionalProcessedMetadataByIdRequest, productv1.RequireStorageOptionalProcessedMetadataByIdResponse]
-	requireStorageOptionalProcessedTagsById      *connect.Client[productv1.RequireStorageOptionalProcessedTagsByIdRequest, productv1.RequireStorageOptionalProcessedTagsByIdResponse]
-	requireStorageOptionalTagSummaryById         *connect.Client[productv1.RequireStorageOptionalTagSummaryByIdRequest, productv1.RequireStorageOptionalTagSummaryByIdResponse]
-	requireStorageProcessedMetadataById          *connect.Client[productv1.RequireStorageProcessedMetadataByIdRequest, productv1.RequireStorageProcessedMetadataByIdResponse]
-	requireStorageProcessedMetadataHistoryById   *connect.Client[productv1.RequireStorageProcessedMetadataHistoryByIdRequest, productv1.RequireStorageProcessedMetadataHistoryByIdResponse]
-	requireStorageProcessedTagsById              *connect.Client[productv1.RequireStorageProcessedTagsByIdRequest, productv1.RequireStorageProcessedTagsByIdResponse]
-	requireStorageRecommendedItemById            *connect.Client[productv1.RequireStorageRecommendedItemByIdRequest, productv1.RequireStorageRecommendedItemByIdResponse]
-	requireStorageRecommendedItemsById           *connect.Client[productv1.RequireStorageRecommendedItemsByIdRequest, productv1.RequireStorageRecommendedItemsByIdResponse]
-	requireStorageSecuritySummaryById            *connect.Client[productv1.RequireStorageSecuritySummaryByIdRequest, productv1.RequireStorageSecuritySummaryByIdResponse]
-	requireStorageStockHealthScoreById           *connect.Client[productv1.RequireStorageStockHealthScoreByIdRequest, productv1.RequireStorageStockHealthScoreByIdResponse]
-	requireStorageTagSummaryById                 *connect.Client[productv1.RequireStorageTagSummaryByIdRequest, productv1.RequireStorageTagSummaryByIdResponse]
-	requireWarehouseStockHealthScoreById         *connect.Client[productv1.RequireWarehouseStockHealthScoreByIdRequest, productv1.RequireWarehouseStockHealthScoreByIdResponse]
-	resolveCategoryActiveSubcategories           *connect.Client[productv1.ResolveCategoryActiveSubcategoriesRequest, productv1.ResolveCategoryActiveSubcategoriesResponse]
-	resolveCategoryCategoryMetrics               *connect.Client[productv1.ResolveCategoryCategoryMetricsRequest, productv1.ResolveCategoryCategoryMetricsResponse]
-	resolveCategoryCategoryStatus                *connect.Client[productv1.ResolveCategoryCategoryStatusRequest, productv1.ResolveCategoryCategoryStatusResponse]
-	resolveCategoryChildCategories               *connect.Client[productv1.ResolveCategoryChildCategoriesRequest, productv1.ResolveCategoryChildCategoriesResponse]
-	resolveCategoryMascot                        *connect.Client[productv1.ResolveCategoryMascotRequest, productv1.ResolveCategoryMascotResponse]
-	resolveCategoryMetricsAverageScore           *connect.Client[productv1.ResolveCategoryMetricsAverageScoreRequest, productv1.ResolveCategoryMetricsAverageScoreResponse]
-	resolveCategoryMetricsNormalizedScore        *connect.Client[productv1.ResolveCategoryMetricsNormalizedScoreRequest, productv1.ResolveCategoryMetricsNormalizedScoreResponse]
-	resolveCategoryMetricsRelatedCategory        *connect.Client[productv1.ResolveCategoryMetricsRelatedCategoryRequest, productv1.ResolveCategoryMetricsRelatedCategoryResponse]
-	resolveCategoryOptionalCategories            *connect.Client[productv1.ResolveCategoryOptionalCategoriesRequest, productv1.ResolveCategoryOptionalCategoriesResponse]
-	resolveCategoryPopularityScore               *connect.Client[productv1.ResolveCategoryPopularityScoreRequest, productv1.ResolveCategoryPopularityScoreResponse]
-	resolveCategoryProductCount                  *connect.Client[productv1.ResolveCategoryProductCountRequest, productv1.ResolveCategoryProductCountResponse]
-	resolveCategoryTopSubcategory                *connect.Client[productv1.ResolveCategoryTopSubcategoryRequest, productv1.ResolveCategoryTopSubcategoryResponse]
-	resolveCategoryTotalProducts                 *connect.Client[productv1.ResolveCategoryTotalProductsRequest, productv1.ResolveCategoryTotalProductsResponse]
-	resolveProductMascotRecommendation           *connect.Client[productv1.ResolveProductMascotRecommendationRequest, productv1.ResolveProductMascotRecommendationResponse]
-	resolveProductProductDetails                 *connect.Client[productv1.ResolveProductProductDetailsRequest, productv1.ResolveProductProductDetailsResponse]
-	resolveProductRecommendedCategory            *connect.Client[productv1.ResolveProductRecommendedCategoryRequest, productv1.ResolveProductRecommendedCategoryResponse]
-	resolveProductShippingEstimate               *connect.Client[productv1.ResolveProductShippingEstimateRequest, productv1.ResolveProductShippingEstimateResponse]
-	resolveProductStockStatus                    *connect.Client[productv1.ResolveProductStockStatusRequest, productv1.ResolveProductStockStatusResponse]
-	resolveStorageLinkedStorages                 *connect.Client[productv1.ResolveStorageLinkedStoragesRequest, productv1.ResolveStorageLinkedStoragesResponse]
-	resolveStorageNearbyStorages                 *connect.Client[productv1.ResolveStorageNearbyStoragesRequest, productv1.ResolveStorageNearbyStoragesResponse]
-	resolveStorageStorageStatus                  *connect.Client[productv1.ResolveStorageStorageStatusRequest, productv1.ResolveStorageStorageStatusResponse]
-	resolveSubcategoryFeaturedCategory           *connect.Client[productv1.ResolveSubcategoryFeaturedCategoryRequest, productv1.ResolveSubcategoryFeaturedCategoryResponse]
-	resolveSubcategoryItemCount                  *connect.Client[productv1.ResolveSubcategoryItemCountRequest, productv1.ResolveSubcategoryItemCountResponse]
-	resolveSubcategoryParentCategory             *connect.Client[productv1.ResolveSubcategoryParentCategoryRequest, productv1.ResolveSubcategoryParentCategoryResponse]
-	resolveTestContainerDetails                  *connect.Client[productv1.ResolveTestContainerDetailsRequest, productv1.ResolveTestContainerDetailsResponse]
+	lookupProductById                                  *connect.Client[productv1.LookupProductByIdRequest, productv1.LookupProductByIdResponse]
+	lookupStorageById                                  *connect.Client[productv1.LookupStorageByIdRequest, productv1.LookupStorageByIdResponse]
+	lookupWarehouseById                                *connect.Client[productv1.LookupWarehouseByIdRequest, productv1.LookupWarehouseByIdResponse]
+	mutationBulkCreateAuthors                          *connect.Client[productv1.MutationBulkCreateAuthorsRequest, productv1.MutationBulkCreateAuthorsResponse]
+	mutationBulkCreateBlogPosts                        *connect.Client[productv1.MutationBulkCreateBlogPostsRequest, productv1.MutationBulkCreateBlogPostsResponse]
+	mutationBulkUpdateAuthors                          *connect.Client[productv1.MutationBulkUpdateAuthorsRequest, productv1.MutationBulkUpdateAuthorsResponse]
+	mutationBulkUpdateBlogPosts                        *connect.Client[productv1.MutationBulkUpdateBlogPostsRequest, productv1.MutationBulkUpdateBlogPostsResponse]
+	mutationCreateAuthor                               *connect.Client[productv1.MutationCreateAuthorRequest, productv1.MutationCreateAuthorResponse]
+	mutationCreateBlogPost                             *connect.Client[productv1.MutationCreateBlogPostRequest, productv1.MutationCreateBlogPostResponse]
+	mutationCreateNullableFieldsType                   *connect.Client[productv1.MutationCreateNullableFieldsTypeRequest, productv1.MutationCreateNullableFieldsTypeResponse]
+	mutationCreateUser                                 *connect.Client[productv1.MutationCreateUserRequest, productv1.MutationCreateUserResponse]
+	mutationPerformAction                              *connect.Client[productv1.MutationPerformActionRequest, productv1.MutationPerformActionResponse]
+	mutationUpdateAuthor                               *connect.Client[productv1.MutationUpdateAuthorRequest, productv1.MutationUpdateAuthorResponse]
+	mutationUpdateBlogPost                             *connect.Client[productv1.MutationUpdateBlogPostRequest, productv1.MutationUpdateBlogPostResponse]
+	mutationUpdateNullableFieldsType                   *connect.Client[productv1.MutationUpdateNullableFieldsTypeRequest, productv1.MutationUpdateNullableFieldsTypeResponse]
+	queryAllAuthors                                    *connect.Client[productv1.QueryAllAuthorsRequest, productv1.QueryAllAuthorsResponse]
+	queryAllBlogPosts                                  *connect.Client[productv1.QueryAllBlogPostsRequest, productv1.QueryAllBlogPostsResponse]
+	queryAllNullableFieldsTypes                        *connect.Client[productv1.QueryAllNullableFieldsTypesRequest, productv1.QueryAllNullableFieldsTypesResponse]
+	queryAllPets                                       *connect.Client[productv1.QueryAllPetsRequest, productv1.QueryAllPetsResponse]
+	queryAuthor                                        *connect.Client[productv1.QueryAuthorRequest, productv1.QueryAuthorResponse]
+	queryAuthorById                                    *connect.Client[productv1.QueryAuthorByIdRequest, productv1.QueryAuthorByIdResponse]
+	queryAuthorsWithFilter                             *connect.Client[productv1.QueryAuthorsWithFilterRequest, productv1.QueryAuthorsWithFilterResponse]
+	queryBlogPost                                      *connect.Client[productv1.QueryBlogPostRequest, productv1.QueryBlogPostResponse]
+	queryBlogPostById                                  *connect.Client[productv1.QueryBlogPostByIdRequest, productv1.QueryBlogPostByIdResponse]
+	queryBlogPostsWithFilter                           *connect.Client[productv1.QueryBlogPostsWithFilterRequest, productv1.QueryBlogPostsWithFilterResponse]
+	queryBulkSearchAuthors                             *connect.Client[productv1.QueryBulkSearchAuthorsRequest, productv1.QueryBulkSearchAuthorsResponse]
+	queryBulkSearchBlogPosts                           *connect.Client[productv1.QueryBulkSearchBlogPostsRequest, productv1.QueryBulkSearchBlogPostsResponse]
+	queryCalculateTotals                               *connect.Client[productv1.QueryCalculateTotalsRequest, productv1.QueryCalculateTotalsResponse]
+	queryCategories                                    *connect.Client[productv1.QueryCategoriesRequest, productv1.QueryCategoriesResponse]
+	queryCategoriesByKind                              *connect.Client[productv1.QueryCategoriesByKindRequest, productv1.QueryCategoriesByKindResponse]
+	queryCategoriesByKinds                             *connect.Client[productv1.QueryCategoriesByKindsRequest, productv1.QueryCategoriesByKindsResponse]
+	queryCategory                                      *connect.Client[productv1.QueryCategoryRequest, productv1.QueryCategoryResponse]
+	queryComplexFilterType                             *connect.Client[productv1.QueryComplexFilterTypeRequest, productv1.QueryComplexFilterTypeResponse]
+	queryConditionalSearch                             *connect.Client[productv1.QueryConditionalSearchRequest, productv1.QueryConditionalSearchResponse]
+	queryFilterCategories                              *connect.Client[productv1.QueryFilterCategoriesRequest, productv1.QueryFilterCategoriesResponse]
+	queryNestedType                                    *connect.Client[productv1.QueryNestedTypeRequest, productv1.QueryNestedTypeResponse]
+	queryNullableFieldsType                            *connect.Client[productv1.QueryNullableFieldsTypeRequest, productv1.QueryNullableFieldsTypeResponse]
+	queryNullableFieldsTypeById                        *connect.Client[productv1.QueryNullableFieldsTypeByIdRequest, productv1.QueryNullableFieldsTypeByIdResponse]
+	queryNullableFieldsTypeWithFilter                  *connect.Client[productv1.QueryNullableFieldsTypeWithFilterRequest, productv1.QueryNullableFieldsTypeWithFilterResponse]
+	queryRandomPet                                     *connect.Client[productv1.QueryRandomPetRequest, productv1.QueryRandomPetResponse]
+	queryRandomSearchResult                            *connect.Client[productv1.QueryRandomSearchResultRequest, productv1.QueryRandomSearchResultResponse]
+	queryRecursiveType                                 *connect.Client[productv1.QueryRecursiveTypeRequest, productv1.QueryRecursiveTypeResponse]
+	querySearch                                        *connect.Client[productv1.QuerySearchRequest, productv1.QuerySearchResponse]
+	queryTestContainer                                 *connect.Client[productv1.QueryTestContainerRequest, productv1.QueryTestContainerResponse]
+	queryTestContainers                                *connect.Client[productv1.QueryTestContainersRequest, productv1.QueryTestContainersResponse]
+	queryTypeFilterWithArguments                       *connect.Client[productv1.QueryTypeFilterWithArgumentsRequest, productv1.QueryTypeFilterWithArgumentsResponse]
+	queryTypeWithMultipleFilterFields                  *connect.Client[productv1.QueryTypeWithMultipleFilterFieldsRequest, productv1.QueryTypeWithMultipleFilterFieldsResponse]
+	queryUser                                          *connect.Client[productv1.QueryUserRequest, productv1.QueryUserResponse]
+	queryUsers                                         *connect.Client[productv1.QueryUsersRequest, productv1.QueryUsersResponse]
+	requireStorageCategoryInfoSummaryById              *connect.Client[productv1.RequireStorageCategoryInfoSummaryByIdRequest, productv1.RequireStorageCategoryInfoSummaryByIdResponse]
+	requireStorageDeepItemInfoById                     *connect.Client[productv1.RequireStorageDeepItemInfoByIdRequest, productv1.RequireStorageDeepItemInfoByIdResponse]
+	requireStorageFilteredTagSummaryById               *connect.Client[productv1.RequireStorageFilteredTagSummaryByIdRequest, productv1.RequireStorageFilteredTagSummaryByIdResponse]
+	requireStorageItemHandlerInfoById                  *connect.Client[productv1.RequireStorageItemHandlerInfoByIdRequest, productv1.RequireStorageItemHandlerInfoByIdResponse]
+	requireStorageItemInfoById                         *connect.Client[productv1.RequireStorageItemInfoByIdRequest, productv1.RequireStorageItemInfoByIdResponse]
+	requireStorageItemSpecsInfoById                    *connect.Client[productv1.RequireStorageItemSpecsInfoByIdRequest, productv1.RequireStorageItemSpecsInfoByIdResponse]
+	requireStorageKindSummaryById                      *connect.Client[productv1.RequireStorageKindSummaryByIdRequest, productv1.RequireStorageKindSummaryByIdResponse]
+	requireStorageLatestOperationById                  *connect.Client[productv1.RequireStorageLatestOperationByIdRequest, productv1.RequireStorageLatestOperationByIdResponse]
+	requireStorageMetadataScoreById                    *connect.Client[productv1.RequireStorageMetadataScoreByIdRequest, productv1.RequireStorageMetadataScoreByIdResponse]
+	requireStorageMultiFilteredTagSummaryById          *connect.Client[productv1.RequireStorageMultiFilteredTagSummaryByIdRequest, productv1.RequireStorageMultiFilteredTagSummaryByIdResponse]
+	requireStorageNullableFilteredTagSummaryById       *connect.Client[productv1.RequireStorageNullableFilteredTagSummaryByIdRequest, productv1.RequireStorageNullableFilteredTagSummaryByIdResponse]
+	requireStorageOperationReportById                  *connect.Client[productv1.RequireStorageOperationReportByIdRequest, productv1.RequireStorageOperationReportByIdResponse]
+	requireStorageOptionalLatestOperationById          *connect.Client[productv1.RequireStorageOptionalLatestOperationByIdRequest, productv1.RequireStorageOptionalLatestOperationByIdResponse]
+	requireStorageOptionalOperationHistoryById         *connect.Client[productv1.RequireStorageOptionalOperationHistoryByIdRequest, productv1.RequireStorageOptionalOperationHistoryByIdResponse]
+	requireStorageOptionalProcessedMetadataById        *connect.Client[productv1.RequireStorageOptionalProcessedMetadataByIdRequest, productv1.RequireStorageOptionalProcessedMetadataByIdResponse]
+	requireStorageOptionalProcessedMetadataHistoryById *connect.Client[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdRequest, productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResponse]
+	requireStorageOptionalProcessedTagsById            *connect.Client[productv1.RequireStorageOptionalProcessedTagsByIdRequest, productv1.RequireStorageOptionalProcessedTagsByIdResponse]
+	requireStorageOptionalRecommendedItemsById         *connect.Client[productv1.RequireStorageOptionalRecommendedItemsByIdRequest, productv1.RequireStorageOptionalRecommendedItemsByIdResponse]
+	requireStorageOptionalTagSummaryById               *connect.Client[productv1.RequireStorageOptionalTagSummaryByIdRequest, productv1.RequireStorageOptionalTagSummaryByIdResponse]
+	requireStorageProcessedMetadataById                *connect.Client[productv1.RequireStorageProcessedMetadataByIdRequest, productv1.RequireStorageProcessedMetadataByIdResponse]
+	requireStorageProcessedMetadataHistoryById         *connect.Client[productv1.RequireStorageProcessedMetadataHistoryByIdRequest, productv1.RequireStorageProcessedMetadataHistoryByIdResponse]
+	requireStorageProcessedTagsById                    *connect.Client[productv1.RequireStorageProcessedTagsByIdRequest, productv1.RequireStorageProcessedTagsByIdResponse]
+	requireStorageRecommendedItemById                  *connect.Client[productv1.RequireStorageRecommendedItemByIdRequest, productv1.RequireStorageRecommendedItemByIdResponse]
+	requireStorageRecommendedItemsById                 *connect.Client[productv1.RequireStorageRecommendedItemsByIdRequest, productv1.RequireStorageRecommendedItemsByIdResponse]
+	requireStorageSecuritySummaryById                  *connect.Client[productv1.RequireStorageSecuritySummaryByIdRequest, productv1.RequireStorageSecuritySummaryByIdResponse]
+	requireStorageStockHealthScoreById                 *connect.Client[productv1.RequireStorageStockHealthScoreByIdRequest, productv1.RequireStorageStockHealthScoreByIdResponse]
+	requireStorageTagSummaryById                       *connect.Client[productv1.RequireStorageTagSummaryByIdRequest, productv1.RequireStorageTagSummaryByIdResponse]
+	requireStorageTagsByLengthsById                    *connect.Client[productv1.RequireStorageTagsByLengthsByIdRequest, productv1.RequireStorageTagsByLengthsByIdResponse]
+	requireWarehouseStockHealthScoreById               *connect.Client[productv1.RequireWarehouseStockHealthScoreByIdRequest, productv1.RequireWarehouseStockHealthScoreByIdResponse]
+	resolveCategoryActiveSubcategories                 *connect.Client[productv1.ResolveCategoryActiveSubcategoriesRequest, productv1.ResolveCategoryActiveSubcategoriesResponse]
+	resolveCategoryCategoryMetrics                     *connect.Client[productv1.ResolveCategoryCategoryMetricsRequest, productv1.ResolveCategoryCategoryMetricsResponse]
+	resolveCategoryCategoryStatus                      *connect.Client[productv1.ResolveCategoryCategoryStatusRequest, productv1.ResolveCategoryCategoryStatusResponse]
+	resolveCategoryChildCategories                     *connect.Client[productv1.ResolveCategoryChildCategoriesRequest, productv1.ResolveCategoryChildCategoriesResponse]
+	resolveCategoryMascot                              *connect.Client[productv1.ResolveCategoryMascotRequest, productv1.ResolveCategoryMascotResponse]
+	resolveCategoryMetricsAverageScore                 *connect.Client[productv1.ResolveCategoryMetricsAverageScoreRequest, productv1.ResolveCategoryMetricsAverageScoreResponse]
+	resolveCategoryMetricsNormalizedScore              *connect.Client[productv1.ResolveCategoryMetricsNormalizedScoreRequest, productv1.ResolveCategoryMetricsNormalizedScoreResponse]
+	resolveCategoryMetricsRelatedCategory              *connect.Client[productv1.ResolveCategoryMetricsRelatedCategoryRequest, productv1.ResolveCategoryMetricsRelatedCategoryResponse]
+	resolveCategoryOptionalCategories                  *connect.Client[productv1.ResolveCategoryOptionalCategoriesRequest, productv1.ResolveCategoryOptionalCategoriesResponse]
+	resolveCategoryPopularityScore                     *connect.Client[productv1.ResolveCategoryPopularityScoreRequest, productv1.ResolveCategoryPopularityScoreResponse]
+	resolveCategoryProductCount                        *connect.Client[productv1.ResolveCategoryProductCountRequest, productv1.ResolveCategoryProductCountResponse]
+	resolveCategoryTopSubcategory                      *connect.Client[productv1.ResolveCategoryTopSubcategoryRequest, productv1.ResolveCategoryTopSubcategoryResponse]
+	resolveCategoryTotalProducts                       *connect.Client[productv1.ResolveCategoryTotalProductsRequest, productv1.ResolveCategoryTotalProductsResponse]
+	resolveProductMascotRecommendation                 *connect.Client[productv1.ResolveProductMascotRecommendationRequest, productv1.ResolveProductMascotRecommendationResponse]
+	resolveProductProductDetails                       *connect.Client[productv1.ResolveProductProductDetailsRequest, productv1.ResolveProductProductDetailsResponse]
+	resolveProductRecommendedCategory                  *connect.Client[productv1.ResolveProductRecommendedCategoryRequest, productv1.ResolveProductRecommendedCategoryResponse]
+	resolveProductShippingEstimate                     *connect.Client[productv1.ResolveProductShippingEstimateRequest, productv1.ResolveProductShippingEstimateResponse]
+	resolveProductStockStatus                          *connect.Client[productv1.ResolveProductStockStatusRequest, productv1.ResolveProductStockStatusResponse]
+	resolveStorageLinkedStorages                       *connect.Client[productv1.ResolveStorageLinkedStoragesRequest, productv1.ResolveStorageLinkedStoragesResponse]
+	resolveStorageNearbyStorages                       *connect.Client[productv1.ResolveStorageNearbyStoragesRequest, productv1.ResolveStorageNearbyStoragesResponse]
+	resolveStorageStorageStatus                        *connect.Client[productv1.ResolveStorageStorageStatusRequest, productv1.ResolveStorageStorageStatusResponse]
+	resolveSubcategoryFeaturedCategory                 *connect.Client[productv1.ResolveSubcategoryFeaturedCategoryRequest, productv1.ResolveSubcategoryFeaturedCategoryResponse]
+	resolveSubcategoryItemCount                        *connect.Client[productv1.ResolveSubcategoryItemCountRequest, productv1.ResolveSubcategoryItemCountResponse]
+	resolveSubcategoryParentCategory                   *connect.Client[productv1.ResolveSubcategoryParentCategoryRequest, productv1.ResolveSubcategoryParentCategoryResponse]
+	resolveTestContainerDetails                        *connect.Client[productv1.ResolveTestContainerDetailsRequest, productv1.ResolveTestContainerDetailsResponse]
 }
 
 // LookupProductById calls productv1.ProductService.LookupProductById.
@@ -1469,16 +1513,34 @@ func (c *productServiceClient) RequireStorageOptionalLatestOperationById(ctx con
 	return c.requireStorageOptionalLatestOperationById.CallUnary(ctx, req)
 }
 
+// RequireStorageOptionalOperationHistoryById calls
+// productv1.ProductService.RequireStorageOptionalOperationHistoryById.
+func (c *productServiceClient) RequireStorageOptionalOperationHistoryById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalOperationHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalOperationHistoryByIdResponse], error) {
+	return c.requireStorageOptionalOperationHistoryById.CallUnary(ctx, req)
+}
+
 // RequireStorageOptionalProcessedMetadataById calls
 // productv1.ProductService.RequireStorageOptionalProcessedMetadataById.
 func (c *productServiceClient) RequireStorageOptionalProcessedMetadataById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataByIdResponse], error) {
 	return c.requireStorageOptionalProcessedMetadataById.CallUnary(ctx, req)
 }
 
+// RequireStorageOptionalProcessedMetadataHistoryById calls
+// productv1.ProductService.RequireStorageOptionalProcessedMetadataHistoryById.
+func (c *productServiceClient) RequireStorageOptionalProcessedMetadataHistoryById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResponse], error) {
+	return c.requireStorageOptionalProcessedMetadataHistoryById.CallUnary(ctx, req)
+}
+
 // RequireStorageOptionalProcessedTagsById calls
 // productv1.ProductService.RequireStorageOptionalProcessedTagsById.
 func (c *productServiceClient) RequireStorageOptionalProcessedTagsById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedTagsByIdResponse], error) {
 	return c.requireStorageOptionalProcessedTagsById.CallUnary(ctx, req)
+}
+
+// RequireStorageOptionalRecommendedItemsById calls
+// productv1.ProductService.RequireStorageOptionalRecommendedItemsById.
+func (c *productServiceClient) RequireStorageOptionalRecommendedItemsById(ctx context.Context, req *connect.Request[productv1.RequireStorageOptionalRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalRecommendedItemsByIdResponse], error) {
+	return c.requireStorageOptionalRecommendedItemsById.CallUnary(ctx, req)
 }
 
 // RequireStorageOptionalTagSummaryById calls
@@ -1531,6 +1593,11 @@ func (c *productServiceClient) RequireStorageStockHealthScoreById(ctx context.Co
 // RequireStorageTagSummaryById calls productv1.ProductService.RequireStorageTagSummaryById.
 func (c *productServiceClient) RequireStorageTagSummaryById(ctx context.Context, req *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error) {
 	return c.requireStorageTagSummaryById.CallUnary(ctx, req)
+}
+
+// RequireStorageTagsByLengthsById calls productv1.ProductService.RequireStorageTagsByLengthsById.
+func (c *productServiceClient) RequireStorageTagsByLengthsById(ctx context.Context, req *connect.Request[productv1.RequireStorageTagsByLengthsByIdRequest]) (*connect.Response[productv1.RequireStorageTagsByLengthsByIdResponse], error) {
+	return c.requireStorageTagsByLengthsById.CallUnary(ctx, req)
 }
 
 // RequireWarehouseStockHealthScoreById calls
@@ -1739,8 +1806,11 @@ type ProductServiceHandler interface {
 	RequireStorageNullableFilteredTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageNullableFilteredTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageNullableFilteredTagSummaryByIdResponse], error)
 	RequireStorageOperationReportById(context.Context, *connect.Request[productv1.RequireStorageOperationReportByIdRequest]) (*connect.Response[productv1.RequireStorageOperationReportByIdResponse], error)
 	RequireStorageOptionalLatestOperationById(context.Context, *connect.Request[productv1.RequireStorageOptionalLatestOperationByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalLatestOperationByIdResponse], error)
+	RequireStorageOptionalOperationHistoryById(context.Context, *connect.Request[productv1.RequireStorageOptionalOperationHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalOperationHistoryByIdResponse], error)
 	RequireStorageOptionalProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataByIdResponse], error)
+	RequireStorageOptionalProcessedMetadataHistoryById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResponse], error)
 	RequireStorageOptionalProcessedTagsById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedTagsByIdResponse], error)
+	RequireStorageOptionalRecommendedItemsById(context.Context, *connect.Request[productv1.RequireStorageOptionalRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalRecommendedItemsByIdResponse], error)
 	RequireStorageOptionalTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageOptionalTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalTagSummaryByIdResponse], error)
 	RequireStorageProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedMetadataByIdResponse], error)
 	RequireStorageProcessedMetadataHistoryById(context.Context, *connect.Request[productv1.RequireStorageProcessedMetadataHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageProcessedMetadataHistoryByIdResponse], error)
@@ -1750,6 +1820,7 @@ type ProductServiceHandler interface {
 	RequireStorageSecuritySummaryById(context.Context, *connect.Request[productv1.RequireStorageSecuritySummaryByIdRequest]) (*connect.Response[productv1.RequireStorageSecuritySummaryByIdResponse], error)
 	RequireStorageStockHealthScoreById(context.Context, *connect.Request[productv1.RequireStorageStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireStorageStockHealthScoreByIdResponse], error)
 	RequireStorageTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error)
+	RequireStorageTagsByLengthsById(context.Context, *connect.Request[productv1.RequireStorageTagsByLengthsByIdRequest]) (*connect.Response[productv1.RequireStorageTagsByLengthsByIdResponse], error)
 	RequireWarehouseStockHealthScoreById(context.Context, *connect.Request[productv1.RequireWarehouseStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireWarehouseStockHealthScoreByIdResponse], error)
 	ResolveCategoryActiveSubcategories(context.Context, *connect.Request[productv1.ResolveCategoryActiveSubcategoriesRequest]) (*connect.Response[productv1.ResolveCategoryActiveSubcategoriesResponse], error)
 	ResolveCategoryCategoryMetrics(context.Context, *connect.Request[productv1.ResolveCategoryCategoryMetricsRequest]) (*connect.Response[productv1.ResolveCategoryCategoryMetricsResponse], error)
@@ -2157,16 +2228,34 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 		connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalLatestOperationById")),
 		connect.WithHandlerOptions(opts...),
 	)
+	productServiceRequireStorageOptionalOperationHistoryByIdHandler := connect.NewUnaryHandler(
+		ProductServiceRequireStorageOptionalOperationHistoryByIdProcedure,
+		svc.RequireStorageOptionalOperationHistoryById,
+		connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalOperationHistoryById")),
+		connect.WithHandlerOptions(opts...),
+	)
 	productServiceRequireStorageOptionalProcessedMetadataByIdHandler := connect.NewUnaryHandler(
 		ProductServiceRequireStorageOptionalProcessedMetadataByIdProcedure,
 		svc.RequireStorageOptionalProcessedMetadataById,
 		connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalProcessedMetadataById")),
 		connect.WithHandlerOptions(opts...),
 	)
+	productServiceRequireStorageOptionalProcessedMetadataHistoryByIdHandler := connect.NewUnaryHandler(
+		ProductServiceRequireStorageOptionalProcessedMetadataHistoryByIdProcedure,
+		svc.RequireStorageOptionalProcessedMetadataHistoryById,
+		connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalProcessedMetadataHistoryById")),
+		connect.WithHandlerOptions(opts...),
+	)
 	productServiceRequireStorageOptionalProcessedTagsByIdHandler := connect.NewUnaryHandler(
 		ProductServiceRequireStorageOptionalProcessedTagsByIdProcedure,
 		svc.RequireStorageOptionalProcessedTagsById,
 		connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalProcessedTagsById")),
+		connect.WithHandlerOptions(opts...),
+	)
+	productServiceRequireStorageOptionalRecommendedItemsByIdHandler := connect.NewUnaryHandler(
+		ProductServiceRequireStorageOptionalRecommendedItemsByIdProcedure,
+		svc.RequireStorageOptionalRecommendedItemsById,
+		connect.WithSchema(productServiceMethods.ByName("RequireStorageOptionalRecommendedItemsById")),
 		connect.WithHandlerOptions(opts...),
 	)
 	productServiceRequireStorageOptionalTagSummaryByIdHandler := connect.NewUnaryHandler(
@@ -2221,6 +2310,12 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 		ProductServiceRequireStorageTagSummaryByIdProcedure,
 		svc.RequireStorageTagSummaryById,
 		connect.WithSchema(productServiceMethods.ByName("RequireStorageTagSummaryById")),
+		connect.WithHandlerOptions(opts...),
+	)
+	productServiceRequireStorageTagsByLengthsByIdHandler := connect.NewUnaryHandler(
+		ProductServiceRequireStorageTagsByLengthsByIdProcedure,
+		svc.RequireStorageTagsByLengthsById,
+		connect.WithSchema(productServiceMethods.ByName("RequireStorageTagsByLengthsById")),
 		connect.WithHandlerOptions(opts...),
 	)
 	productServiceRequireWarehouseStockHealthScoreByIdHandler := connect.NewUnaryHandler(
@@ -2505,10 +2600,16 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 			productServiceRequireStorageOperationReportByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageOptionalLatestOperationByIdProcedure:
 			productServiceRequireStorageOptionalLatestOperationByIdHandler.ServeHTTP(w, r)
+		case ProductServiceRequireStorageOptionalOperationHistoryByIdProcedure:
+			productServiceRequireStorageOptionalOperationHistoryByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageOptionalProcessedMetadataByIdProcedure:
 			productServiceRequireStorageOptionalProcessedMetadataByIdHandler.ServeHTTP(w, r)
+		case ProductServiceRequireStorageOptionalProcessedMetadataHistoryByIdProcedure:
+			productServiceRequireStorageOptionalProcessedMetadataHistoryByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageOptionalProcessedTagsByIdProcedure:
 			productServiceRequireStorageOptionalProcessedTagsByIdHandler.ServeHTTP(w, r)
+		case ProductServiceRequireStorageOptionalRecommendedItemsByIdProcedure:
+			productServiceRequireStorageOptionalRecommendedItemsByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageOptionalTagSummaryByIdProcedure:
 			productServiceRequireStorageOptionalTagSummaryByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageProcessedMetadataByIdProcedure:
@@ -2527,6 +2628,8 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 			productServiceRequireStorageStockHealthScoreByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageTagSummaryByIdProcedure:
 			productServiceRequireStorageTagSummaryByIdHandler.ServeHTTP(w, r)
+		case ProductServiceRequireStorageTagsByLengthsByIdProcedure:
+			productServiceRequireStorageTagsByLengthsByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireWarehouseStockHealthScoreByIdProcedure:
 			productServiceRequireWarehouseStockHealthScoreByIdHandler.ServeHTTP(w, r)
 		case ProductServiceResolveCategoryActiveSubcategoriesProcedure:
@@ -2836,12 +2939,24 @@ func (UnimplementedProductServiceHandler) RequireStorageOptionalLatestOperationB
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageOptionalLatestOperationById is not implemented"))
 }
 
+func (UnimplementedProductServiceHandler) RequireStorageOptionalOperationHistoryById(context.Context, *connect.Request[productv1.RequireStorageOptionalOperationHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalOperationHistoryByIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageOptionalOperationHistoryById is not implemented"))
+}
+
 func (UnimplementedProductServiceHandler) RequireStorageOptionalProcessedMetadataById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedMetadataByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataByIdResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageOptionalProcessedMetadataById is not implemented"))
 }
 
+func (UnimplementedProductServiceHandler) RequireStorageOptionalProcessedMetadataHistoryById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageOptionalProcessedMetadataHistoryById is not implemented"))
+}
+
 func (UnimplementedProductServiceHandler) RequireStorageOptionalProcessedTagsById(context.Context, *connect.Request[productv1.RequireStorageOptionalProcessedTagsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalProcessedTagsByIdResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageOptionalProcessedTagsById is not implemented"))
+}
+
+func (UnimplementedProductServiceHandler) RequireStorageOptionalRecommendedItemsById(context.Context, *connect.Request[productv1.RequireStorageOptionalRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalRecommendedItemsByIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageOptionalRecommendedItemsById is not implemented"))
 }
 
 func (UnimplementedProductServiceHandler) RequireStorageOptionalTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageOptionalTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageOptionalTagSummaryByIdResponse], error) {
@@ -2878,6 +2993,10 @@ func (UnimplementedProductServiceHandler) RequireStorageStockHealthScoreById(con
 
 func (UnimplementedProductServiceHandler) RequireStorageTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageTagSummaryById is not implemented"))
+}
+
+func (UnimplementedProductServiceHandler) RequireStorageTagsByLengthsById(context.Context, *connect.Request[productv1.RequireStorageTagsByLengthsByIdRequest]) (*connect.Response[productv1.RequireStorageTagsByLengthsByIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageTagsByLengthsById is not implemented"))
 }
 
 func (UnimplementedProductServiceHandler) RequireWarehouseStockHealthScoreById(context.Context, *connect.Request[productv1.RequireWarehouseStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireWarehouseStockHealthScoreByIdResponse], error) {

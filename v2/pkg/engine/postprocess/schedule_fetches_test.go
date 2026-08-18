@@ -1,0 +1,1290 @@
+package postprocess
+
+import (
+	"math"
+	"math/rand"
+	"slices"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+)
+
+func TestScheduleFetches_Scenarios(t *testing.T) {
+	t.Parallel()
+	type scenario struct {
+		name      string
+		input     []*resolve.FetchTreeNode
+		wantError string
+		want      *resolve.FetchTreeNode // the winner
+		inlined   *resolve.FetchTreeNode // specify when it's not equal to winner
+		waves     *resolve.FetchTreeNode // specify when it's not equal to winner
+	}
+	deps := dependsOn
+
+	scenarios := []scenario{
+		{
+			name:  "independent components baseline",
+			input: nodes(sf(0), sf(1), sf(2, deps(0))),
+			want:  par(seq(sf(0), sf(2)), sf(1)),
+		},
+		{
+			name:  "single chain",
+			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(1)), sf(3, deps(2))),
+			want:  seq(sf(0), sf(1), sf(2), sf(3)),
+		},
+		{
+			name:  "diamond join",
+			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(1, 2))),
+			want:  seq(sf(0), par(sf(1), sf(2)), sf(3)),
+		},
+		{
+			name:  "two chains joining",
+			input: nodes(sf(0), sf(1), sf(2, deps(0)), sf(3, deps(1)), sf(4, deps(2, 3))),
+			want: seq(
+				par(
+					seq(sf(0), sf(2)),
+					seq(sf(1), sf(3)),
+				),
+				sf(4),
+			),
+			waves: seq(
+				par(sf(0), sf(1)),
+				par(sf(2), sf(3)),
+				sf(4),
+			),
+		},
+		{
+			name:  "wide fan out",
+			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(0)), sf(4, deps(0))),
+			want:  seq(sf(0), par(sf(1), sf(2), sf(3), sf(4))),
+		},
+		{
+			name:  "wide fan in",
+			input: nodes(sf(0), sf(1), sf(2), sf(3), sf(4, deps(0, 1, 2, 3))),
+			want:  seq(par(sf(0), sf(1), sf(2), sf(3)), sf(4)),
+		},
+		{
+			name: "independent diamonds",
+			input: nodes(
+				sf(0), sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(1, 2)),
+				sf(4), sf(5, deps(4)), sf(6, deps(4)), sf(7, deps(5, 6)),
+			),
+			want: par(
+				seq(sf(0), par(sf(1), sf(2)), sf(3)),
+				seq(sf(4), par(sf(5), sf(6)), sf(7)),
+			),
+		},
+		{
+			//     / 1 > 2 \       / 6 > 7 \
+			// 0 ->	        -> 5 ->         -> 10
+			//     \ 3 > 4 /       \ 8 > 9 /
+			name: "sequenced diamonds with chain arms",
+			input: nodes(
+				sf(0), sf(1, deps(0)), sf(2, deps(1)), sf(3, deps(0)), sf(4, deps(3)), sf(5, deps(2, 4)),
+				sf(6, deps(5)), sf(7, deps(6)), sf(8, deps(5)), sf(9, deps(8)), sf(10, deps(7, 9)),
+			),
+			want: seq(
+				sf(0),
+				par(
+					seq(sf(1), sf(2)),
+					seq(sf(3), sf(4)),
+				),
+				sf(5),
+				par(
+					seq(sf(6), sf(7)),
+					seq(sf(8), sf(9)),
+				),
+				sf(10),
+			),
+			waves: seq(
+				sf(0),
+				par(sf(1), sf(3)),
+				par(sf(2), sf(4)),
+				sf(5),
+				par(sf(6), sf(8)),
+				par(sf(7), sf(9)),
+				sf(10),
+			),
+		},
+		{
+			name:  "sequential chain",
+			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0, 1))),
+			want:  seq(sf(0), sf(1), sf(2)),
+		},
+		{
+			name:  "single fetch",
+			input: nodes(sf(0)),
+			want:  sf(0),
+		},
+		{
+			name:      "cycle",
+			input:     nodes(sf(0, deps(1)), sf(1, deps(0))),
+			wantError: "cycle detected in fetch dependency graph",
+		},
+		{
+			name:  "composite key fan in",
+			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0, 1))),
+			want:  seq(sf(0), sf(1), sf(2)),
+		},
+		{
+			name:  "asymmetric chain merge with leaf",
+			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(1, 2)), sf(4, deps(2))),
+			want: seq(
+				sf(0),
+				par(sf(1), sf(2)),
+				par(sf(3), sf(4)),
+			),
+			inlined: seq(
+				sf(0),
+				par(
+					sf(1),
+					seq(sf(2), sf(4)),
+				),
+				sf(3),
+			),
+		},
+		{
+			name:  "deep multi parent fan in",
+			input: nodes(sf(0), sf(1), sf(2), sf(3, deps(0, 1, 2)), sf(4, deps(3)), sf(5, deps(4))),
+			want:  seq(par(sf(0), sf(1), sf(2)), sf(3), sf(4), sf(5)),
+		},
+		{
+			name:  "non inlined n shape",
+			input: nodes(sf(0), sf(1), sf(2, deps(0)), sf(3, deps(0, 1)), sf(4, deps(1))),
+			want: seq(
+				par(sf(0), sf(1)),
+				par(sf(2), sf(3), sf(4)),
+			),
+			inlined: seq(
+				par(
+					seq(sf(0), sf(2)),
+					seq(sf(1), sf(4)),
+				),
+				sf(3),
+			),
+		},
+		{
+			name:  "independent root with shared join",
+			input: nodes(sf(0), sf(1), sf(2, deps(0, 1)), sf(3)),
+			want: par(
+				seq(
+					par(sf(0), sf(1)),
+					sf(2)),
+				sf(3),
+			),
+		},
+		{
+			name:  "independent leaf alongside chain",
+			input: nodes(sf(0), sf(1, deps(0)), sf(2, deps(0, 1)), sf(3, deps(0))),
+			want: seq(
+				sf(0),
+				par(
+					seq(sf(1), sf(2)),
+					sf(3),
+				),
+			),
+		},
+		{
+			name:  "incomparable dominance fallback",
+			input: nodes(sf(0), sf(1), sf(2, deps(1)), sf(3, deps(0, 2)), sf(4, deps(0, 1))),
+			want: seq(
+				par(sf(0), sf(1)),
+				par(
+					seq(sf(2), sf(3)),
+					sf(4),
+				),
+			),
+			inlined: seq(
+				par(
+					sf(0),
+					seq(sf(1), sf(2))),
+				par(sf(3), sf(4)),
+			),
+		},
+		{
+			name:  "chain off a shared join with a generation-skipping edge",
+			input: nodes(sf(0), sf(1), sf(2, deps(0, 1)), sf(3, deps(2)), sf(4, deps(3, 0))),
+			want: seq(
+				par(sf(0), sf(1)),
+				sf(2),
+				sf(3),
+				sf(4),
+			),
+		},
+		{
+			name: "weak components with different shapes have the mixed winner strategies",
+			input: nodes(
+				sf(0), sf(1), sf(2, deps(0)), sf(3, deps(0, 1)), sf(4, deps(1)),
+				sf(5), sf(6), sf(7, deps(5)), sf(8, deps(6)), sf(9, deps(7, 8)),
+			),
+			// 2 weak components: the N component (0..4) keeps its waves tree,
+			// the chains component (5..9) wins with its inlined tree.
+			// The mixed winner dominates the all-waves tree.
+			//   2  ->3  ->4       5->7\
+			//   ^ /  ^ /               ->9
+			//   |/   |/           6->8/
+			//   0    1
+			want: par(
+				seq(
+					par(sf(0), sf(1)),
+					par(sf(2), sf(3), sf(4)),
+				),
+				seq(
+					par(
+						seq(sf(5), sf(7)),
+						seq(sf(6), sf(8)),
+					),
+					sf(9),
+				),
+			),
+			waves: par(
+				seq(
+					par(sf(0), sf(1)),
+					par(sf(2), sf(3), sf(4)),
+				),
+				seq(
+					par(sf(5), sf(6)),
+					par(sf(7), sf(8)),
+					sf(9),
+				),
+			),
+			inlined: par(
+				seq(
+					par(
+						seq(sf(0), sf(2)),
+						seq(sf(1), sf(4)),
+					),
+					sf(3),
+				),
+				seq(
+					par(
+						seq(sf(5), sf(7)),
+						seq(sf(6), sf(8)),
+					),
+					sf(9),
+				),
+			),
+		},
+		{
+			name: "wide fan-out with deeply nested user entity chains",
+			input: nodes(
+				sf(0), sf(1, deps(0)), sf(3, deps(0)), sf(5, deps(0)), sf(7, deps(0)), sf(9, deps(0)),
+				sf(10, deps(0)), sf(14, deps(0)), sf(15, deps(14)), sf(16, deps(14)), sf(17, deps(0)),
+				sf(18, deps(17)), sf(19, deps(17)), sf(32, deps(0)), sf(33, deps(32)), sf(34, deps(32)),
+				sf(35, deps(0)), sf(36, deps(35)), sf(37, deps(35)), sf(44, deps(0)), sf(45, deps(44)),
+				sf(46, deps(44)), sf(47, deps(0)), sf(48, deps(47)), sf(49, deps(47)), sf(56, deps(0)),
+				sf(57, deps(56)), sf(58, deps(56)), sf(59, deps(0)), sf(60, deps(59)), sf(61, deps(59)),
+				sf(62, deps(0)), sf(63, deps(62)), sf(64, deps(62)), sf(68, deps(0)), sf(69, deps(68)),
+				sf(82, deps(68)), sf(83, deps(82)), sf(84, deps(82)), sf(85, deps(68)), sf(86, deps(85)),
+				sf(87, deps(85)),
+			),
+			want: seq(
+				sf(0),
+				par(
+					sf(1),
+					sf(3),
+					sf(5),
+					sf(7),
+					sf(9),
+					sf(10),
+					seq(sf(14), par(sf(15), sf(16))),
+					seq(sf(17), par(sf(18), sf(19))),
+					seq(sf(32), par(sf(33), sf(34))),
+					seq(sf(35), par(sf(36), sf(37))),
+					seq(sf(44), par(sf(45), sf(46))),
+					seq(sf(47), par(sf(48), sf(49))),
+					seq(sf(56), par(sf(57), sf(58))),
+					seq(sf(59), par(sf(60), sf(61))),
+					seq(sf(62), par(sf(63), sf(64))),
+					seq(
+						sf(68),
+						par(
+							sf(69),
+							seq(
+								sf(82),
+								par(sf(83), sf(84))),
+							seq(
+								sf(85),
+								par(sf(86), sf(87))),
+						),
+					),
+				),
+			),
+			// The legacy wave pipeline:
+			//   seq(
+			//     0,
+			//     par(1, 3, 5, 7, 9, 10, 14, 17, 32, 35, 44, 47, 56, 59, 62, 68),
+			//     par(15, 16, 18, 19, 33, 34, 36, 37, 45, 46, 48, 49, 57, 58, 60, 61, 63, 64, 69, 82, 85),
+			//     par(83, 84, 86, 87),
+			//   )
+			// so fetch 83 waits on all 21 second-wave fetches instead of just 0, 68, 69, 82.
+		},
+		{
+			name: "mixed depth entity chains",
+			input: nodes(
+				sf(0), sf(1, deps(0)), sf(3, deps(0)), sf(5, deps(0)), sf(7, deps(0)), sf(9, deps(0)),
+				sf(10, deps(0)), sf(14, deps(0)), sf(15, deps(14)), sf(16, deps(14)), sf(17, deps(0)),
+				sf(18, deps(17)), sf(29, deps(0)), sf(30, deps(29)), sf(31, deps(29)), sf(32, deps(0)),
+				sf(33, deps(32)), sf(39, deps(0)), sf(40, deps(39)), sf(41, deps(39)), sf(42, deps(0)),
+				sf(43, deps(42)), sf(49, deps(0)), sf(50, deps(49)), sf(51, deps(49)), sf(52, deps(0)),
+				sf(53, deps(52)), sf(54, deps(0)), sf(55, deps(54)), sf(59, deps(0)), sf(71, deps(59)),
+				sf(72, deps(71)), sf(73, deps(71)), sf(74, deps(59)), sf(75, deps(74)),
+			),
+			want: seq(
+				sf(0),
+				par(
+					sf(1),
+					sf(3),
+					sf(5),
+					sf(7),
+					sf(9),
+					sf(10),
+					seq(sf(14),
+						par(sf(15), sf(16))),
+					seq(sf(17), sf(18)),
+					seq(sf(29), par(sf(30), sf(31))),
+					seq(sf(32), sf(33)),
+					seq(sf(39), par(sf(40), sf(41))),
+					seq(sf(42), sf(43)),
+					seq(sf(49), par(sf(50), sf(51))),
+					seq(sf(52), sf(53)),
+					seq(sf(54), sf(55)),
+					seq(
+						sf(59),
+						par(
+							seq(
+								sf(71),
+								par(sf(72), sf(73)),
+							),
+							seq(sf(74), sf(75)),
+						),
+					),
+				),
+			),
+			// The legacy wave pipeline:
+			//   seq(
+			//     0,
+			//     par(1, 3, 5, 7, 9, 10, 14, 17, 29, 32, 39, 42, 49, 52, 54, 59),
+			//     par(15, 16, 18, 30, 31, 33, 40, 41, 43, 50, 51, 53, 55, 71, 74),
+			//     par(72, 73, 75),
+			//   )
+			// so fetch 72 waits on all 15 second-wave fetches instead of just 0, 59, 71.
+		},
+		{
+			name: "inlining wins on exclusive chain beside a late join",
+			input: nodes(
+				sf(0),
+				sf(1, deps(0)),
+				sf(2, deps(0)),
+				sf(3, deps(2)),
+				sf(4, deps(2)),
+				sf(5, deps(0, 1, 2, 3, 4)),
+				sf(6, deps(0, 5)),
+			),
+			want: seq(
+				sf(0),
+				par(
+					sf(1),
+					seq(
+						sf(2),
+						par(sf(3), sf(4)),
+					),
+				),
+				sf(5),
+				sf(6),
+			),
+			waves: seq(
+				sf(0),
+				par(sf(1), sf(2)),
+				par(sf(3), sf(4)),
+				sf(5),
+				sf(6),
+			),
+			// The legacy wave pipeline:
+			//   seq(
+			//     0,
+			//     par(1, 2),
+			//     par(3, 4),
+			//     5,
+			//     6,
+			//   )
+		},
+		{
+			name: "inlining wins on independent chains gathered by ending joins",
+			input: nodes(
+				sf(0),
+				sf(1, deps(0)), sf(2, deps(0)), sf(3, deps(0)), sf(4, deps(0)),
+				sf(5, deps(4)), sf(6, deps(4)), sf(7, deps(4)),
+				sf(12, deps(0)),
+				sf(15, deps(2)),
+				sf(16, deps(15)), sf(17, deps(15)),
+				sf(18, deps(0)),
+				sf(19, deps(18)), sf(20, deps(18)),
+				sf(21, deps(4)),
+				sf(24, deps(15)),
+				sf(25, deps(18)),
+				sf(26, deps(0, 2, 3, 5, 6, 12, 15, 16, 17, 18, 19, 20, 21, 24, 25)),
+				sf(27, deps(0, 4, 5, 6, 7, 21)),
+				sf(28, deps(0, 1, 18, 26, 27)),
+			),
+			want: seq(
+				sf(0),
+				par(
+					sf(1),
+					seq(
+						sf(2),
+						sf(15),
+						par(sf(16), sf(17), sf(24)),
+					),
+					sf(3),
+					seq(
+						sf(4),
+						par(sf(5), sf(6), sf(7), sf(21)),
+						sf(27),
+					),
+					sf(12),
+					seq(
+						sf(18),
+						par(sf(19), sf(20), sf(25)),
+					),
+				),
+				sf(26),
+				sf(28),
+			),
+			waves: seq(
+				sf(0),
+				par(sf(1), sf(2), sf(3), sf(4), sf(12), sf(18)),
+				par(sf(5), sf(6), sf(7), sf(15), sf(19), sf(20), sf(21), sf(25)),
+				par(sf(16), sf(17), sf(24), sf(27)),
+				sf(26),
+				sf(28),
+			),
+			// The legacy wave pipeline:
+			//   seq(
+			//     0,
+			//     par(1, 2, 3, 4, 12, 18),
+			//     par(5, 6, 7, 15, 19, 20, 21, 25),
+			//     par(16, 17, 24, 27),
+			//     26,
+			//     28,
+			//   )
+		},
+		{
+			// ca50f52a-4345-42ff-aa79-5897f5a001be-4d832881-45b4-443e-9121-5c610bb07b2c-10761258400747712775
+			name: "dense shallow joins",
+			input: nodes(
+				sf(0),
+				sf(1, deps(0)),
+				sf(2, deps(0)),
+				sf(3, deps(0)),
+				sf(4, deps(0)),
+				sf(7, deps(0)),
+				sf(8, deps(0)),
+				sf(9, deps(0)),
+				sf(10, deps(0)),
+				sf(11, deps(0)),
+				sf(15, deps(0, 10, 17, 19, 21)),
+				sf(17, deps(0)),
+				sf(19, deps(0)),
+				sf(21, deps(0)),
+				sf(24, deps(0, 11)),
+			),
+			want: seq(
+				sf(0),
+				par(
+					sf(1),
+					sf(2),
+					sf(3),
+					sf(4),
+					sf(7),
+					sf(8),
+					sf(9),
+					seq(
+						par(sf(10), sf(17), sf(19), sf(21)),
+						sf(15),
+					),
+					seq(sf(11), sf(24)),
+				),
+			),
+			// The legacy wave pipeline:
+			//   seq(
+			//     0,
+			//     par(1, 2, 3, 4, 7, 8, 9, 10, 11, 17, 19, 21),
+			//     par(24, 15),
+			//   )
+		},
+		{
+			// 4041a8d2-4558-4c01-88f5-70140491bdc4-e20d3503-ccc8-4a89-b143-e4e79a994d05-12743902971020326245
+			name: "dense serial mutation chain",
+			input: nodes(
+				sf(0),
+				sf(1, deps(0)),
+				sf(2, deps(0, 1)),
+				sf(3, deps(0, 1, 2)),
+				sf(4, deps(0, 1, 2, 3)),
+				sf(5, deps(0, 1, 2, 3, 4)),
+				sf(6, deps(0, 1, 2, 3, 4, 5)),
+				sf(7, deps(0, 1, 2, 3, 4, 5, 6)),
+				sf(8, deps(0, 1, 2, 3, 4, 5, 6, 7)),
+				sf(9, deps(0, 1, 2, 3, 4, 5, 6, 7, 8)),
+				sf(10, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)),
+				sf(11, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)),
+				sf(12, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)),
+				sf(13, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)),
+				sf(14, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13)),
+				sf(15, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)),
+				sf(16, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)),
+				sf(17, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)),
+				sf(18, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)),
+				sf(19, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18)),
+				sf(20, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)),
+				sf(21, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)),
+				sf(22, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21)),
+				sf(23, deps(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22)),
+			),
+			want: seq(sf(0), sf(1), sf(2), sf(3), sf(4), sf(5), sf(6), sf(7), sf(8), sf(9), sf(10), sf(11), sf(12), sf(13), sf(14), sf(15), sf(16), sf(17), sf(18), sf(19), sf(20), sf(21), sf(22), sf(23)),
+			// The legacy wave pipeline:
+			// seq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23)
+		},
+		{
+			// 3becc2e0f56d3d513c374e8035d1533cc6795740193a45c0c07def3f1f11eb0b
+			name:  "deeply nested operation with wide dependencies",
+			input: deeplyNestedWideDependenciesInput(),
+			want: seq(
+				sf(0),
+				par(
+					sf(1),
+					sf(2),
+					sf(3),
+					seq(
+						sf(4),
+						par(sf(5), sf(50)),
+					),
+					seq(
+						sf(6),
+						par(
+							sf(51),
+							seq(sf(73), sf(74)),
+							sf(81),
+						),
+					),
+					seq(
+						par(sf(7), sf(9), sf(35), sf(76), sf(94), sf(99), sf(102), sf(103)),
+						par(
+							seq(
+								par(sf(8), sf(10), sf(11), sf(12), sf(13), sf(14), sf(37), sf(38), sf(53), sf(54), sf(55),
+									sf(77), sf(82), sf(83), sf(84), sf(85), sf(86), sf(100), sf(110), sf(112), sf(113), sf(128)),
+								par(
+									seq(sf(87), sf(117), sf(145)),
+									seq(sf(105), sf(138)),
+									sf(141),
+									sf(146),
+									seq(sf(147), sf(148), sf(151)),
+									sf(149),
+								),
+							),
+							sf(52),
+						),
+					),
+					seq(
+						sf(18),
+						par(
+							sf(59),
+							seq(
+								par(sf(60), sf(61)),
+								sf(106),
+							),
+						),
+					),
+					seq(
+						sf(19),
+						par(sf(20), sf(21), sf(23), sf(24), sf(25), sf(63), sf(64), sf(65), sf(66), sf(67)),
+						par(sf(107), sf(108)),
+						sf(139),
+						sf(150),
+						sf(152),
+					),
+					seq(sf(32), sf(75)),
+					sf(33),
+					sf(41),
+					seq(sf(42), sf(93), sf(118)),
+					seq(
+						sf(43),
+						par(
+							seq(sf(95), sf(122)),
+							sf(101),
+						),
+					),
+					seq(sf(44), sf(45), sf(96)),
+					sf(47),
+					seq(sf(49), sf(104)),
+					sf(62),
+					seq(
+						sf(78),
+						par(
+							seq(sf(114), sf(142)),
+							seq(
+								sf(115),
+								par(sf(143), sf(144)),
+							),
+						),
+					),
+					seq(sf(97), sf(98)),
+				),
+			),
+			inlined: seq(
+				sf(0),
+				par(
+					sf(1),
+					sf(2),
+					sf(3),
+					seq(
+						sf(4),
+						par(sf(5), sf(50)),
+					),
+					seq(
+						sf(6),
+						par(
+							sf(51),
+							seq(sf(73), sf(74)),
+							sf(81),
+						),
+					),
+					seq(
+						par(
+							seq(
+								sf(7),
+								par(sf(8), sf(52)),
+							),
+							seq(
+								sf(9),
+								par(sf(10), sf(11), sf(12), sf(13), sf(14), sf(53), sf(54), sf(55)),
+								sf(105),
+								sf(138),
+							),
+							seq(
+								sf(35),
+								par(
+									seq(
+										par(sf(37), sf(38), sf(83), sf(84), sf(85), sf(86)),
+										sf(87),
+										sf(117),
+									),
+									sf(82),
+								),
+							),
+							seq(
+								sf(76),
+								par(sf(77), sf(110), sf(112), sf(113)),
+							),
+							sf(94),
+							seq(sf(99), sf(100)),
+							sf(102),
+							seq(sf(103), sf(128)),
+						),
+						par(
+							sf(141),
+							sf(145),
+							sf(146),
+							seq(sf(147), sf(148), sf(151)),
+							sf(149),
+						),
+					),
+					seq(
+						sf(18),
+						par(
+							sf(59),
+							seq(
+								par(sf(60), sf(61)),
+								sf(106),
+							),
+						),
+					),
+					seq(
+						sf(19),
+						par(sf(20), sf(21), sf(23), sf(24), sf(25), sf(63), sf(64), sf(65), sf(66), sf(67)),
+						par(
+							seq(sf(107), sf(139)),
+							sf(108),
+						),
+						sf(150),
+						sf(152),
+					),
+					seq(sf(32), sf(75)),
+					sf(33),
+					sf(41),
+					seq(sf(42), sf(93), sf(118)),
+					seq(
+						sf(43),
+						par(
+							seq(sf(95), sf(122)),
+							sf(101),
+						),
+					),
+					seq(sf(44), sf(45), sf(96)),
+					sf(47),
+					seq(sf(49), sf(104)),
+					sf(62),
+					seq(
+						sf(78),
+						par(
+							seq(sf(114), sf(142)),
+							seq(
+								sf(115),
+								par(sf(143), sf(144)),
+							),
+						),
+					),
+					seq(sf(97), sf(98)),
+				),
+			),
+			// The legacy wave pipeline:
+			//   seq(
+			//     0,
+			//     par(1, 2, 3, 4, 6, 7, 9, 18, 19, 32, 33, 35, 41, 42, 43, 44, 47, 49, 62, 76, 78, 94, 97, 99, 102, 103),
+			//     par(5, 8, 10, 11, 12, 13, 14, 20, 21, 23, 24, 25, 37, 38, 45, 50, 51, 52, 53, 54, 55, 59, 60, 61, 63, 64, 65, 66, 67, 73, 75, 77, 81, 82, 83, 84, 85, 86, 93, 95, 98, 100, 101, 104, 110, 112, 113, 114, 115, 128),
+			//     par(74, 96, 118, 122, 142, 143, 144, 106, 107, 146, 87, 108, 147, 105, 141, 149),
+			//     par(139, 148, 117, 138),
+			//     par(151, 145, 150),
+			//     152,
+			//   )
+		},
+	}
+
+	for i, tc := range scenarios {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dag, err := newFetchDAG(tc.input)
+			require.NoError(t, err)
+			ids := sortedIDs(dag)
+
+			actualInlined, inlinedErr := schedule(ids, dag, true)
+			actualWaves, wavesErr := schedule(ids, dag, false)
+			actualWinner, winnerErr := buildScheduleTree(tc.input, dag)
+			if tc.wantError != "" {
+				require.EqualError(t, inlinedErr, tc.wantError)
+				require.EqualError(t, wavesErr, tc.wantError)
+				require.EqualError(t, winnerErr, tc.wantError)
+				return
+			}
+
+			require.NoError(t, inlinedErr)
+			require.NoError(t, wavesErr)
+			require.NoError(t, winnerErr)
+			require.NoError(t, validateSchedule(actualInlined, dag))
+			require.NoError(t, validateSchedule(actualWaves, dag))
+			require.NoError(t, validateSchedule(actualWinner, dag))
+
+			byID := fetchesByID(tc.input)
+			want := materialize(t, tc.want, byID)
+			expectedInlined := materialize(t, tc.inlined, byID)
+			expectedWaves := materialize(t, tc.waves, byID)
+			if expectedInlined == nil {
+				expectedInlined = want
+			}
+			if expectedWaves == nil {
+				expectedWaves = want
+			}
+			requireEqualTrees(t, expectedInlined, actualInlined)
+			requireEqualTrees(t, expectedWaves, actualWaves)
+			requireEqualTrees(t, want, actualWinner)
+
+			// Beyond the pinned shapes, the trees must satisfy the scheduler
+			// invariants under randomized duration profiles.
+			assertScheduleProperties(t, actualInlined, actualWaves, actualWinner, durationProfiles(tc.input, 50, int64(9000+i)))
+		})
+	}
+}
+
+func TestScheduleFetches_OptionWiring(t *testing.T) {
+	t.Parallel()
+	input := func() *resolve.FetchTreeNode {
+		return seq(
+			sf(0),
+			sf(1),
+			sf(2, dependsOn(0)),
+			sf(3, dependsOn(1)),
+			sf(4, dependsOn(2, 3)))
+	}
+	wantWaves := seq(
+		par(sf(0), sf(1)),
+		par(sf(2, dependsOn(0)),
+			sf(3, dependsOn(1))),
+		sf(4, dependsOn(2, 3)))
+	wantScheduled := seq(
+		par(seq(sf(0), sf(2, dependsOn(0))),
+			seq(sf(1), sf(3, dependsOn(1)))),
+		sf(4, dependsOn(2, 3)))
+
+	// The scheduler is opt-in: the default pipeline organizes legacy waves.
+	def := input()
+	NewProcessor().fetchTreeProcessors.organizeFetchTree(def)
+	requireEqualTrees(t, wantWaves, def)
+
+	scheduled := input()
+	NewProcessor(EnableScheduleFetches()).fetchTreeProcessors.organizeFetchTree(scheduled)
+	requireEqualTrees(t, wantScheduled, scheduled)
+}
+
+func TestScheduleFetches_SubscriptionRootStaysSequence(t *testing.T) {
+	t.Parallel()
+	// The plan printer renders the Subscription Primary/Rest wrapper only for Sequence roots:
+	// the scheduled tree must not collapse into the root when it carries a Trigger.
+	trigger := &resolve.FetchTreeNode{
+		Kind: resolve.FetchTreeNodeKindTrigger,
+		Item: &resolve.FetchItem{Fetch: &resolve.SingleFetch{}},
+	}
+
+	single := seq(sf(0))
+	single.Trigger = trigger
+	err := (&scheduleFetches{}).ProcessFetchTree(single)
+	require.NoError(t, err)
+	require.Equal(t, resolve.FetchTreeNodeKindSequence, single.Kind)
+	require.Equal(t, trigger, single.Trigger)
+	require.Equal(t, nodes(sf(0)), single.ChildNodes)
+
+	parallel := seq(sf(0), sf(1))
+	parallel.Trigger = trigger
+	err = (&scheduleFetches{}).ProcessFetchTree(parallel)
+	require.NoError(t, err)
+	require.Equal(t, resolve.FetchTreeNodeKindSequence, parallel.Kind)
+	require.Equal(t, trigger, parallel.Trigger)
+	require.Equal(t, nodes(par(sf(0), sf(1))), parallel.ChildNodes)
+
+	// Without a Trigger the root may collapse into the scheduled tree.
+	sync := seq(sf(0))
+	err = (&scheduleFetches{}).ProcessFetchTree(sync)
+	require.NoError(t, err)
+	require.Equal(t, sf(0), sync)
+}
+
+func TestScheduleFetches_Validator(t *testing.T) {
+	t.Run("response-path nesting without a FetchID edge is valid", func(t *testing.T) {
+		y := sf(0, responsePath("user"))
+		x := sf(1, responsePath("user.details"), mergePath("user.details"))
+		tree := par(x, y)
+		dag, err := newFetchDAG(nodes(x, y))
+		require.NoError(t, err)
+		require.NoError(t, validateSchedule(tree, dag))
+	})
+
+	t.Run("explicit FetchID edge between parallel siblings is invalid", func(t *testing.T) {
+		y := sf(0)
+		x := sf(1, dependsOn(0))
+		tree := par(x, y)
+		dag, err := newFetchDAG(nodes(x, y))
+		require.NoError(t, err)
+		require.EqualError(t, validateSchedule(tree, dag), "fetch 1 is scheduled before its dependency 0 completes")
+	})
+
+	t.Run("self-dependency is invalid", func(t *testing.T) {
+		y := sf(0)
+		x := sf(1, dependsOn(1))
+		_, err := newFetchDAG(nodes(x, y))
+		require.EqualError(t, err, "self-dependent id 1")
+	})
+
+	// Conservation: a schedule must never lose or duplicate a fetch. The
+	// property tests lean on these rejections for their completeness checks.
+	t.Run("schedule missing a fetch is invalid", func(t *testing.T) {
+		input := nodes(sf(0), sf(1, dependsOn(0)), sf(2, dependsOn(0)))
+		dag, err := newFetchDAG(input)
+		require.NoError(t, err)
+		missing := seq(input[0], input[1])
+		require.EqualError(t, validateSchedule(missing, dag), "fetch 2 missing from schedule")
+	})
+
+	t.Run("schedule duplicating a fetch is invalid", func(t *testing.T) {
+		input := nodes(sf(0), sf(1, dependsOn(0)), sf(2, dependsOn(0)))
+		dag, err := newFetchDAG(input)
+		require.NoError(t, err)
+		duplicated := seq(input[0], par(input[1], input[2]), input[1])
+		require.EqualError(t, validateSchedule(duplicated, dag), "fetch 1 scheduled 2 times")
+	})
+}
+
+func TestScheduleFetches_ProcessorFallsBackOnError(t *testing.T) {
+	t.Parallel()
+	// on any scheduler/validator error the processor degrades to the LEGACY wave pipeline.
+	build := func() *resolve.FetchTreeNode {
+		return seq(sf(7), sf(7, dependsOn(7)))
+	}
+
+	legacy := build()
+	(&orderSequenceByDependencies{}).ProcessFetchTree(legacy)
+	(&createParallelNodes{}).ProcessFetchTree(legacy)
+
+	scheduled := build()
+	require.NotPanics(t, func() {
+		NewProcessor(EnableScheduleFetches()).fetchTreeProcessors.organizeFetchTree(scheduled)
+	})
+	require.Equal(t, legacy, scheduled)
+}
+
+// TestScheduleFetches_BigPlan pins the schedule for a realistic 13-fetch plan
+func TestScheduleFetches_BigPlan(t *testing.T) {
+	// Fetch IDs and order preserve the plan-generator's emission order.
+	input := func() []*resolve.FetchTreeNode {
+		return nodes(
+			sf(0),
+			sf(5),
+			sf(1, responsePath("users"), dependsOn(0)),
+			sf(6, responsePath("topProducts"), dependsOn(5)),
+			sf(11, responsePath("topProducts"), dependsOn(5)),
+			sf(2, responsePath("users.@.reviews.@.product"), dependsOn(1)),
+			sf(3, responsePath("users.@.reviews.@.product.reviews.@.author"), dependsOn(1)),
+			sf(4, responsePath("users.@.reviews.@.product.reviews.@.author.reviews.@.product"), dependsOn(1)),
+			sf(7, responsePath("topProducts.@.reviews.@.author"), dependsOn(6)),
+			sf(8, responsePath("topProducts.@.reviews.@.author.reviews.@.product"), dependsOn(6)),
+			sf(9, responsePath("users.@.reviews.@.product"), dependsOn(1, 2)),
+			sf(10, responsePath("users.@.reviews.@.product.reviews.@.author.reviews.@.product"), dependsOn(1, 4)),
+			sf(12, responsePath("topProducts.@.reviews.@.author.reviews.@.product"), dependsOn(6, 8)),
+		)
+	}
+
+	expected := materialize(t, par(
+		seq(
+			sf(0),
+			sf(1),
+			par(
+				seq(sf(2), sf(9)),
+				sf(3),
+				seq(sf(4), sf(10)),
+			),
+		),
+		seq(
+			sf(5),
+			par(
+				seq(
+					sf(6),
+					par(
+						sf(7),
+						seq(sf(8), sf(12)),
+					),
+				),
+				sf(11),
+			),
+		),
+	), fetchesByID(input()))
+
+	t.Run("scheduler produces the tree without errors", func(t *testing.T) {
+		fetches := input()
+		dag, err := newFetchDAG(fetches)
+		require.NoError(t, err)
+		tree, err := buildScheduleTree(fetches, dag)
+		require.NoError(t, err)
+		require.NoError(t, validateSchedule(tree, dag))
+		requireEqualTrees(t, expected, tree)
+	})
+
+	t.Run("scheduler does not fall back to legacy waves", func(t *testing.T) {
+		root := seq(input()...)
+		NewProcessor(EnableScheduleFetches()).fetchTreeProcessors.organizeFetchTree(root)
+		requireEqualTrees(t, expected, root)
+	})
+}
+
+func sortedIDs(d *fetchDAG) []int {
+	ids := make([]int, 0, len(d.nodes))
+	for id := range d.nodes {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+// hasCycle runs Kahn's algorithm over the full DAG.
+func hasCycle(d *fetchDAG) bool {
+	indegree := make(map[int]int, len(d.nodes))
+	queue := make([]int, 0, len(d.nodes))
+	for id, parents := range d.parents {
+		indegree[id] = len(parents)
+		if len(parents) == 0 {
+			queue = append(queue, id)
+		}
+	}
+	scheduled := 0
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		scheduled++
+		for child := range d.children[id] {
+			if indegree[child]--; indegree[child] == 0 {
+				queue = append(queue, child)
+			}
+		}
+	}
+	return scheduled != len(d.nodes)
+}
+
+func TestScheduleFetchesPropertiesRandom(t *testing.T) {
+	t.Parallel()
+	rng := rand.New(rand.NewSource(42))
+	for n := 3; n <= 15; n++ {
+		for i := range 50 {
+			input := randomDAG(n, 1.5, rng)
+			checkScheduleProperties(t, input, durationProfiles(input, 50, int64(n*1000+i)))
+		}
+	}
+}
+
+func TestScheduleFetchesPropertiesSmoke(t *testing.T) {
+	t.Parallel()
+	rng := rand.New(rand.NewSource(99))
+	for _, n := range []int{50, 500} {
+		input := randomDAG(n, 1.5, rng)
+		checkScheduleProperties(t, input, durationProfiles(input, 50, int64(n)))
+	}
+}
+
+func checkScheduleProperties(t *testing.T, input []*resolve.FetchTreeNode, profiles []map[int]int) {
+	t.Helper()
+	dag, err := newFetchDAG(input)
+	require.NoError(t, err)
+	ids := sortedIDs(dag)
+	inlined, inlinedErr := schedule(ids, dag, true)
+	waves, wavesErr := schedule(ids, dag, false)
+	winner, winnerErr := buildScheduleTree(input, dag)
+	if len(ids) > 0 && hasCycle(dag) {
+		require.EqualError(t, inlinedErr, "cycle detected in fetch dependency graph")
+		require.EqualError(t, wavesErr, "cycle detected in fetch dependency graph")
+		require.EqualError(t, winnerErr, "cycle detected in fetch dependency graph")
+		return
+	}
+	require.NoErrorf(t, inlinedErr, "input=%v", dependencyList(input))
+	require.NoErrorf(t, wavesErr, "input=%v", dependencyList(input))
+	require.NoErrorf(t, winnerErr, "input=%v", dependencyList(input))
+	// validateSchedule also enforces conservation: every fetch must be scheduled exactly once:
+	require.NoError(t, validateSchedule(inlined, dag))
+	require.NoError(t, validateSchedule(waves, dag))
+	require.NoError(t, validateSchedule(winner, dag))
+
+	assertScheduleProperties(t, inlined, waves, winner, profiles)
+}
+
+// assertScheduleProperties checks the invariants relating the three trees:
+// the winner always dominates the waves tree,
+// when the inlined tree dominates the waves tree, the winner is exactly the inlined tree.
+func assertScheduleProperties(t *testing.T, inlined, waves, winner *resolve.FetchTreeNode, profiles []map[int]int) {
+	t.Helper()
+	require.True(t, dominates(winner, waves))
+	if dominates(inlined, waves) {
+		require.Equal(t, inlined, winner)
+	}
+	require.LessOrEqual(t, uniformMakespan(winner), uniformMakespan(waves))
+	for _, durations := range profiles {
+		require.LessOrEqual(t, weightedMakespan(winner, durations), weightedMakespan(waves, durations))
+	}
+}
+
+func dependencyList(input []*resolve.FetchTreeNode) []resolve.FetchDependencies {
+	out := make([]resolve.FetchDependencies, 0, len(input))
+	for _, node := range input {
+		out = append(out, *node.Item.Fetch.Dependencies())
+	}
+	return out
+}
+
+func randomDAG(n int, averageDegree float64, rng *rand.Rand) []*resolve.FetchTreeNode {
+	depLists := make([][]int, n)
+	p := averageDegree / math.Max(1, float64(n-1))
+	for from := range n {
+		for to := from + 1; to < n; to++ {
+			if rng.Float64() < p {
+				depLists[to] = append(depLists[to], from)
+			}
+		}
+	}
+	out := make([]*resolve.FetchTreeNode, n)
+	for i := range out {
+		out[i] = sf(i, dependsOn(depLists[i]...))
+	}
+	return out
+}
+
+func durationProfiles(input []*resolve.FetchTreeNode, count int, seed int64) []map[int]int {
+	rng := rand.New(rand.NewSource(seed))
+	profiles := make([]map[int]int, count)
+	for i := range profiles {
+		profile := make(map[int]int, len(input))
+		for _, node := range input {
+			id := node.Item.Fetch.Dependencies().FetchID
+			profile[id] = max(int(math.Round(math.Exp(rng.Float64()*math.Log(1000)))), 1)
+		}
+		profiles[i] = profile
+	}
+	return profiles
+}
+
+// uniformMakespan is the tree makespan with every fetch cost 1.
+func uniformMakespan(node *resolve.FetchTreeNode) int {
+	durations := map[int]int{}
+	for id := range treePredecessors(node) {
+		durations[id] = 1
+	}
+	return weightedMakespan(node, durations)
+}
+
+// weightedMakespan is the critical-path weight of the tree under durations:
+// sequences add, parallels take the maximum.
+func weightedMakespan(node *resolve.FetchTreeNode, durations map[int]int) int {
+	if node == nil {
+		return 0
+	}
+	switch node.Kind {
+	case resolve.FetchTreeNodeKindSingle:
+		return durations[node.Item.Fetch.Dependencies().FetchID]
+	case resolve.FetchTreeNodeKindSequence:
+		sum := 0
+		for _, child := range node.ChildNodes {
+			sum += weightedMakespan(child, durations)
+		}
+		return sum
+	case resolve.FetchTreeNodeKindParallel:
+		maxSpan := 0
+		for _, child := range node.ChildNodes {
+			if m := weightedMakespan(child, durations); m > maxSpan {
+				maxSpan = m
+			}
+		}
+		return maxSpan
+	default:
+		return 0
+	}
+}
+
+// deeplyNestedWideDependenciesInput is a real production query.
+// Reference: 3becc2e0f56d3d513c374e8035d1533cc6795740193a45c0c07def3f1f11eb0b
+func deeplyNestedWideDependenciesInput() []*resolve.FetchTreeNode {
+	deps := dependsOn
+	return nodes(
+		sf(0),
+		sf(1, deps(0)),
+		sf(2, deps(0)),
+		sf(3, deps(0)),
+		sf(4, deps(0)),
+		sf(5, deps(4)),
+		sf(6, deps(0)),
+		sf(7, deps(0)),
+		sf(8, deps(7)),
+		sf(9, deps(0)),
+		sf(10, deps(9)),
+		sf(11, deps(9)),
+		sf(12, deps(9)),
+		sf(13, deps(9)),
+		sf(14, deps(9)),
+		sf(18, deps(0)),
+		sf(19, deps(0)),
+		sf(20, deps(19)),
+		sf(21, deps(19)),
+		sf(23, deps(19)),
+		sf(24, deps(19)),
+		sf(25, deps(19)),
+		sf(32, deps(0)),
+		sf(33, deps(0)),
+		sf(35, deps(0)),
+		sf(37, deps(35)),
+		sf(38, deps(35)),
+		sf(41, deps(0)),
+		sf(42, deps(0)),
+		sf(43, deps(0)),
+		sf(44, deps(0)),
+		sf(45, deps(44)),
+		sf(47, deps(0)),
+		sf(49, deps(0)),
+		sf(50, deps(4)),
+		sf(51, deps(6)),
+		sf(52, deps(7)),
+		sf(53, deps(9)),
+		sf(54, deps(9)),
+		sf(55, deps(9)),
+		sf(59, deps(18)),
+		sf(60, deps(18)),
+		sf(61, deps(18)),
+		sf(62, deps(0)),
+		sf(63, deps(19)),
+		sf(64, deps(19)),
+		sf(65, deps(19)),
+		sf(66, deps(19)),
+		sf(67, deps(19)),
+		sf(73, deps(6)),
+		sf(74, deps(6, 73)),
+		sf(75, deps(32)),
+		sf(76, deps(0)),
+		sf(77, deps(76)),
+		sf(78, deps(0)),
+		sf(81, deps(6)),
+		sf(82, deps(35)),
+		sf(83, deps(35)),
+		sf(84, deps(35)),
+		sf(85, deps(35)),
+		sf(86, deps(35)),
+		sf(87, deps(35, 37, 38, 83, 84, 85)),
+		sf(93, deps(42)),
+		sf(94, deps(0)),
+		sf(95, deps(43)),
+		sf(96, deps(44, 45)),
+		sf(97, deps(0)),
+		sf(98, deps(0, 97)),
+		sf(99, deps(0)),
+		sf(100, deps(99)),
+		sf(101, deps(43)),
+		sf(102, deps(0)),
+		sf(103, deps(0)),
+		sf(104, deps(49)),
+		sf(105, deps(9, 11, 12, 13, 14, 54, 55)),
+		sf(106, deps(18, 60, 61)),
+		sf(107, deps(19, 21, 64, 65)),
+		sf(108, deps(19, 20, 25, 63, 66, 67)),
+		sf(110, deps(76)),
+		sf(112, deps(76)),
+		sf(113, deps(76)),
+		sf(114, deps(78)),
+		sf(115, deps(78)),
+		sf(117, deps(35, 84, 85, 86, 87)),
+		sf(118, deps(93)),
+		sf(122, deps(95)),
+		sf(128, deps(103)),
+		sf(138, deps(9, 10, 11, 12, 53, 105)),
+		sf(139, deps(19, 21, 63, 64, 107)),
+		sf(141, deps(0, 76, 77, 86, 110, 112, 113)),
+		sf(142, deps(0, 78, 114)),
+		sf(143, deps(0, 78, 115)),
+		sf(144, deps(0, 78, 115)),
+		sf(145, deps(0, 8, 35, 37, 82, 117)),
+		sf(146, deps(0, 8, 14, 94)),
+		sf(147, deps(0, 86, 99, 100, 110)),
+		sf(148, deps(147)),
+		sf(149, deps(0, 13, 14, 54, 55, 102, 103, 110, 128)),
+		sf(150, deps(19, 20, 23, 24, 25, 63, 108, 139)),
+		sf(151, deps(147, 148)),
+		sf(152, deps(19, 150)),
+	)
+}
+
+// BenchmarkOrganizeFetchTree runs the dependency-aware scheduler against the legacy wave pipeline.
+func BenchmarkOrganizeFetchTree(b *testing.B) {
+	// Each fetch tree input is ~50 kb / ~400 allocs overhead per iteration below.
+	b.Run("schedule", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			input := deeplyNestedWideDependenciesInput()
+			root := resolve.Sequence(input...)
+			err := (&scheduleFetches{}).ProcessFetchTree(root)
+			if err != nil {
+				b.Errorf("error: %v", err)
+			}
+		}
+	})
+	b.Run("waves", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			input := deeplyNestedWideDependenciesInput()
+			root := resolve.Sequence(input...)
+			(&orderSequenceByDependencies{}).ProcessFetchTree(root)
+			(&createParallelNodes{}).ProcessFetchTree(root)
+		}
+	})
+}

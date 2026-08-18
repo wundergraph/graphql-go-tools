@@ -21,7 +21,7 @@ type JsonConverter struct {
 func (j *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) (*ast.Document, error) {
 	var data Data
 	if err := json.NewDecoder(introspectionJSON).Decode(&data); err != nil {
-		return nil, fmt.Errorf("failed to parse inrospection json: %v", err)
+		return nil, fmt.Errorf("failed to parse inrospection json: %w", err)
 	}
 
 	j.schema = &data.Schema
@@ -29,7 +29,7 @@ func (j *JsonConverter) GraphQLDocument(introspectionJSON io.Reader) (*ast.Docum
 	j.parser = astparser.NewParser()
 
 	if err := j.importSchema(); err != nil {
-		return nil, fmt.Errorf("failed to convert graphql schema: %v", err)
+		return nil, fmt.Errorf("failed to convert graphql schema: %w", err)
 	}
 
 	return j.doc, nil
