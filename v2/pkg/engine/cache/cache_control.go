@@ -118,8 +118,8 @@ func parseDeltaSeconds(s string) (DeltaSeconds, error) {
 	return DeltaSeconds(int32(num)), nil
 }
 
-// ToGoSeconds converts a DeltaSeconds to a time.Duration.
-func (d DeltaSeconds) ToGoSeconds() time.Duration {
+// AsDuration converts a DeltaSeconds to a time.Duration.
+func (d DeltaSeconds) AsDuration() time.Duration {
 	return time.Duration(d) * time.Second
 }
 

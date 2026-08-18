@@ -1132,22 +1132,22 @@ func TestDeltaSecondsToGoSeconds(t *testing.T) {
 
 	t.Run("zero", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, time.Duration(0), DeltaSeconds(0).ToGoSeconds())
+		assert.Equal(t, time.Duration(0), DeltaSeconds(0).AsDuration())
 	})
 
 	t.Run("sixty seconds", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, 60*time.Second, DeltaSeconds(60).ToGoSeconds())
+		assert.Equal(t, 60*time.Second, DeltaSeconds(60).AsDuration())
 	})
 
 	t.Run("negative sentinel", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, -1*time.Second, DeltaSeconds(-1).ToGoSeconds())
+		assert.Equal(t, -1*time.Second, DeltaSeconds(-1).AsDuration())
 	})
 
 	t.Run("MaxInt32 does not overflow", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, time.Duration(math.MaxInt32)*time.Second, DeltaSeconds(math.MaxInt32).ToGoSeconds())
+		assert.Equal(t, time.Duration(math.MaxInt32)*time.Second, DeltaSeconds(math.MaxInt32).AsDuration())
 	})
 }
 
