@@ -649,7 +649,7 @@ func (e ErrMergeResult) Error() string {
 		}
 		return fmt.Sprintf("unable to merge results from subgraph '%s' at path '%s': differing types", e.Subgraph, e.Path)
 	}
-	return fmt.Sprintf("unable to merge results from subgraph %s", e.Subgraph)
+	return "unable to merge results from subgraph " + e.Subgraph
 }
 
 func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
@@ -1345,9 +1345,9 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 }
 
 func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, statusCode int) error {
-	reason := fmt.Sprintf("%d", statusCode)
+	reason := strconv.Itoa(statusCode)
 	if statusText := http.StatusText(statusCode); statusText != "" {
-		reason += fmt.Sprintf(": %s", statusText)
+		reason += ": " + statusText
 	}
 
 	l.recordSubgraphError(res, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))

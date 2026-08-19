@@ -1185,19 +1185,22 @@ func (v *Visitor) renderJSONValueTemplate(value ast.Value, variables *resolve.Va
 	case ast.ValueKindList:
 		out += "["
 		addComma := false
+		var list strings.Builder
 		for _, ref := range v.Operation.ListValues[value.Ref].Refs {
 			if addComma {
-				out += ","
+				list.WriteString(",")
 			} else {
 				addComma = true
 			}
 			listValue := v.Operation.Values[ref]
-			out += v.renderJSONValueTemplate(listValue, variables, inputValueDefinition)
+			list.WriteString(v.renderJSONValueTemplate(listValue, variables, inputValueDefinition))
 		}
+		out += list.String()
 		out += "]"
 	case ast.ValueKindObject:
 		out += "{"
 		addComma := false
+		var object strings.Builder
 		for _, ref := range v.Operation.ObjectValues[value.Ref].Refs {
 			fieldName := v.Operation.Input.ByteSlice(v.Operation.ObjectFields[ref].Name)
 			fieldValue := v.Operation.ObjectFields[ref].Value
@@ -1211,13 +1214,16 @@ func (v *Visitor) renderJSONValueTemplate(value ast.Value, variables *resolve.Va
 				continue
 			}
 			if addComma {
-				out += ","
+				object.WriteString(",")
 			} else {
 				addComma = true
 			}
-			out += fmt.Sprintf("\"%s\":", string(fieldName))
-			out += v.renderJSONValueTemplate(fieldValue, variables, objectFieldDefinition)
+			object.WriteString("\"")
+			_, _ = object.Write(fieldName)
+			object.WriteString("\":")
+			object.WriteString(v.renderJSONValueTemplate(fieldValue, variables, objectFieldDefinition))
 		}
+		out += object.String()
 		out += "}"
 	case ast.ValueKindVariable:
 		variablePath := v.Operation.VariableValueNameString(value.Ref)

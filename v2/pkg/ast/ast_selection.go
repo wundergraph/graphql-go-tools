@@ -57,16 +57,17 @@ func (d *Document) CopySelectionSet(ref int) int {
 	})
 }
 
-func (d *Document) PrintSelections(selections []int) (out string) {
-	out += "["
+func (d *Document) PrintSelections(selections []int) string {
+	var out strings.Builder
+	out.WriteString("[")
 	for i, ref := range selections {
-		out += fmt.Sprintf("%+v", d.Selections[ref])
+		_, _ = fmt.Fprintf(&out, "%+v", d.Selections[ref])
 		if i != len(selections)-1 {
-			out += ","
+			out.WriteString(",")
 		}
 	}
-	out += "]"
-	return
+	out.WriteString("]")
+	return out.String()
 }
 
 func (d *Document) SelectionsBeforeField(field int, selectionSet Node) bool {
