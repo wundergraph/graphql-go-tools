@@ -30,13 +30,13 @@ func TTL(headers http.Header, defaultTTL time.Duration) (time.Duration, bool) {
 		if *cc.SMaxAge <= 0 {
 			return 0, false
 		}
-		return cc.SMaxAge.ToGoSeconds(), true
+		return cc.SMaxAge.AsDuration(), true
 
 	case cc.MaxAge != nil:
 		if *cc.MaxAge <= 0 {
 			return 0, false
 		}
-		return cc.MaxAge.ToGoSeconds(), true
+		return cc.MaxAge.AsDuration(), true
 	}
 
 	if defaultTTL <= 0 {

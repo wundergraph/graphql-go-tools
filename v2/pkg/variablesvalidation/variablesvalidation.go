@@ -29,7 +29,7 @@ func (v *variablesVisitor) invalidValueIfAllowed(variableContent string) string 
 		return ""
 	}
 
-	return fmt.Sprintf(": %s", variableContent)
+	return ": " + variableContent
 }
 
 func (v *variablesVisitor) invalidEnumValueIfAllowed(variableContent string) string {

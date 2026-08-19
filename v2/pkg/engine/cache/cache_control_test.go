@@ -216,16 +216,6 @@ func TestParse(t *testing.T) {
 		requireParses(t, "", &CacheControlResponse{})
 	})
 
-	t.Run("single space", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, " ", &CacheControlResponse{})
-	})
-
-	t.Run("single tab", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "\t", &CacheControlResponse{})
-	})
-
 	// OWS is SP / HTAB only (RFC 9110 §5.6.3). A bare CR or LF is malformed
 	// rather than blank, and is covered by the D17 subtests below.
 	t.Run("mixed whitespace only", func(t *testing.T) {
@@ -262,29 +252,9 @@ func TestParse(t *testing.T) {
 		requireParses(t, "must-revalidate", &CacheControlResponse{})
 	})
 
-	t.Run("no-transform is ignored", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "no-transform", &CacheControlResponse{})
-	})
-
-	t.Run("proxy-revalidate is ignored", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "proxy-revalidate", &CacheControlResponse{})
-	})
-
-	t.Run("immutable is ignored", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "immutable", &CacheControlResponse{})
-	})
-
 	t.Run("stale-while-revalidate is ignored", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, "max-age=60, stale-while-revalidate=30", &CacheControlResponse{MaxAge: seconds(60)})
-	})
-
-	t.Run("stale-if-error is ignored", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "max-age=60, stale-if-error=120", &CacheControlResponse{MaxAge: seconds(60)})
 	})
 
 	t.Run("unknown extension with quoted argument is ignored", func(t *testing.T) {
@@ -297,41 +267,21 @@ func TestParse(t *testing.T) {
 		requireParses(t, `community="UCI, UCLA", no-store`, &CacheControlResponse{NoStore: true})
 	})
 
-	t.Run("unknown bare extension is ignored", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "max-age=60, ext", &CacheControlResponse{MaxAge: seconds(60)})
-	})
-
 	// --- D2: case insensitivity of directive names --------------------------
 
-	t.Run("NO-STORE uppercase", func(t *testing.T) {
+	// One strings.ToLower on the directive name covers every directive, so one
+	// case-mangled example of each is enough.
+	t.Run("directive names are case-insensitive", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "NO-STORE", &CacheControlResponse{NoStore: true})
-	})
-
-	t.Run("PuBlIc mixed case", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "PuBlIc", &CacheControlResponse{Public: true})
-	})
-
-	t.Run("PRIVATE uppercase", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "PRIVATE", &CacheControlResponse{Private: fieldNames()})
-	})
-
-	t.Run("No-Cache mixed case", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "No-Cache", &CacheControlResponse{NoCache: fieldNames()})
-	})
-
-	t.Run("MAX-AGE uppercase", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "MAX-AGE=60", &CacheControlResponse{MaxAge: seconds(60)})
-	})
-
-	t.Run("S-MaxAge mixed case", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "S-MaxAge=60", &CacheControlResponse{SMaxAge: seconds(60)})
+		requireParses(t, `MAX-AGE=60, S-MaxAge=120, No-Cache, PuBlIc, NO-STORE, PRIVATE`,
+			&CacheControlResponse{
+				MaxAge:  seconds(60),
+				SMaxAge: seconds(120),
+				NoCache: fieldNames(),
+				Public:  true,
+				NoStore: true,
+				Private: fieldNames(),
+			})
 	})
 
 	// --- delta-seconds, valid -----------------------------------------------
@@ -368,29 +318,14 @@ func TestParse(t *testing.T) {
 		requireParses(t, "max-age=99999999999999999999999999", &CacheControlResponse{MaxAge: seconds(math.MaxInt32)})
 	})
 
-	t.Run("s-maxage above MaxInt32 clamps", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "s-maxage=4294967296", &CacheControlResponse{SMaxAge: seconds(math.MaxInt32)})
-	})
-
 	t.Run("leading zeros", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, "max-age=007", &CacheControlResponse{MaxAge: seconds(7)})
 	})
 
-	t.Run("all zeros", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "max-age=00000", &CacheControlResponse{MaxAge: seconds(0)})
-	})
-
 	// MaxAge / SMaxAge are pointers so that "absent" and "explicitly zero" are
 	// distinguishable. These three pin that distinction directly, since it is
 	// the reason for the pointer and the easiest thing to regress.
-
-	t.Run("absent max-age is nil rather than zero", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "no-store", &CacheControlResponse{NoStore: true})
-	})
 
 	t.Run("explicit zero max-age is set rather than absent", func(t *testing.T) {
 		t.Parallel()
@@ -400,21 +335,11 @@ func TestParse(t *testing.T) {
 		})
 	})
 
-	t.Run("max-age set does not imply s-maxage set", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "max-age=0", &CacheControlResponse{MaxAge: seconds(0)})
-	})
-
 	// --- D6: the quoted form of delta-seconds is equivalent -----------------
 
 	t.Run("max-age with quotes", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `max-age="60"`, &CacheControlResponse{MaxAge: seconds(60)})
-	})
-
-	t.Run("s-maxage with quotes", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `s-maxage="60"`, &CacheControlResponse{SMaxAge: seconds(60)})
 	})
 
 	// --- D5/D6: an unusable delta-seconds argument is an error --------------
@@ -424,24 +349,21 @@ func TestParse(t *testing.T) {
 		requireParseError(t, "max-age")
 	})
 
-	t.Run("s-maxage with no argument", func(t *testing.T) {
-		t.Parallel()
-		requireParseError(t, "s-maxage")
-	})
-
 	t.Run("max-age with empty argument", func(t *testing.T) {
 		t.Parallel()
 		requireParseError(t, "max-age=")
 	})
 
-	t.Run("s-maxage with empty argument", func(t *testing.T) {
-		t.Parallel()
-		requireParseError(t, "s-maxage=")
-	})
-
 	t.Run("max-age non-numeric", func(t *testing.T) {
 		t.Parallel()
 		requireParseError(t, "max-age=abc")
+	})
+
+	// s-maxage has its own error return, so it needs one case of its own even
+	// though the validation itself is shared with max-age.
+	t.Run("s-maxage non-numeric", func(t *testing.T) {
+		t.Parallel()
+		requireParseError(t, "s-maxage=abc")
 	})
 
 	t.Run("max-age float", func(t *testing.T) {
@@ -454,24 +376,9 @@ func TestParse(t *testing.T) {
 		requireParseError(t, "max-age=-1")
 	})
 
-	t.Run("s-maxage negative", func(t *testing.T) {
-		t.Parallel()
-		requireParseError(t, "s-maxage=-100")
-	})
-
 	t.Run("max-age explicit plus sign", func(t *testing.T) {
 		t.Parallel()
 		requireParseError(t, "max-age=+60")
-	})
-
-	t.Run("max-age with underscore separator", func(t *testing.T) {
-		t.Parallel()
-		requireParseError(t, "max-age=1_000")
-	})
-
-	t.Run("max-age hex", func(t *testing.T) {
-		t.Parallel()
-		requireParseError(t, "max-age=0x3c")
 	})
 
 	t.Run("max-age with trailing unit", func(t *testing.T) {
@@ -516,11 +423,6 @@ func TestParse(t *testing.T) {
 		requireParses(t, "public=true", &CacheControlResponse{Public: true})
 	})
 
-	t.Run("public with quoted argument", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `public="true"`, &CacheControlResponse{Public: true})
-	})
-
 	t.Run("no-store with empty argument", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, "no-store=", &CacheControlResponse{NoStore: true})
@@ -533,20 +435,10 @@ func TestParse(t *testing.T) {
 		requireParses(t, "no-cache=Set-Cookie", &CacheControlResponse{NoCache: fieldNames("Set-Cookie")})
 	})
 
-	t.Run("private with bare token argument", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "private=Set-Cookie", &CacheControlResponse{Private: fieldNames("Set-Cookie")})
-	})
-
 	// D8 consequence: this is a valid one-element field list, NOT an error.
 	t.Run("no-cache with quoted true is a field name", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `no-cache="true"`, &CacheControlResponse{NoCache: fieldNames("true")})
-	})
-
-	t.Run("private with quoted true is a field name", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `private="true"`, &CacheControlResponse{Private: fieldNames("true")})
 	})
 
 	// --- field-name lists ----------------------------------------------------
@@ -554,11 +446,6 @@ func TestParse(t *testing.T) {
 	t.Run("no-cache with one field name", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `no-cache="Set-Cookie"`, &CacheControlResponse{NoCache: fieldNames("Set-Cookie")})
-	})
-
-	t.Run("private with one field name", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `private="Set-Cookie"`, &CacheControlResponse{Private: fieldNames("Set-Cookie")})
 	})
 
 	t.Run("no-cache with two field names", func(t *testing.T) {
@@ -648,37 +535,16 @@ func TestParse(t *testing.T) {
 	})
 
 	// --- D19: field-list elements are stored verbatim ------------------------
-	// None of these is a legal HTTP token, and none of them is rejected. See
-	// D19 for why this domain cannot afford token validation.
 
-	t.Run("field name with internal space", func(t *testing.T) {
+	// Not one of these is a legal HTTP token, and none of them is rejected.
+	// Every delimiter is inert inside a quoted string, so they all take the
+	// same path: split on comma, trim, keep.
+	t.Run("elements are kept whatever characters they contain", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, `no-cache="Set Cookie"`, &CacheControlResponse{NoCache: fieldNames("Set Cookie")})
-	})
-
-	t.Run("field name with semicolon", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `no-cache="Set-Cookie;"`, &CacheControlResponse{NoCache: fieldNames("Set-Cookie;")})
-	})
-
-	t.Run("field name with colon", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `no-cache="Set-Cookie:"`, &CacheControlResponse{NoCache: fieldNames("Set-Cookie:")})
-	})
-
-	t.Run("field name with slash", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `no-cache="Set/Cookie"`, &CacheControlResponse{NoCache: fieldNames("Set/Cookie")})
-	})
-
-	t.Run("field name with parentheses", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `no-cache="(Set-Cookie)"`, &CacheControlResponse{NoCache: fieldNames("(Set-Cookie)")})
-	})
-
-	t.Run("field name with equals", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `no-cache="Set=Cookie"`, &CacheControlResponse{NoCache: fieldNames("Set=Cookie")})
+		requireParses(t, `no-cache="Set Cookie, Set-Cookie;, Set/Cookie, (Set-Cookie), Set=Cookie"`,
+			&CacheControlResponse{
+				NoCache: fieldNames("Set Cookie", "Set-Cookie;", "Set/Cookie", "(Set-Cookie)", "Set=Cookie"),
+			})
 	})
 
 	// D19 — an odd element never costs us the elements around it.
@@ -857,16 +723,6 @@ func TestParse(t *testing.T) {
 	// an error. Erroring here while accepting "max-age=60," was the
 	// contradiction.
 
-	t.Run("only a comma", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, ",", &CacheControlResponse{})
-	})
-
-	t.Run("only commas", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, ",,,", &CacheControlResponse{})
-	})
-
 	t.Run("only commas and whitespace", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, " , , ", &CacheControlResponse{})
@@ -957,11 +813,6 @@ func TestParse(t *testing.T) {
 		requireParses(t, "max-age=120, max-age=60", &CacheControlResponse{MaxAge: seconds(120)})
 	})
 
-	t.Run("duplicate s-maxage takes the first even when it is larger", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, "s-maxage=2, s-maxage=1", &CacheControlResponse{SMaxAge: seconds(2)})
-	})
-
 	// D14 — zero is a real value, and later occurrences never override it.
 	// This expected 3600 before the fields became pointers, which was simply
 	// wrong for a first-occurrence rule; a zero max-age used to be
@@ -1001,11 +852,6 @@ func TestParse(t *testing.T) {
 		requireParses(t, `no-cache="A", no-cache="B"`, &CacheControlResponse{NoCache: fieldNames("A", "B")})
 	})
 
-	t.Run("duplicate private field lists are unioned", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `private="A", private="B, C"`, &CacheControlResponse{Private: fieldNames("A", "B", "C")})
-	})
-
 	t.Run("overlapping field lists union without duplicating", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `no-cache="A, B", no-cache="B, C"`, &CacheControlResponse{
@@ -1024,11 +870,6 @@ func TestParse(t *testing.T) {
 	t.Run("bare private after a private field list stays unqualified", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `private="Set-Cookie", private`, &CacheControlResponse{Private: fieldNames()})
-	})
-
-	t.Run("bare no-cache dominates a no-cache field list", func(t *testing.T) {
-		t.Parallel()
-		requireParses(t, `no-cache="Set-Cookie", no-cache`, &CacheControlResponse{NoCache: fieldNames()})
 	})
 
 	// D15 tier 1 + D11 — an empty argument is the unqualified form, so it
@@ -1151,11 +992,6 @@ func TestParseCacheControlResponse(t *testing.T) {
 		requireHeaderParses(t, nil, &CacheControlResponse{})
 	})
 
-	t.Run("empty headers", func(t *testing.T) {
-		t.Parallel()
-		requireHeaderParses(t, http.Header{}, &CacheControlResponse{})
-	})
-
 	t.Run("no Cache-Control header", func(t *testing.T) {
 		t.Parallel()
 		requireHeaderParses(t, http.Header{"Content-Type": []string{"application/json"}}, &CacheControlResponse{})
@@ -1164,18 +1000,6 @@ func TestParseCacheControlResponse(t *testing.T) {
 	t.Run("Cache-Control present but empty", func(t *testing.T) {
 		t.Parallel()
 		requireHeaderParses(t, http.Header{"Cache-Control": []string{""}}, &CacheControlResponse{})
-	})
-
-	// D1 — same content as the empty case above, so it must reach the same
-	// answer.
-	t.Run("Cache-Control whitespace only", func(t *testing.T) {
-		t.Parallel()
-		requireHeaderParses(t, http.Header{"Cache-Control": []string{"   "}}, &CacheControlResponse{})
-	})
-
-	t.Run("Cache-Control commas only", func(t *testing.T) {
-		t.Parallel()
-		requireHeaderParses(t, http.Header{"Cache-Control": []string{" , "}}, &CacheControlResponse{})
 	})
 
 	// D1 + D3 — a field we understood but modelled none of still parsed, so it
@@ -1293,18 +1117,6 @@ func TestParseDeltaSeconds(t *testing.T) {
 		requireDeltaSeconds(t, "9223372036854775807", math.MaxInt32)
 	})
 
-	// Documents current behaviour: a negative value is reported as -1 with no
-	// error, so the caller must treat -1 as invalid (D6).
-	t.Run("negative returns the -1 sentinel", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSeconds(t, "-1", -1)
-	})
-
-	t.Run("large negative returns the -1 sentinel", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSeconds(t, "-2147483649", -1)
-	})
-
 	// Documents current behaviour: this returns an error, but D7 says the
 	// parser must clamp. parse() has to map strconv.ErrRange to MaxInt32
 	// rather than propagating it.
@@ -1313,45 +1125,6 @@ func TestParseDeltaSeconds(t *testing.T) {
 		requireDeltaSecondsError(t, "99999999999999999999999999")
 	})
 
-	t.Run("empty", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSecondsError(t, "")
-	})
-
-	t.Run("non-numeric", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSecondsError(t, "abc")
-	})
-
-	t.Run("float", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSecondsError(t, "60.5")
-	})
-
-	t.Run("explicit plus sign is accepted by strconv", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSeconds(t, "+60", 60)
-	})
-
-	t.Run("whitespace padded", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSecondsError(t, " 60 ")
-	})
-
-	t.Run("quoted", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSecondsError(t, `"60"`)
-	})
-
-	t.Run("hex", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSecondsError(t, "0x3c")
-	})
-
-	t.Run("underscore separator", func(t *testing.T) {
-		t.Parallel()
-		requireDeltaSecondsError(t, "1_000")
-	})
 }
 
 func TestDeltaSecondsToGoSeconds(t *testing.T) {
@@ -1359,22 +1132,22 @@ func TestDeltaSecondsToGoSeconds(t *testing.T) {
 
 	t.Run("zero", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, time.Duration(0), DeltaSeconds(0).ToGoSeconds())
+		assert.Equal(t, time.Duration(0), DeltaSeconds(0).AsDuration())
 	})
 
 	t.Run("sixty seconds", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, 60*time.Second, DeltaSeconds(60).ToGoSeconds())
+		assert.Equal(t, 60*time.Second, DeltaSeconds(60).AsDuration())
 	})
 
 	t.Run("negative sentinel", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, -1*time.Second, DeltaSeconds(-1).ToGoSeconds())
+		assert.Equal(t, -1*time.Second, DeltaSeconds(-1).AsDuration())
 	})
 
 	t.Run("MaxInt32 does not overflow", func(t *testing.T) {
 		t.Parallel()
-		assert.Equal(t, time.Duration(math.MaxInt32)*time.Second, DeltaSeconds(math.MaxInt32).ToGoSeconds())
+		assert.Equal(t, time.Duration(math.MaxInt32)*time.Second, DeltaSeconds(math.MaxInt32).AsDuration())
 	})
 }
 

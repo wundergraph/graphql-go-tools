@@ -68,16 +68,8 @@ func (f *FieldNames) Fields() iter.Seq[string] {
 	}
 }
 
-func (f *FieldNames) HasFields() bool {
-	if f == nil || f.noFields {
-		return false
-	}
-
-	return len(f.fields) > 0
-}
-
 func (f *FieldNames) has(name string) bool {
-	if f == nil {
+	if f == nil || f.noFields {
 		return false
 	}
 
@@ -126,8 +118,8 @@ func parseDeltaSeconds(s string) (DeltaSeconds, error) {
 	return DeltaSeconds(int32(num)), nil
 }
 
-// ToGoSeconds converts a DeltaSeconds to a time.Duration.
-func (d DeltaSeconds) ToGoSeconds() time.Duration {
+// AsDuration converts a DeltaSeconds to a time.Duration.
+func (d DeltaSeconds) AsDuration() time.Duration {
 	return time.Duration(d) * time.Second
 }
 
