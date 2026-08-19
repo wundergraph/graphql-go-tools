@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -8,6 +9,184 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
+
+func multiEntityTestNode() *FetchTreeNode {
+	return &FetchTreeNode{
+		Kind: FetchTreeNodeKindSingle,
+		Item: &FetchItem{
+			Fetch: &MultiEntityFetch{
+				FetchDependencies: FetchDependencies{
+					FetchID:           1,
+					DependsOnFetchIDs: []int{0},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "products-id",
+					DataSourceName: "products",
+					QueryPlan: &QueryPlan{
+						Query: "query {...}",
+						// The merged representations are the concatenation of all entries'.
+						DependsOnFields: []Representation{
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Product",
+								Fragment: "... on Product {\n    __typename\n    upc\n}",
+							},
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Employee",
+								Fragment: "... on Employee {\n    __typename\n    id\n}",
+							},
+						},
+					},
+					CoordinateDependencies: []FetchDependency{
+						{
+							Coordinate:      GraphCoordinate{TypeName: "Product", FieldName: "name"},
+							IsUserRequested: true,
+							DependsOn: []FetchDependencyOrigin{
+								{
+									FetchID:    0,
+									Subgraph:   "products",
+									Coordinate: GraphCoordinate{TypeName: "Product", FieldName: "upc"},
+									IsKey:      true,
+								},
+							},
+						},
+					},
+				},
+				MergedFetchIDs: []int{1, 2},
+				Input: MultiEntityInput{
+					Entries: []MultiEntityFetchEntry{
+						{
+							Alias: "f1",
+							Item:  &FetchItem{ResponsePath: "employees.products"},
+							Info: &FetchInfo{
+								QueryPlan: &QueryPlan{
+									DependsOnFields: []Representation{
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Product",
+											Fragment: "... on Product {\n    __typename\n    upc\n}",
+										},
+									},
+								},
+							},
+						},
+						{
+							Alias: "f2",
+							Item:  &FetchItem{ResponsePath: "employee"},
+							Info: &FetchInfo{
+								QueryPlan: &QueryPlan{
+									DependsOnFields: []Representation{
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Employee",
+											Fragment: "... on Employee {\n    __typename\n    id\n}",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestFetchTreeNode_Trace_MultiEntity(t *testing.T) {
+	node := multiEntityTestNode()
+	data, err := json.Marshal(node.Trace())
+	assert.NoError(t, err)
+
+	// Full-document equality: every populated field of the trace node.
+	expected := `{
+		"kind": "Single",
+		"fetch": {
+			"kind": "MultiEntity",
+			"path": "",
+			"source_id": "products-id",
+			"source_name": "products",
+			"entries": [
+				{"alias": "f1", "path": "employees.products"},
+				{"alias": "f2", "path": "employee"}
+			]
+		}
+	}`
+	assert.JSONEq(t, expected, string(data))
+}
+
+func TestFetchTreeNode_QueryPlan_MultiEntity(t *testing.T) {
+	node := multiEntityTestNode()
+	data, err := json.Marshal(node.QueryPlan())
+	assert.NoError(t, err)
+
+	// Full-document equality: every populated field of the query-plan node.
+	expected := `{
+		"version": "1",
+		"kind": "Single",
+		"fetch": {
+			"kind": "MultiEntity",
+			"subgraphName": "products",
+			"subgraphId": "products-id",
+			"fetchId": 1,
+			"dependsOnFetchIds": [0],
+			"representations": [
+				{
+					"kind": "@key",
+					"typeName": "Product",
+					"fragment": "... on Product {\n    __typename\n    upc\n}"
+				},
+				{
+					"kind": "@key",
+					"typeName": "Employee",
+					"fragment": "... on Employee {\n    __typename\n    id\n}"
+				}
+			],
+			"query": "query {...}",
+			"dependencies": [
+				{
+					"coordinate": {"typeName": "Product", "fieldName": "name"},
+					"isUserRequested": true,
+					"dependsOn": [
+						{
+							"fetchId": 0,
+							"subgraph": "products",
+							"coordinate": {"typeName": "Product", "fieldName": "upc"},
+							"isKey": true,
+							"isRequires": false
+						}
+					]
+				}
+			],
+			"mergedFetchIds": [1, 2],
+			"entries": [
+				{
+					"alias": "f1",
+					"path": "employees.products",
+					"representations": [
+						{
+							"kind": "@key",
+							"typeName": "Product",
+							"fragment": "... on Product {\n    __typename\n    upc\n}"
+						}
+					]
+				},
+				{
+					"alias": "f2",
+					"path": "employee",
+					"representations": [
+						{
+							"kind": "@key",
+							"typeName": "Employee",
+							"fragment": "... on Employee {\n    __typename\n    id\n}"
+						}
+					]
+				}
+			]
+		}
+	}`
+	assert.JSONEq(t, expected, string(data))
+}
 
 func TestFetchTreeQueryPlanNode_PrettyPrint_Trigger(t *testing.T) {
 	t.Run("just a trigger", func(t *testing.T) {
@@ -140,4 +319,154 @@ QueryPlan {
 
 		assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 	})
+}
+
+func TestFetchTreeQueryPlanNode_PrettyPrint_MultiEntity(t *testing.T) {
+	fetches := Sequence()
+	fetches.ChildNodes = []*FetchTreeNode{{
+		Kind: FetchTreeNodeKindSingle,
+		Item: &FetchItem{
+			Fetch: &MultiEntityFetch{
+				FetchDependencies: FetchDependencies{
+					FetchID:           1,
+					DependsOnFetchIDs: []int{0},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "products-id",
+					DataSourceName: "products",
+					QueryPlan: &QueryPlan{
+						Query: `query($representations_f1: [_Any!]!, $representations_f2: [_Any!]!, $includeF1: Boolean!, $includeF2: Boolean!){
+    f1: _entities(representations: $representations_f1) @include(if: $includeF1){
+        ... on Product {
+            __typename
+            name
+        }
+    }
+    f2: _entities(representations: $representations_f2) @include(if: $includeF2){
+        ... on Employee {
+            __typename
+            details {
+                surname
+            }
+        }
+    }
+}`,
+						// The merged representations of all entries: indistinguishable on their own,
+						// which is why the printer attributes them per entry instead.
+						DependsOnFields: []Representation{
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Product",
+								Fragment: "... on Product {\n    __typename\n    upc\n}",
+							},
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Employee",
+								Fragment: "... on Employee {\n    __typename\n    id\n}",
+							},
+							{
+								Kind:     RepresentationKindKey,
+								TypeName: "Consultant",
+								Fragment: "... on Consultant {\n    __typename\n    id\n}",
+							},
+							{
+								Kind:     RepresentationKindRequires,
+								TypeName: "Employee",
+								Fragment: "... on Employee {\n    __typename\n    startDate\n}",
+							},
+						},
+					},
+				},
+				MergedFetchIDs: []int{1, 2},
+				Input: MultiEntityInput{
+					Entries: []MultiEntityFetchEntry{
+						{
+							Alias: "f1",
+							Item:  &FetchItem{ResponsePath: "employees.products"},
+							Info: &FetchInfo{
+								QueryPlan: &QueryPlan{
+									DependsOnFields: []Representation{
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Product",
+											Fragment: "... on Product {\n    __typename\n    upc\n}",
+										},
+									},
+								},
+							},
+						},
+						{
+							Alias: "f2",
+							Item:  &FetchItem{ResponsePath: "employee"},
+							Info: &FetchInfo{
+								QueryPlan: &QueryPlan{
+									DependsOnFields: []Representation{
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Employee",
+											Fragment: "... on Employee {\n    __typename\n    id\n}",
+										},
+										{
+											Kind:     RepresentationKindKey,
+											TypeName: "Consultant",
+											Fragment: "... on Consultant {\n    __typename\n    id\n}",
+										},
+										{
+											Kind:     RepresentationKindRequires,
+											TypeName: "Employee",
+											Fragment: "... on Employee {\n    __typename\n    startDate\n}",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}}
+
+	queryPlan := fetches.QueryPlan()
+	actual := queryPlan.PrettyPrint()
+
+	expected := `
+QueryPlan {
+  Fetch(service: "products") {
+    fragment f1_Key on Product {
+        __typename
+        upc
+    }
+    fragment f2_Key on Employee {
+        __typename
+        id
+    }
+    fragment f2_Key2 on Consultant {
+        __typename
+        id
+    }
+    fragment f2_Requires on Employee {
+        __typename
+        startDate
+    }
+    =>
+    {
+        f1: _entities(representations: $representations_f1) @include(if: $includeF1){
+            ... on Product {
+                __typename
+                name
+            }
+        }
+        f2: _entities(representations: $representations_f2) @include(if: $includeF2){
+            ... on Employee {
+                __typename
+                details {
+                    surname
+                }
+            }
+        }
+    }
+  }
+}`
+
+	assert.Equal(t, strings.TrimSpace(expected), strings.TrimSpace(actual))
 }

@@ -30,19 +30,32 @@ func (d *deduplicateSingleFetches) ProcessFetchTree(root *resolve.FetchTreeNode)
 
 				// when we merge duplicated fetches, we need to update the dependencies of the other fetches
 				// because they might depend on the fetch that we are removing
-				d.replaceDependsOnFetchId(root, oldId, newId)
+				replaceDependsOnFetchID(root, oldId, newId)
 			}
 		}
 	}
 }
 
-// replaceDependsOnFetchId replaces all occurrences of oldId with newId in the dependencies of the fetch tree.
-func (d *deduplicateSingleFetches) replaceDependsOnFetchId(root *resolve.FetchTreeNode, oldId, newId int) {
+// replaceDependsOnFetchID replaces all occurrences of oldId with newId in the
+// dependencies of the fetch tree. It walks the organized tree (Sequence and
+// Parallel nesting), not just the flat root children: createMultiFetch now runs
+// after organizeFetchTree, so dependents that must be rewired may live inside a
+// nested Sequence/Parallel node. On a flat tree (the dedupe caller) this reduces
+// to iterating the root's Single children exactly as before.
+func replaceDependsOnFetchID(root *resolve.FetchTreeNode, oldId, newId int) {
 	for i := range root.ChildNodes {
+		node := root.ChildNodes[i]
+		switch node.Kind {
+		case resolve.FetchTreeNodeKindSequence, resolve.FetchTreeNodeKindParallel:
+			replaceDependsOnFetchID(node, oldId, newId)
+			continue
+		}
+
 		replaced := false
-		for j := range root.ChildNodes[i].Item.Fetch.Dependencies().DependsOnFetchIDs {
-			if root.ChildNodes[i].Item.Fetch.Dependencies().DependsOnFetchIDs[j] == oldId {
-				root.ChildNodes[i].Item.Fetch.Dependencies().DependsOnFetchIDs[j] = newId
+		deps := node.Item.Fetch.Dependencies().DependsOnFetchIDs
+		for j := range deps {
+			if deps[j] == oldId {
+				deps[j] = newId
 				replaced = true
 			}
 		}
@@ -51,7 +64,7 @@ func (d *deduplicateSingleFetches) replaceDependsOnFetchId(root *resolve.FetchTr
 			continue
 		}
 
-		info := root.ChildNodes[i].Item.Fetch.FetchInfo()
+		info := node.Item.Fetch.FetchInfo()
 		if info == nil {
 			continue
 		}

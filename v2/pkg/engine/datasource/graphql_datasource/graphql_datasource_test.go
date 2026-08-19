@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"runtime"
 	"strconv"
 	"sync"
@@ -17,15 +18,24 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jensneuse/abstractlogger"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/sjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
+	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/subscriptiontesting"
 )
 
@@ -10841,3 +10851,470 @@ const petSchema = `
 		pets: [Pet!]!
 	}
 `
+
+// planSubgraphOperationTest normalizes, validates and plans an operation
+// without postprocessing, returning the synchronous response plan so its
+// RawFetches can be inspected for SubgraphOperation artifacts.
+func planSubgraphOperationTest(t *testing.T, definition, operation, operationName string, config plan.Configuration) *plan.SynchronousResponsePlan {
+	t.Helper()
+
+	def := unsafeparser.ParseGraphqlDocumentString(definition)
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
+
+	require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
+
+	norm := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveUnusedVariables(),
+	)
+	var report operationreport.Report
+	norm.NormalizeOperation(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	astvalidation.DefaultOperationValidator().Validate(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	p, err := plan.NewPlanner(config)
+	require.NoError(t, err)
+
+	actualPlan := p.Plan(&op, &def, operationName, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	syncPlan, ok := actualPlan.(*plan.SynchronousResponsePlan)
+	require.True(t, ok)
+	return syncPlan
+}
+
+func TestConfigureFetch_SubgraphOperation(t *testing.T) {
+	definition := `
+		type Query {
+			obj: Object
+		}
+		type Object {
+			id: ID!
+			name(x: String): String!
+			field: String!
+		}`
+
+	sub1 := `
+		type Query {
+			obj: Object
+		}
+		type Object @key(fields: "id") {
+			id: ID!
+			field: String!
+		}`
+
+	sub2 := `
+		type Object @key(fields: "id") {
+			id: ID!
+			name(x: String): String!
+		}`
+
+	// newConfig builds the two-subgraph configuration every scenario plans against.
+	// entityHeader is the header configured on the entity subgraph (sub2) so a
+	// scenario can exercise envelope header population. All datasources are created
+	// through the returned recordingPlannerFactory, which keeps a handle on the
+	// planner instances — the only route to planner-internal state after planning.
+	newConfig := func(enableMultiFetch bool, entityHeader http.Header) (plan.Configuration, *recordingPlannerFactory) {
+		factory := &recordingPlannerFactory{Factory: &Factory[Configuration]{}}
+
+		rootDS, err := plan.NewDataSourceConfiguration[Configuration](
+			"ds-id",
+			factory,
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Query", FieldNames: []string{"obj"}},
+					{TypeName: "Object", FieldNames: []string{"id", "field"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: []plan.FederationFieldConfiguration{
+						{TypeName: "Object", SelectionSet: "id"},
+					},
+				},
+			},
+			mustCustomConfiguration(t, ConfigurationInput{
+				Fetch:               &FetchConfiguration{URL: "https://example.com/graphql"},
+				SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: sub1}, sub1),
+			}),
+		)
+		require.NoError(t, err)
+
+		entityDS, err := plan.NewDataSourceConfiguration[Configuration](
+			"ds-id-2",
+			factory,
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{TypeName: "Object", FieldNames: []string{"id", "name"}},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: []plan.FederationFieldConfiguration{
+						{TypeName: "Object", SelectionSet: "id"},
+					},
+				},
+			},
+			mustCustomConfiguration(t, ConfigurationInput{
+				Fetch:               &FetchConfiguration{URL: "https://example-2.com/graphql", Header: entityHeader},
+				SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: sub2}, sub2),
+			}),
+		)
+		require.NoError(t, err)
+
+		return plan.Configuration{
+			DataSources:                  []plan.DataSource{rootDS, entityDS},
+			DisableResolveFieldPositions: true,
+			Fields: plan.FieldConfigurations{
+				{
+					TypeName:  "Object",
+					FieldName: "name",
+					Arguments: plan.ArgumentsConfigurations{
+						{Name: "x", SourceType: plan.FieldArgumentSource},
+					},
+				},
+			},
+			EnableMultiFetch: enableMultiFetch,
+		}, factory
+	}
+
+	// The client operation is the same in every scenario: Object.field resolves on
+	// sub1 (root fetch), Object.name on sub2 (entity fetch).
+	const operation = `query { obj { field name } }`
+
+	// The whole upstream request inputs, one per fetch. These are the only content
+	// assertions in this test: the recorded body.variables, the printed upstream
+	// operation and the request envelope (method, url, header) are all visible in
+	// them, and the deferred (recording-on) and eager (recording-off) code paths
+	// must both produce these exact bytes.
+	const (
+		rootFetchInput             = `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{obj {field __typename id}}"}}`
+		entityFetchInput           = `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Object {__typename name}}}","variables":{"representations":[$$0$$]}}}`
+		entityFetchInputWithHeader = `{"method":"POST","url":"https://example-2.com/graphql","header":{"Authorization":["secret"]},"body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Object {__typename name}}}","variables":{"representations":[$$0$$]}}}`
+	)
+
+	// fetches returns the plan's single root fetch and single entity fetch.
+	fetches := func(t *testing.T, syncPlan *plan.SynchronousResponsePlan) (root, entity *resolve.SingleFetch) {
+		t.Helper()
+		for _, item := range syncPlan.Response.RawFetches {
+			sf, ok := item.Fetch.(*resolve.SingleFetch)
+			require.True(t, ok)
+			if sf.RequiresEntityFetch || sf.RequiresEntityBatchFetch {
+				entity = sf
+			} else {
+				root = sf
+			}
+		}
+		require.NotNil(t, root, "root fetch")
+		require.NotNil(t, entity, "entity fetch")
+		return root, entity
+	}
+
+	// renderDeferredInput reproduces what the postprocess renderSubgraphInputs
+	// stage does with a deferred artifact: replay the recorded body.variables writes
+	// in order, take the print-once upstream query, and assemble the envelope with
+	// the same httpclient helper the planner uses when it assembles eagerly. The
+	// stage itself cannot be driven from here (renderSubgraphInputs is unexported,
+	// and postprocess.Processor.Process runs the whole pipeline, which would rewrite
+	// the input into templates), so its three steps are mirrored.
+	renderDeferredInput := func(t *testing.T, op *resolve.SubgraphOperation) string {
+		t.Helper()
+		var variables []byte
+		for _, v := range op.Variables {
+			var err error
+			variables, err = sjson.SetRawBytes(variables, v.Name, v.Value)
+			require.NoError(t, err)
+		}
+		query, err := op.PrintedQuery()
+		require.NoError(t, err)
+		input := httpclient.AssembleGraphQLRequestInput(variables, query, op.Envelope.Header, op.Envelope.URL, op.Envelope.Method)
+		return string(input)
+	}
+
+	t.Run("recording on: entity input deferred, root input eager", func(t *testing.T) {
+		config, _ := newConfig(true, nil)
+		root, entity := fetches(t, planSubgraphOperationTest(t, definition, operation, "", config))
+
+		// The entity fetch defers input assembly: the planner leaves Input empty and
+		// hands the structured artifact to postprocess instead.
+		assert.Equal(t, "", entity.Input, "deferred entity fetch leaves Input empty")
+		require.NotNil(t, entity.SubgraphOperation)
+		assert.Equal(t, entityFetchInput, renderDeferredInput(t, entity.SubgraphOperation))
+
+		// The root fetch is not an entity fetch, so it is never recorded and never
+		// deferred, even with recording on.
+		assert.Nil(t, root.SubgraphOperation)
+		assert.Equal(t, rootFetchInput, root.Input)
+	})
+
+	t.Run("recording off: both inputs eager, no artifacts", func(t *testing.T) {
+		config, _ := newConfig(false, nil)
+		root, entity := fetches(t, planSubgraphOperationTest(t, definition, operation, "", config))
+
+		assert.Nil(t, root.SubgraphOperation)
+		assert.Nil(t, entity.SubgraphOperation)
+
+		// The same two strings as the recording-on scenario: deferring input assembly
+		// to postprocess is byte-identical to assembling it in the planner.
+		assert.Equal(t, rootFetchInput, root.Input)
+		assert.Equal(t, entityFetchInput, entity.Input)
+	})
+
+	t.Run("envelope carries the configured subgraph header", func(t *testing.T) {
+		header := http.Header{"Authorization": []string{"secret"}}
+
+		onConfig, _ := newConfig(true, header)
+		_, onEntity := fetches(t, planSubgraphOperationTest(t, definition, operation, "", onConfig))
+		require.NotNil(t, onEntity.SubgraphOperation)
+		assert.Equal(t, entityFetchInputWithHeader, renderDeferredInput(t, onEntity.SubgraphOperation))
+
+		offConfig, _ := newConfig(false, header)
+		_, offEntity := fetches(t, planSubgraphOperationTest(t, definition, operation, "", offConfig))
+		assert.Equal(t, entityFetchInputWithHeader, offEntity.Input)
+	})
+
+	t.Run("document ownership transfers from planner to artifact", func(t *testing.T) {
+		// Not expressible in the rendered input: after storing its upstream AST on
+		// the artifact the planner drops its own reference, so the plan is the sole
+		// owner of the document.
+		config, factory := newConfig(true, nil)
+		_, entity := fetches(t, planSubgraphOperationTest(t, definition, operation, "", config))
+
+		require.NotNil(t, entity.SubgraphOperation)
+		require.NotNil(t, entity.SubgraphOperation.Document, "artifact owns the upstream AST")
+
+		var handedOver bool
+		for _, p := range factory.planners {
+			if p.upstreamOperation == nil {
+				handedOver = true
+				continue
+			}
+			assert.NotSame(t, entity.SubgraphOperation.Document, p.upstreamOperation,
+				"a planner still referencing the artifact document means ownership was not transferred")
+		}
+		assert.True(t, handedOver, "the entity-fetch planner nils upstreamOperation after handing it over")
+	})
+
+	t.Run("gRPC datasources are excluded from recording", func(t *testing.T) {
+		// The exclusion is decided in EnterDocument: recording requires MultiFetch to
+		// be enabled AND the datasource to have no gRPC configuration, so gRPC
+		// fetches never reach the deferred-input path.
+		withMultiFetch := func(grpc *grpcdatasource.GRPCConfiguration) *Planner[Configuration] {
+			p := &Planner[Configuration]{config: Configuration{grpc: grpc}}
+			p.dataSourcePlannerConfig.Options.EnableMultiFetch = true
+			return p
+		}
+
+		httpPlanner := withMultiFetch(nil)
+		httpPlanner.EnterDocument(nil, nil)
+		assert.True(t, httpPlanner.recordUpstreamVariables)
+
+		grpcPlanner := withMultiFetch(&grpcdatasource.GRPCConfiguration{})
+		grpcPlanner.EnterDocument(nil, nil)
+		assert.False(t, grpcPlanner.recordUpstreamVariables)
+	})
+
+	t.Run("recording off leaves the recorded variable list untouched", func(t *testing.T) {
+		p := &Planner[Configuration]{recordUpstreamVariables: false}
+		_, err := p.setUpstreamVariable(nil, "representations", []byte("[$$0$$]"))
+		require.NoError(t, err)
+		require.Nil(t, p.upstreamVariablesList)
+	})
+}
+
+// recordingPlannerFactory hands out the real graphql datasource planners while
+// keeping a reference to each one, so a test can inspect planner-internal state
+// after planning has finished. There is no other route to a planner instance:
+// plan.Planner creates them through the Factory and never exposes them.
+type recordingPlannerFactory struct {
+	*Factory[Configuration]
+
+	planners []*Planner[Configuration]
+}
+
+func (f *recordingPlannerFactory) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[Configuration] {
+	p := f.Factory.Planner(logger).(*Planner[Configuration])
+	f.planners = append(f.planners, p)
+	return p
+}
+
+// TestGraphQLDataSource_RepresentationsCollision covers the pre-existing planner
+// defect: a client operation that declares AND uses a variable
+// literally named $representations previously made the entity-fetch planner emit
+// two $representations definitions (the synthetic one plus the client's), which
+// clobbered on the shared body.variables slot and failed upstream validation.
+// The fix renames the synthetic variable to $_representations; the client's
+// variable keeps its name. This applies to ALL entity fetches (MultiFetch off).
+func TestGraphQLDataSource_RepresentationsCollision(t *testing.T) {
+	definition := `
+		type Query {
+			obj: Object
+			objs: [Object]
+		}
+		type Object {
+			id: ID!
+			name(x: String): String!
+			field: String!
+		}`
+
+	sub1 := `
+		type Query {
+			obj: Object
+			objs: [Object]
+		}
+		type Object @key(fields: "id") {
+			id: ID!
+			field: String!
+		}`
+
+	sub2 := `
+		type Object @key(fields: "id") {
+			id: ID!
+			name(x: String): String!
+		}`
+
+	config := plan.Configuration{
+		DataSources: []plan.DataSource{
+			mustDataSourceConfiguration(
+				t,
+				"ds-id",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"obj", "objs"}},
+						{TypeName: "Object", FieldNames: []string{"id", "field"}},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{TypeName: "Object", SelectionSet: "id"},
+						},
+					},
+				},
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch:               &FetchConfiguration{URL: "https://example.com/graphql"},
+					SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: sub1}, sub1),
+				}),
+			),
+			mustDataSourceConfiguration(
+				t,
+				"ds-id-2",
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Object", FieldNames: []string{"id", "name"}},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: []plan.FederationFieldConfiguration{
+							{TypeName: "Object", SelectionSet: "id"},
+						},
+					},
+				},
+				mustCustomConfiguration(t, ConfigurationInput{
+					Fetch:               &FetchConfiguration{URL: "https://example-2.com/graphql"},
+					SchemaConfiguration: mustSchema(t, &FederationConfiguration{Enabled: true, ServiceSDL: sub2}, sub2),
+				}),
+			),
+		},
+		DisableResolveFieldPositions: true,
+		Fields: plan.FieldConfigurations{
+			{
+				TypeName:  "Object",
+				FieldName: "name",
+				Arguments: plan.ArgumentsConfigurations{
+					{Name: "x", SourceType: plan.FieldArgumentSource},
+				},
+			},
+		},
+	}
+
+	entityFetchInput := func(t *testing.T, operation string) string {
+		t.Helper()
+		syncPlan := planSubgraphOperationTest(t, definition, operation, "", config)
+		for _, item := range syncPlan.Response.RawFetches {
+			sf, ok := item.Fetch.(*resolve.SingleFetch)
+			require.True(t, ok)
+			if sf.RequiresEntityFetch || sf.RequiresEntityBatchFetch {
+				return sf.Input
+			}
+		}
+		t.Fatal("no entity fetch found in plan")
+		return ""
+	}
+
+	// The synthetic is renamed to $_representations and binds the _entities
+	// argument (whose name stays "representations"); the client's $representations
+	// keeps its name and continues to feed the name(x:) argument. Both variables
+	// appear in body.variables with no clobbering. The single- and batch-entity
+	// shapes print the identical upstream operation; they differ only in the
+	// representations-variable rendering (single object vs array), which is not
+	// part of the printed input string.
+	const expectedInput = `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($_representations: [_Any!]!, $representations: String){_entities(representations: $_representations){... on Object {__typename name(x: $representations)}}}","variables":{"_representations":[$$1$$],"representations":$$0$$}}}`
+
+	t.Run("RequiresEntityFetch", func(t *testing.T) {
+		input := entityFetchInput(t, `query($representations: String){ obj { field name(x: $representations) } }`)
+		assert.Equal(t, expectedInput, input)
+	})
+
+	t.Run("RequiresEntityBatchFetch", func(t *testing.T) {
+		input := entityFetchInput(t, `query($representations: String){ objs { field name(x: $representations) } }`)
+		assert.Equal(t, expectedInput, input)
+	})
+}
+
+// TestGraphQLDataSourceFederation_MultiFetch_OperationNameSuffixByteIdentical
+// asserts that with EnableOperationNamePropagation on, a MultiFetch
+// flag-on plan (planner defers the input; renderSubgraphInputs reconstructs it
+// and applies the operation-name suffix) must render byte-identically to the
+// flag-off plan (planner assembles the input; fetchIDAppender applies the
+// suffix). A single, non-merging entity fetch exercises the survivor render
+// path under the flag.
+func TestGraphQLDataSourceFederation_MultiFetch_OperationNameSuffixByteIdentical(t *testing.T) {
+	definition := multiFetchDefinition()
+	operation := `query MyOp { employee { products } }`
+
+	buildPlan := func(enableMultiFetch bool) plan.Plan {
+		config := multiFetchPlanConfig(t, enableMultiFetch)
+		config.EnableOperationNamePropagation = true
+		config.DisableIncludeInfo = true
+		config.DisableIncludeFieldDependencies = true
+		config.DisableCalculateFieldDependencies = true
+
+		def := unsafeparser.ParseGraphqlDocumentString(definition)
+		op := unsafeparser.ParseGraphqlDocumentString(operation)
+		require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
+		norm := astnormalization.NewWithOpts(
+			astnormalization.WithExtractVariables(),
+			astnormalization.WithInlineFragmentSpreads(),
+			astnormalization.WithRemoveFragmentDefinitions(),
+			astnormalization.WithRemoveUnusedVariables(),
+		)
+		var report operationreport.Report
+		norm.NormalizeOperation(&op, &def, &report)
+		astvalidation.DefaultOperationValidator().Validate(&op, &def, &report)
+
+		planner, err := plan.NewPlanner(config)
+		require.NoError(t, err)
+		result := planner.Plan(&op, &def, "MyOp", &report)
+		require.False(t, report.HasErrors(), report.Error())
+
+		var processor *postprocess.Processor
+		if enableMultiFetch {
+			processor = postprocess.NewProcessor(postprocess.EnableMultiFetch())
+		} else {
+			processor = postprocess.NewProcessor()
+		}
+		processor.Process(result)
+		return result
+	}
+
+	prettyCfg := &pretty.Config{
+		Diffable:          true,
+		IncludeUnexported: false,
+		Formatter: map[reflect.Type]any{
+			reflect.TypeFor[[]byte](): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+		},
+	}
+	off := prettyCfg.Sprint(buildPlan(false))
+	on := prettyCfg.Sprint(buildPlan(true))
+	// Sanity: the suffixed, propagated operation name must actually be present.
+	require.Contains(t, off, "MyOp__products__")
+	assert.Equal(t, off, on)
+}

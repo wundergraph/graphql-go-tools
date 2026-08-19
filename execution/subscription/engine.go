@@ -6,7 +6,6 @@ package subscription
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -25,7 +24,7 @@ func (e *errOnBeforeStartHookFailure) Unwrap() error {
 }
 
 func (e *errOnBeforeStartHookFailure) Error() string {
-	return fmt.Sprintf("on before start hook failed: %s", e.wrappedErr.Error())
+	return "on before start hook failed: " + e.wrappedErr.Error()
 }
 
 // Engine defines the function for a subscription engine.

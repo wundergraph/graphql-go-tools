@@ -1277,7 +1277,7 @@ func (p *Parser) parseDirectiveLocations(locations *ast.DirectiveLocations) {
 				err := locations.SetFromRaw(raw)
 				if err != nil {
 					p.report.AddExternalError(operationreport.ExternalError{
-						Message: fmt.Sprintf("invalid directive location: %s", unsafebytes.BytesToString(raw)),
+						Message: "invalid directive location: " + unsafebytes.BytesToString(raw),
 						Locations: []operationreport.Location{
 							{
 								Line:   ident.TextPosition.LineStart,
