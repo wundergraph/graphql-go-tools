@@ -37,6 +37,9 @@ func TTL(headers http.Header, defaultTTL time.Duration) (time.Duration, bool) {
 	}
 
 	if cc.Public {
+		if defaultTTL <= 0 {
+			return 0, false
+		}
 		return defaultTTL, true
 	}
 
