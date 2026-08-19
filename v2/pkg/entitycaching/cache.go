@@ -30,18 +30,23 @@ type Item struct {
 type Cache interface {
 	// GetMany looks up every key and returns the ones it found, keyed by the
 	// key they were asked for. A miss is simply absent, never an error and
-	// never a zero Item
+	// never a zero Item.
 	GetMany(ctx context.Context, keys []string) (map[string]Item, error)
 
 	// SetMany stores every item, all of which must carry a positive TTL. When
 	// items contains the same key twice, the last one wins. An error means an
 	// unspecified subset of the items may already have been stored.
 	// In case any of the passed ttls are invalid, SetMany should return
-	// without saving any items that may have valid ttl values
+	// without saving any items that may have valid ttl values.
 	SetMany(ctx context.Context, items []Item) error
 }
 
 var ErrMissingTTL = errors.New("cache item requires a positive TTL")
+
+var (
+	ErrNoKeys  = errors.New("entity cache lookup requires at least one key")
+	ErrNoItems = errors.New("entity cache write requires at least one item")
+)
 
 type SetManyError struct {
 	// This depicts the known stored keys in a case of a partial write
