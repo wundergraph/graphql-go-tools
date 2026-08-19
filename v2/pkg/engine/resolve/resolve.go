@@ -559,7 +559,10 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 	// The DataBuffer wraps the base tree produced by Init. The loader and every
 	// defer group merge into it.
 	db := &DataBuffer{data: resolvable.data}
+	responseExtensions := &responseExtensionAccumulator{}
 	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
+	loader.setResponseExtensionAccumulator(responseExtensions)
+	resolvable.configureDeferExecution(response, responseExtensions)
 
 	if !ctx.ExecutionOptions.SkipLoader {
 		// Pre-fetch field authorization: seed the batch decisions before the initial fetch, so denied
@@ -583,12 +586,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		// Inject loader output before the initial defer render.
 		resolvable.data = loader.dataBuffer.Get()
 		resolvable.errors = loader.errors
-		resolvable.subgraphExtensions = loader.subgraphExtensions
 		resolvable.skipValueCompletion = loader.skipValueCompletion
-
-		resolvable.deferMode = true
-		resolvable.currentDefer = nil
-		resolvable.deferDescriptors = response.DeferDescriptors
 
 		// render initial response
 		err = resolvable.Resolve(ctx.ctx, response.Response.Data, response.Response.Fetches, writer)
@@ -617,8 +615,8 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		// anchor null-propagated is pruned away here. Nested defers are announced
 		// lazily as their parent is released (see ResolveDeferBatch).
 		if response.DeferTree != nil {
-			liveTop := resolvable.liveChildDescriptors(0)
-			liveTree := pruneDeadDefers(response.DeferTree, liveTop)
+			liveTop := resolvable.initialLiveDefers
+			liveTree := resolvable.liveDeferTree
 			if liveTree != nil {
 				// outstanding tracks announced-but-not-completed defers: it starts at
 				// the top-level live count and is adjusted per frame as parents
@@ -669,6 +667,10 @@ type deferContext struct {
 // DataBuffer; the render phase is serialised by db.Lock(). Network I/O via
 // ResolveFetchNode runs before the lock, allowing sibling defer fetches to overlap.
 func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *DeferFetchGroup, outstanding *int64) (map[int]DeferDescriptor, error) {
+	if dc.resolvable.deferTraceTree != nil && !dc.resolvable.deferTraceTree.MarkRunning(group.DeferID) {
+		return nil, fmt.Errorf("defer trace invariant: defer %d did not transition from planned", group.DeferID)
+	}
+
 	// FETCH PHASE — runs outside the DataBuffer lock.
 	// Each goroutine gets its OWN Loader but they all share one arena (dc.arena).
 	// That is safe even though groups run concurrently: a Loader allocates from
@@ -676,6 +678,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	// dc.db.Lock(), and the off-lock network phase allocates nothing from it. The
 	// lock therefore serialises every arena allocation across all groups.
 	groupLoader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, dc.arena, dc.db, nil)
+	groupLoader.setResponseExtensionAccumulator(dc.resolvable.responseExtensions)
 	groupLoader.Init(ctx, dc.info) // fresh taintedObjs; errors=nil
 
 	if fetchErr := groupLoader.ResolveFetchNode(group.Fetches); fetchErr != nil {
@@ -700,16 +703,12 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	// Inject group-local state into Resolvable for this render.
 	dc.resolvable.data = dc.db.Get()
 	dc.resolvable.errors = groupLoader.errors
-	dc.resolvable.subgraphExtensions = groupLoader.subgraphExtensions
 	groupLoader.appendSubgraphErrorsToContext()
 
-	// TODO: skipValueCompletion is set inside mergeResult when a fetch response
-	// has errors but no data and apolloCompatibilityValueCompletionInExtensions
-	// is enabled. Within a single group's fetch tree, resolveParallel spawns
-	// concurrent sub-fetches that share this group's Loader — if one sub-fetch
-	// sets skipValueCompletion=true it contaminates the others in that group.
-	// This is a pre-existing issue to be addressed separately.
-	dc.resolvable.skipValueCompletion = groupLoader.skipValueCompletion
+	// Suppression is request-wide and sticky: once any initial or deferred fetch
+	// returns errors without data, terminal rendering must not manufacture value-
+	// completion errors for the same request.
+	dc.resolvable.skipValueCompletion = dc.resolvable.responseExtensions.valueCompletionSuppressed()
 
 	descriptor := dc.resolvable.deferDescriptors[group.DeferID]
 	dc.resolvable.currentDefer = &descriptor
@@ -743,7 +742,12 @@ func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferT
 			return err
 		}
 		for _, child := range node.ChildNodes[1:] {
-			pruned := pruneDeadDefers(child, liveChildren)
+			var pruned *DeferTreeNode
+			if dc.resolvable.deferTraceTree != nil {
+				pruned = dc.resolvable.deferTraceTree.PruneDeadDefers(child, liveChildren)
+			} else {
+				pruned = pruneDeadDefers(child, liveChildren)
+			}
 			if pruned == nil {
 				continue
 			}
@@ -755,10 +759,11 @@ func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferT
 
 	case DeferTreeNodeKindParallel:
 		// Plain errgroup.Group (NOT errgroup.WithContext): a failed defer group
-		// must not cancel its siblings, so we never let errgroup's error-driven
-		// cancellation fire. errgroup is used only to spawn + wait + collect one
-		// error. The client context (ctx.ctx) still cancels every in-flight fetch
-		// on disconnect.
+		// must not cancel its siblings, so an error is collected without deriving
+		// a cancellation context. Ordinary subgraph errors are rendered inside
+		// resolveDeferSingle and return nil; infrastructure, writer, and invariant
+		// errors propagate after every sibling has joined. The client context still
+		// cancels every in-flight fetch on disconnect.
 		var g errgroup.Group
 		for _, child := range node.ChildNodes {
 			g.Go(func() error {
@@ -767,15 +772,7 @@ func (r *Resolver) resolveDeferTree(dc *deferContext, ctx *Context, node *DeferT
 				// dc.db.Lock() (appendSubgraphErrorsToContext and render-time
 				// addRejectFieldError), so no per-goroutine clone is needed and
 				// group subgraph errors aggregate into Context.SubgraphErrors().
-				err := r.resolveDeferTree(dc, ctx, child, outstanding)
-				// Surface the error only if the client context was cancelled
-				// (disconnect). Ordinary defer-level subgraph errors are rendered
-				// into the group's incremental frame, not propagated, so they
-				// don't abort sibling groups.
-				if err != nil && ctx.ctx.Err() != nil {
-					return err
-				}
-				return nil
+				return r.resolveDeferTree(dc, ctx, child, outstanding)
 			})
 		}
 		return g.Wait()

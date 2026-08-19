@@ -175,6 +175,204 @@ func TestDefer_ErrorInIncremental(t *testing.T) {
 	require.True(t, w.complete)
 }
 
+// TestDefer_ErrorWithoutDeliverableIncrementalData: the initial fetch resolves
+// a nullable entity object, then the deferred entity fetch returns a null entity
+// plus an error. The non-null deferred field null-propagates to the already
+// delivered nullable object, so the deferred render has no incremental item.
+// The announced pending still has to complete, and the error must remain
+// observable on completed[].errors instead of being dropped beside an empty
+// incremental array.
+//
+// Operation:
+//
+//	employee(id: 1) {
+//	  id
+//	  ... @defer(label: "Mood") { currentMood }
+//	}
+func TestDefer_ErrorWithoutDeliverableIncrementalData(t *testing.T) {
+	t.Parallel()
+	r := New(t.Context(), ResolverOptions{
+		MaxConcurrency:               32,
+		PropagateSubgraphErrors:      true,
+		SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+		AllowedErrorExtensionFields:  []string{"code", "detail"},
+	})
+
+	group := &DeferFetchGroup{
+		DeferID: 1,
+		Fetches: SingleWithPath(&EntityFetch{
+			FetchDependencies: FetchDependencies{FetchID: 2, DeferID: 1},
+			Input: EntityInput{
+				Header: InputTemplate{Segments: []TemplateSegment{{
+					SegmentType: StaticSegmentType,
+					Data:        []byte(`{"body":{"variables":{"representations":[`),
+				}}},
+				Item: InputTemplate{Segments: []TemplateSegment{{
+					SegmentType: StaticSegmentType,
+					Data:        []byte(`{"__typename":"Employee","id":1}`),
+				}}},
+				Footer: InputTemplate{Segments: []TemplateSegment{{
+					SegmentType: StaticSegmentType,
+					Data:        []byte(`]}}}`),
+				}}},
+				SkipErrItem: true,
+			},
+			DataSource: FakeDataSource(`{"data":{"_entities":[null]},"errors":[{"message":"deferred mood failed","path":["_entities",0,"currentMood"],"extensions":{"code":"MOOD_FAIL","detail":"deferred"}}]}`),
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data", "_entities", "0"},
+				SelectResponseErrorsPath: []string{"errors"},
+			},
+			Info: &FetchInfo{
+				DataSourceID:   "mood",
+				DataSourceName: "mood",
+				OperationType:  ast.OperationTypeQuery,
+			},
+		}, "employee", ObjectPath("employee")),
+	}
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: map[int]DeferDescriptor{
+			1: {ID: 1, Label: "Mood", Path: []string{"employee"}},
+		},
+		DeferTree: DeferSingle(group),
+		Response: &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: FakeDataSource(`{"data":{"employee":{"id":1,"__typename":"Employee"}}}`),
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				FetchDependencies: FetchDependencies{FetchID: 1},
+				InputTemplate: InputTemplate{Segments: []TemplateSegment{{
+					SegmentType: StaticSegmentType,
+					Data:        []byte(`{}`),
+				}}},
+				Info: &FetchInfo{
+					DataSourceID:   "employees",
+					DataSourceName: "employees",
+					OperationType:  ast.OperationTypeQuery,
+				},
+			}),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{{
+					Name: []byte("employee"),
+					Value: &Object{
+						Path:     []string{"employee"},
+						Nullable: true,
+						TypeName: "Employee",
+						Fields: []*Field{
+							{Name: []byte("id"), Value: &Integer{Path: []string{"id"}, Nullable: false}},
+							deferredField("currentMood", 1, &String{Path: []string{"currentMood"}, Nullable: false}, nil),
+						},
+					},
+				}},
+			},
+		},
+	}
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(deferExtensionContext(), response, w)
+	require.NoError(t, err)
+	require.Len(t, w.payloads, 2)
+
+	initial := decodeDeferPayload(t, w.payloads[0])
+	require.Equal(t, map[string]any{"employee": map[string]any{"id": float64(1)}}, initial["data"])
+
+	terminal := decodeDeferPayload(t, w.payloads[1])
+	require.Equal(t, false, terminal["hasNext"])
+	require.NotContains(t, terminal, "incremental")
+	require.NotContains(t, terminal, "pending")
+	completed := terminal["completed"].([]any)
+	require.Len(t, completed, 1)
+	completedErrors := completed[0].(map[string]any)["errors"].([]any)
+	require.NotEmpty(t, completedErrors)
+	require.Contains(t, completedErrors, map[string]any{
+		"message": "deferred mood failed",
+		"path":    []any{"_entities", float64(0), "currentMood"},
+		"extensions": map[string]any{
+			"code":   "MOOD_FAIL",
+			"detail": "deferred",
+		},
+	})
+	require.Equal(t, map[int]string{1: string(DeferExecutionStatusError)}, deferStatuses(t, terminal["extensions"].(map[string]any)["trace"]))
+	require.True(t, w.complete)
+}
+
+// TestDefer_ErrorWithoutIncrementalItemReleasesLiveRootAnchoredNestedDefer:
+// errors without a matching parent field produce completed.errors rather than
+// an empty incremental item, but that wire-shape decision must not cancel a
+// nested defer whose root anchor was already delivered in the initial response.
+func TestDefer_ErrorWithoutIncrementalItemReleasesLiveRootAnchoredNestedDefer(t *testing.T) {
+	t.Parallel()
+	r := New(t.Context(), ResolverOptions{
+		MaxConcurrency:               32,
+		PropagateSubgraphErrors:      true,
+		SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+	})
+
+	parent := &DeferFetchGroup{
+		DeferID: 1,
+		Fetches: deferExtensionFetch(2, "parent", `{"data":{},"errors":[{"message":"parent failed"}]}`),
+	}
+	child := &DeferFetchGroup{
+		DeferID: 2,
+		Fetches: deferExtensionFetch(3, "child", `{"data":{"child":"did run"}}`),
+	}
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: map[int]DeferDescriptor{
+			1: {ID: 1, Label: "Parent"},
+			2: {ID: 2, ParentID: 1, Label: "Child"},
+		},
+		DeferTree: DeferSequence(DeferSingle(parent), DeferSingle(child)),
+		Response: &GraphQLResponse{
+			Info:    &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: deferExtensionFetch(1, "primary", `{"data":{"__typename":"Query"}}`),
+			Data: &Object{Nullable: true, Fields: []*Field{
+				{
+					Name:        []byte("parent"),
+					Defer:       &DeferField{DeferID: 1},
+					OnTypeNames: [][]byte{[]byte("OtherQuery")},
+					Value:       &String{Path: []string{"parent"}, Nullable: true},
+				},
+				deferredField("child", 2, &String{Path: []string{"child"}, Nullable: true}, nil),
+			}},
+		},
+	}
+
+	w := &testDeferWriter{}
+	_, err := r.ResolveGraphQLDeferResponse(deferExtensionContext(), response, w)
+	require.NoError(t, err)
+	require.Len(t, w.payloads, 3, "a live nested defer must run even when its parent has no incremental item")
+
+	parentFrame := decodeDeferPayload(t, w.payloads[1])
+	require.NotContains(t, parentFrame, "incremental")
+	require.Equal(t, true, parentFrame["hasNext"])
+	require.Equal(t, []any{
+		map[string]any{"id": "2", "path": []any{}, "label": "Child"},
+	}, parentFrame["pending"])
+	parentCompleted := parentFrame["completed"].([]any)
+	require.Len(t, parentCompleted, 1)
+	require.Equal(t, "1", parentCompleted[0].(map[string]any)["id"])
+	require.NotEmpty(t, parentCompleted[0].(map[string]any)["errors"])
+
+	terminal := decodeDeferPayload(t, w.payloads[2])
+	require.Equal(t, false, terminal["hasNext"])
+	require.Equal(t, []any{
+		map[string]any{
+			"data": map[string]any{"child": "did run"},
+			"id":   "2",
+		},
+	}, terminal["incremental"])
+	require.Equal(t, []any{map[string]any{"id": "2"}}, terminal["completed"])
+	require.Equal(t, map[int]string{
+		1: string(DeferExecutionStatusError),
+		2: string(DeferExecutionStatusCompleted),
+	}, deferStatuses(t, terminal["extensions"].(map[string]any)["trace"]))
+	require.True(t, w.complete)
+}
+
 // ---- error in completed ---------------------------------------------------
 
 // TestDefer_ErrorInCompleted: when the deferred fragment's data fully null-bubbles
