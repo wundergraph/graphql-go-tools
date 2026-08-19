@@ -21,6 +21,9 @@ func TTL(headers http.Header, defaultTTL time.Duration) (time.Duration, bool) {
 	if cc.NoCache != nil || cc.Private != nil {
 		return 0, false
 	}
+	if !cc.Public {
+		return 0, false
+	}
 
 	switch {
 	case cc.SMaxAge != nil:
@@ -36,12 +39,8 @@ func TTL(headers http.Header, defaultTTL time.Duration) (time.Duration, bool) {
 		return cc.MaxAge.ToGoSeconds(), true
 	}
 
-	if cc.Public {
-		if defaultTTL <= 0 {
-			return 0, false
-		}
-		return defaultTTL, true
+	if defaultTTL <= 0 {
+		return 0, false
 	}
-
-	return 0, false
+	return defaultTTL, true
 }
