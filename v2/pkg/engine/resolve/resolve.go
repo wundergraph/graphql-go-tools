@@ -5,7 +5,9 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -979,7 +981,7 @@ func (s *subscriptionState) sendHeartbeat() error {
 	return s.writer.Heartbeat()
 }
 
-func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) {
+func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, event SubscriptionEvent) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
@@ -990,8 +992,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	resolveCtx = resolveCtx.WithContext(ctx)
 
 	// Copy the input.
-	input := make([]byte, len(sharedInput))
-	copy(input, sharedInput)
+	input := make([]byte, len(event.Data))
+	copy(input, event.Data)
 
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
@@ -1061,6 +1063,13 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 
 	if err := resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
 		r.resolveArenaPool.Release(resolveArena)
+		var deliveryErr SubscriptionDeliveryError
+		if errors.As(err, &deliveryErr) {
+			sub.writeMu.Unlock()
+			reportSubscriptionDelivery(sub, event, err)
+			_ = r.UnsubscribeSubscription(sub.id)
+			return
+		}
 		r.errorFormatter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		sub.writeMu.Unlock()
 		if r.options.Debug {
@@ -1074,14 +1083,17 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 
 	r.resolveArenaPool.Release(resolveArena)
 
-	if err := sub.writer.Flush(); err != nil {
+	flushErr := sub.writer.Flush()
+	if flushErr != nil {
 		sub.writeMu.Unlock()
+		reportSubscriptionDelivery(sub, event, flushErr)
 		// If flush fails (e.g. client disconnected), remove the subscription.
 		_ = r.UnsubscribeSubscription(sub.id)
 		return
 	}
 	sub.lastWriteTime.Store(time.Now().UnixNano())
 	sub.writeMu.Unlock()
+	reportSubscriptionDelivery(sub, event, nil)
 
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:flushed:%d\n", sub.id.SubscriptionID)
@@ -1093,6 +1105,38 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	if resolvable.WroteErrorsWithoutData() && r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
 	}
+}
+
+func reportSubscriptionDelivery(sub *subscriptionState, event SubscriptionEvent, deliveryErr error) {
+	reporter, ok := sub.writer.(SubscriptionDeliveryReporter)
+	if !ok {
+		return
+	}
+	report := SubscriptionDeliveryReport{
+		TriggerID:      sub.triggerID,
+		ConnectionID:   sub.id.ConnectionID,
+		SubscriptionID: sub.id.SubscriptionID,
+		Err:            deliveryErr,
+	}
+	if deliveryErr != nil {
+		report.EventID = event.ID
+		report.EventHash = subscriptionEventHash(event.Data)
+		report.EventBytes = len(event.Data)
+		report.SourceType = event.SourceType
+		report.SourceName = event.SourceName
+		report.SourceID = event.SourceID
+		if report.SourceType == "" {
+			report.SourceType = "graphql"
+			report.SourceName = sub.resolve.Trigger.SourceName
+			report.SourceID = event.ID
+		}
+	}
+	reporter.ReportSubscriptionDelivery(report)
+}
+
+func subscriptionEventHash(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func (r *Resolver) executeSubscriptionHeartbeat(sub *subscriptionState) {
@@ -1481,7 +1525,7 @@ type pendingFilterError struct {
 }
 
 // handleTriggerUpdate sends data to all subscriptions of a trigger.
-func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
+func (r *Resolver) handleTriggerUpdate(id uint64, event SubscriptionEvent) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
 		return
@@ -1490,7 +1534,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
 
-	subs, filterErrors := trig.filterSubscriptions(data)
+	subs, filterErrors := trig.filterSubscriptions(event.Data)
 
 	for _, fe := range filterErrors {
 		fe.sub.writeError(r.errorFormatter, fe.ctx, fe.err, fe.response)
@@ -1502,14 +1546,14 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 			continue
 		}
 		wg.Go(func() {
-			r.executeSubscriptionUpdate(sub.ctx, sub, data)
+			r.executeSubscriptionUpdate(sub.ctx, sub, event)
 		})
 	}
 	wg.Wait()
 }
 
 // handleUpdateSubscription sends data to a single subscription.
-func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
+func (r *Resolver) handleUpdateSubscription(id uint64, event SubscriptionEvent, subIdentifier SubscriptionIdentifier) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
 		return
@@ -1519,14 +1563,14 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 		fmt.Printf("resolver:trigger:subscription:update:%d:%d,%d\n", id, subIdentifier.ConnectionID, subIdentifier.SubscriptionID)
 	}
 
-	sub, filterErr := trig.filterSubscription(subIdentifier, data)
+	sub, filterErr := trig.filterSubscription(subIdentifier, event.Data)
 
 	if filterErr != nil {
 		filterErr.sub.writeError(r.errorFormatter, filterErr.ctx, filterErr.err, filterErr.response)
 	}
 
 	if sub != nil && !sub.removed.Load() {
-		r.executeSubscriptionUpdate(sub.ctx, sub, data)
+		r.executeSubscriptionUpdate(sub.ctx, sub, event)
 	}
 }
 
@@ -1912,16 +1956,21 @@ type subscriptionUpdater struct {
 	//
 	// 2. Lifecycle guard -- the done flag prevents callbacks after Done() has torn down
 	//    the trigger. Every method checks done || ctx.Err() under the lock before proceeding.
-	mu        sync.Mutex
-	done      bool
-	debug     bool
-	triggerID uint64
-	resolver  *Resolver
-	ctx       context.Context
-	subsFn    func() map[context.Context]SubscriptionIdentifier
+	mu            sync.Mutex
+	done          bool
+	debug         bool
+	triggerID     uint64
+	resolver      *Resolver
+	ctx           context.Context
+	subsFn        func() map[context.Context]SubscriptionIdentifier
+	eventSequence uint64
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
+	s.UpdateEvent(SubscriptionEvent{Data: data})
+}
+
+func (s *subscriptionUpdater) UpdateEvent(event SubscriptionEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
@@ -1930,7 +1979,8 @@ func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
-	s.resolver.handleTriggerUpdate(s.triggerID, data)
+	s.ensureEventID(&event)
+	s.resolver.handleTriggerUpdate(s.triggerID, event)
 }
 
 func (s *subscriptionUpdater) Heartbeat() {
@@ -1943,6 +1993,10 @@ func (s *subscriptionUpdater) Heartbeat() {
 }
 
 func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
+	s.UpdateSubscriptionEvent(id, SubscriptionEvent{Data: data})
+}
+
+func (s *subscriptionUpdater) UpdateSubscriptionEvent(id SubscriptionIdentifier, event SubscriptionEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
@@ -1951,7 +2005,16 @@ func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
-	s.resolver.handleUpdateSubscription(s.triggerID, data, id)
+	s.ensureEventID(&event)
+	s.resolver.handleUpdateSubscription(s.triggerID, event, id)
+}
+
+func (s *subscriptionUpdater) ensureEventID(event *SubscriptionEvent) {
+	if event.ID != "" {
+		return
+	}
+	s.eventSequence++
+	event.ID = fmt.Sprintf("%d-%d", s.triggerID, s.eventSequence)
 }
 
 func (s *subscriptionUpdater) Subscriptions() map[context.Context]SubscriptionIdentifier {
@@ -2046,4 +2109,23 @@ type SubscriptionUpdater interface {
 	CloseSubscription(id SubscriptionIdentifier)
 	// Subscriptions return all the subscriptions associated to this Updater
 	Subscriptions() map[context.Context]SubscriptionIdentifier
+}
+
+// SubscriptionEvent carries optional source identity alongside an event
+// payload. SourceID should be a stable native identifier when available, such
+// as a Kafka topic/partition/offset or NATS stream sequence.
+type SubscriptionEvent struct {
+	Data       []byte
+	ID         string
+	SourceType string
+	SourceName string
+	SourceID   string
+}
+
+// SubscriptionEventUpdater is an optional extension for data sources that can
+// preserve event identity through fan-out. Callers should fall back to
+// SubscriptionUpdater when it is not implemented.
+type SubscriptionEventUpdater interface {
+	UpdateEvent(event SubscriptionEvent)
+	UpdateSubscriptionEvent(id SubscriptionIdentifier, event SubscriptionEvent)
 }

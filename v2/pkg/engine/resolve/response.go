@@ -143,6 +143,37 @@ type SubscriptionResponseWriter interface {
 	Error(data []byte)
 }
 
+// SubscriptionDeliveryReporter is an optional extension implemented by
+// subscription response writers that observe delivery outcomes. The resolver
+// invokes it once for every event that reaches the downstream Flush seam.
+type SubscriptionDeliveryReporter interface {
+	ReportSubscriptionDelivery(SubscriptionDeliveryReport)
+}
+
+// SubscriptionDeliveryError marks an error originating from a downstream
+// subscription writer. It allows the resolver to distinguish a failed client
+// write from a resolution error without depending on a transport package.
+type SubscriptionDeliveryError interface {
+	error
+	IsSubscriptionDeliveryError()
+}
+
+// SubscriptionDeliveryReport describes the result of delivering one source
+// event to one downstream subscription. It deliberately contains no payload;
+// EventHash is provided for safe correlation without exposing event contents.
+type SubscriptionDeliveryReport struct {
+	TriggerID      uint64
+	ConnectionID   ConnectionID
+	SubscriptionID int64
+	EventID        string
+	EventHash      string
+	EventBytes     int
+	SourceType     string
+	SourceName     string
+	SourceID       string
+	Err            error
+}
+
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
 	hasErrors := buf.Errors.Len() != 0
 	hasData := buf.Data.Len() != 0 && !ignoreData

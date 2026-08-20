@@ -25,6 +25,7 @@ type FakeSubscriptionWriter struct {
 	writtenMessages        []string
 	completed              bool
 	messageCountOnComplete int
+	deliveryReports        []SubscriptionDeliveryReport
 }
 
 var _ SubscriptionResponseWriter = (*FakeSubscriptionWriter)(nil)
@@ -60,6 +61,12 @@ func (f *FakeSubscriptionWriter) Heartbeat() error {
 }
 
 func (f *FakeSubscriptionWriter) Error([]byte) {
+}
+
+func (f *FakeSubscriptionWriter) ReportSubscriptionDelivery(report SubscriptionDeliveryReport) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deliveryReports = append(f.deliveryReports, report)
 }
 
 type FakeSource struct {
@@ -195,6 +202,8 @@ func TestEventLoop(t *testing.T) {
 	require.Equal(t, `{"data":{"counter":1}}`, writer.writtenMessages[0])
 	require.Equal(t, `{"data":{"counter":2}}`, writer.writtenMessages[1])
 	require.Equal(t, `{"data":{"counter":3}}`, writer.writtenMessages[2])
+	require.Len(t, writer.deliveryReports, 3)
+	require.NoError(t, writer.deliveryReports[0].Err)
 
 	stopEventLoop()
 
@@ -205,6 +214,44 @@ func TestEventLoop(t *testing.T) {
 		require.Equal(t, int64(0), subscriptionCount)
 		return true
 	}, time.Second, time.Millisecond*10)
+}
+
+func TestSubscriptionUpdaterGeneratesDistinctEventIDs(t *testing.T) {
+	updater := &subscriptionUpdater{triggerID: 42}
+	first := SubscriptionEvent{}
+	second := SubscriptionEvent{}
+	updater.ensureEventID(&first)
+	updater.ensureEventID(&second)
+
+	require.Equal(t, "42-1", first.ID)
+	require.Equal(t, "42-2", second.ID)
+}
+
+func TestReportSubscriptionDeliveryIncludesFailureEventIdentity(t *testing.T) {
+	writer := &FakeSubscriptionWriter{}
+	deliveryErr := errors.New("write failed")
+	sub := &subscriptionState{
+		triggerID: 7,
+		id: SubscriptionIdentifier{
+			ConnectionID:   11,
+			SubscriptionID: 13,
+		},
+		resolve: &GraphQLSubscription{Trigger: GraphQLSubscriptionTrigger{SourceName: "products"}},
+		writer:  writer,
+	}
+	event := SubscriptionEvent{Data: []byte(`{"data":{"id":1}}`), ID: "7-9"}
+
+	reportSubscriptionDelivery(sub, event, deliveryErr)
+
+	require.Len(t, writer.deliveryReports, 1)
+	report := writer.deliveryReports[0]
+	require.ErrorIs(t, report.Err, deliveryErr)
+	require.Equal(t, "7-9", report.EventID)
+	require.Equal(t, subscriptionEventHash(event.Data), report.EventHash)
+	require.Equal(t, len(event.Data), report.EventBytes)
+	require.Equal(t, "graphql", report.SourceType)
+	require.Equal(t, "products", report.SourceName)
+	require.Equal(t, "7-9", report.SourceID)
 }
 
 func TestResolver_HeartbeatError_DoesNotDeadlockOnUnsubscribe(t *testing.T) {
