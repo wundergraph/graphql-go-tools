@@ -158,11 +158,7 @@ func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInf
 
 // parsedResponse returns the response body as an astjson value. Multi entries
 // reuse the response the parent parsed once; every other result parses its own
-// res.out exactly once and memoizes it, so the entity cache store and the merge
-// share one parse. A body that does not parse is not memoized, so the rare
-// unparseable response is re-parsed rather than costing a field to remember;
-// the status-code fallback for the error stays with the caller. Only called
-// with the data lock held: the arena is not thread safe.
+// res.out. The status-code fallback for a parse error stays with the caller.
 func (r *result) parsedResponse(l *Loader) (*astjson.Value, error) {
 	if r.multi != nil && r.multi.response != nil {
 		return r.multi.response, nil
@@ -450,7 +446,9 @@ func (l *Loader) mergePhase(prepared *preparedFetch) error {
 		return l.mergeMultiEntityResult(prepared)
 	}
 
-	l.entityCacheCollect(prepared)
+	if err := l.entityCacheCollect(prepared); err != nil {
+		l.reportEntityCacheError(fmt.Errorf("entity cache collect error: %w", err))
+	}
 
 	err := l.mergeResult(prepared.item, prepared.res, prepared.items)
 	l.callOnFinished(prepared.res)
@@ -494,11 +492,6 @@ type preparedFetch struct {
 	skipLoad   bool
 	batchFetch bool
 
-	// entityCacheKeys holds one cache key per unique representation in the
-	// request, in the order those representations were written, which is the
-	// order the subgraph must answer them in and the order res.batchStats is
-	// indexed by. Nil whenever this fetch is not a cacheable entity fetch or
-	// the request was not given a cache. See entity_cache.go.
 	entityCacheKeys []string
 
 	entityCacheHit bool

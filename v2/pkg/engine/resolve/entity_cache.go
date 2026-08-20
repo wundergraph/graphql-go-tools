@@ -75,28 +75,27 @@ func (l *Loader) entityCacheLookup(prepared *preparedFetch) bool {
 	return true
 }
 
-func (l *Loader) entityCacheCollect(prepared *preparedFetch) {
+func (l *Loader) entityCacheCollect(prepared *preparedFetch) error {
 	if !l.entityCacheEnabled() {
-		return
+		return nil
 	}
 
-	keys := prepared.entityCacheKeys
-	if len(keys) == 0 {
-		return
+	if len(prepared.entityCacheKeys) == 0 {
+		return nil
 	}
 
 	if prepared.skipLoad || prepared.entityCacheHit {
-		return
+		return nil
 	}
 
 	res := prepared.res
 	if res.err != nil || len(res.out) == 0 || res.statusCode >= 400 {
-		return
+		return nil
 	}
 
 	response, err := res.parsedResponse(l)
 	if err != nil {
-		return
+		return fmt.Errorf("unexpected parse error: %w", err)
 	}
 
 	errorsPath := res.postProcessing.SelectResponseErrorsPath
@@ -105,42 +104,43 @@ func (l *Loader) entityCacheCollect(prepared *preparedFetch) {
 	}
 
 	if errs := response.Get(errorsPath...); astjson.ValueIsNonNull(errs) && len(errs.GetArray()) > 0 {
-		return
+		return nil
 	}
 
 	ttl, ok := entitycaching.TTL(entityCacheResponseHeaders(res), l.ctx.entityCache.defaultTTL)
 	if !ok {
-		return
+		return nil
 	}
 
 	entities := response.Get("data", "_entities")
 	if entities == nil || entities.Type() != astjson.TypeArray {
-		return
+		return fmt.Errorf("_entities not found or invalid type")
 	}
 	values := entities.GetArray()
 
-	if len(values) != len(keys) {
-		return
+	// In case the entity does not exist on the foreign key we should get null in place
+	if len(values) != len(prepared.entityCacheKeys) {
+		return fmt.Errorf("unexpected number of _entities values found %d", len(values))
 	}
 
-	items := make([]entitycaching.Item, len(keys))
+	items := make([]entitycaching.Item, 0, len(prepared.entityCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
-			return
+			continue
 		}
-		items[i] = entitycaching.Item{
-			Key:   keys[i],
+		items = append(items, entitycaching.Item{
+			Key:   prepared.entityCacheKeys[i],
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
-		}
+		})
 	}
 
 	prepared.entityCacheItems = items
+	return nil
 }
 
 // entityCacheFlush writes what entityCacheCollect gathered. It is called with
-// the data lock released so a slow cache never blocks the fetches queued behind
-// it; the item values are heap copies, so they are still valid here.
+// the data lock released so a slow cache never blocks the fetches queued behind it.
 func (l *Loader) entityCacheFlush(prepared *preparedFetch) {
 	items := prepared.entityCacheItems
 	if len(items) == 0 {
