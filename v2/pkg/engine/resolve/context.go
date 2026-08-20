@@ -7,7 +7,6 @@ import (
 	"io"
 	"maps"
 	"net/http"
-	"reflect"
 	"sort"
 	"time"
 
@@ -265,9 +264,6 @@ type entityCache struct {
 
 func (c *Context) SetEntityCache(cache entitycaching.Cache, defaultTTL time.Duration, onError func(error)) {
 	if cache == nil {
-		return
-	}
-	if v := reflect.ValueOf(cache); v.Kind() == reflect.Ptr && v.IsNil() {
 		return
 	}
 	c.entityCache = &entityCache{store: cache, defaultTTL: defaultTTL, onError: onError}

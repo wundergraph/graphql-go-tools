@@ -90,7 +90,9 @@ func (l *Loader) entityCacheCollect(prepared *preparedFetch) error {
 
 	res := prepared.res
 	if res.err != nil || len(res.out) == 0 || res.statusCode >= 400 {
-		return nil
+		// A failed fetch is not cacheable, which is not a collection failure and is
+		// handled at other locations.
+		return nil //nolint:nilerr
 	}
 
 	response, err := res.parsedResponse(l)
