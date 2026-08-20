@@ -35,6 +35,10 @@ func entityCacheSelectionHash(header, footer []byte) uint64 {
 }
 
 func (l *Loader) entityCacheLookup(prepared *preparedFetch) bool {
+	if !l.entityCacheEnabled() {
+		return false
+	}
+
 	keys := prepared.entityCacheKeys
 	if len(keys) == 0 {
 		return false
@@ -144,6 +148,10 @@ func (l *Loader) entityCacheCollect(prepared *preparedFetch) error {
 // entityCacheFlush writes what entityCacheCollect gathered. It is called with
 // the data lock released so a slow cache never blocks the fetches queued behind it.
 func (l *Loader) entityCacheFlush(prepared *preparedFetch) {
+	if !l.entityCacheEnabled() {
+		return
+	}
+
 	items := prepared.entityCacheItems
 	if len(items) == 0 {
 		return

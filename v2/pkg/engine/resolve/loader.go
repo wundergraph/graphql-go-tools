@@ -418,7 +418,7 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	if prepared.skipLoad {
 		return nil
 	}
-	if l.entityCacheEnabled() && l.entityCacheLookup(prepared) {
+	if l.entityCacheLookup(prepared) {
 		prepared.entityCacheHit = true
 		if prepared.trace != nil {
 			prepared.trace.LoadSkipped = true
