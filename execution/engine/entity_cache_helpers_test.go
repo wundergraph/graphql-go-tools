@@ -17,11 +17,13 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
+
 	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
+
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/entitycaching"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // harness is a federated engine over three stub subgraphs. users answers me,
