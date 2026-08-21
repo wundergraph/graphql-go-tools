@@ -465,6 +465,149 @@ func TestCalculateOperationComplexity(t *testing.T) {
 			},
 		)
 	})
+	t.Run("query with a field before an inline fragment with deeper nesting", func(t *testing.T) {
+		run(t, productDefinition, `
+				query ProductDetails {
+				  product {
+					__typename
+					id
+					externalId
+					features {
+					  __typename
+					  feature {
+						__typename
+						id
+					  }
+					  ... on LookupProductCharacteristicValue {
+						__typename
+						value {
+						  __typename
+						  ... on CustomFeatureRecord {
+							__typename
+							customFeature {
+							  __typename
+							  key
+							}
+							id
+							name
+						  }
+						}
+					  }
+					}
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  5,
+				Complexity: 5,
+				Depth:      5,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "product",
+					Stats: OperationStats{
+						NodeCount:  5,
+						Complexity: 5,
+						Depth:      4,
+					},
+				},
+			},
+		)
+	})
+	t.Run("query with an inline fragment with deeper nesting", func(t *testing.T) {
+		run(t, productDefinition, `
+				query ProductDetails {
+				  product {
+					__typename
+					id
+					externalId
+					features {
+					  __typename
+					  ... on LookupProductCharacteristicValue {
+						__typename
+						value {
+						  __typename
+						  ... on CustomFeatureRecord {
+							__typename
+							customFeature {
+							  __typename
+							  key
+							}
+							id
+							name
+						  }
+						}
+					  }
+					}
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  4,
+				Complexity: 4,
+				Depth:      5,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "product",
+					Stats: OperationStats{
+						NodeCount:  4,
+						Complexity: 4,
+						Depth:      4,
+					},
+				},
+			},
+		)
+	})
+	t.Run("query with a field after an inline fragment with deeper nesting", func(t *testing.T) {
+		run(t, productDefinition, `
+				query ProductDetails {
+				  product {
+					__typename
+					id
+					externalId
+					features {
+					  __typename
+					  ... on LookupProductCharacteristicValue {
+						__typename
+						value {
+						  __typename
+						  ... on CustomFeatureRecord {
+							__typename
+							customFeature {
+							  __typename
+							  key
+							}
+							id
+							name
+						  }
+						}
+					  }
+					  feature {
+						__typename
+						id
+					  }
+					}
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  5,
+				Complexity: 5,
+				Depth:      5,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "product",
+					Stats: OperationStats{
+						NodeCount:  5,
+						Complexity: 5,
+						Depth:      4,
+					},
+				},
+			},
+		)
+	})
 	t.Run("introspection query", func(t *testing.T) {
 		run(t, testDefinition, introspectionQuery,
 			OperationStats{
@@ -495,6 +638,47 @@ func TestCalculateOperationComplexity(t *testing.T) {
 			[]RootFieldStats{},
 		)
 	})
+}
+
+func TestOperationComplexityEstimatorReuseAfterAbortedWalk(t *testing.T) {
+	def := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	estimator := NewOperationComplexityEstimator(false)
+
+	invalidOp := unsafeparser.ParseGraphqlDocumentString(`
+			{
+				users(first: 1) {
+					transactions(first: 1) {
+						sender {
+							address {
+								... on UnknownType {
+									city
+								}
+							}
+						}
+					}
+				}
+			}`)
+	invalidReport := operationreport.Report{}
+	estimator.Do(&invalidOp, &def, &invalidReport)
+	require.True(t, invalidReport.HasErrors())
+
+	op := unsafeparser.ParseGraphqlDocumentString(`
+			{
+				users(first: 1) {
+					id
+					address {
+						city
+					}
+				}
+			}`)
+	report := operationreport.Report{}
+	astnormalization.NormalizeOperation(&op, &def, &report)
+	global, rootFields := estimator.Do(&op, &def, &report)
+	require.False(t, report.HasErrors())
+
+	assert.Equal(t, 3, global.Depth, "unexpected global depth")
+	require.Len(t, rootFields, 1)
+	assert.Equal(t, 2, rootFields[0].Stats.Depth, "unexpected root field depth")
 }
 
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
@@ -940,3 +1124,49 @@ fragment TypeRef on __Type {
     }
   }
 }`
+
+const productDefinition = `
+
+schema {
+	query: Query
+}
+
+type Query {
+    product: Product
+}
+
+type Product {
+    id: ID!
+    externalId: ID
+    features: [ProductCharacteristic]
+}
+
+interface ProductCharacteristic {
+    feature: Feature
+}
+
+type Feature {
+    id: ID!
+}
+
+type LookupProductCharacteristicValue implements ProductCharacteristic {
+    feature: Feature
+    value: FeatureValue
+}
+
+union FeatureValue = CustomFeatureRecord
+
+type CustomFeatureRecord {
+    id: ID!
+    name: String
+    customFeature: CustomFeature
+}
+
+type CustomFeature {
+    key: String
+}
+
+scalar ID
+scalar String
+scalar Boolean
+`
