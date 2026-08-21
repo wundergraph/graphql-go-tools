@@ -418,8 +418,8 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	if prepared.skipLoad {
 		return nil
 	}
-	if l.entityCacheLookup(prepared) {
-		prepared.entityCacheHit = true
+	if l.responseCacheLookup(prepared) {
+		prepared.responseCacheHit = true
 		if prepared.trace != nil {
 			prepared.trace.LoadSkipped = true
 		}
@@ -433,7 +433,7 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 
 	// The response is not read here: this phase runs unlocked and concurrently
 	// across parallel fetches, and parsing it would allocate on the arena
-	// without holding the data lock. The entity cache collects its entities in
+	// without holding the data lock. The response cache collects its entities in
 	// the merge phase instead, off the parse the merge already pays for.
 	return nil
 }
@@ -446,8 +446,8 @@ func (l *Loader) mergePhase(prepared *preparedFetch) error {
 		return l.mergeMultiEntityResult(prepared)
 	}
 
-	if err := l.entityCacheCollect(prepared); err != nil {
-		l.reportEntityCacheError(fmt.Errorf("entity cache collect error: %w", err))
+	if err := l.responseCacheCollect(prepared); err != nil {
+		l.reportResponseCacheError(fmt.Errorf("response cache collect error: %w", err))
 	}
 
 	err := l.mergeResult(prepared.item, prepared.res, prepared.items)
@@ -478,7 +478,7 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	// After mergePhase released the data lock: the cache round trip must not
 	// hold up the fetches waiting on it. Runs regardless of the merge outcome,
 	// matching the store that used to sit in the load phase.
-	l.entityCacheFlush(prepared)
+	l.responseCacheFlush(prepared)
 	return err
 }
 
@@ -492,11 +492,11 @@ type preparedFetch struct {
 	skipLoad   bool
 	batchFetch bool
 
-	entityCacheKeys []string
+	responseCacheKeys []string
 
-	entityCacheHit bool
+	responseCacheHit bool
 
-	entityCacheItems []caching.Item
+	responseCacheItems []caching.Item
 
 	multiEntries []preparedMultiEntry
 }
@@ -1675,7 +1675,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	entityCacheHeaderEnd := preparedInput.Len()
+	responseCacheHeaderEnd := preparedInput.Len()
 
 	err = fetch.Input.Item.Render(l.ctx, input, item)
 	if err != nil {
@@ -1714,7 +1714,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 
 	_, _ = item.WriteTo(preparedInput)
 
-	entityCacheFooterStart := preparedInput.Len()
+	responseCacheFooterStart := preparedInput.Len()
 
 	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
@@ -1723,14 +1723,14 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 
 	// Built before SetInputUndefinedVariables rewrites the buffer in place, so
 	// the offsets above still point at what they were taken from.
-	if l.entityCacheEnabled() {
+	if l.responseCacheEnabled() {
 		rendered := preparedInput.Bytes()
-		selectionHash := entityCacheSelectionHash(
-			rendered[:entityCacheHeaderEnd],
-			rendered[entityCacheFooterStart:],
+		selectionHash := responseCacheSelectionHash(
+			rendered[:responseCacheHeaderEnd],
+			rendered[responseCacheFooterStart:],
 		)
-		entityCacheItemHash := xxhash.Sum64(renderedItem)
-		prepared.entityCacheKeys = []string{caching.Key(entityCacheItemHash, selectionHash)}
+		responseCacheItemHash := xxhash.Sum64(renderedItem)
+		prepared.responseCacheKeys = []string{caching.Key(responseCacheItemHash, selectionHash)}
 	}
 
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
@@ -1841,8 +1841,8 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	entityCacheHeaderEnd := preparedInput.Len()
-	var entityCacheItemHashes []uint64
+	responseCacheHeaderEnd := preparedInput.Len()
+	var responseCacheItemHashes []uint64
 
 	batchItemIndex := 0
 	addSeparator := false
@@ -1884,8 +1884,8 @@ WithNextItem:
 				_, _ = itemInput.WriteTo(preparedInput)
 				// new unique representation
 				res.tools.batchHashToIndex[itemHash] = batchItemIndex
-				if l.entityCacheEnabled() {
-					entityCacheItemHashes = append(entityCacheItemHashes, itemHash)
+				if l.responseCacheEnabled() {
+					responseCacheItemHashes = append(responseCacheItemHashes, itemHash)
 				}
 				// A new targets bucket for the unique index must be allocated on the arena:
 				// a heap-allocated bucket would only be referenced from arena memory,
@@ -1910,22 +1910,22 @@ WithNextItem:
 		}
 	}
 
-	entityCacheFooterStart := preparedInput.Len()
+	responseCacheFooterStart := preparedInput.Len()
 
 	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	if l.entityCacheEnabled() && len(entityCacheItemHashes) > 0 {
+	if l.responseCacheEnabled() && len(responseCacheItemHashes) > 0 {
 		rendered := preparedInput.Bytes()
-		selectionHash := entityCacheSelectionHash(
-			rendered[:entityCacheHeaderEnd],
-			rendered[entityCacheFooterStart:],
+		selectionHash := responseCacheSelectionHash(
+			rendered[:responseCacheHeaderEnd],
+			rendered[responseCacheFooterStart:],
 		)
-		prepared.entityCacheKeys = make([]string, len(entityCacheItemHashes))
-		for i, itemHash := range entityCacheItemHashes {
-			prepared.entityCacheKeys[i] = caching.Key(itemHash, selectionHash)
+		prepared.responseCacheKeys = make([]string, len(responseCacheItemHashes))
+		for i, itemHash := range responseCacheItemHashes {
+			prepared.responseCacheKeys[i] = caching.Key(itemHash, selectionHash)
 		}
 	}
 

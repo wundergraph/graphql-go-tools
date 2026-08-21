@@ -43,8 +43,8 @@ type Cache interface {
 
 var (
 	ErrMissingTTL = errors.New("cache item requires a positive TTL")
-	ErrNoKeys     = errors.New("entity cache lookup requires at least one key")
-	ErrNoItems    = errors.New("entity cache write requires at least one item")
+	ErrNoKeys     = errors.New("response cache lookup requires at least one key")
+	ErrNoItems    = errors.New("response cache write requires at least one item")
 )
 
 type SetManyError struct {

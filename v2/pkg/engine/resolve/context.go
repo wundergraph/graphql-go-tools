@@ -52,7 +52,7 @@ type Context struct {
 	rateLimiter             RateLimiter
 	fieldRenderer           FieldValueRenderer
 
-	entityCache *entityCache
+	responseCache *responseCache
 
 	subgraphErrors map[string]error
 
@@ -256,17 +256,17 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 	c.rateLimiter = limiter
 }
 
-type entityCache struct {
+type responseCache struct {
 	store      caching.Cache
 	defaultTTL time.Duration
 	onError    func(error)
 }
 
-func (c *Context) SetEntityCache(cache caching.Cache, defaultTTL time.Duration, onError func(error)) {
+func (c *Context) SetResponseCache(cache caching.Cache, defaultTTL time.Duration, onError func(error)) {
 	if cache == nil {
 		return
 	}
-	c.entityCache = &entityCache{store: cache, defaultTTL: defaultTTL, onError: onError}
+	c.responseCache = &responseCache{store: cache, defaultTTL: defaultTTL, onError: onError}
 }
 
 func (c *Context) SubgraphErrors() error {
@@ -364,7 +364,7 @@ func (c *Context) Free() {
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
-	c.entityCache = nil
+	c.responseCache = nil
 }
 
 func (c *Context) VariablesView() VariablesView {

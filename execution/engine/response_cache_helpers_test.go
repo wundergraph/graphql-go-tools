@@ -28,7 +28,7 @@ import (
 
 // harness is a federated engine over three stub subgraphs. users answers me,
 // products answers topProducts, and reviews answers the entity fetch behind both
-// me.reviews and topProducts.reviews, which is the fetch an entity cache stores.
+// me.reviews and topProducts.reviews, which is the fetch an response cache stores.
 type harness struct {
 	engine   *ExecutionEngine
 	users    *stub
@@ -78,16 +78,16 @@ func (h *harness) execute(t *testing.T, query string, options ...ExecutionOption
 	return writer.String()
 }
 
-// withEntityCache hands the execution its cache the way a router does, by setting
+// withResponseCache hands the execution its cache the way a router does, by setting
 // it on the resolve context. Reaching into the execution context is what keeps
 // this out of the engine's exported surface: the cache is the caller's to supply,
 // and no option needs to exist for a test to supply one.
-func withEntityCache(t *testing.T, cache caching.Cache) ExecutionOptions {
+func withResponseCache(t *testing.T, cache caching.Cache) ExecutionOptions {
 	t.Helper()
 
 	return func(execCtx *internalExecutionContext) {
-		execCtx.resolveContext.SetEntityCache(cache, time.Minute, func(err error) {
-			t.Errorf("entity cache reported an error: %v", err)
+		execCtx.resolveContext.SetResponseCache(cache, time.Minute, func(err error) {
+			t.Errorf("response cache reported an error: %v", err)
 		})
 	}
 }
@@ -226,7 +226,7 @@ func (h *countingLoaderHooks) OnFinished(context.Context, resolve.DataSourceInfo
 	h.onFinished.Add(1)
 }
 
-// mapCache is an entity cache held in a map, which is all the engine asks of one.
+// mapCache is an response cache held in a map, which is all the engine asks of one.
 // Expiry is left out because nothing here waits for it: a TTL is only checked for
 // being positive, the way a real adapter refuses an item it cannot expire.
 type mapCache struct {

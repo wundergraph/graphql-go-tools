@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The entity cache stores the answers to entity fetches, so every case here is
+// The response cache stores the answers to entity fetches, so every case here is
 // built around one: me.reviews is a single entity fetch, and topProducts.reviews
 // is a batched one. The two are separate code paths in the loader, and only the
 // reviews subgraph's call count says whether either was served from the cache.
@@ -25,7 +25,7 @@ func batchQuery(n int) string {
 	return fmt.Sprintf(`{ topProducts(first: %d) { upc reviews { body } } }`, n)
 }
 
-func TestEntityCacheExecution(t *testing.T) {
+func TestResponseCacheExecution(t *testing.T) {
 	t.Parallel()
 
 	t.Run("a single entity fetch is cached", func(t *testing.T) {
@@ -36,8 +36,8 @@ func TestEntityCacheExecution(t *testing.T) {
 		h.reviews.answers(reviewsAnswer("A review"))
 
 		cache := newMapCache()
-		first := h.execute(t, singleEntityQuery, withEntityCache(t, cache))
-		second := h.execute(t, singleEntityQuery, withEntityCache(t, cache))
+		first := h.execute(t, singleEntityQuery, withResponseCache(t, cache))
+		second := h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
 		// The bodies, not just the counter: a cache that served the wrong bytes
 		// would satisfy the counter on its own.
@@ -55,11 +55,11 @@ func TestEntityCacheExecution(t *testing.T) {
 		h.reviews.answers(reviewsAnswer("r1", "r2", "r3"))
 
 		cache := newMapCache()
-		first := h.execute(t, batchQuery(3), withEntityCache(t, cache))
+		first := h.execute(t, batchQuery(3), withResponseCache(t, cache))
 		require.Equal(t, 3, h.reviews.representationCount(t),
 			"the three products must reach reviews as one batched entity fetch")
 
-		second := h.execute(t, batchQuery(3), withEntityCache(t, cache))
+		second := h.execute(t, batchQuery(3), withResponseCache(t, cache))
 
 		require.Equal(t, first, second)
 		require.EqualValues(t, 1, h.reviews.calls())
@@ -74,12 +74,12 @@ func TestEntityCacheExecution(t *testing.T) {
 
 		h.products.answers(productsAnswer("1", "2", "3"))
 		h.reviews.answers(reviewsAnswer("r1", "r2", ""))
-		h.execute(t, batchQuery(3), withEntityCache(t, cache))
+		h.execute(t, batchQuery(3), withResponseCache(t, cache))
 		require.EqualValues(t, 1, h.reviews.calls())
 		require.Len(t, cache.keys(), 2, "the null entity must not be stored")
 
 		h.products.answers(productsAnswer("1", "2"))
-		h.execute(t, batchQuery(2), withEntityCache(t, cache))
+		h.execute(t, batchQuery(2), withResponseCache(t, cache))
 		require.EqualValues(t, 1, h.reviews.calls(),
 			"the entities the subgraph did answer must be cached even though one of their batch was null")
 
@@ -87,7 +87,7 @@ func TestEntityCacheExecution(t *testing.T) {
 		// partial write rather than the null having been stored as an entity of
 		// its own.
 		h.products.answers(productsAnswer("1", "2", "3"))
-		h.execute(t, batchQuery(3), withEntityCache(t, cache))
+		h.execute(t, batchQuery(3), withResponseCache(t, cache))
 		require.EqualValues(t, 2, h.reviews.calls(),
 			"a batch containing an entity that was never cached must go back to the subgraph")
 	})
@@ -101,7 +101,7 @@ func TestEntityCacheExecution(t *testing.T) {
 		// Caches product 1 alone.
 		h.products.answers(productsAnswer("1"))
 		h.reviews.answers(reviewsAnswer("r1"))
-		h.execute(t, batchQuery(1), withEntityCache(t, cache))
+		h.execute(t, batchQuery(1), withResponseCache(t, cache))
 		require.EqualValues(t, 1, h.reviews.calls())
 
 		// Product 1 is cached and 2 and 3 are not. A batch is served from the
@@ -109,7 +109,7 @@ func TestEntityCacheExecution(t *testing.T) {
 		// subgraph, product 1 included.
 		h.products.answers(productsAnswer("1", "2", "3"))
 		h.reviews.answers(reviewsAnswer("r1", "r2", "r3"))
-		h.execute(t, batchQuery(3), withEntityCache(t, cache))
+		h.execute(t, batchQuery(3), withResponseCache(t, cache))
 
 		require.EqualValues(t, 2, h.reviews.calls(),
 			"one miss in a batch must send the whole batch to the subgraph")
@@ -125,7 +125,7 @@ func TestEntityCacheExecution(t *testing.T) {
 		h.reviews.answers(reviewsAnswer("r1", "r2"))
 
 		cache := newMapCache()
-		h.execute(t, batchQuery(3), withEntityCache(t, cache))
+		h.execute(t, batchQuery(3), withResponseCache(t, cache))
 
 		// The engine deduplicates representations before it sends them, so the
 		// repeated product must not be asked for twice and must not take a second
@@ -145,8 +145,8 @@ func TestEntityCacheExecution(t *testing.T) {
 		h.reviews.cacheControl("")
 
 		cache := newMapCache()
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache))
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
 		require.Empty(t, cache.keys())
 		require.EqualValues(t, 2, h.reviews.calls(),
@@ -162,8 +162,8 @@ func TestEntityCacheExecution(t *testing.T) {
 		h.reviews.cacheControl("private, max-age=60")
 
 		cache := newMapCache()
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache))
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
 		require.Empty(t, cache.keys())
 		require.EqualValues(t, 2, h.reviews.calls(),
@@ -184,8 +184,8 @@ func TestEntityCacheExecution(t *testing.T) {
 			`"errors":[{"message":"something went wrong"}]}`)
 
 		cache := newMapCache()
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache))
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
 		require.Empty(t, cache.keys())
 		require.EqualValues(t, 2, h.reviews.calls(),
@@ -201,8 +201,8 @@ func TestEntityCacheExecution(t *testing.T) {
 		h.reviews.status(http.StatusInternalServerError)
 
 		cache := newMapCache()
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache))
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
 		require.Empty(t, cache.keys())
 		require.EqualValues(t, 2, h.reviews.calls(),
@@ -217,11 +217,11 @@ func TestEntityCacheExecution(t *testing.T) {
 		h.reviews.answers(reviewsAnswer("", ""))
 
 		cache := newMapCache()
-		// withEntityCache fails the test if the cache reports an error, which is
+		// withResponseCache fails the test if the cache reports an error, which is
 		// the half of this that matters: nothing to store is an ordinary outcome,
 		// not a failure to be reported.
-		h.execute(t, batchQuery(2), withEntityCache(t, cache))
-		h.execute(t, batchQuery(2), withEntityCache(t, cache))
+		h.execute(t, batchQuery(2), withResponseCache(t, cache))
+		h.execute(t, batchQuery(2), withResponseCache(t, cache))
 
 		require.Empty(t, cache.keys())
 		require.EqualValues(t, 2, h.reviews.calls())
@@ -234,7 +234,7 @@ func TestEntityCacheExecution(t *testing.T) {
 
 		// The control for every case above. Without it a count of one could
 		// equally be the plan cache or the engine coalescing two executions, and
-		// none of this would prove anything about entity caching.
+		// none of this would prove anything about response caching.
 		h := newHarness(t)
 		h.users.answers(meAnswer)
 		h.reviews.answers(reviewsAnswer("A review"))
@@ -243,7 +243,7 @@ func TestEntityCacheExecution(t *testing.T) {
 		h.execute(t, singleEntityQuery)
 
 		require.EqualValues(t, 2, h.reviews.calls(),
-			"with no entity cache on the context every execution must reach the subgraph")
+			"with no response cache on the context every execution must reach the subgraph")
 	})
 
 	t.Run("different selection sets do not share an entry", func(t *testing.T) {
@@ -254,12 +254,12 @@ func TestEntityCacheExecution(t *testing.T) {
 		cache := newMapCache()
 
 		h.reviews.answers(reviewsAnswer("A review"))
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
 		// The same entity, asked for more of. The stored entry answers the first
 		// selection and cannot answer this one, so it must not be reused for it.
 		h.reviews.answers(`{"data":{"_entities":[{"reviews":[{"body":"A review","product":{"upc":"1"}}]}]}}`)
-		wider := h.execute(t, `{ me { id username reviews { body product { upc } } } }`, withEntityCache(t, cache))
+		wider := h.execute(t, `{ me { id username reviews { body product { upc } } } }`, withResponseCache(t, cache))
 
 		require.Contains(t, wider, `"upc":"1"`,
 			"the wider selection must be answered in full, not from the narrower entry")
@@ -282,11 +282,11 @@ func TestEntityCacheExecution(t *testing.T) {
 		limiter := &countingRateLimiter{}
 		cache := newMapCache()
 
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache), withRateLimiter(limiter))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache), withRateLimiter(limiter))
 		uncached := limiter.preFetch.Load()
 		require.EqualValues(t, 2, uncached, "both the users and the reviews fetch are checked")
 
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache), withRateLimiter(limiter))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache), withRateLimiter(limiter))
 
 		require.EqualValues(t, 1, h.reviews.calls(), "the second execution must be a hit")
 		require.EqualValues(t, 4, limiter.preFetch.Load(),
@@ -308,11 +308,11 @@ func TestEntityCacheExecution(t *testing.T) {
 		hooks := &countingLoaderHooks{}
 		cache := newMapCache()
 
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache), withLoaderHooks(hooks))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache), withLoaderHooks(hooks))
 		require.EqualValues(t, 2, hooks.onLoad.Load(), "users and reviews are both fetched")
 		require.EqualValues(t, 2, hooks.onFinished.Load())
 
-		h.execute(t, singleEntityQuery, withEntityCache(t, cache), withLoaderHooks(hooks))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache), withLoaderHooks(hooks))
 
 		require.EqualValues(t, 1, h.reviews.calls())
 		require.EqualValues(t, 3, hooks.onLoad.Load(),
@@ -326,7 +326,7 @@ func TestEntityCacheExecution(t *testing.T) {
 		// With multi fetch on, the planner collapses the two reviews fetches of one
 		// parallel wave into a single aliased _entities request, and that shape
 		// carries no cache keys and never reaches the collector: the merge phase
-		// returns through mergeMultiEntityResult before it. So entity caching
+		// returns through mergeMultiEntityResult before it. So response caching
 		// silently turns itself off for every merged wave.
 		//
 		// This pins that as it stands today. It is the one shape where enabling a
@@ -343,8 +343,8 @@ func TestEntityCacheExecution(t *testing.T) {
 		const bothShapes = `{ me { id username reviews { body } } topProducts(first: 2) { upc reviews { body } } }`
 
 		cache := newMapCache()
-		merged := h.execute(t, bothShapes, withEntityCache(t, cache))
-		h.execute(t, bothShapes, withEntityCache(t, cache))
+		merged := h.execute(t, bothShapes, withResponseCache(t, cache))
+		h.execute(t, bothShapes, withResponseCache(t, cache))
 
 		// The answer is whole, so the emptiness below is the cache declining to
 		// store a good response rather than a broken response being declined.

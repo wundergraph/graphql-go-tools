@@ -10,19 +10,19 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
-// entityCacheEnabled reports whether this request was handed a cache. It is the
+// responseCacheEnabled reports whether this request was handed a cache. It is the
 // only enablement check in the engine; there is no configuration to consult.
-func (l *Loader) entityCacheEnabled() bool {
-	return l.ctx != nil && l.ctx.entityCache != nil
+func (l *Loader) responseCacheEnabled() bool {
+	return l.ctx != nil && l.ctx.responseCache != nil
 }
 
-func (l *Loader) reportEntityCacheError(err error) {
-	if l.entityCacheEnabled() && l.ctx.entityCache.onError != nil {
-		l.ctx.entityCache.onError(err)
+func (l *Loader) reportResponseCacheError(err error) {
+	if l.responseCacheEnabled() && l.ctx.responseCache.onError != nil {
+		l.ctx.responseCache.onError(err)
 	}
 }
 
-func entityCacheSelectionHash(header, footer []byte) uint64 {
+func responseCacheSelectionHash(header, footer []byte) uint64 {
 	d := pool.Hash64.Get()
 	defer pool.Hash64.Put(d)
 	_, _ = d.Write(header)
@@ -33,19 +33,19 @@ func entityCacheSelectionHash(header, footer []byte) uint64 {
 	return d.Sum64()
 }
 
-func (l *Loader) entityCacheLookup(prepared *preparedFetch) bool {
-	if !l.entityCacheEnabled() {
+func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
+	if !l.responseCacheEnabled() {
 		return false
 	}
 
-	keys := prepared.entityCacheKeys
+	keys := prepared.responseCacheKeys
 	if len(keys) == 0 {
 		return false
 	}
 
-	found, err := l.ctx.entityCache.store.GetMany(l.ctx.ctx, keys)
+	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, keys)
 	if err != nil {
-		l.reportEntityCacheError(fmt.Errorf("entity cache lookup of %d keys: %w", len(keys), err))
+		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(keys), err))
 		return false
 	}
 	if len(found) != len(keys) {
@@ -78,16 +78,16 @@ func (l *Loader) entityCacheLookup(prepared *preparedFetch) bool {
 	return true
 }
 
-func (l *Loader) entityCacheCollect(prepared *preparedFetch) error {
-	if !l.entityCacheEnabled() {
+func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
+	if !l.responseCacheEnabled() {
 		return nil
 	}
 
-	if len(prepared.entityCacheKeys) == 0 {
+	if len(prepared.responseCacheKeys) == 0 {
 		return nil
 	}
 
-	if prepared.skipLoad || prepared.entityCacheHit {
+	if prepared.skipLoad || prepared.responseCacheHit {
 		return nil
 	}
 
@@ -105,14 +105,14 @@ func (l *Loader) entityCacheCollect(prepared *preparedFetch) error {
 
 	errorsPath := res.postProcessing.SelectResponseErrorsPath
 	if errorsPath == nil {
-		errorsPath = defaultEntityCacheErrorsPath
+		errorsPath = defaultResponseCacheErrorsPath
 	}
 
 	if errs := response.Get(errorsPath...); astjson.ValueIsNonNull(errs) && len(errs.GetArray()) > 0 {
 		return nil
 	}
 
-	ttl, ok := caching.TTL(entityCacheResponseHeaders(res), l.ctx.entityCache.defaultTTL)
+	ttl, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
 	if !ok {
 		return nil
 	}
@@ -124,46 +124,46 @@ func (l *Loader) entityCacheCollect(prepared *preparedFetch) error {
 	values := entities.GetArray()
 
 	// In case the entity does not exist on the foreign key we should get null in place
-	if len(values) != len(prepared.entityCacheKeys) {
+	if len(values) != len(prepared.responseCacheKeys) {
 		return fmt.Errorf("unexpected number of _entities values found %d", len(values))
 	}
 
-	items := make([]caching.Item, 0, len(prepared.entityCacheKeys))
+	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
 		}
 		items = append(items, caching.Item{
-			Key:   prepared.entityCacheKeys[i],
+			Key:   prepared.responseCacheKeys[i],
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
 		})
 	}
 
-	prepared.entityCacheItems = items
+	prepared.responseCacheItems = items
 	return nil
 }
 
-// entityCacheFlush writes what entityCacheCollect gathered. It is called with
+// responseCacheFlush writes what responseCacheCollect gathered. It is called with
 // the data lock released so a slow cache never blocks the fetches queued behind it.
-func (l *Loader) entityCacheFlush(prepared *preparedFetch) {
-	if !l.entityCacheEnabled() {
+func (l *Loader) responseCacheFlush(prepared *preparedFetch) {
+	if !l.responseCacheEnabled() {
 		return
 	}
 
-	if len(prepared.entityCacheItems) == 0 {
+	if len(prepared.responseCacheItems) == 0 {
 		return
 	}
 
-	items := prepared.entityCacheItems
-	prepared.entityCacheItems = nil
+	items := prepared.responseCacheItems
+	prepared.responseCacheItems = nil
 
-	if err := l.ctx.entityCache.store.SetMany(l.ctx.ctx, items); err != nil {
-		l.reportEntityCacheError(fmt.Errorf("entity cache write of %d entities: %w", len(items), err))
+	if err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items); err != nil {
+		l.reportResponseCacheError(fmt.Errorf("response cache write of %d entities: %w", len(items), err))
 	}
 }
 
-func entityCacheResponseHeaders(res *result) http.Header {
+func responseCacheHeaders(res *result) http.Header {
 	if res.httpResponseContext == nil || res.httpResponseContext.Response == nil {
 		return nil
 	}
@@ -171,7 +171,7 @@ func entityCacheResponseHeaders(res *result) http.Header {
 }
 
 var (
-	entitiesResponsePrefix       = []byte(`{"data":{"_entities":[`)
-	entitiesResponseSuffix       = []byte(`]}}`)
-	defaultEntityCacheErrorsPath = []string{"errors"}
+	entitiesResponsePrefix         = []byte(`{"data":{"_entities":[`)
+	entitiesResponseSuffix         = []byte(`]}}`)
+	defaultResponseCacheErrorsPath = []string{"errors"}
 )
