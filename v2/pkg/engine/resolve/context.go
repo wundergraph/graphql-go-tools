@@ -12,6 +12,7 @@ import (
 
 	"github.com/wundergraph/astjson"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -50,6 +51,8 @@ type Context struct {
 	preFetchFieldAuthorizer BatchAuthorizer
 	rateLimiter             RateLimiter
 	fieldRenderer           FieldValueRenderer
+
+	responseCache *responseCache
 
 	subgraphErrors map[string]error
 
@@ -253,6 +256,19 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 	c.rateLimiter = limiter
 }
 
+type responseCache struct {
+	store      caching.Cache
+	defaultTTL time.Duration
+	onError    func(error)
+}
+
+func (c *Context) SetResponseCache(cache caching.Cache, defaultTTL time.Duration, onError func(error)) {
+	if cache == nil {
+		return
+	}
+	c.responseCache = &responseCache{store: cache, defaultTTL: defaultTTL, onError: onError}
+}
+
 func (c *Context) SubgraphErrors() error {
 	if len(c.subgraphErrors) == 0 {
 		return nil
@@ -348,6 +364,7 @@ func (c *Context) Free() {
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
+	c.responseCache = nil
 }
 
 func (c *Context) VariablesView() VariablesView {
