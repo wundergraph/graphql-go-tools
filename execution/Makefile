@@ -22,14 +22,14 @@ update-fixtures:
 # golangci-lint will find the config file in the root dir of the repo.
 .PHONY: format
 format:
-	golangci-lint fmt
+	../scripts/golangci-lint.sh fmt
 
 lint:
-	golangci-lint run
+	../scripts/golangci-lint.sh run
 
 .PHONY: lint-fix
 lint-fix:
-	golangci-lint run --fix
+	../scripts/golangci-lint.sh run --fix
 
 .PHONY: prepare-merge
 prepare-merge: format test
