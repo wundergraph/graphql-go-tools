@@ -55,12 +55,30 @@ const EntityInterfacesDefinition = `
 
 		union Accounts = Admin | Moderator | User
 
+		interface OrphanEvent {
+		  id: ID!
+		}
+
+		type OrphanA implements OrphanEvent {
+		  id: ID!
+		}
+
+		type OrphanB implements OrphanEvent {
+		  id: ID!
+		}
+
 		type Query {
 		  allAccountsInterface: [Account]
 		  allAccountsUnion: [Accounts]
 		  user(id: ID!): User
 		  admin(id: ID!): Admin
 		  accountLocations: [Account!]!
+		}
+
+		type Subscription {
+		  accountEvents: Account!
+		  userEvents: User!
+		  orphanEvents: OrphanEvent!
 		}`
 
 func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory[Configuration]) *plan.Configuration {
@@ -408,11 +426,209 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 	)
 	require.NoError(t, err)
 
+	// The fifth subgraph models an event-driven subgraph: it publishes entity interface events but
+	// cannot resolve entities itself, so all of its keys have the entity resolver disabled.
+	fifthSubgraphSDL := `
+		interface Account @key(fields: "id", resolvable: false) {
+			id: ID!
+		}
+
+		type Admin implements Account @key(fields: "id", resolvable: false) {
+			id: ID!
+		}
+
+		type Moderator implements Account @key(fields: "id", resolvable: false) {
+			id: ID!
+		}
+
+		type User implements Account @key(fields: "id", resolvable: false) {
+			id: ID!
+		}
+
+		type Subscription {
+			accountEvents: Account!
+			userEvents: User!
+		}`
+
+	fifthDatasourceSchemaConfiguration, err := NewSchemaConfiguration(
+		fifthSubgraphSDL,
+		&FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: fifthSubgraphSDL,
+		},
+	)
+	require.NoError(t, err)
+
+	fifthCustomConfiguration, err := NewConfiguration(ConfigurationInput{
+		Fetch: &FetchConfiguration{
+			URL: "http://localhost:4005/graphql",
+		},
+		Subscription: &SubscriptionConfiguration{
+			URL: "ws://localhost:4005/graphql",
+		},
+		SchemaConfiguration: fifthDatasourceSchemaConfiguration,
+	})
+	require.NoError(t, err)
+
+	fifthDatasourceConfiguration, err := plan.NewDataSourceConfiguration[Configuration](
+		"events",
+		factory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"accountEvents", "userEvents"},
+				},
+				{
+					TypeName:   "Account",
+					FieldNames: []string{"id"},
+				},
+				{
+					TypeName:   "Admin",
+					FieldNames: []string{"id"},
+				},
+				{
+					TypeName:   "Moderator",
+					FieldNames: []string{"id"},
+				},
+				{
+					TypeName:   "User",
+					FieldNames: []string{"id"},
+				},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				EntityInterfaces: []plan.EntityInterfaceConfiguration{
+					{
+						InterfaceTypeName: "Account",
+						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
+					},
+				},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:              "Account",
+						SelectionSet:          "id",
+						DisableEntityResolver: true,
+					},
+					{
+						TypeName:              "Admin",
+						SelectionSet:          "id",
+						DisableEntityResolver: true,
+					},
+					{
+						TypeName:              "Moderator",
+						SelectionSet:          "id",
+						DisableEntityResolver: true,
+					},
+					{
+						TypeName:              "User",
+						SelectionSet:          "id",
+						DisableEntityResolver: true,
+					},
+				},
+			},
+		},
+		fifthCustomConfiguration,
+	)
+	require.NoError(t, err)
+
+	// The sixth subgraph publishes an entity interface which no other subgraph declares, so no
+	// datasource is able to resolve it. Its __typename has to stay on this datasource.
+	sixthSubgraphSDL := `
+		interface OrphanEvent @key(fields: "id", resolvable: false) {
+			id: ID!
+		}
+
+		type OrphanA implements OrphanEvent @key(fields: "id", resolvable: false) {
+			id: ID!
+		}
+
+		type OrphanB implements OrphanEvent @key(fields: "id", resolvable: false) {
+			id: ID!
+		}
+
+		type Subscription {
+			orphanEvents: OrphanEvent!
+		}`
+
+	sixthDatasourceSchemaConfiguration, err := NewSchemaConfiguration(
+		sixthSubgraphSDL,
+		&FederationConfiguration{
+			Enabled:    true,
+			ServiceSDL: sixthSubgraphSDL,
+		},
+	)
+	require.NoError(t, err)
+
+	sixthCustomConfiguration, err := NewConfiguration(ConfigurationInput{
+		Fetch: &FetchConfiguration{
+			URL: "http://localhost:4006/graphql",
+		},
+		Subscription: &SubscriptionConfiguration{
+			URL: "ws://localhost:4006/graphql",
+		},
+		SchemaConfiguration: sixthDatasourceSchemaConfiguration,
+	})
+	require.NoError(t, err)
+
+	sixthDatasourceConfiguration, err := plan.NewDataSourceConfiguration[Configuration](
+		"orphan-events",
+		factory,
+		&plan.DataSourceMetadata{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Subscription",
+					FieldNames: []string{"orphanEvents"},
+				},
+				{
+					TypeName:   "OrphanEvent",
+					FieldNames: []string{"id"},
+				},
+				{
+					TypeName:   "OrphanA",
+					FieldNames: []string{"id"},
+				},
+				{
+					TypeName:   "OrphanB",
+					FieldNames: []string{"id"},
+				},
+			},
+			FederationMetaData: plan.FederationMetaData{
+				EntityInterfaces: []plan.EntityInterfaceConfiguration{
+					{
+						InterfaceTypeName: "OrphanEvent",
+						ConcreteTypeNames: []string{"OrphanA", "OrphanB"},
+					},
+				},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:              "OrphanEvent",
+						SelectionSet:          "id",
+						DisableEntityResolver: true,
+					},
+					{
+						TypeName:              "OrphanA",
+						SelectionSet:          "id",
+						DisableEntityResolver: true,
+					},
+					{
+						TypeName:              "OrphanB",
+						SelectionSet:          "id",
+						DisableEntityResolver: true,
+					},
+				},
+			},
+		},
+		sixthCustomConfiguration,
+	)
+	require.NoError(t, err)
+
 	dataSources := []plan.DataSource{
 		firstDatasourceConfiguration,
 		secondDatasourceConfiguration,
 		thirdDatasourceConfiguration,
 		fourthDatasourceConfiguration,
+		fifthDatasourceConfiguration,
+		sixthDatasourceConfiguration,
 	}
 
 	planConfiguration := plan.Configuration{
