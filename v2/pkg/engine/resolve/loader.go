@@ -26,8 +26,8 @@ import (
 	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/entitycaching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
@@ -496,7 +496,7 @@ type preparedFetch struct {
 
 	entityCacheHit bool
 
-	entityCacheItems []entitycaching.Item
+	entityCacheItems []caching.Item
 
 	multiEntries []preparedMultiEntry
 }
@@ -1730,7 +1730,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 			rendered[entityCacheFooterStart:],
 		)
 		entityCacheItemHash := xxhash.Sum64(renderedItem)
-		prepared.entityCacheKeys = []string{entitycaching.Key(entityCacheItemHash, selectionHash)}
+		prepared.entityCacheKeys = []string{caching.Key(entityCacheItemHash, selectionHash)}
 	}
 
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
@@ -1925,7 +1925,7 @@ WithNextItem:
 		)
 		prepared.entityCacheKeys = make([]string, len(entityCacheItemHashes))
 		for i, itemHash := range entityCacheItemHashes {
-			prepared.entityCacheKeys[i] = entitycaching.Key(itemHash, selectionHash)
+			prepared.entityCacheKeys[i] = caching.Key(itemHash, selectionHash)
 		}
 	}
 

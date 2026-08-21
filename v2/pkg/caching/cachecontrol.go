@@ -1,4 +1,4 @@
-package entitycaching
+package caching
 
 import (
 	"net/http"

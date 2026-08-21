@@ -12,8 +12,8 @@ import (
 
 	"github.com/wundergraph/astjson"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/entitycaching"
 )
 
 // Context should not ever be initialized directly, and should be initialized via the NewContext function
@@ -257,12 +257,12 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 }
 
 type entityCache struct {
-	store      entitycaching.Cache
+	store      caching.Cache
 	defaultTTL time.Duration
 	onError    func(error)
 }
 
-func (c *Context) SetEntityCache(cache entitycaching.Cache, defaultTTL time.Duration, onError func(error)) {
+func (c *Context) SetEntityCache(cache caching.Cache, defaultTTL time.Duration, onError func(error)) {
 	if cache == nil {
 		return
 	}

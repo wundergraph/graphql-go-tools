@@ -22,8 +22,8 @@ import (
 	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/entitycaching"
 )
 
 // harness is a federated engine over three stub subgraphs. users answers me,
@@ -82,7 +82,7 @@ func (h *harness) execute(t *testing.T, query string, options ...ExecutionOption
 // it on the resolve context. Reaching into the execution context is what keeps
 // this out of the engine's exported surface: the cache is the caller's to supply,
 // and no option needs to exist for a test to supply one.
-func withEntityCache(t *testing.T, cache entitycaching.Cache) ExecutionOptions {
+func withEntityCache(t *testing.T, cache caching.Cache) ExecutionOptions {
 	t.Helper()
 
 	return func(execCtx *internalExecutionContext) {
@@ -231,18 +231,18 @@ func (h *countingLoaderHooks) OnFinished(context.Context, resolve.DataSourceInfo
 // being positive, the way a real adapter refuses an item it cannot expire.
 type mapCache struct {
 	mu    sync.Mutex
-	items map[string]entitycaching.Item
+	items map[string]caching.Item
 }
 
 func newMapCache() *mapCache {
-	return &mapCache{items: make(map[string]entitycaching.Item)}
+	return &mapCache{items: make(map[string]caching.Item)}
 }
 
-func (c *mapCache) GetMany(_ context.Context, keys []string) (map[string]entitycaching.Item, error) {
+func (c *mapCache) GetMany(_ context.Context, keys []string) (map[string]caching.Item, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	found := make(map[string]entitycaching.Item, len(keys))
+	found := make(map[string]caching.Item, len(keys))
 	for _, key := range keys {
 		if item, ok := c.items[key]; ok {
 			found[key] = item
@@ -252,13 +252,13 @@ func (c *mapCache) GetMany(_ context.Context, keys []string) (map[string]entityc
 	return found, nil
 }
 
-func (c *mapCache) SetMany(_ context.Context, items []entitycaching.Item) error {
+func (c *mapCache) SetMany(_ context.Context, items []caching.Item) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	for _, item := range items {
 		if item.TTL <= 0 {
-			return fmt.Errorf("%w: key %q", entitycaching.ErrMissingTTL, item.Key)
+			return fmt.Errorf("%w: key %q", caching.ErrMissingTTL, item.Key)
 		}
 		c.items[item.Key] = item
 	}

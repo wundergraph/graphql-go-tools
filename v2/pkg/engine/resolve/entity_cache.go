@@ -6,7 +6,7 @@ import (
 
 	"github.com/wundergraph/astjson"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/entitycaching"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -17,10 +17,9 @@ func (l *Loader) entityCacheEnabled() bool {
 }
 
 func (l *Loader) reportEntityCacheError(err error) {
-	if l.ctx == nil || l.ctx.entityCache == nil || l.ctx.entityCache.onError == nil {
-		return
+	if l.entityCacheEnabled() && l.ctx.entityCache.onError != nil {
+		l.ctx.entityCache.onError(err)
 	}
-	l.ctx.entityCache.onError(err)
 }
 
 func entityCacheSelectionHash(header, footer []byte) uint64 {
@@ -101,7 +100,7 @@ func (l *Loader) entityCacheCollect(prepared *preparedFetch) error {
 
 	response, err := res.parsedResponse(l)
 	if err != nil {
-		return fmt.Errorf("unexpected parse error: %w", err)
+		return fmt.Errorf("parse error: %w", err)
 	}
 
 	errorsPath := res.postProcessing.SelectResponseErrorsPath
@@ -113,7 +112,7 @@ func (l *Loader) entityCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	ttl, ok := entitycaching.TTL(entityCacheResponseHeaders(res), l.ctx.entityCache.defaultTTL)
+	ttl, ok := caching.TTL(entityCacheResponseHeaders(res), l.ctx.entityCache.defaultTTL)
 	if !ok {
 		return nil
 	}
@@ -129,12 +128,12 @@ func (l *Loader) entityCacheCollect(prepared *preparedFetch) error {
 		return fmt.Errorf("unexpected number of _entities values found %d", len(values))
 	}
 
-	items := make([]entitycaching.Item, 0, len(prepared.entityCacheKeys))
+	items := make([]caching.Item, 0, len(prepared.entityCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
 		}
-		items = append(items, entitycaching.Item{
+		items = append(items, caching.Item{
 			Key:   prepared.entityCacheKeys[i],
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
@@ -152,10 +151,11 @@ func (l *Loader) entityCacheFlush(prepared *preparedFetch) {
 		return
 	}
 
-	items := prepared.entityCacheItems
-	if len(items) == 0 {
+	if len(prepared.entityCacheItems) == 0 {
 		return
 	}
+
+	items := prepared.entityCacheItems
 	prepared.entityCacheItems = nil
 
 	if err := l.ctx.entityCache.store.SetMany(l.ctx.ctx, items); err != nil {
