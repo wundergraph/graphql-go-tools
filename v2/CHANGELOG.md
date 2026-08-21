@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.17.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.16.0...v2.17.0) (2026-08-21)
+
+
+### Features
+
+* response caching base implementation ([#1638](https://github.com/wundergraph/graphql-go-tools/issues/1638)) ([2691879](https://github.com/wundergraph/graphql-go-tools/commit/26918796d41b36478f75d6d3c92a8c550d3ca3aa))
+
 ## [2.16.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.15.1...v2.16.0) (2026-08-13)
 
 
