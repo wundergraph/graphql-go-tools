@@ -3992,7 +3992,8 @@ func (w *Walker) ArgumentInputValueDefinition(argument int) (definition int, exi
 	return
 }
 
-// FieldDefinitionWithExists
+// FieldDefinitionWithExists returns the field definition and whether it exists.
+//
 // Deprecated: use FieldDefinition
 func (w *Walker) FieldDefinitionWithExists(field int) (definition int, exists bool) {
 	return w.FieldDefinition(field)

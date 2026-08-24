@@ -32,8 +32,7 @@ func (f *Factory[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Doc
 
 func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      false,
-		OverrideFieldPathFromAlias: true,
-		AllowPlanningTypeName:      true,
+		MergeAliasedRootNodes: false,
+		AllowPlanningTypeName: true,
 	}
 }

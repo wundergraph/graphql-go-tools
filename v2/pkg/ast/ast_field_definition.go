@@ -77,8 +77,7 @@ func (d *Document) FieldDefinitionHasNamedDirective(fieldDefinition int, directi
 }
 
 func (d *Document) FieldDefinitionResolverTypeName(enclosingType Node) ByteSlice {
-	switch enclosingType.Kind {
-	case NodeKindObjectTypeDefinition:
+	if enclosingType.Kind == NodeKindObjectTypeDefinition {
 		name := d.ObjectTypeDefinitionNameBytes(enclosingType.Ref)
 		switch {
 		case bytes.Equal(name, d.Index.QueryTypeName):
@@ -89,6 +88,7 @@ func (d *Document) FieldDefinitionResolverTypeName(enclosingType Node) ByteSlice
 			return literal.SUBSCRIPTION
 		}
 	}
+
 	return d.NodeNameBytes(enclosingType)
 }
 
