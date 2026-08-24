@@ -166,8 +166,7 @@ func (l *lexer) nextToken() (token, error) {
 		return tok, nil
 	}
 
-	switch next {
-	case runes.QUOTE:
+	if next == runes.QUOTE {
 		// We expect a string token here.
 		err := l.readString(&tok)
 		return tok, err
@@ -242,8 +241,7 @@ func (l *lexer) readString(tok *token) error {
 			return fmt.Errorf("control character %#x found in input at position %d", next, l.pos)
 		}
 
-		switch next {
-		case runes.QUOTE:
+		if next == runes.QUOTE {
 			tok.setEnd(l.pos, l.input)
 			l.advance(1) // consume the quote
 			return nil

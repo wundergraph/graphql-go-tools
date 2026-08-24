@@ -301,8 +301,7 @@ func (d *Document) NodeInputFieldDefinitions(node Node) []int {
 }
 
 func (d *Document) NodeInputFieldDefinitionByName(node Node, name ByteSlice) (int, bool) {
-	switch node.Kind {
-	case NodeKindInputObjectTypeDefinition:
+	if node.Kind == NodeKindInputObjectTypeDefinition {
 		refs := d.InputObjectTypeDefinitions[node.Ref].InputFieldsDefinition.Refs
 		for _, ref := range refs {
 			if bytes.Equal(d.Input.ByteSlice(d.InputValueDefinitions[ref].Name), name) {
@@ -310,6 +309,7 @@ func (d *Document) NodeInputFieldDefinitionByName(node Node, name ByteSlice) (in
 			}
 		}
 	}
+
 	return 0, false
 }
 
