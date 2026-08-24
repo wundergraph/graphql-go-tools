@@ -494,6 +494,8 @@ type preparedFetch struct {
 
 	responseCacheKeys []string
 
+	isRootFetchCache bool
+
 	responseCacheHit bool
 
 	responseCacheItems []caching.Item

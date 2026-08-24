@@ -71,8 +71,17 @@ func newHarness(t *testing.T, configure ...func(*Configuration)) *harness {
 func (h *harness) execute(t *testing.T, query string, options ...ExecutionOptions) string {
 	t.Helper()
 
+	return h.executeWithVariables(t, query, nil, options...)
+}
+
+// executeWithVariables is execute for the cases that are about the variables:
+// they are rendered into the upstream request, so they are part of what a root
+// fetch is keyed on.
+func (h *harness) executeWithVariables(t *testing.T, query string, variables json.RawMessage, options ...ExecutionOptions) string {
+	t.Helper()
+
 	writer := graphql.NewEngineResultWriter()
-	err := h.engine.Execute(t.Context(), &graphql.Request{Query: query}, &writer, options...)
+	err := h.engine.Execute(t.Context(), &graphql.Request{Query: query, Variables: variables}, &writer, options...)
 	require.NoError(t, err)
 
 	return writer.String()
@@ -91,6 +100,26 @@ func withResponseCache(t *testing.T, cache caching.Cache) ExecutionOptions {
 		})
 	}
 }
+
+// withSubgraphHeaders supplies the forwarded headers a router would build for
+// each subgraph request. Only the hash reaches the cache key, which is the point
+// of the cases that use this: two executions of the same query with different
+// propagated headers must not share an entry.
+func withSubgraphHeaders(hash uint64) ExecutionOptions {
+	return func(execCtx *internalExecutionContext) {
+		execCtx.resolveContext.SubgraphHeadersBuilder = &fixedSubgraphHeaders{hash: hash}
+	}
+}
+
+type fixedSubgraphHeaders struct {
+	hash uint64
+}
+
+func (f *fixedSubgraphHeaders) HeadersForSubgraph(string) (http.Header, uint64) {
+	return http.Header{"X-Tenant": []string{fmt.Sprintf("%d", f.hash)}}, f.hash
+}
+
+func (f *fixedSubgraphHeaders) HashAll() uint64 { return f.hash }
 
 func withRateLimiter(limiter resolve.RateLimiter) ExecutionOptions {
 	return func(execCtx *internalExecutionContext) {
