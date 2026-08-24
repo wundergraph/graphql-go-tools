@@ -660,21 +660,19 @@ func (p *printVisitor) LeaveInputValueDefinition(ref int) {
 			}
 		}
 		p.writeIndentedWithDepth(p.inputValueDefinitionCloser, closerDepth)
-	} else {
-		if len(p.Ancestors) > 0 {
-			// check enclosing type kind
-			if parent.Kind == ast.NodeKindFieldDefinition {
-				if multilineField {
-					// Args are separated by line terminators emitted on
-					// Enter of the next arg, not by ", ".
-					return
-				}
-				p.write(literal.COMMA)
-				p.write(literal.SPACE)
-			} else if len(p.indent) == 0 {
-				// add space between arguments when printing without indents
-				p.write(literal.SPACE)
+	} else if len(p.Ancestors) > 0 {
+		// check enclosing type kind
+		if parent.Kind == ast.NodeKindFieldDefinition {
+			if multilineField {
+				// Args are separated by line terminators emitted on
+				// Enter of the next arg, not by ", ".
+				return
 			}
+			p.write(literal.COMMA)
+			p.write(literal.SPACE)
+		} else if len(p.indent) == 0 {
+			// add space between arguments when printing without indents
+			p.write(literal.SPACE)
 		}
 	}
 }

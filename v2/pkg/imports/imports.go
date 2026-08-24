@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	importStatementRegex, _ = regexp.Compile(`(#import "[^";]+")`)
-	pathStatementRegex, _   = regexp.Compile(`"(.*?)"`)
+	importStatementRegex = regexp.MustCompile(`(#import "[^";]+")`)
+	pathStatementRegex   = regexp.MustCompile(`"(.*?)"`)
 )
 
 type Scanner struct {

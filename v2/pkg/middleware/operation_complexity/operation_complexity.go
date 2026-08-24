@@ -153,7 +153,7 @@ type multiplier struct {
 
 func (c *complexityVisitor) calculateMultiplied(i int) int {
 	for _, j := range c.multipliers {
-		i = i * j.multi
+		i *= j.multi
 	}
 	return i
 }
@@ -217,12 +217,12 @@ func (c *complexityVisitor) EnterField(ref int) {
 		return
 	}
 
-	c.complexity = c.complexity + c.calculateMultiplied(1)
+	c.complexity += c.calculateMultiplied(1)
 	if c.Depth > c.maxFieldDepth {
 		c.maxFieldDepth = c.Depth
 	}
 
-	c.currentRootFieldStats.Stats.Complexity = c.currentRootFieldStats.Stats.Complexity + c.calculateMultiplied(1)
+	c.currentRootFieldStats.Stats.Complexity += c.calculateMultiplied(1)
 	if c.Depth > c.currentRootFieldMaxDepth {
 		c.currentRootFieldMaxDepth = c.Depth
 	}
@@ -248,13 +248,13 @@ func (c *complexityVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	c.count = c.count + c.calculateMultiplied(1)
+	c.count += c.calculateMultiplied(1)
 	if c.Depth > c.maxSelectionSetFieldDepth {
 		c.maxSelectionSetFieldDepth = c.Depth
 		c.selectionSetDepth++
 	}
 
-	c.currentRootFieldStats.Stats.NodeCount = c.currentRootFieldStats.Stats.NodeCount + c.calculateMultiplied(1)
+	c.currentRootFieldStats.Stats.NodeCount += c.calculateMultiplied(1)
 	if c.Depth > c.currentRootFieldMaxSelectionSetDepth {
 		c.currentRootFieldMaxSelectionSetDepth = c.Depth
 		c.currentRootFieldSelectionSetDepth++

@@ -44,7 +44,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	defer l.Close()
 
 	s := grpc.NewServer(
 		grpc.UnaryInterceptor(loggingInterceptor),
