@@ -315,8 +315,10 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 			out = line
 		}
 
-		// do not transform a line when no conditions met
-		// in case we are inside an import just skip a line
+		// Preserve lines that don't require translation. This intentionally includes rule
+		// identifiers: testsgo/harness_test.go declares matching Go string constants, so
+		// generated helper calls must keep bare identifiers instead of quoted literals.
+		// In case we are inside an import, skip the line instead.
 	default:
 		if c.insideImport {
 			return "", true
