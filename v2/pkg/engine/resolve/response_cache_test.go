@@ -8,10 +8,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
-// The root fetch cache keys a whole upstream request, so what it may be asked to
-// key is narrower than what the loader sees: only a root fetch has a request the
-// client's variables fully determine, and only a GraphQL subgraph answers with
-// the Cache-Control header the store decision needs.
+// What the root fetch cache may be asked to key is narrower than what the
+// loader sees: one case per condition that narrows it.
 func TestRootFetchCacheable(t *testing.T) {
 	rootItem := func() *FetchItem { return &FetchItem{} }
 
@@ -52,9 +50,8 @@ func TestRootFetchCacheable(t *testing.T) {
 	})
 
 	t.Run("a fetch answered by anything but a GraphQL subgraph is not", func(t *testing.T) {
-		// Introspection, pubsub and gRPC plugins all answer without a
-		// Cache-Control header, so probing the cache for them could only ever
-		// cost a round trip.
+		// Introspection, pubsub and gRPC plugins answer without a Cache-Control
+		// header, so a lookup for them could only ever cost a round trip.
 		fetch := queryFetch()
 		fetch.DataSourceIdentifier = []byte("introspection_datasource.Source")
 		require.False(t, rootFetchCacheable(rootItem(), fetch))

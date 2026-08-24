@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 const (
 	singleEntityQuery   = `{ me { id username reviews { body } } }`
 	meAnswer            = `{"data":{"me":{"id":"1234","username":"Me","__typename":"User"}}}`
@@ -363,14 +362,11 @@ func TestResponseCacheExecution(t *testing.T) {
 }
 
 // rootOnlyQuery is answered by the products subgraph alone: upc is the key
-// field, so nothing below it needs an entity fetch and the products call count
-// is the root fetch's own.
+// field, so nothing below it needs an entity fetch.
 const rootOnlyQuery = `query Top($first: Int) { topProducts(first: $first) { upc } }`
 
 // A root query fetch is cached as one entry holding its whole data object, so
-// what is keyed is the rendered upstream request rather than any one entity in
-// it. These cases are about that key: what has to be part of it, and what the
-// engine has to decline to store at all.
+// what is keyed is the rendered upstream request, not any one entity in it.
 func TestRootFetchCacheExecution(t *testing.T) {
 	t.Parallel()
 
@@ -397,9 +393,7 @@ func TestRootFetchCacheExecution(t *testing.T) {
 		t.Parallel()
 
 		// The entity fetch is deliberately uncacheable, so the second execution
-		// has to build its representations out of the cached root data. If the
-		// cached bytes were missing the key fields the root selection carries,
-		// this is where it would show.
+		// has to build its representations out of the cached root data.
 		h := newHarness(t)
 		h.users.answers(meAnswer)
 		h.reviews.answers(reviewsAnswer("A review"))
@@ -439,13 +433,8 @@ func TestRootFetchCacheExecution(t *testing.T) {
 	t.Run("forwarded headers do not separate entries", func(t *testing.T) {
 		t.Parallel()
 
-		// Pins today's behaviour rather than endorsing it. A key is built from
-		// the request the router rendered, and the headers it forwards are
-		// applied to that request afterwards, so they are in no key: two callers
-		// whose header rules produce different subgraph requests read the same
-		// entries. A subgraph whose answer varies by header must not call it
-		// public. Should that ever change, this test is the one that has to be
-		// changed on purpose.
+		// Pins today's behaviour rather than endorsing it: forwarded headers are
+		// applied after the request is rendered, so they are in no key.
 		h := newHarness(t)
 		h.users.answers(meAnswer)
 		h.reviews.answers(reviewsAnswer("A review"))

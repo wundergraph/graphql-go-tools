@@ -36,13 +36,11 @@ func responseCacheSelectionHash(header, footer []byte) uint64 {
 	return d.Sum64()
 }
 
-// rootFetchCacheable reports whether this fetch is the one shape the root fetch
-// cache can key: a root query fetch answered by a GraphQL subgraph. Each
-// condition is something the caching would get wrong if it did not hold.
+// rootFetchCacheable reports whether this fetch is the one shape the cache can
+// key: a root query fetch answered by a GraphQL subgraph.
 func rootFetchCacheable(fetchItem *FetchItem, fetch *SingleFetch) bool {
-	// Root position only. FetchPath is empty just at the response root, so a
-	// non-empty one means the request was rendered from data an earlier fetch
-	// returned.
+	// Root position only: a nested fetch's request was rendered from data an
+	// earlier fetch returned.
 	if fetchItem == nil || len(fetchItem.FetchPath) != 0 {
 		return false
 	}

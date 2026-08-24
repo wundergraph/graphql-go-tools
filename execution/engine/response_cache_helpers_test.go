@@ -74,9 +74,8 @@ func (h *harness) execute(t *testing.T, query string, options ...ExecutionOption
 	return h.executeWithVariables(t, query, nil, options...)
 }
 
-// executeWithVariables is execute for the cases that are about the variables:
-// they are rendered into the upstream request, so they are part of what a root
-// fetch is keyed on.
+// executeWithVariables is execute for the cases about variables: they are
+// rendered into the upstream request, so they are part of a root fetch's key.
 func (h *harness) executeWithVariables(t *testing.T, query string, variables json.RawMessage, options ...ExecutionOptions) string {
 	t.Helper()
 
@@ -101,10 +100,8 @@ func withResponseCache(t *testing.T, cache caching.Cache) ExecutionOptions {
 	}
 }
 
-// withSubgraphHeaders supplies the forwarded headers a router would build for
-// each subgraph request. Only the hash reaches the cache key, which is the point
-// of the cases that use this: two executions of the same query with different
-// propagated headers must not share an entry.
+// withSubgraphHeaders supplies the headers a router would forward for each
+// subgraph request. Only the hash of them ever reaches a cache key.
 func withSubgraphHeaders(hash uint64) ExecutionOptions {
 	return func(execCtx *internalExecutionContext) {
 		execCtx.resolveContext.SubgraphHeadersBuilder = &fixedSubgraphHeaders{hash: hash}
