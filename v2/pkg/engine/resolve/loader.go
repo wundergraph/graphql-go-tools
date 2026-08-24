@@ -1653,8 +1653,6 @@ func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, it
 		return nil
 	}
 	if l.responseCacheEnabled() && rootFetchCacheable(fetchItem, fetch) {
-		// The rendered input covers the method, URL, headers, operation and
-		// variables; the subgraph it goes to is what those bytes leave out.
 		prepared.responseCacheKeys = []string{caching.Key(
 			xxhash.Sum64(fetchInput),
 			xxhash.Sum64String(fetch.Info.DataSourceID),
