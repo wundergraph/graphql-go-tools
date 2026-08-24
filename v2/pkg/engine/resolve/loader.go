@@ -1652,6 +1652,18 @@ func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, it
 		prepared.skipLoad = true
 		return nil
 	}
+	if l.responseCacheEnabled() && rootFetchCacheable(fetchItem, fetch) {
+		// The rendered input carries the method, the URL, the statically
+		// configured headers, the printed operation and every variable value, so
+		// one hash of it identifies the request; the subgraph it is addressed to
+		// is the one thing about it those bytes do not settle.
+		prepared.responseCacheKeys = []string{caching.Key(
+			xxhash.Sum64(fetchInput),
+			xxhash.Sum64String(fetch.Info.DataSourceID),
+		)}
+		prepared.isRootFetchCache = true
+	}
+
 	prepared.source = fetch.DataSource
 	prepared.input = fetchInput
 	prepared.trace = fetch.Trace

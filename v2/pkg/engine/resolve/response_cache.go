@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -68,8 +67,6 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		return false
 	}
 
-	l.keyRootFetch(prepared)
-
 	keys := prepared.responseCacheKeys
 	if len(keys) == 0 {
 		return false
@@ -113,23 +110,6 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.statusCode = http.StatusOK
 
 	return true
-}
-
-func (l *Loader) keyRootFetch(prepared *preparedFetch) {
-	if len(prepared.responseCacheKeys) > 0 {
-		return
-	}
-
-	fetch, ok := prepared.item.Fetch.(*SingleFetch)
-	if !ok || !rootFetchCacheable(prepared.item, fetch) {
-		return
-	}
-
-	prepared.responseCacheKeys = []string{caching.Key(
-		xxhash.Sum64(prepared.input),
-		xxhash.Sum64String(fetch.Info.DataSourceID),
-	)}
-	prepared.isRootFetchCache = true
 }
 
 func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
