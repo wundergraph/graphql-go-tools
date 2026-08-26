@@ -8,6 +8,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -33,10 +34,7 @@ func mockedDS(t TestingTB, ctrl *gomock.Controller, expectedInput, responseData 
 // It populates the *httpclient.ResponseContext the loader already put on the context
 func mockedDSWithHeaders(t TestingTB, ctrl *gomock.Controller, expectedInput, responseData string, responseHeaders http.Header, times int) *MockDataSource {
 	t.Helper()
-	expectedCalls := 1
-	if times > 1 {
-		expectedCalls = times
-	}
+	expectedCalls := max(times, 1)
 
 	service := NewMockDataSource(ctrl)
 	service.EXPECT().
