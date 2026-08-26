@@ -8,6 +8,8 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
 type TestingTB interface {
@@ -25,6 +27,35 @@ func mockedDS(t TestingTB, ctrl *gomock.Controller, expectedInput, responseData 
 			require.Equal(t, expectedInput, string(input))
 			return []byte(responseData), nil
 		}).Times(1)
+	return service
+}
+
+// mockedDSWithHeaders is mockedDS plus the HTTP response metadata a real datasource would produce.
+// It populates the *httpclient.ResponseContext the loader already put on the context
+func mockedDSWithHeaders(t TestingTB, ctrl *gomock.Controller, expectedInput, responseData string, responseHeaders http.Header, times int) *MockDataSource {
+	t.Helper()
+	expectedCalls := max(times, 1)
+
+	service := NewMockDataSource(ctrl)
+	service.EXPECT().
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, requestHeaders http.Header, input []byte) ([]byte, error) {
+			require.Equal(t, expectedInput, string(input))
+			if responseContext := httpclient.GetResponseContext(ctx); responseContext != nil {
+				request := &http.Request{
+					Method: "POST",
+					Header: requestHeaders,
+				}
+				responseContext.StatusCode = http.StatusOK
+				responseContext.Request = request
+				responseContext.Response = &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     responseHeaders.Clone(),
+					Request:    request,
+				}
+			}
+			return []byte(responseData), nil
+		}).Times(expectedCalls)
 	return service
 }
 

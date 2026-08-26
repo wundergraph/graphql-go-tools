@@ -293,14 +293,9 @@ func TestResponseCacheExecution(t *testing.T) {
 			"a fetch served from the cache is checked exactly as the fetch it stands in for was")
 	})
 
-	t.Run("a cache hit skips the loader hooks", func(t *testing.T) {
+	t.Run("a cache hit doesn't skip the loader hooks", func(t *testing.T) {
 		t.Parallel()
 
-		// Pins today's behaviour rather than endorsing it. The hooks are where a
-		// router hangs subgraph spans and metrics, and a hit reaches neither
-		// OnLoad nor OnFinished, so a cached entity fetch is invisible to
-		// subgraph telemetry. Should that ever be wanted, this test is the one
-		// that has to be changed on purpose.
 		h := newHarness(t)
 		h.users.answers(meAnswer)
 		h.reviews.answers(reviewsAnswer("A review"))
@@ -315,9 +310,9 @@ func TestResponseCacheExecution(t *testing.T) {
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache), withLoaderHooks(hooks))
 
 		require.EqualValues(t, 1, h.reviews.calls())
-		require.EqualValues(t, 3, hooks.onLoad.Load(),
-			"only the users fetch runs on the second execution; the cached reviews fetch reaches no hook")
-		require.EqualValues(t, 3, hooks.onFinished.Load())
+		require.EqualValues(t, 4, hooks.onLoad.Load(),
+			"the cached reviews fetch is hooked exactly as the fetch it stands in for was")
+		require.EqualValues(t, 4, hooks.onFinished.Load())
 	})
 
 	t.Run("a merged multi entity fetch is never cached", func(t *testing.T) {
