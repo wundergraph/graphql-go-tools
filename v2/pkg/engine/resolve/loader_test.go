@@ -2756,7 +2756,11 @@ func (t *testCache) GetMany(ctx context.Context, keys []string) (map[string]cach
 
 	items := make(map[string]caching.Item, len(keys))
 	for _, key := range keys {
-		items[key] = t.items[key]
+		item, ok := t.items[key]
+		if !ok {
+			continue
+		}
+		items[key] = item
 	}
 	return items, nil
 }
