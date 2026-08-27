@@ -1,6 +1,7 @@
 package operation_complexity
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -497,6 +498,31 @@ func TestCalculateOperationComplexity(t *testing.T) {
 	})
 }
 
+func TestCalculateOperationComplexityDepth(t *testing.T) {
+	tests := []struct {
+		name       string
+		selections string
+	}{
+		{name: "deep path"},
+		{name: "two shallower siblings", selections: depthRegressionFirstBranch + depthRegressionSecondBranch},
+		{name: "one shallower sibling", selections: depthRegressionSecondBranch},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			definition := unsafeparser.ParseGraphqlDocumentString(depthRegressionDefinition)
+			operation := unsafeparser.ParseGraphqlDocumentString(fmt.Sprintf(depthRegressionQuery, tt.selections))
+			report := operationreport.Report{}
+
+			astnormalization.NormalizeOperation(&operation, &definition, &report)
+			stats, _ := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+
+			require.False(t, report.HasErrors(), report.Error())
+			assert.Equal(t, 11, stats.Depth)
+		})
+	}
+}
+
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -579,6 +605,111 @@ const complexQuery = `
 			}
 		}
 	}
+  }
+}`
+
+const depthRegressionDefinition = `
+scalar String
+
+schema { query: Query }
+
+input RootInput { key: String }
+type Query { root(input: RootInput!): RootResult }
+union RootResult = RootSuccess | Failure
+type RootSuccess { results: [Result!]! }
+union Result = ResultSuccess | Failure
+type ResultSuccess { result: Record }
+type Failure { message: String }
+
+interface Record { pathA: PathA alternateOne: AlternateOne }
+type BasicRecord implements Record { pathA: PathA alternateOne: AlternateOne }
+type ExtendedRecord implements Record { pathA: PathA alternateOne: AlternateOne sideLeaf: String branchOne: BranchOne }
+
+type PathA { pathB: PathB }
+union PathB = PathBDetails | Failure
+type PathBDetails { pathC: PathC }
+type PathC { pathD: PathD }
+union PathD = PathDDetails | Failure
+type PathDDetails { pathE: PathE }
+type PathE { pathF: PathF }
+type PathF { pathG: PathG }
+type PathG { leaf: String }
+
+type BranchOne { branchTwo: BranchTwo }
+type BranchTwo { branchLeaf: String branchThree: [BranchThree!] }
+type BranchThree { branchLeaf: String branchFour: [BranchFour!] }
+type BranchFour { branchLeaf: String }
+
+type AlternateOne { alternateTwo: AlternateTwo }
+type AlternateTwo { alternateThree: AlternateThree }
+type AlternateThree { alternateFour: AlternateFour }
+type AlternateFour { alternateFive: AlternateFive }
+type AlternateFive { alternateSix: AlternateSix }
+type AlternateSix { alternateLeaf: String }
+`
+
+const depthRegressionQuery = `
+query Operation($input: RootInput!) {
+  root(input: $input) {
+    ... on RootSuccess {
+      results {
+        ... on ResultSuccess {
+          result {
+            %s
+            pathA {
+              pathB {
+                ... on PathBDetails {
+                  pathC {
+                    pathD {
+                      ... on PathDDetails {
+                        pathE {
+                          pathF {
+                            pathG {
+                              leaf
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`
+
+const depthRegressionFirstBranch = `
+... on ExtendedRecord {
+  sideLeaf
+  branchOne {
+    branchTwo {
+      branchLeaf
+      branchThree {
+        branchLeaf
+        branchFour {
+          branchLeaf
+        }
+      }
+    }
+  }
+}`
+
+const depthRegressionSecondBranch = `
+alternateOne {
+  alternateTwo {
+    alternateThree {
+      alternateFour {
+        alternateFive {
+          alternateSix {
+            alternateLeaf
+          }
+        }
+      }
+    }
   }
 }`
 
