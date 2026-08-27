@@ -88,7 +88,6 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	n.visitor.maxFieldDepth = 0
 	n.visitor.multipliers = n.visitor.multipliers[:0]
 
-	n.visitor.maxSelectionSetFieldDepth = 0
 	n.visitor.selectionSetDepth = 0
 
 	if n.visitor.calculatedRootFieldStats == nil {
@@ -105,11 +104,10 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 
 	n.walker.Walk(operation, definition, report)
 
-	depth := n.visitor.maxFieldDepth - n.visitor.selectionSetDepth
 	globalResult := OperationStats{
 		NodeCount:  n.visitor.count,
 		Complexity: n.visitor.complexity,
-		Depth:      depth,
+		Depth:      n.visitor.maxFieldDepth,
 	}
 
 	return globalResult, n.visitor.calculatedRootFieldStats
@@ -130,15 +128,12 @@ type complexityVisitor struct {
 	maxFieldDepth         int
 	multipliers           []multiplier
 
-	maxSelectionSetFieldDepth int
-	selectionSetDepth         int
+	selectionSetDepth int
 
 	rootOperationTypeNames map[string]struct{}
 
-	currentRootFieldStats                RootFieldStats
-	currentRootFieldMaxDepth             int
-	currentRootFieldMaxSelectionSetDepth int
-	currentRootFieldSelectionSetDepth    int
+	currentRootFieldStats    RootFieldStats
+	currentRootFieldMaxDepth int
 
 	calculatedRootFieldStats []RootFieldStats
 
@@ -218,17 +213,23 @@ func (c *complexityVisitor) EnterField(ref int) {
 	}
 
 	c.complexity = c.complexity + c.calculateMultiplied(1)
-	if c.Depth > c.maxFieldDepth {
-		c.maxFieldDepth = c.Depth
+	// Count the current field and its selected child level.
+	depth := c.selectionSetDepth + 1 + 1
+	if depth > c.maxFieldDepth {
+		c.maxFieldDepth = depth
 	}
 
 	c.currentRootFieldStats.Stats.Complexity = c.currentRootFieldStats.Stats.Complexity + c.calculateMultiplied(1)
-	if c.Depth > c.currentRootFieldMaxDepth {
-		c.currentRootFieldMaxDepth = c.Depth
+	if depth > c.currentRootFieldMaxDepth {
+		c.currentRootFieldMaxDepth = depth
 	}
 }
 
 func (c *complexityVisitor) LeaveField(ref int) {
+	if c.operation.FieldHasSelections(ref) {
+		c.selectionSetDepth--
+	}
+
 	if c.isRootTypeField() {
 		c.endRootFieldComplexityCalculation()
 	}
@@ -249,16 +250,9 @@ func (c *complexityVisitor) EnterSelectionSet(ref int) {
 	}
 
 	c.count = c.count + c.calculateMultiplied(1)
-	if c.Depth > c.maxSelectionSetFieldDepth {
-		c.maxSelectionSetFieldDepth = c.Depth
-		c.selectionSetDepth++
-	}
+	c.selectionSetDepth++
 
 	c.currentRootFieldStats.Stats.NodeCount = c.currentRootFieldStats.Stats.NodeCount + c.calculateMultiplied(1)
-	if c.Depth > c.currentRootFieldMaxSelectionSetDepth {
-		c.currentRootFieldMaxSelectionSetDepth = c.Depth
-		c.currentRootFieldSelectionSetDepth++
-	}
 }
 
 func (c *complexityVisitor) EnterFragmentDefinition(ref int) {
@@ -279,7 +273,7 @@ func (c *complexityVisitor) resetCurrentRootFieldComplexity(typeName, fieldName,
 }
 
 func (c *complexityVisitor) endRootFieldComplexityCalculation() {
-	currentDepth := c.currentRootFieldMaxDepth - c.currentRootFieldSelectionSetDepth
+	currentDepth := c.currentRootFieldMaxDepth
 	if currentDepth > 0 {
 		currentDepth--
 	}
@@ -287,8 +281,6 @@ func (c *complexityVisitor) endRootFieldComplexityCalculation() {
 	c.calculatedRootFieldStats = append(c.calculatedRootFieldStats, c.currentRootFieldStats)
 
 	c.currentRootFieldMaxDepth = 0
-	c.currentRootFieldMaxSelectionSetDepth = 0
-	c.currentRootFieldSelectionSetDepth = 0
 }
 
 func (c *complexityVisitor) extractFieldRelatedNames(ref, definitionRef int) (typeName, fieldName, alias string) {
