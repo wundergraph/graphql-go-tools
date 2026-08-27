@@ -36,7 +36,10 @@ import (
 type OperationStats struct {
 	NodeCount  int
 	Complexity int
-	Depth      int
+	// Depth is the largest number of nested field levels in the operation.
+	// The operation root is level 0. Each nested field adds one level. Leaf fields also count.
+	// Inline fragments do not count. An operation that selects only root scalars has depth 0.
+	Depth int
 }
 
 type RootFieldStats struct {
@@ -88,9 +91,6 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	n.visitor.maxFieldDepth = 0
 	n.visitor.multipliers = n.visitor.multipliers[:0]
 
-	n.visitor.maxSelectionSetFieldDepth = 0
-	n.visitor.selectionSetDepth = 0
-
 	if n.visitor.calculatedRootFieldStats == nil {
 		n.visitor.calculatedRootFieldStats = make([]RootFieldStats, 0, len(definition.RootOperationTypeDefinitions))
 	}
@@ -105,11 +105,10 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 
 	n.walker.Walk(operation, definition, report)
 
-	depth := n.visitor.maxFieldDepth - n.visitor.selectionSetDepth
 	globalResult := OperationStats{
 		NodeCount:  n.visitor.count,
 		Complexity: n.visitor.complexity,
-		Depth:      depth,
+		Depth:      n.visitor.maxFieldDepth,
 	}
 
 	return globalResult, n.visitor.calculatedRootFieldStats
@@ -130,15 +129,10 @@ type complexityVisitor struct {
 	maxFieldDepth         int
 	multipliers           []multiplier
 
-	maxSelectionSetFieldDepth int
-	selectionSetDepth         int
-
 	rootOperationTypeNames map[string]struct{}
 
-	currentRootFieldStats                RootFieldStats
-	currentRootFieldMaxDepth             int
-	currentRootFieldMaxSelectionSetDepth int
-	currentRootFieldSelectionSetDepth    int
+	currentRootFieldStats    RootFieldStats
+	currentRootFieldMaxDepth int
 
 	calculatedRootFieldStats []RootFieldStats
 
@@ -218,14 +212,30 @@ func (c *complexityVisitor) EnterField(ref int) {
 	}
 
 	c.complexity = c.complexity + c.calculateMultiplied(1)
-	if c.Depth > c.maxFieldDepth {
-		c.maxFieldDepth = c.Depth
+
+	// This field has selections. The selections add one more level.
+	depth := c.fieldNestingLevel() + 1
+	if depth > c.maxFieldDepth {
+		c.maxFieldDepth = depth
 	}
 
 	c.currentRootFieldStats.Stats.Complexity = c.currentRootFieldStats.Stats.Complexity + c.calculateMultiplied(1)
-	if c.Depth > c.currentRootFieldMaxDepth {
-		c.currentRootFieldMaxDepth = c.Depth
+	if depth > c.currentRootFieldMaxDepth {
+		c.currentRootFieldMaxDepth = depth
 	}
+}
+
+// fieldNestingLevel returns the number of fields on the path from the operation root
+// to the current field. The count includes the current field.
+// Selection sets and fragments do not count.
+func (c *complexityVisitor) fieldNestingLevel() int {
+	level := 1
+	for i := range c.Ancestors {
+		if c.Ancestors[i].Kind == ast.NodeKindField {
+			level++
+		}
+	}
+	return level
 }
 
 func (c *complexityVisitor) LeaveField(ref int) {
@@ -249,16 +259,7 @@ func (c *complexityVisitor) EnterSelectionSet(ref int) {
 	}
 
 	c.count = c.count + c.calculateMultiplied(1)
-	if c.Depth > c.maxSelectionSetFieldDepth {
-		c.maxSelectionSetFieldDepth = c.Depth
-		c.selectionSetDepth++
-	}
-
 	c.currentRootFieldStats.Stats.NodeCount = c.currentRootFieldStats.Stats.NodeCount + c.calculateMultiplied(1)
-	if c.Depth > c.currentRootFieldMaxSelectionSetDepth {
-		c.currentRootFieldMaxSelectionSetDepth = c.Depth
-		c.currentRootFieldSelectionSetDepth++
-	}
 }
 
 func (c *complexityVisitor) EnterFragmentDefinition(ref int) {
@@ -279,7 +280,8 @@ func (c *complexityVisitor) resetCurrentRootFieldComplexity(typeName, fieldName,
 }
 
 func (c *complexityVisitor) endRootFieldComplexityCalculation() {
-	currentDepth := c.currentRootFieldMaxDepth - c.currentRootFieldSelectionSetDepth
+	// The root field depth does not include the level of the root field itself.
+	currentDepth := c.currentRootFieldMaxDepth
 	if currentDepth > 0 {
 		currentDepth--
 	}
@@ -287,8 +289,6 @@ func (c *complexityVisitor) endRootFieldComplexityCalculation() {
 	c.calculatedRootFieldStats = append(c.calculatedRootFieldStats, c.currentRootFieldStats)
 
 	c.currentRootFieldMaxDepth = 0
-	c.currentRootFieldMaxSelectionSetDepth = 0
-	c.currentRootFieldSelectionSetDepth = 0
 }
 
 func (c *complexityVisitor) extractFieldRelatedNames(ref, definitionRef int) (typeName, fieldName, alias string) {
