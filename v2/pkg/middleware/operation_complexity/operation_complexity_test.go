@@ -626,6 +626,50 @@ func TestCalculateOperationComplexityDepthWithInlineFragments(t *testing.T) {
 	})
 }
 
+// TestEstimatorReuseAfterAbortedWalk reuses one estimator for two operations.
+// The walk of the first operation stops on an error before it leaves the root field.
+// The stale root field state must not change the result of the second operation.
+func TestEstimatorReuseAfterAbortedWalk(t *testing.T) {
+	def := unsafeparser.ParseGraphqlDocumentString(unionTestDefinition)
+	estimator := NewOperationComplexityEstimator(false)
+
+	// The unknown type condition stops the walk below three nested fields.
+	badOperation := unsafeparser.ParseGraphqlDocumentString(`
+			{
+			  plain {
+				child {
+				  child {
+					child {
+					  ... on Unknown { leaf }
+					}
+				  }
+				}
+			  }
+			}`)
+	badReport := operationreport.Report{}
+	estimator.Do(&badOperation, &def, &badReport)
+	require.True(t, badReport.HasErrors())
+
+	goodOperation := unsafeparser.ParseGraphqlDocumentString(`
+			{
+			  node {
+				... on Success {
+				  child {
+					leaf
+				  }
+				}
+			  }
+			}`)
+	goodReport := operationreport.Report{}
+	astnormalization.NormalizeOperation(&goodOperation, &def, &goodReport)
+	globalStats, rootFieldStats := estimator.Do(&goodOperation, &def, &goodReport)
+	require.False(t, goodReport.HasErrors(), goodReport.Error())
+
+	assert.Equal(t, 3, globalStats.Depth, "unexpected global depth")
+	require.Len(t, rootFieldStats, 1)
+	assert.Equal(t, 2, rootFieldStats[0].Stats.Depth, "unexpected root field depth")
+}
+
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)

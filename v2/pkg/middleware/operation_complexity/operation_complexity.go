@@ -91,6 +91,11 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	n.visitor.maxFieldDepth = 0
 	n.visitor.multipliers = n.visitor.multipliers[:0]
 
+	// An aborted walk skips the root field cleanup in LeaveField.
+	// Reset the root field state so the next call does not read stale values.
+	n.visitor.currentRootFieldMaxDepth = 0
+	n.visitor.currentRootFieldStats = RootFieldStats{}
+
 	if n.visitor.calculatedRootFieldStats == nil {
 		n.visitor.calculatedRootFieldStats = make([]RootFieldStats, 0, len(definition.RootOperationTypeDefinitions))
 	}
