@@ -1,17 +1,13 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
-
-// The response cache stores the answers to entity fetches, so every case here is
-// built around one: me.reviews is a single entity fetch, and topProducts.reviews
-// is a batched one. The two are separate code paths in the loader, and only the
-// reviews subgraph's call count says whether either was served from the cache.
 
 const (
 	singleEntityQuery   = `{ me { id username reviews { body } } }`
@@ -63,7 +59,7 @@ func TestResponseCacheExecution(t *testing.T) {
 
 		require.Equal(t, first, second)
 		require.EqualValues(t, 1, h.reviews.calls())
-		require.Len(t, cache.keys(), 3, "each entity in the batch gets its own entry")
+		require.Len(t, cache.keys(), 4, "each entity in the batch gets its own entry")
 	})
 
 	t.Run("the entities a batch answered are cached even when one of them is null", func(t *testing.T) {
@@ -76,7 +72,7 @@ func TestResponseCacheExecution(t *testing.T) {
 		h.reviews.answers(reviewsAnswer("r1", "r2", ""))
 		h.execute(t, batchQuery(3), withResponseCache(t, cache))
 		require.EqualValues(t, 1, h.reviews.calls())
-		require.Len(t, cache.keys(), 2, "the null entity must not be stored")
+		require.Len(t, cache.keys(), 3, "the null entity must not be stored")
 
 		h.products.answers(productsAnswer("1", "2"))
 		h.execute(t, batchQuery(2), withResponseCache(t, cache))
@@ -131,7 +127,7 @@ func TestResponseCacheExecution(t *testing.T) {
 		// repeated product must not be asked for twice and must not take a second
 		// entry, which would be the same bytes under the same key.
 		require.Equal(t, 2, h.reviews.representationCount(t))
-		require.Len(t, cache.keys(), 2)
+		require.Len(t, cache.keys(), 3)
 	})
 
 	// --- every reason the engine declines to cache an answer it did get ---
@@ -148,7 +144,7 @@ func TestResponseCacheExecution(t *testing.T) {
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
-		require.Empty(t, cache.keys())
+		require.Len(t, cache.keys(), 1)
 		require.EqualValues(t, 2, h.reviews.calls(),
 			"a subgraph that says nothing about its response must not have it cached")
 	})
@@ -165,7 +161,7 @@ func TestResponseCacheExecution(t *testing.T) {
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
-		require.Empty(t, cache.keys())
+		require.Len(t, cache.keys(), 1)
 		require.EqualValues(t, 2, h.reviews.calls(),
 			"private names a cache that belongs to one client, which this is not")
 	})
@@ -187,7 +183,7 @@ func TestResponseCacheExecution(t *testing.T) {
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
-		require.Empty(t, cache.keys())
+		require.Len(t, cache.keys(), 1)
 		require.EqualValues(t, 2, h.reviews.calls(),
 			"an answer that came with errors must not be cached however cacheable it claims to be")
 	})
@@ -204,7 +200,7 @@ func TestResponseCacheExecution(t *testing.T) {
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache))
 
-		require.Empty(t, cache.keys())
+		require.Len(t, cache.keys(), 1)
 		require.EqualValues(t, 2, h.reviews.calls(),
 			"a failed response must not be cached however cacheable it claims to be")
 	})
@@ -223,7 +219,7 @@ func TestResponseCacheExecution(t *testing.T) {
 		h.execute(t, batchQuery(2), withResponseCache(t, cache))
 		h.execute(t, batchQuery(2), withResponseCache(t, cache))
 
-		require.Empty(t, cache.keys())
+		require.Len(t, cache.keys(), 1)
 		require.EqualValues(t, 2, h.reviews.calls())
 	})
 
@@ -265,7 +261,7 @@ func TestResponseCacheExecution(t *testing.T) {
 			"the wider selection must be answered in full, not from the narrower entry")
 		require.EqualValues(t, 2, h.reviews.calls(),
 			"the same entity asked for different fields must not share a cache entry")
-		require.Len(t, cache.keys(), 2)
+		require.Len(t, cache.keys(), 3)
 	})
 
 	t.Run("a cache hit is still rate limited", func(t *testing.T) {
@@ -310,8 +306,9 @@ func TestResponseCacheExecution(t *testing.T) {
 		h.execute(t, singleEntityQuery, withResponseCache(t, cache), withLoaderHooks(hooks))
 
 		require.EqualValues(t, 1, h.reviews.calls())
+		require.EqualValues(t, 1, h.users.calls())
 		require.EqualValues(t, 4, hooks.onLoad.Load(),
-			"the cached reviews fetch is hooked exactly as the fetch it stands in for was")
+			"both fetches are served from the cache, and each is hooked exactly as the fetch it stands in for was")
 		require.EqualValues(t, 4, hooks.onFinished.Load())
 	})
 
@@ -345,7 +342,8 @@ func TestResponseCacheExecution(t *testing.T) {
 		// store a good response rather than a broken response being declined.
 		require.Contains(t, merged, `"body":"r1"`)
 		require.Contains(t, merged, `"body":"r2"`)
-		require.Empty(t, cache.keys(), "a merged multi entity fetch stores nothing")
+		require.Len(t, cache.keys(), 2,
+			"the two root fetches feeding the merged wave are cached as usual, and the merged fetch itself stores nothing")
 		require.EqualValues(t, 2, h.reviews.calls(),
 			"one request per execution, so the two fetches really were merged into one")
 
@@ -355,5 +353,169 @@ func TestResponseCacheExecution(t *testing.T) {
 		// difference here is the merging.
 		require.Contains(t, h.reviews.last.Load().(string), `f1: _entities`)
 		require.Contains(t, h.reviews.last.Load().(string), `f2: _entities`)
+	})
+}
+
+// rootOnlyQuery is answered by the products subgraph alone: upc is the key
+// field, so nothing below it needs an entity fetch.
+const rootOnlyQuery = `query Top($first: Int) { topProducts(first: $first) { upc } }`
+
+// A root query fetch is cached as one entry holding its whole data object, so
+// what is keyed is the rendered upstream request, not any one entity in it.
+func TestRootFetchCacheExecution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a root query fetch is cached", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.products.answers(productsAnswer("1", "2"))
+
+		cache := newMapCache()
+		first := h.execute(t, `{ topProducts(first: 2) { upc } }`, withResponseCache(t, cache))
+		second := h.execute(t, `{ topProducts(first: 2) { upc } }`, withResponseCache(t, cache))
+
+		// The bodies, not just the counter: a cache that served the wrong bytes
+		// would satisfy the counter on its own.
+		require.Equal(t, first, second)
+		require.Contains(t, first, `"upc":"1"`)
+		require.EqualValues(t, 1, h.products.calls(),
+			"the second execution must be served from the cache")
+		require.Len(t, cache.keys(), 1, "one entry for the whole root fetch")
+	})
+
+	t.Run("a cached root fetch still feeds the entity fetch below it", func(t *testing.T) {
+		t.Parallel()
+
+		// The entity fetch is deliberately uncacheable, so the second execution
+		// has to build its representations out of the cached root data.
+		h := newHarness(t)
+		h.users.answers(meAnswer)
+		h.reviews.answers(reviewsAnswer("A review"))
+		h.reviews.cacheControl("")
+
+		cache := newMapCache()
+		first := h.execute(t, singleEntityQuery, withResponseCache(t, cache))
+		second := h.execute(t, singleEntityQuery, withResponseCache(t, cache))
+
+		require.Equal(t, first, second)
+		require.Contains(t, second, `"body":"A review"`)
+		require.EqualValues(t, 1, h.users.calls(), "the root fetch was served from the cache")
+		require.EqualValues(t, 2, h.reviews.calls(), "the entity fetch below it still ran")
+	})
+
+	t.Run("different variable values do not share an entry", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.products.answers(productsAnswer("1", "2"))
+
+		cache := newMapCache()
+		h.executeWithVariables(t, rootOnlyQuery, json.RawMessage(`{"first":2}`), withResponseCache(t, cache))
+		h.executeWithVariables(t, rootOnlyQuery, json.RawMessage(`{"first":2}`), withResponseCache(t, cache))
+		require.EqualValues(t, 1, h.products.calls(), "the same variables must be a hit")
+
+		h.products.answers(productsAnswer("1", "2", "3"))
+		three := h.executeWithVariables(t, rootOnlyQuery, json.RawMessage(`{"first":3}`), withResponseCache(t, cache))
+
+		require.Contains(t, three, `"upc":"3"`,
+			"the wider request must be answered in full, not from the narrower entry")
+		require.EqualValues(t, 2, h.products.calls(),
+			"the variables are part of the request, so they are part of the key")
+		require.Len(t, cache.keys(), 2)
+	})
+
+	t.Run("forwarded headers do not separate entries", func(t *testing.T) {
+		t.Parallel()
+
+		// Pins today's behaviour rather than endorsing it: forwarded headers are
+		// applied after the request is rendered, so they are in no key.
+		h := newHarness(t)
+		h.users.answers(meAnswer)
+		h.reviews.answers(reviewsAnswer("A review"))
+
+		const (
+			oneTenant     = uint64(1)
+			anotherTenant = uint64(2)
+		)
+
+		cache := newMapCache()
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache), withSubgraphHeaders(oneTenant))
+		h.execute(t, singleEntityQuery, withResponseCache(t, cache), withSubgraphHeaders(anotherTenant))
+
+		require.EqualValues(t, 1, h.users.calls(),
+			"the root fetch of the second tenant reads the first tenant's entry")
+		require.EqualValues(t, 1, h.reviews.calls(),
+			"and so does the entity fetch below it")
+	})
+
+	t.Run("a root fetch the subgraph did not mark cacheable is not cached", func(t *testing.T) {
+		t.Parallel()
+
+		for name, cacheControl := range map[string]string{
+			"nothing at all": "",
+			"private":        "private, max-age=60",
+			"no-store":       "no-store",
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				h := newHarness(t)
+				h.products.answers(productsAnswer("1"))
+				h.products.cacheControl(cacheControl)
+
+				cache := newMapCache()
+				h.execute(t, `{ topProducts(first: 1) { upc } }`, withResponseCache(t, cache))
+				h.execute(t, `{ topProducts(first: 1) { upc } }`, withResponseCache(t, cache))
+
+				require.Empty(t, cache.keys())
+				require.EqualValues(t, 2, h.products.calls())
+			})
+		}
+	})
+
+	t.Run("a root fetch that came back with errors is not cached", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.products.answers(`{"data":{"topProducts":[{"upc":"1","__typename":"Product"}]},` +
+			`"errors":[{"message":"something went wrong"}]}`)
+
+		cache := newMapCache()
+		h.execute(t, `{ topProducts(first: 1) { upc } }`, withResponseCache(t, cache))
+		h.execute(t, `{ topProducts(first: 1) { upc } }`, withResponseCache(t, cache))
+
+		require.Empty(t, cache.keys())
+		require.EqualValues(t, 2, h.products.calls(),
+			"an answer that came with errors must not be cached however cacheable it claims to be")
+	})
+
+	t.Run("a failed root fetch is not cached", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.products.answers(productsAnswer("1"))
+		h.products.status(http.StatusInternalServerError)
+
+		cache := newMapCache()
+		h.execute(t, `{ topProducts(first: 1) { upc } }`, withResponseCache(t, cache))
+		h.execute(t, `{ topProducts(first: 1) { upc } }`, withResponseCache(t, cache))
+
+		require.Empty(t, cache.keys())
+		require.EqualValues(t, 2, h.products.calls())
+	})
+
+	t.Run("a root answer without a data object is not cached", func(t *testing.T) {
+		t.Parallel()
+
+		// data:null with nothing in errors is the shape that would otherwise be
+		// stored as an entry that answers every later request with null.
+		h := newHarness(t)
+		h.products.answers(`{"data":null}`)
+
+		cache := newMapCache()
+		h.execute(t, `{ topProducts(first: 1) { upc } }`, withResponseCache(t, cache))
+
+		require.Empty(t, cache.keys())
 	})
 }

@@ -1,11 +1,14 @@
 package resolve
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/wundergraph/astjson"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -33,6 +36,30 @@ func responseCacheSelectionHash(header, footer []byte) uint64 {
 	return d.Sum64()
 }
 
+// rootFetchCacheable reports whether this fetch is the one shape the cache can
+// key: a root query fetch answered by a GraphQL subgraph.
+func rootFetchCacheable(fetchItem *FetchItem, fetch *SingleFetch) bool {
+	// Root position only: a nested fetch's request was rendered from data an
+	// earlier fetch returned.
+	if fetchItem == nil || len(fetchItem.FetchPath) != 0 {
+		return false
+	}
+
+	// Queries only.
+	if fetch.Info == nil || fetch.Info.OperationType != ast.OperationTypeQuery {
+		return false
+	}
+
+	// What is stored is the data object on its own, and a hit rebuilds
+	// {"data":...} around it.
+	if !slices.Equal(fetch.PostProcessing.SelectResponseDataPath, dataResponsePath) {
+		return false
+	}
+
+	// The identifier of the graphql datasource
+	return bytes.Equal(fetch.DataSourceIdentifier, graphqlDataSourceIdentifier)
+}
+
 func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	if !l.responseCacheEnabled() {
 		return false
@@ -52,7 +79,12 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		return false
 	}
 
-	size := len(entitiesResponsePrefix) + len(entitiesResponseSuffix) + len(keys) - 1
+	prefix, suffix := entitiesResponsePrefix, entitiesResponseSuffix
+	if prepared.isRootFetchCache {
+		prefix, suffix = dataResponsePrefix, dataResponseSuffix
+	}
+
+	size := len(prefix) + len(suffix) + len(keys) - 1
 	for _, key := range keys {
 		item, ok := found[key]
 		if !ok || len(item.Value) == 0 {
@@ -62,14 +94,14 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	}
 
 	out := make([]byte, 0, size)
-	out = append(out, entitiesResponsePrefix...)
+	out = append(out, prefix...)
 	for i, key := range keys {
 		if i > 0 {
 			out = append(out, ',')
 		}
 		out = append(out, found[key].Value...)
 	}
-	out = append(out, entitiesResponseSuffix...)
+	out = append(out, suffix...)
 
 	res := prepared.res
 	res.out = out
@@ -83,11 +115,11 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	if len(prepared.responseCacheKeys) == 0 {
+	if prepared.skipLoad || prepared.responseCacheHit {
 		return nil
 	}
 
-	if prepared.skipLoad || prepared.responseCacheHit {
+	if len(prepared.responseCacheKeys) == 0 {
 		return nil
 	}
 
@@ -117,15 +149,9 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	entities := response.Get("data", "_entities")
-	if entities == nil || entities.Type() != astjson.TypeArray {
-		return fmt.Errorf("_entities not found or invalid type")
-	}
-	values := entities.GetArray()
-
-	// In case the entity does not exist on the foreign key we should get null in place
-	if len(values) != len(prepared.responseCacheKeys) {
-		return fmt.Errorf("unexpected number of _entities values found %d", len(values))
+	values, err := responseCacheValues(prepared, response)
+	if err != nil {
+		return err
 	}
 
 	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
@@ -142,6 +168,29 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 
 	prepared.responseCacheItems = items
 	return nil
+}
+
+func responseCacheValues(prepared *preparedFetch, response *astjson.Value) ([]*astjson.Value, error) {
+	if prepared.isRootFetchCache {
+		data := response.Get(dataResponsePath...)
+		if data == nil {
+			return nil, nil
+		}
+		return []*astjson.Value{data}, nil
+	}
+
+	entities := response.Get("data", "_entities")
+	if entities == nil || entities.Type() != astjson.TypeArray {
+		return nil, fmt.Errorf("_entities not found or invalid type")
+	}
+	values := entities.GetArray()
+
+	// In case the entity does not exist on the foreign key we should get null in place
+	if len(values) != len(prepared.responseCacheKeys) {
+		return nil, fmt.Errorf("unexpected number of _entities values found %d", len(values))
+	}
+
+	return values, nil
 }
 
 // responseCacheFlush writes what responseCacheCollect gathered. It is called with
@@ -171,7 +220,15 @@ func responseCacheHeaders(res *result) http.Header {
 }
 
 var (
+	// The data object of a root fetch response, taken apart on the way into the
+	// cache and put back together on the way out.
+	dataResponsePath               = []string{"data"}
+	dataResponsePrefix             = []byte(`{"data":`)
+	dataResponseSuffix             = []byte(`}`)
 	entitiesResponsePrefix         = []byte(`{"data":{"_entities":[`)
 	entitiesResponseSuffix         = []byte(`]}}`)
 	defaultResponseCacheErrorsPath = []string{"errors"}
+	// What the planner records for an HTTP GraphQL subgraph: reflect.TypeOf of
+	// the datasource, see plan.Visitor.configureFetch.
+	graphqlDataSourceIdentifier = []byte("graphql_datasource.Source")
 )
