@@ -419,6 +419,13 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 		return nil
 	}
 	if l.responseCacheLookup(prepared) {
+		// OnLoad is called before a fetch is executed.
+		// When we hit the response cache, we don't execute the fetch but we still want to call the hooks.
+		if l.ctx.LoaderHooks != nil {
+			// The loaderHookContext must be set to allow the logic to call OnFinished.
+			prepared.res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, prepared.res.ds)
+		}
+
 		prepared.responseCacheHit = true
 		if prepared.trace != nil {
 			prepared.trace.LoadSkipped = true

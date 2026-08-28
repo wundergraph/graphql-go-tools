@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +15,7 @@ import (
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 )
 
@@ -2424,4 +2427,351 @@ func TestLoader_AllowCustomExtensionProperties(t *testing.T) {
 			assert.JSONEq(t, `{"shared":"fromD","keyD":"vD"}`, string(ext[3].MarshalTo(nil)))
 		}
 	})
+}
+
+func TestLoader_CachedFetches(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	headers := http.Header{}
+	headers.Set("Cache-Control", "public, max-age=60")
+
+	productsService := mockedDSWithHeaders(t, ctrl,
+		`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`,
+		`{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1"},{"name":"Couch","__typename":"Product","upc":"2"},{"name":"Chair","__typename":"Product","upc":"3"}]}}`,
+		// Only entity fetches are response-cached, so the root fetch runs on both loads.
+		headers, 2)
+
+	reviewsService := mockedDSWithHeaders(t, ctrl,
+		`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`,
+		`{"data":{"_entities":[{"__typename":"Product","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"__typename":"Product","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"__typename":"Product","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`,
+		headers, 1)
+
+	stockService := mockedDSWithHeaders(t, ctrl,
+		`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[{"__typename":"Product","upc":"1"},{"__typename":"Product","upc":"2"},{"__typename":"Product","upc":"3"}]}}}`,
+		`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`,
+		headers, 1)
+
+	usersService := mockedDSWithHeaders(t, ctrl,
+		`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"2"}]}}}`,
+		`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`,
+		headers, 1)
+	response := &GraphQLResponse{
+		Fetches: Sequence(
+			Single(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: productsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+			}),
+			Parallel(
+				Single(&BatchEntityFetch{
+					Input: BatchInput{
+						Header: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Items: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path: []string{"__typename"},
+													},
+												},
+												{
+													Name: []byte("upc"),
+													Value: &String{
+														Path: []string{"upc"},
+													},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+						Separator: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`,`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Footer: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`]}}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+					},
+					DataSource: reviewsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities"},
+					},
+				}, ArrayPath("topProducts")),
+				Single(&BatchEntityFetch{
+					Input: BatchInput{
+						Header: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Items: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path: []string{"__typename"},
+													},
+												},
+												{
+													Name: []byte("upc"),
+													Value: &String{
+														Path: []string{"upc"},
+													},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+						Separator: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`,`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Footer: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`]}}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+					},
+					DataSource: stockService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities"},
+					},
+				}, ArrayPath("topProducts")),
+			),
+			Single(&BatchEntityFetch{
+				Input: BatchInput{
+					Header: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					Items: []InputTemplate{
+						{
+							Segments: []TemplateSegment{
+								{
+									SegmentType:  VariableSegmentType,
+									VariableKind: ResolvableObjectVariableKind,
+									Renderer: NewGraphQLVariableResolveRenderer(&Object{
+										Fields: []*Field{
+											{
+												Name: []byte("__typename"),
+												Value: &String{
+													Path: []string{"__typename"},
+												},
+											},
+											{
+												Name: []byte("id"),
+												Value: &String{
+													Path: []string{"id"},
+												},
+											},
+										},
+									}),
+								},
+							},
+						},
+					},
+					Separator: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`,`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					Footer: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`]}}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+				},
+				DataSource: usersService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data", "_entities"},
+				},
+			}, ArrayPath("topProducts"), ArrayPath("reviews"), ObjectPath("author")),
+		),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("topProducts"),
+					Value: &Array{
+						Path: []string{"topProducts"},
+						Item: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("stock"),
+									Value: &Integer{
+										Path: []string{"stock"},
+									},
+								},
+								{
+									Name: []byte("reviews"),
+									Value: &Array{
+										Path: []string{"reviews"},
+										Item: &Object{
+											Fields: []*Field{
+												{
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
+													},
+												},
+												{
+													Name: []byte("author"),
+													Value: &Object{
+														Path: []string{"author"},
+														Fields: []*Field{
+															{
+																Name: []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	testCache := newTestCache()
+
+	ctx := NewContext(context.Background())
+	ctx.SetResponseCache(testCache, time.Second*60, nil)
+	resolvable := NewResolvable(nil, ResolvableOptions{})
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	err = loader.LoadGraphQLResponseData(ctx, response)
+	assert.NoError(t, err)
+	out := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
+
+	expected1 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
+	expected2 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","stock":8,"reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}]},{"name":"Couch","__typename":"Product","upc":"2","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}]},{"name":"Chair","__typename":"Product","upc":"3","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}]}]}}`
+
+	assert.Contains(t, []string{expected1, expected2}, out)
+
+	require.Len(t, testCache.items, 8, "expected 8 items in the cache: (3 products + 3 stock + 2 users)")
+
+	// Second run: every entity fetch must be served from the cache. The mocks are set to Times(1), so any repeated subgraph call fails the test.
+	loader = &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+	err = loader.LoadGraphQLResponseData(ctx, response)
+	assert.NoError(t, err)
+	cachedOut := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
+
+	assert.Contains(t, []string{expected1, expected2}, cachedOut)
+
+	ctrl.Finish()
+}
+
+var _ caching.Cache = &testCache{}
+
+type testCache struct {
+	mu    sync.Mutex
+	items map[string]caching.Item
+}
+
+func newTestCache() *testCache {
+	return &testCache{items: make(map[string]caching.Item), mu: sync.Mutex{}}
+}
+
+// GetMany implements [caching.Cache].
+func (t *testCache) GetMany(ctx context.Context, keys []string) (map[string]caching.Item, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	items := make(map[string]caching.Item, len(keys))
+	for _, key := range keys {
+		item, ok := t.items[key]
+		if !ok {
+			continue
+		}
+		items[key] = item
+	}
+	return items, nil
+}
+
+// SetMany implements [caching.Cache].
+func (t *testCache) SetMany(ctx context.Context, items []caching.Item) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for _, item := range items {
+		t.items[item.Key] = item
+	}
+	return nil
 }
