@@ -501,6 +501,8 @@ type preparedFetch struct {
 
 	responseCacheKeys []string
 
+	isRootFetchCache bool
+
 	responseCacheHit bool
 
 	responseCacheItems []caching.Item
@@ -1657,6 +1659,14 @@ func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, it
 		prepared.skipLoad = true
 		return nil
 	}
+	if l.responseCacheEnabled() && rootFetchCacheable(fetchItem, fetch) {
+		prepared.responseCacheKeys = []string{caching.Key(
+			xxhash.Sum64(fetchInput),
+			xxhash.Sum64String(fetch.Info.DataSourceID),
+		)}
+		prepared.isRootFetchCache = true
+	}
+
 	prepared.source = fetch.DataSource
 	prepared.input = fetchInput
 	prepared.trace = fetch.Trace
