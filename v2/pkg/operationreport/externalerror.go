@@ -126,7 +126,7 @@ func ErrRequiredOperationNameIsMissing() (err ExternalError) {
 }
 
 func ErrOperationWithProvidedOperationNameNotFound(operationName string) (err ExternalError) {
-	err.Message = fmt.Sprintf("cannot find an operation with name: %s", operationName)
+	err.Message = "cannot find an operation with name: " + operationName
 	return err
 }
 

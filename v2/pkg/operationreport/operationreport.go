@@ -4,6 +4,7 @@ package operationreport
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type Report struct {
@@ -16,23 +17,23 @@ func NewReport() *Report {
 }
 
 func (r Report) Error() string {
-	out := ""
+	var out strings.Builder
 	for i := range r.InternalErrors {
 		if i != 0 {
-			out += "\n"
+			out.WriteString("\n")
 		}
-		out += fmt.Sprintf("internal: %s", r.InternalErrors[i].Error())
+		out.WriteString("internal: " + r.InternalErrors[i].Error())
 	}
-	if len(out) > 0 && len(r.ExternalErrors) > 0 {
-		out += "\n"
+	if out.Len() > 0 && len(r.ExternalErrors) > 0 {
+		out.WriteString("\n")
 	}
 	for i := range r.ExternalErrors {
 		if i != 0 {
-			out += "\n"
+			out.WriteString("\n")
 		}
-		out += fmt.Sprintf("external: %s, locations: %+v, path: %v", r.ExternalErrors[i].Message, r.ExternalErrors[i].Locations, r.ExternalErrors[i].Path)
+		_, _ = fmt.Fprintf(&out, "external: %s, locations: %+v, path: %v", r.ExternalErrors[i].Message, r.ExternalErrors[i].Locations, r.ExternalErrors[i].Path)
 	}
-	return out
+	return out.String()
 }
 
 func (r *Report) HasErrors() bool {

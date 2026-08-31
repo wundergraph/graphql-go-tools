@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -322,7 +323,7 @@ func DoMultipartForm(
 		}
 		hasWrittenFileName = true
 		_, _ = fmt.Fprintf(fileMap, `"%d":["%s"]`, i, file.variablePath)
-		key := fmt.Sprintf("%d", i)
+		key := strconv.Itoa(i)
 		temporaryFile, err := os.Open(file.Path())
 		if err != nil {
 			return nil, err
@@ -366,7 +367,7 @@ func multipartBytes(values map[string]io.Reader, files []*FileUpload) (*io.PipeR
 	// Insert parts for files
 	boundaries := make([][]byte, 0, len(files))
 	for i, file := range files {
-		key := fmt.Sprintf("%d", i)
+		key := strconv.Itoa(i)
 		_, err := mpWriter.CreateFormFile(key, file.Name())
 		if err != nil {
 			return nil, contentType, err

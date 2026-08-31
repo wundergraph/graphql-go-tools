@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.18.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.17.0...v2.18.0) (2026-08-28)
+
+
+### Features
+
+* allow cached fetches to call loader hooks ([#1645](https://github.com/wundergraph/graphql-go-tools/issues/1645)) ([e890d88](https://github.com/wundergraph/graphql-go-tools/commit/e890d886e7d18ea7d99dc69861a8bd73acc8fc9e))
+* root query field caching ([#1643](https://github.com/wundergraph/graphql-go-tools/issues/1643)) ([54c993e](https://github.com/wundergraph/graphql-go-tools/commit/54c993e56ae7c88a14132ee636371e076efb6285))
+
+## [2.17.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.16.0...v2.17.0) (2026-08-21)
+
+
+### Features
+
+* response caching base implementation ([#1638](https://github.com/wundergraph/graphql-go-tools/issues/1638)) ([2691879](https://github.com/wundergraph/graphql-go-tools/commit/26918796d41b36478f75d6d3c92a8c550d3ca3aa))
+
 ## [2.16.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.15.1...v2.16.0) (2026-08-13)
 
 
