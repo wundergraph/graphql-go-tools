@@ -144,10 +144,7 @@ func executeConcurrently(t *testing.T, engine *ExecutionEngine, sessions []strin
 
 	var wg sync.WaitGroup
 	for i, session := range sessions {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			operation := graphql.Request{Query: `query Op { hello }`, OperationName: "Op"}
 			resultWriter := graphql.NewEngineResultWriter()
 
@@ -163,7 +160,7 @@ func executeConcurrently(t *testing.T, engine *ExecutionEngine, sessions []strin
 			}
 			assert.NoError(t, json.Unmarshal([]byte(resultWriter.String()), &parsed))
 			results[i] = parsed.Data.Hello
-		}()
+		})
 	}
 
 	// Wait until every worker has done its setup and is about to park on start.
