@@ -257,16 +257,52 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 }
 
 type responseCache struct {
-	store      caching.Cache
-	defaultTTL time.Duration
-	onError    func(error)
+	store        caching.Cache
+	defaultTTL   time.Duration
+	onError      func(error)
+	invalidation ResponseCacheInvalidationOptions
+}
+
+// ResponseCacheInvalidationOptions selects which secondary indexes are built.
+// Each is independent; all off caches entries untagged.
+type ResponseCacheInvalidationOptions struct {
+	// CacheTag indexes under the tags the subgraph declared.
+	CacheTag bool
+	// Subgraph indexes under the subgraph that answered.
+	Subgraph bool
+	// Type indexes entities under their __typename. Root fetches have none.
+	Type bool
+}
+
+func (o ResponseCacheInvalidationOptions) any() bool {
+	return o.CacheTag || o.Subgraph || o.Type
+}
+
+// DefaultResponseCacheInvalidationOptions builds every index.
+func DefaultResponseCacheInvalidationOptions() ResponseCacheInvalidationOptions {
+	return ResponseCacheInvalidationOptions{CacheTag: true, Subgraph: true, Type: true}
 }
 
 func (c *Context) SetResponseCache(cache caching.Cache, defaultTTL time.Duration, onError func(error)) {
 	if cache == nil {
 		return
 	}
-	c.responseCache = &responseCache{store: cache, defaultTTL: defaultTTL, onError: onError}
+	c.responseCache = &responseCache{
+		store:      cache,
+		defaultTTL: defaultTTL,
+		onError:    onError,
+		// Overridden by SetResponseCacheInvalidation.
+		invalidation: DefaultResponseCacheInvalidationOptions(),
+	}
+}
+
+// SetResponseCacheInvalidation selects the secondary indexes. No effect before
+// SetResponseCache.
+func (c *Context) SetResponseCacheInvalidation(opts ResponseCacheInvalidationOptions) {
+	if c.responseCache == nil {
+		return
+	}
+	c.responseCache.invalidation = opts
 }
 
 func (c *Context) SubgraphErrors() error {

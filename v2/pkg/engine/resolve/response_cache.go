@@ -154,16 +154,33 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return err
 	}
 
+	invalidation := l.ctx.responseCache.invalidation
+
+	var declared [][]string
+	if invalidation.CacheTag {
+		declared = responseCacheTags(response, len(values))
+	}
+
 	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
 		}
-		items = append(items, caching.Item{
+		item := caching.Item{
 			Key:   prepared.responseCacheKeys[i],
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
-		})
+		}
+		if invalidation.any() {
+			// Indexed by i like the key: a null entity is skipped above without
+			// consuming a tag list, so the two stay aligned.
+			var declaredForValue []string
+			if declared != nil {
+				declaredForValue = declared[i]
+			}
+			item.Tags = responseCacheTagIdentities(declaredForValue, value, prepared.res.ds.Name, invalidation)
+		}
+		items = append(items, item)
 	}
 
 	prepared.responseCacheItems = items
@@ -193,6 +210,82 @@ func responseCacheValues(prepared *preparedFetch, response *astjson.Value) ([]*a
 	return values, nil
 }
 
+// responseCacheTags reads the declared cache tags, one list per value in the
+// order responseCacheValues returned them.
+func responseCacheTags(response *astjson.Value, expectedItems int) [][]string {
+	if expectedItems == 0 {
+		return nil
+	}
+
+	extension := response.Get(responseCacheTagsPath...)
+	if !astjson.ValueIsNonNull(extension) || extension.Type() != astjson.TypeArray {
+		return nil
+	}
+
+	lists := extension.GetArray()
+	if len(lists) != expectedItems {
+		return nil
+	}
+
+	tags := make([][]string, expectedItems)
+	for i, list := range lists {
+		// Costs this value its tags only; the list stays positional.
+		if !astjson.ValueIsNonNull(list) || list.Type() != astjson.TypeArray {
+			continue
+		}
+
+		values := list.GetArray()
+		// Rejected outright rather than truncated
+		if len(values) > maxResponseCacheTagsPerValue {
+			continue
+		}
+
+		parsed := make([]string, 0, len(values))
+		for _, value := range values {
+			if value.Type() != astjson.TypeString {
+				continue
+			}
+			tag := string(value.GetStringBytes())
+			// Empty is meaningless; over long is a key name the subgraph sized.
+			if tag == "" || len(tag) > maxResponseCacheTagLength {
+				continue
+			}
+			parsed = append(parsed, tag)
+		}
+
+		if len(parsed) == 0 {
+			continue
+		}
+
+		tags[i] = parsed
+	}
+
+	return tags
+}
+
+func responseCacheTagIdentities(declared []string, value *astjson.Value, subgraph string, opts ResponseCacheInvalidationOptions) []string {
+	identities := make([]string, 0, len(declared)+2)
+
+	for _, tag := range declared {
+		identities = append(identities, responseCacheDeclaredTagPrefix+tag)
+	}
+
+	if opts.Subgraph && subgraph != "" {
+		identities = append(identities, responseCacheSubgraphTagPrefix+subgraph)
+	}
+
+	if opts.Type {
+		if name := value.GetStringBytes("__typename"); len(name) > 0 {
+			identities = append(identities, responseCacheTypeTagPrefix+string(name))
+		}
+	}
+
+	if len(identities) == 0 {
+		return nil
+	}
+	return identities
+}
+
 // responseCacheFlush writes what responseCacheCollect gathered. It is called with
 // the data lock released so a slow cache never blocks the fetches queued behind it.
 func (l *Loader) responseCacheFlush(prepared *preparedFetch) {
@@ -219,7 +312,24 @@ func responseCacheHeaders(res *result) http.Header {
 	return res.httpResponseContext.Response.Header
 }
 
+const (
+	maxResponseCacheTagsPerValue = 10_000
+	maxResponseCacheTagLength    = 10_000
+)
+
+// responseCacheTagsExtensionKey is where a subgraph attaches its cache tags.
+const responseCacheTagsExtensionKey = "apolloEntityCacheTags"
+
+// Tag namespaces. Every tag carries exactly one.
+const (
+	responseCacheDeclaredTagPrefix = "declared:"
+	responseCacheSubgraphTagPrefix = "subgraph:"
+	responseCacheTypeTagPrefix     = "type:"
+)
+
 var (
+	responseCacheTagsPath = []string{"extensions", responseCacheTagsExtensionKey}
+
 	// The data object of a root fetch response, taken apart on the way into the
 	// cache and put back together on the way out.
 	dataResponsePath               = []string{"data"}
