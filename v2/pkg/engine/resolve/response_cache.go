@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/wundergraph/astjson"
 
@@ -106,8 +107,22 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res := prepared.res
 	res.out = out
 	res.statusCode = http.StatusOK
+	res.responseCacheTTL = remainingTTL(found, keys)
 
 	return true
+}
+
+// remainingTTL is the shortest life left across a fetch's entries: a fetch is only
+// as fresh as its least fresh entry. Non-positive TTLs are ignored, GetMany already
+// treats those as misses.
+func remainingTTL(found map[string]caching.Item, keys []string) time.Duration {
+	var ttl time.Duration
+	for _, key := range keys {
+		if t := found[key].TTL; t > 0 && (ttl == 0 || t < ttl) {
+			ttl = t
+		}
+	}
+	return ttl
 }
 
 func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
