@@ -61,6 +61,11 @@ type ResponseInfo struct {
 	Request *http.Request
 	// ResponseHeaders contains a clone of the headers of the response from the subgraph.
 	ResponseHeaders http.Header
+	// ResponseCacheHit reports the fetch was served from the response cache rather than the subgraph.
+	ResponseCacheHit bool
+	// ResponseCacheTTL is the lowest lifetime left on the entries the fetch was served from. Non-negative TTLs are considered.
+	// Use ResponseCacheHit to distinguish a cache hit with a zero TTL from a cache miss.
+	ResponseCacheTTL time.Duration
 	// This should be private as we do not want user's to access the raw responseBody directly
 	responseBody []byte
 }
@@ -71,9 +76,11 @@ func (r *ResponseInfo) GetResponseBody() string {
 
 func newResponseInfo(res *result) *ResponseInfo {
 	responseInfo := &ResponseInfo{
-		StatusCode:   res.statusCode,
-		Err:          res.subgraphError,
-		responseBody: res.out,
+		StatusCode:       res.statusCode,
+		Err:              res.subgraphError,
+		ResponseCacheHit: res.responseCacheHit,
+		ResponseCacheTTL: res.responseCacheTTL,
+		responseBody:     res.out,
 	}
 	if res.httpResponseContext != nil {
 		// We're using the response.Request here, because the body will be nil (since the response was read) and won't
@@ -135,6 +142,11 @@ type result struct {
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
+	// responseCacheHit and responseCacheTTL record that the fetch was served from
+	// the cache and the min lifetime left across its entries. Fetch-local, so the
+	// unlocked load phase is safe.
+	responseCacheHit bool
+	responseCacheTTL time.Duration
 	// out is the subgraph response body
 	out               []byte
 	singleFlightStats *singleFlightStats

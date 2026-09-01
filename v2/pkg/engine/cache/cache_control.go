@@ -68,6 +68,18 @@ func (f *FieldNames) Fields() iter.Seq[string] {
 	}
 }
 
+// FieldsString returns the field names as a string.
+// The string is wrapped in double quotes and comma-separated.
+func (f *FieldNames) FieldsString() string {
+	parts := make([]string, 0, len(f.fields))
+
+	for field := range f.fields {
+		parts = append(parts, field)
+	}
+
+	return "\"" + strings.Join(parts, ",") + "\""
+}
+
 func (f *FieldNames) has(name string) bool {
 	if f == nil || f.noFields {
 		return false
@@ -118,9 +130,28 @@ func parseDeltaSeconds(s string) (DeltaSeconds, error) {
 	return DeltaSeconds(int32(num)), nil
 }
 
+// ToDeltaSeconds converts a time.Duration to a DeltaSeconds.
+func ToDeltaSeconds(d time.Duration) DeltaSeconds {
+	if d < 0 {
+		return DeltaSeconds(-1)
+	}
+
+	val := int64(d / time.Second)
+	if val > math.MaxInt32 {
+		return DeltaSeconds(math.MaxInt32)
+	}
+
+	return DeltaSeconds(int32(val))
+}
+
 // AsDuration converts a DeltaSeconds to a time.Duration.
 func (d DeltaSeconds) AsDuration() time.Duration {
 	return time.Duration(d) * time.Second
+}
+
+// String converts a DeltaSeconds to a string.
+func (d DeltaSeconds) String() string {
+	return strconv.Itoa(int(d))
 }
 
 type CacheControlResponse struct {
@@ -195,6 +226,37 @@ type CacheControlResponse struct {
 	// store the specified field-names(s), whereas it MAY store the
 	// remainder of the response message.
 	Private *FieldNames
+}
+
+// ToHeaderString converts a CacheControlResponse to a Cache-Control header string.
+func (c *CacheControlResponse) ToHeaderString() string {
+	parts := []string{}
+
+	if c.Public {
+		parts = append(parts, "public")
+	}
+
+	if c.MaxAge != nil {
+		parts = append(parts, "max-age="+c.MaxAge.String())
+	}
+
+	if c.SMaxAge != nil {
+		parts = append(parts, "s-maxage="+c.SMaxAge.String())
+	}
+
+	if c.NoStore {
+		parts = append(parts, "no-store")
+	}
+
+	if c.NoCache != nil {
+		parts = append(parts, "no-cache="+c.NoCache.FieldsString())
+	}
+
+	if c.Private != nil {
+		parts = append(parts, "private="+c.Private.FieldsString())
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 func ParseCacheControlResponse(headers http.Header) (*CacheControlResponse, error) {
