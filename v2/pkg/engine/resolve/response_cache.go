@@ -107,21 +107,32 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res := prepared.res
 	res.out = out
 	res.statusCode = http.StatusOK
+	res.responseCacheHit = true
 	res.responseCacheTTL = remainingTTL(found, keys)
 
 	return true
 }
 
 // remainingTTL is the shortest life left across a fetch's entries: a fetch is only
-// as fresh as its least fresh entry. Non-positive TTLs are ignored, GetMany already
-// treats those as misses.
+// as fresh as its least fresh entry. Zero counts, it is an entry that is stale as
+// of now. Only a negative TTL is dropped, as no cache should report one.
 func remainingTTL(found map[string]caching.Item, keys []string) time.Duration {
-	var ttl time.Duration
+	ttl := time.Duration(-1)
 	for _, key := range keys {
-		if t := found[key].TTL; t > 0 && (ttl == 0 || t < ttl) {
-			ttl = t
+		cachedTTL := found[key].TTL
+		if cachedTTL < 0 {
+			continue
+		}
+
+		if ttl < 0 || cachedTTL < ttl {
+			ttl = cachedTTL
 		}
 	}
+
+	if ttl < 0 {
+		return 0
+	}
+
 	return ttl
 }
 

@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -2783,14 +2784,18 @@ func TestLoader_CachedFetches(t *testing.T) {
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 
 		// Fetches run in parallel, so collect and sort before asserting.
+		type cacheReport struct {
+			hit bool
+			ttl time.Duration
+		}
 		var mu sync.Mutex
-		var ttls []time.Duration
-		collectTTLs := func() []time.Duration {
+		var reports []cacheReport
+		collectReports := func() []cacheReport {
 			mu.Lock()
 			defer mu.Unlock()
-			out := slices.Clone(ttls)
-			ttls = ttls[:0]
-			slices.Sort(out)
+			out := slices.Clone(reports)
+			reports = reports[:0]
+			slices.SortFunc(out, func(a, b cacheReport) int { return cmp.Compare(a.ttl, b.ttl) })
 			return out
 		}
 		ctx.SetEngineLoaderHooks(&spyLoaderHooks{
@@ -2799,10 +2804,10 @@ func TestLoader_CachedFetches(t *testing.T) {
 				defer mu.Unlock()
 				// A cache hit has no subgraph headers, so a consumer that synthesizes
 				// one must not write it back here.
-				if info.ResponseCacheTTL > 0 {
-					require.Nil(t, info.ResponseHeaders, "a cache hit must not carry subgraph response headers")
+				if info.ResponseCacheHit {
+					assert.Nil(t, info.ResponseHeaders, "a cache hit must not carry subgraph response headers")
 				}
-				ttls = append(ttls, info.ResponseCacheTTL)
+				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL})
 			},
 		})
 
@@ -2819,8 +2824,9 @@ func TestLoader_CachedFetches(t *testing.T) {
 
 		require.Len(t, testCache.items, 8, "expected 8 items in the cache: (3 products + 3 stock + 2 users)")
 
-		// First run: nothing came from the cache.
-		require.Equal(t, []time.Duration{0, 0, 0, 0}, collectTTLs())
+		// First run: nothing came from the cache. The flag says so, which a TTL of
+		// zero on its own would not, being a valid lifetime in its own right.
+		require.Equal(t, []cacheReport{{}, {}, {}, {}}, collectReports())
 
 		// Second run: every entity fetch must be served from the cache. The mocks are set to Times(1), so any repeated subgraph call fails the test.
 		loader = &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
@@ -2831,13 +2837,13 @@ func TestLoader_CachedFetches(t *testing.T) {
 		assert.Contains(t, []string{expected1, expected2}, cachedOut)
 
 		// Each cached fetch reports its own subgraph's max-age, not a request-wide
-		// value. The root products fetch is not cacheable, so it reports nothing.
-		require.Equal(t, []time.Duration{
-			0,
-			200 * time.Second,
-			300 * time.Second,
-			400 * time.Second,
-		}, collectTTLs())
+		// value. The root products fetch is not cacheable, so it reports no hit.
+		require.Equal(t, []cacheReport{
+			{hit: false, ttl: 0},
+			{hit: true, ttl: 200 * time.Second},
+			{hit: true, ttl: 300 * time.Second},
+			{hit: true, ttl: 400 * time.Second},
+		}, collectReports())
 	})
 
 }
