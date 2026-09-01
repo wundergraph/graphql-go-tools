@@ -2,10 +2,12 @@ package resolve
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 )
 
 // What the root fetch cache may be asked to key is narrower than what the
@@ -70,4 +72,46 @@ func TestRootFetchCacheable(t *testing.T) {
 		fetch.Info = nil
 		require.False(t, rootFetchCacheable(rootItem(), fetch))
 	})
+}
+
+func TestRemainingTTL(t *testing.T) {
+	item := func(ttl time.Duration) caching.Item { return caching.Item{TTL: ttl} }
+
+	testCases := []struct {
+		name     string
+		found    map[string]caching.Item
+		keys     []string
+		expected time.Duration
+	}{
+		{
+			name:     "the shortest of several entries",
+			found:    map[string]caching.Item{"a": item(30 * time.Second), "b": item(10 * time.Second)},
+			keys:     []string{"a", "b"},
+			expected: 10 * time.Second,
+		},
+		{
+			name:     "zero is a lifetime, not an absent one",
+			found:    map[string]caching.Item{"a": item(30 * time.Second), "b": item(0)},
+			keys:     []string{"a", "b"},
+			expected: 0,
+		},
+		{
+			name:     "a lone zero survives",
+			found:    map[string]caching.Item{"a": item(0)},
+			keys:     []string{"a"},
+			expected: 0,
+		},
+		{
+			name:     "a negative TTL is dropped in favour of its neighbours",
+			found:    map[string]caching.Item{"a": item(-5 * time.Second), "b": item(10 * time.Second)},
+			keys:     []string{"a", "b"},
+			expected: 10 * time.Second,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, remainingTTL(tc.found, tc.keys))
+		})
+	}
 }
