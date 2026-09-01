@@ -58,6 +58,10 @@ func topDeferID(node *DeferTreeNode) (int, bool) {
 // map or an id set both work). A pruned subtree is removed whole — a dead parent
 // takes its nested children with it. Returns nil when nothing survives.
 func pruneDeadDefers(node *DeferTreeNode, liveTop map[int]DeferDescriptor) *DeferTreeNode {
+	return pruneDeadDefersWithObserver(node, liveTop, nil)
+}
+
+func pruneDeadDefersWithObserver(node *DeferTreeNode, liveTop map[int]DeferDescriptor, onPruned func(id int)) *DeferTreeNode {
 	if node == nil {
 		return nil
 	}
@@ -65,7 +69,7 @@ func pruneDeadDefers(node *DeferTreeNode, liveTop map[int]DeferDescriptor) *Defe
 	case DeferTreeNodeKindParallel:
 		kept := make([]*DeferTreeNode, 0, len(node.ChildNodes))
 		for _, child := range node.ChildNodes {
-			if pruned := pruneDeadDefers(child, liveTop); pruned != nil {
+			if pruned := pruneDeadDefersWithObserver(child, liveTop, onPruned); pruned != nil {
 				kept = append(kept, pruned)
 			}
 		}
@@ -81,6 +85,9 @@ func pruneDeadDefers(node *DeferTreeNode, liveTop map[int]DeferDescriptor) *Defe
 		}
 		if _, live := liveTop[id]; live {
 			return node
+		}
+		if onPruned != nil {
+			onPruned(id)
 		}
 		return nil
 	}

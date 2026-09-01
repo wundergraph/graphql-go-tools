@@ -127,6 +127,27 @@ type Resolvable struct {
 	// deferDescriptors holds every defer descriptor for the operation, keyed by defer id.
 	deferDescriptors map[int]DeferDescriptor
 
+	// deferTree is the immutable planned scheduling tree. liveDeferTree is its
+	// request-local, liveness-pruned counterpart used by the executor after the
+	// initial render.
+	deferTree     *DeferTreeNode
+	liveDeferTree *DeferTreeNode
+
+	// deferPlannedTree is the complete static query-plan view. deferPrimaryTree is
+	// used for the early partial trace while work remains, and deferTraceTree owns
+	// request-local runtime statuses for the authoritative terminal trace.
+	deferPlannedTree *FetchTreeNode
+	deferPrimaryTree *FetchTreeNode
+	deferTraceTree   *DeferExecutionTraceTree
+
+	// initialLiveDefers is computed during the initial validation walk, before
+	// extensions are serialized, and then reused by the executor.
+	initialLiveDefers map[int]DeferDescriptor
+
+	// responseExtensions aggregates top-level subgraph response extensions and
+	// value-completion suppression across every loader in this deferred request.
+	responseExtensions *responseExtensionAccumulator
+
 	// typeNames is a stack of the runtime `__typename` at each object layer; it is
 	// indexed by depth to evaluate `... on Type` fragment type conditions.
 	typeNames [][]byte
@@ -262,9 +283,37 @@ func (r *Resolvable) Reset() {
 	r.deferMode = false
 	r.currentDefer = nil
 	r.deferDescriptors = nil
+	r.deferTree = nil
+	r.liveDeferTree = nil
+	r.deferPlannedTree = nil
+	r.deferPrimaryTree = nil
+	r.deferTraceTree = nil
+	r.initialLiveDefers = nil
+	r.responseExtensions = nil
 	r.enableDeferRender = false
 	r.deferIncrementalItemWritten = false
 	r.deferItemDataNull = false
+}
+
+type extensionRenderTrees struct {
+	queryPlan *FetchTreeNode
+	trace     *FetchTreeNode
+}
+
+func (r *Resolvable) configureDeferExecution(response *GraphQLDeferResponse, extensions *responseExtensionAccumulator) {
+	r.deferMode = true
+	r.currentDefer = nil
+	r.responseExtensions = extensions
+	if response == nil {
+		return
+	}
+	r.deferDescriptors = response.DeferDescriptors
+	r.deferTree = response.DeferTree
+	r.deferPlannedTree = response.PlannedExecutionTree()
+	r.deferTraceTree = response.NewDeferExecutionTraceTree()
+	if response.Response != nil {
+		r.deferPrimaryTree = response.Response.Fetches
+	}
 }
 
 // initCostControl prepares typeNameStats collection for this walk when cost control is active.
@@ -384,7 +433,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 		r.printBytes(null)
 		if r.hasExtensions() {
 			r.printBytes(comma)
-			r.printErr = r.printExtensions(ctx, fetchTree)
+			r.printErr = r.printExtensions(ctx, extensionRenderTrees{queryPlan: fetchTree, trace: fetchTree})
 		}
 		r.printBytes(rBrace)
 		return r.printErr
@@ -404,6 +453,29 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
+
+	trees := extensionRenderTrees{queryPlan: fetchTree, trace: fetchTree}
+	var live map[int]DeferDescriptor
+	if r.deferMode {
+		// Liveness must be finalized before extension rendering. This lets an
+		// all-pruned initial response carry the authoritative runtime trace in the
+		// same frame that writes hasNext:false.
+		live = r.liveChildDescriptors(0)
+		r.initialLiveDefers = live
+		if r.deferTraceTree != nil {
+			r.liveDeferTree = r.deferTraceTree.PruneDeadDefers(r.deferTree, live)
+		}
+		r.subgraphExtensions = r.responseExtensions.snapshot()
+		r.skipValueCompletion = r.responseExtensions.valueCompletionSuppressed()
+		trees.queryPlan = r.deferPlannedTree
+		trees.trace = r.deferPrimaryTree
+		if len(live) == 0 && r.deferTraceTree != nil {
+			if !r.deferTraceTree.AllTerminal() {
+				return fmt.Errorf("defer trace invariant: terminal initial response contains non-terminal defer statuses")
+			}
+			trees.trace = r.deferTraceTree.Root
+		}
+	}
 	r.printBytes(lBrace)
 	if r.hasErrors() {
 		r.printErrors()
@@ -420,14 +492,13 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 	if r.hasExtensions() {
 		r.printBytes(comma)
-		r.printErr = r.printExtensions(ctx, fetchTree)
+		r.printErr = r.printExtensions(ctx, trees)
 	}
 
 	if r.deferMode {
 		// Announce only the top-level defers whose anchor survived. Nested defers
 		// are announced lazily when their parent is released. A recoverable error
 		// that null-propagated onto a defer's own anchor cancels just that defer.
-		live := r.liveChildDescriptors(0)
 		r.printPendingEntries(live)
 		r.printHasNext(len(live) > 0)
 	}
@@ -468,6 +539,7 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 	}
 
 	shouldSkipIncremental := r.deferItemDataNull
+	blockChildRelease := r.deferItemDataNull
 
 	// Second pass: render incremental data into a scratch buffer first so a
 	// render-phase error (e.g. a custom field-value renderer failing) never leaves
@@ -492,14 +564,28 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 			r.addError(r.printErr.Error(), nil)
 			r.printErr = nil
 			shouldSkipIncremental = true
+			blockChildRelease = true
+		} else if !r.deferIncrementalItemWritten && r.hasErrors() {
+			// An error can null an already-delivered nullable ancestor, leaving the
+			// scratch render without an incremental item. Complete with the errors
+			// instead of emitting an empty incremental array. This alone does not
+			// suppress nested work whose anchor is still live.
+			shouldSkipIncremental = true
 		} else {
 			incrementalItems = scratch.Bytes()
 		}
 	}
 
 	// Direct children whose anchor survived the render are announced now (lazily)
-	// and scheduled by the caller; the rest are cancelled.
-	liveChildren = r.liveChildDescriptors(r.currentDefer.ID)
+	// and scheduled by the caller; the rest are cancelled. A null-propagated
+	// parent or a render failure cannot release children, but merely omitting an
+	// empty incremental item does not block children on anchors already delivered.
+	if !blockChildRelease {
+		liveChildren = r.liveChildDescriptors(r.currentDefer.ID)
+	}
+	if err := r.finishCurrentDeferTrace(r.hasErrors(), liveChildren); err != nil {
+		return nil, err
+	}
 
 	// Counter: announce live children, complete self. The frame that drives the
 	// outstanding count to zero writes the terminal hasNext:false. Every defer's
@@ -507,6 +593,13 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 	// mutation with the frame writes.
 	*outstanding += int64(len(liveChildren)) - 1
 	isLast := *outstanding == 0
+	var terminalTrees extensionRenderTrees
+	if isLast {
+		terminalTrees, err = r.prepareTerminalExtensions()
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// Open the per-defer envelope.
 	r.printBytes(lBrace)
@@ -530,6 +623,11 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 	// Announce the surviving direct children (lazy nested pending). No-op when
 	// there are none.
 	r.printPendingEntries(liveChildren)
+
+	if isLast && r.hasExtensions() {
+		r.printBytes(comma)
+		r.printErr = r.printExtensions(r.ctx.ctx, terminalTrees)
+	}
 
 	// hasNext is independent of internal defer errors — they're scoped
 	// to this defer's `completed.errors` and do not terminate the response.
@@ -582,20 +680,97 @@ func (r *Resolvable) ResolveDeferError(out io.Writer, message string, outstandin
 	r.path = r.path[:0]
 	r.errors = nil
 	r.addError(message, nil)
+	if err := r.failCurrentDeferTrace(); err != nil {
+		return err
+	}
 
 	// The failing defer completes; drive the outstanding count down by one. The
 	// frame that reaches zero writes the terminal hasNext:false. Serialised by
 	// dc.db.Lock() (held by the caller), so a plain mutation is safe.
 	*outstanding--
 	isLast := *outstanding == 0
+	var terminalTrees extensionRenderTrees
+	var err error
+	if isLast {
+		terminalTrees, err = r.prepareTerminalExtensions()
+		if err != nil {
+			return err
+		}
+	}
 
 	// {"completed":[{"id":"<n>","errors":[...]}],"hasNext":<bool>}
 	r.printBytes(lBrace)
 	r.renderCompleted(true)
+	if isLast && r.hasExtensions() {
+		r.printBytes(comma)
+		r.printErr = r.printExtensions(r.ctx.ctx, terminalTrees)
+	}
 	r.printHasNext(!isLast)
 	r.printBytes(rBrace)
 
 	return r.printErr
+}
+
+func (r *Resolvable) finishCurrentDeferTrace(withErrors bool, liveChildren map[int]DeferDescriptor) error {
+	if r.deferTraceTree == nil {
+		return nil
+	}
+	if r.currentDefer == nil {
+		return fmt.Errorf("defer trace invariant: missing current defer")
+	}
+
+	var transitioned bool
+	if withErrors {
+		transitioned = r.deferTraceTree.MarkError(r.currentDefer.ID)
+	} else {
+		transitioned = r.deferTraceTree.MarkCompleted(r.currentDefer.ID)
+	}
+	if !transitioned {
+		return fmt.Errorf("defer trace invariant: defer %d did not transition from running", r.currentDefer.ID)
+	}
+
+	for id, descriptor := range r.deferDescriptors {
+		if descriptor.ParentID != r.currentDefer.ID {
+			continue
+		}
+		if _, live := liveChildren[id]; live {
+			continue
+		}
+		if !r.deferTraceTree.MarkSkipped(id) {
+			status, ok := r.deferTraceTree.Status(id)
+			if !ok || status != DeferExecutionStatusSkipped {
+				return fmt.Errorf("defer trace invariant: rejected child defer %d was not planned", id)
+			}
+		}
+	}
+	return nil
+}
+
+func (r *Resolvable) failCurrentDeferTrace() error {
+	if r.deferTraceTree == nil {
+		return nil
+	}
+	if r.currentDefer == nil {
+		return fmt.Errorf("defer trace invariant: missing current defer")
+	}
+	if !r.deferTraceTree.MarkError(r.currentDefer.ID) {
+		return fmt.Errorf("defer trace invariant: defer %d did not transition from running", r.currentDefer.ID)
+	}
+	r.deferTraceTree.MarkDescendantsSkipped(r.currentDefer.ID)
+	return nil
+}
+
+func (r *Resolvable) prepareTerminalExtensions() (extensionRenderTrees, error) {
+	if r.deferTraceTree != nil && !r.deferTraceTree.AllTerminal() {
+		return extensionRenderTrees{}, fmt.Errorf("defer trace invariant: terminal response contains non-terminal defer statuses")
+	}
+	r.subgraphExtensions = r.responseExtensions.snapshot()
+	r.skipValueCompletion = r.responseExtensions.valueCompletionSuppressed()
+	var trace *FetchTreeNode
+	if r.deferTraceTree != nil {
+		trace = r.deferTraceTree.Root
+	}
+	return extensionRenderTrees{queryPlan: r.deferPlannedTree, trace: trace}, nil
 }
 
 func (r *Resolvable) renderPath() {
@@ -872,7 +1047,7 @@ func (r *Resolvable) printData(root *Object) {
 	r.wroteData = true
 }
 
-func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNode) error {
+func (r *Resolvable) printExtensions(ctx context.Context, trees extensionRenderTrees) error {
 	r.printBytes(quote)
 	r.printBytes(literalExtensions)
 	r.printBytes(quote)
@@ -905,7 +1080,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 			r.printBytes(comma)
 		}
 		writeComma = true
-		err := r.printQueryPlanExtension(fetchTree)
+		err := r.printQueryPlanExtension(trees.queryPlan)
 		if err != nil {
 			return err
 		}
@@ -924,7 +1099,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 			r.printBytes(comma)
 		}
 		writeComma = true
-		err := r.printTraceExtension(ctx, fetchTree)
+		err := r.printTraceExtension(ctx, trees.trace)
 		if err != nil {
 			return err
 		}
