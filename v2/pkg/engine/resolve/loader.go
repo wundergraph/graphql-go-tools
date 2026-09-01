@@ -61,11 +61,10 @@ type ResponseInfo struct {
 	Request *http.Request
 	// ResponseHeaders contains a clone of the headers of the response from the subgraph.
 	ResponseHeaders http.Header
-	// ResponseCacheHit reports the fetch was served from the response cache rather
-	// than the subgraph.
+	// ResponseCacheHit reports the fetch was served from the response cache rather than the subgraph.
 	ResponseCacheHit bool
-	// ResponseCacheTTL is the lowest lifetime left on the entries the fetch was served
-	// from. Only positive TTLs are considered.
+	// ResponseCacheTTL is the lowest lifetime left on the entries the fetch was served from. Non-negative TTLs are considered.
+	// Use ResponseCacheHit to distinguish a cache hit with a zero TTL from a cache miss.
 	ResponseCacheTTL time.Duration
 	// This should be private as we do not want user's to access the raw responseBody directly
 	responseBody []byte

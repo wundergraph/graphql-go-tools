@@ -2725,6 +2725,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 		assert.NoError(t, err)
+		// First run: nothing came from the cache. Loader makes all subgraph calls and stores the entities in the cache.
 		err = loader.LoadGraphQLResponseData(ctx, response)
 		assert.NoError(t, err)
 		out := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
@@ -2734,6 +2735,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 
 		assert.Contains(t, []string{expected1, expected2}, out)
 
+		// 8 items in the cache: (3 products + 3 stock + 2 users)
 		require.Len(t, testCache.items, 8, "expected 8 items in the cache: (3 products + 3 stock + 2 users)")
 
 		// Second run: every entity fetch must be served from the cache. The mocks are set to Times(1), so any repeated subgraph call fails the test.
