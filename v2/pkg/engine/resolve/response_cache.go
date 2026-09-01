@@ -180,11 +180,12 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return err
 	}
 
+	subgraph := prepared.res.ds.Name
 	invalidation := l.ctx.responseCache.invalidation
 
 	var declared [][]string
 	if invalidation.CacheTag {
-		declared = responseCacheTags(response, len(values))
+		declared = responseCacheTags(response, len(values), prepared.isRootFetchCache)
 	}
 
 	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
@@ -204,7 +205,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			if declared != nil {
 				declaredForValue = declared[i]
 			}
-			item.Tags = responseCacheTagIdentities(declaredForValue, value, prepared.res.ds.Name, invalidation)
+			item.Tags = responseCacheTagIdentities(declaredForValue, value, subgraph, invalidation)
 		}
 		items = append(items, item)
 	}
@@ -237,13 +238,24 @@ func responseCacheValues(prepared *preparedFetch, response *astjson.Value) ([]*a
 }
 
 // responseCacheTags reads the declared cache tags, one list per value in the
-// order responseCacheValues returned them.
-func responseCacheTags(response *astjson.Value, expectedItems int) [][]string {
+// order responseCacheValues returned them. A root fetch declares them flat
+// under its own extension key, because its one entry has one list; an entity
+// fetch declares a list per entity and so nests them.
+func responseCacheTags(response *astjson.Value, expectedItems int, isRootFetch bool) [][]string {
 	if expectedItems == 0 {
 		return nil
 	}
 
-	extension := response.Get(responseCacheTagsPath...)
+	if isRootFetch {
+		flat := responseCacheTagList(response.Get(responseCacheRootTagsPath...))
+		if flat == nil {
+			return nil
+		}
+		// One value, so one list. responseCacheValues guarantees the count.
+		return [][]string{flat}
+	}
+
+	extension := response.Get(responseCacheEntityTagsPath...)
 	if !astjson.ValueIsNonNull(extension) || extension.Type() != astjson.TypeArray {
 		return nil
 	}
@@ -256,53 +268,61 @@ func responseCacheTags(response *astjson.Value, expectedItems int) [][]string {
 	tags := make([][]string, expectedItems)
 	for i, list := range lists {
 		// Costs this value its tags only; the list stays positional.
-		if !astjson.ValueIsNonNull(list) || list.Type() != astjson.TypeArray {
-			continue
-		}
-
-		values := list.GetArray()
-		// Rejected outright rather than truncated
-		if len(values) > maxResponseCacheTagsPerValue {
-			continue
-		}
-
-		parsed := make([]string, 0, len(values))
-		for _, value := range values {
-			if value.Type() != astjson.TypeString {
-				continue
-			}
-			tag := string(value.GetStringBytes())
-			// Empty is meaningless; over long is a key name the subgraph sized.
-			if tag == "" || len(tag) > maxResponseCacheTagLength {
-				continue
-			}
-			parsed = append(parsed, tag)
-		}
-
-		if len(parsed) == 0 {
-			continue
-		}
-
-		tags[i] = parsed
+		tags[i] = responseCacheTagList(list)
 	}
 
 	return tags
 }
 
+func responseCacheTagList(list *astjson.Value) []string {
+	if !astjson.ValueIsNonNull(list) || list.Type() != astjson.TypeArray {
+		return nil
+	}
+
+	values := list.GetArray()
+	// Rejected outright rather than truncated
+	if len(values) > maxResponseCacheTagsPerValue {
+		return nil
+	}
+
+	parsed := make([]string, 0, len(values))
+	for _, value := range values {
+		if value.Type() != astjson.TypeString {
+			continue
+		}
+		tag := string(value.GetStringBytes())
+		// Empty is meaningless; over long is a key name the subgraph sized.
+		if tag == "" || len(tag) > maxResponseCacheTagLength {
+			continue
+		}
+		parsed = append(parsed, tag)
+	}
+
+	if len(parsed) == 0 {
+		return nil
+	}
+
+	return parsed
+}
+
 func responseCacheTagIdentities(declared []string, value *astjson.Value, subgraph string, opts ResponseCacheInvalidationOptions) []string {
+	if subgraph == "" {
+		return nil
+	}
+
 	identities := make([]string, 0, len(declared)+2)
 
 	for _, tag := range declared {
-		identities = append(identities, responseCacheDeclaredTagPrefix+tag)
+		identities = append(identities, caching.DeclaredTag(subgraph, tag))
 	}
 
-	if opts.Subgraph && subgraph != "" {
-		identities = append(identities, responseCacheSubgraphTagPrefix+subgraph)
+	if opts.Subgraph {
+		identities = append(identities, caching.SubgraphTag(subgraph))
 	}
 
 	if opts.Type {
 		if name := value.GetStringBytes("__typename"); len(name) > 0 {
-			identities = append(identities, responseCacheTypeTagPrefix+string(name))
+			identities = append(identities, caching.TypeTag(subgraph, string(name)))
 		}
 	}
 
@@ -343,18 +363,15 @@ const (
 	maxResponseCacheTagLength    = 10_000
 )
 
-// responseCacheTagsExtensionKey is where a subgraph attaches its cache tags.
-const responseCacheTagsExtensionKey = "apolloEntityCacheTags"
-
-// Tag namespaces. Every tag carries exactly one.
+// Where a subgraph attaches its cache tags.
 const (
-	responseCacheDeclaredTagPrefix = "declared:"
-	responseCacheSubgraphTagPrefix = "subgraph:"
-	responseCacheTypeTagPrefix     = "type:"
+	responseCacheEntityTagsExtensionKey = "apolloEntityCacheTags"
+	responseCacheRootTagsExtensionKey   = "apolloCacheTags"
 )
 
 var (
-	responseCacheTagsPath = []string{"extensions", responseCacheTagsExtensionKey}
+	responseCacheEntityTagsPath = []string{"extensions", responseCacheEntityTagsExtensionKey}
+	responseCacheRootTagsPath   = []string{"extensions", responseCacheRootTagsExtensionKey}
 
 	// The data object of a root fetch response, taken apart on the way into the
 	// cache and put back together on the way out.

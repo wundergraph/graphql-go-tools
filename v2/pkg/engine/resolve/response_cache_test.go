@@ -102,65 +102,81 @@ func TestResponseCacheTags(t *testing.T) {
 			{"users", "user-42"},
 			{"users", "user-1023"},
 			{"users", "user-7"},
-		}, responseCacheTags(response, 3))
+		}, responseCacheTags(response, 3, false))
 	})
 
-	t.Run("a root fetch uses a one element outer array for its single value", func(t *testing.T) {
-		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["users","homepage"]]}}`)
-		require.Equal(t, [][]string{{"users", "homepage"}}, responseCacheTags(response, 1))
+	t.Run("a root fetch declares one flat list under its own key", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloCacheTags":["users","homepage"]}}`)
+		require.Equal(t, [][]string{{"users", "homepage"}}, responseCacheTags(response, 1, true))
 	})
 
-	t.Run("a flat list of strings is not the shorthand it looks like", func(t *testing.T) {
-		// Accepting this for a root fetch would make ["users"] mean one thing
-		// with one value and another with two, decided by a count the subgraph
-		// author cannot see from the extension alone.
+	t.Run("the two extension keys are not interchangeable", func(t *testing.T) {
+		// A root fetch caches one entry and an entity fetch one per entity, so
+		// each key carries the shape its own fetch needs. Reading either from
+		// the other's key would make the same document mean different things
+		// depending on a count the subgraph author cannot see.
+		entity := parse(t, `{"extensions":{"apolloEntityCacheTags":[["users","homepage"]]}}`)
+		require.Nil(t, responseCacheTags(entity, 1, true))
+
+		root := parse(t, `{"extensions":{"apolloCacheTags":["users","homepage"]}}`)
+		require.Nil(t, responseCacheTags(root, 1, false))
+	})
+
+	t.Run("a flat list is not shorthand for an entity fetch", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":["users","homepage"]}}`)
-		require.Equal(t, [][]string{nil, nil}, responseCacheTags(response, 2))
+		require.Equal(t, [][]string{nil, nil}, responseCacheTags(response, 2, false))
+	})
+
+	t.Run("a root fetch with nothing usable in its list gets no tags", func(t *testing.T) {
+		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":[]}}`), 1, true))
+		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":[""]}}`), 1, true))
+		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":null}}`), 1, true))
+		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{}}`), 1, true))
 	})
 
 	t.Run("nothing at all is not an error", func(t *testing.T) {
-		require.Nil(t, responseCacheTags(parse(t, `{"data":{"_entities":[{}]}}`), 1))
-		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{}}`), 1))
-		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{"apolloEntityCacheTags":null}}`), 1))
+		require.Nil(t, responseCacheTags(parse(t, `{"data":{"_entities":[{}]}}`), 1, false))
+		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{}}`), 1, false))
+		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{"apolloEntityCacheTags":null}}`), 1, false))
 	})
 
 	t.Run("too many tag lists for the values discards all of them", func(t *testing.T) {
 		// Zipping as far as the shorter of the two would tag the first entries
 		// correctly and say nothing about which of the rest went astray.
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"],["b"],["c"]]}}`)
-		require.Nil(t, responseCacheTags(response, 2))
+		require.Nil(t, responseCacheTags(response, 2, false))
 	})
 
 	t.Run("too few tag lists for the values discards all of them", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"]]}}`)
-		require.Nil(t, responseCacheTags(response, 3))
+		require.Nil(t, responseCacheTags(response, 3, false))
 	})
 
 	t.Run("no values means there is nothing for tags to belong to", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"]]}}`)
-		require.Nil(t, responseCacheTags(response, 0))
+		require.Nil(t, responseCacheTags(response, 0, false))
 	})
 
 	t.Run("one malformed element costs that value its tags and no other", func(t *testing.T) {
 		// The list is still positional, so the elements either side are known to
 		// belong where they sit.
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"],"not-a-list",["c"]]}}`)
-		require.Equal(t, [][]string{{"a"}, nil, {"c"}}, responseCacheTags(response, 3))
+		require.Equal(t, [][]string{{"a"}, nil, {"c"}}, responseCacheTags(response, 3, false))
 	})
 
 	t.Run("non string tags are skipped, the rest of the list survives", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a",7,null,{"x":1},"b"]]}}`)
-		require.Equal(t, [][]string{{"a", "b"}}, responseCacheTags(response, 1))
+		require.Equal(t, [][]string{{"a", "b"}}, responseCacheTags(response, 1, false))
 	})
 
 	t.Run("an empty tag is dropped", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["","a"]]}}`)
-		require.Equal(t, [][]string{{"a"}}, responseCacheTags(response, 1))
+		require.Equal(t, [][]string{{"a"}}, responseCacheTags(response, 1, false))
 	})
 
 	t.Run("a value whose tags are all unusable gets none", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[[""],["a"]]}}`)
-		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2))
+		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2, false))
 	})
 
 	t.Run("an over long tag is dropped, its neighbours are not", func(t *testing.T) {
@@ -168,7 +184,7 @@ func TestResponseCacheTags(t *testing.T) {
 		atLimit := strings.Repeat("y", maxResponseCacheTagLength)
 		response := parse(t, fmt.Sprintf(
 			`{"extensions":{"apolloEntityCacheTags":[["a",%q,%q]]}}`, long, atLimit))
-		require.Equal(t, [][]string{{"a", atLimit}}, responseCacheTags(response, 1))
+		require.Equal(t, [][]string{{"a", atLimit}}, responseCacheTags(response, 1, false))
 	})
 
 	tagList := func(n int) string {
@@ -183,7 +199,7 @@ func TestResponseCacheTags(t *testing.T) {
 		response := parse(t, fmt.Sprintf(
 			`{"extensions":{"apolloEntityCacheTags":[[%s]]}}`, tagList(maxResponseCacheTagsPerValue)))
 
-		got := responseCacheTags(response, 1)
+		got := responseCacheTags(response, 1, false)
 		require.Len(t, got, 1)
 		require.Len(t, got[0], maxResponseCacheTagsPerValue)
 	})
@@ -194,19 +210,19 @@ func TestResponseCacheTags(t *testing.T) {
 		response := parse(t, fmt.Sprintf(
 			`{"extensions":{"apolloEntityCacheTags":[[%s]]}}`, tagList(maxResponseCacheTagsPerValue+1)))
 
-		require.Equal(t, [][]string{nil}, responseCacheTags(response, 1))
+		require.Equal(t, [][]string{nil}, responseCacheTags(response, 1, false))
 	})
 
 	t.Run("one value over the cap costs that value only", func(t *testing.T) {
 		response := parse(t, fmt.Sprintf(
 			`{"extensions":{"apolloEntityCacheTags":[[%s],["a"]]}}`, tagList(maxResponseCacheTagsPerValue+1)))
 
-		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2))
+		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2, false))
 	})
 
 	t.Run("an object where the array should be is not tags", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":{"users":["user-42"]}}}`)
-		require.Nil(t, responseCacheTags(response, 1))
+		require.Nil(t, responseCacheTags(response, 1, false))
 	})
 }
 
@@ -228,9 +244,9 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 	t.Run("everything an entry is about, each under where it came from", func(t *testing.T) {
 		got := responseCacheTagIdentities([]string{"users", "user-42"}, entity(t), "accounts", all)
 		require.Equal(t, []string{
-			"declared:users", "declared:user-42",
+			"declared:accounts:users", "declared:accounts:user-42",
 			"subgraph:accounts",
-			"type:User",
+			"type:accounts:User",
 		}, got)
 	})
 
@@ -240,36 +256,36 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		// among them.
 		got := responseCacheTagIdentities([]string{"subgraph:evil", "type:Admin"}, entity(t), "accounts", all)
 		require.Equal(t, []string{
-			"declared:subgraph:evil", "declared:type:Admin",
+			"declared:accounts:subgraph:evil", "declared:accounts:type:Admin",
 			"subgraph:accounts",
-			"type:User",
+			"type:accounts:User",
 		}, got)
 	})
 
 	t.Run("the by-subgraph index can be turned off on its own", func(t *testing.T) {
 		opts := all
 		opts.Subgraph = false
-		require.Equal(t, []string{"declared:users", "type:User"},
+		require.Equal(t, []string{"declared:accounts:users", "type:accounts:User"},
 			responseCacheTagIdentities([]string{"users"}, entity(t), "accounts", opts))
 	})
 
 	t.Run("the by-type index can be turned off on its own", func(t *testing.T) {
 		opts := all
 		opts.Type = false
-		require.Equal(t, []string{"declared:users", "subgraph:accounts"},
+		require.Equal(t, []string{"declared:accounts:users", "subgraph:accounts"},
 			responseCacheTagIdentities([]string{"users"}, entity(t), "accounts", opts))
 	})
 
 	t.Run("both derived indexes off leaves only what the subgraph declared", func(t *testing.T) {
 		opts := ResponseCacheInvalidationOptions{CacheTag: true}
-		require.Equal(t, []string{"declared:users"},
+		require.Equal(t, []string{"declared:accounts:users"},
 			responseCacheTagIdentities([]string{"users"}, entity(t), "accounts", opts))
 	})
 
 	t.Run("the derived indexes stand on their own when nothing was declared", func(t *testing.T) {
 		// The point of deriving them: an entry is findable without its subgraph
 		// having said anything at all.
-		require.Equal(t, []string{"subgraph:accounts", "type:User"},
+		require.Equal(t, []string{"subgraph:accounts", "type:accounts:User"},
 			responseCacheTagIdentities(nil, entity(t), "accounts", all))
 	})
 
@@ -284,9 +300,13 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 			responseCacheTagIdentities(nil, parse(t, `{"__typename":""}`), "accounts", all))
 	})
 
-	t.Run("an unnamed subgraph is not indexed under the empty string", func(t *testing.T) {
-		require.Equal(t, []string{"type:User"},
-			responseCacheTagIdentities(nil, entity(t), "", all))
+	t.Run("an unnamed subgraph is not indexed at all", func(t *testing.T) {
+		// Every identity is scoped by the subgraph that answered, so without a
+		// name there is no scope to file the entry under. Indexing it unscoped
+		// would put it where another subgraph's invalidation could reach it,
+		// which is worse than not indexing it: the entry still expires on its
+		// own TTL either way.
+		require.Nil(t, responseCacheTagIdentities([]string{"users"}, entity(t), "", all))
 	})
 
 	t.Run("nothing to index at all is no tags rather than an empty list", func(t *testing.T) {
@@ -359,9 +379,9 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		items := collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"}, declaredOnly)
 
 		require.Len(t, items, 3)
-		require.Equal(t, []string{"declared:users", "declared:user-42"}, items[0].Tags)
-		require.Equal(t, []string{"declared:users", "declared:user-1023"}, items[1].Tags)
-		require.Equal(t, []string{"declared:users", "declared:user-7"}, items[2].Tags)
+		require.Equal(t, []string{"declared:accounts:users", "declared:accounts:user-42"}, items[0].Tags)
+		require.Equal(t, []string{"declared:accounts:users", "declared:accounts:user-1023"}, items[1].Tags)
+		require.Equal(t, []string{"declared:accounts:users", "declared:accounts:user-7"}, items[2].Tags)
 
 		// The tags ride alongside the value, they do not replace or alter it.
 		require.JSONEq(t, `{"__typename":"User","id":42,"name":"Alice"}`, string(items[0].Value))
@@ -378,9 +398,9 @@ func TestResponseCacheCollectTags(t *testing.T) {
 
 		require.Len(t, items, 3)
 		require.Equal(t, []string{
-			"declared:users", "declared:user-42",
+			"declared:accounts:users", "declared:accounts:user-42",
 			"subgraph:accounts",
-			"type:User",
+			"type:accounts:User",
 		}, items[0].Tags)
 	})
 
@@ -393,7 +413,7 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		items := collect(t, body, []string{"k-42"}, opts)
 
 		require.Len(t, items, 1)
-		require.Equal(t, []string{"subgraph:accounts", "type:User"}, items[0].Tags)
+		require.Equal(t, []string{"subgraph:accounts", "type:accounts:User"}, items[0].Tags)
 	})
 
 	t.Run("a null entity keeps the remaining tags on their own entities", func(t *testing.T) {
@@ -407,9 +427,9 @@ func TestResponseCacheCollectTags(t *testing.T) {
 
 		require.Len(t, items, 2)
 		require.Equal(t, "k-42", items[0].Key)
-		require.Equal(t, []string{"declared:user-42"}, items[0].Tags)
+		require.Equal(t, []string{"declared:accounts:user-42"}, items[0].Tags)
 		require.Equal(t, "k-7", items[1].Key)
-		require.Equal(t, []string{"declared:user-7"}, items[1].Tags)
+		require.Equal(t, []string{"declared:accounts:user-7"}, items[1].Tags)
 	})
 
 	t.Run("a response with no tags is cached exactly as it was before", func(t *testing.T) {
@@ -448,7 +468,7 @@ func TestResponseCacheCollectTags(t *testing.T) {
 			ResponseCacheInvalidationOptions{Subgraph: true, Type: true})
 
 		require.Len(t, items, 3)
-		require.Equal(t, []string{"subgraph:accounts", "type:User"}, items[0].Tags)
+		require.Equal(t, []string{"subgraph:accounts", "type:accounts:User"}, items[0].Tags)
 	})
 
 	t.Run("each switch is independent", func(t *testing.T) {
@@ -456,18 +476,18 @@ func TestResponseCacheCollectTags(t *testing.T) {
 			return collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"}, opts)[0].Tags
 		}
 
-		require.Equal(t, []string{"declared:users", "declared:user-42"},
+		require.Equal(t, []string{"declared:accounts:users", "declared:accounts:user-42"},
 			only(ResponseCacheInvalidationOptions{CacheTag: true}))
 		require.Equal(t, []string{"subgraph:accounts"},
 			only(ResponseCacheInvalidationOptions{Subgraph: true}))
-		require.Equal(t, []string{"type:User"},
+		require.Equal(t, []string{"type:accounts:User"},
 			only(ResponseCacheInvalidationOptions{Type: true}))
 	})
 
-	t.Run("a root fetch takes its tags from a one element outer array", func(t *testing.T) {
+	t.Run("a root fetch takes its tags from one flat list", func(t *testing.T) {
 		body := `{
 			"data": {"employees": [{"id": 1}]},
-			"extensions": {"apolloEntityCacheTags": [["employees", "homepage"]]}
+			"extensions": {"apolloCacheTags": ["employees", "homepage"]}
 		}`
 
 		opts := declaredOnly
@@ -482,7 +502,7 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		// No type: a root fetch's data object is a selection set rather than an
 		// entity, so there is no one typename it could be indexed under.
 		require.Equal(t, []string{
-			"declared:employees", "declared:homepage",
+			"declared:accounts:employees", "declared:accounts:homepage",
 			"subgraph:accounts",
 		}, prepared.responseCacheItems[0].Tags)
 		require.JSONEq(t, `{"employees":[{"id":1}]}`, string(prepared.responseCacheItems[0].Value))
