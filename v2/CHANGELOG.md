@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.20.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.19.0...v2.20.0) (2026-09-02)
+
+
+### Features
+
+* support cache tag creation via extensions in response from subgraphs ([#1650](https://github.com/wundergraph/graphql-go-tools/issues/1650)) ([da4c1b4](https://github.com/wundergraph/graphql-go-tools/commit/da4c1b4881f227623ff69e2ff59c6079f478dba2))
+
 ## [2.19.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.18.0...v2.19.0) (2026-09-01)
 
 
