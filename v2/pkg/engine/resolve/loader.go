@@ -430,6 +430,19 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	if prepared.skipLoad {
 		return nil
 	}
+	// A merged fetch resolves its cache per entry, and that reshapes the request,
+	// so it happens here rather than on the whole-fetch path below.
+	if prepared.multiAssembly != nil {
+		served, err := l.applyMultiEntityResponseCache(ctx, prepared)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if served {
+			// Every entry was warm, so there is nothing left to request.
+			return nil
+		}
+	}
+
 	if l.responseCacheLookup(prepared) {
 		// OnLoad is called before a fetch is executed.
 		// When we hit the response cache, we don't execute the fetch but we still want to call the hooks.
@@ -520,6 +533,11 @@ type preparedFetch struct {
 	responseCacheItems []caching.Item
 
 	multiEntries []preparedMultiEntry
+
+	// multiAssembly is set for a MultiEntityFetch whose request will be sent: the
+	// material the load phase needs to rebuild it once the response-cache lookup
+	// has switched the warm entries off.
+	multiAssembly *multiAssembly
 }
 
 func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
@@ -731,7 +749,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.fetchSkipped {
 		return nil
 	}
-	if len(res.out) == 0 {
+	// A multi entry served from the response cache has no bytes of its own: its
+	// entities are already in the document the parent handed it.
+	if len(res.out) == 0 && (res.multi == nil || res.multi.response == nil) {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
 	// astjson.ParseBytesWithArena copies bytes onto the arena internally,

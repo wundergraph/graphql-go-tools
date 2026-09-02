@@ -805,3 +805,168 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCache(t *testing.T) {
 		assert.Equal(t, expectedInput, string(partial.lastInput))
 	})
 }
+
+// TestLoadGraphQLResponseData_MultiEntity_ResponseCacheKeys pins what a merged
+// entry's cache key covers. A merged request has one header and footer spanning
+// every alias, so the two things an unmerged fetch gets for free — its own
+// variables and its own selection — have to be hashed in per entry.
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheKeys(t *testing.T) {
+	runMerged := func(t *testing.T, cache *testCache, variables string, multiDS *recordingDataSource, rootDS *recordingDataSource) {
+		t.Helper()
+		ctx := NewContext(t.Context())
+		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+		ctx.Variables = astjson.MustParse(variables)
+		ctx.SetResponseCache(cache, 60*time.Second, func(err error) {
+			t.Errorf("response cache error: %v", err)
+		})
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, multiEntityMergedTree(rootDS, multiDS)))
+		assertMergedErrors(t, loader, "")
+	}
+
+	t.Run("an entry variable is part of its key", func(t *testing.T) {
+		cache := newTestCache()
+		root := func() *recordingDataSource {
+			return &recordingDataSource{response: []byte(multiEntityRootResponse)}
+		}
+
+		warm := &recordingDataSource{response: []byte(multiEntityMergedResponse), responseHeaders: cacheableHeaders()}
+		runMerged(t, cache, `{"first":10}`, warm, root())
+		require.Equal(t, 1, warm.calls)
+
+		// Same entities, different client variable: the f2 entry renders
+		// "first_f2":999, so its cached entity is a different entity and the
+		// origin has to answer for it.
+		other := &recordingDataSource{response: []byte(multiEntityMergedResponse), responseHeaders: cacheableHeaders()}
+		runMerged(t, cache, `{"first":999}`, other, root())
+		require.Equal(t, 1, other.calls, "a different entry variable must not be served from the cache")
+		expectedInput := `{"method":"POST","url":"http://x","body":{"query":"Q","variables":{"representations_f1":[],"includeF1":false,"representations_f2":[{"__typename":"Employee","id":9}],"includeF2":true,"first_f2":999}}}`
+		assert.Equal(t, expectedInput, string(other.lastInput),
+			"f1 has no variables, so it stays warm; only f2 is re-requested")
+	})
+
+	t.Run("two entries over the same entity do not share a key", func(t *testing.T) {
+		cache := newTestCache()
+		// Employee id=1 is reachable through both aliases, the
+		// DedupStateIsolation shape. f1 selects products, f2 selects notes: one
+		// key each, or one overwrites the other.
+		root := &recordingDataSource{response: []byte(`{"data":{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2}],"employee":{"__typename":"Employee","id":1}}}`)}
+		multiDS := &recordingDataSource{
+			response:        []byte(`{"data":{"f1":[{"products":["a"]},{"products":["b"]}],"f2":[{"notes":"n"}]}}`),
+			responseHeaders: cacheableHeaders(),
+		}
+		runMerged(t, cache, `{"first":10}`, multiDS, root)
+
+		require.Len(t, cache.items, 3, "3 entities cached under 3 distinct keys")
+		assert.Equal(t, []string{`{"notes":"n"}`, `{"products":["a"]}`, `{"products":["b"]}`}, cachedEntityValues(cache))
+	})
+}
+
+// TestLoadGraphQLResponseData_MultiEntity_ResponseCachePartialFailure covers the
+// two ways a merged fetch is only partly usable: one alias errors, or the request
+// fails after some entries were already served from the cache. In both cases the
+// entries that are fine must not be dragged down with the ones that are not.
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCachePartialFailure(t *testing.T) {
+	load := func(t *testing.T, cache *testCache, multiDS *recordingDataSource) (string, *Loader) {
+		t.Helper()
+		ctx := multiEntityContext(t)
+		ctx.SetResponseCache(cache, 60*time.Second, func(err error) {
+			t.Errorf("response cache error: %v", err)
+		})
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		response := multiEntityMergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			multiDS,
+		)
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		return string(loader.dataBuffer.Get().MarshalTo(nil)), loader
+	}
+
+	t.Run("an alias with errors is not cached, the other alias still is", func(t *testing.T) {
+		cache := newTestCache()
+		multiDS := &recordingDataSource{
+			response: []byte(`{"data":{"f1":[{"products":["a"]},{"products":["b"]}],"f2":[null]},` +
+				`"errors":[{"message":"boom","path":["f2"]}]}`),
+			responseHeaders: cacheableHeaders(),
+		}
+		_, loader := load(t, cache, multiDS)
+		require.NotNil(t, loader.errors, "the f2 error is propagated")
+
+		// f1 answered cleanly, so its entities are stored; f2 carries an error and
+		// is left out. Unmerged, these are two independent fetches and one
+		// failing never stopped the other being cached.
+		assert.Equal(t, []string{`{"products":["a"]}`, `{"products":["b"]}`}, cachedEntityValues(cache))
+	})
+
+	t.Run("a failing request does not discard the entries already served from the cache", func(t *testing.T) {
+		cache := newTestCache()
+		warm := &recordingDataSource{
+			response:        []byte(multiEntityMergedResponse),
+			responseHeaders: cacheableHeaders(),
+		}
+		load(t, cache, warm)
+
+		// Evict f2, then fail the request that goes out for it. f1 is warm and was
+		// switched off, so it keeps its data and only f2 reports the failure.
+		for key, item := range cache.items {
+			if bytes.Contains(item.Value, []byte("notes")) {
+				delete(cache.items, key)
+			}
+		}
+		failing := &recordingDataSource{err: errors.New("boom")}
+		out, loader := load(t, cache, failing)
+
+		expected := `{"employees":[{"__typename":"Employee","id":1,"products":["a"]},{"__typename":"Employee","id":2,"products":["b"]},{"__typename":"Employee","id":1,"products":["a"]}],"employee":{"__typename":"Employee","id":9}}`
+		assert.JSONEq(t, expected, out)
+		assertMergedErrors(t, loader, `[{"message":"Failed to fetch from Subgraph at Path 'employee'."}]`)
+	})
+}
+
+// TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting pins what a
+// merged fetch reports to the engine loader hooks. OnFinished fires once for the
+// merged request, so a hit is reported only when every entry was warm, with the
+// life left on the least fresh of them.
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T) {
+	type cacheReport struct {
+		hit bool
+		ttl time.Duration
+	}
+
+	load := func(t *testing.T, cache *testCache, multiDS *recordingDataSource) []cacheReport {
+		t.Helper()
+		ctx := multiEntityContext(t)
+		ctx.SetResponseCache(cache, 60*time.Second, func(err error) {
+			t.Errorf("response cache error: %v", err)
+		})
+		var reports []cacheReport
+		ctx.SetEngineLoaderHooks(&spyLoaderHooks{
+			onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
+				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL})
+			},
+		})
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		response := multiEntityMergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			multiDS,
+		)
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		assertMergedErrors(t, loader, "")
+		return reports
+	}
+
+	cache := newTestCache()
+	warm := &recordingDataSource{
+		response:        []byte(multiEntityMergedResponse),
+		responseHeaders: cacheableHeaders(),
+	}
+
+	// The root fetch is not cacheable, so it reports no hit on either run; the
+	// merged fetch reports one only on the second.
+	require.Equal(t, []cacheReport{{}, {}}, load(t, cache, warm))
+
+	cached := &recordingDataSource{err: errors.New("subgraph must not be called")}
+	require.Equal(t, []cacheReport{
+		{hit: false, ttl: 0},
+		{hit: true, ttl: 60 * time.Second},
+	}, load(t, cache, cached))
+}
