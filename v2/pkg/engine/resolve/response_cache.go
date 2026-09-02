@@ -205,7 +205,13 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			if len(declared) > 0 {
 				declaredForValue = declared[i]
 			}
-			item.Tags = responseCacheTagIdentities(declaredForValue, value, subgraph, invalidation)
+			item.Tags = responseCacheTagIdentities(responseCacheTagInput{
+				declared:    declaredForValue,
+				value:       value,
+				subgraph:    subgraph,
+				isRootFetch: prepared.isRootFetchCache,
+				opts:        invalidation,
+			})
 		}
 		items = append(items, item)
 	}
@@ -305,24 +311,34 @@ func responseCacheTagList(list *astjson.Value) []string {
 	return parsed
 }
 
-func responseCacheTagIdentities(declared []string, value *astjson.Value, subgraph string, opts ResponseCacheInvalidationOptions) []string {
-	if subgraph == "" {
+// responseCacheTagInput is what one value is indexed under: the subgraph that
+// answered, the value, what it declared, and which kind of fetch it came from.
+type responseCacheTagInput struct {
+	declared    []string
+	value       *astjson.Value
+	subgraph    string
+	isRootFetch bool
+	opts        ResponseCacheInvalidationOptions
+}
+
+func responseCacheTagIdentities(input responseCacheTagInput) []string {
+	if input.subgraph == "" {
 		return nil
 	}
 
-	identities := make([]string, 0, len(declared)+2)
+	identities := make([]string, 0, len(input.declared)+2)
 
-	for _, tag := range declared {
-		identities = append(identities, caching.DeclaredTag(subgraph, tag))
+	for _, tag := range input.declared {
+		identities = append(identities, caching.DeclaredTag(input.subgraph, tag))
 	}
 
-	if opts.Subgraph {
-		identities = append(identities, caching.SubgraphTag(subgraph))
+	if input.opts.Subgraph {
+		identities = append(identities, caching.SubgraphTag(input.subgraph))
 	}
 
-	if opts.Type {
-		if name := value.GetStringBytes("__typename"); len(name) > 0 {
-			identities = append(identities, caching.TypeTag(subgraph, string(name)))
+	if input.opts.Type && !input.isRootFetch {
+		if name := input.value.GetStringBytes("__typename"); len(name) > 0 {
+			identities = append(identities, caching.TypeTag(input.subgraph, string(name)))
 		}
 	}
 

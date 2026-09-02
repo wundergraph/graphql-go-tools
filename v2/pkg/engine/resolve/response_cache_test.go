@@ -242,7 +242,12 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 	}
 
 	t.Run("everything an entry is about, each under where it came from", func(t *testing.T) {
-		got := responseCacheTagIdentities([]string{"users", "user-42"}, entity(t), "accounts", all)
+		got := responseCacheTagIdentities(responseCacheTagInput{
+			declared: []string{"users", "user-42"},
+			value:    entity(t),
+			subgraph: "accounts",
+			opts:     all,
+		})
 		require.Equal(t, []string{
 			"declared:accounts:users", "declared:accounts:user-42",
 			"subgraph:accounts",
@@ -254,7 +259,12 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		// The namespace is applied to what the subgraph said, not taken from
 		// it, so a tag spelled like a derived one lands beside them and not
 		// among them.
-		got := responseCacheTagIdentities([]string{"subgraph:evil", "type:Admin"}, entity(t), "accounts", all)
+		got := responseCacheTagIdentities(responseCacheTagInput{
+			declared: []string{"subgraph:evil", "type:Admin"},
+			value:    entity(t),
+			subgraph: "accounts",
+			opts:     all,
+		})
 		require.Equal(t, []string{
 			"declared:accounts:subgraph:evil", "declared:accounts:type:Admin",
 			"subgraph:accounts",
@@ -266,38 +276,79 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		opts := all
 		opts.Subgraph = false
 		require.Equal(t, []string{"declared:accounts:users", "type:accounts:User"},
-			responseCacheTagIdentities([]string{"users"}, entity(t), "accounts", opts))
+			responseCacheTagIdentities(responseCacheTagInput{
+				declared: []string{"users"},
+				value:    entity(t),
+				subgraph: "accounts",
+				opts:     opts,
+			}))
 	})
 
 	t.Run("the by-type index can be turned off on its own", func(t *testing.T) {
 		opts := all
 		opts.Type = false
 		require.Equal(t, []string{"declared:accounts:users", "subgraph:accounts"},
-			responseCacheTagIdentities([]string{"users"}, entity(t), "accounts", opts))
+			responseCacheTagIdentities(responseCacheTagInput{
+				declared: []string{"users"},
+				value:    entity(t),
+				subgraph: "accounts",
+				opts:     opts,
+			}))
 	})
 
 	t.Run("both derived indexes off leaves only what the subgraph declared", func(t *testing.T) {
 		opts := ResponseCacheInvalidationOptions{CacheTag: true}
 		require.Equal(t, []string{"declared:accounts:users"},
-			responseCacheTagIdentities([]string{"users"}, entity(t), "accounts", opts))
+			responseCacheTagIdentities(responseCacheTagInput{
+				declared: []string{"users"},
+				value:    entity(t),
+				subgraph: "accounts",
+				opts:     opts,
+			}))
 	})
 
 	t.Run("the derived indexes stand on their own when nothing was declared", func(t *testing.T) {
 		// The point of deriving them: an entry is findable without its subgraph
 		// having said anything at all.
 		require.Equal(t, []string{"subgraph:accounts", "type:accounts:User"},
-			responseCacheTagIdentities(nil, entity(t), "accounts", all))
+			responseCacheTagIdentities(responseCacheTagInput{
+				value:    entity(t),
+				subgraph: "accounts",
+				opts:     all,
+			}))
 	})
 
 	t.Run("a value that does not say what it is is not indexed by type", func(t *testing.T) {
 		// A root fetch's data object is a selection set, not an entity, and an
 		// entity fetch that did not select __typename did not return one.
 		require.Equal(t, []string{"subgraph:accounts"},
-			responseCacheTagIdentities(nil, parse(t, `{"id":42}`), "accounts", all))
+			responseCacheTagIdentities(responseCacheTagInput{
+				value:    parse(t, `{"id":42}`),
+				subgraph: "accounts",
+				opts:     all,
+			}))
 		require.Equal(t, []string{"subgraph:accounts"},
-			responseCacheTagIdentities(nil, parse(t, `{"__typename":null}`), "accounts", all))
+			responseCacheTagIdentities(responseCacheTagInput{
+				value:    parse(t, `{"__typename":null}`),
+				subgraph: "accounts",
+				opts:     all,
+			}))
 		require.Equal(t, []string{"subgraph:accounts"},
-			responseCacheTagIdentities(nil, parse(t, `{"__typename":""}`), "accounts", all))
+			responseCacheTagIdentities(responseCacheTagInput{
+				value:    parse(t, `{"__typename":""}`),
+				subgraph: "accounts",
+				opts:     all,
+			}))
+	})
+
+	t.Run("a root fetch is not indexed by type", func(t *testing.T) {
+		require.Equal(t, []string{"subgraph:accounts"},
+			responseCacheTagIdentities(responseCacheTagInput{
+				value:       parse(t, `{"__typename":"Query"}`),
+				subgraph:    "accounts",
+				isRootFetch: true,
+				opts:        all,
+			}))
 	})
 
 	t.Run("an unnamed subgraph is not indexed at all", func(t *testing.T) {
@@ -306,18 +357,32 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		// would put it where another subgraph's invalidation could reach it,
 		// which is worse than not indexing it: the entry still expires on its
 		// own TTL either way.
-		require.Empty(t, responseCacheTagIdentities([]string{"users"}, entity(t), "", all))
+		require.Empty(t, responseCacheTagIdentities(responseCacheTagInput{
+			declared: []string{"users"},
+			value:    entity(t),
+			subgraph: "",
+			opts:     all,
+		}))
 	})
 
 	t.Run("nothing to index at all yields no tags", func(t *testing.T) {
 		opts := ResponseCacheInvalidationOptions{CacheTag: true}
-		require.Empty(t, responseCacheTagIdentities(nil, entity(t), "accounts", opts))
+		require.Empty(t, responseCacheTagIdentities(responseCacheTagInput{
+			value:    entity(t),
+			subgraph: "accounts",
+			opts:     opts,
+		}))
 	})
 
 	t.Run("the derived indexes are not charged to the subgraph's cap", func(t *testing.T) {
 		// The cap bounds what a subgraph asserts. The two the router adds for
 		// itself are one entry each and are not the subgraph's to spend.
-		got := responseCacheTagIdentities([]string{"a", "b"}, entity(t), "accounts", all)
+		got := responseCacheTagIdentities(responseCacheTagInput{
+			declared: []string{"a", "b"},
+			value:    entity(t),
+			subgraph: "accounts",
+			opts:     all,
+		})
 		require.Len(t, got, 4)
 	})
 }
