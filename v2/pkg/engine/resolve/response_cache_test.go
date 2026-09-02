@@ -406,7 +406,7 @@ func TestResponseCacheCollectTags(t *testing.T) {
 			statusCode: http.StatusOK,
 			httpResponseContext: &httpclient.ResponseContext{
 				Response: &http.Response{
-					Header: http.Header{"Cache-Control": []string{"max-age=60"}},
+					Header: http.Header{"Cache-Control": []string{"public, max-age=60"}},
 				},
 			},
 		}
