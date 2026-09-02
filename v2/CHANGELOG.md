@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.19.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.18.0...v2.19.0) (2026-09-01)
+
+
+### Features
+
+* report TTL for subgraph and cached responses ([#1649](https://github.com/wundergraph/graphql-go-tools/issues/1649)) ([a5c085c](https://github.com/wundergraph/graphql-go-tools/commit/a5c085c48ed7007f042800843bb8c4f06720023e))
+
 ## [2.18.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.17.0...v2.18.0) (2026-08-28)
 
 
