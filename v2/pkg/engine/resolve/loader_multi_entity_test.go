@@ -1,11 +1,14 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -312,24 +315,42 @@ func TestPrepareMultiEntityFetch_DedupStateIsolation(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // recordingDataSource returns a canned body or error, counts Load calls, and
-// captures the last received input.
+// captures the last received input. A non-nil responseHeaders publishes those
+// headers through the httpclient response context, which is where the response
+// cache reads Cache-Control from.
 type recordingDataSource struct {
-	response  []byte
-	err       error
-	calls     int
-	lastInput []byte
+	response        []byte
+	err             error
+	responseHeaders http.Header
+	calls           int
+	lastInput       []byte
 }
 
-func (r *recordingDataSource) Load(_ context.Context, _ http.Header, input []byte) ([]byte, error) {
-	r.calls++
-	r.lastInput = append(r.lastInput[:0], input...)
+func (r *recordingDataSource) Load(ctx context.Context, _ http.Header, input []byte) ([]byte, error) {
+	r.record(ctx, input)
 	return r.response, r.err
 }
 
-func (r *recordingDataSource) LoadWithFiles(_ context.Context, _ http.Header, input []byte, _ []*httpclient.FileUpload) ([]byte, error) {
+func (r *recordingDataSource) LoadWithFiles(ctx context.Context, _ http.Header, input []byte, _ []*httpclient.FileUpload) ([]byte, error) {
+	r.record(ctx, input)
+	return r.response, r.err
+}
+
+func (r *recordingDataSource) record(ctx context.Context, input []byte) {
 	r.calls++
 	r.lastInput = append(r.lastInput[:0], input...)
-	return r.response, r.err
+	if r.responseHeaders == nil {
+		return
+	}
+	responseContext := httpclient.GetResponseContext(ctx)
+	if responseContext == nil {
+		return
+	}
+	responseContext.StatusCode = http.StatusOK
+	responseContext.Response = &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     r.responseHeaders.Clone(),
+	}
 }
 
 func TestMergeMultiEntityResult_FanOut(t *testing.T) {
@@ -538,77 +559,107 @@ func multiEntityRootFetch(ds DataSource) *SingleFetch {
 
 const multiEntityRootResponse = `{"data":{"employees":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2},{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}}`
 
+// multiEntityFirstVar is the f2 entry's non-representations variable, shared by
+// every merged tree below.
+func multiEntityFirstVar() []MultiEntityFetchVariable {
+	return []MultiEntityFetchVariable{
+		{KeyPrefix: []byte(`,"first_f2":`), Value: multiContextVariableTemplate("first")},
+	}
+}
+
+// multiEntityMergedResponse is what the merged subgraph request answers when
+// both entries are included.
+const multiEntityMergedResponse = `{"data":{"f1":[{"products":["a"]},{"products":["b"]}],"f2":[{"notes":"n"}]}}`
+
+// multiEntityExpectedData is the data buffer both the merged and the unmerged
+// tree produce.
+const multiEntityExpectedData = `{"employees":[{"__typename":"Employee","id":1,"products":["a"]},{"__typename":"Employee","id":2,"products":["b"]},{"__typename":"Employee","id":1,"products":["a"]}],"employee":{"__typename":"Employee","id":9,"notes":"n"}}`
+
+// multiEntityMergedTree is the root fetch plus the MultiEntityFetch that depends
+// on it: one merged request covering both the employees batch and the employee
+// single entry.
+func multiEntityMergedTree(rootDS, multiDS DataSource) *GraphQLResponse {
+	multi := twoEntryMultiFetch(multiEntityFirstVar())
+	multi.FetchID = 1
+	multi.DependsOnFetchIDs = []int{0}
+	multi.DataSource = multiDS
+	return &GraphQLResponse{Fetches: Sequence(
+		Single(multiEntityRootFetch(rootDS)),
+		Single(multi),
+	)}
+}
+
+// multiEntityUnmergedTree is the same work expressed as the two separate entity
+// fetches MultiFetch merges, the baseline the merged run must match.
+func multiEntityUnmergedTree(rootDS, batchDS, entityDS DataSource) *GraphQLResponse {
+	batch := &BatchEntityFetch{
+		FetchDependencies: FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}},
+		Input: BatchInput{
+			Header:               multiStaticTemplate(`{"method":"POST","url":"http://products","body":{"query":"products","variables":{"representations":[`),
+			Items:                []InputTemplate{multiRepresentationsTemplate()},
+			Separator:            multiStaticTemplate(`,`),
+			Footer:               multiStaticTemplate(`]}}}`),
+			SkipNullItems:        true,
+			SkipEmptyObjectItems: true,
+			SkipErrItems:         true,
+		},
+		DataSource:     batchDS,
+		PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
+		Info:           &FetchInfo{OperationType: ast.OperationTypeQuery, DataSourceID: "products-id"},
+	}
+	entity := &EntityFetch{
+		FetchDependencies: FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{0}},
+		Input: EntityInput{
+			Header: multiStaticTemplate(`{"method":"POST","url":"http://products","body":{"query":"notes","variables":{"representations":[`),
+			Item:   multiRepresentationsTemplate(),
+			Footer: multiStaticTemplate(`]}}}`),
+		},
+		DataSource:     entityDS,
+		PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities", "0"}},
+		Info:           &FetchInfo{OperationType: ast.OperationTypeQuery, DataSourceID: "products-id"},
+	}
+	return &GraphQLResponse{Fetches: Sequence(
+		Single(multiEntityRootFetch(rootDS)),
+		SingleWithPath(batch, "employees", ArrayPath("employees")),
+		SingleWithPath(entity, "employee", ObjectPath("employee")),
+	)}
+}
+
+// multiEntityContext is the request context both trees run under.
+func multiEntityContext(t *testing.T) *Context {
+	t.Helper()
+	ctx := NewContext(t.Context())
+	ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
+	ctx.Variables = astjson.MustParse(`{"first":10}`)
+	return ctx
+}
+
 // TestLoadGraphQLResponseData_MultiEntity drives prepare+load+merge for a full
 // tree and asserts the merged run issues one subgraph request with the expected
 // assembled input and produces a data buffer byte-identical to the unmerged run.
 func TestLoadGraphQLResponseData_MultiEntity(t *testing.T) {
-	entry2Vars := func() []MultiEntityFetchVariable {
-		return []MultiEntityFetchVariable{
-			{KeyPrefix: []byte(`,"first_f2":`), Value: multiContextVariableTemplate("first")},
-		}
-	}
-
 	runMerged := func(t *testing.T) (out string, multiDS *recordingDataSource) {
 		t.Helper()
-		ctx := NewContext(t.Context())
-		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
-		ctx.Variables = astjson.MustParse(`{"first":10}`)
-
-		multi := twoEntryMultiFetch(entry2Vars())
-		multi.FetchID = 1
-		multi.DependsOnFetchIDs = []int{0}
-		multiDS = &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":["a"]},{"products":["b"]}],"f2":[{"notes":"n"}]}}`)}
-		multi.DataSource = multiDS
-
-		tree := Sequence(
-			Single(multiEntityRootFetch(&recordingDataSource{response: []byte(multiEntityRootResponse)})),
-			Single(multi),
+		multiDS = &recordingDataSource{response: []byte(multiEntityMergedResponse)}
+		response := multiEntityMergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			multiDS,
 		)
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: tree}))
+		require.NoError(t, loader.LoadGraphQLResponseData(multiEntityContext(t), response))
 		assertMergedErrors(t, loader, "")
 		return string(loader.dataBuffer.Get().MarshalTo(nil)), multiDS
 	}
 
 	runUnmerged := func(t *testing.T) string {
 		t.Helper()
-		ctx := NewContext(t.Context())
-		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
-		ctx.Variables = astjson.MustParse(`{"first":10}`)
-
-		batch := &BatchEntityFetch{
-			FetchDependencies: FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}},
-			Input: BatchInput{
-				Header:               multiStaticTemplate(`{"method":"POST","url":"http://products","body":{"query":"products","variables":{"representations":[`),
-				Items:                []InputTemplate{multiRepresentationsTemplate()},
-				Separator:            multiStaticTemplate(`,`),
-				Footer:               multiStaticTemplate(`]}}}`),
-				SkipNullItems:        true,
-				SkipEmptyObjectItems: true,
-				SkipErrItems:         true,
-			},
-			DataSource:     &recordingDataSource{response: []byte(`{"data":{"_entities":[{"products":["a"]},{"products":["b"]}]}}`)},
-			PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities"}},
-			Info:           &FetchInfo{OperationType: ast.OperationTypeQuery, DataSourceID: "products-id"},
-		}
-		entity := &EntityFetch{
-			FetchDependencies: FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{0}},
-			Input: EntityInput{
-				Header: multiStaticTemplate(`{"method":"POST","url":"http://products","body":{"query":"notes","variables":{"representations":[`),
-				Item:   multiRepresentationsTemplate(),
-				Footer: multiStaticTemplate(`]}}}`),
-			},
-			DataSource:     &recordingDataSource{response: []byte(`{"data":{"_entities":[{"notes":"n"}]}}`)},
-			PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data", "_entities", "0"}},
-			Info:           &FetchInfo{OperationType: ast.OperationTypeQuery, DataSourceID: "products-id"},
-		}
-		tree := Sequence(
-			Single(multiEntityRootFetch(&recordingDataSource{response: []byte(multiEntityRootResponse)})),
-			SingleWithPath(batch, "employees", ArrayPath("employees")),
-			SingleWithPath(entity, "employee", ObjectPath("employee")),
+		response := multiEntityUnmergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			&recordingDataSource{response: []byte(`{"data":{"_entities":[{"products":["a"]},{"products":["b"]}]}}`)},
+			&recordingDataSource{response: []byte(`{"data":{"_entities":[{"notes":"n"}]}}`)},
 		)
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: tree}))
+		require.NoError(t, loader.LoadGraphQLResponseData(multiEntityContext(t), response))
 		assertMergedErrors(t, loader, "")
 		return string(loader.dataBuffer.Get().MarshalTo(nil))
 	}
@@ -643,4 +694,114 @@ func TestLoadGraphQLResponseData_MultiEntity_SingleFlight(t *testing.T) {
 	assert.False(t, sharedLeader, "first caller leads the request")
 	_, sharedFollower := sf.GetOrCreateItem(item, input, 0)
 	assert.True(t, sharedFollower, "second identical caller shares the leader's request")
+}
+
+// ---------------------------------------------------------------------------
+// Response cache
+// ---------------------------------------------------------------------------
+
+// cacheableHeaders makes a subgraph response eligible for the response cache.
+func cacheableHeaders() http.Header {
+	headers := http.Header{}
+	headers.Set("Cache-Control", "public, max-age=60")
+	return headers
+}
+
+// cachedEntityValues is what the cache holds, sorted so the assertion does not
+// depend on map order.
+func cachedEntityValues(cache *testCache) []string {
+	values := make([]string, 0, len(cache.items))
+	for _, item := range cache.items {
+		values = append(values, string(item.Value))
+	}
+	slices.Sort(values)
+	return values
+}
+
+// TestLoadGraphQLResponseData_MultiEntity_ResponseCache pins the response-cache
+// behaviour a merged fetch must have: the merged response is broken down per
+// alias and cached one entity object at a time, exactly like the unmerged
+// entity fetches it replaces, so a warm cache keeps the origin calls down to
+// what is actually missing.
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCache(t *testing.T) {
+	// runMerged loads the merged tree against the given cache and data source
+	// response, and returns the resulting data buffer.
+	runMerged := func(t *testing.T, cache *testCache, multiDS *recordingDataSource) string {
+		t.Helper()
+		ctx := multiEntityContext(t)
+		ctx.SetResponseCache(cache, 60*time.Second, func(err error) {
+			t.Errorf("response cache error: %v", err)
+		})
+		response := multiEntityMergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			multiDS,
+		)
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		assertMergedErrors(t, loader, "")
+		return string(loader.dataBuffer.Get().MarshalTo(nil))
+	}
+
+	t.Run("caches one entity per alias, in the same shape as an unmerged fetch", func(t *testing.T) {
+		cache := newTestCache()
+		multiDS := &recordingDataSource{
+			response:        []byte(multiEntityMergedResponse),
+			responseHeaders: cacheableHeaders(),
+		}
+
+		assert.JSONEq(t, multiEntityExpectedData, runMerged(t, cache, multiDS))
+		require.Equal(t, 1, multiDS.calls)
+
+		// Three entities go in, not one merged blob: two from the f1 batch entry
+		// (the third employee deduplicates onto the first) and one from f2. Each
+		// value is the bare entity object a single-entity cache hit is rebuilt
+		// from, byte-identical to what the unmerged fetches would have stored.
+		require.Len(t, cache.items, 3, "expected 3 cached entities: 2 for f1 + 1 for f2")
+		assert.Equal(t, []string{`{"notes":"n"}`, `{"products":["a"]}`, `{"products":["b"]}`}, cachedEntityValues(cache))
+	})
+
+	t.Run("a fully warm cache issues no subgraph request", func(t *testing.T) {
+		cache := newTestCache()
+		warm := &recordingDataSource{
+			response:        []byte(multiEntityMergedResponse),
+			responseHeaders: cacheableHeaders(),
+		}
+		expected := runMerged(t, cache, warm)
+		require.Equal(t, 1, warm.calls)
+
+		// Second run over the same cache: every entry of the merged fetch hits,
+		// so the merged request is never sent and the data buffer is unchanged.
+		cached := &recordingDataSource{err: errors.New("subgraph must not be called")}
+		assert.Equal(t, expected, runMerged(t, cache, cached))
+		assert.Equal(t, 0, cached.calls, "a fully warm merged fetch must not reach the subgraph")
+	})
+
+	t.Run("a partially warm cache only asks for the missing entry", func(t *testing.T) {
+		cache := newTestCache()
+		warm := &recordingDataSource{
+			response:        []byte(multiEntityMergedResponse),
+			responseHeaders: cacheableHeaders(),
+		}
+		expected := runMerged(t, cache, warm)
+
+		// Evict f2's entity, leaving both f1 entities warm.
+		for key, item := range cache.items {
+			if bytes.Contains(item.Value, []byte("notes")) {
+				delete(cache.items, key)
+			}
+		}
+		require.Len(t, cache.items, 2)
+
+		partial := &recordingDataSource{
+			response:        []byte(`{"data":{"f2":[{"notes":"n"}]}}`),
+			responseHeaders: cacheableHeaders(),
+		}
+		assert.Equal(t, expected, runMerged(t, cache, partial))
+
+		// A cache hit is per alias: f1 is switched off exactly like an entry with
+		// no live representations, so the origin only answers for f2.
+		require.Equal(t, 1, partial.calls)
+		expectedInput := `{"method":"POST","url":"http://x","body":{"query":"Q","variables":{"representations_f1":[],"includeF1":false,"representations_f2":[{"__typename":"Employee","id":9}],"includeF2":true,"first_f2":10}}}`
+		assert.Equal(t, expectedInput, string(partial.lastInput))
+	})
 }

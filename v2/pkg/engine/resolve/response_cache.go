@@ -205,6 +205,10 @@ func responseCacheValues(prepared *preparedFetch, response *astjson.Value) ([]*a
 		return []*astjson.Value{data}, nil
 	}
 
+	if len(prepared.multiEntries) > 0 {
+		return responseCacheValuesFromMultiEntryResponse(prepared, response)
+	}
+
 	entities := response.Get("data", "_entities")
 	if entities == nil || entities.Type() != astjson.TypeArray {
 		return nil, fmt.Errorf("_entities not found or invalid type")
@@ -212,6 +216,30 @@ func responseCacheValues(prepared *preparedFetch, response *astjson.Value) ([]*a
 	values := entities.GetArray()
 
 	// In case the entity does not exist on the foreign key we should get null in place
+	if len(values) != len(prepared.responseCacheKeys) {
+		return nil, fmt.Errorf("unexpected number of _entities values found %d", len(values))
+	}
+
+	return values, nil
+}
+
+func responseCacheValuesFromMultiEntryResponse(prepared *preparedFetch, response *astjson.Value) ([]*astjson.Value, error) {
+	values := make([]*astjson.Value, 0, len(prepared.responseCacheKeys))
+
+	for i := range prepared.multiEntries {
+		entry := prepared.multiEntries[i].entry
+		if entry == nil {
+			return nil, fmt.Errorf("multi entry %d is nil", i)
+		}
+
+		entities := response.Get("data", entry.Alias)
+		if entities == nil || entities.Type() != astjson.TypeArray {
+			return nil, fmt.Errorf("entities for alias %s not found or invalid type", entry.Alias)
+		}
+
+		values = append(values, entities.GetArray()...)
+	}
+
 	if len(values) != len(prepared.responseCacheKeys) {
 		return nil, fmt.Errorf("unexpected number of _entities values found %d", len(values))
 	}

@@ -1903,28 +1903,27 @@ WithNextItem:
 			if existingIndex, ok := res.tools.batchHashToIndex[itemHash]; ok {
 				batchStats[existingIndex] = arena.SliceAppend(res.tools.a, batchStats[existingIndex], items[i])
 				continue WithNextItem
-			} else {
-				if addSeparator {
-					err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
-					if err != nil {
-						return errors.WithStack(err)
-					}
-				}
-				_, _ = itemInput.WriteTo(preparedInput)
-				// new unique representation
-				res.tools.batchHashToIndex[itemHash] = batchItemIndex
-				if l.responseCacheEnabled() {
-					responseCacheItemHashes = append(responseCacheItemHashes, itemHash)
-				}
-				// A new targets bucket for the unique index must be allocated on the arena:
-				// a heap-allocated bucket would only be referenced from arena memory,
-				// so the GC could collect its backing array while it is still in use.
-				bucket := arena.AllocateSlice[*astjson.Value](res.tools.a, 1, 1)
-				bucket[0] = items[i]
-				batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
-				batchItemIndex++
-				addSeparator = true
 			}
+			if addSeparator {
+				err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
+			_, _ = itemInput.WriteTo(preparedInput)
+			// new unique representation
+			res.tools.batchHashToIndex[itemHash] = batchItemIndex
+			if l.responseCacheEnabled() {
+				responseCacheItemHashes = append(responseCacheItemHashes, itemHash)
+			}
+			// A new targets bucket for the unique index must be allocated on the arena:
+			// a heap-allocated bucket would only be referenced from arena memory,
+			// so the GC could collect its backing array while it is still in use.
+			bucket := arena.AllocateSlice[*astjson.Value](res.tools.a, 1, 1)
+			bucket[0] = items[i]
+			batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
+			batchItemIndex++
+			addSeparator = true
 		}
 	}
 

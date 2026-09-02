@@ -3,11 +3,13 @@ package resolve
 import (
 	"bytes"
 	goerrors "errors"
+	"fmt"
 
 	"github.com/pkg/errors"
 
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 )
 
 // preparedMultiEntry is the per-entry view carried from the prepare phase into
@@ -33,6 +35,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	entries := make([]preparedMultiEntry, len(fetch.Input.Entries))
 	included := make([]bool, len(fetch.Input.Entries))
 	repsBytes := make([][]byte, len(fetch.Input.Entries))
+	representationHashMatrix := make([][]uint64, len(fetch.Input.Entries))
 	anyIncluded := false
 
 	// One item-render buffer serves every entry: it is reset per item and the
@@ -54,7 +57,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 			continue
 		}
 
-		reps, entryIncluded, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools)
+		reps, representationHashes, entryIncluded, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools)
 		if err != nil {
 			return err
 		}
@@ -63,12 +66,19 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 		}
 		included[k] = true
 		repsBytes[k] = reps
+		representationHashMatrix[k] = representationHashes
 		anyIncluded = true
 	}
 
 	prepared.multiEntries = entries
 
-	input, err := l.assembleMultiEntityInput(fetch, res, included, repsBytes)
+	assembled, err := l.assembleMultiEntityInput(&assembleMultiEntityInput{
+		fetch:                    fetch,
+		result:                   res,
+		included:                 included,
+		representationBytes:      repsBytes,
+		representationHashMatrix: representationHashMatrix,
+	})
 	if err != nil {
 		return err
 	}
@@ -77,12 +87,12 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 		res.fetchSkipped = true
 		prepared.skipLoad = true
 		if l.ctx.TracingOptions.Enable {
-			l.setTracingInput(fetchItem, input, fetch.Trace)
+			l.setTracingInput(fetchItem, assembled.out, fetch.Trace)
 		}
 		return nil
 	}
 
-	allowed, err := l.rateLimitFetch(input, fetch.Info, res)
+	allowed, err := l.rateLimitFetch(assembled.out, fetch.Info, res)
 	if err != nil {
 		return err
 	}
@@ -91,7 +101,8 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	}
 
 	prepared.source = fetch.DataSource
-	prepared.input = input
+	prepared.input = assembled.out
+	prepared.responseCacheKeys = assembled.responseCacheKeys
 	prepared.trace = fetch.Trace
 	if l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeRawInputData {
 		l.setMultiFetchRawInputTrace(entries, fetch.Trace)
@@ -119,11 +130,12 @@ func (l *Loader) authorizeEntry(entry *MultiEntityFetchEntry, entryRes *result) 
 // state is cleared before the next entry reuses the shared tools; the arena
 // buffers themselves survive until assembly. An entry with zero unique items is
 // excluded (fetchSkipped) and reports entryIncluded=false.
-func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryRes *result, items []*astjson.Value, itemInput *arena.Buffer, tools *batchEntityTools) (reps []byte, entryIncluded bool, err error) {
+func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryRes *result, items []*astjson.Value, itemInput *arena.Buffer, tools *batchEntityTools) (reps []byte, responseCacheItemHashes []uint64, entryIncluded bool, err error) {
 	repsBuf := arena.NewArenaBuffer(tools.a)
 	batchStats := arena.AllocateSlice[[]*astjson.Value](tools.a, 0, len(items))
 	batchItemIndex := 0
 	addSeparator := false
+
 	for i, item := range items {
 		itemInput.Reset()
 		err = entry.Representations.Render(l.ctx, item, itemInput)
@@ -132,7 +144,7 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 				err = nil //nolint:ineffassign,wastedassign
 				continue
 			}
-			return nil, false, errors.WithStack(err)
+			return nil, nil, false, errors.WithStack(err)
 		}
 		if entry.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
 			continue
@@ -152,6 +164,10 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 		}
 		_, _ = itemInput.WriteTo(repsBuf)
 		tools.batchHashToIndex[itemHash] = batchItemIndex
+		if l.responseCacheEnabled() {
+			responseCacheItemHashes = append(responseCacheItemHashes, itemHash)
+		}
+
 		// The targets bucket must live on the arena: a heap bucket referenced
 		// only from arena memory could be collected while still in use.
 		bucket := arena.AllocateSlice[*astjson.Value](tools.a, 1, 1)
@@ -173,29 +189,51 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 
 	if len(entryRes.batchStats) == 0 {
 		entryRes.fetchSkipped = true
-		return nil, false, nil
+		return nil, nil, false, nil
 	}
-	return repsBuf.Bytes(), true, nil
+	return repsBuf.Bytes(), responseCacheItemHashes, true, nil
+}
+
+type assembleMultiEntityInput struct {
+	fetch                    *MultiEntityFetch
+	result                   *result
+	included                 []bool
+	representationBytes      [][]byte
+	representationHashMatrix [][]uint64
+}
+
+type assembleMultiEntityResult struct {
+	out               []byte
+	responseCacheKeys []string
 }
 
 // assembleMultiEntityInput writes the merged request body into one buffer:
 // Header, then per entry "representations_fN":[<items or empty>],"includeFN":<bool>
 // plus that entry's other variables, then Footer.
-func (l *Loader) assembleMultiEntityInput(fetch *MultiEntityFetch, res *result, included []bool, repsBytes [][]byte) ([]byte, error) {
+func (l *Loader) assembleMultiEntityInput(input *assembleMultiEntityInput) (*assembleMultiEntityResult, error) {
+	if input == nil {
+		return nil, errors.New("input is nil")
+	}
+
+	fetch := input.fetch
+
 	buf := &bytes.Buffer{}
 	var undefined []string
 	if err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf, &undefined); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	scratch := arena.NewArenaBuffer(res.tools.a)
+
+	responseHeaderEnd := buf.Len()
+
+	scratch := arena.NewArenaBuffer(input.result.tools.a)
 	for k := range fetch.Input.Entries {
 		entry := &fetch.Input.Entries[k]
 		buf.Write(entry.RepresentationsPrefix)
-		if included[k] {
-			buf.Write(repsBytes[k])
+		if input.included[k] {
+			buf.Write(input.representationBytes[k])
 		}
 		buf.Write(entry.IncludePrefix)
-		if included[k] {
+		if input.included[k] {
 			buf.WriteString("true")
 		} else {
 			buf.WriteString("false")
@@ -204,10 +242,33 @@ func (l *Loader) assembleMultiEntityInput(fetch *MultiEntityFetch, res *result, 
 			return nil, err
 		}
 	}
+
+	responseFooterStart := buf.Len()
+
 	if err := fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf, &undefined); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return buf.Bytes(), nil
+
+	responseCacheKeys := make([]string, 0, len(input.representationHashMatrix))
+
+	if l.responseCacheEnabled() && len(input.representationHashMatrix) > 0 {
+		rendered := buf.Bytes()
+		selectionHash := responseCacheSelectionHash(
+			rendered[:responseHeaderEnd],
+			rendered[responseFooterStart:],
+		)
+
+		for _, itemHashes := range input.representationHashMatrix {
+			for _, itemHash := range itemHashes {
+				responseCacheKeys = append(responseCacheKeys, caching.Key(itemHash, selectionHash))
+			}
+		}
+	}
+
+	return &assembleMultiEntityResult{
+		out:               buf.Bytes(),
+		responseCacheKeys: responseCacheKeys,
+	}, nil
 }
 
 // renderEntryVariables appends the entry's non-representations variable pairs to
@@ -277,6 +338,10 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 	// All entries excluded at prepare: no request was sent, nothing to merge.
 	if res.fetchSkipped && !res.rateLimitRejected {
 		return nil
+	}
+
+	if err := l.responseCacheCollect(prepared); err != nil {
+		l.reportResponseCacheError(fmt.Errorf("response cache collect error: %w", err))
 	}
 
 	response, transportFailure := l.parseMultiEntityResponse(res)
