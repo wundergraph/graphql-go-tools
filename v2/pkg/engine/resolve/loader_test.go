@@ -2720,7 +2720,11 @@ func TestLoader_CachedFetches(t *testing.T) {
 		testCache := newTestCache()
 
 		ctx := NewContext(context.Background())
-		ctx.SetResponseCache(testCache, time.Second*60, nil)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:        testCache,
+			DefaultTTL:   time.Second * 60,
+			Invalidation: DefaultResponseCacheInvalidationOptions(),
+		})
 		resolvable := NewResolvable(nil, ResolvableOptions{})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -2781,7 +2785,11 @@ func TestLoader_CachedFetches(t *testing.T) {
 		testCache := newTestCache()
 
 		ctx := NewContext(context.Background())
-		ctx.SetResponseCache(testCache, time.Second*60, nil)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:        testCache,
+			DefaultTTL:   time.Second * 60,
+			Invalidation: DefaultResponseCacheInvalidationOptions(),
+		})
 		resolvable := NewResolvable(nil, ResolvableOptions{})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 

@@ -202,7 +202,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			// Indexed by i like the key: a null entity is skipped above without
 			// consuming a tag list, so the two stay aligned.
 			var declaredForValue []string
-			if declared != nil {
+			if len(declared) > 0 {
 				declaredForValue = declared[i]
 			}
 			item.Tags = responseCacheTagIdentities(declaredForValue, value, subgraph, invalidation)

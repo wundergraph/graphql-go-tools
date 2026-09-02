@@ -116,10 +116,10 @@ func TestResponseCacheTags(t *testing.T) {
 		// the other's key would make the same document mean different things
 		// depending on a count the subgraph author cannot see.
 		entity := parse(t, `{"extensions":{"apolloEntityCacheTags":[["users","homepage"]]}}`)
-		require.Nil(t, responseCacheTags(entity, 1, true))
+		require.Empty(t, responseCacheTags(entity, 1, true))
 
 		root := parse(t, `{"extensions":{"apolloCacheTags":["users","homepage"]}}`)
-		require.Nil(t, responseCacheTags(root, 1, false))
+		require.Empty(t, responseCacheTags(root, 1, false))
 	})
 
 	t.Run("a flat list is not shorthand for an entity fetch", func(t *testing.T) {
@@ -128,33 +128,33 @@ func TestResponseCacheTags(t *testing.T) {
 	})
 
 	t.Run("a root fetch with nothing usable in its list gets no tags", func(t *testing.T) {
-		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":[]}}`), 1, true))
-		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":[""]}}`), 1, true))
-		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":null}}`), 1, true))
-		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{}}`), 1, true))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":[]}}`), 1, true))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":[""]}}`), 1, true))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":null}}`), 1, true))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{}}`), 1, true))
 	})
 
 	t.Run("nothing at all is not an error", func(t *testing.T) {
-		require.Nil(t, responseCacheTags(parse(t, `{"data":{"_entities":[{}]}}`), 1, false))
-		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{}}`), 1, false))
-		require.Nil(t, responseCacheTags(parse(t, `{"extensions":{"apolloEntityCacheTags":null}}`), 1, false))
+		require.Empty(t, responseCacheTags(parse(t, `{"data":{"_entities":[{}]}}`), 1, false))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{}}`), 1, false))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{"apolloEntityCacheTags":null}}`), 1, false))
 	})
 
 	t.Run("too many tag lists for the values discards all of them", func(t *testing.T) {
 		// Zipping as far as the shorter of the two would tag the first entries
 		// correctly and say nothing about which of the rest went astray.
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"],["b"],["c"]]}}`)
-		require.Nil(t, responseCacheTags(response, 2, false))
+		require.Empty(t, responseCacheTags(response, 2, false))
 	})
 
 	t.Run("too few tag lists for the values discards all of them", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"]]}}`)
-		require.Nil(t, responseCacheTags(response, 3, false))
+		require.Empty(t, responseCacheTags(response, 3, false))
 	})
 
 	t.Run("no values means there is nothing for tags to belong to", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"]]}}`)
-		require.Nil(t, responseCacheTags(response, 0, false))
+		require.Empty(t, responseCacheTags(response, 0, false))
 	})
 
 	t.Run("one malformed element costs that value its tags and no other", func(t *testing.T) {
@@ -222,7 +222,7 @@ func TestResponseCacheTags(t *testing.T) {
 
 	t.Run("an object where the array should be is not tags", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":{"users":["user-42"]}}}`)
-		require.Nil(t, responseCacheTags(response, 1, false))
+		require.Empty(t, responseCacheTags(response, 1, false))
 	})
 }
 
@@ -306,12 +306,12 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		// would put it where another subgraph's invalidation could reach it,
 		// which is worse than not indexing it: the entry still expires on its
 		// own TTL either way.
-		require.Nil(t, responseCacheTagIdentities([]string{"users"}, entity(t), "", all))
+		require.Empty(t, responseCacheTagIdentities([]string{"users"}, entity(t), "", all))
 	})
 
-	t.Run("nothing to index at all is no tags rather than an empty list", func(t *testing.T) {
+	t.Run("nothing to index at all yields no tags", func(t *testing.T) {
 		opts := ResponseCacheInvalidationOptions{CacheTag: true}
-		require.Nil(t, responseCacheTagIdentities(nil, entity(t), "accounts", opts))
+		require.Empty(t, responseCacheTagIdentities(nil, entity(t), "accounts", opts))
 	})
 
 	t.Run("the derived indexes are not charged to the subgraph's cap", func(t *testing.T) {
@@ -330,15 +330,18 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		t.Helper()
 
 		ctx := NewContext(context.Background())
-		ctx.SetResponseCache(newTestCache(), time.Minute, nil)
-		ctx.SetResponseCacheInvalidation(opts)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:        newTestCache(),
+			DefaultTTL:   time.Minute,
+			Invalidation: opts,
+		})
 
 		res := &result{
 			out:        []byte(body),
 			statusCode: http.StatusOK,
 			httpResponseContext: &httpclient.ResponseContext{
 				Response: &http.Response{
-					Header: http.Header{"Cache-Control": []string{"public, max-age=60"}},
+					Header: http.Header{"Cache-Control": []string{"max-age=60"}},
 				},
 			},
 		}
@@ -437,7 +440,7 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		items := collect(t, body, []string{"k-42"}, declaredOnly)
 
 		require.Len(t, items, 1)
-		require.Nil(t, items[0].Tags)
+		require.Empty(t, items[0].Tags)
 		require.Equal(t, time.Minute, items[0].TTL)
 	})
 
@@ -449,8 +452,8 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		items := collect(t, body, []string{"k-42", "k-7"}, declaredOnly)
 
 		require.Len(t, items, 2, "the entities are still cacheable")
-		require.Nil(t, items[0].Tags)
-		require.Nil(t, items[1].Tags)
+		require.Empty(t, items[0].Tags)
+		require.Empty(t, items[1].Tags)
 	})
 
 	t.Run("every switch off leaves the entries untagged", func(t *testing.T) {
@@ -459,7 +462,7 @@ func TestResponseCacheCollectTags(t *testing.T) {
 
 		require.Len(t, items, 3)
 		for _, item := range items {
-			require.Nil(t, item.Tags)
+			require.Empty(t, item.Tags)
 		}
 	})
 
@@ -515,6 +518,15 @@ func TestResponseCacheCollectTags(t *testing.T) {
 			"extensions": {"apolloEntityCacheTags": [["user-42"]]}
 		}`
 		require.Empty(t, collect(t, body, []string{"k-42"}, declaredOnly))
+	})
+
+	t.Run("a root fetch is never indexed by type", func(t *testing.T) {
+		body := `{"data":{"__typename":"Query","employees":[{"id":1}]}}`
+		loader, res := newLoader(t, body, ResponseCacheInvalidationOptions{Type: true})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+		require.Len(t, prepared.responseCacheItems, 1)
+		require.Empty(t, prepared.responseCacheItems[0].Tags)
 	})
 }
 

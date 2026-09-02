@@ -283,26 +283,26 @@ func DefaultResponseCacheInvalidationOptions() ResponseCacheInvalidationOptions 
 	return ResponseCacheInvalidationOptions{CacheTag: true, Subgraph: true, Type: true}
 }
 
-func (c *Context) SetResponseCache(cache caching.Cache, defaultTTL time.Duration, onError func(error)) {
-	if cache == nil {
+// ResponseCacheOptions is everything the cache needs, set in one call so no
+// part of it depends on being set before or after another.
+type ResponseCacheOptions struct {
+	Store      caching.Cache
+	DefaultTTL time.Duration
+	OnError    func(error)
+	// Invalidation is taken as given; the zero value builds no indexes.
+	Invalidation ResponseCacheInvalidationOptions
+}
+
+func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
+	if opts.Store == nil {
 		return
 	}
 	c.responseCache = &responseCache{
-		store:      cache,
-		defaultTTL: defaultTTL,
-		onError:    onError,
-		// Overridden by SetResponseCacheInvalidation.
-		invalidation: DefaultResponseCacheInvalidationOptions(),
+		store:        opts.Store,
+		defaultTTL:   opts.DefaultTTL,
+		onError:      opts.OnError,
+		invalidation: opts.Invalidation,
 	}
-}
-
-// SetResponseCacheInvalidation selects the secondary indexes. No effect before
-// SetResponseCache.
-func (c *Context) SetResponseCacheInvalidation(opts ResponseCacheInvalidationOptions) {
-	if c.responseCache == nil {
-		return
-	}
-	c.responseCache.invalidation = opts
 }
 
 func (c *Context) SubgraphErrors() error {

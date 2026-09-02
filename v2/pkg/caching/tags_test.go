@@ -27,4 +27,12 @@ func TestTags(t *testing.T) {
 		require.Equal(t, "declared:accounts:subgraph:there", DeclaredTag("accounts", "subgraph:there"))
 		require.NotEqual(t, SubgraphTag("there"), DeclaredTag("accounts", "subgraph:there"))
 	})
+
+	t.Run("a separator in either half keeps the halves apart", func(t *testing.T) {
+		// Both spell "a:b:c" unescaped, and an invalidation for one would then
+		// drop the other's entries.
+		require.NotEqual(t, DeclaredTag("a", "b:c"), DeclaredTag("a:b", "c"))
+		require.Equal(t, "declared:a:b:c", DeclaredTag("a", "b:c"))
+		require.Equal(t, "declared:a::b:c", DeclaredTag("a:b", "c"))
+	})
 }
