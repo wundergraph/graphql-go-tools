@@ -500,25 +500,39 @@ func TestCalculateOperationComplexity(t *testing.T) {
 
 func TestCalculateOperationComplexityDepth(t *testing.T) {
 	tests := []struct {
-		name       string
-		selections string
+		name                         string
+		selections                   string
+		nestedFieldArguments         string
+		leafFieldArguments           string
+		inlineFragmentFieldArguments string
 	}{
 		{name: "deep path"},
 		{name: "two shallower siblings", selections: depthRegressionFirstBranch + depthRegressionSecondBranch},
 		{name: "one shallower sibling", selections: depthRegressionSecondBranch},
+		{name: "complex input literal on nested field", nestedFieldArguments: depthRegressionComplexInputArgument},
+		{name: "complex input literal on leaf field", leafFieldArguments: depthRegressionComplexInputArgument},
+		{name: "complex input literal on field inside inline fragment", inlineFragmentFieldArguments: depthRegressionComplexInputArgument},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentString(depthRegressionDefinition)
-			operation := unsafeparser.ParseGraphqlDocumentString(fmt.Sprintf(depthRegressionQuery, tt.selections))
+			operation := unsafeparser.ParseGraphqlDocumentString(fmt.Sprintf(
+				depthRegressionQuery,
+				tt.selections,
+				tt.nestedFieldArguments,
+				tt.inlineFragmentFieldArguments,
+				tt.leafFieldArguments,
+			))
 			report := operationreport.Report{}
 
 			astnormalization.NormalizeOperation(&operation, &definition, &report)
-			stats, _ := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+			stats, rootFieldStats := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
 
 			require.False(t, report.HasErrors(), report.Error())
 			assert.Equal(t, 11, stats.Depth)
+			require.Len(t, rootFieldStats, 1)
+			assert.Equal(t, 10, rootFieldStats[0].Stats.Depth)
 		})
 	}
 }
@@ -621,19 +635,19 @@ union Result = ResultSuccess | Failure
 type ResultSuccess { result: Record }
 type Failure { message: String }
 
-interface Record { pathA: PathA alternateOne: AlternateOne }
-type BasicRecord implements Record { pathA: PathA alternateOne: AlternateOne }
-type ExtendedRecord implements Record { pathA: PathA alternateOne: AlternateOne sideLeaf: String branchOne: BranchOne }
+interface Record { pathA(input: RootInput): PathA alternateOne: AlternateOne }
+type BasicRecord implements Record { pathA(input: RootInput): PathA alternateOne: AlternateOne }
+type ExtendedRecord implements Record { pathA(input: RootInput): PathA alternateOne: AlternateOne sideLeaf: String branchOne: BranchOne }
 
 type PathA { pathB: PathB }
 union PathB = PathBDetails | Failure
-type PathBDetails { pathC: PathC }
+type PathBDetails { pathC(input: RootInput): PathC }
 type PathC { pathD: PathD }
 union PathD = PathDDetails | Failure
 type PathDDetails { pathE: PathE }
 type PathE { pathF: PathF }
 type PathF { pathG: PathG }
-type PathG { leaf: String }
+type PathG { leaf(input: RootInput): String }
 
 type BranchOne { branchTwo: BranchTwo }
 type BranchTwo { branchLeaf: String branchThree: [BranchThree!] }
@@ -656,16 +670,16 @@ query Operation($input: RootInput!) {
         ... on ResultSuccess {
           result {
             %s
-            pathA {
+            pathA%s {
               pathB {
                 ... on PathBDetails {
-                  pathC {
+                  pathC%s {
                     pathD {
                       ... on PathDDetails {
                         pathE {
                           pathF {
                             pathG {
-                              leaf
+                              leaf%s
                             }
                           }
                         }
@@ -681,6 +695,8 @@ query Operation($input: RootInput!) {
     }
   }
 }`
+
+const depthRegressionComplexInputArgument = `(input: {key: "value"})`
 
 const depthRegressionFirstBranch = `
 ... on ExtendedRecord {
