@@ -318,7 +318,7 @@ type responseCacheTagInput struct {
 	value       *astjson.Value
 	subgraph    string
 	isRootFetch bool
-	opts        ResponseCacheInvalidationOptions
+	opts        ResponseCacheTagIndexOptions
 }
 
 func responseCacheTagIdentities(input responseCacheTagInput) []string {

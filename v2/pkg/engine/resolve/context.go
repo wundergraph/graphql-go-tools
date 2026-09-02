@@ -260,12 +260,12 @@ type responseCache struct {
 	store        caching.Cache
 	defaultTTL   time.Duration
 	onError      func(error)
-	invalidation ResponseCacheInvalidationOptions
+	invalidation ResponseCacheTagIndexOptions
 }
 
-// ResponseCacheInvalidationOptions selects which secondary indexes are built.
+// ResponseCacheTagIndexOptions selects which secondary indexes are built.
 // Each is independent; all off caches entries untagged.
-type ResponseCacheInvalidationOptions struct {
+type ResponseCacheTagIndexOptions struct {
 	// CacheTag indexes under the tags the subgraph declared.
 	CacheTag bool
 	// Subgraph indexes under the subgraph that answered.
@@ -274,13 +274,13 @@ type ResponseCacheInvalidationOptions struct {
 	Type bool
 }
 
-func (o ResponseCacheInvalidationOptions) any() bool {
+func (o ResponseCacheTagIndexOptions) any() bool {
 	return o.CacheTag || o.Subgraph || o.Type
 }
 
-// DefaultResponseCacheInvalidationOptions builds every index.
-func DefaultResponseCacheInvalidationOptions() ResponseCacheInvalidationOptions {
-	return ResponseCacheInvalidationOptions{CacheTag: true, Subgraph: true, Type: true}
+// DefaultResponseCacheTagIndexOptions builds every index.
+func DefaultResponseCacheTagIndexOptions() ResponseCacheTagIndexOptions {
+	return ResponseCacheTagIndexOptions{CacheTag: true, Subgraph: true, Type: true}
 }
 
 // ResponseCacheOptions is everything the cache needs, set in one call so no
@@ -290,7 +290,7 @@ type ResponseCacheOptions struct {
 	DefaultTTL time.Duration
 	OnError    func(error)
 	// Invalidation is taken as given; the zero value builds no indexes.
-	Invalidation ResponseCacheInvalidationOptions
+	Invalidation ResponseCacheTagIndexOptions
 }
 
 func (c *Context) SetResponseCache(opts ResponseCacheOptions) {

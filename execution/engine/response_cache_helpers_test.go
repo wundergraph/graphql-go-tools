@@ -100,7 +100,7 @@ func withResponseCache(t *testing.T, cache caching.Cache) ExecutionOptions {
 			OnError: func(err error) {
 				t.Errorf("response cache reported an error: %v", err)
 			},
-			Invalidation: resolve.DefaultResponseCacheInvalidationOptions(),
+			Invalidation: resolve.DefaultResponseCacheTagIndexOptions(),
 		})
 	}
 }

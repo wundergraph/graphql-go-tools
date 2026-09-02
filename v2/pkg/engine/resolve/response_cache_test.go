@@ -236,7 +236,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		return value
 	}
 
-	all := ResponseCacheInvalidationOptions{CacheTag: true, Subgraph: true, Type: true}
+	all := ResponseCacheTagIndexOptions{CacheTag: true, Subgraph: true, Type: true}
 	entity := func(t *testing.T) *astjson.Value {
 		return parse(t, `{"__typename":"User","id":42}`)
 	}
@@ -297,7 +297,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 	})
 
 	t.Run("both derived indexes off leaves only what the subgraph declared", func(t *testing.T) {
-		opts := ResponseCacheInvalidationOptions{CacheTag: true}
+		opts := ResponseCacheTagIndexOptions{CacheTag: true}
 		require.Equal(t, []string{"declared:accounts:users"},
 			responseCacheTagIdentities(responseCacheTagInput{
 				declared: []string{"users"},
@@ -366,7 +366,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 	})
 
 	t.Run("nothing to index at all yields no tags", func(t *testing.T) {
-		opts := ResponseCacheInvalidationOptions{CacheTag: true}
+		opts := ResponseCacheTagIndexOptions{CacheTag: true}
 		require.Empty(t, responseCacheTagIdentities(responseCacheTagInput{
 			value:    entity(t),
 			subgraph: "accounts",
@@ -391,7 +391,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 // hands to SetMany is what the store will be asked to index, so this covers the
 // whole path from the extension a subgraph wrote to the tags on an item.
 func TestResponseCacheCollectTags(t *testing.T) {
-	newLoader := func(t *testing.T, body string, opts ResponseCacheInvalidationOptions) (*Loader, *result) {
+	newLoader := func(t *testing.T, body string, opts ResponseCacheTagIndexOptions) (*Loader, *result) {
 		t.Helper()
 
 		ctx := NewContext(context.Background())
@@ -420,9 +420,9 @@ func TestResponseCacheCollectTags(t *testing.T) {
 
 	// Declared tags only, so what these assert is not mixed in with what the
 	// router derives. The derived indexes get their own cases below.
-	declaredOnly := ResponseCacheInvalidationOptions{CacheTag: true}
+	declaredOnly := ResponseCacheTagIndexOptions{CacheTag: true}
 
-	collect := func(t *testing.T, body string, keys []string, opts ResponseCacheInvalidationOptions) []caching.Item {
+	collect := func(t *testing.T, body string, keys []string, opts ResponseCacheTagIndexOptions) []caching.Item {
 		t.Helper()
 		loader, res := newLoader(t, body, opts)
 		prepared := &preparedFetch{res: res, responseCacheKeys: keys}
@@ -523,7 +523,7 @@ func TestResponseCacheCollectTags(t *testing.T) {
 
 	t.Run("every switch off leaves the entries untagged", func(t *testing.T) {
 		items := collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"},
-			ResponseCacheInvalidationOptions{})
+			ResponseCacheTagIndexOptions{})
 
 		require.Len(t, items, 3)
 		for _, item := range items {
@@ -533,23 +533,23 @@ func TestResponseCacheCollectTags(t *testing.T) {
 
 	t.Run("cache_tag off keeps the derived indexes", func(t *testing.T) {
 		items := collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"},
-			ResponseCacheInvalidationOptions{Subgraph: true, Type: true})
+			ResponseCacheTagIndexOptions{Subgraph: true, Type: true})
 
 		require.Len(t, items, 3)
 		require.Equal(t, []string{"subgraph:accounts", "type:accounts:User"}, items[0].Tags)
 	})
 
 	t.Run("each switch is independent", func(t *testing.T) {
-		only := func(opts ResponseCacheInvalidationOptions) []string {
+		only := func(opts ResponseCacheTagIndexOptions) []string {
 			return collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"}, opts)[0].Tags
 		}
 
 		require.Equal(t, []string{"declared:accounts:users", "declared:accounts:user-42"},
-			only(ResponseCacheInvalidationOptions{CacheTag: true}))
+			only(ResponseCacheTagIndexOptions{CacheTag: true}))
 		require.Equal(t, []string{"subgraph:accounts"},
-			only(ResponseCacheInvalidationOptions{Subgraph: true}))
+			only(ResponseCacheTagIndexOptions{Subgraph: true}))
 		require.Equal(t, []string{"type:accounts:User"},
-			only(ResponseCacheInvalidationOptions{Type: true}))
+			only(ResponseCacheTagIndexOptions{Type: true}))
 	})
 
 	t.Run("a root fetch takes its tags from one flat list", func(t *testing.T) {
@@ -587,7 +587,7 @@ func TestResponseCacheCollectTags(t *testing.T) {
 
 	t.Run("a root fetch is never indexed by type", func(t *testing.T) {
 		body := `{"data":{"__typename":"Query","employees":[{"id":1}]}}`
-		loader, res := newLoader(t, body, ResponseCacheInvalidationOptions{Type: true})
+		loader, res := newLoader(t, body, ResponseCacheTagIndexOptions{Type: true})
 		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
 		require.NoError(t, loader.responseCacheCollect(prepared))
 		require.Len(t, prepared.responseCacheItems, 1)
