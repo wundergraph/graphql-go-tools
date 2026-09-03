@@ -1,9 +1,12 @@
 package postprocess
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 func TestOrderSequenceByDependencies_ProcessFetchTree(t *testing.T) {
@@ -188,4 +191,46 @@ func TestOrderSequenceByDependencies_ProcessFetchTree(t *testing.T) {
 		)
 		require.Equal(t, expected, input)
 	})
+
+	t.Run("dense fully-connected chain (exponential regression)", func(t *testing.T) {
+		// This happens on mutations that have many fetches.
+		// Node i depends on every node j > i,
+		// so the correct order is the reverse of the ascending input.
+		const n = 255
+		tree := seq(denseChain(n)...)
+		processor := &orderSequenceByDependencies{}
+		processor.ProcessFetchTree(tree)
+		require.Len(t, tree.ChildNodes, n)
+		for i := range n {
+			require.Equal(t, n-1-i, tree.ChildNodes[i].FetchID(), "node at position %d should be fetchID %d", i, n-1-i)
+		}
+	})
+}
+
+// denseChain returns n fetches where fetch i depends on every fetch j > i.
+func denseChain(n int) []*resolve.FetchTreeNode {
+	input := make([]*resolve.FetchTreeNode, 0, n)
+	for i := range n {
+		deps := make([]int, 0, n-i-1)
+		for j := i + 1; j < n; j++ {
+			deps = append(deps, j)
+		}
+		input = append(input, sf(i, dependsOn(deps...)))
+	}
+	return input
+}
+
+func BenchmarkOrderSequenceByDependencies_Dense(b *testing.B) {
+	for _, n := range []int{50, 100, 255} {
+		b.Run(fmt.Sprintf("n=%d", n), func(b *testing.B) {
+			processor := &orderSequenceByDependencies{}
+			b.ReportAllocs()
+			for b.Loop() {
+				b.StopTimer()
+				tree := seq(denseChain(n)...)
+				b.StartTimer()
+				processor.ProcessFetchTree(tree)
+			}
+		})
+	}
 }

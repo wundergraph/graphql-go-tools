@@ -102,6 +102,11 @@ type FetchTraceEntry struct {
 	Path  string `json:"path"`
 }
 
+// FetchID returns the ID for a SingleFetch node.
+func (n *FetchTreeNode) FetchID() int {
+	return n.Item.Fetch.Dependencies().FetchID
+}
+
 func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 	if n == nil {
 		return nil

@@ -22,8 +22,8 @@ func (d *deduplicateSingleFetches) ProcessFetchTree(root *resolve.FetchTreeNode)
 			if root.ChildNodes[i].Item.EqualSingleFetch(root.ChildNodes[j].Item) {
 				root.ChildNodes[i].Item.FetchPath = d.mergeFetchPath(root.ChildNodes[i].Item.FetchPath, root.ChildNodes[j].Item.FetchPath)
 
-				newId := root.ChildNodes[i].Item.Fetch.Dependencies().FetchID
-				oldId := root.ChildNodes[j].Item.Fetch.Dependencies().FetchID
+				newId := root.ChildNodes[i].FetchID()
+				oldId := root.ChildNodes[j].FetchID()
 
 				root.ChildNodes = append(root.ChildNodes[:j], root.ChildNodes[j+1:]...)
 				j--
