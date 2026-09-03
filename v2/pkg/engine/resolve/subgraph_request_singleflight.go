@@ -125,7 +125,7 @@ func (s *SubgraphRequestSingleFlight) Finish(item *SingleFlightItem) {
 	}
 	if size.count == 50 {
 		size.count = 1
-		size.totalBytes = size.totalBytes / 50
+		size.totalBytes /= 50
 	}
 	size.count++
 	size.totalBytes += len(item.response)

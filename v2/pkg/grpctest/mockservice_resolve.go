@@ -709,11 +709,12 @@ func (s *MockService) ResolveProductRecommendedCategory(_ context.Context, req *
 		} else {
 			// Create a recommended category based on product context
 			var categoryKind productv1.CategoryKind
-			if ctx.GetPrice() < 50 {
+			switch {
+			case ctx.GetPrice() < 50:
 				categoryKind = productv1.CategoryKind_CATEGORY_KIND_BOOK
-			} else if ctx.GetPrice() < 200 {
+			case ctx.GetPrice() < 200:
 				categoryKind = productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS
-			} else {
+			default:
 				categoryKind = productv1.CategoryKind_CATEGORY_KIND_FURNITURE
 			}
 

@@ -315,26 +315,10 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 			out = line
 		}
 
-		// replacing a rule js function name with a simple string rule name
-	case strings.Contains(line, "Rule,"):
-		// if we are inside importing of rule function just skip a line
-		if c.insideImport {
-			return "", true
-		}
-		var ruleName string
-		for s := range strings.SplitSeq(line, ",") {
-			if strings.Contains(s, "Rule") {
-				ruleName = strings.TrimSpace(s)
-				break
-			}
-		}
-		if strings.Contains(ruleName, "(") {
-			ruleName = strings.Split(ruleName, "(")[1]
-		}
-		out = strings.ReplaceAll(line, ruleName, ruleName)
-
-		// do not transform a line when no conditions met
-		// in case we are inside an import just skip a line
+		// Preserve lines that don't require translation. This intentionally includes rule
+		// identifiers: testsgo/harness_test.go declares matching Go string constants, so
+		// generated helper calls must keep bare identifiers instead of quoted literals.
+		// In case we are inside an import, skip the line instead.
 	default:
 		if c.insideImport {
 			return "", true
