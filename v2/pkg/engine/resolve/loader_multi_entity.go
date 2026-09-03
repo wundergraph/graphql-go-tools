@@ -24,6 +24,10 @@ type preparedMultiEntry struct {
 	items []*astjson.Value // merge targets from selectItemsForPath (jsonArena-backed)
 	res   *result          // per-entry view; init(entry.PostProcessing, entry.Info)
 
+	// representationItemHashes holds one hash per unique representation this
+	// entry rendered. Only live during prepare, where responseCacheKeys are
+	// derived from it.
+	representationItemHashes []uint64
 	// responseCacheKeys holds one key per unique representation this entry
 	// rendered, in render order: the same order as res.batchStats and as the
 	// entry's slice of the response.
@@ -64,8 +68,6 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	included := make([]bool, len(fetch.Input.Entries))
 	// rendered representation bytes.
 	repsBytes := make([][]byte, len(fetch.Input.Entries))
-	// entry's item hashes, one per unique representation
-	representationHashMatrix := make([][]uint64, len(fetch.Input.Entries))
 	// still false at the end means no request goes out
 	anyIncluded := false
 
@@ -88,16 +90,17 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 			continue
 		}
 
-		reps, representationHashes, entryIncluded, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools)
+		result, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools)
 		if err != nil {
 			return err
 		}
-		if !entryIncluded {
+
+		if !result.entryIncluded {
 			continue
 		}
 		included[k] = true
-		repsBytes[k] = reps
-		representationHashMatrix[k] = representationHashes
+		repsBytes[k] = result.representationBuffer
+		entries[k].representationItemHashes = result.representationItemHashes
 		anyIncluded = true
 	}
 
@@ -124,9 +127,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 
 	// Derived here, under the data lock, because the keys are what the lookup in
 	// the load phase asks for. The lookup itself stays out of the lock.
-	if err := l.setResponseCacheKeys(entries, representationHashMatrix, assembled); err != nil {
-		return err
-	}
+	l.setResponseCacheKeys(entries, assembled)
 
 	allowed, err := l.rateLimitFetch(assembled.out, fetch.Info, res)
 	if err != nil {
@@ -164,17 +165,32 @@ func (l *Loader) authorizeEntry(entry *MultiEntityFetchEntry, entryRes *result) 
 	return l.isFetchAuthorized(nil, entry.Info, entryRes)
 }
 
+// renderEntryRepresentationsResult is the result of rendering a single
+// multi fetch entry's representations.
+type renderEntryRepresentationsResult struct {
+	// representationBuffer is the buffer containing the rendered representations.
+	representationBuffer []byte
+	// representationItemHashes is the list of hashes of the unique representations.
+	representationItemHashes []uint64
+	// entryIncluded is true if the entry is included in the merged request.
+	// Each entry in the request carries an `@include(if:)` directive which is
+	// controlled by the corresponding `includeFN` variable.
+	entryIncluded bool
+}
+
 // renderEntryRepresentations renders this entry's representations exactly like a
 // batch entity fetch: per item apply skip flags, xxhash-dedup, and comma
 // separators. The per-entry batchStats are copied to the heap and the dedup
 // state is cleared before the next entry reuses the shared tools; the arena
 // buffers themselves survive until assembly. An entry with zero unique items is
 // excluded (fetchSkipped) and reports entryIncluded=false.
-func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryRes *result, items []*astjson.Value, itemInput *arena.Buffer, tools *batchEntityTools) (reps []byte, responseCacheItemHashes []uint64, entryIncluded bool, err error) {
+func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryRes *result, items []*astjson.Value, itemInput *arena.Buffer, tools *batchEntityTools) (res *renderEntryRepresentationsResult, err error) {
 	repsBuf := arena.NewArenaBuffer(tools.a)
 	batchStats := arena.AllocateSlice[[]*astjson.Value](tools.a, 0, len(items))
 	batchItemIndex := 0
 	addSeparator := false
+
+	responseCacheItemHashes := make([]uint64, 0, len(items))
 
 	for i, item := range items {
 		itemInput.Reset()
@@ -184,7 +200,7 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 				err = nil //nolint:ineffassign,wastedassign
 				continue
 			}
-			return nil, nil, false, errors.WithStack(err)
+			return nil, errors.WithStack(err)
 		}
 		if entry.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
 			continue
@@ -229,9 +245,15 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 
 	if len(entryRes.batchStats) == 0 {
 		entryRes.fetchSkipped = true
-		return nil, nil, false, nil
+		return &renderEntryRepresentationsResult{
+			entryIncluded: false,
+		}, nil
 	}
-	return repsBuf.Bytes(), responseCacheItemHashes, true, nil
+	return &renderEntryRepresentationsResult{
+		representationBuffer:     repsBuf.Bytes(),
+		representationItemHashes: responseCacheItemHashes,
+		entryIncluded:            true,
+	}, nil
 }
 
 type assembleMultiEntityOptions struct {
@@ -322,34 +344,28 @@ func (l *Loader) assembleMultiEntity(opts *assembleMultiEntityOptions) (*assembl
 // setResponseCacheKeys derives one key per unique representation of every entry
 // that renders representations. Each entry hashes its own slice of the request,
 // so warm entries can be recognised and switched off one at a time.
-func (l *Loader) setResponseCacheKeys(entries []preparedMultiEntry, representationHashMatrix [][]uint64, assembled *assembleMultiEntityResult) error {
+func (l *Loader) setResponseCacheKeys(mulitEntries []preparedMultiEntry, assembled *assembleMultiEntityResult) {
 	if !l.responseCacheEnabled() {
-		return nil
+		return
 	}
 
-	if len(entries) != len(representationHashMatrix) && len(assembled.entryVariables) != len(entries) {
-		return errors.New("unexpected number of entries in representation hash matrix or entry variables")
-	}
-
-	for i := range entries {
-		itemHashes := representationHashMatrix[i]
-		if len(itemHashes) == 0 {
+	for i := range mulitEntries {
+		multiEntry := &mulitEntries[i]
+		if len(multiEntry.representationItemHashes) == 0 {
 			continue
 		}
 		selectionHash := responseCacheEntrySelectionHash(
 			assembled.header,
-			entries[i].entry.Alias,
+			multiEntry.entry.Alias,
 			assembled.entryVariables[i],
 			assembled.footer,
 		)
-		keys := make([]string, len(itemHashes))
-		for i, itemHash := range itemHashes {
-			keys[i] = caching.Key(itemHash, selectionHash)
+		keys := make([]string, len(multiEntry.representationItemHashes))
+		for j, itemHash := range multiEntry.representationItemHashes {
+			keys[j] = caching.Key(itemHash, selectionHash)
 		}
-		entries[i].responseCacheKeys = keys
+		multiEntry.responseCacheKeys = keys
 	}
-
-	return nil
 }
 
 // applyMultiEntityResponseCache resolves the response cache for a merged fetch:
@@ -562,9 +578,12 @@ func (l *Loader) applyParsedResponseToEntries(prepared *preparedFetch, response 
 		return err
 	}
 
-	// Collected off the response as the subgraph sent it, before the cached
-	// entities are written in.
-	l.responseCacheCollectMultiEntity(prepared, response, entryErrors, unmatchedErrors)
+	// If we have any errors that couldn't be matched to an alias, we can't cache the response.
+	if !unmatchedErrors {
+		// Collected off the response as the subgraph sent it, before the cached
+		// entities are written in.
+		l.responseCacheCollectMultiEntity(prepared, response, entryErrors)
+	}
 
 	if err := l.applyCachedEntriesToResponse(prepared, response); err != nil {
 		return err

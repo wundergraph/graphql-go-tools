@@ -373,14 +373,8 @@ func responseCacheTagIdentities(input responseCacheTagInput) []string {
 // served from the cache) has no alias in the response at all, and an entry whose
 // alias carries errors is skipped on its own so the others are still stored —
 // the unmerged fetches this replaces are independent that way.
-func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, response *astjson.Value, entryErrors []*astjson.Value, unmatchedErrors bool) {
+func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, response *astjson.Value, entryErrors []*astjson.Value) {
 	if !l.responseCacheEnabled() {
-		return
-	}
-
-	// An error that belongs to no alias is a problem with the merged request as
-	// a whole, so nothing from it is cacheable.
-	if unmatchedErrors {
 		return
 	}
 

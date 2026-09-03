@@ -433,13 +433,10 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	// A merged fetch resolves its cache per entry, and that reshapes the request,
 	// so it happens here rather than on the whole-fetch path below.
 	if prepared.multiAssembly != nil {
-		served, err := l.applyMultiEntityResponseCache(ctx, prepared)
-		if err != nil {
+		if served, err := l.applyMultiEntityResponseCache(ctx, prepared); served || err != nil {
+			// If either every entry was warm or there was an error, we can return early.
+			// errors.WithStack() returns nil if the error is nil.
 			return errors.WithStack(err)
-		}
-		if served {
-			// Every entry was warm, so there is nothing left to request.
-			return nil
 		}
 	}
 
