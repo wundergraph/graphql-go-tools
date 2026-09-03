@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.18.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.17.1...execution/v1.18.0) (2026-09-03)
+
+
+### Features
+
+* allow cached fetches to call loader hooks ([#1645](https://github.com/wundergraph/graphql-go-tools/issues/1645)) ([e890d88](https://github.com/wundergraph/graphql-go-tools/commit/e890d886e7d18ea7d99dc69861a8bd73acc8fc9e))
+* implement multi fetch to the same subgraph ([#1594](https://github.com/wundergraph/graphql-go-tools/issues/1594)) ([22584e2](https://github.com/wundergraph/graphql-go-tools/commit/22584e2f691fffe29e8dd91d6e868826eeb55460))
+* improve abstract field validation ([#1588](https://github.com/wundergraph/graphql-go-tools/issues/1588)) ([d6cceac](https://github.com/wundergraph/graphql-go-tools/commit/d6cceacd291eee5dbab8f6a0cadd245e47eca2d0))
+* response caching base implementation ([#1638](https://github.com/wundergraph/graphql-go-tools/issues/1638)) ([2691879](https://github.com/wundergraph/graphql-go-tools/commit/26918796d41b36478f75d6d3c92a8c550d3ca3aa))
+* root query field caching ([#1643](https://github.com/wundergraph/graphql-go-tools/issues/1643)) ([54c993e](https://github.com/wundergraph/graphql-go-tools/commit/54c993e56ae7c88a14132ee636371e076efb6285))
+* schedule fetch trees optimally ([#1612](https://github.com/wundergraph/graphql-go-tools/issues/1612)) ([bd03deb](https://github.com/wundergraph/graphql-go-tools/commit/bd03deb2be134e7402fdd8c32b1d2ff3ae1376df))
+* support cache tag creation via extensions in response from subgraphs ([#1650](https://github.com/wundergraph/graphql-go-tools/issues/1650)) ([da4c1b4](https://github.com/wundergraph/graphql-go-tools/commit/da4c1b4881f227623ff69e2ff59c6079f478dba2))
+
+
+### Bug Fixes
+
+* add planner edge case fixes ([#1581](https://github.com/wundergraph/graphql-go-tools/issues/1581)) ([165b1f5](https://github.com/wundergraph/graphql-go-tools/commit/165b1f51dacc0e815b429e451329957fd91e552b))
+* incorrect alias behavior for required fields ([#1604](https://github.com/wundergraph/graphql-go-tools/issues/1604)) ([5752e91](https://github.com/wundergraph/graphql-go-tools/commit/5752e914cc6f88ce2fa9a3143712ede705c92226))
+* incorrect type detection for abstract types ([#1613](https://github.com/wundergraph/graphql-go-tools/issues/1613)) ([e249e88](https://github.com/wundergraph/graphql-go-tools/commit/e249e882db4d5768b1661b99f92d070c55d987da))
+
 ## [1.17.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.17.0...execution/v1.17.1) (2026-07-09)
 
 
