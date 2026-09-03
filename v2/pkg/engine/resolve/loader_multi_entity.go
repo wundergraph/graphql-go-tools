@@ -184,7 +184,13 @@ type renderEntryRepresentationsResult struct {
 // state is cleared before the next entry reuses the shared tools; the arena
 // buffers themselves survive until assembly. An entry with zero unique items is
 // excluded (fetchSkipped) and reports entryIncluded=false.
-func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryRes *result, items []*astjson.Value, itemInput *arena.Buffer, tools *batchEntityTools) (res *renderEntryRepresentationsResult, err error) {
+func (l *Loader) renderEntryRepresentations(
+	entry *MultiEntityFetchEntry,
+	entryRes *result,
+	items []*astjson.Value,
+	itemInput *arena.Buffer,
+	tools *batchEntityTools,
+) (*renderEntryRepresentationsResult, error) {
 	repsBuf := arena.NewArenaBuffer(tools.a)
 	batchStats := arena.AllocateSlice[[]*astjson.Value](tools.a, 0, len(items))
 	batchItemIndex := 0
@@ -194,10 +200,9 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 
 	for i, item := range items {
 		itemInput.Reset()
-		err = entry.Representations.Render(l.ctx, item, itemInput)
+		err := entry.Representations.Render(l.ctx, item, itemInput)
 		if err != nil {
 			if entry.SkipErrItems {
-				err = nil //nolint:ineffassign,wastedassign
 				continue
 			}
 			return nil, errors.WithStack(err)
