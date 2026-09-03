@@ -1,4 +1,4 @@
-//go:generate go-enum -f=$GOFILE --noprefix --marshal
+//go:generate go tool go-enum -f=$GOFILE --noprefix --marshal
 
 // Package introspection takes a GraphQL Schema and provides the introspection JSON to fulfill introspection queries.
 package introspection
