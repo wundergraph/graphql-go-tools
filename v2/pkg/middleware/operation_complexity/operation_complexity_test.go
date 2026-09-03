@@ -568,6 +568,35 @@ func TestCalculateOperationComplexityDepthWithRootMultiplier(t *testing.T) {
 	assert.Equal(t, expectedStats, rootFieldStats[0].Stats)
 }
 
+func TestCalculateOperationComplexityDepthWithStackedMultipliers(t *testing.T) {
+	t.Parallel()
+
+	definition := unsafeparser.ParseGraphqlDocumentString(depthRegressionDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(fmt.Sprintf(
+		depthRegressionQuery,
+		", first: 2",
+		"",
+		"",
+		`(input: {key: "value"}, first: 3)`,
+		"",
+	))
+	report := operationreport.Report{}
+
+	astnormalization.NormalizeOperation(&operation, &definition, &report)
+	stats, rootFieldStats := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+
+	require.False(t, report.HasErrors(), report.Error())
+	expectedStats := OperationStats{
+		NodeCount:  40,
+		Complexity: 35,
+		Depth:      11,
+	}
+	assert.Equal(t, expectedStats, stats)
+	require.Len(t, rootFieldStats, 1)
+	expectedStats.Depth--
+	assert.Equal(t, expectedStats, rootFieldStats[0].Stats)
+}
+
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -674,7 +703,7 @@ type ExtendedRecord implements Record { pathA(input: RootInput): PathA alternate
 
 type PathA { pathB: PathB }
 union PathB = PathBDetails | Failure
-type PathBDetails { pathC(input: RootInput): PathC }
+type PathBDetails { pathC(input: RootInput, first: Int @nodeCountMultiply): PathC }
 type PathC { pathD: PathD }
 union PathD = PathDDetails | Failure
 type PathDDetails { pathE: PathE }
