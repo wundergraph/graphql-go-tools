@@ -501,6 +501,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 func TestCalculateOperationComplexityDepth(t *testing.T) {
 	tests := []struct {
 		name                         string
+		rootFieldArguments           string
 		selections                   string
 		nestedFieldArguments         string
 		leafFieldArguments           string
@@ -519,6 +520,7 @@ func TestCalculateOperationComplexityDepth(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentString(depthRegressionDefinition)
 			operation := unsafeparser.ParseGraphqlDocumentString(fmt.Sprintf(
 				depthRegressionQuery,
+				tt.rootFieldArguments,
 				tt.selections,
 				tt.nestedFieldArguments,
 				tt.inlineFragmentFieldArguments,
@@ -535,6 +537,35 @@ func TestCalculateOperationComplexityDepth(t *testing.T) {
 			assert.Equal(t, 10, rootFieldStats[0].Stats.Depth)
 		})
 	}
+}
+
+func TestCalculateOperationComplexityDepthWithRootMultiplier(t *testing.T) {
+	t.Parallel()
+
+	definition := unsafeparser.ParseGraphqlDocumentString(depthRegressionDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(fmt.Sprintf(
+		depthRegressionQuery,
+		", first: 2",
+		"",
+		"",
+		"",
+		"",
+	))
+	report := operationreport.Report{}
+
+	astnormalization.NormalizeOperation(&operation, &definition, &report)
+	stats, rootFieldStats := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+
+	require.False(t, report.HasErrors(), report.Error())
+	expectedStats := OperationStats{
+		NodeCount:  20,
+		Complexity: 19,
+		Depth:      11,
+	}
+	assert.Equal(t, expectedStats, stats)
+	require.Len(t, rootFieldStats, 1)
+	expectedStats.Depth--
+	assert.Equal(t, expectedStats, rootFieldStats[0].Stats)
 }
 
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
@@ -623,12 +654,14 @@ const complexQuery = `
 }`
 
 const depthRegressionDefinition = `
+directive @nodeCountMultiply on ARGUMENT_DEFINITION
+
 scalar String
 
 schema { query: Query }
 
 input RootInput { key: String }
-type Query { root(input: RootInput!): RootResult }
+type Query { root(input: RootInput!, first: Int @nodeCountMultiply): RootResult }
 union RootResult = RootSuccess | Failure
 type RootSuccess { results: [Result!]! }
 union Result = ResultSuccess | Failure
@@ -664,7 +697,7 @@ type AlternateSix { alternateLeaf: String }
 
 const depthRegressionQuery = `
 query Operation($input: RootInput!) {
-  root(input: $input) {
+  root(input: $input%s) {
     ... on RootSuccess {
       results {
         ... on ResultSuccess {
