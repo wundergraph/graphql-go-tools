@@ -25,6 +25,8 @@ func (t *testBridgeUpdater) Update(data []byte) {
 
 func (t *testBridgeUpdater) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {}
 
+func (t *testBridgeUpdater) UpdateBulk(_ map[resolve.SubscriptionIdentifier][]byte) {}
+
 func (t *testBridgeUpdater) Complete() {
 	t.completed = true
 }
