@@ -1,6 +1,6 @@
 package subscription
 
-//go:generate mockgen -destination=handler_mock_test.go -package=subscription . Protocol,EventHandler
+//go:generate go tool mockgen -destination=handler_mock_test.go -package=subscription . Protocol,EventHandler
 
 import (
 	"bytes"
