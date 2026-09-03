@@ -497,6 +497,179 @@ func TestCalculateOperationComplexity(t *testing.T) {
 	})
 }
 
+// TestCalculateOperationComplexityDepthWithInlineFragments tests the depth of operations
+// that select through inline fragments. Normalization keeps inline fragments that have
+// type conditions. The estimator must not add depth for these fragments.
+// The order of sibling branches must not change the depth.
+func TestCalculateOperationComplexityDepthWithInlineFragments(t *testing.T) {
+	t.Run("an inline fragment does not add depth", func(t *testing.T) {
+		run(t, unionTestDefinition, `
+				{
+				  node {
+					... on Success {
+					  child {
+						leaf
+					  }
+					}
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  2,
+				Complexity: 2,
+				Depth:      3,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "node",
+					Stats: OperationStats{
+						NodeCount:  2,
+						Complexity: 2,
+						Depth:      2,
+					},
+				},
+			},
+		)
+	})
+	// The next two cases select the same fields in a different order.
+	// The fragment-free branch is one level deeper than the fragment branch,
+	// so the depth must be 4 in both cases.
+	t.Run("fragment branch before a deeper plain branch", func(t *testing.T) {
+		run(t, unionTestDefinition, `
+				{
+				  node {
+					... on Success {
+					  child {
+						leaf
+					  }
+					}
+				  }
+				  plain {
+					child {
+					  child {
+						leaf
+					  }
+					}
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  5,
+				Complexity: 5,
+				Depth:      4,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "node",
+					Stats: OperationStats{
+						NodeCount:  2,
+						Complexity: 2,
+						Depth:      2,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "plain",
+					Stats: OperationStats{
+						NodeCount:  3,
+						Complexity: 3,
+						Depth:      3,
+					},
+				},
+			},
+		)
+	})
+	t.Run("deeper plain branch before a fragment branch", func(t *testing.T) {
+		run(t, unionTestDefinition, `
+				{
+				  plain {
+					child {
+					  child {
+						leaf
+					  }
+					}
+				  }
+				  node {
+					... on Success {
+					  child {
+						leaf
+					  }
+					}
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  5,
+				Complexity: 5,
+				Depth:      4,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "plain",
+					Stats: OperationStats{
+						NodeCount:  3,
+						Complexity: 3,
+						Depth:      3,
+					},
+				},
+				{
+					TypeName:  "Query",
+					FieldName: "node",
+					Stats: OperationStats{
+						NodeCount:  2,
+						Complexity: 2,
+						Depth:      2,
+					},
+				},
+			},
+		)
+	})
+}
+
+// TestEstimatorReuseAfterAbortedWalk reuses one estimator for two operations.
+// The walk of the first operation stops on an error before it leaves the root field.
+// The stale root field state must not change the result of the second operation.
+func TestEstimatorReuseAfterAbortedWalk(t *testing.T) {
+	def := unsafeparser.ParseGraphqlDocumentString(unionTestDefinition)
+	estimator := NewOperationComplexityEstimator(false)
+
+	// The unknown type condition stops the walk below three nested fields.
+	badOperation := unsafeparser.ParseGraphqlDocumentString(`
+			{
+			  plain {
+				child {
+				  child {
+					child {
+					  ... on Unknown { leaf }
+					}
+				  }
+				}
+			  }
+			}`)
+	badReport := operationreport.Report{}
+	estimator.Do(&badOperation, &def, &badReport)
+	require.True(t, badReport.HasErrors())
+
+	goodOperation := unsafeparser.ParseGraphqlDocumentString(`
+			{
+			  node {
+				... on Success {
+				  child {
+					leaf
+				  }
+				}
+			  }
+			}`)
+	goodReport := operationreport.Report{}
+	astnormalization.NormalizeOperation(&goodOperation, &def, &goodReport)
+	globalStats, rootFieldStats := estimator.Do(&goodOperation, &def, &goodReport)
+	require.False(t, goodReport.HasErrors(), goodReport.Error())
+
+	assert.Equal(t, 3, globalStats.Depth, "unexpected global depth")
+	require.Len(t, rootFieldStats, 1)
+	assert.Equal(t, 2, rootFieldStats[0].Stats.Depth, "unexpected root field depth")
+}
+
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -506,7 +679,7 @@ func runConfig(t *testing.T, definition, operation string, expectedGlobalComplex
 
 	estimator := NewOperationComplexityEstimator(skipIntrospection)
 	actualGlobalComplexityResult, actualFieldsComplexityResult := estimator.Do(&op, &def, &report)
-	require.False(t, report.HasErrors())
+	require.False(t, report.HasErrors(), report.Error())
 
 	assert.Equal(t, expectedGlobalComplexityResult.NodeCount, actualGlobalComplexityResult.NodeCount, "unexpected global node count")
 	assert.Equal(t, expectedGlobalComplexityResult.Complexity, actualGlobalComplexityResult.Complexity, "unexpected global complexity")
@@ -581,6 +754,22 @@ const complexQuery = `
 	}
   }
 }`
+
+const unionTestDefinition = `
+scalar String
+
+schema { query: Query }
+
+type Query {
+    node: Result
+    plain: Wrapper
+}
+
+union Result = Success | Failure
+type Failure { message: String }
+type Success { child: Wrapper }
+type Wrapper { child: Wrapper leaf: String }
+`
 
 const testDefinition = `
 
