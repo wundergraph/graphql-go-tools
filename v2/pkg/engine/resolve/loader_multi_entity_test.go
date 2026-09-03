@@ -729,8 +729,10 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCache(t *testing.T) {
 	runMerged := func(t *testing.T, cache *testCache, multiDS *recordingDataSource) string {
 		t.Helper()
 		ctx := multiEntityContext(t)
-		ctx.SetResponseCache(cache, 60*time.Second, func(err error) {
-			t.Errorf("response cache error: %v", err)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: 60 * time.Second,
+			OnError:    func(err error) { t.Errorf("response cache error: %v", err) },
 		})
 		response := multiEntityMergedTree(
 			&recordingDataSource{response: []byte(multiEntityRootResponse)},
@@ -816,8 +818,10 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheKeys(t *testing.T) {
 		ctx := NewContext(t.Context())
 		ctx.ExecutionOptions.DisableSubgraphRequestDeduplication = true
 		ctx.Variables = astjson.MustParse(variables)
-		ctx.SetResponseCache(cache, 60*time.Second, func(err error) {
-			t.Errorf("response cache error: %v", err)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: 60 * time.Second,
+			OnError:    func(err error) { t.Errorf("response cache error: %v", err) },
 		})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 		require.NoError(t, loader.LoadGraphQLResponseData(ctx, multiEntityMergedTree(rootDS, multiDS)))
@@ -870,8 +874,10 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCachePartialFailure(t *test
 	load := func(t *testing.T, cache *testCache, multiDS *recordingDataSource) (string, *Loader) {
 		t.Helper()
 		ctx := multiEntityContext(t)
-		ctx.SetResponseCache(cache, 60*time.Second, func(err error) {
-			t.Errorf("response cache error: %v", err)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: 60 * time.Second,
+			OnError:    func(err error) { t.Errorf("response cache error: %v", err) },
 		})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 		response := multiEntityMergedTree(
@@ -935,8 +941,10 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T
 	load := func(t *testing.T, cache *testCache, multiDS *recordingDataSource) []cacheReport {
 		t.Helper()
 		ctx := multiEntityContext(t)
-		ctx.SetResponseCache(cache, 60*time.Second, func(err error) {
-			t.Errorf("response cache error: %v", err)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: 60 * time.Second,
+			OnError:    func(err error) { t.Errorf("response cache error: %v", err) },
 		})
 		var reports []cacheReport
 		ctx.SetEngineLoaderHooks(&spyLoaderHooks{
