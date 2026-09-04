@@ -411,15 +411,40 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 			continue
 		}
 
+		subgraph := prepared.res.ds.Name
+		invalidation := l.ctx.responseCache.invalidation
+
+		var declared [][]string
+		if invalidation.CacheTag {
+			declared = responseCacheTags(response, len(values), false)
+		}
+
 		for j, value := range values {
 			if value.Type() != astjson.TypeObject {
 				continue
 			}
-			items = append(items, caching.Item{
+			item := caching.Item{
 				Key:   entry.responseCacheKeys[j],
 				Value: value.MarshalTo(nil),
 				TTL:   ttl,
-			})
+			}
+
+			if invalidation.any() {
+				var declaredForValue []string
+				if len(declared) > 0 {
+					declaredForValue = declared[j]
+				}
+
+				item.Tags = responseCacheTagIdentities(responseCacheTagInput{
+					declared:    declaredForValue,
+					value:       value,
+					subgraph:    subgraph,
+					isRootFetch: prepared.isRootFetchCache,
+					opts:        invalidation,
+				})
+			}
+
+			items = append(items, item)
 		}
 	}
 
