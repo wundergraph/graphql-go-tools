@@ -7,7 +7,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-// orderSequenceByDependencies is a postprocessor that orders the fetch tree nodes by their dependencies.
+// orderSequenceByDependencies is a postprocessor that orders the fetch tree nodes
+// by their dependencies, in the topological order.
+// The result is consumed by createParallelNodes and that is required by Multi-Fetch feature.
+// Potentially, we could remove this because scheduling does not depend on it,
+// but Multi-Fetch requires some overhaul.
 type orderSequenceByDependencies struct {
 	disable bool
 }
