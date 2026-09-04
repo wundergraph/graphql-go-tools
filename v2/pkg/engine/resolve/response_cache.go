@@ -37,6 +37,25 @@ func responseCacheSelectionHash(header, footer []byte) uint64 {
 	return d.Sum64()
 }
 
+// responseCacheEntrySelectionHash keys one entry of a merged fetch. The header
+// and footer span every alias, so two more parts are hashed in: the alias, or
+// entries over the same entity collide, and the entry's own variables, which
+// sit in between and would otherwise be left out of the key.
+func responseCacheEntrySelectionHash(header []byte, alias string, entryVariables, footer []byte) uint64 {
+	d := pool.Hash64.Get()
+	defer pool.Hash64.Put(d)
+	// A zero byte after every part, so material moving from the end of one to
+	// the start of the next cannot go unnoticed.
+	_, _ = d.Write(header)
+	_, _ = d.Write(zeroByte)
+	_, _ = d.WriteString(alias)
+	_, _ = d.Write(zeroByte)
+	_, _ = d.Write(entryVariables)
+	_, _ = d.Write(zeroByte)
+	_, _ = d.Write(footer)
+	return d.Sum64()
+}
+
 // rootFetchCacheable reports whether this fetch is the one shape the cache can
 // key: a root query fetch answered by a GraphQL subgraph.
 func rootFetchCacheable(fetchItem *FetchItem, fetch *SingleFetch) bool {
@@ -348,6 +367,153 @@ func responseCacheTagIdentities(input responseCacheTagInput) []string {
 	return identities
 }
 
+// responseCacheCollectMultiEntity gathers what a merged response contributes to
+// the cache, one alias at a time. Unlike the single-fetch path this cannot be
+// all-or-nothing: an entry that was never sent (excluded at prepare, or already
+// served from the cache) has no alias in the response at all, and an entry whose
+// alias carries errors is skipped on its own so the others are still stored —
+// the unmerged fetches this replaces are independent that way.
+func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, response *astjson.Value, entryErrors []*astjson.Value) {
+	if !l.responseCacheEnabled() {
+		return
+	}
+
+	res := prepared.res
+	if res.err != nil || len(res.out) == 0 || res.statusCode >= 400 {
+		return
+	}
+
+	// One HTTP response, one Cache-Control: the lifetime is genuinely shared.
+	ttl, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
+	if !ok {
+		return
+	}
+
+	var items []caching.Item
+	for i := range prepared.multiEntries {
+		entry := &prepared.multiEntries[i]
+		if len(entry.responseCacheKeys) == 0 || entry.cacheHit() || entry.res.fetchSkipped {
+			continue
+		}
+		if errs := entryErrors[i]; astjson.ValueIsNonNull(errs) && len(errs.GetArray()) > 0 {
+			continue
+		}
+
+		entities := response.Get("data", entry.entry.Alias)
+		if entities == nil || entities.Type() != astjson.TypeArray {
+			continue
+		}
+		values := entities.GetArray()
+		// One key per unique representation, in the same order the subgraph
+		// answers them. A different count means the response does not line up
+		// with what was asked, which is not something to cache.
+		if len(values) != len(entry.responseCacheKeys) {
+			continue
+		}
+
+		for j, value := range values {
+			if value.Type() != astjson.TypeObject {
+				continue
+			}
+			item := caching.Item{
+				Key:   entry.responseCacheKeys[j],
+				Value: value.MarshalTo(nil),
+				TTL:   ttl,
+			}
+
+			if invalidation := l.ctx.responseCache.invalidation; invalidation.any() {
+				// Declared tags are left out: apolloEntityCacheTags is one flat
+				// list with no alias to attribute it to, so entries would take
+				// each other's tags. Subgraph and type identities still apply.
+				item.Tags = responseCacheTagIdentities(responseCacheTagInput{
+					value:       value,
+					subgraph:    prepared.res.ds.Name,
+					isRootFetch: prepared.isRootFetchCache,
+					opts:        invalidation,
+				})
+			}
+
+			items = append(items, item)
+		}
+	}
+
+	prepared.responseCacheItems = items
+}
+
+// multiEntityCacheLookup asks the cache, in one round trip, for the entities of
+// every entry still bound for the origin, and records what came back whole on
+// the entry itself as cachedValues. An entry is served all-or-nothing, mirroring
+// what a single unmerged fetch does. Reports whether anything was found; the
+// caller decides what that means for the request.
+func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool) bool {
+	var keys []string
+	for i := range prepared.multiEntries {
+		if included[i] {
+			keys = append(keys, prepared.multiEntries[i].responseCacheKeys...)
+		}
+	}
+	if len(keys) == 0 {
+		return false
+	}
+
+	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, keys)
+	if err != nil {
+		// A cache failure is not a fetch failure: ask the origin for everything.
+		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(keys), err))
+		return false
+	}
+	if len(found) == 0 {
+		return false
+	}
+
+	anyHit := false
+	for i := range prepared.multiEntries {
+		entry := &prepared.multiEntries[i]
+		if !included[i] || len(entry.responseCacheKeys) == 0 {
+			continue
+		}
+
+		values := make([][]byte, 0, len(entry.responseCacheKeys))
+		for _, key := range entry.responseCacheKeys {
+			item, ok := found[key]
+			if !ok || len(item.Value) == 0 {
+				values = nil
+				break
+			}
+			values = append(values, item.Value)
+		}
+		if values == nil {
+			// Partially warm: this entry is fetched whole, like a batch fetch
+			// missing one of its representations.
+			continue
+		}
+
+		entry.cachedValues = values
+		entry.responseCacheTTL = remainingTTL(found, entry.responseCacheKeys)
+		anyHit = true
+	}
+
+	return anyHit
+}
+
+// shortestCachedEntryTTL is the life left on a merged fetch answered entirely
+// from the cache: the least fresh of its entries, as remainingTTL is for one.
+func shortestCachedEntryTTL(entries []preparedMultiEntry) time.Duration {
+	ttl := time.Duration(-1)
+	for i := range entries {
+		if !entries[i].cacheHit() {
+			continue
+		}
+		if ttl < 0 || entries[i].responseCacheTTL < ttl {
+			ttl = entries[i].responseCacheTTL
+		}
+	}
+	if ttl < 0 {
+		return 0
+	}
+	return ttl
+}
+
 // responseCacheFlush writes what responseCacheCollect gathered. It is called with
 // the data lock released so a slow cache never blocks the fetches queued behind it.
 func (l *Loader) responseCacheFlush(prepared *preparedFetch) {
@@ -391,6 +557,8 @@ var (
 
 	// The data object of a root fetch response, taken apart on the way into the
 	// cache and put back together on the way out.
+	// Separator written between the parts of a selection hash.
+	zeroByte                       = []byte{0}
 	dataResponsePath               = []string{"data"}
 	dataResponsePrefix             = []byte(`{"data":`)
 	dataResponseSuffix             = []byte(`}`)

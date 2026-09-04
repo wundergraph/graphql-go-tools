@@ -2,12 +2,19 @@ package resolve
 
 import (
 	"bytes"
+	"context"
 	goerrors "errors"
+	"fmt"
+	"net/http"
+	"slices"
+	"time"
 
 	"github.com/pkg/errors"
 
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 )
 
 // preparedMultiEntry is the per-entry view carried from the prepare phase into
@@ -16,6 +23,32 @@ type preparedMultiEntry struct {
 	entry *MultiEntityFetchEntry
 	items []*astjson.Value // merge targets from selectItemsForPath (jsonArena-backed)
 	res   *result          // per-entry view; init(entry.PostProcessing, entry.Info)
+
+	// representationItemHashes holds one hash per unique representation this
+	// entry rendered. Only live during prepare, where responseCacheKeys are
+	// derived from it.
+	representationItemHashes []uint64
+	// responseCacheKeys holds one key per unique representation this entry
+	// rendered, in render order: the same order as res.batchStats and as the
+	// entry's slice of the response.
+	responseCacheKeys []string
+	// cachedValues is set only when every one of responseCacheKeys hit: the
+	// stored entity objects, written back into the response at merge time.
+	cachedValues [][]byte
+	// responseCacheTTL is the life left on the least fresh of cachedValues.
+	responseCacheTTL time.Duration
+}
+
+// cacheHit reports whether this entry was answered entirely from the response
+// cache, in which case it was switched off in the merged request.
+func (e *preparedMultiEntry) cacheHit() bool { return len(e.cachedValues) > 0 }
+
+// multiAssembly is what the load phase needs to rebuild the merged request
+// after the response-cache lookup switches warm entries off.
+type multiAssembly struct {
+	fetch               *MultiEntityFetch
+	included            []bool
+	representationBytes [][]byte
 }
 
 // prepareMultiEntityFetch renders one merged upstream request out of several
@@ -31,8 +64,11 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	res.tools = batchEntityToolPool.Get(len(fetch.Input.Entries))
 
 	entries := make([]preparedMultiEntry, len(fetch.Input.Entries))
+	// included entries send representations and render includeFN:true
 	included := make([]bool, len(fetch.Input.Entries))
+	// rendered representation bytes.
 	repsBytes := make([][]byte, len(fetch.Input.Entries))
+	// still false at the end means no request goes out
 	anyIncluded := false
 
 	// One item-render buffer serves every entry: it is reset per item and the
@@ -54,21 +90,28 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 			continue
 		}
 
-		reps, entryIncluded, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools)
+		result, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools)
 		if err != nil {
 			return err
 		}
-		if !entryIncluded {
+
+		if !result.entryIncluded {
 			continue
 		}
 		included[k] = true
-		repsBytes[k] = reps
+		repsBytes[k] = result.representationBuffer
+		entries[k].representationItemHashes = result.representationItemHashes
 		anyIncluded = true
 	}
 
 	prepared.multiEntries = entries
 
-	input, err := l.assembleMultiEntityInput(fetch, res, included, repsBytes)
+	assembled, err := l.assembleMultiEntity(&assembleMultiEntityOptions{
+		fetch:               fetch,
+		result:              res,
+		included:            included,
+		representationBytes: repsBytes,
+	})
 	if err != nil {
 		return err
 	}
@@ -77,12 +120,16 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 		res.fetchSkipped = true
 		prepared.skipLoad = true
 		if l.ctx.TracingOptions.Enable {
-			l.setTracingInput(fetchItem, input, fetch.Trace)
+			l.setTracingInput(fetchItem, assembled.inputBuffer, fetch.Trace)
 		}
 		return nil
 	}
 
-	allowed, err := l.rateLimitFetch(input, fetch.Info, res)
+	// Derived here, under the data lock, because the keys are what the lookup in
+	// the load phase asks for. The lookup itself stays out of the lock.
+	l.setResponseCacheKeys(entries, assembled)
+
+	allowed, err := l.rateLimitFetch(assembled.inputBuffer, fetch.Info, res)
 	if err != nil {
 		return err
 	}
@@ -91,7 +138,12 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	}
 
 	prepared.source = fetch.DataSource
-	prepared.input = input
+	prepared.input = assembled.inputBuffer
+	prepared.multiAssembly = &multiAssembly{
+		fetch:               fetch,
+		included:            included,
+		representationBytes: repsBytes,
+	}
 	prepared.trace = fetch.Trace
 	if l.ctx.TracingOptions.Enable && !l.ctx.TracingOptions.ExcludeRawInputData {
 		l.setMultiFetchRawInputTrace(entries, fetch.Trace)
@@ -113,26 +165,47 @@ func (l *Loader) authorizeEntry(entry *MultiEntityFetchEntry, entryRes *result) 
 	return l.isFetchAuthorized(nil, entry.Info, entryRes)
 }
 
+// renderEntryRepresentationsResult is the result of rendering a single
+// multi fetch entry's representations.
+type renderEntryRepresentationsResult struct {
+	// representationBuffer is the buffer containing the rendered representations.
+	representationBuffer []byte
+	// representationItemHashes is the list of hashes of the unique representations.
+	representationItemHashes []uint64
+	// entryIncluded is true if the entry is included in the merged request.
+	// Each entry in the request carries an `@include(if:)` directive which is
+	// controlled by the corresponding `includeFN` variable.
+	entryIncluded bool
+}
+
 // renderEntryRepresentations renders this entry's representations exactly like a
 // batch entity fetch: per item apply skip flags, xxhash-dedup, and comma
 // separators. The per-entry batchStats are copied to the heap and the dedup
 // state is cleared before the next entry reuses the shared tools; the arena
 // buffers themselves survive until assembly. An entry with zero unique items is
 // excluded (fetchSkipped) and reports entryIncluded=false.
-func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryRes *result, items []*astjson.Value, itemInput *arena.Buffer, tools *batchEntityTools) (reps []byte, entryIncluded bool, err error) {
+func (l *Loader) renderEntryRepresentations(
+	entry *MultiEntityFetchEntry,
+	entryRes *result,
+	items []*astjson.Value,
+	itemInput *arena.Buffer,
+	tools *batchEntityTools,
+) (*renderEntryRepresentationsResult, error) {
 	repsBuf := arena.NewArenaBuffer(tools.a)
 	batchStats := arena.AllocateSlice[[]*astjson.Value](tools.a, 0, len(items))
 	batchItemIndex := 0
 	addSeparator := false
+
+	var responseCacheItemHashes []uint64
+
 	for i, item := range items {
 		itemInput.Reset()
-		err = entry.Representations.Render(l.ctx, item, itemInput)
+		err := entry.Representations.Render(l.ctx, item, itemInput)
 		if err != nil {
 			if entry.SkipErrItems {
-				err = nil //nolint:ineffassign,wastedassign
 				continue
 			}
-			return nil, false, errors.WithStack(err)
+			return nil, errors.WithStack(err)
 		}
 		if entry.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
 			continue
@@ -152,6 +225,10 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 		}
 		_, _ = itemInput.WriteTo(repsBuf)
 		tools.batchHashToIndex[itemHash] = batchItemIndex
+		if l.responseCacheEnabled() {
+			responseCacheItemHashes = append(responseCacheItemHashes, itemHash)
+		}
+
 		// The targets bucket must live on the arena: a heap bucket referenced
 		// only from arena memory could be collected while still in use.
 		bucket := arena.AllocateSlice[*astjson.Value](tools.a, 1, 1)
@@ -173,41 +250,187 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 
 	if len(entryRes.batchStats) == 0 {
 		entryRes.fetchSkipped = true
-		return nil, false, nil
+		return &renderEntryRepresentationsResult{
+			entryIncluded: false,
+		}, nil
 	}
-	return repsBuf.Bytes(), true, nil
+	return &renderEntryRepresentationsResult{
+		representationBuffer:     repsBuf.Bytes(),
+		representationItemHashes: responseCacheItemHashes,
+		entryIncluded:            true,
+	}, nil
 }
 
-// assembleMultiEntityInput writes the merged request body into one buffer:
+type assembleMultiEntityOptions struct {
+	fetch               *MultiEntityFetch
+	result              *result
+	included            []bool
+	representationBytes [][]byte
+}
+
+// assembleMultiEntityResult carries the assembled request body.
+//
+// In addition it carries the header, footer and entryVariables slices of out.
+// This is so that the response cache keys can be derived from the assembled request body.
+type assembleMultiEntityResult struct {
+	inputBuffer []byte
+
+	header         []byte
+	footer         []byte
+	entryVariables [][]byte
+}
+
+// assembleMultiEntity writes the merged request body into one buffer:
 // Header, then per entry "representations_fN":[<items or empty>],"includeFN":<bool>
-// plus that entry's other variables, then Footer.
-func (l *Loader) assembleMultiEntityInput(fetch *MultiEntityFetch, res *result, included []bool, repsBytes [][]byte) ([]byte, error) {
+// plus that entry's other variables, then Footer. The result carries the buffer
+// along with the parts of it a per-entry cache key is hashed from.
+func (l *Loader) assembleMultiEntity(opts *assembleMultiEntityOptions) (*assembleMultiEntityResult, error) {
+	if opts == nil {
+		return nil, errors.New("options are nil")
+	}
+
+	fetch := opts.fetch
+
 	buf := &bytes.Buffer{}
 	var undefined []string
 	if err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf, &undefined); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	scratch := arena.NewArenaBuffer(res.tools.a)
+
+	headerEnd := buf.Len()
+
+	// Additional variables besides the representations and include flags, the
+	// trailing pairs below. These are included in the response cache keys.
+	//
+	//   "representations_f1":[{...}],"includeF1":true,"foo_f1":"bar"
+	//                                                ^^^^^^^^^^^^^^^
+	variableBounds := make([][2]int, len(fetch.Input.Entries))
+
+	scratch := arena.NewArenaBuffer(opts.result.tools.a)
 	for k := range fetch.Input.Entries {
 		entry := &fetch.Input.Entries[k]
 		buf.Write(entry.RepresentationsPrefix)
-		if included[k] {
-			buf.Write(repsBytes[k])
+		if opts.included[k] {
+			buf.Write(opts.representationBytes[k])
 		}
 		buf.Write(entry.IncludePrefix)
-		if included[k] {
+		if opts.included[k] {
 			buf.WriteString("true")
 		} else {
 			buf.WriteString("false")
 		}
+		variableStart := buf.Len()
 		if err := l.renderEntryVariables(entry, buf, scratch); err != nil {
 			return nil, err
 		}
+		variableBounds[k] = [2]int{variableStart, buf.Len()}
 	}
+
+	footerStart := buf.Len()
+
 	if err := fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf, &undefined); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return buf.Bytes(), nil
+
+	rendered := buf.Bytes()
+	entryVariables := make([][]byte, len(variableBounds))
+	for i, bounds := range variableBounds {
+		entryVariables[i] = rendered[bounds[0]:bounds[1]]
+	}
+
+	return &assembleMultiEntityResult{
+		inputBuffer:    rendered,
+		header:         rendered[:headerEnd],
+		footer:         rendered[footerStart:],
+		entryVariables: entryVariables,
+	}, nil
+}
+
+// setResponseCacheKeys derives one key per unique representation of every entry
+// that renders representations. Each entry hashes its own slice of the request,
+// so warm entries can be recognised and switched off one at a time.
+func (l *Loader) setResponseCacheKeys(mulitEntries []preparedMultiEntry, assembled *assembleMultiEntityResult) {
+	if !l.responseCacheEnabled() {
+		return
+	}
+
+	for i := range mulitEntries {
+		multiEntry := &mulitEntries[i]
+		if len(multiEntry.representationItemHashes) == 0 {
+			continue
+		}
+		selectionHash := responseCacheEntrySelectionHash(
+			assembled.header,
+			multiEntry.entry.Alias,
+			assembled.entryVariables[i],
+			assembled.footer,
+		)
+		keys := make([]string, len(multiEntry.representationItemHashes))
+		for j, itemHash := range multiEntry.representationItemHashes {
+			keys[j] = caching.Key(itemHash, selectionHash)
+		}
+		multiEntry.responseCacheKeys = keys
+	}
+}
+
+// applyMultiEntityResponseCache resolves the response cache for a merged fetch:
+// it looks every included entry up, switches the warm ones off and rewrites the
+// request body around what is left. Reports whether the fetch is served whole.
+//
+// It runs in the load phase, not in prepare, because a cache round trip under
+// the data lock would hold up every fetch queued behind this one.
+func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *preparedFetch) (bool, error) {
+	assembly := prepared.multiAssembly
+	if assembly == nil || !l.responseCacheEnabled() {
+		return false, nil
+	}
+
+	if !l.multiEntityCacheLookup(prepared, assembly.included) {
+		return false, nil
+	}
+
+	// An entry the cache answered is not asked for again: dropping it from
+	// included is what renders its includeFN:false and empty representations.
+	for i := range prepared.multiEntries {
+		if prepared.multiEntries[i].cacheHit() {
+			assembly.included[i] = false
+		}
+	}
+
+	if !slices.Contains(assembly.included, true) {
+		// Every entry hit, so no request goes out and the body prepare assembled
+		// is never sent. The hooks still run, as they do for a cached single or
+		// batch fetch. res.out stays empty here, which is how the merge knows
+		// there is nothing to demux; it fills the body in for the hooks once the
+		// cached entities have been assembled into a document.
+		if l.ctx.LoaderHooks != nil {
+			prepared.res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, prepared.res.ds)
+		}
+		prepared.res.statusCode = http.StatusOK
+		prepared.res.responseCacheHit = true
+		prepared.res.responseCacheTTL = shortestCachedEntryTTL(prepared.multiEntries)
+		prepared.responseCacheHit = true
+		if prepared.trace != nil {
+			prepared.trace.LoadSkipped = true
+		}
+		return true, nil
+	}
+
+	// Some entries are still cold, so a request goes out after all: rebuild the
+	// body with the warm ones switched off, so the origin is asked for no more
+	// than what is missing.
+	assembled, err := l.assembleMultiEntity(&assembleMultiEntityOptions{
+		fetch:               assembly.fetch,
+		result:              prepared.res,
+		included:            assembly.included,
+		representationBytes: assembly.representationBytes,
+	})
+	if err != nil {
+		return false, err
+	}
+	prepared.input = assembled.inputBuffer
+
+	return false, nil
 }
 
 // renderEntryVariables appends the entry's non-representations variable pairs to
@@ -267,8 +490,8 @@ type multiEntryMergeConfig struct {
 }
 
 // mergeMultiEntityResult demuxes one merged subgraph response into its entries.
-// It runs under the data lock, like mergeResult. Transport-level failures fan
-// out per non-excluded entry so each renders today's unmerged guards; on the
+// It runs under the data lock, like mergeResult. A request that failed fans its
+// state out per sent entry so each renders today's unmerged guards; on the
 // parsed path each entry merges its aliased slice. Extensions are collected and
 // OnFinished fires exactly once for the single request.
 func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
@@ -279,32 +502,49 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 		return nil
 	}
 
-	response, transportFailure := l.parseMultiEntityResponse(res)
-	if transportFailure {
+	response, ok := l.parseMultiEntityResponse(res)
+	if !ok {
+		// Nothing to demux. Entries that were sent take the request's failure;
+		// entries the cache answered are unaffected and merge off a document
+		// built from what it held, which is also the path an entirely warm
+		// fetch takes, no request having been sent for it.
 		l.applyTransportStateToEntries(prepared)
+
+		cached, err := l.serveCachedEntriesWithoutResponse(prepared)
+		if err != nil {
+			return err
+		}
+		// Only when nothing was sent. A request that failed keeps its body,
+		// which is the one a hook wants to see.
+		if len(res.out) == 0 {
+			l.reportCachedResponseBody(prepared, cached)
+		}
 	} else {
 		if err := l.applyParsedResponseToEntries(prepared, response); err != nil {
 			return err
 		}
+		// What the subgraph sent is missing the aliases the cache answered.
+		l.reportCachedResponseBody(prepared, response)
 	}
 
 	return l.mergeEntryResults(prepared)
 }
 
-// parseMultiEntityResponse reports whether the merged request failed at the
-// transport level (error, auth/rate-limit rejection, empty or unparseable body)
-// and, when it did not, returns the response parsed once for all entries.
+// parseMultiEntityResponse returns the merged response, parsed once for all
+// entries. It reports false when there is nothing to demux: the request failed
+// (error, auth/rate-limit rejection, unparseable body), or none was sent at all
+// because every entry was served from the response cache.
 func (l *Loader) parseMultiEntityResponse(res *result) (*astjson.Value, bool) {
 	if res.err != nil || res.authorizationRejected || res.rateLimitRejected || len(res.out) == 0 {
-		return nil, true
+		return nil, false
 	}
 	response, parseErr := astjson.ParseBytesWithArena(l.jsonArena, res.out)
 	if parseErr != nil {
 		// Invalid body: fan out so each entry re-parses and renders today's
 		// guards. loadPhase recorded no errored fetch ID, so dependents still run.
-		return nil, true
+		return nil, false
 	}
-	return response, false
+	return response, true
 }
 
 // applyTransportStateToEntries copies the merged request's transport state onto
@@ -317,6 +557,11 @@ func (l *Loader) applyTransportStateToEntries(prepared *preparedFetch) {
 		entryRes := prepared.multiEntries[i].res
 		if entryRes.fetchSkipped {
 			// Excluded at prepare: never sent, so it gets no transport error.
+			continue
+		}
+		if prepared.multiEntries[i].cacheHit() {
+			// Answered from the cache and switched off in the request, so the
+			// request failing says nothing about it.
 			continue
 		}
 		entryRes.err = res.err
@@ -342,26 +587,119 @@ func (l *Loader) applyParsedResponseToEntries(prepared *preparedFetch, response 
 			l.subgraphExtensions = append(l.subgraphExtensions, extensions.GetObject())
 		}
 	}
-	entryErrors, err := l.partitionResponseErrors(prepared, response)
+	entryErrors, unmatchedErrors, err := l.partitionResponseErrors(prepared, response)
 	if err != nil {
 		return err
 	}
+
+	// If we have any errors that couldn't be matched to an alias, we can't cache the response.
+	if !unmatchedErrors {
+		// Collected off the response as the subgraph sent it, before the cached
+		// entities are written in.
+		l.responseCacheCollectMultiEntity(prepared, response, entryErrors)
+	}
+
+	if err := l.applyCachedEntriesToResponse(prepared, response); err != nil {
+		return err
+	}
+
 	for i := range prepared.multiEntries {
-		entry := prepared.multiEntries[i].entry
-		entryRes := prepared.multiEntries[i].res
-		entryRes.multi = &multiEntryMergeConfig{
-			alias:        entry.Alias,
-			originSingle: entry.OriginKind == EntityFetchOriginSingle,
-			info:         entry.Info,
-			response:     response,
-			errors:       entryErrors[i],
-		}
-		entryRes.statusCode = res.statusCode
-		entryRes.ds = res.ds
-		entryRes.out = res.out
-		entryRes.httpResponseContext = res.httpResponseContext
+		l.setEntryMergeConfig(prepared, i, response, entryErrors[i])
+		prepared.multiEntries[i].res.httpResponseContext = res.httpResponseContext
 	}
 	return nil
+}
+
+// setEntryMergeConfig points this entry's mergeResult at its aliased slice of
+// response, and copies over the transport state of the one merged request.
+func (l *Loader) setEntryMergeConfig(prepared *preparedFetch, i int, response, entryErrors *astjson.Value) {
+	res := prepared.res
+	entry := prepared.multiEntries[i].entry
+	entryRes := prepared.multiEntries[i].res
+	entryRes.multi = &multiEntryMergeConfig{
+		alias:        entry.Alias,
+		originSingle: entry.OriginKind == EntityFetchOriginSingle,
+		info:         entry.Info,
+		response:     response,
+		errors:       entryErrors,
+	}
+	entryRes.statusCode = res.statusCode
+	entryRes.ds = res.ds
+	entryRes.out = res.out
+}
+
+// applyCachedEntriesToResponse writes the entities a cache hit already answered
+// into response under that entry's alias — they have none of their own, having
+// been switched off in the request — so that nothing downstream of here can tell
+// a hit from a fetch.
+func (l *Loader) applyCachedEntriesToResponse(prepared *preparedFetch, response *astjson.Value) error {
+	for i := range prepared.multiEntries {
+		entry := &prepared.multiEntries[i]
+		if !entry.cacheHit() {
+			continue
+		}
+
+		entities := astjson.ArrayValue(l.jsonArena)
+		for _, value := range entry.cachedValues {
+			parsed, parseErr := astjson.ParseBytesWithArena(l.jsonArena, value)
+			if parseErr != nil {
+				return errors.WithStack(fmt.Errorf("cached entity for alias %s: %w", entry.entry.Alias, parseErr))
+			}
+			astjson.AppendToArray(l.jsonArena, entities, parsed)
+		}
+
+		data := response.Get("data")
+		if data == nil || data.Type() != astjson.TypeObject {
+			data = astjson.ObjectValue(l.jsonArena)
+			response.Set(l.jsonArena, "data", data)
+		}
+		data.Set(l.jsonArena, entry.entry.Alias, entities)
+	}
+	return nil
+}
+
+// serveCachedEntriesWithoutResponse merges the warm entries of a merged fetch
+// that has no response to read: the request failed, or none was sent because
+// every entry was warm. They are merged off a document built here, so a
+// subgraph being down does not throw away entities already in hand.
+func (l *Loader) serveCachedEntriesWithoutResponse(prepared *preparedFetch) (*astjson.Value, error) {
+	if !anyCachedEntry(prepared) {
+		return nil, nil
+	}
+
+	response := astjson.ObjectValue(l.jsonArena)
+	if err := l.applyCachedEntriesToResponse(prepared, response); err != nil {
+		return nil, err
+	}
+
+	for i := range prepared.multiEntries {
+		if !prepared.multiEntries[i].cacheHit() {
+			continue
+		}
+		l.setEntryMergeConfig(prepared, i, response, nil)
+		// Neither a failed request's status code nor its body says anything
+		// about an entry that was answered before it was sent.
+		prepared.multiEntries[i].res.statusCode = http.StatusOK
+		prepared.multiEntries[i].res.out = nil
+	}
+	return response, nil
+}
+
+// anyCachedEntry reports whether the response cache answered any entry.
+func anyCachedEntry(prepared *preparedFetch) bool {
+	return slices.ContainsFunc(prepared.multiEntries, func(e preparedMultiEntry) bool { return e.cacheHit() })
+}
+
+// reportCachedResponseBody hands the loader hooks the document the entries
+// merged from. Cached entities exist only as parsed values — on a full hit no
+// request was sent at all, and on a partial one they are absent from what the
+// subgraph returned — so without this a hook would read an empty or incomplete
+// body purely because the planner merged the fetches.
+func (l *Loader) reportCachedResponseBody(prepared *preparedFetch, response *astjson.Value) {
+	if l.ctx.LoaderHooks == nil || response == nil || !anyCachedEntry(prepared) {
+		return
+	}
+	prepared.res.out = response.MarshalTo(nil)
 }
 
 // mergeEntryResults runs the standard mergeResult for each entry, joins every
@@ -384,12 +722,13 @@ func (l *Loader) mergeEntryResults(prepared *preparedFetch) error {
 // partitionResponseErrors splits the shared response's top-level errors by
 // their leading path element: errors keyed by an entry alias are returned
 // aligned with prepared.multiEntries; the rest are merged once against the
-// parent multi fetch (empty response path).
-func (l *Loader) partitionResponseErrors(prepared *preparedFetch, response *astjson.Value) ([]*astjson.Value, error) {
+// parent multi fetch (empty response path) and reported as unmatched, since an
+// error belonging to no alias is a problem with the merged request as a whole.
+func (l *Loader) partitionResponseErrors(prepared *preparedFetch, response *astjson.Value) ([]*astjson.Value, bool, error) {
 	entryErrors := make([]*astjson.Value, len(prepared.multiEntries))
 	responseErrors := response.Get("errors")
 	if !astjson.ValueIsNonNull(responseErrors) || responseErrors.Type() != astjson.TypeArray {
-		return entryErrors, nil
+		return entryErrors, false, nil
 	}
 	aliasIndex := make(map[string]int, len(prepared.multiEntries))
 	for i := range prepared.multiEntries {
@@ -419,8 +758,9 @@ func (l *Loader) partitionResponseErrors(prepared *preparedFetch, response *astj
 	}
 	if unmatched != nil && len(unmatched.GetArray()) > 0 {
 		if err := l.mergeErrors(prepared.res, prepared.item, unmatched); err != nil {
-			return entryErrors, err
+			return entryErrors, true, err
 		}
+		return entryErrors, true, nil
 	}
-	return entryErrors, nil
+	return entryErrors, false, nil
 }

@@ -430,6 +430,15 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	if prepared.skipLoad {
 		return nil
 	}
+	// A merged fetch resolves its cache per entry, and that reshapes the request,
+	// so it happens here rather than on the whole-fetch path below.
+	if prepared.multiAssembly != nil {
+		if served, err := l.applyMultiEntityResponseCache(ctx, prepared); served || err != nil {
+			// If either every entry was warm or there was an error, we can return early.
+			return errors.WithStack(err)
+		}
+	}
+
 	if l.responseCacheLookup(prepared) {
 		// OnLoad is called before a fetch is executed.
 		// When we hit the response cache, we don't execute the fetch but we still want to call the hooks.
@@ -520,6 +529,11 @@ type preparedFetch struct {
 	responseCacheItems []caching.Item
 
 	multiEntries []preparedMultiEntry
+
+	// multiAssembly is set for a MultiEntityFetch whose request will be sent: the
+	// material the load phase needs to rebuild it once the response-cache lookup
+	// has switched the warm entries off.
+	multiAssembly *multiAssembly
 }
 
 func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
@@ -731,7 +745,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.fetchSkipped {
 		return nil
 	}
-	if len(res.out) == 0 {
+	// A multi entry served from the response cache has no bytes of its own: its
+	// entities are already in the document the parent handed it.
+	if len(res.out) == 0 && (res.multi == nil || res.multi.response == nil) {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
 	// astjson.ParseBytesWithArena copies bytes onto the arena internally,
@@ -1903,28 +1919,27 @@ WithNextItem:
 			if existingIndex, ok := res.tools.batchHashToIndex[itemHash]; ok {
 				batchStats[existingIndex] = arena.SliceAppend(res.tools.a, batchStats[existingIndex], items[i])
 				continue WithNextItem
-			} else {
-				if addSeparator {
-					err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
-					if err != nil {
-						return errors.WithStack(err)
-					}
-				}
-				_, _ = itemInput.WriteTo(preparedInput)
-				// new unique representation
-				res.tools.batchHashToIndex[itemHash] = batchItemIndex
-				if l.responseCacheEnabled() {
-					responseCacheItemHashes = append(responseCacheItemHashes, itemHash)
-				}
-				// A new targets bucket for the unique index must be allocated on the arena:
-				// a heap-allocated bucket would only be referenced from arena memory,
-				// so the GC could collect its backing array while it is still in use.
-				bucket := arena.AllocateSlice[*astjson.Value](res.tools.a, 1, 1)
-				bucket[0] = items[i]
-				batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
-				batchItemIndex++
-				addSeparator = true
 			}
+			if addSeparator {
+				err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
+			_, _ = itemInput.WriteTo(preparedInput)
+			// new unique representation
+			res.tools.batchHashToIndex[itemHash] = batchItemIndex
+			if l.responseCacheEnabled() {
+				responseCacheItemHashes = append(responseCacheItemHashes, itemHash)
+			}
+			// A new targets bucket for the unique index must be allocated on the arena:
+			// a heap-allocated bucket would only be referenced from arena memory,
+			// so the GC could collect its backing array while it is still in use.
+			bucket := arena.AllocateSlice[*astjson.Value](res.tools.a, 1, 1)
+			bucket[0] = items[i]
+			batchStats = arena.SliceAppend(res.tools.a, batchStats, bucket)
+			batchItemIndex++
+			addSeparator = true
 		}
 	}
 
