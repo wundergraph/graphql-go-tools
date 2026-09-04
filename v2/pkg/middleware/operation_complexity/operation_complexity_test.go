@@ -608,6 +608,53 @@ func runDepthTest(t *testing.T, operationString string, expectedStats OperationS
 	assert.Equal(t, expectedStats, rootFieldStats[0].Stats)
 }
 
+func TestOperationComplexityEstimatorReuseAfterAbortedWalk(t *testing.T) {
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	estimator := NewOperationComplexityEstimator(false)
+
+	invalidOperation := unsafeparser.ParseGraphqlDocumentString(`
+		{
+			users(first: 1) {
+				transactions(first: 1) {
+					sender {
+						address {
+							... on UnknownType {
+								city
+							}
+						}
+					}
+				}
+			}
+		}`)
+	invalidReport := operationreport.Report{}
+	estimator.Do(&invalidOperation, &definition, &invalidReport)
+	require.True(t, invalidReport.HasErrors())
+
+	operation := unsafeparser.ParseGraphqlDocumentString(`
+		{
+			users(first: 1) {
+				id
+				address {
+					city
+				}
+			}
+		}`)
+	normalizationReport := operationreport.Report{}
+	astnormalization.NormalizeOperation(&operation, &definition, &normalizationReport)
+	require.False(t, normalizationReport.HasErrors())
+
+	wantReport := operationreport.Report{}
+	wantGlobal, wantRootFields := NewOperationComplexityEstimator(false).Do(&operation, &definition, &wantReport)
+	require.False(t, wantReport.HasErrors())
+
+	gotReport := operationreport.Report{}
+	gotGlobal, gotRootFields := estimator.Do(&operation, &definition, &gotReport)
+	require.False(t, gotReport.HasErrors())
+
+	assert.Equal(t, wantGlobal, gotGlobal)
+	assert.Equal(t, wantRootFields, gotRootFields)
+}
+
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
