@@ -16,6 +16,7 @@ import (
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -977,4 +978,157 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T
 		{hit: false, ttl: 0},
 		{hit: true, ttl: 60 * time.Second},
 	}, load(t, cache, cached))
+}
+
+// TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHookBody pins that a
+// loader hook cannot tell a warm merged fetch from a fetched one by its body.
+// Cached entities exist only as parsed values, so without reporting the merged
+// document a hook would read an empty body on a full hit, and one missing the
+// warm aliases on a partial one — a difference caused by nothing but the planner
+// having merged the fetches.
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHookBody(t *testing.T) {
+	// load runs the merged tree and returns the body the hook saw for the merged
+	// fetch. The root fetch reports first, the merged one second, and the merged
+	// one is the only fetch here the response cache touches.
+	load := func(t *testing.T, cache *testCache, multiDS *recordingDataSource) string {
+		t.Helper()
+		ctx := multiEntityContext(t)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: 60 * time.Second,
+			OnError:    func(err error) { t.Errorf("response cache error: %v", err) },
+		})
+		var bodies []string
+		ctx.SetEngineLoaderHooks(&spyLoaderHooks{
+			onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
+				bodies = append(bodies, info.GetResponseBody())
+			},
+		})
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		response := multiEntityMergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			multiDS,
+		)
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		assertMergedErrors(t, loader, "")
+		require.Len(t, bodies, 2)
+		return bodies[1]
+	}
+
+	warmCache := func(t *testing.T) *testCache {
+		t.Helper()
+		cache := newTestCache()
+		fetched := load(t, cache, &recordingDataSource{
+			response:        []byte(multiEntityMergedResponse),
+			responseHeaders: cacheableHeaders(),
+		})
+		require.JSONEq(t, multiEntityMergedResponse, fetched, "a fetched merged response is reported as it arrived")
+		return cache
+	}
+
+	t.Run("a fully warm fetch reports the body of the fetch it stands in for", func(t *testing.T) {
+		cache := warmCache(t)
+
+		cached := &recordingDataSource{err: errors.New("subgraph must not be called")}
+		assert.JSONEq(t, multiEntityMergedResponse, load(t, cache, cached),
+			"no request went out, so the body is rebuilt from what the cache held")
+	})
+
+	t.Run("a partially warm fetch reports the warm aliases too", func(t *testing.T) {
+		cache := warmCache(t)
+
+		// Evict f2, leaving f1 warm and switched off in the request.
+		for key, item := range cache.items {
+			if bytes.Contains(item.Value, []byte("notes")) {
+				delete(cache.items, key)
+			}
+		}
+
+		partial := &recordingDataSource{
+			response:        []byte(`{"data":{"f2":[{"notes":"n"}]}}`),
+			responseHeaders: cacheableHeaders(),
+		}
+		assert.JSONEq(t, multiEntityMergedResponse, load(t, cache, partial),
+			"the subgraph answered only f2, but the hook sees what the entries merged from")
+	})
+
+	t.Run("a failed request keeps its own body", func(t *testing.T) {
+		cache := warmCache(t)
+		for key, item := range cache.items {
+			if bytes.Contains(item.Value, []byte("notes")) {
+				delete(cache.items, key)
+			}
+		}
+
+		// f1 is warm, but the request for f2 comes back broken. The failure is
+		// what a hook needs to see, so it is not replaced by the cached document.
+		ctx := multiEntityContext(t)
+		ctx.SetResponseCache(ResponseCacheOptions{Store: cache, DefaultTTL: 60 * time.Second})
+		var bodies []string
+		ctx.SetEngineLoaderHooks(&spyLoaderHooks{
+			onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
+				bodies = append(bodies, info.GetResponseBody())
+			},
+		})
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, multiEntityMergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			&recordingDataSource{response: []byte(`not json`), responseHeaders: cacheableHeaders()},
+		)))
+		require.Len(t, bodies, 2)
+		assert.Equal(t, `not json`, bodies[1])
+	})
+}
+
+// TestLoadGraphQLResponseData_MultiEntity_ResponseCacheTags pins that a merged
+// fetch does not index its entities under the tags the subgraph declared.
+// apolloEntityCacheTags is one flat list positional against a single _entities
+// field; a merged response has one field per alias and nothing says which alias
+// a list belongs to. Two entries answering the same number of entities would
+// each take the same tags, and invalidating the wrong entities is worse than
+// invalidating none.
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheTags(t *testing.T) {
+	// One entity per alias, so both entries match the single declared list and
+	// the misattribution would go unnoticed by any length check.
+	const rootResponse = `{"data":{"employees":[{"__typename":"Employee","id":1}],"employee":{"__typename":"Employee","id":9}}}`
+	const mergedResponse = `{"data":{` +
+		`"f1":[{"__typename":"Employee","products":["a"]}],` +
+		`"f2":[{"__typename":"Employee","notes":"n"}]},` +
+		`"extensions":{"apolloEntityCacheTags":[["tag-a"]]}}`
+
+	cache := newTestCache()
+	ctx := multiEntityContext(t)
+	ctx.SetResponseCache(ResponseCacheOptions{
+		Store:        cache,
+		DefaultTTL:   60 * time.Second,
+		OnError:      func(err error) { t.Errorf("response cache error: %v", err) },
+		Invalidation: DefaultResponseCacheTagIndexOptions(),
+	})
+
+	multi := twoEntryMultiFetch(multiEntityFirstVar())
+	multi.FetchID = 1
+	multi.DependsOnFetchIDs = []int{0}
+	multi.DataSource = &recordingDataSource{
+		response:        []byte(mergedResponse),
+		responseHeaders: cacheableHeaders(),
+	}
+	// Shared with both entries, and the name is what every tag is scoped by.
+	multi.Info.DataSourceName = "products"
+
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+	require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: Sequence(
+		Single(multiEntityRootFetch(&recordingDataSource{response: []byte(rootResponse)})),
+		Single(multi),
+	)}))
+	assertMergedErrors(t, loader, "")
+
+	require.Len(t, cache.items, 2, "one entity per alias")
+	for key, item := range cache.items {
+		assert.NotContains(t, item.Tags, caching.DeclaredTag("products", "tag-a"),
+			"a declared tag cannot be attributed to an alias, so no entity carries one: %s", key)
+		// The identities that do not depend on the response shape still apply,
+		// so a merged fetch keeps subgraph- and type-level invalidation.
+		assert.Contains(t, item.Tags, caching.SubgraphTag("products"), key)
+		assert.Contains(t, item.Tags, caching.TypeTag("products", "Employee"), key)
+	}
 }

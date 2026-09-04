@@ -400,8 +400,9 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 	if !slices.Contains(assembly.included, true) {
 		// Every entry hit, so no request goes out and the body prepare assembled
 		// is never sent. The hooks still run, as they do for a cached single or
-		// batch fetch, and res.out stays empty: the merge treats that as "no
-		// response" and each entry takes its cached entities.
+		// batch fetch. res.out stays empty here, which is how the merge knows
+		// there is nothing to demux; it fills the body in for the hooks once the
+		// cached entities have been assembled into a document.
 		if l.ctx.LoaderHooks != nil {
 			prepared.res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, prepared.res.ds)
 		}
@@ -509,13 +510,21 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 		// fetch takes, no request having been sent for it.
 		l.applyTransportStateToEntries(prepared)
 
-		if err := l.serveCachedEntriesWithoutResponse(prepared); err != nil {
+		cached, err := l.serveCachedEntriesWithoutResponse(prepared)
+		if err != nil {
 			return err
+		}
+		// Only when nothing was sent. A request that failed keeps its body,
+		// which is the one a hook wants to see.
+		if len(res.out) == 0 {
+			l.reportCachedResponseBody(prepared, cached)
 		}
 	} else {
 		if err := l.applyParsedResponseToEntries(prepared, response); err != nil {
 			return err
 		}
+		// What the subgraph sent is missing the aliases the cache answered.
+		l.reportCachedResponseBody(prepared, response)
 	}
 
 	return l.mergeEntryResults(prepared)
@@ -653,14 +662,14 @@ func (l *Loader) applyCachedEntriesToResponse(prepared *preparedFetch, response 
 // that has no response to read: the request failed, or none was sent because
 // every entry was warm. They are merged off a document built here, so a
 // subgraph being down does not throw away entities already in hand.
-func (l *Loader) serveCachedEntriesWithoutResponse(prepared *preparedFetch) error {
-	if !slices.ContainsFunc(prepared.multiEntries, func(e preparedMultiEntry) bool { return e.cacheHit() }) {
-		return nil
+func (l *Loader) serveCachedEntriesWithoutResponse(prepared *preparedFetch) (*astjson.Value, error) {
+	if !anyCachedEntry(prepared) {
+		return nil, nil
 	}
 
 	response := astjson.ObjectValue(l.jsonArena)
 	if err := l.applyCachedEntriesToResponse(prepared, response); err != nil {
-		return err
+		return nil, err
 	}
 
 	for i := range prepared.multiEntries {
@@ -673,7 +682,24 @@ func (l *Loader) serveCachedEntriesWithoutResponse(prepared *preparedFetch) erro
 		prepared.multiEntries[i].res.statusCode = http.StatusOK
 		prepared.multiEntries[i].res.out = nil
 	}
-	return nil
+	return response, nil
+}
+
+// anyCachedEntry reports whether the response cache answered any entry.
+func anyCachedEntry(prepared *preparedFetch) bool {
+	return slices.ContainsFunc(prepared.multiEntries, func(e preparedMultiEntry) bool { return e.cacheHit() })
+}
+
+// reportCachedResponseBody hands the loader hooks the document the entries
+// merged from. Cached entities exist only as parsed values — on a full hit no
+// request was sent at all, and on a partial one they are absent from what the
+// subgraph returned — so without this a hook would read an empty or incomplete
+// body purely because the planner merged the fetches.
+func (l *Loader) reportCachedResponseBody(prepared *preparedFetch, response *astjson.Value) {
+	if l.ctx.LoaderHooks == nil || response == nil || !anyCachedEntry(prepared) {
+		return
+	}
+	prepared.res.out = response.MarshalTo(nil)
 }
 
 // mergeEntryResults runs the standard mergeResult for each entry, joins every

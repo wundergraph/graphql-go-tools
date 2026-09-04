@@ -411,14 +411,6 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 			continue
 		}
 
-		subgraph := prepared.res.ds.Name
-		invalidation := l.ctx.responseCache.invalidation
-
-		var declared [][]string
-		if invalidation.CacheTag {
-			declared = responseCacheTags(response, len(values), false)
-		}
-
 		for j, value := range values {
 			if value.Type() != astjson.TypeObject {
 				continue
@@ -429,16 +421,13 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 				TTL:   ttl,
 			}
 
-			if invalidation.any() {
-				var declaredForValue []string
-				if len(declared) > 0 {
-					declaredForValue = declared[j]
-				}
-
+			if invalidation := l.ctx.responseCache.invalidation; invalidation.any() {
+				// Declared tags are left out: apolloEntityCacheTags is one flat
+				// list with no alias to attribute it to, so entries would take
+				// each other's tags. Subgraph and type identities still apply.
 				item.Tags = responseCacheTagIdentities(responseCacheTagInput{
-					declared:    declaredForValue,
 					value:       value,
-					subgraph:    subgraph,
+					subgraph:    prepared.res.ds.Name,
 					isRootFetch: prepared.isRootFetchCache,
 					opts:        invalidation,
 				})
