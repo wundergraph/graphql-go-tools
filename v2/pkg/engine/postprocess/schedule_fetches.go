@@ -70,7 +70,7 @@ func newFetchDAG(nodes []*resolve.FetchTreeNode) (*fetchDAG, error) {
 		if node == nil || node.Item == nil || node.Item.Fetch == nil {
 			return nil, fmt.Errorf("non-single node in flat fetch sequence")
 		}
-		id := node.Item.Fetch.Dependencies().FetchID
+		id := node.FetchID()
 		if _, exists := dag.nodes[id]; exists {
 			return nil, fmt.Errorf("duplicate fetch id %d", id)
 		}
@@ -99,7 +99,7 @@ func buildScheduleTree(roots []*resolve.FetchTreeNode, dag *fetchDAG) (*resolve.
 		if root == nil || root.Item == nil || root.Item.Fetch == nil {
 			continue
 		}
-		ids = append(ids, root.Item.Fetch.Dependencies().FetchID)
+		ids = append(ids, root.FetchID())
 	}
 	// Pick the best strategy on the top level for weakly connected trees.
 	components := weaklyConnectedComponents(sortedCopy(ids), dag)
@@ -292,7 +292,7 @@ func treePredecessors(root *resolve.FetchTreeNode) map[int]map[int]struct{} {
 		}
 		switch node.Kind {
 		case resolve.FetchTreeNodeKindSingle:
-			id := node.Item.Fetch.Dependencies().FetchID
+			id := node.FetchID()
 			set := make(map[int]struct{}, len(before))
 			for k := range before {
 				set[k] = struct{}{}
@@ -339,7 +339,7 @@ func validateSchedule(root *resolve.FetchTreeNode, dag *fetchDAG) error {
 		}
 		switch node.Kind {
 		case resolve.FetchTreeNodeKindSingle:
-			id := node.Item.Fetch.Dependencies().FetchID
+			id := node.FetchID()
 			if _, ok := dag.nodes[id]; !ok {
 				return nil, fmt.Errorf("fetch %d not found in dag", id)
 			}
@@ -478,7 +478,7 @@ func minReachableFetchID(node *resolve.FetchTreeNode) int {
 		return minID
 	}
 	if node.Kind == resolve.FetchTreeNodeKindSingle {
-		return node.Item.Fetch.Dependencies().FetchID
+		return node.FetchID()
 	}
 	for _, child := range node.ChildNodes {
 		if childMin := minReachableFetchID(child); childMin < minID {
