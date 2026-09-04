@@ -435,7 +435,6 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	if prepared.multiAssembly != nil {
 		if served, err := l.applyMultiEntityResponseCache(ctx, prepared); served || err != nil {
 			// If either every entry was warm or there was an error, we can return early.
-			// errors.WithStack() returns nil if the error is nil.
 			return errors.WithStack(err)
 		}
 	}

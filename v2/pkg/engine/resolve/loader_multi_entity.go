@@ -41,7 +41,7 @@ type preparedMultiEntry struct {
 
 // cacheHit reports whether this entry was answered entirely from the response
 // cache, in which case it was switched off in the merged request.
-func (e *preparedMultiEntry) cacheHit() bool { return e.cachedValues != nil }
+func (e *preparedMultiEntry) cacheHit() bool { return len(e.cachedValues) > 0 }
 
 // multiAssembly is what the load phase needs to rebuild the merged request
 // after the response-cache lookup switches warm entries off.
@@ -120,7 +120,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 		res.fetchSkipped = true
 		prepared.skipLoad = true
 		if l.ctx.TracingOptions.Enable {
-			l.setTracingInput(fetchItem, assembled.out, fetch.Trace)
+			l.setTracingInput(fetchItem, assembled.inputBuffer, fetch.Trace)
 		}
 		return nil
 	}
@@ -129,7 +129,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	// the load phase asks for. The lookup itself stays out of the lock.
 	l.setResponseCacheKeys(entries, assembled)
 
-	allowed, err := l.rateLimitFetch(assembled.out, fetch.Info, res)
+	allowed, err := l.rateLimitFetch(assembled.inputBuffer, fetch.Info, res)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	}
 
 	prepared.source = fetch.DataSource
-	prepared.input = assembled.out
+	prepared.input = assembled.inputBuffer
 	prepared.multiAssembly = &multiAssembly{
 		fetch:               fetch,
 		included:            included,
@@ -196,7 +196,7 @@ func (l *Loader) renderEntryRepresentations(
 	batchItemIndex := 0
 	addSeparator := false
 
-	responseCacheItemHashes := make([]uint64, 0, len(items))
+	var responseCacheItemHashes []uint64
 
 	for i, item := range items {
 		itemInput.Reset()
@@ -273,7 +273,7 @@ type assembleMultiEntityOptions struct {
 // In addition it carries the header, footer and entryVariables slices of out.
 // This is so that the response cache keys can be derived from the assembled request body.
 type assembleMultiEntityResult struct {
-	out []byte
+	inputBuffer []byte
 
 	header         []byte
 	footer         []byte
@@ -339,7 +339,7 @@ func (l *Loader) assembleMultiEntity(opts *assembleMultiEntityOptions) (*assembl
 	}
 
 	return &assembleMultiEntityResult{
-		out:            rendered,
+		inputBuffer:    rendered,
 		header:         rendered[:headerEnd],
 		footer:         rendered[footerStart:],
 		entryVariables: entryVariables,
@@ -427,7 +427,7 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 	if err != nil {
 		return false, err
 	}
-	prepared.input = assembled.out
+	prepared.input = assembled.inputBuffer
 
 	return false, nil
 }
