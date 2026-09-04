@@ -697,9 +697,22 @@ union Result = ResultSuccess | Failure
 type ResultSuccess { result: Record }
 type Failure { message: String }
 
-interface Record { pathA(input: RootInput): PathA alternateOne: AlternateOne }
-type BasicRecord implements Record { pathA(input: RootInput): PathA alternateOne: AlternateOne }
-type ExtendedRecord implements Record { pathA(input: RootInput): PathA alternateOne: AlternateOne sideLeaf: String branchOne: BranchOne }
+interface Record {
+  pathA(input: RootInput): PathA
+  alternateOne: AlternateOne
+}
+
+type BasicRecord implements Record {
+  pathA(input: RootInput): PathA
+  alternateOne: AlternateOne
+}
+
+type ExtendedRecord implements Record {
+  pathA(input: RootInput): PathA
+  alternateOne: AlternateOne
+  sideLeaf: String
+  branchOne: BranchOne
+}
 
 type PathA { pathB: PathB }
 union PathB = PathBDetails | Failure
@@ -712,8 +725,17 @@ type PathF { pathG: PathG }
 type PathG { leaf(input: RootInput): String }
 
 type BranchOne { branchTwo: BranchTwo }
-type BranchTwo { branchLeaf: String branchThree: [BranchThree!] }
-type BranchThree { branchLeaf: String branchFour: [BranchFour!] }
+
+type BranchTwo {
+  branchLeaf: String
+  branchThree: [BranchThree!]
+}
+
+type BranchThree {
+  branchLeaf: String
+  branchFour: [BranchFour!]
+}
+
 type BranchFour { branchLeaf: String }
 
 type AlternateOne { alternateTwo: AlternateTwo }
