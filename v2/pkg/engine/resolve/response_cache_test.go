@@ -391,6 +391,8 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 // hands to SetMany is what the store will be asked to index, so this covers the
 // whole path from the extension a subgraph wrote to the tags on an item.
 func TestResponseCacheCollectTags(t *testing.T) {
+	t.Parallel()
+
 	newLoader := func(t *testing.T, body string, opts ResponseCacheTagIndexOptions) (*Loader, *result) {
 		t.Helper()
 
@@ -406,7 +408,8 @@ func TestResponseCacheCollectTags(t *testing.T) {
 			statusCode: http.StatusOK,
 			httpResponseContext: &httpclient.ResponseContext{
 				Response: &http.Response{
-					Header: http.Header{"Cache-Control": []string{"public, max-age=60"}},
+					// An explicit freshness lifetime is cacheable without public.
+					Header: http.Header{"Cache-Control": []string{"max-age=60"}},
 				},
 			},
 		}
@@ -500,7 +503,9 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		require.Equal(t, []string{"declared:accounts:user-7"}, items[1].Tags)
 	})
 
-	t.Run("a response with no tags is cached exactly as it was before", func(t *testing.T) {
+	t.Run("max-age without public is cached when the response has no tags", func(t *testing.T) {
+		t.Parallel()
+
 		body := `{"data": {"_entities": [{"id": 42}]}}`
 		items := collect(t, body, []string{"k-42"}, declaredOnly)
 
