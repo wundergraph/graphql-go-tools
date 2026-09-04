@@ -101,6 +101,7 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	n.visitor.multipliers = n.visitor.multipliers[:0]
 
 	n.visitor.fieldDepth = 0
+	n.visitor.maxRootFieldDepth = 0
 
 	if n.visitor.calculatedRootFieldStats == nil {
 		n.visitor.calculatedRootFieldStats = make([]RootFieldStats, 0, len(definition.RootOperationTypeDefinitions))
