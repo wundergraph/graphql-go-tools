@@ -2,7 +2,13 @@ name: v2-ci
 on:
   pull_request:
     paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'go.work.sum'
       - 'v2/**'
+      - 'execution/**'
+      - 'examples/**'
       - '.github/workflows/v2.yml'
       - '.github/workflows/pr-title.yml'
       - '.github/workflows/release.yml'
@@ -15,7 +21,13 @@ on:
     branches:
       - master
     paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'go.work.sum'
       - 'v2/**'
+      - 'execution/**'
+      - 'examples/**'
       - '.github/workflows/v2.yml'
       - '.github/workflows/pr-title.yml'
       - '.github/workflows/release.yml'
@@ -74,11 +86,33 @@ jobs:
           working-directory: v2
           version: ${{ steps.golangci-lint-version.outputs.version }}
           args: --timeout=3m
+
+  check-generated:
+    name: Check generated files and module metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '^1.25'
+      - name: Check generated files and module metadata
+        run: |
+          make -C v2 generate
+          if test -n "$(git status --porcelain)"; then
+            git status --short
+            git diff
+            echo "::error::Generated files or module metadata are stale. Run 'make -C v2 generate' and commit the result."
+            exit 1
+          fi
+
   ci:
     name: CI Success
     if: ${{ always() }}
     runs-on: ubuntu-latest
-    needs: [test, lint]
+    needs: [test, lint, check-generated]
     steps:
       - run: exit 1
         if: >-
