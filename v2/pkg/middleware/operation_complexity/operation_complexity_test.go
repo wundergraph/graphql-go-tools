@@ -497,6 +497,117 @@ func TestCalculateOperationComplexity(t *testing.T) {
 	})
 }
 
+func TestCalculateOperationComplexityDepth(t *testing.T) {
+	t.Run("deep path", func(t *testing.T) {
+		runDepthTest(t, `{
+			root {
+				... on Concrete {
+					next {
+						... on Concrete {
+							next { leaf }
+						}
+					}
+				}
+			}
+		}`, OperationStats{NodeCount: 3, Complexity: 3, Depth: 4})
+	})
+
+	t.Run("two shallower siblings", func(t *testing.T) {
+		runDepthTest(t, `{
+			root {
+				... on Concrete {
+					branchA { next { leaf } }
+					branchB { leaf }
+					next { next { next { leaf } } }
+				}
+			}
+		}`, OperationStats{NodeCount: 7, Complexity: 7, Depth: 5})
+	})
+
+	t.Run("one shallower sibling", func(t *testing.T) {
+		runDepthTest(t, `{
+			root {
+				... on Concrete {
+					branchB { leaf }
+					next { next { next { leaf } } }
+				}
+			}
+		}`, OperationStats{NodeCount: 5, Complexity: 5, Depth: 5})
+	})
+
+	t.Run("complex input literal on root field", func(t *testing.T) {
+		runDepthTest(t,
+			`{ root(input: {key: "value"}) { next { leaf } } }`,
+			OperationStats{NodeCount: 2, Complexity: 2, Depth: 3},
+		)
+	})
+
+	t.Run("complex input literal on nested field", func(t *testing.T) {
+		runDepthTest(t,
+			`{ root { next(input: {key: "value"}) { next { leaf } } } }`,
+			OperationStats{NodeCount: 3, Complexity: 3, Depth: 4},
+		)
+	})
+
+	t.Run("complex input literal on leaf field", func(t *testing.T) {
+		runDepthTest(t,
+			`{ root { next { leaf(input: {key: "value"}) } } }`,
+			OperationStats{NodeCount: 2, Complexity: 2, Depth: 3},
+		)
+	})
+
+	t.Run("complex input literal on field inside inline fragment", func(t *testing.T) {
+		runDepthTest(t, `{
+			root {
+				... on Concrete {
+					next(input: {key: "value"}) { next { leaf } }
+				}
+			}
+		}`, OperationStats{NodeCount: 3, Complexity: 3, Depth: 4})
+	})
+}
+
+func TestCalculateOperationComplexityDepthWithRootMultiplier(t *testing.T) {
+	t.Parallel()
+
+	runDepthTest(t, `{
+		root(first: 2) {
+			... on Concrete {
+				next { leaf }
+			}
+		}
+	}`, OperationStats{NodeCount: 4, Complexity: 3, Depth: 3})
+}
+
+func TestCalculateOperationComplexityDepthWithStackedMultipliers(t *testing.T) {
+	t.Parallel()
+
+	runDepthTest(t, `{
+		root(first: 2) {
+			... on Concrete {
+				next(input: {key: "value"}, first: 3) { next { leaf } }
+			}
+		}
+	}`, OperationStats{NodeCount: 14, Complexity: 9, Depth: 4})
+}
+
+func runDepthTest(t *testing.T, operationString string, expectedStats OperationStats) {
+	t.Helper()
+
+	definition := unsafeparser.ParseGraphqlDocumentString(depthRegressionDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(operationString)
+	report := operationreport.Report{}
+
+	astnormalization.NormalizeOperation(&operation, &definition, &report)
+	stats, rootFieldStats := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+
+	require.False(t, report.HasErrors(), report.Error())
+	assert.Equal(t, expectedStats, stats)
+	require.Len(t, rootFieldStats, 1)
+	expectedStats.Depth--
+	assert.Equal(t, expectedStats, rootFieldStats[0].Stats)
+}
+
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -581,6 +692,33 @@ const complexQuery = `
 	}
   }
 }`
+
+const depthRegressionDefinition = `
+directive @nodeCountMultiply on ARGUMENT_DEFINITION
+
+scalar String
+
+schema { query: Query }
+
+input RootInput { key: String }
+type Query {
+  root(input: RootInput, first: Int @nodeCountMultiply): Node
+}
+
+interface Node {
+  next(input: RootInput, first: Int @nodeCountMultiply): Node
+  leaf(input: RootInput): String
+  branchA: Node
+  branchB: Node
+}
+
+type Concrete implements Node {
+  next(input: RootInput, first: Int @nodeCountMultiply): Node
+  leaf(input: RootInput): String
+  branchA: Node
+  branchB: Node
+}
+`
 
 const testDefinition = `
 
