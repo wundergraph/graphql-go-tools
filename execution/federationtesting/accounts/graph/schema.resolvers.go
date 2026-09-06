@@ -211,6 +211,19 @@ func (r *queryResolver) SomeNestedInterfaces(ctx context.Context) ([]model.SomeN
 	}, nil
 }
 
+// ProductA is the resolver for the productA field.
+func (r *queryResolver) ProductA(ctx context.Context) (*model.ProductA, error) {
+	return &model.ProductA{
+		ID: "p111",
+		Category: &model.Category{
+			ID: "c111",
+			Owner: &model.Owner{
+				Name: "owner",
+			},
+		},
+	}, nil
+}
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
