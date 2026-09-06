@@ -1,0 +1,20 @@
+{
+  __type(name: "User") {
+    name
+    kind
+    fields {
+      name
+      type {
+        kind
+        name
+        ofType {
+          kind
+          name
+          fields {
+            name
+          }
+        }
+      }
+    }
+  }
+}
