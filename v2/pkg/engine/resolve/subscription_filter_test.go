@@ -932,3 +932,190 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.Equal(t, false, skip)
 	})
 }
+
+func TestSubscriptionFieldFilterBypassIfValuesNull(t *testing.T) {
+	variableValue := func(path ...string) InputTemplate {
+		return InputTemplate{
+			Segments: []TemplateSegment{
+				{
+					SegmentType:        VariableSegmentType,
+					VariableKind:       ContextVariableKind,
+					VariableSourcePath: path,
+					Renderer:           NewPlainVariableRenderer(),
+				},
+			},
+		}
+	}
+
+	multiSegmentValue := func(path ...string) InputTemplate {
+		return InputTemplate{
+			Segments: []TemplateSegment{
+				{
+					SegmentType:        VariableSegmentType,
+					VariableKind:       ContextVariableKind,
+					VariableSourcePath: path,
+					Renderer:           NewPlainVariableRenderer(),
+				},
+				{
+					SegmentType: StaticSegmentType,
+					Data:        []byte(`-suffix`),
+				},
+			},
+		}
+	}
+
+	staticValue := func(value string) InputTemplate {
+		return InputTemplate{
+			Segments: []TemplateSegment{
+				{
+					SegmentType: StaticSegmentType,
+					Data:        []byte(value),
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name               string
+		bypassIfValuesNull bool
+		variables          string
+		data               string
+		values             []InputTemplate
+		expectedSkip       bool
+	}{
+		{
+			name:         "flag false variable absent skips",
+			variables:    `{}`,
+			data:         `{"productName":"foo"}`,
+			values:       []InputTemplate{variableValue("args", "x")},
+			expectedSkip: true,
+		},
+		{
+			name:         "flag false variable explicit null matches event null",
+			variables:    `{"args":{"x":null}}`,
+			data:         `{"productName":null}`,
+			values:       []InputTemplate{variableValue("args", "x")},
+			expectedSkip: false,
+		},
+		{
+			name:         "flag false variable explicit null skips non-null event",
+			variables:    `{"args":{"x":null}}`,
+			data:         `{"productName":"foo"}`,
+			values:       []InputTemplate{variableValue("args", "x")},
+			expectedSkip: true,
+		},
+		{
+			name:               "flag true variable absent bypasses when event field exists",
+			bypassIfValuesNull: true,
+			variables:          `{}`,
+			data:               `{"productName":"foo"}`,
+			values:             []InputTemplate{variableValue("args", "x")},
+			expectedSkip:       false,
+		},
+		{
+			name:               "flag true variable absent bypasses before event lookup",
+			bypassIfValuesNull: true,
+			variables:          `{}`,
+			data:               `{"other":"foo"}`,
+			values:             []InputTemplate{variableValue("args", "x")},
+			expectedSkip:       false,
+		},
+		{
+			name:               "flag true variable explicit null bypasses",
+			bypassIfValuesNull: true,
+			variables:          `{"args":{"x":null}}`,
+			data:               `{"productName":"foo"}`,
+			values:             []InputTemplate{variableValue("args", "x")},
+			expectedSkip:       false,
+		},
+		{
+			name:               "flag true variable value matches",
+			bypassIfValuesNull: true,
+			variables:          `{"args":{"x":"foo"}}`,
+			data:               `{"productName":"foo"}`,
+			values:             []InputTemplate{variableValue("args", "x")},
+			expectedSkip:       false,
+		},
+		{
+			name:               "flag true variable value mismatches",
+			bypassIfValuesNull: true,
+			variables:          `{"args":{"x":"foo"}}`,
+			data:               `{"productName":"bar"}`,
+			values:             []InputTemplate{variableValue("args", "x")},
+			expectedSkip:       true,
+		},
+		{
+			name:               "flag true multi-segment value with nil variable does not bypass",
+			bypassIfValuesNull: true,
+			variables:          `{}`,
+			data:               `{"productName":"bar"}`,
+			values:             []InputTemplate{multiSegmentValue("args", "a")},
+			expectedSkip:       true,
+		},
+		{
+			name:               "flag true empty array variable does not bypass",
+			bypassIfValuesNull: true,
+			variables:          `{"args":{"x":[]}}`,
+			data:               `{"productName":"foo"}`,
+			values:             []InputTemplate{variableValue("args", "x")},
+			expectedSkip:       true,
+		},
+		{
+			name:               "flag true array variable matches element",
+			bypassIfValuesNull: true,
+			variables:          `{"args":{"x":["foo","bar"]}}`,
+			data:               `{"productName":"bar"}`,
+			values:             []InputTemplate{variableValue("args", "x")},
+			expectedSkip:       false,
+		},
+		{
+			name:               "flag true array containing null does not bypass",
+			bypassIfValuesNull: true,
+			variables:          `{"args":{"x":[null]}}`,
+			data:               `{"productName":"foo"}`,
+			values:             []InputTemplate{variableValue("args", "x")},
+			expectedSkip:       true,
+		},
+		{
+			name:               "flag true mixed values bypass on null variable",
+			bypassIfValuesNull: true,
+			variables:          `{"args":{"x":null}}`,
+			data:               `{"productName":"bar"}`,
+			values:             []InputTemplate{staticValue(`"static"`), variableValue("args", "x")},
+			expectedSkip:       false,
+		},
+		{
+			name:               "flag true static-only value matches as before",
+			bypassIfValuesNull: true,
+			variables:          `{}`,
+			data:               `{"productName":"foo"}`,
+			values:             []InputTemplate{staticValue(`"foo"`)},
+			expectedSkip:       false,
+		},
+		{
+			name:               "flag true static-only value mismatches as before",
+			bypassIfValuesNull: true,
+			variables:          `{}`,
+			data:               `{"productName":"bar"}`,
+			values:             []InputTemplate{staticValue(`"foo"`)},
+			expectedSkip:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := &SubscriptionFieldFilter{
+				FieldPath:          []string{"productName"},
+				Values:             tt.values,
+				BypassIfValuesNull: tt.bypassIfValuesNull,
+			}
+			c := &Context{
+				Variables: astjson.MustParseBytes([]byte(tt.variables)),
+			}
+			skip, err := filter.SkipEvent(c, []byte(tt.data))
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedSkip, skip)
+		})
+	}
+}
