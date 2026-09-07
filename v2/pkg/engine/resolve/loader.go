@@ -327,6 +327,8 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 }
 
 func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
+	// A subscription resolves once per event on one Context; each starts over.
+	ctx.setResponseCacheHeaderTags(nil)
 	l.errors = nil
 	l.skipValueCompletion = false
 	l.subgraphErrors = nil

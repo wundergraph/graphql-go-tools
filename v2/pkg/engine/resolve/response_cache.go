@@ -116,11 +116,11 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 
 // foundHeaderTags unions what the hit entries were stored with.
 func foundHeaderTags(found map[string]caching.Item, keys []string) []string {
-	var headerTags []string
+	lists := make([][]string, 0, len(keys))
 	for _, key := range keys {
-		headerTags = caching.MergeHeaderTags(headerTags, found[key].HeaderTags)
+		lists = append(lists, found[key].HeaderTags)
 	}
-	return headerTags
+	return caching.MergeHeaderTags(nil, lists...)
 }
 
 // remainingTTL is the shortest life left across a fetch's entries: a fetch is only
@@ -197,7 +197,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
 	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
-	var headerTags []string
+	headerTagLists := make([][]string, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
@@ -221,12 +221,12 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			opts:        invalidation,
 		}
 		item.Tags, item.HeaderTags = responseCacheIdentities(input)
-		headerTags = caching.MergeHeaderTags(headerTags, item.HeaderTags)
+		headerTagLists = append(headerTagLists, item.HeaderTags)
 		items = append(items, item)
 	}
 
 	prepared.responseCacheItems = items
-	prepared.res.responseCacheHeaderTags = headerTags
+	prepared.res.responseCacheHeaderTags = caching.MergeHeaderTags(nil, headerTagLists...)
 	return nil
 }
 
@@ -302,6 +302,7 @@ func responseCacheTagList(list *astjson.Value) []string {
 	}
 
 	parsed := make([]string, 0, len(values))
+	total := 0
 	for _, value := range values {
 		if value.Type() != astjson.TypeString {
 			continue
@@ -310,6 +311,11 @@ func responseCacheTagList(list *astjson.Value) []string {
 		// Empty is meaningless; over long is a key name the subgraph sized.
 		if tag == "" || len(tag) > maxResponseCacheTagLength {
 			continue
+		}
+		// Stored with every entry and merged per request, so bounded as a whole
+		// as well as per tag. Rejected outright, like the count.
+		if total += len(tag); total > maxResponseCacheTagBytesPerValue {
+			return nil
 		}
 		parsed = append(parsed, tag)
 	}
@@ -331,14 +337,9 @@ type responseCacheTagInput struct {
 	opts        ResponseCacheTagIndexOptions
 }
 
-// responseCacheIdentities is what one value is stored under. Tags name the
-// indexes and follow the options; header tags go to the client and carry every
-// tier, since the header is only right if it is complete.
+// responseCacheIdentities: tags follow the index options, header tags carry
+// every tier.
 func responseCacheIdentities(input responseCacheTagInput) (tags, headerTags []string) {
-	if input.subgraph == "" {
-		return nil, nil
-	}
-
 	headerTags = make([]string, 0, len(input.declared)+2)
 	headerTags = append(headerTags, caching.SubgraphHeaderTag(input.subgraph))
 
@@ -411,8 +412,9 @@ func responseCacheHeaders(res *result) http.Header {
 }
 
 const (
-	maxResponseCacheTagsPerValue = 10_000
-	maxResponseCacheTagLength    = 10_000
+	maxResponseCacheTagsPerValue     = 10_000
+	maxResponseCacheTagLength        = 10_000
+	maxResponseCacheTagBytesPerValue = 256 * 1024
 )
 
 // Where a subgraph attaches its cache tags.

@@ -42,10 +42,9 @@ func DecodeEntry(b []byte) (value []byte, headerTags []string, err error) {
 	}
 	rest = rest[n:]
 
-	if count > 0 {
-		headerTags = make([]string, 0, count)
-	}
-	for i := uint64(0); i < count; i++ {
+	// Not sized from count: it is the entry's own claim, not yet checked
+	// against its length prefixes.
+	for range count {
 		size, n := binary.Uvarint(rest)
 		if n <= 0 || size > uint64(len(rest)-n) {
 			return nil, nil, ErrEntryFormat

@@ -220,6 +220,34 @@ func TestResponseCacheTags(t *testing.T) {
 		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2, false))
 	})
 
+	// Tags under the per tag limit, enough of them to reach the per value one.
+	const budgetTag = 8 * 1024
+	budgetTags := func(n int) string {
+		tags := make([]string, 0, n)
+		for i := range n {
+			tags = append(tags, fmt.Sprintf("%q", strings.Repeat(string(rune('a'+i%26)), budgetTag)))
+		}
+		return strings.Join(tags, ",")
+	}
+
+	t.Run("a value at maxResponseCacheTagBytesPerValue is kept whole", func(t *testing.T) {
+		n := maxResponseCacheTagBytesPerValue / budgetTag
+		response := parse(t, fmt.Sprintf(
+			`{"extensions":{"apolloEntityCacheTags":[[%s]]}}`, budgetTags(n)))
+
+		got := responseCacheTags(response, 1, false)
+		require.Len(t, got, 1)
+		require.Len(t, got[0], n)
+	})
+
+	t.Run("a value over the byte cap is rejected, not truncated", func(t *testing.T) {
+		n := maxResponseCacheTagBytesPerValue / budgetTag
+		response := parse(t, fmt.Sprintf(
+			`{"extensions":{"apolloEntityCacheTags":[[%s,"x"],["c"]]}}`, budgetTags(n)))
+
+		require.Equal(t, [][]string{nil, {"c"}}, responseCacheTags(response, 2, false))
+	})
+
 	t.Run("an object where the array should be is not tags", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":{"users":["user-42"]}}}`)
 		require.Empty(t, responseCacheTags(response, 1, false))
@@ -354,20 +382,6 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 				isRootFetch: true,
 				opts:        all,
 			}))
-	})
-
-	t.Run("an unnamed subgraph is not indexed at all", func(t *testing.T) {
-		// Every identity is scoped by the subgraph that answered, so without a
-		// name there is no scope to file the entry under. Indexing it unscoped
-		// would put it where another subgraph's invalidation could reach it,
-		// which is worse than not indexing it: the entry still expires on its
-		// own TTL either way.
-		require.Empty(t, tagsOf(responseCacheTagInput{
-			declared: []string{"users"},
-			value:    entity(t),
-			subgraph: "",
-			opts:     all,
-		}))
 	})
 
 	t.Run("nothing to index at all yields no tags", func(t *testing.T) {
@@ -642,8 +656,7 @@ func TestRemainingTTL(t *testing.T) {
 	}
 }
 
-// Header tags ride with the entry so a hit can rebuild the purge header without the
-// index. Built ungated: the header is only right if it is complete.
+// Header tags ride with the entry so a hit can rebuild the header without the index.
 func TestResponseCacheHeaderTags(t *testing.T) {
 	newLoader := func(t *testing.T, body string, opts ResponseCacheTagIndexOptions) (*Loader, *result) {
 		t.Helper()
@@ -755,5 +768,20 @@ func TestResponseCacheHeaderTags(t *testing.T) {
 
 	t.Run("no cache means no headerTags", func(t *testing.T) {
 		require.Nil(t, NewContext(context.Background()).ResponseCacheHeaderTags())
+		NewContext(context.Background()).setResponseCacheHeaderTags([]string{"ignored"})
+	})
+
+	t.Run("a new resolution on the same context starts empty", func(t *testing.T) {
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+		loader := &Loader{ctx: ctx}
+		loader.responseCacheMergeHeaderTags(&result{responseCacheHeaderTags: []string{"user-1"}})
+		require.Equal(t, []string{"user-1"}, ctx.ResponseCacheHeaderTags())
+
+		// What a subscription does per event, and a follower with the leader's set.
+		loader.Init(ctx, nil)
+		require.Nil(t, ctx.ResponseCacheHeaderTags())
+		ctx.setResponseCacheHeaderTags([]string{"user-2"})
+		require.Equal(t, []string{"user-2"}, ctx.ResponseCacheHeaderTags())
 	})
 }

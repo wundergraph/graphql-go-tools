@@ -277,6 +277,14 @@ func (c *Context) ResponseCacheHeaderTags() []string {
 	return c.responseCache.headerTags
 }
 
+// setResponseCacheHeaderTags replaces the set: a fresh resolution starts empty,
+// and a deduplicated follower takes the leader's.
+func (c *Context) setResponseCacheHeaderTags(headerTags []string) {
+	if c.responseCache != nil {
+		c.responseCache.headerTags = headerTags
+	}
+}
+
 // ResponseCacheTagIndexOptions selects which secondary indexes are built.
 // Each is independent; all off caches entries untagged.
 type ResponseCacheTagIndexOptions struct {

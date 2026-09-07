@@ -5,8 +5,7 @@ import (
 	"strings"
 )
 
-// Header tags are what a client response carries so a CDN can purge by them.
-// Stored with the entry, unlike Tags which only name an index.
+// Header tag tiers. Stored with the entry, unlike Tags which only name an index.
 const (
 	subgraphHeaderTagPrefix = "subgraph-"
 	typeHeaderTagPrefix     = "type-"
