@@ -24,6 +24,10 @@ type Item struct {
 	// GetMany treats an entry with nothing left to live, or one it finds with
 	// no expiry attached at all, as a miss rather than a hit.
 	TTL time.Duration
+	// Tags are the cache tags the entry was stored under, a secondary index
+	// naming what the entry is about so it can later be found by something other
+	// than its key for invalidation.
+	Tags []string
 }
 
 // Cache is a batch oriented key/value cache.

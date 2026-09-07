@@ -1,4 +1,4 @@
-//go:generate stringer -type=DirectiveLocation -output directive_location_string.go
+//go:generate go tool stringer -type=DirectiveLocation -output directive_location_string.go
 
 package ast
 
