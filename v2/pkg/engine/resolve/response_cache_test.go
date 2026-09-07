@@ -229,6 +229,11 @@ func TestResponseCacheTags(t *testing.T) {
 // An entry is indexed under three separate kinds of thing, and which kind a tag
 // came from has to survive into the index or one could be mistaken for another.
 func TestResponseCacheTagIdentities(t *testing.T) {
+	tagsOf := func(input responseCacheTagInput) []string {
+		tags, _ := responseCacheIdentities(input)
+		return tags
+	}
+
 	parse := func(t *testing.T, doc string) *astjson.Value {
 		t.Helper()
 		value, err := astjson.Parse(doc)
@@ -242,7 +247,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 	}
 
 	t.Run("everything an entry is about, each under where it came from", func(t *testing.T) {
-		got := responseCacheTagIdentities(responseCacheTagInput{
+		got := tagsOf(responseCacheTagInput{
 			declared: []string{"users", "user-42"},
 			value:    entity(t),
 			subgraph: "accounts",
@@ -259,7 +264,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		// The namespace is applied to what the subgraph said, not taken from
 		// it, so a tag spelled like a derived one lands beside them and not
 		// among them.
-		got := responseCacheTagIdentities(responseCacheTagInput{
+		got := tagsOf(responseCacheTagInput{
 			declared: []string{"subgraph:evil", "type:Admin"},
 			value:    entity(t),
 			subgraph: "accounts",
@@ -276,7 +281,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		opts := all
 		opts.Subgraph = false
 		require.Equal(t, []string{"declared:accounts:users", "type:accounts:User"},
-			responseCacheTagIdentities(responseCacheTagInput{
+			tagsOf(responseCacheTagInput{
 				declared: []string{"users"},
 				value:    entity(t),
 				subgraph: "accounts",
@@ -288,7 +293,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		opts := all
 		opts.Type = false
 		require.Equal(t, []string{"declared:accounts:users", "subgraph:accounts"},
-			responseCacheTagIdentities(responseCacheTagInput{
+			tagsOf(responseCacheTagInput{
 				declared: []string{"users"},
 				value:    entity(t),
 				subgraph: "accounts",
@@ -299,7 +304,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 	t.Run("both derived indexes off leaves only what the subgraph declared", func(t *testing.T) {
 		opts := ResponseCacheTagIndexOptions{CacheTag: true}
 		require.Equal(t, []string{"declared:accounts:users"},
-			responseCacheTagIdentities(responseCacheTagInput{
+			tagsOf(responseCacheTagInput{
 				declared: []string{"users"},
 				value:    entity(t),
 				subgraph: "accounts",
@@ -311,7 +316,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		// The point of deriving them: an entry is findable without its subgraph
 		// having said anything at all.
 		require.Equal(t, []string{"subgraph:accounts", "type:accounts:User"},
-			responseCacheTagIdentities(responseCacheTagInput{
+			tagsOf(responseCacheTagInput{
 				value:    entity(t),
 				subgraph: "accounts",
 				opts:     all,
@@ -322,19 +327,19 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		// A root fetch's data object is a selection set, not an entity, and an
 		// entity fetch that did not select __typename did not return one.
 		require.Equal(t, []string{"subgraph:accounts"},
-			responseCacheTagIdentities(responseCacheTagInput{
+			tagsOf(responseCacheTagInput{
 				value:    parse(t, `{"id":42}`),
 				subgraph: "accounts",
 				opts:     all,
 			}))
 		require.Equal(t, []string{"subgraph:accounts"},
-			responseCacheTagIdentities(responseCacheTagInput{
+			tagsOf(responseCacheTagInput{
 				value:    parse(t, `{"__typename":null}`),
 				subgraph: "accounts",
 				opts:     all,
 			}))
 		require.Equal(t, []string{"subgraph:accounts"},
-			responseCacheTagIdentities(responseCacheTagInput{
+			tagsOf(responseCacheTagInput{
 				value:    parse(t, `{"__typename":""}`),
 				subgraph: "accounts",
 				opts:     all,
@@ -343,7 +348,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 
 	t.Run("a root fetch is not indexed by type", func(t *testing.T) {
 		require.Equal(t, []string{"subgraph:accounts"},
-			responseCacheTagIdentities(responseCacheTagInput{
+			tagsOf(responseCacheTagInput{
 				value:       parse(t, `{"__typename":"Query"}`),
 				subgraph:    "accounts",
 				isRootFetch: true,
@@ -357,7 +362,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 		// would put it where another subgraph's invalidation could reach it,
 		// which is worse than not indexing it: the entry still expires on its
 		// own TTL either way.
-		require.Empty(t, responseCacheTagIdentities(responseCacheTagInput{
+		require.Empty(t, tagsOf(responseCacheTagInput{
 			declared: []string{"users"},
 			value:    entity(t),
 			subgraph: "",
@@ -367,7 +372,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 
 	t.Run("nothing to index at all yields no tags", func(t *testing.T) {
 		opts := ResponseCacheTagIndexOptions{CacheTag: true}
-		require.Empty(t, responseCacheTagIdentities(responseCacheTagInput{
+		require.Empty(t, tagsOf(responseCacheTagInput{
 			value:    entity(t),
 			subgraph: "accounts",
 			opts:     opts,
@@ -377,7 +382,7 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 	t.Run("the derived indexes are not charged to the subgraph's cap", func(t *testing.T) {
 		// The cap bounds what a subgraph asserts. The two the router adds for
 		// itself are one entry each and are not the subgraph's to spend.
-		got := responseCacheTagIdentities(responseCacheTagInput{
+		got := tagsOf(responseCacheTagInput{
 			declared: []string{"a", "b"},
 			value:    entity(t),
 			subgraph: "accounts",
@@ -635,4 +640,101 @@ func TestRemainingTTL(t *testing.T) {
 			require.Equal(t, tc.expected, remainingTTL(tc.found, tc.keys))
 		})
 	}
+}
+
+// Labels ride with the entry so a hit can rebuild the purge header without the
+// index. Built ungated: the header is only right if it is complete.
+func TestResponseCacheLabels(t *testing.T) {
+	newLoader := func(t *testing.T, body string, opts ResponseCacheTagIndexOptions) (*Loader, *result) {
+		t.Helper()
+
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:        newTestCache(),
+			DefaultTTL:   time.Minute,
+			Invalidation: opts,
+		})
+
+		res := &result{
+			out:        []byte(body),
+			statusCode: http.StatusOK,
+			httpResponseContext: &httpclient.ResponseContext{
+				Response: &http.Response{
+					Header: http.Header{"Cache-Control": []string{"public, max-age=60"}},
+				},
+			},
+		}
+		res.init(PostProcessingConfiguration{
+			SelectResponseDataPath:   []string{"data"},
+			SelectResponseErrorsPath: []string{"errors"},
+		}, &FetchInfo{DataSourceName: "accounts"})
+
+		return &Loader{ctx: ctx}, res
+	}
+
+	const entitiesBody = `{
+		"data": {"_entities": [
+			{"__typename": "User", "id": 42},
+			{"__typename": "Group", "id": 7}
+		]},
+		"extensions": {"apolloEntityCacheTags": [["users", "user-42"], ["groups"]]}
+	}`
+
+	t.Run("an entity carries every tier and no index has to be on", func(t *testing.T) {
+		loader, res := newLoader(t, entitiesBody, ResponseCacheTagIndexOptions{})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42", "k-7"}}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Len(t, prepared.responseCacheItems, 2)
+		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "users", "user-42"},
+			prepared.responseCacheItems[0].Labels)
+		require.Equal(t, []string{"subgraph-accounts", "type-accounts-Group", "groups"},
+			prepared.responseCacheItems[1].Labels)
+		require.Empty(t, prepared.responseCacheItems[0].Tags)
+		require.Equal(t, []string{
+			"subgraph-accounts", "type-accounts-User", "users", "user-42", "type-accounts-Group", "groups",
+		}, res.responseCacheLabels, "the fetch reports the union")
+	})
+
+	t.Run("cache_tag index off still keeps declared tags out of the index", func(t *testing.T) {
+		loader, res := newLoader(t, entitiesBody, ResponseCacheTagIndexOptions{Subgraph: true})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42", "k-7"}}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Equal(t, []string{"subgraph:accounts"}, prepared.responseCacheItems[0].Tags)
+	})
+
+	t.Run("a root fetch has no type label", func(t *testing.T) {
+		body := `{
+			"data": {"__typename": "Query", "employees": [{"id": 1}]},
+			"extensions": {"apolloCacheTags": ["employees", "homepage"]}
+		}`
+		loader, res := newLoader(t, body, ResponseCacheTagIndexOptions{})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Equal(t, []string{"subgraph-accounts", "employees", "homepage"},
+			prepared.responseCacheItems[0].Labels)
+	})
+
+	t.Run("a hit reports the union of what its entries were stored with", func(t *testing.T) {
+		store := newTestCache()
+		require.NoError(t, store.SetMany(context.Background(), []caching.Item{
+			{Key: "k-42", Value: []byte(`{"id":42}`), TTL: time.Minute,
+				Labels: []string{"subgraph-accounts", "type-accounts-User", "user-42"}},
+			{Key: "k-7", Value: []byte(`{"id":7}`), TTL: time.Minute,
+				Labels: []string{"subgraph-accounts", "type-accounts-User", "user-7"}},
+		}))
+
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{Store: store, DefaultTTL: time.Minute})
+		loader := &Loader{ctx: ctx}
+
+		res := &result{}
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42", "k-7"}}
+		require.True(t, loader.responseCacheLookup(prepared))
+
+		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "user-42", "user-7"},
+			newResponseInfo(res).ResponseCacheLabels)
+	})
 }

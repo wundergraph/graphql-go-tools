@@ -28,6 +28,9 @@ type Item struct {
 	// naming what the entry is about so it can later be found by something other
 	// than its key for invalidation.
 	Tags []string
+	// Labels are what a client response carries so a CDN can purge by them.
+	// Stored with the value and returned by GetMany.
+	Labels []string
 }
 
 // Cache is a batch oriented key/value cache.

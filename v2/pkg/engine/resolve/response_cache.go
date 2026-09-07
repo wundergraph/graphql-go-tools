@@ -109,8 +109,18 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.statusCode = http.StatusOK
 	res.responseCacheHit = true
 	res.responseCacheTTL = remainingTTL(found, keys)
+	res.responseCacheLabels = foundLabels(found, keys)
 
 	return true
+}
+
+// foundLabels unions what the hit entries were stored with.
+func foundLabels(found map[string]caching.Item, keys []string) []string {
+	var labels []string
+	for _, key := range keys {
+		labels = caching.MergeLabels(labels, found[key].Labels)
+	}
+	return labels
 }
 
 // remainingTTL is the shortest life left across a fetch's entries: a fetch is only
@@ -183,12 +193,11 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	subgraph := prepared.res.ds.Name
 	invalidation := l.ctx.responseCache.invalidation
 
-	var declared [][]string
-	if invalidation.CacheTag {
-		declared = responseCacheTags(response, len(values), prepared.isRootFetchCache)
-	}
+	// Parsed whether or not the cache_tag index is on: labels always carry them.
+	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
 	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
+	var labels []string
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
@@ -198,25 +207,26 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
 		}
-		if invalidation.any() {
-			// Indexed by i like the key: a null entity is skipped above without
-			// consuming a tag list, so the two stay aligned.
-			var declaredForValue []string
-			if len(declared) > 0 {
-				declaredForValue = declared[i]
-			}
-			item.Tags = responseCacheTagIdentities(responseCacheTagInput{
-				declared:    declaredForValue,
-				value:       value,
-				subgraph:    subgraph,
-				isRootFetch: prepared.isRootFetchCache,
-				opts:        invalidation,
-			})
+		// Indexed by i like the key: a null entity is skipped above without
+		// consuming a tag list, so the two stay aligned.
+		var declaredForValue []string
+		if len(declared) > 0 {
+			declaredForValue = declared[i]
 		}
+		input := responseCacheTagInput{
+			declared:    declaredForValue,
+			value:       value,
+			subgraph:    subgraph,
+			isRootFetch: prepared.isRootFetchCache,
+			opts:        invalidation,
+		}
+		item.Tags, item.Labels = responseCacheIdentities(input)
+		labels = caching.MergeLabels(labels, item.Labels)
 		items = append(items, item)
 	}
 
 	prepared.responseCacheItems = items
+	prepared.res.responseCacheLabels = labels
 	return nil
 }
 
@@ -321,31 +331,48 @@ type responseCacheTagInput struct {
 	opts        ResponseCacheTagIndexOptions
 }
 
-func responseCacheTagIdentities(input responseCacheTagInput) []string {
+// responseCacheIdentities is what one value is stored under. Tags name the
+// indexes and follow the options; labels go to the CDN header and carry every
+// tier, since the header is only right if it is complete.
+func responseCacheIdentities(input responseCacheTagInput) (tags, labels []string) {
 	if input.subgraph == "" {
-		return nil
+		return nil, nil
 	}
 
-	identities := make([]string, 0, len(input.declared)+2)
+	labels = make([]string, 0, len(input.declared)+2)
+	labels = append(labels, caching.SubgraphLabel(input.subgraph))
 
-	for _, tag := range input.declared {
-		identities = append(identities, caching.DeclaredTag(input.subgraph, tag))
+	var typeName string
+	if !input.isRootFetch {
+		typeName = string(input.value.GetStringBytes("__typename"))
 	}
 
-	if input.opts.Subgraph {
-		identities = append(identities, caching.SubgraphTag(input.subgraph))
+	if typeName != "" {
+		labels = append(labels, caching.TypeLabel(input.subgraph, typeName))
+	}
+	labels = append(labels, input.declared...)
+
+	if !input.opts.any() {
+		return nil, labels
 	}
 
-	if input.opts.Type && !input.isRootFetch {
-		if name := input.value.GetStringBytes("__typename"); len(name) > 0 {
-			identities = append(identities, caching.TypeTag(input.subgraph, string(name)))
+	tags = make([]string, 0, len(input.declared)+2)
+	if input.opts.CacheTag {
+		for _, tag := range input.declared {
+			tags = append(tags, caching.DeclaredTag(input.subgraph, tag))
 		}
 	}
-
-	if len(identities) == 0 {
-		return nil
+	if input.opts.Subgraph {
+		tags = append(tags, caching.SubgraphTag(input.subgraph))
 	}
-	return identities
+	if input.opts.Type && typeName != "" {
+		tags = append(tags, caching.TypeTag(input.subgraph, typeName))
+	}
+	if len(tags) == 0 {
+		tags = nil
+	}
+
+	return tags, labels
 }
 
 // responseCacheFlush writes what responseCacheCollect gathered. It is called with

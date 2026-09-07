@@ -10,7 +10,7 @@ import (
 // under the old layout instead of letting them be read back as something they
 // are not. Orphaned entries are not deleted, they simply stop being asked for
 // and fall out on their own TTL.
-const keyFormatVersion = "v1"
+const keyFormatVersion = "v2"
 
 // Key builds the cache key for one entity within one fetch.
 func Key(entityHash, selectionHash uint64) string {
