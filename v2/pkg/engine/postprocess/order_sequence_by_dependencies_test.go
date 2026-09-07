@@ -192,6 +192,50 @@ func TestOrderSequenceByDependencies_ProcessFetchTree(t *testing.T) {
 		require.Equal(t, expected, input)
 	})
 
+	t.Run("two independent dependency trees interleave by depth", func(t *testing.T) {
+		// Tree one: 0 <- 1 <- 2. Tree two: 3 <- 4. No edges between them.
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(2, dependsOn(1)),
+			sf(4, dependsOn(3)),
+			sf(1, dependsOn(0)),
+			sf(3),
+			sf(0),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0),
+			sf(3),
+			sf(1, dependsOn(0)),
+			sf(4, dependsOn(3)),
+			sf(2, dependsOn(1)),
+		)
+		require.Equal(t, expected, input)
+	})
+	t.Run("independent tree does not disturb the order of a related pair", func(t *testing.T) {
+		// Fetch 9 has many dependencies but is unrelated to 0 and 1;
+		// 1 must still follow its dependency 0 wherever 9 lands.
+		processor := &orderSequenceByDependencies{}
+		input := seq(
+			sf(1, dependsOn(0)),
+			sf(9, dependsOn(5, 6, 7)),
+			sf(0),
+			sf(7, dependsOn(6)),
+			sf(6, dependsOn(5)),
+			sf(5),
+		)
+		processor.ProcessFetchTree(input)
+		expected := seq(
+			sf(0),
+			sf(5),
+			sf(1, dependsOn(0)),
+			sf(6, dependsOn(5)),
+			sf(7, dependsOn(6)),
+			sf(9, dependsOn(5, 6, 7)),
+		)
+		require.Equal(t, expected, input)
+	})
+
 	t.Run("dense fully-connected chain (exponential regression)", func(t *testing.T) {
 		// This happens on mutations that have many fetches.
 		// Node i depends on every node j > i,
