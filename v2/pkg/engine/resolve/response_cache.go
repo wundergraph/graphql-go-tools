@@ -109,18 +109,18 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.statusCode = http.StatusOK
 	res.responseCacheHit = true
 	res.responseCacheTTL = remainingTTL(found, keys)
-	res.responseCacheLabels = foundLabels(found, keys)
+	res.responseCacheHeaderTags = foundHeaderTags(found, keys)
 
 	return true
 }
 
-// foundLabels unions what the hit entries were stored with.
-func foundLabels(found map[string]caching.Item, keys []string) []string {
-	var labels []string
+// foundHeaderTags unions what the hit entries were stored with.
+func foundHeaderTags(found map[string]caching.Item, keys []string) []string {
+	var headerTags []string
 	for _, key := range keys {
-		labels = caching.MergeLabels(labels, found[key].Labels)
+		headerTags = caching.MergeHeaderTags(headerTags, found[key].HeaderTags)
 	}
-	return labels
+	return headerTags
 }
 
 // remainingTTL is the shortest life left across a fetch's entries: a fetch is only
@@ -193,11 +193,11 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	subgraph := prepared.res.ds.Name
 	invalidation := l.ctx.responseCache.invalidation
 
-	// Parsed whether or not the cache_tag index is on: labels always carry them.
+	// Parsed whether or not the cache_tag index is on: the header always carries them.
 	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
 	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
-	var labels []string
+	var headerTags []string
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
@@ -220,13 +220,13 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			isRootFetch: prepared.isRootFetchCache,
 			opts:        invalidation,
 		}
-		item.Tags, item.Labels = responseCacheIdentities(input)
-		labels = caching.MergeLabels(labels, item.Labels)
+		item.Tags, item.HeaderTags = responseCacheIdentities(input)
+		headerTags = caching.MergeHeaderTags(headerTags, item.HeaderTags)
 		items = append(items, item)
 	}
 
 	prepared.responseCacheItems = items
-	prepared.res.responseCacheLabels = labels
+	prepared.res.responseCacheHeaderTags = headerTags
 	return nil
 }
 
@@ -332,15 +332,15 @@ type responseCacheTagInput struct {
 }
 
 // responseCacheIdentities is what one value is stored under. Tags name the
-// indexes and follow the options; labels go to the CDN header and carry every
+// indexes and follow the options; header tags go to the client and carry every
 // tier, since the header is only right if it is complete.
-func responseCacheIdentities(input responseCacheTagInput) (tags, labels []string) {
+func responseCacheIdentities(input responseCacheTagInput) (tags, headerTags []string) {
 	if input.subgraph == "" {
 		return nil, nil
 	}
 
-	labels = make([]string, 0, len(input.declared)+2)
-	labels = append(labels, caching.SubgraphLabel(input.subgraph))
+	headerTags = make([]string, 0, len(input.declared)+2)
+	headerTags = append(headerTags, caching.SubgraphHeaderTag(input.subgraph))
 
 	var typeName string
 	if !input.isRootFetch {
@@ -348,12 +348,12 @@ func responseCacheIdentities(input responseCacheTagInput) (tags, labels []string
 	}
 
 	if typeName != "" {
-		labels = append(labels, caching.TypeLabel(input.subgraph, typeName))
+		headerTags = append(headerTags, caching.TypeHeaderTag(input.subgraph, typeName))
 	}
-	labels = append(labels, input.declared...)
+	headerTags = append(headerTags, input.declared...)
 
 	if !input.opts.any() {
-		return nil, labels
+		return nil, headerTags
 	}
 
 	tags = make([]string, 0, len(input.declared)+2)
@@ -372,7 +372,16 @@ func responseCacheIdentities(input responseCacheTagInput) (tags, labels []string
 		tags = nil
 	}
 
-	return tags, labels
+	return tags, headerTags
+}
+
+// responseCacheMergeHeaderTags adds what one fetch contributed, hit or miss, to the
+// request's set. Called under the data lock, which is what serializes it.
+func (l *Loader) responseCacheMergeHeaderTags(res *result) {
+	if !l.responseCacheEnabled() || len(res.responseCacheHeaderTags) == 0 {
+		return
+	}
+	l.ctx.responseCache.headerTags = caching.MergeHeaderTags(l.ctx.responseCache.headerTags, res.responseCacheHeaderTags)
 }
 
 // responseCacheFlush writes what responseCacheCollect gathered. It is called with

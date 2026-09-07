@@ -642,9 +642,9 @@ func TestRemainingTTL(t *testing.T) {
 	}
 }
 
-// Labels ride with the entry so a hit can rebuild the purge header without the
+// Header tags ride with the entry so a hit can rebuild the purge header without the
 // index. Built ungated: the header is only right if it is complete.
-func TestResponseCacheLabels(t *testing.T) {
+func TestResponseCacheHeaderTags(t *testing.T) {
 	newLoader := func(t *testing.T, body string, opts ResponseCacheTagIndexOptions) (*Loader, *result) {
 		t.Helper()
 
@@ -687,13 +687,13 @@ func TestResponseCacheLabels(t *testing.T) {
 
 		require.Len(t, prepared.responseCacheItems, 2)
 		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "users", "user-42"},
-			prepared.responseCacheItems[0].Labels)
+			prepared.responseCacheItems[0].HeaderTags)
 		require.Equal(t, []string{"subgraph-accounts", "type-accounts-Group", "groups"},
-			prepared.responseCacheItems[1].Labels)
+			prepared.responseCacheItems[1].HeaderTags)
 		require.Empty(t, prepared.responseCacheItems[0].Tags)
 		require.Equal(t, []string{
 			"subgraph-accounts", "type-accounts-User", "users", "user-42", "type-accounts-Group", "groups",
-		}, res.responseCacheLabels, "the fetch reports the union")
+		}, res.responseCacheHeaderTags, "the fetch reports the union")
 	})
 
 	t.Run("cache_tag index off still keeps declared tags out of the index", func(t *testing.T) {
@@ -704,7 +704,7 @@ func TestResponseCacheLabels(t *testing.T) {
 		require.Equal(t, []string{"subgraph:accounts"}, prepared.responseCacheItems[0].Tags)
 	})
 
-	t.Run("a root fetch has no type label", func(t *testing.T) {
+	t.Run("a root fetch has no type headerTag", func(t *testing.T) {
 		body := `{
 			"data": {"__typename": "Query", "employees": [{"id": 1}]},
 			"extensions": {"apolloCacheTags": ["employees", "homepage"]}
@@ -714,16 +714,16 @@ func TestResponseCacheLabels(t *testing.T) {
 		require.NoError(t, loader.responseCacheCollect(prepared))
 
 		require.Equal(t, []string{"subgraph-accounts", "employees", "homepage"},
-			prepared.responseCacheItems[0].Labels)
+			prepared.responseCacheItems[0].HeaderTags)
 	})
 
 	t.Run("a hit reports the union of what its entries were stored with", func(t *testing.T) {
 		store := newTestCache()
 		require.NoError(t, store.SetMany(context.Background(), []caching.Item{
 			{Key: "k-42", Value: []byte(`{"id":42}`), TTL: time.Minute,
-				Labels: []string{"subgraph-accounts", "type-accounts-User", "user-42"}},
+				HeaderTags: []string{"subgraph-accounts", "type-accounts-User", "user-42"}},
 			{Key: "k-7", Value: []byte(`{"id":7}`), TTL: time.Minute,
-				Labels: []string{"subgraph-accounts", "type-accounts-User", "user-7"}},
+				HeaderTags: []string{"subgraph-accounts", "type-accounts-User", "user-7"}},
 		}))
 
 		ctx := NewContext(context.Background())
@@ -735,6 +735,25 @@ func TestResponseCacheLabels(t *testing.T) {
 		require.True(t, loader.responseCacheLookup(prepared))
 
 		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "user-42", "user-7"},
-			newResponseInfo(res).ResponseCacheLabels)
+			res.responseCacheHeaderTags)
+	})
+
+	t.Run("the request collects every fetch's headerTags once", func(t *testing.T) {
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+		loader := &Loader{ctx: ctx}
+
+		loader.responseCacheMergeHeaderTags(&result{responseCacheHeaderTags: []string{"subgraph-accounts", "user-42"}})
+		loader.responseCacheMergeHeaderTags(&result{responseCacheHeaderTags: []string{"subgraph-products", "subgraph-accounts"}})
+		loader.responseCacheMergeHeaderTags(&result{})
+
+		require.Equal(t, []string{"subgraph-accounts", "user-42", "subgraph-products"}, ctx.ResponseCacheHeaderTags())
+
+		ctx.Free()
+		require.Nil(t, ctx.ResponseCacheHeaderTags(), "freed with the rest of the request")
+	})
+
+	t.Run("no cache means no headerTags", func(t *testing.T) {
+		require.Nil(t, NewContext(context.Background()).ResponseCacheHeaderTags())
 	})
 }

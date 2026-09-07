@@ -5,32 +5,32 @@ import (
 	"errors"
 )
 
-// Entry envelope, labels ahead of the value so a hit reads them without
+// Entry envelope, header tags ahead of the value so a hit reads them without
 // touching the value:
 //
-//	[version byte][uvarint n]{[uvarint len][label]}*n[value...]
+//	[version byte][uvarint n]{[uvarint len][tag]}*n[value...]
 const entryFormatVersion byte = 1
 
 var ErrEntryFormat = errors.New("cache entry is not in a known format")
 
-func EncodeEntry(value []byte, labels []string) []byte {
+func EncodeEntry(value []byte, headerTags []string) []byte {
 	size := 1 + binary.MaxVarintLen64 + len(value)
-	for _, label := range labels {
-		size += binary.MaxVarintLen64 + len(label)
+	for _, headerTag := range headerTags {
+		size += binary.MaxVarintLen64 + len(headerTag)
 	}
 
 	out := make([]byte, 0, size)
 	out = append(out, entryFormatVersion)
-	out = binary.AppendUvarint(out, uint64(len(labels)))
-	for _, label := range labels {
-		out = binary.AppendUvarint(out, uint64(len(label)))
-		out = append(out, label...)
+	out = binary.AppendUvarint(out, uint64(len(headerTags)))
+	for _, headerTag := range headerTags {
+		out = binary.AppendUvarint(out, uint64(len(headerTag)))
+		out = append(out, headerTag...)
 	}
 	return append(out, value...)
 }
 
 // DecodeEntry returns the value as a subslice of b.
-func DecodeEntry(b []byte) (value []byte, labels []string, err error) {
+func DecodeEntry(b []byte) (value []byte, headerTags []string, err error) {
 	if len(b) == 0 || b[0] != entryFormatVersion {
 		return nil, nil, ErrEntryFormat
 	}
@@ -43,7 +43,7 @@ func DecodeEntry(b []byte) (value []byte, labels []string, err error) {
 	rest = rest[n:]
 
 	if count > 0 {
-		labels = make([]string, 0, count)
+		headerTags = make([]string, 0, count)
 	}
 	for i := uint64(0); i < count; i++ {
 		size, n := binary.Uvarint(rest)
@@ -51,9 +51,9 @@ func DecodeEntry(b []byte) (value []byte, labels []string, err error) {
 			return nil, nil, ErrEntryFormat
 		}
 		rest = rest[n:]
-		labels = append(labels, string(rest[:size]))
+		headerTags = append(headerTags, string(rest[:size]))
 		rest = rest[size:]
 	}
 
-	return rest, labels, nil
+	return rest, headerTags, nil
 }
