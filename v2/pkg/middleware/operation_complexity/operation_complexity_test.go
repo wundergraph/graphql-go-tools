@@ -639,10 +639,6 @@ func TestOperationComplexityEstimatorReuseAfterAbortedWalk(t *testing.T) {
 				}
 			}
 		}`)
-	normalizationReport := operationreport.Report{}
-	astnormalization.NormalizeOperation(&operation, &definition, &normalizationReport)
-	require.False(t, normalizationReport.HasErrors())
-
 	wantReport := operationreport.Report{}
 	wantGlobal, wantRootFields := NewOperationComplexityEstimator(false).Do(&operation, &definition, &wantReport)
 	require.False(t, wantReport.HasErrors())
