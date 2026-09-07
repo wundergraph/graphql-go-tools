@@ -609,6 +609,8 @@ func runDepthTest(t *testing.T, operationString string, expectedStats OperationS
 }
 
 func TestOperationComplexityEstimatorReuseAfterAbortedWalk(t *testing.T) {
+	t.Parallel()
+
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	estimator := NewOperationComplexityEstimator(false)
 
