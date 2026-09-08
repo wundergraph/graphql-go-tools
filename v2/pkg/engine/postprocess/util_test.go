@@ -67,7 +67,7 @@ func par(children ...*resolve.FetchTreeNode) *resolve.FetchTreeNode {
 func fetchesByID(input []*resolve.FetchTreeNode) map[int]*resolve.FetchTreeNode {
 	byID := make(map[int]*resolve.FetchTreeNode, len(input))
 	for _, node := range input {
-		byID[node.Item.Fetch.Dependencies().FetchID] = node
+		byID[node.FetchID()] = node
 	}
 	return byID
 }
@@ -80,7 +80,7 @@ func materialize(t *testing.T, shape *resolve.FetchTreeNode, input map[int]*reso
 		return nil
 	}
 	if shape.Kind == resolve.FetchTreeNodeKindSingle {
-		id := shape.Item.Fetch.Dependencies().FetchID
+		id := shape.FetchID()
 		node, ok := input[id]
 		require.Truef(t, ok, "expected tree references fetch %d not present in input", id)
 		return node
@@ -148,7 +148,7 @@ func leafShapes(children []*resolve.FetchTreeNode) []string {
 }
 
 func leafShape(node *resolve.FetchTreeNode) string {
-	id := node.Item.Fetch.Dependencies().FetchID
+	id := node.FetchID()
 	switch node.Item.Fetch.(type) {
 	case *resolve.SingleFetch:
 		return fmt.Sprintf("sf(%d)", id)
