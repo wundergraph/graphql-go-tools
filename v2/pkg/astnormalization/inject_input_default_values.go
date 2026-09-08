@@ -91,15 +91,16 @@ func (v *inputFieldDefaultInjectionVisitor) recursiveInjectInputFields(inputObje
 
 		if !isTypeScalarOrEnum {
 			var valToUse []byte
-			if existsInVal {
+			switch {
+			case existsInVal:
 				valToUse = varVal
-			} else if hasDefault {
+			case hasDefault:
 				defVal, err := v.definition.ValueToJSON(valDef.DefaultValue.Value)
 				if err != nil {
 					return nil, false, err
 				}
 				valToUse = defVal
-			} else {
+			default:
 				continue
 			}
 			fieldValue, replaced, err := v.processObjectOrListInput(valDef.Type, valToUse, v.definition)
@@ -202,7 +203,8 @@ func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultVal
 		if err != nil {
 			return
 		}
-		if listOfList && dataType == jsonparser.Array {
+		switch {
+		case listOfList && dataType == jsonparser.Array:
 			newVal, replaced, err := v.processObjectOrListInput(typeDoc.Types[fieldType].OfType, value, typeDoc)
 			if err != nil {
 				return
@@ -215,7 +217,7 @@ func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultVal
 				}
 				*finalValueReplaced = true
 			}
-		} else if !listOfList && dataType == jsonparser.Object {
+		case !listOfList && dataType == jsonparser.Object:
 			newVal, replaced, err := v.recursiveInjectInputFields(node.Ref, value)
 			if err != nil {
 				return
@@ -228,7 +230,7 @@ func (v *inputFieldDefaultInjectionVisitor) jsonWalker(fieldType int, defaultVal
 				}
 				*finalValueReplaced = true
 			}
-		} else {
+		default:
 			return
 		}
 		i++

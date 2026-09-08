@@ -250,11 +250,9 @@ func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineCo
 			subscriptionUseSSE = true
 			subscriptionSSEMethodPost = true
 		}
-	} else {
+	} else if in.CustomGraphql.Subscription.UseSSE != nil {
 		// Old style config
-		if in.CustomGraphql.Subscription.UseSSE != nil {
-			subscriptionUseSSE = *in.CustomGraphql.Subscription.UseSSE
-		}
+		subscriptionUseSSE = *in.CustomGraphql.Subscription.UseSSE
 	}
 	// dataSourceRules := FetchURLRules(&routerEngineConfig.Headers, routerConfig.Subgraphs, subscriptionUrl)
 	// forwardedClientHeaders, forwardedClientRegexps, err := PropagatedHeaders(dataSourceRules)
