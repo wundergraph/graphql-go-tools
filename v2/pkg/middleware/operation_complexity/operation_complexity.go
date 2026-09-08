@@ -33,12 +33,19 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
+// OperationStats contains estimates for an operation or root field.
 type OperationStats struct {
-	NodeCount  int
+	// NodeCount is the maximum number of returned nodes.
+	NodeCount int
+	// Complexity is the maximum number of field requests.
 	Complexity int
-	Depth      int
+	// Depth is the maximum number of response field levels on a path.
+	// Root-field depth is relative to the root.
+	Depth int
 }
 
+// RootFieldStats contains the stats for one top-level field. Alias is empty
+// when the response name is the same as FieldName.
 type RootFieldStats struct {
 	TypeName  string
 	FieldName string
@@ -56,11 +63,15 @@ const (
 	__typeLiteral   = "__type"
 )
 
+// OperationComplexityEstimator estimates stats for normalized operations.
+// It may be reused sequentially, but is not safe for concurrent use.
 type OperationComplexityEstimator struct {
 	walker  *astvisitor.Walker
 	visitor *complexityVisitor
 }
 
+// NewOperationComplexityEstimator creates an estimator. If skipIntrospection
+// is true, __schema and __type root fields are excluded.
 func NewOperationComplexityEstimator(skipIntrospection bool) *OperationComplexityEstimator {
 	walker := astvisitor.NewWalker(48)
 	visitor := &complexityVisitor{
@@ -82,14 +93,14 @@ func NewOperationComplexityEstimator(skipIntrospection bool) *OperationComplexit
 	}
 }
 
+// Do returns global and per-root-field estimates for the operation.
 func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, report *operationreport.Report) (OperationStats, []RootFieldStats) {
 	n.visitor.count = 0
 	n.visitor.complexity = 0
-	n.visitor.maxFieldDepth = 0
+	n.visitor.maxOperationDepth = 0
 	n.visitor.multipliers = n.visitor.multipliers[:0]
 
-	n.visitor.maxSelectionSetFieldDepth = 0
-	n.visitor.selectionSetDepth = 0
+	n.visitor.fieldDepth = 0
 
 	if n.visitor.calculatedRootFieldStats == nil {
 		n.visitor.calculatedRootFieldStats = make([]RootFieldStats, 0, len(definition.RootOperationTypeDefinitions))
@@ -105,11 +116,10 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 
 	n.walker.Walk(operation, definition, report)
 
-	depth := n.visitor.maxFieldDepth - n.visitor.selectionSetDepth
 	globalResult := OperationStats{
 		NodeCount:  n.visitor.count,
 		Complexity: n.visitor.complexity,
-		Depth:      depth,
+		Depth:      n.visitor.maxOperationDepth,
 	}
 
 	return globalResult, n.visitor.calculatedRootFieldStats
@@ -127,18 +137,24 @@ type complexityVisitor struct {
 	operation, definition *ast.Document
 	count                 int
 	complexity            int
-	maxFieldDepth         int
-	multipliers           []multiplier
 
-	maxSelectionSetFieldDepth int
-	selectionSetDepth         int
+	// maxOperationDepth includes the root field.
+	maxOperationDepth int
+
+	// multipliers contains @nodeCountMultiply argument values for the active
+	// field path.
+	multipliers []multiplier
+
+	// fieldDepth counts active fields with selections. Fragments add no depth.
+	fieldDepth int
 
 	rootOperationTypeNames map[string]struct{}
 
-	currentRootFieldStats                RootFieldStats
-	currentRootFieldMaxDepth             int
-	currentRootFieldMaxSelectionSetDepth int
-	currentRootFieldSelectionSetDepth    int
+	// currentRootFieldStats is reused because root fields are visited depth-first.
+	currentRootFieldStats RootFieldStats
+
+	// maxRootFieldDepth is relative to the current root field.
+	maxRootFieldDepth int
 
 	calculatedRootFieldStats []RootFieldStats
 
@@ -217,18 +233,22 @@ func (c *complexityVisitor) EnterField(ref int) {
 		return
 	}
 
+	// A field's multiplier applies to its result, not its own request.
 	c.complexity = c.complexity + c.calculateMultiplied(1)
-	if c.Depth > c.maxFieldDepth {
-		c.maxFieldDepth = c.Depth
-	}
+	c.fieldDepth++
+
+	// Operation depth includes the selected child. Root depth is root-relative.
+	c.maxOperationDepth = max(c.maxOperationDepth, c.fieldDepth+1)
 
 	c.currentRootFieldStats.Stats.Complexity = c.currentRootFieldStats.Stats.Complexity + c.calculateMultiplied(1)
-	if c.Depth > c.currentRootFieldMaxDepth {
-		c.currentRootFieldMaxDepth = c.Depth
-	}
+	c.maxRootFieldDepth = max(c.maxRootFieldDepth, c.fieldDepth)
 }
 
 func (c *complexityVisitor) LeaveField(ref int) {
+	if c.operation.FieldHasSelections(ref) {
+		c.fieldDepth--
+	}
+
 	if c.isRootTypeField() {
 		c.endRootFieldComplexityCalculation()
 	}
@@ -244,21 +264,13 @@ func (c *complexityVisitor) LeaveField(ref int) {
 
 func (c *complexityVisitor) EnterSelectionSet(ref int) {
 
+	// Operation and fragment selection sets do not represent returned nodes.
 	if c.Ancestors[len(c.Ancestors)-1].Kind != ast.NodeKindField {
 		return
 	}
 
 	c.count = c.count + c.calculateMultiplied(1)
-	if c.Depth > c.maxSelectionSetFieldDepth {
-		c.maxSelectionSetFieldDepth = c.Depth
-		c.selectionSetDepth++
-	}
-
 	c.currentRootFieldStats.Stats.NodeCount = c.currentRootFieldStats.Stats.NodeCount + c.calculateMultiplied(1)
-	if c.Depth > c.currentRootFieldMaxSelectionSetDepth {
-		c.currentRootFieldMaxSelectionSetDepth = c.Depth
-		c.currentRootFieldSelectionSetDepth++
-	}
 }
 
 func (c *complexityVisitor) EnterFragmentDefinition(ref int) {
@@ -279,16 +291,10 @@ func (c *complexityVisitor) resetCurrentRootFieldComplexity(typeName, fieldName,
 }
 
 func (c *complexityVisitor) endRootFieldComplexityCalculation() {
-	currentDepth := c.currentRootFieldMaxDepth - c.currentRootFieldSelectionSetDepth
-	if currentDepth > 0 {
-		currentDepth--
-	}
-	c.currentRootFieldStats.Stats.Depth = currentDepth
+	c.currentRootFieldStats.Stats.Depth = c.maxRootFieldDepth
 	c.calculatedRootFieldStats = append(c.calculatedRootFieldStats, c.currentRootFieldStats)
 
-	c.currentRootFieldMaxDepth = 0
-	c.currentRootFieldMaxSelectionSetDepth = 0
-	c.currentRootFieldSelectionSetDepth = 0
+	c.maxRootFieldDepth = 0
 }
 
 func (c *complexityVisitor) extractFieldRelatedNames(ref, definitionRef int) (typeName, fieldName, alias string) {
