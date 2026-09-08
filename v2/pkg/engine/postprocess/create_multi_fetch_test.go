@@ -49,7 +49,7 @@ func groupFetchIDs(groups [][]*resolve.FetchTreeNode) [][]int {
 	for i, g := range groups {
 		ids := make([]int, len(g))
 		for j, n := range g {
-			ids[j] = n.Item.Fetch.Dependencies().FetchID
+			ids[j] = n.FetchID()
 		}
 		out[i] = ids
 	}

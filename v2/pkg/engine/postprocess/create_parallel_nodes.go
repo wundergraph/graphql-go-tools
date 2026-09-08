@@ -45,8 +45,7 @@ func resolveProvidedFetchIDs(nodes []*resolve.FetchTreeNode) []int {
 	for _, node := range nodes {
 		switch node.Kind {
 		case resolve.FetchTreeNodeKindSingle:
-			deps := node.Item.Fetch.Dependencies()
-			provided = append(provided, deps.FetchID)
+			provided = append(provided, node.FetchID())
 		case resolve.FetchTreeNodeKindParallel:
 			provided = append(provided, resolveProvidedFetchIDs(node.ChildNodes)...)
 		case resolve.FetchTreeNodeKindSequence:
