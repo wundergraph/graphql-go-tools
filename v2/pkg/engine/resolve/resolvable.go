@@ -282,6 +282,7 @@ func (r *Resolvable) initCostControl() {
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
 	r.ctx = ctx
+	ctx.setResponseCacheHeaderTags(nil)
 	if r.authorization == nil {
 		r.authorization = NewFieldAuthorization(ctx)
 	}
@@ -306,6 +307,8 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 
 func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProcessing PostProcessingConfiguration) (err error) {
 	r.ctx = ctx
+	// Once per event; one Context serves them all.
+	ctx.setResponseCacheHeaderTags(nil)
 	if r.authorization == nil {
 		r.authorization = NewFieldAuthorization(ctx)
 	}

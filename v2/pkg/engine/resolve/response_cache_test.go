@@ -767,8 +767,10 @@ func TestResponseCacheHeaderTags(t *testing.T) {
 	})
 
 	t.Run("no cache means no headerTags", func(t *testing.T) {
-		require.Nil(t, NewContext(context.Background()).ResponseCacheHeaderTags())
-		NewContext(context.Background()).setResponseCacheHeaderTags([]string{"ignored"})
+		ctx := NewContext(context.Background())
+		require.Nil(t, ctx.ResponseCacheHeaderTags())
+		ctx.setResponseCacheHeaderTags([]string{"ignored"})
+		require.Nil(t, ctx.ResponseCacheHeaderTags(), "nowhere to store them")
 	})
 
 	t.Run("a new resolution on the same context starts empty", func(t *testing.T) {
@@ -778,10 +780,103 @@ func TestResponseCacheHeaderTags(t *testing.T) {
 		loader.responseCacheMergeHeaderTags(&result{responseCacheHeaderTags: []string{"user-1"}})
 		require.Equal(t, []string{"user-1"}, ctx.ResponseCacheHeaderTags())
 
-		// What a subscription does per event, and a follower with the leader's set.
-		loader.Init(ctx, nil)
+		// What a resolution does on entry, and a follower with the leader's set.
+		ctx.setResponseCacheHeaderTags(nil)
 		require.Nil(t, ctx.ResponseCacheHeaderTags())
+
+		// A loader on its own keeps what the request has: defer groups share one Context.
+		loader.responseCacheMergeHeaderTags(&result{responseCacheHeaderTags: []string{"user-1"}})
+		loader.Init(ctx, nil)
+		require.Equal(t, []string{"user-1"}, ctx.ResponseCacheHeaderTags())
+		ctx.setResponseCacheHeaderTags(nil)
 		ctx.setResponseCacheHeaderTags([]string{"user-2"})
 		require.Equal(t, []string{"user-2"}, ctx.ResponseCacheHeaderTags())
 	})
+}
+
+// cachedDataSource answers with a fixed body and a public Cache-Control header,
+// so a root fetch through it is response-cached.
+type cachedDataSource struct{ body string }
+
+func (d cachedDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	if rc := httpclient.GetResponseContext(ctx); rc != nil {
+		rc.StatusCode = http.StatusOK
+		rc.Response = &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": []string{"public, max-age=60"}},
+		}
+	}
+	return []byte(d.body), nil
+}
+
+func (d cachedDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return d.Load(ctx, headers, input)
+}
+
+// Every defer group runs its own Loader on the shared Context, concurrently.
+// The header tag set must be the union of what the initial fetch and every
+// group contributed, and nothing may reset it mid-response. Run with -race.
+func TestResponseCacheHeaderTagsDefer(t *testing.T) {
+	const groupCount = 8
+
+	cachedRootFetch := func(subgraph, body string) *FetchTreeNode {
+		return Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: cachedDataSource{body: body},
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			DataSourceIdentifier: graphqlDataSourceIdentifier,
+			Info: &FetchInfo{
+				OperationType:  ast.OperationTypeQuery,
+				DataSourceID:   subgraph,
+				DataSourceName: subgraph,
+			},
+		})
+	}
+
+	fields := make([]*Field, 0, groupCount+1)
+	fields = append(fields, &Field{
+		Name:  []byte("initial"),
+		Value: &String{Path: []string{"initial"}, Nullable: true},
+	})
+	descriptors := make(map[int]DeferDescriptor, groupCount)
+	leaves := make([]*DeferTreeNode, groupCount)
+	want := []string{"subgraph-initial"}
+	for g := range groupCount {
+		id := g + 1
+		name := fmt.Sprintf("g%d", id)
+		fields = append(fields, deferredField(name, id, &String{Path: []string{name}, Nullable: true}, nil))
+		descriptors[id] = DeferDescriptor{ID: id, ParentID: 0}
+		leaves[g] = DeferSingle(&DeferFetchGroup{
+			DeferID: id,
+			Fetches: cachedRootFetch(name, fmt.Sprintf(`{"data":{%q:"v"}}`, name)),
+		})
+		want = append(want, "subgraph-"+name)
+	}
+
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: descriptors,
+		DeferTree:        DeferParallel(leaves...),
+		Response: &GraphQLResponse{
+			Info:    deferQueryInfo(),
+			Fetches: cachedRootFetch("initial", `{"data":{"initial":"v"}}`),
+			Data:    &Object{Nullable: true, Fields: fields},
+		},
+	}
+
+	resolver := newTestResolver(t, baseResolverOpts())
+	ctx := NewContext(context.Background())
+	ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+	// Left over from an earlier resolution on the same Context.
+	ctx.setResponseCacheHeaderTags([]string{"stale"})
+
+	w := &testDeferWriter{}
+	_, err := resolver.ResolveGraphQLDeferResponse(ctx, response, w)
+	require.NoError(t, err)
+	require.True(t, w.complete)
+
+	require.ElementsMatch(t, want, ctx.ResponseCacheHeaderTags())
 }
