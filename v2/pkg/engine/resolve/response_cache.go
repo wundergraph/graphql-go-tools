@@ -110,6 +110,11 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		if !ok || len(item.Value) == 0 {
 			return false
 		}
+		if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
+			l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
+			return false
+		}
+
 		size += len(item.Value)
 	}
 
@@ -477,6 +482,11 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 		for _, key := range entry.responseCacheKeys {
 			item, ok := found[key]
 			if !ok || len(item.Value) == 0 {
+				values = nil
+				break
+			}
+			if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
+				l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
 				values = nil
 				break
 			}

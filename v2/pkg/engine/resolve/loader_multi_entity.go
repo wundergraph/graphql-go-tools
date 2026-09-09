@@ -626,10 +626,8 @@ func (e *preparedMultiEntry) setMergeConfig(res *result, response, entryErrors *
 	e.res.out = res.out // Not sure if we need this at all.
 }
 
-// applyCachedEntriesToResponse writes the entities a cache hit already answered
-// into response under that entry's alias — they have none of their own, having
-// been switched off in the request — so that nothing downstream of here can tell
-// a hit from a fetch.
+// applyCachedEntriesToResponse writes each warm entry's cached entities into response under its
+// alias, so that downstream cannot tell a hit from a fetch.
 func (l *Loader) applyCachedEntriesToResponse(prepared *preparedFetch, response *astjson.Value) error {
 	for i := range prepared.multiEntries {
 		entry := &prepared.multiEntries[i]

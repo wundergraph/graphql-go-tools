@@ -929,6 +929,124 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCachePartialFailure(t *test
 	})
 }
 
+func TestLoadGraphQLResponseData_SingleFetch_ResponseCacheCorruptEntry(t *testing.T) {
+	// Cached value that is not valid JSON counts as a miss for an unmerged entity fetch.
+	const batchResponse = `{"data":{"_entities":[{"products":["a"]},{"products":["b"]}]}}`
+	const entityResponse = `{"data":{"_entities":[{"notes":"n"}]}}`
+
+	load := func(t *testing.T, cache *testCache, batchDS, entityDS DataSource, onError func(error)) (string, *Loader) {
+		t.Helper()
+		ctx := multiEntityContext(t)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: 60 * time.Second,
+			OnError:    onError,
+		})
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		response := multiEntityUnmergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			batchDS,
+			entityDS,
+		)
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		return string(loader.dataBuffer.Get().MarshalTo(nil)), loader
+	}
+
+	cache := newTestCache()
+	load(t, cache,
+		&recordingDataSource{response: []byte(batchResponse), responseHeaders: cacheableHeaders()},
+		&recordingDataSource{response: []byte(entityResponse), responseHeaders: cacheableHeaders()},
+		func(err error) { t.Errorf("response cache error: %v", err) },
+	)
+	require.Len(t, cache.items, 3)
+
+	// Corrupt one of the batch fetch's two entities. Every key is still found, so
+	// only validation can tell this hit from a good one.
+	for key, item := range cache.items {
+		if bytes.Contains(item.Value, []byte(`"a"`)) {
+			item.Value = []byte(`{not json`)
+			cache.items[key] = item
+		}
+	}
+
+	var reported []error
+	batch := &recordingDataSource{response: []byte(batchResponse), responseHeaders: cacheableHeaders()}
+	entity := &recordingDataSource{err: errors.New("entity subgraph must not be called")}
+	out, loader := load(t, cache, batch, entity, func(err error) { reported = append(reported, err) })
+
+	assert.JSONEq(t, multiEntityExpectedData, out, "the batch fetch was refetched; the entity fetch was served from the cache")
+	assertMergedErrors(t, loader, "")
+	assert.Equal(t, 1, batch.calls, "a corrupt value sends the fetch to the origin")
+
+	require.Len(t, reported, 1, "the bad value is reported to the cache owner, not to the client")
+
+	// The fetch overwrote the corrupt value, so the store is whole again.
+	assert.Equal(t, []string{`{"notes":"n"}`, `{"products":["a"]}`, `{"products":["b"]}`}, cachedEntityValues(cache))
+}
+
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheCorruptEntry(t *testing.T) {
+	// Cached value that is not valid JSON counts as a miss.
+	load := func(t *testing.T, cache *testCache, multiDS *recordingDataSource, onError func(error)) (string, *Loader) {
+		t.Helper()
+		ctx := multiEntityContext(t)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: 60 * time.Second,
+			OnError:    onError,
+		})
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		response := multiEntityMergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			multiDS,
+		)
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		return string(loader.dataBuffer.Get().MarshalTo(nil)), loader
+	}
+
+	cache := newTestCache()
+	load(t, cache, &recordingDataSource{
+		response:        []byte(multiEntityMergedResponse),
+		responseHeaders: cacheableHeaders(),
+	}, func(err error) { t.Errorf("response cache error: %v", err) })
+
+	// Corrupt one of f1's stored entities and evict f2. Every key of f1 is still
+	// found, so only validation can tell this hit from a good one.
+	var corruptKey string
+	for key, item := range cache.items {
+		if bytes.Contains(item.Value, []byte("notes")) {
+			delete(cache.items, key)
+			continue
+		}
+		if bytes.Contains(item.Value, []byte(`"a"`)) {
+			item.Value = []byte(`{not json`)
+			cache.items[key] = item
+			corruptKey = key
+		}
+	}
+	require.NotEmpty(t, corruptKey)
+
+	var reported []error
+	origin := &recordingDataSource{
+		response:        []byte(multiEntityMergedResponse),
+		responseHeaders: cacheableHeaders(),
+	}
+	out, loader := load(t, cache, origin, func(err error) { reported = append(reported, err) })
+
+	assert.JSONEq(t, multiEntityExpectedData, out, "both entries answered by the origin")
+	assertMergedErrors(t, loader, "")
+
+	// f1 was asked for again, in full, alongside the evicted f2.
+	require.Equal(t, 1, origin.calls)
+	expectedInput := `{"method":"POST","url":"http://x","body":{"query":"Q","variables":{"representations_f1":[{"__typename":"Employee","id":1},{"__typename":"Employee","id":2}],"includeF1":true,"representations_f2":[{"__typename":"Employee","id":9}],"includeF2":true,"first_f2":10}}}`
+	assert.Equal(t, expectedInput, string(origin.lastInput))
+
+	require.Len(t, reported, 1, "the bad value is reported to the cache owner, not to the client")
+	assert.ErrorContains(t, reported[0], corruptKey)
+
+	// The fetch overwrote the corrupt value, so the store is whole again.
+	assert.Equal(t, []string{`{"notes":"n"}`, `{"products":["a"]}`, `{"products":["b"]}`}, cachedEntityValues(cache))
+}
+
 // TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting pins what a
 // merged fetch reports to the engine loader hooks. OnFinished fires once for the
 // merged request, so a hit is reported only when every entry was warm, with the
