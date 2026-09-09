@@ -516,24 +516,27 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 		}
 		// Only when nothing was sent. A request that failed keeps its body,
 		// which is the one a hook wants to see.
-		if len(res.out) == 0 {
-			l.reportCachedResponseBody(prepared, cached)
+		if len(res.out) == 0 && cached != nil && l.ctx.LoaderHooks != nil {
+			res.out = cached.MarshalTo(nil)
 		}
 	} else {
 		if err := l.applyParsedResponseToEntries(prepared, response); err != nil {
 			return err
 		}
-		// What the subgraph sent is missing the aliases the cache answered.
-		l.reportCachedResponseBody(prepared, response)
+		// What the subgraph sent is missing the aliases the cache answered,
+		// so the hooks get the document the entries merged from instead.
+		if l.ctx.LoaderHooks != nil && anyCachedEntry(prepared) {
+			res.out = response.MarshalTo(nil)
+		}
 	}
 
 	return l.mergeEntryResults(prepared)
 }
 
-// parseMultiEntityResponse returns the merged response, parsed once for all
-// entries. It reports false when there is nothing to demux: the request failed
-// (error, auth/rate-limit rejection, unparseable body), or none was sent at all
-// because every entry was served from the response cache.
+// parseMultiEntityResponse returns the merged response, parsed once for all entries.
+// It reports false when there is nothing to demux: the request failed
+// (error, auth/rate-limit rejection, unparseable body),
+// or none was sent at all because every entry was served from the response cache.
 func (l *Loader) parseMultiEntityResponse(res *result) (*astjson.Value, bool) {
 	if res.err != nil || res.authorizationRejected || res.rateLimitRejected || len(res.out) == 0 {
 		return nil, false
@@ -688,18 +691,6 @@ func (l *Loader) serveCachedEntriesWithoutResponse(prepared *preparedFetch) (*as
 // anyCachedEntry reports whether the response cache answered any entry.
 func anyCachedEntry(prepared *preparedFetch) bool {
 	return slices.ContainsFunc(prepared.multiEntries, func(e preparedMultiEntry) bool { return e.cacheHit() })
-}
-
-// reportCachedResponseBody hands the loader hooks the document the entries
-// merged from. Cached entities exist only as parsed values — on a full hit no
-// request was sent at all, and on a partial one they are absent from what the
-// subgraph returned — so without this a hook would read an empty or incomplete
-// body purely because the planner merged the fetches.
-func (l *Loader) reportCachedResponseBody(prepared *preparedFetch, response *astjson.Value) {
-	if l.ctx.LoaderHooks == nil || response == nil || !anyCachedEntry(prepared) {
-		return
-	}
-	prepared.res.out = response.MarshalTo(nil)
 }
 
 // mergeEntryResults runs the standard mergeResult for each entry, joins every
