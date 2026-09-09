@@ -605,28 +605,25 @@ func (l *Loader) applyParsedResponseToEntries(prepared *preparedFetch, response 
 	}
 
 	for i := range prepared.multiEntries {
-		l.setEntryMergeConfig(prepared, i, response, entryErrors[i])
-		prepared.multiEntries[i].res.httpResponseContext = res.httpResponseContext
+		entry := &prepared.multiEntries[i]
+		entry.setMergeConfig(res, response, entryErrors[i])
+		entry.res.httpResponseContext = res.httpResponseContext
+		entry.res.statusCode = res.statusCode
 	}
 	return nil
 }
 
-// setEntryMergeConfig points this entry's mergeResult at its aliased slice of
-// response, and copies over the transport state of the one merged request.
-func (l *Loader) setEntryMergeConfig(prepared *preparedFetch, i int, response, entryErrors *astjson.Value) {
-	res := prepared.res
-	entry := prepared.multiEntries[i].entry
-	entryRes := prepared.multiEntries[i].res
-	entryRes.multi = &multiEntryMergeConfig{
-		alias:        entry.Alias,
-		originSingle: entry.OriginKind == EntityFetchOriginSingle,
-		info:         entry.Info,
+// setMergeConfig gives the entry its slice of the shared response and its partitioned errors.
+func (e *preparedMultiEntry) setMergeConfig(res *result, response, entryErrors *astjson.Value) {
+	e.res.multi = &multiEntryMergeConfig{
+		alias:        e.entry.Alias,
+		originSingle: e.entry.OriginKind == EntityFetchOriginSingle,
+		info:         e.entry.Info,
 		response:     response,
 		errors:       entryErrors,
 	}
-	entryRes.statusCode = res.statusCode
-	entryRes.ds = res.ds
-	entryRes.out = res.out
+	e.res.ds = res.ds
+	e.res.out = res.out // Not sure if we need this at all.
 }
 
 // applyCachedEntriesToResponse writes the entities a cache hit already answered
@@ -674,14 +671,15 @@ func (l *Loader) serveCachedEntriesWithoutResponse(prepared *preparedFetch) (*as
 	}
 
 	for i := range prepared.multiEntries {
-		if !prepared.multiEntries[i].cacheHit() {
+		entry := &prepared.multiEntries[i]
+		if !entry.cacheHit() {
 			continue
 		}
-		l.setEntryMergeConfig(prepared, i, response, nil)
+		entry.setMergeConfig(prepared.res, response, nil)
 		// Neither a failed request's status code nor its body says anything
 		// about an entry that was answered before it was sent.
-		prepared.multiEntries[i].res.statusCode = http.StatusOK
-		prepared.multiEntries[i].res.out = nil
+		entry.res.statusCode = http.StatusOK
+		entry.res.out = nil
 	}
 	return response, nil
 }
