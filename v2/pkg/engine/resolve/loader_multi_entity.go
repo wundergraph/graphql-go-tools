@@ -39,8 +39,8 @@ type preparedMultiEntry struct {
 	responseCacheTTL time.Duration
 }
 
-// cacheHit reports whether this entry was answered entirely from the response
-// cache, in which case it was switched off in the merged request.
+// cacheHit reports whether every representation of this entry was found in the response cache.
+// Such an entry is never asked of the subgraph.
 func (e *preparedMultiEntry) cacheHit() bool { return len(e.cachedValues) > 0 }
 
 // multiAssembly is what the load phase needs to rebuild the merged request
@@ -346,16 +346,14 @@ func (l *Loader) assembleMultiEntity(opts *assembleMultiEntityOptions) (*assembl
 	}, nil
 }
 
-// setResponseCacheKeys derives one key per unique representation of every entry
-// that renders representations. Each entry hashes its own slice of the request,
-// so warm entries can be recognised and switched off one at a time.
-func (l *Loader) setResponseCacheKeys(mulitEntries []preparedMultiEntry, assembled *assembleMultiEntityResult) {
+// setResponseCacheKeys derives and sets a key per unique representation of every entry.
+func (l *Loader) setResponseCacheKeys(entries []preparedMultiEntry, assembled *assembleMultiEntityResult) {
 	if !l.responseCacheEnabled() {
 		return
 	}
 
-	for i := range mulitEntries {
-		multiEntry := &mulitEntries[i]
+	for i := range entries {
+		multiEntry := &entries[i]
 		if len(multiEntry.representationItemHashes) == 0 {
 			continue
 		}
