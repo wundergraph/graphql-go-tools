@@ -1096,6 +1096,24 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T
 		{hit: false, ttl: 0},
 		{hit: true, ttl: 60 * time.Second},
 	}, load(t, cache, cached))
+
+	// Evict f2, leaving f1 warm. A request goes out for f2, so this is not a
+	// hit, but f1's data still carries the life left on its cached entities. The
+	// router's Cache-Control merge needs that lifetime, or it advertises f2's
+	// max-age for a response half of which expires sooner.
+	for key, item := range cache.items {
+		if bytes.Contains(item.Value, []byte("notes")) {
+			delete(cache.items, key)
+		}
+	}
+	partial := &recordingDataSource{
+		response:        []byte(`{"data":{"f2":[{"notes":"n"}]}}`),
+		responseHeaders: cacheableHeaders(),
+	}
+	require.Equal(t, []cacheReport{
+		{hit: false, ttl: 0},
+		{hit: false, ttl: 60 * time.Second},
+	}, load(t, cache, partial))
 }
 
 // TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHookBody pins that a
@@ -1195,6 +1213,36 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHookBody(t *testing.T)
 		)))
 		require.Len(t, bodies, 2)
 		assert.Equal(t, `not json`, bodies[1])
+	})
+
+	t.Run("a request that failed without a body reports none", func(t *testing.T) {
+		cache := warmCache(t)
+		for key, item := range cache.items {
+			if bytes.Contains(item.Value, []byte("notes")) {
+				delete(cache.items, key)
+			}
+		}
+
+		// f1 is warm, and the request for f2 never comes back. There is no body,
+		// and the document assembled from f1's cached entities is not one: a hook
+		// would otherwise read a success-shaped body next to the error.
+		ctx := multiEntityContext(t)
+		ctx.SetResponseCache(ResponseCacheOptions{Store: cache, DefaultTTL: 60 * time.Second})
+		var infos []*ResponseInfo
+		ctx.SetEngineLoaderHooks(&spyLoaderHooks{
+			onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
+				infos = append(infos, info)
+			},
+		})
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, multiEntityMergedTree(
+			&recordingDataSource{response: []byte(multiEntityRootResponse)},
+			&recordingDataSource{err: errors.New("boom")},
+		)))
+		require.Len(t, infos, 2)
+		require.Error(t, infos[1].Err)
+		assert.False(t, infos[1].ResponseCacheHit)
+		assert.Empty(t, infos[1].GetResponseBody())
 	})
 }
 

@@ -395,6 +395,10 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 		}
 	}
 
+	// A partial hit still contains data with this much life left,
+	// and the hook needs it for Cache-Control.
+	prepared.res.responseCacheTTL = shortestCachedEntryTTL(prepared.multiEntries)
+
 	if !slices.Contains(assembly.included, true) {
 		// Every entry hit, so no request goes out and the body prepare assembled
 		// is never sent. The hooks still run, as they do for a cached single or
@@ -406,7 +410,6 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 		}
 		prepared.res.statusCode = http.StatusOK
 		prepared.res.responseCacheHit = true
-		prepared.res.responseCacheTTL = shortestCachedEntryTTL(prepared.multiEntries)
 		prepared.responseCacheHit = true
 		if prepared.trace != nil {
 			prepared.trace.LoadSkipped = true
@@ -514,7 +517,7 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 		}
 		// Only when nothing was sent. A request that failed keeps its body,
 		// which is the one a hook wants to see.
-		if len(res.out) == 0 && cached != nil && l.ctx.LoaderHooks != nil {
+		if res.responseCacheHit && cached != nil && l.ctx.LoaderHooks != nil {
 			res.out = cached.MarshalTo(nil)
 		}
 	} else {
@@ -536,7 +539,7 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 // (error, auth/rate-limit rejection, unparseable body),
 // or none was sent at all because every entry was served from the response cache.
 func (l *Loader) parseMultiEntityResponse(res *result) (*astjson.Value, bool) {
-	if res.err != nil || res.authorizationRejected || res.rateLimitRejected || len(res.out) == 0 {
+	if res.err != nil || res.authorizationRejected || res.rateLimitRejected || res.responseCacheHit || len(res.out) == 0 {
 		return nil, false
 	}
 	response, parseErr := astjson.ParseBytesWithArena(l.jsonArena, res.out)

@@ -142,9 +142,8 @@ type result struct {
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
-	// responseCacheHit and responseCacheTTL record that the fetch was served from
-	// the cache and the min lifetime left across its entries. Fetch-local, so the
-	// unlocked load phase is safe.
+	// responseCacheHit and responseCacheTTL record that the fetch was served entirely from the cache
+	// and the min lifetime left across its entries. Fetch-local, so the unlocked load phase is safe.
 	responseCacheHit bool
 	responseCacheTTL time.Duration
 	// out is the subgraph response body
@@ -524,6 +523,7 @@ type preparedFetch struct {
 
 	isRootFetchCache bool
 
+	// responseCacheHit is set when the fetch was answered entirely from the cache.
 	responseCacheHit bool
 
 	responseCacheItems []caching.Item
