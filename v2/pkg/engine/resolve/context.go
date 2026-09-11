@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
@@ -258,13 +259,22 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 }
 
 type responseCache struct {
-	store        caching.Cache
-	defaultTTL   time.Duration
-	onError      func(error)
-	invalidation ResponseCacheTagIndexOptions
+	store         caching.Cache
+	defaultTTL    time.Duration
+	onError       func(error)
+	invalidation  ResponseCacheTagIndexOptions
+	privateIDHash uint64
+	hasPrivateID  bool
 	// headerTags is the union over every fetch of the request, merged under
 	// the loader's data lock as each fetch is merged.
 	headerTags []string
+}
+
+func (c *Context) responseCachePrivateIDHash() (uint64, bool) {
+	if c.responseCache == nil || !c.responseCache.hasPrivateID {
+		return 0, false
+	}
+	return c.responseCache.privateIDHash, true
 }
 
 // ResponseCacheHeaderTags are the cache tags of every cached fetch in the
@@ -313,6 +323,8 @@ type ResponseCacheOptions struct {
 	OnError    func(error)
 	// Invalidation is taken as given; the zero value builds no indexes.
 	Invalidation ResponseCacheTagIndexOptions
+	// PrivateID is the id of the user this request acts for.
+	PrivateID string
 }
 
 func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
@@ -324,6 +336,10 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		defaultTTL:   opts.DefaultTTL,
 		onError:      opts.OnError,
 		invalidation: opts.Invalidation,
+	}
+	if opts.PrivateID != "" {
+		c.responseCache.privateIDHash = xxhash.Sum64String(opts.PrivateID)
+		c.responseCache.hasPrivateID = true
 	}
 }
 

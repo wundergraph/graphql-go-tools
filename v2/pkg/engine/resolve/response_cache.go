@@ -61,6 +61,27 @@ func rootFetchCacheable(fetchItem *FetchItem, fetch *SingleFetch) bool {
 	return bytes.Equal(fetch.DataSourceIdentifier, graphqlDataSourceIdentifier)
 }
 
+// responseCacheSetKeys builds the keys of a fetch, one per entity hash, and
+// their per-user twins when the request carries a user id. The response is
+// not known yet, so both are looked up and the response decides which one is
+// written.
+func (l *Loader) responseCacheSetKeys(prepared *preparedFetch, selectionHash uint64, entityHashes []uint64) {
+	prepared.responseCacheKeys = make([]string, len(entityHashes))
+	for i, entityHash := range entityHashes {
+		prepared.responseCacheKeys[i] = caching.Key(entityHash, selectionHash)
+	}
+
+	privateIDHash, ok := l.ctx.responseCachePrivateIDHash()
+	if !ok {
+		return
+	}
+
+	prepared.responseCachePrivateKeys = make([]string, len(entityHashes))
+	for i, entityHash := range entityHashes {
+		prepared.responseCachePrivateKeys[i] = caching.PrivateKey(entityHash, selectionHash, privateIDHash)
+	}
+}
+
 func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	if !l.responseCacheEnabled() {
 		return false
@@ -71,13 +92,43 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		return false
 	}
 
-	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, keys)
+	privateKeys := prepared.responseCachePrivateKeys
+	lookup := keys
+	// Since we don't know in advance we need to query both key types
+	if privateKeys != nil {
+		lookup = make([]string, 0, len(keys)+len(privateKeys))
+		lookup = append(lookup, keys...)
+		lookup = append(lookup, privateKeys...)
+	}
+
+	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, lookup)
 	if err != nil {
-		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(keys), err))
+		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(lookup), err))
 		return false
 	}
-	if len(found) != len(keys) {
+	if len(found) < len(keys) {
 		return false
+	}
+
+	// Per position the user's own entry wins over the shared one.
+	items := make([]caching.Item, len(keys))
+	private := false
+	size := 0
+	for i, key := range keys {
+		item, ok := caching.Item{}, false
+		if privateKeys != nil {
+			item, ok = found[privateKeys[i]]
+			ok = ok && len(item.Value) > 0
+			private = private || ok
+		}
+		if !ok {
+			item, ok = found[key]
+			if !ok || len(item.Value) == 0 {
+				return false
+			}
+		}
+		items[i] = item
+		size += len(item.Value)
 	}
 
 	prefix, suffix := entitiesResponsePrefix, entitiesResponseSuffix
@@ -85,22 +136,13 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		prefix, suffix = dataResponsePrefix, dataResponseSuffix
 	}
 
-	size := len(prefix) + len(suffix) + len(keys) - 1
-	for _, key := range keys {
-		item, ok := found[key]
-		if !ok || len(item.Value) == 0 {
-			return false
-		}
-		size += len(item.Value)
-	}
-
-	out := make([]byte, 0, size)
+	out := make([]byte, 0, size+len(prefix)+len(suffix)+len(items)-1)
 	out = append(out, prefix...)
-	for i, key := range keys {
+	for i, item := range items {
 		if i > 0 {
 			out = append(out, ',')
 		}
-		out = append(out, found[key].Value...)
+		out = append(out, item.Value...)
 	}
 	out = append(out, suffix...)
 
@@ -108,17 +150,18 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.out = out
 	res.statusCode = http.StatusOK
 	res.responseCacheHit = true
-	res.responseCacheTTL = remainingTTL(found, keys)
-	res.responseCacheHeaderTags = foundHeaderTags(found, keys)
+	res.responseCachePrivate = private
+	res.responseCacheTTL = remainingTTL(items)
+	res.responseCacheHeaderTags = foundHeaderTags(items)
 
 	return true
 }
 
 // foundHeaderTags unions what the hit entries were stored with.
-func foundHeaderTags(found map[string]caching.Item, keys []string) []string {
-	lists := make([][]string, 0, len(keys))
-	for _, key := range keys {
-		lists = append(lists, found[key].HeaderTags)
+func foundHeaderTags(items []caching.Item) []string {
+	lists := make([][]string, 0, len(items))
+	for _, item := range items {
+		lists = append(lists, item.HeaderTags)
 	}
 	return caching.MergeHeaderTags(nil, lists...)
 }
@@ -126,10 +169,10 @@ func foundHeaderTags(found map[string]caching.Item, keys []string) []string {
 // remainingTTL is the shortest life left across a fetch's entries: a fetch is only
 // as fresh as its least fresh entry. Zero counts, it is an entry that is stale as
 // of now. Only a negative TTL is dropped, as no cache should report one.
-func remainingTTL(found map[string]caching.Item, keys []string) time.Duration {
+func remainingTTL(items []caching.Item) time.Duration {
 	ttl := time.Duration(-1)
-	for _, key := range keys {
-		cachedTTL := found[key].TTL
+	for _, item := range items {
+		cachedTTL := item.TTL
 		if cachedTTL < 0 {
 			continue
 		}
@@ -180,9 +223,18 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	ttl, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
+	ttl, private, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
 	if !ok {
 		return nil
+	}
+
+	// A private body only ever lands under a per-user key.
+	writeKeys := prepared.responseCacheKeys
+	if private {
+		if prepared.responseCachePrivateKeys == nil {
+			return nil
+		}
+		writeKeys = prepared.responseCachePrivateKeys
 	}
 
 	values, err := responseCacheValues(prepared, response)
@@ -203,7 +255,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			continue
 		}
 		item := caching.Item{
-			Key:   prepared.responseCacheKeys[i],
+			Key:   writeKeys[i],
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
 		}
