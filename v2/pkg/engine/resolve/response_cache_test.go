@@ -619,39 +619,34 @@ func TestRemainingTTL(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		found    map[string]caching.Item
-		keys     []string
+		items    []caching.Item
 		expected time.Duration
 	}{
 		{
 			name:     "the shortest of several entries",
-			found:    map[string]caching.Item{"a": item(30 * time.Second), "b": item(10 * time.Second)},
-			keys:     []string{"a", "b"},
+			items:    []caching.Item{item(30 * time.Second), item(10 * time.Second)},
 			expected: 10 * time.Second,
 		},
 		{
 			name:     "zero is a lifetime, not an absent one",
-			found:    map[string]caching.Item{"a": item(30 * time.Second), "b": item(0)},
-			keys:     []string{"a", "b"},
+			items:    []caching.Item{item(30 * time.Second), item(0)},
 			expected: 0,
 		},
 		{
 			name:     "a lone zero survives",
-			found:    map[string]caching.Item{"a": item(0)},
-			keys:     []string{"a"},
+			items:    []caching.Item{item(0)},
 			expected: 0,
 		},
 		{
 			name:     "a negative TTL is dropped in favour of its neighbours",
-			found:    map[string]caching.Item{"a": item(-5 * time.Second), "b": item(10 * time.Second)},
-			keys:     []string{"a", "b"},
+			items:    []caching.Item{item(-5 * time.Second), item(10 * time.Second)},
 			expected: 10 * time.Second,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, remainingTTL(tc.found, tc.keys))
+			require.Equal(t, tc.expected, remainingTTL(tc.items))
 		})
 	}
 }

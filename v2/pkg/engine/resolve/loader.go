@@ -66,6 +66,9 @@ type ResponseInfo struct {
 	// ResponseCacheTTL is the lowest lifetime left on the entries the fetch was served from. Non-negative TTLs are considered.
 	// Use ResponseCacheHit to distinguish a cache hit with a zero TTL from a cache miss.
 	ResponseCacheTTL time.Duration
+	// ResponseCachePrivate reports that at least one entry the hit was served
+	// from belongs to the requesting user, so the response is private.
+	ResponseCachePrivate bool
 	// This should be private as we do not want user's to access the raw responseBody directly
 	responseBody []byte
 }
@@ -76,11 +79,12 @@ func (r *ResponseInfo) GetResponseBody() string {
 
 func newResponseInfo(res *result) *ResponseInfo {
 	responseInfo := &ResponseInfo{
-		StatusCode:       res.statusCode,
-		Err:              res.subgraphError,
-		ResponseCacheHit: res.responseCacheHit,
-		ResponseCacheTTL: res.responseCacheTTL,
-		responseBody:     res.out,
+		StatusCode:           res.statusCode,
+		Err:                  res.subgraphError,
+		ResponseCacheHit:     res.responseCacheHit,
+		ResponseCacheTTL:     res.responseCacheTTL,
+		ResponseCachePrivate: res.responseCachePrivate,
+		responseBody:         res.out,
 	}
 	if res.httpResponseContext != nil {
 		// We're using the response.Request here, because the body will be nil (since the response was read) and won't
@@ -147,6 +151,9 @@ type result struct {
 	// unlocked load phase is safe.
 	responseCacheHit bool
 	responseCacheTTL time.Duration
+	// responseCachePrivate records that a hit was served, in whole or part,
+	// from entries scoped to the requesting user.
+	responseCachePrivate bool
 	// responseCacheHeaderTags is what the fetch contributes to the cache tag
 	// header, read back on a hit and computed on a miss.
 	responseCacheHeaderTags []string
@@ -516,6 +523,8 @@ type preparedFetch struct {
 	batchFetch bool
 
 	responseCacheKeys []string
+
+	responseCachePrivateKeys []string
 
 	isRootFetchCache bool
 
@@ -1676,10 +1685,7 @@ func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, it
 		return nil
 	}
 	if l.responseCacheEnabled() && rootFetchCacheable(fetchItem, fetch) {
-		prepared.responseCacheKeys = []string{caching.Key(
-			xxhash.Sum64(fetchInput),
-			xxhash.Sum64String(fetch.Info.DataSourceID),
-		)}
+		l.responseCacheSetKeys(prepared, xxhash.Sum64String(fetch.Info.DataSourceID), []uint64{xxhash.Sum64(fetchInput)})
 		prepared.isRootFetchCache = true
 	}
 
@@ -1762,8 +1768,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 			rendered[:responseCacheHeaderEnd],
 			rendered[responseCacheFooterStart:],
 		)
-		responseCacheItemHash := xxhash.Sum64(renderedItem)
-		prepared.responseCacheKeys = []string{caching.Key(responseCacheItemHash, selectionHash)}
+		l.responseCacheSetKeys(prepared, selectionHash, []uint64{xxhash.Sum64(renderedItem)})
 	}
 
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
@@ -1956,10 +1961,7 @@ WithNextItem:
 			rendered[:responseCacheHeaderEnd],
 			rendered[responseCacheFooterStart:],
 		)
-		prepared.responseCacheKeys = make([]string, len(responseCacheItemHashes))
-		for i, itemHash := range responseCacheItemHashes {
-			prepared.responseCacheKeys[i] = caching.Key(itemHash, selectionHash)
-		}
+		l.responseCacheSetKeys(prepared, selectionHash, responseCacheItemHashes)
 	}
 
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)

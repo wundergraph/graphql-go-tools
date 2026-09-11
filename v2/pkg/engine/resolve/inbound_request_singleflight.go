@@ -77,8 +77,9 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 		return nil, nil
 	}
 
-	// Derive a robust key from request ID, variables hash and (optional) headers hash
-	var b [24]byte
+	// Derive a robust key from request ID, variables hash, (optional) headers hash
+	// and the response cache user id (if present)
+	var b [32]byte
 	binary.LittleEndian.PutUint64(b[0:8], ctx.Request.ID)
 	binary.LittleEndian.PutUint64(b[8:16], ctx.VariablesHash)
 	hh := uint64(0)
@@ -86,6 +87,8 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
 	binary.LittleEndian.PutUint64(b[16:24], hh)
+	privateIDHash, _ := ctx.responseCachePrivateIDHash()
+	binary.LittleEndian.PutUint64(b[24:32], privateIDHash)
 	h := pool.Hash64.Get()
 	_, _ = h.Write(b[:])
 	key := h.Sum64()
