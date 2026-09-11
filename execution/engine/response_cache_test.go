@@ -312,17 +312,14 @@ func TestResponseCacheExecution(t *testing.T) {
 		require.EqualValues(t, 4, hooks.onFinished.Load())
 	})
 
-	t.Run("a merged multi entity fetch is never cached", func(t *testing.T) {
+	t.Run("a merged multi entity fetch is cached per alias", func(t *testing.T) {
 		t.Parallel()
 
 		// With multi fetch on, the planner collapses the two reviews fetches of one
-		// parallel wave into a single aliased _entities request, and that shape
-		// carries no cache keys and never reaches the collector: the merge phase
-		// returns through mergeMultiEntityResult before it. So response caching
-		// silently turns itself off for every merged wave.
-		//
-		// This pins that as it stands today. It is the one shape where enabling a
-		// planner optimisation costs you the cache without saying so.
+		// parallel wave into a single aliased _entities request. The merged
+		// response is taken apart per alias on the way into the cache, one entity
+		// at a time, so a merged wave stores exactly what the two unmerged fetches
+		// it replaces would have stored, and is no less cacheable for being merged.
 		h := newHarness(t, func(c *Configuration) { c.EnableMultiFetch() })
 		h.users.answers(meAnswer)
 		h.products.answers(productsAnswer("1", "2"))
@@ -336,23 +333,27 @@ func TestResponseCacheExecution(t *testing.T) {
 
 		cache := newMapCache()
 		merged := h.execute(t, bothShapes, withResponseCache(t, cache))
-		h.execute(t, bothShapes, withResponseCache(t, cache))
 
-		// The answer is whole, so the emptiness below is the cache declining to
-		// store a good response rather than a broken response being declined.
 		require.Contains(t, merged, `"body":"r1"`)
 		require.Contains(t, merged, `"body":"r2"`)
-		require.Len(t, cache.keys(), 2,
-			"the two root fetches feeding the merged wave are cached as usual, and the merged fetch itself stores nothing")
-		require.EqualValues(t, 2, h.reviews.calls(),
-			"one request per execution, so the two fetches really were merged into one")
+		require.EqualValues(t, 1, h.reviews.calls(),
+			"one request, so the two fetches really were merged into one")
 
-		// That it really was one merged fetch and not two ordinary ones that each
-		// happened to miss: the aliases only exist in the merged shape. Cases 1
-		// and 2 above show unmerged entity fetches of both shapes do cache, so the
-		// difference here is the merging.
+		// That it really was one merged fetch and not two ordinary ones: the
+		// aliases only exist in the merged shape.
 		require.Contains(t, h.reviews.last.Load().(string), `f1: _entities`)
 		require.Contains(t, h.reviews.last.Load().(string), `f2: _entities`)
+
+		// Three entities off the merged response — one for f1, two for f2 — on top
+		// of the two root fetches feeding the wave.
+		require.Len(t, cache.keys(), 5)
+
+		// Second execution: every entity of both aliases is warm, so the merged
+		// request is never sent and the answer is the same one.
+		cached := h.execute(t, bothShapes, withResponseCache(t, cache))
+		require.JSONEq(t, merged, cached)
+		require.EqualValues(t, 1, h.reviews.calls(),
+			"a merged fetch whose every entry is warm must not reach the subgraph")
 	})
 }
 
