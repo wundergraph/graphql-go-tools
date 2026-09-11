@@ -91,6 +91,8 @@ type Planner[T Configuration] struct {
 
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 	hasFederationRoot    bool
+	// field ref whose on-type inline fragment is closed again in LeaveField
+	closeOnTypeInlineFragmentFieldRef int
 
 	minifier *astminify.Minifier
 
@@ -695,11 +697,13 @@ func (p *Planner[T]) EnterInlineFragment(ref int) {
 		return
 	}
 
-	if p.config.IsFederationEnabled() && !p.hasFederationRoot && p.isNestedRequest() {
+	if p.config.IsFederationEnabled() && (p.isInEntitiesSelectionSet() || (!p.hasFederationRoot && p.isNestedRequest())) {
 		// if we're inside the nested root of a federated abstract query,
 		// we're walking into the inline fragment as the root
 		// however, as we're already handling the inline fragment when we walk into the root field,
 		// we can skip this one
+		// isNestedRequest no longer holds once the _entities selection set exists,
+		// so we also key on being inside it
 		return
 	}
 
@@ -804,9 +808,29 @@ func (p *Planner[T]) EnterField(ref int) {
 		p.rootTypeName = p.lastFieldEnclosingTypeName
 	}
 
+	closeOnTypeInlineFragment := p.isTypenameOnAbstractEntitiesRoot(ref) && p.isOnTypeInlineFragmentAllowed()
+
 	p.handleOnTypeInlineFragment()
 
 	p.addFieldArguments(p.addField(ref), ref, fieldConfiguration)
+
+	if closeOnTypeInlineFragment {
+		p.closeOnTypeInlineFragmentFieldRef = ref
+	}
+}
+
+// isTypenameOnAbstractEntitiesRoot reports whether ref is a __typename selected directly on an
+// abstract type in the _entities selection set. Such a field needs a fragment on the abstract type
+// itself - a fragment on a concrete implementation cannot answer it - and that fragment has to be
+// closed again in LeaveField so the sibling on-type fragments don't end up nested inside it.
+func (p *Planner[T]) isTypenameOnAbstractEntitiesRoot(ref int) bool {
+	if !p.hasFederationRoot || !p.isInEntitiesSelectionSet() {
+		return false
+	}
+	if !bytes.Equal(p.visitor.Operation.FieldNameBytes(ref), literal.TYPENAME) {
+		return false
+	}
+	return p.visitor.Walker.EnclosingTypeDefinition.Kind.IsAbstractType()
 }
 
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
@@ -848,6 +872,12 @@ func (p *Planner[T]) LeaveField(ref int) {
 	}
 
 	p.nodes = p.nodes[:len(p.nodes)-1]
+
+	if p.closeOnTypeInlineFragmentFieldRef == ref {
+		// leave the on-type inline fragment opened for this field in EnterField
+		p.closeOnTypeInlineFragmentFieldRef = ast.InvalidRef
+		p.nodes = p.nodes[:len(p.nodes)-1]
+	}
 }
 
 // allowField - allows processing a field if datasource has corresponding root or child node
@@ -902,6 +932,7 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 
 	p.addDirectivesToVariableDefinitions = map[int][]int{}
 	p.addedInlineFragments = map[onTypeInlineFragment]struct{}{}
+	p.closeOnTypeInlineFragmentFieldRef = ast.InvalidRef
 }
 
 func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {

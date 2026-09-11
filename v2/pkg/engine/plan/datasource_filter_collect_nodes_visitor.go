@@ -76,6 +76,22 @@ func (c *nodesCollector) initVisitors() {
 	c.dsVisitors = make([]*collectNodesDSVisitor, 0, len(c.dataSources))
 	c.dsVisitorsReports = make([]*operationreport.Report, 0, len(c.dataSources))
 
+	// entity interfaces declared with at least one key with an enabled entity resolver
+	entityInterfacesResolvable := make(map[string]struct{})
+	for _, dataSource := range c.dataSources {
+		fedCfg := dataSource.FederationConfiguration()
+		for _, entityInterface := range fedCfg.EntityInterfaces {
+			interfaceTypeName := entityInterface.InterfaceTypeName
+			keysForType := fedCfg.Keys.FilterByTypeAndResolvability(interfaceTypeName, false)
+			for _, key := range keysForType {
+				if !key.DisableEntityResolver {
+					entityInterfacesResolvable[interfaceTypeName] = struct{}{}
+					break
+				}
+			}
+		}
+	}
+
 	// prepare visitors for each data source
 	for _, dataSource := range c.dataSources {
 		visitor := &collectNodesDSVisitor{
@@ -92,6 +108,8 @@ func (c *nodesCollector) initVisitors() {
 			dataSource:              dataSource,
 			notExternalKeyPaths:     make(map[string]struct{}),
 			unfetchableFieldRefs:    c.unfetchableFieldRefs,
+
+			entityInterfacesResolvableElsewhere: entityInterfacesResolvable,
 		}
 		c.dsVisitors = append(c.dsVisitors, visitor)
 		c.dsVisitorsReports = append(c.dsVisitorsReports, operationreport.NewReport())
@@ -296,6 +314,10 @@ type collectNodesDSVisitor struct {
 	// reference to a global cache of field info shared between all collector instances
 	info map[int]fieldInfo
 
+	// entity interface type names some datasource can resolve entities for;
+	// shared by all collector instances, computed once in initVisitors
+	entityInterfacesResolvableElsewhere map[string]struct{}
+
 	// information about keys available for a given path collected during the current run
 	keys []DSKeyInfo
 
@@ -343,6 +365,17 @@ func (f *collectNodesDSVisitor) hasProvidesConfiguration(typeName, fieldName str
 func (f *collectNodesDSVisitor) isEntityInterface(typeName string) bool {
 	cfg := f.dataSource.FederationConfiguration()
 	return cfg.HasEntityInterface(typeName)
+}
+
+// isEntityInterfaceName matches only the entity interface's own type name, unlike
+// HasEntityInterface which also matches the concrete member type names
+func (f *collectNodesDSVisitor) isEntityInterfaceName(typeName string) bool {
+	for _, entityInterface := range f.dataSource.FederationConfiguration().EntityInterfaces {
+		if entityInterface.InterfaceTypeName == typeName {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *collectNodesDSVisitor) isInterfaceObject(typeName string) bool {
@@ -544,6 +577,16 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 
 		// at the same time we should allow to select a typename on the entity interface
 		return nil
+	}
+
+	if info.isTypeName && f.isEntityInterfaceName(info.typeName) && f.allKeysHasDisabledEntityResolver(info.typeName) {
+		// a datasource which cannot resolve entities of the entity interface (e.g. an event-driven
+		// source) cannot be trusted to report the concrete __typename, so it should not claim the
+		// field when a datasource able to resolve the entity exists; when none exists, keep the
+		// local claim rather than making the field unplannable
+		if _, resolvableElsewhere := f.entityInterfacesResolvableElsewhere[info.typeName]; resolvableElsewhere {
+			return nil
+		}
 	}
 
 	hasRootNodeWithTypename := f.dataSource.HasRootNodeWithTypename(info.typeName)
