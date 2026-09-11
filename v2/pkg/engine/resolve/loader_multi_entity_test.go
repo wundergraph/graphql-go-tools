@@ -1098,9 +1098,9 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T
 	}, load(t, cache, cached))
 
 	// Evict f2, leaving f1 warm. A request goes out for f2, so this is not a
-	// hit, but f1's data still carries the life left on its cached entities. The
-	// router's Cache-Control merge needs that lifetime, or it advertises f2's
-	// max-age for a response half of which expires sooner.
+	// hit, but f1's data still carries the life left on its cached entities.
+	// The router's Cache-Control merge needs that lifetime,
+	// or it advertises f2's max-age for a response half of which expires sooner.
 	for key, item := range cache.items {
 		if bytes.Contains(item.Value, []byte("notes")) {
 			delete(cache.items, key)
@@ -1108,7 +1108,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T
 	}
 	partial := &recordingDataSource{
 		response:        []byte(`{"data":{"f2":[{"notes":"n"}]}}`),
-		responseHeaders: cacheableHeaders(),
+		responseHeaders: http.Header{"Cache-Control": []string{"public, max-age=120"}},
 	}
 	require.Equal(t, []cacheReport{
 		{hit: false, ttl: 0},
