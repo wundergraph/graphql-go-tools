@@ -455,6 +455,10 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 
 	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
 	if prepared.res.err != nil {
+		// TODO: for a MultiEntityFetch this marks all entries as failed,
+		//   including the ones served from the response cache.
+		//   Their dependents are then skipped and their fields stay null without an error.
+		//   Mark only the entries that were sent.
 		l.recordErroredFetchID(prepared.item)
 	}
 
