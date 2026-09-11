@@ -109,8 +109,18 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.statusCode = http.StatusOK
 	res.responseCacheHit = true
 	res.responseCacheTTL = remainingTTL(found, keys)
+	res.responseCacheHeaderTags = foundHeaderTags(found, keys)
 
 	return true
+}
+
+// foundHeaderTags unions what the hit entries were stored with.
+func foundHeaderTags(found map[string]caching.Item, keys []string) []string {
+	lists := make([][]string, 0, len(keys))
+	for _, key := range keys {
+		lists = append(lists, found[key].HeaderTags)
+	}
+	return caching.MergeHeaderTags(nil, lists...)
 }
 
 // remainingTTL is the shortest life left across a fetch's entries: a fetch is only
@@ -183,12 +193,11 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	subgraph := prepared.res.ds.Name
 	invalidation := l.ctx.responseCache.invalidation
 
-	var declared [][]string
-	if invalidation.CacheTag {
-		declared = responseCacheTags(response, len(values), prepared.isRootFetchCache)
-	}
+	// Parsed whether or not the cache_tag index is on: the header always carries them.
+	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
 	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
+	headerTagLists := make([][]string, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
@@ -198,25 +207,26 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
 		}
-		if invalidation.any() {
-			// Indexed by i like the key: a null entity is skipped above without
-			// consuming a tag list, so the two stay aligned.
-			var declaredForValue []string
-			if len(declared) > 0 {
-				declaredForValue = declared[i]
-			}
-			item.Tags = responseCacheTagIdentities(responseCacheTagInput{
-				declared:    declaredForValue,
-				value:       value,
-				subgraph:    subgraph,
-				isRootFetch: prepared.isRootFetchCache,
-				opts:        invalidation,
-			})
+		// Indexed by i like the key: a null entity is skipped above without
+		// consuming a tag list, so the two stay aligned.
+		var declaredForValue []string
+		if len(declared) > 0 {
+			declaredForValue = declared[i]
 		}
+		input := responseCacheTagInput{
+			declared:    declaredForValue,
+			value:       value,
+			subgraph:    subgraph,
+			isRootFetch: prepared.isRootFetchCache,
+			opts:        invalidation,
+		}
+		item.Tags, item.HeaderTags = responseCacheIdentities(input)
+		headerTagLists = append(headerTagLists, item.HeaderTags)
 		items = append(items, item)
 	}
 
 	prepared.responseCacheItems = items
+	prepared.res.responseCacheHeaderTags = caching.MergeHeaderTags(nil, headerTagLists...)
 	return nil
 }
 
@@ -292,6 +302,7 @@ func responseCacheTagList(list *astjson.Value) []string {
 	}
 
 	parsed := make([]string, 0, len(values))
+	total := 0
 	for _, value := range values {
 		if value.Type() != astjson.TypeString {
 			continue
@@ -300,6 +311,11 @@ func responseCacheTagList(list *astjson.Value) []string {
 		// Empty is meaningless; over long is a key name the subgraph sized.
 		if tag == "" || len(tag) > maxResponseCacheTagLength {
 			continue
+		}
+		// Stored with every entry and merged per request, so bounded as a whole
+		// as well as per tag. Rejected outright, like the count.
+		if total += len(tag); total > maxResponseCacheTagBytesPerValue {
+			return nil
 		}
 		parsed = append(parsed, tag)
 	}
@@ -321,31 +337,52 @@ type responseCacheTagInput struct {
 	opts        ResponseCacheTagIndexOptions
 }
 
-func responseCacheTagIdentities(input responseCacheTagInput) []string {
-	if input.subgraph == "" {
-		return nil
+// responseCacheIdentities: tags follow the index options, header tags carry
+// every tier.
+func responseCacheIdentities(input responseCacheTagInput) (tags, headerTags []string) {
+	headerTags = make([]string, 0, len(input.declared)+2)
+	headerTags = append(headerTags, caching.SubgraphHeaderTag(input.subgraph))
+
+	var typeName string
+	if !input.isRootFetch {
+		typeName = string(input.value.GetStringBytes("__typename"))
 	}
 
-	identities := make([]string, 0, len(input.declared)+2)
+	if typeName != "" {
+		headerTags = append(headerTags, caching.TypeHeaderTag(input.subgraph, typeName))
+	}
+	headerTags = append(headerTags, input.declared...)
 
-	for _, tag := range input.declared {
-		identities = append(identities, caching.DeclaredTag(input.subgraph, tag))
+	if !input.opts.any() {
+		return nil, headerTags
 	}
 
-	if input.opts.Subgraph {
-		identities = append(identities, caching.SubgraphTag(input.subgraph))
-	}
-
-	if input.opts.Type && !input.isRootFetch {
-		if name := input.value.GetStringBytes("__typename"); len(name) > 0 {
-			identities = append(identities, caching.TypeTag(input.subgraph, string(name)))
+	tags = make([]string, 0, len(input.declared)+2)
+	if input.opts.CacheTag {
+		for _, tag := range input.declared {
+			tags = append(tags, caching.DeclaredTag(input.subgraph, tag))
 		}
 	}
-
-	if len(identities) == 0 {
-		return nil
+	if input.opts.Subgraph {
+		tags = append(tags, caching.SubgraphTag(input.subgraph))
 	}
-	return identities
+	if input.opts.Type && typeName != "" {
+		tags = append(tags, caching.TypeTag(input.subgraph, typeName))
+	}
+	if len(tags) == 0 {
+		tags = nil
+	}
+
+	return tags, headerTags
+}
+
+// responseCacheMergeHeaderTags adds what one fetch contributed, hit or miss, to the
+// request's set. Called under the data lock, which is what serializes it.
+func (l *Loader) responseCacheMergeHeaderTags(res *result) {
+	if !l.responseCacheEnabled() || len(res.responseCacheHeaderTags) == 0 {
+		return
+	}
+	l.ctx.responseCache.headerTags = caching.MergeHeaderTags(l.ctx.responseCache.headerTags, res.responseCacheHeaderTags)
 }
 
 // responseCacheFlush writes what responseCacheCollect gathered. It is called with
@@ -375,8 +412,9 @@ func responseCacheHeaders(res *result) http.Header {
 }
 
 const (
-	maxResponseCacheTagsPerValue = 10_000
-	maxResponseCacheTagLength    = 10_000
+	maxResponseCacheTagsPerValue     = 10_000
+	maxResponseCacheTagLength        = 10_000
+	maxResponseCacheTagBytesPerValue = 256 * 1024
 )
 
 // Where a subgraph attaches its cache tags.

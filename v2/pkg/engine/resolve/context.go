@@ -29,6 +29,7 @@ type Context struct {
 	// the resolver will use the new name to look up the old name to render the variable in the query.
 	RemapVariables map[string]string
 
+	// Verification
 	VariablesHash    uint64
 	Files            []*httpclient.FileUpload
 	Request          Request
@@ -261,6 +262,27 @@ type responseCache struct {
 	defaultTTL   time.Duration
 	onError      func(error)
 	invalidation ResponseCacheTagIndexOptions
+	// headerTags is the union over every fetch of the request, merged under
+	// the loader's data lock as each fetch is merged.
+	headerTags []string
+}
+
+// ResponseCacheHeaderTags are the cache tags of every cached fetch in the
+// request so far, hits and misses alike, for the response header. Complete once
+// resolution has finished.
+func (c *Context) ResponseCacheHeaderTags() []string {
+	if c.responseCache == nil {
+		return nil
+	}
+	return c.responseCache.headerTags
+}
+
+// setResponseCacheHeaderTags replaces the set: a fresh resolution starts empty,
+// and a deduplicated follower takes the leader's.
+func (c *Context) setResponseCacheHeaderTags(headerTags []string) {
+	if c.responseCache != nil {
+		c.responseCache.headerTags = headerTags
+	}
 }
 
 // ResponseCacheTagIndexOptions selects which secondary indexes are built.

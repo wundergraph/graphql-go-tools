@@ -5,12 +5,13 @@ import (
 	"encoding/hex"
 )
 
-// keyFormatVersion leads every key this package builds. A change to the layout
-// or to the meaning of either hash bumps it, which orphans the entries written
-// under the old layout instead of letting them be read back as something they
-// are not. Orphaned entries are not deleted, they simply stop being asked for
-// and fall out on their own TTL.
-const keyFormatVersion = "v1"
+// keyFormatVersion leads every key this package builds. A change to the key
+// layout, to the meaning of either hash, or to the stored entry format (see
+// entry.go) bumps it, which orphans the entries written under the old layout
+// instead of letting them be read back as something they are not. Orphaned
+// entries are not deleted, they simply stop being asked for and fall out on
+// their own TTL.
+const keyFormatVersion = "v2"
 
 // Key builds the cache key for one entity within one fetch.
 func Key(entityHash, selectionHash uint64) string {
