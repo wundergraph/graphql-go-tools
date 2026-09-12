@@ -20,8 +20,8 @@ import (
 //
 //	D0  THE GOVERNING RULE: a directive we understand must parse completely or
 //	    the whole field is rejected. Unknown directives are still ignored (D3)
-//	    and field-list contents are still taken as given (D19), but a max-age
-//	    or s-maxage we cannot read is an error, not a shrug.
+//	    and field-list contents are still taken as given (D19), but a
+//	    delta-seconds value we cannot read is an error, not a shrug.
 //
 //	    CALLER CONTRACT: a parse error means DO NOT CACHE. Rejecting the field
 //	    discards everything in it, so `no-store, max-age=abc` yields an error
@@ -37,7 +37,7 @@ import (
 //
 //	D1  "No directives" is never an error, however it arises. An empty field, a
 //	    whitespace-only field, a field of nothing but commas, and a field of
-//	    nothing but directives we do not model all parse to a non-nil, zero
+//	    nothing but ignored directives all parse to a non-nil, zero
 //	    CacheControlResponse. ParseCacheControlResponse never returns nil on
 //	    success either, so callers never have to nil-check.
 //
@@ -46,20 +46,15 @@ import (
 //	    three inputs carrying zero directives, three different outcomes. Under
 //	    D0 none of them is a syntax problem, so none of them errors. See D13.
 //	D2  Directive names are case-insensitive (RFC 9110 tokens).
-//	D3  Directives that the CacheControlResponse struct does not model
-//	    (must-revalidate, no-transform, proxy-revalidate, immutable,
-//	    stale-while-revalidate, arbitrary cache extensions) are ignored, not
-//	    rejected. RFC 9111 §5.2: unknown directives MUST be ignored. A header
-//	    consisting only of such directives still parses to a non-nil, zero
-//	    CacheControlResponse.
+//	D3  Cache directives used by this package are modeled. Others are ignored;
+//	    RFC 9111 §5.2 requires unknown directives to be ignored.
 //	D4  A boolean directive (no-store, public) that carries an argument keeps
 //	    its meaning; the stray argument is discarded. `no-store=true` still
 //	    sets NoStore, since the argument tells us nothing the directive name
 //	    did not. Unlike max-age there is no value to get wrong, so there is
 //	    nothing to reject.
-//	D5  max-age / s-maxage with a missing, empty or non-numeric argument is an
-//	    error (D0). Overflow is not: RFC 9111 §1.2.2 says to clamp, so a huge
-//	    value is still a successful parse.
+//	D5  A missing, empty or non-numeric delta-seconds argument is an error (D0).
+//	    Overflow is clamped as required by RFC 9111 §1.2.2.
 //
 //	    MaxAge and SMaxAge stay pointers so that nil ("no max-age given") is
 //	    distinguishable from `max-age=0` ("already stale"), which a caller
@@ -245,16 +240,31 @@ func TestParse(t *testing.T) {
 		requireParses(t, "private", &CacheControlResponse{Private: fieldNames()})
 	})
 
-	// --- D3: unmodelled directives are ignored ------------------------------
+	// --- D3: additional cache directives ------------------------------------
 
-	t.Run("must-revalidate alone is ignored but still parses", func(t *testing.T) {
+	t.Run("must-revalidate", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "must-revalidate", &CacheControlResponse{})
+		requireParses(t, "must-revalidate", &CacheControlResponse{MustRevalidate: true})
 	})
 
-	t.Run("stale-while-revalidate is ignored", func(t *testing.T) {
+	t.Run("proxy-revalidate", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60, stale-while-revalidate=30", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, "proxy-revalidate", &CacheControlResponse{ProxyRevalidate: true})
+	})
+
+	t.Run("stale-if-error", func(t *testing.T) {
+		t.Parallel()
+		requireParses(t, "stale-if-error=30", &CacheControlResponse{StaleIfError: seconds(30)})
+	})
+
+	t.Run("bare stale-if-error", func(t *testing.T) {
+		t.Parallel()
+		requireParseError(t, "stale-if-error")
+	})
+
+	t.Run("stale-while-revalidate", func(t *testing.T) {
+		t.Parallel()
+		requireParses(t, "stale-while-revalidate=30", &CacheControlResponse{StaleWhileRevalidate: seconds(30)})
 	})
 
 	t.Run("unknown extension with quoted argument is ignored", func(t *testing.T) {
@@ -273,14 +283,18 @@ func TestParse(t *testing.T) {
 	// case-mangled example of each is enough.
 	t.Run("directive names are case-insensitive", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, `MAX-AGE=60, S-MaxAge=120, No-Cache, PuBlIc, NO-STORE, PRIVATE`,
+		requireParses(t, `MAX-AGE=60, S-MaxAge=120, No-Cache, PuBlIc, NO-STORE, PRIVATE, MuSt-Revalidate, PROXY-Revalidate, Stale-If-Error=30, Stale-While-Revalidate=40`,
 			&CacheControlResponse{
-				MaxAge:  seconds(60),
-				SMaxAge: seconds(120),
-				NoCache: fieldNames(),
-				Public:  true,
-				NoStore: true,
-				Private: fieldNames(),
+				MaxAge:               seconds(60),
+				SMaxAge:              seconds(120),
+				NoCache:              fieldNames(),
+				Public:               true,
+				NoStore:              true,
+				Private:              fieldNames(),
+				MustRevalidate:       true,
+				ProxyRevalidate:      true,
+				StaleIfError:         seconds(30),
+				StaleWhileRevalidate: seconds(40),
 			})
 	})
 
@@ -364,6 +378,16 @@ func TestParse(t *testing.T) {
 	t.Run("s-maxage non-numeric", func(t *testing.T) {
 		t.Parallel()
 		requireParseError(t, "s-maxage=abc")
+	})
+
+	t.Run("stale-if-error non-numeric", func(t *testing.T) {
+		t.Parallel()
+		requireParseError(t, "stale-if-error=abc")
+	})
+
+	t.Run("stale-while-revalidate without value", func(t *testing.T) {
+		t.Parallel()
+		requireParseError(t, "stale-while-revalidate")
 	})
 
 	t.Run("max-age float", func(t *testing.T) {
@@ -660,7 +684,7 @@ func TestParse(t *testing.T) {
 	t.Run("typical no-cache combination", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, "no-cache, no-store, must-revalidate, max-age=0", &CacheControlResponse{
-			NoCache: fieldNames(), NoStore: true, MaxAge: seconds(0),
+			NoCache: fieldNames(), NoStore: true, MustRevalidate: true, MaxAge: seconds(0),
 		})
 	})
 
@@ -959,11 +983,11 @@ func TestParse(t *testing.T) {
 
 	// --- robustness -----------------------------------------------------------
 
-	t.Run("many repeated ignorable directives", func(t *testing.T) {
+	t.Run("many repeated directives", func(t *testing.T) {
 		t.Parallel()
 
 		input := strings.TrimSuffix(strings.Repeat("must-revalidate, ", 1000), ", ") + ", max-age=60"
-		requireParses(t, input, &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, input, &CacheControlResponse{MustRevalidate: true, MaxAge: seconds(60)})
 	})
 
 	t.Run("very long field list", func(t *testing.T) {
@@ -982,11 +1006,6 @@ func TestParse(t *testing.T) {
 func TestParseCacheControlResponse(t *testing.T) {
 	t.Parallel()
 
-	// An absent header and a header carrying no directives both yield an empty
-	// response rather than nil, so callers never have to nil-check. Nothing is
-	// lost: every field is already optional, so "absent" and "present but
-	// modelled nothing" are the same answer to every question a caller asks.
-
 	t.Run("nil headers", func(t *testing.T) {
 		t.Parallel()
 		requireHeaderParses(t, nil, &CacheControlResponse{})
@@ -1002,13 +1021,11 @@ func TestParseCacheControlResponse(t *testing.T) {
 		requireHeaderParses(t, http.Header{"Cache-Control": []string{""}}, &CacheControlResponse{})
 	})
 
-	// D1 + D3 — a field we understood but modelled none of still parsed, so it
-	// is not the "absent" case and must not be nil.
-	t.Run("Cache-Control with only unmodelled directives is non-nil", func(t *testing.T) {
+	t.Run("Cache-Control with a revalidation directive", func(t *testing.T) {
 		t.Parallel()
 		requireHeaderParses(t,
 			http.Header{"Cache-Control": []string{"must-revalidate"}},
-			&CacheControlResponse{},
+			&CacheControlResponse{MustRevalidate: true},
 		)
 	})
 
@@ -1082,6 +1099,18 @@ func TestParseCacheControlResponse(t *testing.T) {
 			&CacheControlResponse{Private: fieldNames()},
 		)
 	})
+}
+
+func TestCacheControlResponseToHeaderString(t *testing.T) {
+	t.Parallel()
+
+	cc := &CacheControlResponse{
+		MustRevalidate:       true,
+		ProxyRevalidate:      true,
+		StaleIfError:         seconds(30),
+		StaleWhileRevalidate: seconds(60),
+	}
+	require.Equal(t, "must-revalidate, proxy-revalidate, stale-if-error=30, stale-while-revalidate=60", cc.ToHeaderString())
 }
 
 func TestParseDeltaSeconds(t *testing.T) {
@@ -1412,8 +1441,12 @@ func assertCacheControlResponse(t *testing.T, expected, actual *CacheControlResp
 
 	assertDeltaSeconds(t, "MaxAge", expected.MaxAge, actual.MaxAge)
 	assertDeltaSeconds(t, "SMaxAge", expected.SMaxAge, actual.SMaxAge)
+	assertDeltaSeconds(t, "StaleIfError", expected.StaleIfError, actual.StaleIfError)
+	assertDeltaSeconds(t, "StaleWhileRevalidate", expected.StaleWhileRevalidate, actual.StaleWhileRevalidate)
 	assert.Equal(t, expected.NoStore, actual.NoStore, "NoStore")
 	assert.Equal(t, expected.Public, actual.Public, "Public")
+	assert.Equal(t, expected.MustRevalidate, actual.MustRevalidate, "MustRevalidate")
+	assert.Equal(t, expected.ProxyRevalidate, actual.ProxyRevalidate, "ProxyRevalidate")
 
 	assertFieldNames(t, "NoCache", expected.NoCache, actual.NoCache)
 	assertFieldNames(t, "Private", expected.Private, actual.Private)

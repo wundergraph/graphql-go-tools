@@ -2,6 +2,7 @@ package postprocess
 
 import (
 	"bytes"
+	"cmp"
 	"regexp"
 	"slices"
 	"strconv"
@@ -69,7 +70,7 @@ func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group
 	// orderSequenceByDependencies. Real waves already list members in ascending
 	// FetchID order, so aliasing matches the unmerged flat order.
 	slices.SortFunc(group, func(a, b *resolve.FetchTreeNode) int {
-		return a.Item.Fetch.(*resolve.SingleFetch).FetchID - b.Item.Fetch.(*resolve.SingleFetch).FetchID
+		return cmp.Compare(a.FetchID(), b.FetchID())
 	})
 
 	members := make([]*resolve.SingleFetch, len(group))

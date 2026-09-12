@@ -4,14 +4,16 @@ else
  FORMAT := pkgname
 endif
 
+GO_TOOL := go tool
+
 .PHONY: test
 test:
-	go tool gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- -race ./...
+	$(GO_TOOL) gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- -race ./...
 
 # First we test, then we benchmark. Otherwise we would get noisy output from testing logs.
 .PHONY: test-quick
 test-quick:
-	go tool gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- ./...
+	$(GO_TOOL) gotestsum -f $(FORMAT) --format-hide-empty-pkg --hide-summary=skipped -- ./...
 	go test -run=^$$ -bench=. -benchtime=1x ./...
 
 # update-fixtures will update all! golden fixtures
@@ -22,34 +24,22 @@ update-fixtures:
 # golangci-lint will find the config file in the root dir of the repo.
 .PHONY: format
 format:
-	golangci-lint fmt
+	$(GO_TOOL) golangci-lint fmt
 
 .PHONY: lint
 lint:
-	golangci-lint run
+	$(GO_TOOL) golangci-lint run
 	cd ../execution && make lint
 
 .PHONY: lint-fix
 lint-fix:
-	golangci-lint run --fix
+	$(GO_TOOL) golangci-lint run --fix
 	cd ../execution && make lint-fix
 
 .PHONY: prepare-merge
 prepare-merge: format test
 
 .PHONY: generate
-generate: $(GOPATH)/bin/go-enum $(GOPATH)/bin/mockgen $(GOPATH)/bin/stringer
+generate:
 	go generate ./...
 	go mod tidy
-
-$(GOPATH)/bin/go-enum:
-	go get -u github.com/abice/go-enum
-	go install github.com/abice/go-enum
-
-$(GOPATH)/bin/mockgen:
-	go get -u github.com/golang/mock/gomock
-	go install github.com/golang/mock/mockgen
-
-$(GOPATH)/bin/stringer:
-	go get -u -a golang.org/x/tools/cmd/stringer
-	go install golang.org/x/tools/cmd/stringer

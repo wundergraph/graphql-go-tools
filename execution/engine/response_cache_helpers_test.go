@@ -94,8 +94,13 @@ func withResponseCache(t *testing.T, cache caching.Cache) ExecutionOptions {
 	t.Helper()
 
 	return func(execCtx *internalExecutionContext) {
-		execCtx.resolveContext.SetResponseCache(cache, time.Minute, func(err error) {
-			t.Errorf("response cache reported an error: %v", err)
+		execCtx.resolveContext.SetResponseCache(resolve.ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: time.Minute,
+			OnError: func(err error) {
+				t.Errorf("response cache reported an error: %v", err)
+			},
+			Invalidation: resolve.DefaultResponseCacheTagIndexOptions(),
 		})
 	}
 }

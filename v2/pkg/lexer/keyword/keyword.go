@@ -1,4 +1,4 @@
-//go:generate stringer -type=Keyword
+//go:generate go tool stringer -type=Keyword
 
 // Package keyword contains all possible GraphQL keywords
 package keyword

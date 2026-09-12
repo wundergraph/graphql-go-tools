@@ -1,6 +1,7 @@
 package astvalidation
 
 import (
+	"bytes"
 	"errors"
 	"net/http"
 	"testing"
@@ -15,9 +16,67 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
+
+func TestOperationValidatorErrorPath(t *testing.T) {
+	t.Run("preserves the response when the validator and document are reused", func(t *testing.T) {
+		definition := unsafeparser.ParseGraphqlDocumentString(`
+			schema { query: Query mutation: Mutation }
+			scalar String
+			type Query { product: Product }
+			type Mutation { product: Product }
+			type Product { name: String }
+		`)
+		operation := ast.NewDocument()
+		parser := astparser.NewParser()
+		validator := DefaultOperationValidator()
+		validate := func(query string) operationreport.Report {
+			operation.Reset()
+			operation.Input.ResetInputString(query)
+			var report operationreport.Report
+			parser.Parse(operation, &report)
+			require.False(t, report.HasErrors(), report.Error())
+			validator.Validate(operation, &definition, &report)
+			return report
+		}
+
+		report := validate(`query { alias: product { missing } }`)
+		require.Len(t, report.ExternalErrors, 1)
+		requestErrors := graphqlerrors.RequestErrorsFromOperationReport(report)
+		const expected = `{"errors":[{"message":"Cannot query field \"missing\" on type \"Product\".","path":["query","alias"]}]}`
+
+		// Force reuse rather than relying on sync.Pool to return the same validator.
+		report = validate(`mutation { other: product { name } }`)
+		require.False(t, report.HasErrors(), report.Error())
+		var response bytes.Buffer
+		_, err := requestErrors.WriteResponse(&response)
+		require.NoError(t, err)
+		assert.JSONEq(t, expected, response.String())
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for range 100 {
+				var response bytes.Buffer
+				_, err := requestErrors.WriteResponse(&response)
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.JSONEq(t, expected, response.String()) {
+					return
+				}
+			}
+		}()
+		defer func() { <-done }()
+		for range 100 {
+			report = validate(`query { product { name } }`)
+			require.False(t, report.HasErrors(), report.Error())
+		}
+	})
+}
 
 type options struct {
 	disableNormalization        bool

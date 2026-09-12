@@ -68,6 +68,18 @@ func (f *FieldNames) Fields() iter.Seq[string] {
 	}
 }
 
+// FieldsString returns the field names as a string.
+// The string is wrapped in double quotes and comma-separated.
+func (f *FieldNames) FieldsString() string {
+	parts := make([]string, 0, len(f.fields))
+
+	for field := range f.fields {
+		parts = append(parts, field)
+	}
+
+	return "\"" + strings.Join(parts, ",") + "\""
+}
+
 func (f *FieldNames) has(name string) bool {
 	if f == nil || f.noFields {
 		return false
@@ -118,9 +130,28 @@ func parseDeltaSeconds(s string) (DeltaSeconds, error) {
 	return DeltaSeconds(int32(num)), nil
 }
 
+// ToDeltaSeconds converts a time.Duration to a DeltaSeconds.
+func ToDeltaSeconds(d time.Duration) DeltaSeconds {
+	if d < 0 {
+		return DeltaSeconds(-1)
+	}
+
+	val := int64(d / time.Second)
+	if val > math.MaxInt32 {
+		return DeltaSeconds(math.MaxInt32)
+	}
+
+	return DeltaSeconds(int32(val))
+}
+
 // AsDuration converts a DeltaSeconds to a time.Duration.
 func (d DeltaSeconds) AsDuration() time.Duration {
 	return time.Duration(d) * time.Second
+}
+
+// String converts a DeltaSeconds to a string.
+func (d DeltaSeconds) String() string {
+	return strconv.Itoa(int(d))
 }
 
 type CacheControlResponse struct {
@@ -195,6 +226,73 @@ type CacheControlResponse struct {
 	// store the specified field-names(s), whereas it MAY store the
 	// remainder of the response message.
 	Private *FieldNames
+
+	// MustRevalidate requires stale responses to be revalidated.
+	MustRevalidate bool
+
+	// ProxyRevalidate applies must-revalidate to shared caches.
+	ProxyRevalidate bool
+
+	// StaleIfError allows a stale response after an origin error.
+	StaleIfError *DeltaSeconds
+
+	// StaleWhileRevalidate allows a stale response while revalidating it.
+	StaleWhileRevalidate *DeltaSeconds
+}
+
+// HasCachingDirectives reports whether the response contained a recognized
+// directive that affects caching.
+func (c *CacheControlResponse) HasCachingDirectives() bool {
+	return c.MaxAge != nil || c.SMaxAge != nil || c.NoStore || c.NoCache != nil ||
+		c.Public || c.Private != nil || c.MustRevalidate || c.ProxyRevalidate ||
+		c.StaleIfError != nil || c.StaleWhileRevalidate != nil
+}
+
+// ToHeaderString converts a CacheControlResponse to a Cache-Control header string.
+func (c *CacheControlResponse) ToHeaderString() string {
+	parts := []string{}
+
+	if c.Public {
+		parts = append(parts, "public")
+	}
+
+	if c.MaxAge != nil {
+		parts = append(parts, "max-age="+c.MaxAge.String())
+	}
+
+	if c.SMaxAge != nil {
+		parts = append(parts, "s-maxage="+c.SMaxAge.String())
+	}
+
+	if c.NoStore {
+		parts = append(parts, "no-store")
+	}
+
+	if c.NoCache != nil {
+		parts = append(parts, "no-cache="+c.NoCache.FieldsString())
+	}
+
+	if c.Private != nil {
+		parts = append(parts, "private="+c.Private.FieldsString())
+	}
+
+	if c.MustRevalidate {
+		parts = append(parts, "must-revalidate")
+	}
+
+	if c.ProxyRevalidate {
+		parts = append(parts, "proxy-revalidate")
+	}
+
+	if c.StaleIfError != nil {
+		parts = append(parts, "stale-if-error="+c.StaleIfError.String())
+	}
+
+	if c.StaleWhileRevalidate != nil {
+		parts = append(parts, "stale-while-revalidate="+c.StaleWhileRevalidate.String())
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 func ParseCacheControlResponse(headers http.Header) (*CacheControlResponse, error) {
@@ -349,6 +447,34 @@ func parseIdent(name token, l *lexer, cc *CacheControlResponse) error {
 			cc.Private = NewFieldNames()
 		}
 		fieldNamesArgument(arg, cc.Private)
+
+	case "must-revalidate":
+		cc.MustRevalidate = true
+
+	case "proxy-revalidate":
+		cc.ProxyRevalidate = true
+
+	case "stale-if-error":
+		if cc.StaleIfError != nil {
+			return nil
+		}
+
+		value, err := deltaSecondsArgument("stale-if-error", arg)
+		if err != nil {
+			return err
+		}
+		cc.StaleIfError = &value
+
+	case "stale-while-revalidate":
+		if cc.StaleWhileRevalidate != nil {
+			return nil
+		}
+
+		value, err := deltaSecondsArgument("stale-while-revalidate", arg)
+		if err != nil {
+			return err
+		}
+		cc.StaleWhileRevalidate = &value
 
 	default:
 		// We ignore directives that we don't specify here.
