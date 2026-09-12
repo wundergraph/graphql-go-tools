@@ -130,6 +130,26 @@ func TestDocument_ValueToJSON(t *testing.T) {
 			Ref:  0,
 		}
 	}, `"foo\nbar\n baz"`))
+	t.Run("ValueKindVariable - missing renders null", run(func(doc *Document) Value {
+		doc.Input.Variables = []byte(`{}`)
+		return Value{
+			Kind: ValueKindVariable,
+			Ref:  doc.ImportVariableValue([]byte("missing")),
+		}
+	}, `null`))
+	t.Run("ValueKindVariable - malformed variables return an error", func(t *testing.T) {
+		doc := NewDocument()
+		doc.Input.Variables = []byte(`{"variable":"unterminated}`)
+		value := Value{
+			Kind: ValueKindVariable,
+			Ref:  doc.ImportVariableValue([]byte("variable")),
+		}
+
+		out, err := doc.ValueToJSON(value)
+
+		assert.Error(t, err)
+		assert.Nil(t, out)
+	})
 	t.Run("ValueKindList", run(func(doc *Document) Value {
 		doc.StringValues = append(doc.StringValues, StringValue{
 			Content: doc.Input.AppendInputString("foo"),
