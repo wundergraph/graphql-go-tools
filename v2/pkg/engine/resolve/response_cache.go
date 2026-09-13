@@ -11,7 +11,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 // responseCacheEnabled reports whether this request was handed a cache. It is the
@@ -24,17 +23,6 @@ func (l *Loader) reportResponseCacheError(err error) {
 	if l.responseCacheEnabled() && l.ctx.responseCache.onError != nil {
 		l.ctx.responseCache.onError(err)
 	}
-}
-
-func responseCacheSelectionHash(header, footer []byte) uint64 {
-	d := pool.Hash64.Get()
-	defer pool.Hash64.Put(d)
-	_, _ = d.Write(header)
-	// Written in between so that a byte moving from the end of the header to the
-	// start of the footer cannot go unnoticed.
-	_, _ = d.Write([]byte{0})
-	_, _ = d.Write(footer)
-	return d.Sum64()
 }
 
 // rootFetchCacheable reports whether this fetch is the one shape the cache can
@@ -61,24 +49,24 @@ func rootFetchCacheable(fetchItem *FetchItem, fetch *SingleFetch) bool {
 	return bytes.Equal(fetch.DataSourceIdentifier, graphqlDataSourceIdentifier)
 }
 
-// responseCacheSetKeys builds the keys of a fetch, one per entity hash, and
+// responseCacheSetKeys builds the keys of a fetch, one per entity, and
 // their per-user twins when the request carries a user id. The response is
 // not known yet, so both are looked up and the response decides which one is
 // written.
-func (l *Loader) responseCacheSetKeys(prepared *preparedFetch, selectionHash uint64, entityHashes []uint64) {
-	prepared.responseCacheKeys = make([]string, len(entityHashes))
-	for i, entityHash := range entityHashes {
-		prepared.responseCacheKeys[i] = caching.Key(entityHash, selectionHash)
+func (l *Loader) responseCacheSetKeys(prepared *preparedFetch, selection caching.Digest, entities []caching.Digest) {
+	prepared.responseCacheKeys = make([]string, len(entities))
+	for i, entity := range entities {
+		prepared.responseCacheKeys[i] = caching.Key(entity, selection)
 	}
 
-	privateIDHash, ok := l.ctx.responseCachePrivateIDHash()
+	privateID, ok := l.ctx.responseCachePrivateID()
 	if !ok {
 		return
 	}
 
-	prepared.responseCachePrivateKeys = make([]string, len(entityHashes))
-	for i, entityHash := range entityHashes {
-		prepared.responseCachePrivateKeys[i] = caching.PrivateKey(entityHash, selectionHash, privateIDHash)
+	prepared.responseCachePrivateKeys = make([]string, len(entities))
+	for i, entity := range entities {
+		prepared.responseCachePrivateKeys[i] = caching.PrivateKey(entity, selection, privateID)
 	}
 }
 

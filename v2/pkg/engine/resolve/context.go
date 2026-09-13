@@ -10,7 +10,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
@@ -259,22 +258,22 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 }
 
 type responseCache struct {
-	store         caching.Cache
-	defaultTTL    time.Duration
-	onError       func(error)
-	invalidation  ResponseCacheTagIndexOptions
-	privateIDHash uint64
-	hasPrivateID  bool
+	store        caching.Cache
+	defaultTTL   time.Duration
+	onError      func(error)
+	invalidation ResponseCacheTagIndexOptions
+	privateID    caching.Digest
+	hasPrivateID bool
 	// headerTags is the union over every fetch of the request, merged under
 	// the loader's data lock as each fetch is merged.
 	headerTags []string
 }
 
-func (c *Context) responseCachePrivateIDHash() (uint64, bool) {
+func (c *Context) responseCachePrivateID() (caching.Digest, bool) {
 	if c.responseCache == nil || !c.responseCache.hasPrivateID {
-		return 0, false
+		return caching.Digest{}, false
 	}
-	return c.responseCache.privateIDHash, true
+	return c.responseCache.privateID, true
 }
 
 // ResponseCacheHeaderTags are the cache tags of every cached fetch in the
@@ -338,7 +337,7 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		invalidation: opts.Invalidation,
 	}
 	if opts.PrivateID != "" {
-		c.responseCache.privateIDHash = xxhash.Sum64String(opts.PrivateID)
+		c.responseCache.privateID = caching.DigestString(opts.PrivateID)
 		c.responseCache.hasPrivateID = true
 	}
 }

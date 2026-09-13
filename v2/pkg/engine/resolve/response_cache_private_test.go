@@ -60,31 +60,34 @@ func privateLoader(t *testing.T, store caching.Cache, cacheControl, body, privat
 }
 
 func TestResponseCachePrivateKeys(t *testing.T) {
+	sel, e1, e2 := caching.DigestString("sel"), caching.DigestString("e1"), caching.DigestString("e2")
+
 	t.Run("no id builds public keys only", func(t *testing.T) {
 		loader, res := privateLoader(t, newTestCache(), "public", `{}`, "")
 		prepared := &preparedFetch{res: res}
-		loader.responseCacheSetKeys(prepared, 7, []uint64{1, 2})
-		require.Equal(t, []string{caching.Key(1, 7), caching.Key(2, 7)}, prepared.responseCacheKeys)
+		loader.responseCacheSetKeys(prepared, sel, []caching.Digest{e1, e2})
+		require.Equal(t, []string{caching.Key(e1, sel), caching.Key(e2, sel)}, prepared.responseCacheKeys)
 		require.Nil(t, prepared.responseCachePrivateKeys)
-		_, ok := loader.ctx.responseCachePrivateIDHash()
+		_, ok := loader.ctx.responseCachePrivateID()
 		require.False(t, ok)
 	})
 
 	t.Run("an id builds a positional private twin", func(t *testing.T) {
 		loader, res := privateLoader(t, newTestCache(), "public", `{}`, "u1")
 		prepared := &preparedFetch{res: res}
-		loader.responseCacheSetKeys(prepared, 7, []uint64{1, 2})
-		idHash, ok := loader.ctx.responseCachePrivateIDHash()
+		loader.responseCacheSetKeys(prepared, sel, []caching.Digest{e1, e2})
+		digest, ok := loader.ctx.responseCachePrivateID()
 		require.True(t, ok)
-		require.Equal(t, []string{caching.PrivateKey(1, 7, idHash), caching.PrivateKey(2, 7, idHash)}, prepared.responseCachePrivateKeys)
+		require.Equal(t, caching.DigestString("u1"), digest)
+		require.Equal(t, []string{caching.PrivateKey(e1, sel, digest), caching.PrivateKey(e2, sel, digest)}, prepared.responseCachePrivateKeys)
 		require.NotEqual(t, prepared.responseCacheKeys[0], prepared.responseCachePrivateKeys[0])
 	})
 
 	t.Run("no cache means no id", func(t *testing.T) {
 		ctx := NewContext(context.Background())
-		hash, ok := ctx.responseCachePrivateIDHash()
+		digest, ok := ctx.responseCachePrivateID()
 		require.False(t, ok)
-		require.Zero(t, hash)
+		require.Zero(t, digest)
 	})
 }
 
@@ -189,6 +192,26 @@ func TestResponseCachePrivateLookup(t *testing.T) {
 		loader, res := privateLoader(t, store, "", "", "u1")
 		prepared := &preparedFetch{res: res, responseCacheKeys: public, responseCachePrivateKeys: private}
 		require.False(t, loader.responseCacheLookup(prepared))
+	})
+
+	t.Run("entities whose representations collide under a 64-bit hash do not share an entry", func(t *testing.T) {
+		repA, repB := []byte("user-ba3756407998bfc3"), []byte("user-70ca41f165edbbb0")
+		require.Equal(t, xxhash.Sum64(repA), xxhash.Sum64(repB), "the pair must collide under xxhash")
+		selection := caching.DigestString("selection")
+
+		loader, res := privateLoader(t, newTestCache(), "", "", "")
+		stored := &preparedFetch{res: res}
+		loader.responseCacheSetKeys(stored, selection, []caching.Digest{caching.DigestBytes(repA)})
+		seed(t, loader.ctx.responseCache.store, item(stored.responseCacheKeys[0], `{"id":"A"}`, time.Minute))
+
+		other := &preparedFetch{res: &result{}}
+		loader.responseCacheSetKeys(other, selection, []caching.Digest{caching.DigestBytes(repB)})
+		require.NotEqual(t, stored.responseCacheKeys, other.responseCacheKeys)
+		require.False(t, loader.responseCacheLookup(other), "B must not be served A's entry")
+
+		again := &preparedFetch{res: &result{}}
+		loader.responseCacheSetKeys(again, selection, []caching.Digest{caching.DigestBytes(repA)})
+		require.True(t, loader.responseCacheLookup(again))
 	})
 
 	t.Run("a root fetch served privately is rebuilt as data", func(t *testing.T) {
@@ -318,8 +341,27 @@ func TestResponseCachePrivateResolve(t *testing.T) {
 		require.Len(t, store.items, 2, "a private response without an id is not stored")
 
 		for key := range store.items {
-			require.Len(t, key, len(caching.PrivateKey(0, 0, 0)), "only private keys in the store: %s", key)
+			require.Len(t, key, len(caching.PrivateKey(caching.Digest{}, caching.Digest{}, caching.Digest{})), "only private keys in the store: %s", key)
 		}
+	})
+
+	t.Run("users whose ids collide under a 64-bit hash still get their own entries", func(t *testing.T) {
+		const idA, idB = "user-ba3756407998bfc3", "user-70ca41f165edbbb0"
+		require.Equal(t, xxhash.Sum64String(idA), xxhash.Sum64String(idB), "the pair must collide under xxhash")
+
+		calls := &atomic.Int32{}
+		store := newTestCache()
+		resolver := newTestResolver(t, baseResolverOpts())
+		response := newResponse(privateDataSource{cacheControl: "private, max-age=60", calls: calls})
+
+		out, _ := resolveAs(t, resolver, store, response, idA)
+		require.Equal(t, `{"data":{"me":"`+idA+`"}}`, out)
+
+		out, info := resolveAs(t, resolver, store, response, idB)
+		require.Equal(t, `{"data":{"me":"`+idB+`"}}`, out, "never the colliding user's body")
+		require.False(t, info.ResponseCacheHit)
+		require.Equal(t, int32(2), calls.Load())
+		require.Len(t, store.items, 2)
 	})
 
 	t.Run("a public response is shared across users", func(t *testing.T) {

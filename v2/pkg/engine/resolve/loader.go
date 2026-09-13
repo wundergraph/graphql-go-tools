@@ -1685,7 +1685,7 @@ func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, it
 		return nil
 	}
 	if l.responseCacheEnabled() && rootFetchCacheable(fetchItem, fetch) {
-		l.responseCacheSetKeys(prepared, xxhash.Sum64String(fetch.Info.DataSourceID), []uint64{xxhash.Sum64(fetchInput)})
+		l.responseCacheSetKeys(prepared, caching.DigestString(fetch.Info.DataSourceID), []caching.Digest{caching.DigestBytes(fetchInput)})
 		prepared.isRootFetchCache = true
 	}
 
@@ -1764,11 +1764,8 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 	// the offsets above still point at what they were taken from.
 	if l.responseCacheEnabled() {
 		rendered := preparedInput.Bytes()
-		selectionHash := responseCacheSelectionHash(
-			rendered[:responseCacheHeaderEnd],
-			rendered[responseCacheFooterStart:],
-		)
-		l.responseCacheSetKeys(prepared, selectionHash, []uint64{xxhash.Sum64(renderedItem)})
+		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		l.responseCacheSetKeys(prepared, selection, []caching.Digest{caching.DigestBytes(renderedItem)})
 	}
 
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
@@ -1880,7 +1877,7 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 		return errors.WithStack(err)
 	}
 	responseCacheHeaderEnd := preparedInput.Len()
-	var responseCacheItemHashes []uint64
+	var responseCacheItems []caching.Digest
 
 	batchItemIndex := 0
 	addSeparator := false
@@ -1919,12 +1916,13 @@ WithNextItem:
 						return errors.WithStack(err)
 					}
 				}
+				// Digested before WriteTo drains the buffer.
+				if l.responseCacheEnabled() {
+					responseCacheItems = append(responseCacheItems, caching.DigestBytes(itemInput.Bytes()))
+				}
 				_, _ = itemInput.WriteTo(preparedInput)
 				// new unique representation
 				res.tools.batchHashToIndex[itemHash] = batchItemIndex
-				if l.responseCacheEnabled() {
-					responseCacheItemHashes = append(responseCacheItemHashes, itemHash)
-				}
 				// A new targets bucket for the unique index must be allocated on the arena:
 				// a heap-allocated bucket would only be referenced from arena memory,
 				// so the GC could collect its backing array while it is still in use.
@@ -1955,13 +1953,10 @@ WithNextItem:
 		return errors.WithStack(err)
 	}
 
-	if l.responseCacheEnabled() && len(responseCacheItemHashes) > 0 {
+	if l.responseCacheEnabled() && len(responseCacheItems) > 0 {
 		rendered := preparedInput.Bytes()
-		selectionHash := responseCacheSelectionHash(
-			rendered[:responseCacheHeaderEnd],
-			rendered[responseCacheFooterStart:],
-		)
-		l.responseCacheSetKeys(prepared, selectionHash, responseCacheItemHashes)
+		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		l.responseCacheSetKeys(prepared, selection, responseCacheItems)
 	}
 
 	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
