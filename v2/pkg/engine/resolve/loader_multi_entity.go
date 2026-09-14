@@ -143,15 +143,18 @@ func (l *Loader) renderEntryRepresentations(entry *MultiEntityFetchEntry, entryR
 		tools.keyGen.Reset()
 		_, _ = tools.keyGen.Write(itemInput.Bytes())
 		itemHash := tools.keyGen.Sum64()
-		if existingIndex, ok := tools.batchHashToIndex[itemHash]; ok {
-			batchStats[existingIndex] = arena.SliceAppend(tools.a, batchStats[existingIndex], items[i])
+		// The hash narrows, the bytes decide: a collision is a new representation.
+		if ref, ok := tools.batchHashToIndex[itemHash]; ok &&
+			bytes.Equal(repsBuf.Bytes()[ref.start:ref.end], itemInput.Bytes()) {
+			batchStats[ref.index] = arena.SliceAppend(tools.a, batchStats[ref.index], items[i])
 			continue
 		}
 		if addSeparator {
 			_ = repsBuf.WriteByte(',')
 		}
+		start := repsBuf.Len()
 		_, _ = itemInput.WriteTo(repsBuf)
-		tools.batchHashToIndex[itemHash] = batchItemIndex
+		tools.batchHashToIndex[itemHash] = batchItemRef{index: batchItemIndex, start: start, end: repsBuf.Len()}
 		// The targets bucket must live on the arena: a heap bucket referenced
 		// only from arena memory could be collected while still in use.
 		bucket := arena.AllocateSlice[*astjson.Value](tools.a, 1, 1)

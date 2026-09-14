@@ -1794,9 +1794,14 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 	return nil
 }
 
+type batchItemRef struct {
+	index      int
+	start, end int
+}
+
 type batchEntityTools struct {
 	keyGen           *xxhash.Digest
-	batchHashToIndex map[uint64]int
+	batchHashToIndex map[uint64]batchItemRef
 	a                arena.Arena
 }
 
@@ -1824,7 +1829,7 @@ func (p *_batchEntityToolPool) Get(items int) *batchEntityTools {
 	if item == nil {
 		return &batchEntityTools{
 			keyGen:           xxhash.New(),
-			batchHashToIndex: make(map[uint64]int, items),
+			batchHashToIndex: make(map[uint64]batchItemRef, items),
 			a:                arena.NewMonotonicArena(arena.WithMinBufferSize(1024)),
 		}
 	}
@@ -1906,8 +1911,10 @@ WithNextItem:
 			res.tools.keyGen.Reset()
 			_, _ = res.tools.keyGen.Write(itemInput.Bytes())
 			itemHash := res.tools.keyGen.Sum64()
-			if existingIndex, ok := res.tools.batchHashToIndex[itemHash]; ok {
-				batchStats[existingIndex] = arena.SliceAppend(res.tools.a, batchStats[existingIndex], items[i])
+			// The hash narrows, the bytes decide: a collision is a new representation.
+			if ref, ok := res.tools.batchHashToIndex[itemHash]; ok &&
+				bytes.Equal(preparedInput.Bytes()[ref.start:ref.end], itemInput.Bytes()) {
+				batchStats[ref.index] = arena.SliceAppend(res.tools.a, batchStats[ref.index], items[i])
 				continue WithNextItem
 			} else {
 				if addSeparator {
@@ -1920,9 +1927,10 @@ WithNextItem:
 				if l.responseCacheEnabled() {
 					responseCacheItems = append(responseCacheItems, caching.DigestBytes(itemInput.Bytes()))
 				}
+				start := preparedInput.Len()
 				_, _ = itemInput.WriteTo(preparedInput)
 				// new unique representation
-				res.tools.batchHashToIndex[itemHash] = batchItemIndex
+				res.tools.batchHashToIndex[itemHash] = batchItemRef{index: batchItemIndex, start: start, end: preparedInput.Len()}
 				// A new targets bucket for the unique index must be allocated on the arena:
 				// a heap-allocated bucket would only be referenced from arena memory,
 				// so the GC could collect its backing array while it is still in use.
