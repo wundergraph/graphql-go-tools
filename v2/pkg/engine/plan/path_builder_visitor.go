@@ -548,7 +548,7 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		field.ds = ds
 		field.suggestion = suggestion
 
-		// the field was deffered, but it also could be a parent path for some other defer
+		// the field was deferred, but it also could be a parent path for some other defer
 		hasDeferInfo := suggestion.deferInfo != nil
 		// the field may be not deferred, but it is a parent for the child node which was deferred
 		isDeferParent := len(suggestion.descendantDeferIDs) > 0

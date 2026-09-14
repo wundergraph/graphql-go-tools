@@ -10,7 +10,7 @@ import (
 // TTL reads the lifetime a subgraph response may be cached for. private
 // reports that the response is user-specific and may only be stored under a
 // key scoped to the user it was produced for; bare and qualified forms both
-// count, and private opts in like public does.
+// count, and private opts into caching like any other recognized directive.
 func TTL(headers http.Header, defaultTTL time.Duration) (ttl time.Duration, private bool, ok bool) {
 	cc, err := cache.ParseCacheControlResponse(headers)
 	if err != nil {
@@ -27,10 +27,8 @@ func TTL(headers http.Header, defaultTTL time.Duration) (ttl time.Duration, priv
 	}
 
 	private = cc.Private != nil
-	if !cc.Public && !private {
-		return 0, false, false
-	}
 
+	// Explicit freshness takes precedence over the configured fallback.
 	switch {
 	case cc.SMaxAge != nil:
 		if *cc.SMaxAge <= 0 {
@@ -43,6 +41,11 @@ func TTL(headers http.Header, defaultTTL time.Duration) (ttl time.Duration, priv
 			return 0, false, false
 		}
 		return cc.MaxAge.AsDuration(), private, true
+	}
+
+	// Only recognized cache directives opt into the configured fallback.
+	if !cc.HasCachingDirectives() {
+		return 0, false, false
 	}
 
 	if defaultTTL <= 0 {

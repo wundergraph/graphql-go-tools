@@ -390,7 +390,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 			schema, err := graphql.NewSchemaFromString(tc.definition)
 			require.NoError(t, err)
 
-			t.Run("single deffered field", runWithoutError(ExecutionEngineTestCase{
+			t.Run("single deferred field", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -412,7 +412,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("single deffered field between regular fields", runWithoutError(ExecutionEngineTestCase{
+			t.Run("single deferred field between regular fields", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -435,7 +435,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("multiple deffered fields", runWithoutError(ExecutionEngineTestCase{
+			t.Run("multiple deferred fields", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -458,7 +458,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("multiple deffered fields - all object fields deferred", runWithoutError(ExecutionEngineTestCase{
+			t.Run("multiple deferred fields - all object fields deferred", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -507,7 +507,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("single deffered field with label", runWithoutError(ExecutionEngineTestCase{
+			t.Run("single deferred field with label", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
@@ -529,7 +529,7 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 `,
 			}, withStreamingResponse()))
 
-			t.Run("multiple deffered fields with label", runWithoutError(ExecutionEngineTestCase{
+			t.Run("multiple deferred fields with label", runWithoutError(ExecutionEngineTestCase{
 				schema: schema,
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
