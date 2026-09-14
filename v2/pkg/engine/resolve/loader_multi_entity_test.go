@@ -929,7 +929,9 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCachePartialFailure(t *test
 	})
 }
 
-func TestLoadGraphQLResponseData_SingleFetch_ResponseCacheCorruptEntry(t *testing.T) {
+func TestLoadGraphQLResponseData_SingleFetch_ResponseCacheCorruptJSON(t *testing.T) {
+	// If JSON entry became invalid in the store for external reason, then we should ignore it.
+	// This does not take into account the format of valid JSON data.
 	// Cached value that is not valid JSON counts as a miss for an unmerged entity fetch.
 	const batchResponse = `{"data":{"_entities":[{"products":["a"]},{"products":["b"]}]}}`
 	const entityResponse = `{"data":{"_entities":[{"notes":"n"}]}}`
@@ -984,7 +986,9 @@ func TestLoadGraphQLResponseData_SingleFetch_ResponseCacheCorruptEntry(t *testin
 	assert.Equal(t, []string{`{"notes":"n"}`, `{"products":["a"]}`, `{"products":["b"]}`}, cachedEntityValues(cache))
 }
 
-func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheCorruptEntry(t *testing.T) {
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheCorruptJSON(t *testing.T) {
+	// If JSON entry became invalid in the store for external reason, then we should ignore it.
+	// This does not take into account the format of valid JSON data.
 	// Cached value that is not valid JSON counts as a miss.
 	load := func(t *testing.T, cache *testCache, multiDS *recordingDataSource, onError func(error)) (string, *Loader) {
 		t.Helper()
