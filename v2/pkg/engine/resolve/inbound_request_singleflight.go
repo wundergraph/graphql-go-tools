@@ -23,6 +23,11 @@ type requestShard struct {
 	m sync.Map
 }
 
+// inboundRequestKey is the complete discriminator of one inbound request:
+// operation, variables, headers and private identity. It is the map identity
+// as is, so two requests share a flight only when every part matches.
+type inboundRequestKey [24 + sha256.Size]byte
+
 const defaultRequestSingleFlightShardCount = 8
 
 // NewRequestSingleFlight creates a InboundRequestSingleFlight with the provided
@@ -49,7 +54,7 @@ type InflightRequest struct {
 	// serving the same body sends the same header.
 	HeaderTags []string
 	Err        error
-	ID         uint64
+	ID         inboundRequestKey
 
 	followerCount atomic.Int32
 }
@@ -80,21 +85,17 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 
 	// Derive a robust key from request ID, variables hash, (optional) headers hash
 	// and the response cache user id (if present)
-	var b [24 + sha256.Size]byte
-	binary.LittleEndian.PutUint64(b[0:8], ctx.Request.ID)
-	binary.LittleEndian.PutUint64(b[8:16], ctx.VariablesHash)
+	var key inboundRequestKey
+	binary.LittleEndian.PutUint64(key[0:8], ctx.Request.ID)
+	binary.LittleEndian.PutUint64(key[8:16], ctx.VariablesHash)
 	hh := uint64(0)
 	if ctx.SubgraphHeadersBuilder != nil {
 		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
-	binary.LittleEndian.PutUint64(b[16:24], hh)
+	binary.LittleEndian.PutUint64(key[16:24], hh)
 	if privateID, ok := ctx.responseCachePrivateID(); ok {
-		copy(b[24:], privateID[:])
+		copy(key[24:], privateID[:])
 	}
-	h := pool.Hash64.Get()
-	_, _ = h.Write(b[:])
-	key := h.Sum64()
-	pool.Hash64.Put(h)
 
 	shard := r.shardFor(key)
 
@@ -145,9 +146,13 @@ func (r *InboundRequestSingleFlight) FinishErr(req *InflightRequest, err error) 
 	close(req.Done)
 }
 
-func (r *InboundRequestSingleFlight) shardFor(key uint64) *requestShard {
-	// Fast modulo using power-of-two shard count if desired in the future.
-	// For now, use standard modulo for clarity.
-	idx := int(key % uint64(len(r.shards)))
+// shardFor hashes the key down to pick a shard only; the map is keyed by the
+// full key, so a hash collision costs contention, never a shared flight.
+func (r *InboundRequestSingleFlight) shardFor(key inboundRequestKey) *requestShard {
+	h := pool.Hash64.Get()
+	_, _ = h.Write(key[:])
+	sum := h.Sum64()
+	pool.Hash64.Put(h)
+	idx := int(sum % uint64(len(r.shards)))
 	return &r.shards[idx]
 }
