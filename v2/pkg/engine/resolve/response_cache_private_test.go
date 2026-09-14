@@ -20,6 +20,7 @@ import (
 // spyCache records the keys every lookup asked for.
 type spyCache struct {
 	*testCache
+
 	mu      sync.Mutex
 	lookups [][]string
 }
