@@ -26,7 +26,7 @@ func (a *addMissingNestedDependencies) ProcessFetchTree(root *resolve.FetchTreeN
 				continue
 			}
 			if strings.HasPrefix(node.Item.ResponsePath, a.providedPathByNode(otherNode)) {
-				node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies.DependsOnFetchIDs = append(node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies.DependsOnFetchIDs, otherNode.Item.Fetch.(*resolve.SingleFetch).FetchDependencies.FetchID)
+				node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies.DependsOnFetchIDs = append(node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies.DependsOnFetchIDs, otherNode.FetchID())
 			}
 		}
 	}

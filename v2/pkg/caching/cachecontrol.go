@@ -17,14 +17,12 @@ func TTL(headers http.Header, defaultTTL time.Duration) (time.Duration, bool) {
 		return 0, false
 	}
 
-	// We for now consider no cache and private as dont cache even
+	// We currently treat no-cache and private as not reusable by this shared cache.
 	if cc.NoCache != nil || cc.Private != nil {
 		return 0, false
 	}
-	if !cc.Public {
-		return 0, false
-	}
 
+	// Explicit freshness takes precedence over the configured fallback.
 	switch {
 	case cc.SMaxAge != nil:
 		if *cc.SMaxAge <= 0 {
@@ -37,6 +35,11 @@ func TTL(headers http.Header, defaultTTL time.Duration) (time.Duration, bool) {
 			return 0, false
 		}
 		return cc.MaxAge.AsDuration(), true
+	}
+
+	// Only recognized cache directives opt into the configured fallback.
+	if !cc.HasCachingDirectives() {
+		return 0, false
 	}
 
 	if defaultTTL <= 0 {

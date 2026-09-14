@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.20.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.20.2...v2.20.3) (2026-09-08)
+
+
+### Bug Fixes
+
+* cache responses without public directive ([#1658](https://github.com/wundergraph/graphql-go-tools/issues/1658)) ([baf5ac1](https://github.com/wundergraph/graphql-go-tools/commit/baf5ac1e23daba6342c65da399c5ad8cc175943e))
+* correct operation depth for typed fragments ([#1648](https://github.com/wundergraph/graphql-go-tools/issues/1648)) ([dc2a685](https://github.com/wundergraph/graphql-go-tools/commit/dc2a685cf2e260187ce9e7ef8cf4a8bdb558ee51))
+* reset operation complexity state after aborted walk ([#1659](https://github.com/wundergraph/graphql-go-tools/issues/1659)) ([86ca248](https://github.com/wundergraph/graphql-go-tools/commit/86ca248c1331c8b632b3bc553cd16cd2415b3830)), closes [#1626](https://github.com/wundergraph/graphql-go-tools/issues/1626) [#1647](https://github.com/wundergraph/graphql-go-tools/issues/1647)
+
+## [2.20.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.20.1...v2.20.2) (2026-09-08)
+
+
+### Bug Fixes
+
+* **astvisitor:** detach error paths from reusable walker state ([#1661](https://github.com/wundergraph/graphql-go-tools/issues/1661)) ([8a9b7df](https://github.com/wundergraph/graphql-go-tools/commit/8a9b7dff001910a8f85c29c34c3c535db28d294b))
+
+## [2.20.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.20.0...v2.20.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* improve performance of orderSequenceByDependencies ([#1657](https://github.com/wundergraph/graphql-go-tools/issues/1657)) ([a0ea5b4](https://github.com/wundergraph/graphql-go-tools/commit/a0ea5b41bdcb807b0950b621ecc0488d997e0c45))
+
 ## [2.20.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.19.0...v2.20.0) (2026-09-02)
 
 

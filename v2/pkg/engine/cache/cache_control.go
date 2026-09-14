@@ -226,6 +226,26 @@ type CacheControlResponse struct {
 	// store the specified field-names(s), whereas it MAY store the
 	// remainder of the response message.
 	Private *FieldNames
+
+	// MustRevalidate requires stale responses to be revalidated.
+	MustRevalidate bool
+
+	// ProxyRevalidate applies must-revalidate to shared caches.
+	ProxyRevalidate bool
+
+	// StaleIfError allows a stale response after an origin error.
+	StaleIfError *DeltaSeconds
+
+	// StaleWhileRevalidate allows a stale response while revalidating it.
+	StaleWhileRevalidate *DeltaSeconds
+}
+
+// HasCachingDirectives reports whether the response contained a recognized
+// directive that affects caching.
+func (c *CacheControlResponse) HasCachingDirectives() bool {
+	return c.MaxAge != nil || c.SMaxAge != nil || c.NoStore || c.NoCache != nil ||
+		c.Public || c.Private != nil || c.MustRevalidate || c.ProxyRevalidate ||
+		c.StaleIfError != nil || c.StaleWhileRevalidate != nil
 }
 
 // ToHeaderString converts a CacheControlResponse to a Cache-Control header string.
@@ -254,6 +274,22 @@ func (c *CacheControlResponse) ToHeaderString() string {
 
 	if c.Private != nil {
 		parts = append(parts, "private="+c.Private.FieldsString())
+	}
+
+	if c.MustRevalidate {
+		parts = append(parts, "must-revalidate")
+	}
+
+	if c.ProxyRevalidate {
+		parts = append(parts, "proxy-revalidate")
+	}
+
+	if c.StaleIfError != nil {
+		parts = append(parts, "stale-if-error="+c.StaleIfError.String())
+	}
+
+	if c.StaleWhileRevalidate != nil {
+		parts = append(parts, "stale-while-revalidate="+c.StaleWhileRevalidate.String())
 	}
 
 	return strings.Join(parts, ", ")
@@ -411,6 +447,34 @@ func parseIdent(name token, l *lexer, cc *CacheControlResponse) error {
 			cc.Private = NewFieldNames()
 		}
 		fieldNamesArgument(arg, cc.Private)
+
+	case "must-revalidate":
+		cc.MustRevalidate = true
+
+	case "proxy-revalidate":
+		cc.ProxyRevalidate = true
+
+	case "stale-if-error":
+		if cc.StaleIfError != nil {
+			return nil
+		}
+
+		value, err := deltaSecondsArgument("stale-if-error", arg)
+		if err != nil {
+			return err
+		}
+		cc.StaleIfError = &value
+
+	case "stale-while-revalidate":
+		if cc.StaleWhileRevalidate != nil {
+			return nil
+		}
+
+		value, err := deltaSecondsArgument("stale-while-revalidate", arg)
+		if err != nil {
+			return err
+		}
+		cc.StaleWhileRevalidate = &value
 
 	default:
 		// We ignore directives that we don't specify here.
