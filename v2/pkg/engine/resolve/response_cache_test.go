@@ -179,6 +179,16 @@ func TestResponseCacheTags(t *testing.T) {
 		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2, false))
 	})
 
+	t.Run("a tag spelling a derived tier is dropped, its neighbours are not", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a","subgraph-accounts","type-accounts-User","b"]]}}`)
+		require.Equal(t, [][]string{{"a", "b"}}, responseCacheTags(response, 1, false))
+	})
+
+	t.Run("a tag a header cannot carry is dropped, its neighbours are not", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a","x\ty","x y","x\u0000y","x\u007fy","用户","b"]]}}`)
+		require.Equal(t, [][]string{{"a", "b"}}, responseCacheTags(response, 1, false))
+	})
+
 	t.Run("an over long tag is dropped, its neighbours are not", func(t *testing.T) {
 		long := strings.Repeat("x", maxResponseCacheTagLength+1)
 		atLimit := strings.Repeat("y", maxResponseCacheTagLength)

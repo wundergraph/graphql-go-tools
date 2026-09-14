@@ -348,8 +348,8 @@ func responseCacheTagList(list *astjson.Value) []string {
 			continue
 		}
 		tag := string(value.GetStringBytes())
-		// Empty is meaningless; over long is a key name the subgraph sized.
-		if tag == "" || len(tag) > maxResponseCacheTagLength {
+		// Over long is a key name the subgraph sized; the rest cannot go in a header.
+		if len(tag) > maxResponseCacheTagLength || !caching.ValidDeclaredHeaderTag(tag) {
 			continue
 		}
 		// Stored with every entry and merged per request, so bounded as a whole

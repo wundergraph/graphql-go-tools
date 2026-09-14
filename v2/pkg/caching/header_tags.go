@@ -3,6 +3,7 @@ package caching
 import (
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // Header tag tiers. Stored with the entry, unlike Tags which only name an index.
@@ -19,15 +20,30 @@ func TypeHeaderTag(subgraph, typeName string) string {
 	return typeHeaderTagPrefix + subgraph + "-" + typeName
 }
 
-// headerTagTier: coarsest first, so a size limit cuts the finest purge surface.
+// Coarsest first, so a size limit cuts the finest purge surface.
+const (
+	subgraphHeaderTagTier = iota
+	typeHeaderTagTier
+	declaredHeaderTagTier
+)
+
+func ValidDeclaredHeaderTag(tag string) bool {
+	if tag == "" || headerTagTier(tag) != declaredHeaderTagTier {
+		return false
+	}
+	return !strings.ContainsFunc(tag, func(r rune) bool {
+		return unicode.IsControl(r) || r == ' ' || r > unicode.MaxASCII
+	})
+}
+
 func headerTagTier(headerTag string) int {
 	switch {
 	case strings.HasPrefix(headerTag, subgraphHeaderTagPrefix):
-		return 0
+		return subgraphHeaderTagTier
 	case strings.HasPrefix(headerTag, typeHeaderTagPrefix):
-		return 1
+		return typeHeaderTagTier
 	default:
-		return 2
+		return declaredHeaderTagTier
 	}
 }
 
