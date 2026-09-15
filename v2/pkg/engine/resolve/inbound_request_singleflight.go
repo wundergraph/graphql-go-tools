@@ -85,26 +85,26 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 
 	// Derive a robust key from request ID, variables hash, (optional) headers hash
 	// and the response cache user id (if present)
-	var key inboundRequestKey
-	binary.LittleEndian.PutUint64(key[0:8], ctx.Request.ID)
-	binary.LittleEndian.PutUint64(key[8:16], ctx.VariablesHash)
+	var b inboundRequestKey
+	binary.LittleEndian.PutUint64(b[0:8], ctx.Request.ID)
+	binary.LittleEndian.PutUint64(b[8:16], ctx.VariablesHash)
 	hh := uint64(0)
 	if ctx.SubgraphHeadersBuilder != nil {
 		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
-	binary.LittleEndian.PutUint64(key[16:24], hh)
+	binary.LittleEndian.PutUint64(b[16:24], hh)
 	if privateID, ok := ctx.responseCachePrivateID(); ok {
-		copy(key[24:], privateID[:])
+		copy(b[24:], privateID[:])
 	}
 
-	shard := r.shardFor(key)
+	shard := r.shardFor(b)
 
 	request := &InflightRequest{
 		Done: make(chan struct{}),
-		ID:   key,
+		ID:   b,
 	}
 
-	inflight, shared := shard.m.LoadOrStore(key, request)
+	inflight, shared := shard.m.LoadOrStore(b, request)
 	if shared {
 		request = inflight.(*InflightRequest)
 		request.AddFollower()
