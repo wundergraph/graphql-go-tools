@@ -35,6 +35,10 @@ import (
 
 // OperationStats contains estimates for an operation or root field.
 type OperationStats struct {
+	// FieldCount is the number of selected fields, including leaf fields and __typename.
+	// Each field in the normalized operation is counted once, without list multipliers.
+	// Fields excluded by @nodeCountSkip or skipIntrospection are not counted.
+	FieldCount int
 	// NodeCount is the maximum number of returned nodes.
 	NodeCount int
 	// Complexity is the maximum number of field requests.
@@ -95,6 +99,7 @@ func NewOperationComplexityEstimator(skipIntrospection bool) *OperationComplexit
 
 // Do returns global and per-root-field estimates for the operation.
 func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, report *operationreport.Report) (OperationStats, []RootFieldStats) {
+	n.visitor.fieldCount = 0
 	n.visitor.count = 0
 	n.visitor.complexity = 0
 	n.visitor.maxOperationDepth = 0
@@ -118,6 +123,7 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	n.walker.Walk(operation, definition, report)
 
 	globalResult := OperationStats{
+		FieldCount: n.visitor.fieldCount,
 		NodeCount:  n.visitor.count,
 		Complexity: n.visitor.complexity,
 		Depth:      n.visitor.maxOperationDepth,
@@ -136,6 +142,7 @@ type complexityVisitor struct {
 	*astvisitor.Walker
 
 	operation, definition *ast.Document
+	fieldCount            int
 	count                 int
 	complexity            int
 
@@ -212,16 +219,19 @@ func (c *complexityVisitor) EnterArgument(ref int) {
 
 func (c *complexityVisitor) EnterField(ref int) {
 	definition, exists := c.FieldDefinition(ref)
-	if !exists {
+	// __typename is an implicit field and need not have a schema definition.
+	if !exists && c.operation.FieldNameString(ref) != "__typename" {
 		return
 	}
 
-	if _, skip := c.definition.FieldDefinitionDirectiveByName(definition, nodeCountSkip); skip {
-		c.SkipNode()
-		return
+	if exists {
+		if _, skip := c.definition.FieldDefinitionDirectiveByName(definition, nodeCountSkip); skip {
+			c.SkipNode()
+			return
+		}
 	}
 
-	typeName, fieldName, alias := c.extractFieldRelatedNames(ref, definition)
+	typeName, fieldName, alias := c.extractFieldRelatedNames(ref)
 	if c.skipIntrospection && (fieldName == __schemaLiteral || fieldName == __typeLiteral) {
 		c.SkipNode()
 		return
@@ -229,6 +239,9 @@ func (c *complexityVisitor) EnterField(ref int) {
 	if c.isRootType(typeName) {
 		c.resetCurrentRootFieldComplexity(typeName, fieldName, alias)
 	}
+
+	c.fieldCount++
+	c.currentRootFieldStats.Stats.FieldCount++
 
 	if !c.operation.FieldHasSelections(ref) {
 		return
@@ -298,8 +311,8 @@ func (c *complexityVisitor) endRootFieldComplexityCalculation() {
 	c.maxRootFieldDepth = 0
 }
 
-func (c *complexityVisitor) extractFieldRelatedNames(ref, definitionRef int) (typeName, fieldName, alias string) {
-	fieldName = c.definition.FieldDefinitionNameString(definitionRef)
+func (c *complexityVisitor) extractFieldRelatedNames(ref int) (typeName, fieldName, alias string) {
+	fieldName = c.operation.FieldNameString(ref)
 	alias = c.operation.FieldAliasOrNameString(ref)
 	if fieldName == alias {
 		alias = ""

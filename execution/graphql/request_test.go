@@ -110,6 +110,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 		global, rootFields := estimator.Do(request.Document(), schema.Document(), &report)
 		assert.False(t, report.HasErrors())
 
+		assert.Equal(t, 2, global.FieldCount, "unexpected field count")
 		assert.Equal(t, 1, global.NodeCount, "unexpected node count")
 		assert.Equal(t, 1, global.Complexity, "unexpected complexity")
 		assert.Equal(t, 2, global.Depth, "unexpected depth")
@@ -119,6 +120,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 				FieldName: "hero",
 				Alias:     "",
 				Stats: operation_complexity.OperationStats{
+					FieldCount: 2,
 					NodeCount:  1,
 					Complexity: 1,
 					Depth:      1,
@@ -139,6 +141,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 		global, rootFields := estimator.Do(request.Document(), schema.Document(), &report)
 		assert.False(t, report.HasErrors())
 
+		assert.Equal(t, 4, global.FieldCount, "unexpected field count")
 		assert.Equal(t, 2, global.NodeCount, "unexpected node count")
 		assert.Equal(t, 2, global.Complexity, "unexpected complexity")
 		assert.Equal(t, 2, global.Depth, "unexpected depth")
@@ -148,6 +151,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 				FieldName: "hero",
 				Alias:     "empireHero",
 				Stats: operation_complexity.OperationStats{
+					FieldCount: 2,
 					NodeCount:  1,
 					Complexity: 1,
 					Depth:      1,
@@ -158,6 +162,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 				FieldName: "hero",
 				Alias:     "jediHero",
 				Stats: operation_complexity.OperationStats{
+					FieldCount: 2,
 					NodeCount:  1,
 					Complexity: 1,
 					Depth:      1,
