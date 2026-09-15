@@ -98,24 +98,53 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		return false
 	}
 
-	// Per position the user's own entry wins over the shared one.
 	items := make([]caching.Item, len(keys))
 	private := false
-	size := 0
+
+	// A vary record keeps its position in items, keyed by the variant it
+	// points at, until the second round replaces it with the body.
+	var variants []string
 	for i, key := range keys {
 		item, ok := caching.Item{}, false
 		if privateKeys != nil {
 			item, ok = found[privateKeys[i]]
-			ok = ok && len(item.Value) > 0
 			private = private || ok
 		}
 		if !ok {
 			item, ok = found[key]
-			if !ok || len(item.Value) == 0 {
+			if !ok {
 				return false
 			}
 		}
+		if len(item.Vary) > 0 {
+			item.Key = caching.VariantKey(item.Key, l.responseCacheVaryDigest(prepared, item.Vary))
+			variants = append(variants, item.Key)
+		} else if len(item.Value) == 0 {
+			return false
+		}
 		items[i] = item
+	}
+
+	if len(variants) > 0 {
+		found, err = l.ctx.responseCache.store.GetMany(l.ctx.ctx, variants)
+		if err != nil {
+			l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
+			return false
+		}
+		for i, item := range items {
+			if len(item.Vary) == 0 {
+				continue
+			}
+			body, ok := found[item.Key]
+			if !ok || len(body.Value) == 0 {
+				return false
+			}
+			items[i] = body
+		}
+	}
+
+	size := 0
+	for _, item := range items {
 		size += len(item.Value)
 	}
 
@@ -143,6 +172,13 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.responseCacheHeaderTags = foundHeaderTags(items)
 
 	return true
+}
+
+// responseCacheVaryDigest digests the values this request sends the fetch's
+// subgraph for names, the same on the way in and the way out of the cache.
+func (l *Loader) responseCacheVaryDigest(prepared *preparedFetch, names []string) caching.Digest {
+	sent, _ := l.ctx.HeadersForSubgraphRequest(prepared.res.ds.Name)
+	return caching.VaryDigest(names, sent)
 }
 
 // foundHeaderTags unions what the hit entries were stored with.
@@ -211,8 +247,15 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	ttl, private, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
+	headers := responseCacheHeaders(res)
+	ttl, private, ok := caching.TTL(headers, l.ctx.responseCache.defaultTTL)
 	if !ok {
+		return nil
+	}
+
+	// "Vary: *" matches no request; a record past the cap is not kept either.
+	vary, star := caching.Vary(headers)
+	if star || len(vary) > caching.MaxVaryHeaders {
 		return nil
 	}
 
@@ -223,6 +266,11 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			return nil
 		}
 		writeKeys = prepared.responseCachePrivateKeys
+	}
+
+	var varyDigest caching.Digest
+	if len(vary) > 0 {
+		varyDigest = l.responseCacheVaryDigest(prepared, vary)
 	}
 
 	values, err := responseCacheValues(prepared, response)
@@ -236,14 +284,18 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	// Parsed whether or not the cache_tag index is on: the header always carries them.
 	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
-	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
+	items := make([]caching.Item, 0, 2*len(prepared.responseCacheKeys))
 	headerTagLists := make([][]string, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
 		}
+		key := writeKeys[i]
+		if len(vary) > 0 {
+			key = caching.VariantKey(key, varyDigest)
+		}
 		item := caching.Item{
-			Key:   writeKeys[i],
+			Key:   key,
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
 		}
@@ -262,6 +314,10 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		}
 		item.Tags, item.HeaderTags = responseCacheIdentities(input)
 		headerTagLists = append(headerTagLists, item.HeaderTags)
+		if len(vary) > 0 {
+			// Same tags, so invalidation takes the record down with the body.
+			items = append(items, caching.Item{Key: writeKeys[i], Vary: vary, TTL: ttl, Tags: item.Tags})
+		}
 		items = append(items, item)
 	}
 

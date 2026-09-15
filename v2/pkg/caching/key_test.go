@@ -21,7 +21,7 @@ func TestKey(t *testing.T) {
 	public := Key(entity, selection)
 	private := PrivateKey(entity, selection, u1)
 
-	assert.Equal(t, "v3:"+hex.EncodeToString(entity[:])+":"+hex.EncodeToString(selection[:]), public)
+	assert.Equal(t, "v4:"+hex.EncodeToString(entity[:])+":"+hex.EncodeToString(selection[:]), public)
 	assert.Len(t, public, keyLen)
 	assert.True(t, strings.HasPrefix(private, public+":"))
 	assert.Len(t, private, privateKeyLen)

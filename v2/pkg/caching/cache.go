@@ -31,6 +31,10 @@ type Item struct {
 	// Header tags are what a client response carries so a CDN can purge by them.
 	// Stored with the value and returned by GetMany.
 	HeaderTags []string
+	// Vary makes the entry a vary record rather than a body: the request
+	// headers the response varies on, whose values select the variant stored
+	// under VariantKey. A record has no Value and no HeaderTags.
+	Vary []string
 }
 
 // Cache is a batch oriented key/value cache.
