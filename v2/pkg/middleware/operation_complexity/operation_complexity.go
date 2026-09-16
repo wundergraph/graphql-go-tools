@@ -63,8 +63,9 @@ var (
 )
 
 const (
-	__schemaLiteral = "__schema"
-	__typeLiteral   = "__type"
+	__schemaLiteral   = "__schema"
+	__typeLiteral     = "__type"
+	__typenameLiteral = "__typename"
 )
 
 // OperationComplexityEstimator estimates stats for normalized operations.
@@ -230,7 +231,7 @@ func (c *complexityVisitor) EnterField(ref int) {
 		}
 	}
 
-	typeName, fieldName, alias := c.extractFieldRelatedNames(ref)
+	typeName, fieldName, alias := c.extractFieldRelatedNames(ref, definition)
 	if c.skipIntrospection && (fieldName == __schemaLiteral || fieldName == __typeLiteral) {
 		c.SkipNode()
 		return
@@ -310,8 +311,13 @@ func (c *complexityVisitor) endRootFieldComplexityCalculation() {
 	c.maxRootFieldDepth = 0
 }
 
-func (c *complexityVisitor) extractFieldRelatedNames(ref int) (typeName, fieldName, alias string) {
-	fieldName = c.operation.FieldNameUnsafeString(ref)
+func (c *complexityVisitor) extractFieldRelatedNames(ref, definitionRef int) (typeName, fieldName, alias string) {
+	if definitionRef != ast.InvalidRef {
+		fieldName = c.definition.FieldDefinitionNameString(definitionRef)
+	} else {
+		// Only __typename reaches here without a schema definition.
+		fieldName = __typenameLiteral
+	}
 	alias = c.operation.FieldAliasOrNameString(ref)
 	if fieldName == alias {
 		alias = ""
@@ -322,7 +328,7 @@ func (c *complexityVisitor) extractFieldRelatedNames(ref int) (typeName, fieldNa
 
 func (c *complexityVisitor) needsSchemaDefinition(ref int) bool {
 	// __typename is an implicit field and need not have a schema definition.
-	return c.operation.FieldNameString(ref) != "__typename"
+	return c.operation.FieldNameUnsafeString(ref) != __typenameLiteral
 }
 
 func (c *complexityVisitor) isRootType(name string) bool {

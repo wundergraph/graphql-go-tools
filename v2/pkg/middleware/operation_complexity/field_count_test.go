@@ -101,6 +101,25 @@ func TestOperationComplexityFieldCount(t *testing.T) {
 	}
 }
 
+func TestOperationComplexityFieldNamesSurviveOperationReuse(t *testing.T) {
+	t.Parallel()
+
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(`{ currentPeriod __typename }`)
+	report := operationreport.Report{}
+	astnormalization.NormalizeOperation(&operation, &definition, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	_, roots := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+	require.False(t, report.HasErrors(), report.Error())
+	require.Len(t, roots, 2)
+
+	// Overwrite the operation's reused input buffer while retaining the results.
+	operation.Input.ResetInputString(strings.Repeat("x", len(operation.Input.RawBytes)))
+	assert.Equal(t, "currentPeriod", roots[0].FieldName)
+	assert.Equal(t, "__typename", roots[1].FieldName)
+}
+
 func TestOperationComplexityFieldCountWideQuery(t *testing.T) {
 	t.Parallel()
 
