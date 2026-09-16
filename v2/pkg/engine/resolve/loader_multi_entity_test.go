@@ -1303,8 +1303,6 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheTags(t *testing.T) {
 	}
 }
 
-// A merged fetch answers for every alias it carries, so the header a CDN
-// purges by has to name each of them, whether the origin or the cache did.
 func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHeaderTags(t *testing.T) {
 	const mergedResponse = `{"data":{` +
 		`"f1":[{"__typename":"Employee","products":["a"]},{"__typename":"Employee","products":["b"]}],` +
@@ -1334,13 +1332,13 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHeaderTags(t *testing.
 		return ctx
 	}
 
-	want := []string{caching.SubgraphHeaderTag("products"), caching.TypeHeaderTag("products", "Employee")}
-
 	t.Run("a miss stores and reports subgraph and type tags, never declared ones", func(t *testing.T) {
 		cache := newTestCache()
 		ctx := run(t, cache, &recordingDataSource{response: []byte(mergedResponse), responseHeaders: cacheableHeaders()})
 
 		require.Len(t, cache.items, 3)
+
+		want := []string{caching.SubgraphHeaderTag("products"), caching.TypeHeaderTag("products", "Employee")}
 		for key, item := range cache.items {
 			assert.Equal(t, want, item.HeaderTags, key)
 		}
@@ -1354,6 +1352,8 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHeaderTags(t *testing.
 		warm := &recordingDataSource{err: errors.New("subgraph must not be called")}
 		ctx := run(t, cache, warm)
 		require.Equal(t, 0, warm.calls)
+
+		want := []string{caching.SubgraphHeaderTag("products"), caching.TypeHeaderTag("products", "Employee")}
 		assert.Equal(t, want, ctx.ResponseCacheHeaderTags())
 	})
 
