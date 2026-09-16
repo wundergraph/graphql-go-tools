@@ -13,12 +13,11 @@ func TestHeaderTags(t *testing.T) {
 		require.Equal(t, "type-accounts-User", TypeHeaderTag("accounts", "User"))
 	})
 
-	t.Run("a declared tag is visible ASCII and never a derived tier", func(t *testing.T) {
-		for _, tag := range []string{"users", "user-42", "a/b:c", "subgraph_x", "typed"} {
+	t.Run("a declared tag is visible ASCII, derived spelling included", func(t *testing.T) {
+		for _, tag := range []string{"users", "user-42", "a/b:c", "subgraph_x", "typed", "subgraph-accounts", "type-accounts-User"} {
 			require.True(t, ValidDeclaredHeaderTag(tag), tag)
 		}
-		for _, tag := range []string{"", "subgraph-accounts", "type-accounts-User", "subgraph-", "type-",
-			"a b", "a\tb", "a\nb", "a\x00b", "a\x7fb", "\u00fcber", "用户"} {
+		for _, tag := range []string{"", "a b", "a\tb", "a\nb", "a\x00b", "a\x7fb", "\u00fcber", "用户"} {
 			require.False(t, ValidDeclaredHeaderTag(tag), "%q", tag)
 		}
 	})

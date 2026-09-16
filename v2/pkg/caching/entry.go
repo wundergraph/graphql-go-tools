@@ -8,9 +8,17 @@ import (
 // Entry envelope. The first byte says what follows: a body carries its header
 // tags ahead of the value so a hit reads them without touching the value, a
 // vary record carries only the header names it varies on.
+// kind      1 byte, entryFormatBody or entryFormatRecord
+// count     uvarint, number of header tags, or of names for a record
+// tags      count times: uvarint byte length, then the tag, that many bytes
+// value     body only: everything after the last tag, the cached body itself, no length prefix
 //
-//	[entryFormatBody][uvarint n]{[uvarint len][tag]}*n[value...]
-//	[entryFormatRecord][uvarint n]{[uvarint len][name]}*n
+// Example: Value {"id":42} with tags "users" and "user-42"
+// 01               kind: body
+// 02               count: 2 tags
+// 05 users         length 5, then the bytes
+// 07 user-42       length 7, then the bytes
+// {"id":42}        value, afterwards
 const (
 	entryFormatBody   byte = 1
 	entryFormatRecord byte = 2
