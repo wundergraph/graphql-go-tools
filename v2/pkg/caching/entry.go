@@ -5,10 +5,19 @@ import (
 	"errors"
 )
 
-// Entry envelope, header tags ahead of the value so a hit reads them without
-// touching the value:
+// Entry envelope. Header tags sit ahead of the value so a hit reads them
+// without touching the value.
+// version   1 byte, currently 1
+// count     uvarint, number of header tags
+// tags      count times: uvarint byte length, then the tag, that many bytes
+// value     everything after the last tag, the cached body itself, no length prefix
 //
-//	[version byte][uvarint n]{[uvarint len][tag]}*n[value...]
+// Example: Value {"id":42} with tags "users" and "user-42"
+// 01               version
+// 02               count: 2 tags
+// 05 users         length 5, then the bytes
+// 07 user-42       length 7, then the bytes
+// {"id":42}        value, afterwards
 const entryFormatVersion byte = 1
 
 var ErrEntryFormat = errors.New("cache entry is not in a known format")
