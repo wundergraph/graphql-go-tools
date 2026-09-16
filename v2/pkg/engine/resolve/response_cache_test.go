@@ -384,6 +384,21 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 			}))
 	})
 
+	t.Run("an unnamed subgraph is not indexed and emits no header tags", func(t *testing.T) {
+		// Every identity is scoped by the subgraph that answered, so without a
+		// name there is no scope to file the entry under. Indexing it unscoped
+		// would put it where another subgraph's invalidation could reach it,
+		// and its header tags would be shared by every unnamed source.
+		tags, headerTags := responseCacheIdentities(responseCacheTagInput{
+			declared: []string{"users"},
+			value:    entity(t),
+			subgraph: "",
+			opts:     all,
+		})
+		require.Nil(t, tags)
+		require.Nil(t, headerTags)
+	})
+
 	t.Run("nothing to index at all yields no tags", func(t *testing.T) {
 		opts := ResponseCacheTagIndexOptions{CacheTag: true}
 		require.Empty(t, tagsOf(responseCacheTagInput{

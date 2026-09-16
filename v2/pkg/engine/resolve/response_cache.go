@@ -340,6 +340,10 @@ type responseCacheTagInput struct {
 // responseCacheIdentities: tags follow the index options, header tags carry
 // every tier.
 func responseCacheIdentities(input responseCacheTagInput) (tags, headerTags []string) {
+	if input.subgraph == "" {
+		return nil, nil
+	}
+
 	headerTags = make([]string, 0, len(input.declared)+2)
 	headerTags = append(headerTags, caching.SubgraphHeaderTag(input.subgraph))
 
