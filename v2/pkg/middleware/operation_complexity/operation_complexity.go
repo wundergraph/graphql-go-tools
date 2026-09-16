@@ -35,8 +35,9 @@ import (
 
 // OperationStats contains estimates for an operation or root field.
 type OperationStats struct {
-	// FieldCount is the number of selected fields, including leaf fields and __typename.
-	// Each field in the normalized operation is counted once, without list multipliers.
+	// FieldCount is the number of field selections in the normalized operation,
+	// including leaf fields and __typename. Each selection contributes one,
+	// regardless of list-size multipliers.
 	// Fields excluded by @nodeCountSkip or skipIntrospection are not counted.
 	FieldCount int
 	// NodeCount is the maximum number of returned nodes.
