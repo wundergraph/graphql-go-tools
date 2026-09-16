@@ -220,28 +220,25 @@ func (c *complexityVisitor) EnterArgument(ref int) {
 
 func (c *complexityVisitor) EnterField(ref int) {
 	definition, exists := c.FieldDefinition(ref)
-	if !exists && c.needsSchemaDefinition(ref) {
+	if !exists {
+		if !c.needsSchemaDefinition(ref) {
+			c.countField(ref, __typenameLiteral)
+		}
 		return
 	}
 
-	if exists {
-		if _, skip := c.definition.FieldDefinitionDirectiveByName(definition, nodeCountSkip); skip {
-			c.SkipNode()
-			return
-		}
+	if _, skip := c.definition.FieldDefinitionDirectiveByName(definition, nodeCountSkip); skip {
+		c.SkipNode()
+		return
 	}
 
-	typeName, fieldName, alias := c.extractFieldRelatedNames(ref, definition)
+	fieldName := c.definition.FieldDefinitionNameString(definition)
 	if c.skipIntrospection && (fieldName == __schemaLiteral || fieldName == __typeLiteral) {
 		c.SkipNode()
 		return
 	}
-	if c.isRootType(typeName) {
-		c.resetCurrentRootFieldComplexity(typeName, fieldName, alias)
-	}
 
-	c.fieldCount++
-	c.currentRootFieldStats.Stats.FieldCount++
+	c.countField(ref, fieldName)
 
 	if !c.operation.FieldHasSelections(ref) {
 		return
@@ -311,19 +308,18 @@ func (c *complexityVisitor) endRootFieldComplexityCalculation() {
 	c.maxRootFieldDepth = 0
 }
 
-func (c *complexityVisitor) extractFieldRelatedNames(ref, definitionRef int) (typeName, fieldName, alias string) {
-	if definitionRef != ast.InvalidRef {
-		fieldName = c.definition.FieldDefinitionNameString(definitionRef)
-	} else {
-		// Only __typename reaches here without a schema definition.
-		fieldName = __typenameLiteral
-	}
-	alias = c.operation.FieldAliasOrNameString(ref)
-	if fieldName == alias {
-		alias = ""
+func (c *complexityVisitor) countField(ref int, fieldName string) {
+	typeName := c.EnclosingTypeDefinition.NameString(c.definition)
+	if c.isRootType(typeName) {
+		alias := c.operation.FieldAliasOrNameString(ref)
+		if fieldName == alias {
+			alias = ""
+		}
+		c.resetCurrentRootFieldComplexity(typeName, fieldName, alias)
 	}
 
-	return c.EnclosingTypeDefinition.NameString(c.definition), fieldName, alias
+	c.fieldCount++
+	c.currentRootFieldStats.Stats.FieldCount++
 }
 
 func (c *complexityVisitor) needsSchemaDefinition(ref int) bool {
