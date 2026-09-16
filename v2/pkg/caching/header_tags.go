@@ -1,7 +1,8 @@
 package caching
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 )
 
@@ -33,8 +34,8 @@ func headerTagTier(headerTag string) int {
 
 // SortHeaderTags groups by tier, coarsest first, keeping the order within a tier.
 func SortHeaderTags(headerTags []string) {
-	sort.SliceStable(headerTags, func(i, j int) bool {
-		return headerTagTier(headerTags[i]) < headerTagTier(headerTags[j])
+	slices.SortStableFunc(headerTags, func(a, b string) int {
+		return cmp.Compare(headerTagTier(a), headerTagTier(b))
 	})
 }
 
