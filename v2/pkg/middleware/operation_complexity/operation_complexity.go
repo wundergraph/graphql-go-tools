@@ -311,7 +311,7 @@ func (c *complexityVisitor) endRootFieldComplexityCalculation() {
 }
 
 func (c *complexityVisitor) extractFieldRelatedNames(ref int) (typeName, fieldName, alias string) {
-	fieldName = c.operation.FieldNameString(ref)
+	fieldName = c.operation.FieldNameUnsafeString(ref)
 	alias = c.operation.FieldAliasOrNameString(ref)
 	if fieldName == alias {
 		alias = ""
