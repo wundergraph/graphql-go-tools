@@ -219,8 +219,7 @@ func (c *complexityVisitor) EnterArgument(ref int) {
 
 func (c *complexityVisitor) EnterField(ref int) {
 	definition, exists := c.FieldDefinition(ref)
-	// __typename is an implicit field and need not have a schema definition.
-	if !exists && c.operation.FieldNameString(ref) != "__typename" {
+	if !exists && c.needsSchemaDefinition(ref) {
 		return
 	}
 
@@ -319,6 +318,11 @@ func (c *complexityVisitor) extractFieldRelatedNames(ref int) (typeName, fieldNa
 	}
 
 	return c.EnclosingTypeDefinition.NameString(c.definition), fieldName, alias
+}
+
+func (c *complexityVisitor) needsSchemaDefinition(ref int) bool {
+	// __typename is an implicit field and need not have a schema definition.
+	return c.operation.FieldNameString(ref) != "__typename"
 }
 
 func (c *complexityVisitor) isRootType(name string) bool {
