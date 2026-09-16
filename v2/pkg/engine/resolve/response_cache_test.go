@@ -1105,6 +1105,7 @@ func TestResponseCacheHeaderTagsInboundDedupWithSubgraphErrors(t *testing.T) {
 	t.Run("a leader with a subgraph error hands the follower none", func(t *testing.T) {
 		leader, follower := run(t, true)
 		require.Error(t, leader.SubgraphErrors())
+		// The subgraph-a tag is omitted when emitted in the response even though it is here when there is an error
 		require.Equal(t, []string{"subgraph-a"}, leader.ResponseCacheHeaderTags(), "the fetch that succeeded still contributed")
 		require.Nil(t, follower.ResponseCacheHeaderTags(), "no positive cache signal on an errored body")
 	})
