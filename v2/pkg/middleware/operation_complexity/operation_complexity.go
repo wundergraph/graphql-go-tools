@@ -63,9 +63,8 @@ var (
 )
 
 const (
-	__schemaLiteral   = "__schema"
-	__typeLiteral     = "__type"
-	__typenameLiteral = "__typename"
+	__schemaLiteral = "__schema"
+	__typeLiteral   = "__type"
 )
 
 // OperationComplexityEstimator estimates stats for normalized operations.
@@ -222,7 +221,7 @@ func (c *complexityVisitor) EnterField(ref int) {
 	definition, exists := c.FieldDefinition(ref)
 	if !exists {
 		if !c.needsSchemaDefinition(ref) {
-			c.countField(ref, __typenameLiteral)
+			c.countField(ref, "__typename")
 		}
 		return
 	}
@@ -324,7 +323,7 @@ func (c *complexityVisitor) countField(ref int, fieldName string) {
 
 func (c *complexityVisitor) needsSchemaDefinition(ref int) bool {
 	// __typename is an implicit field and need not have a schema definition.
-	return c.operation.FieldNameUnsafeString(ref) != __typenameLiteral
+	return c.operation.FieldNameUnsafeString(ref) != "__typename"
 }
 
 func (c *complexityVisitor) isRootType(name string) bool {
