@@ -1,10 +1,13 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -177,11 +180,6 @@ func TestResponseCacheTags(t *testing.T) {
 	t.Run("a value whose tags are all unusable gets none", func(t *testing.T) {
 		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[[""],["a"]]}}`)
 		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2, false))
-	})
-
-	t.Run("a tag spelling a derived tier is dropped, its neighbours are not", func(t *testing.T) {
-		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a","subgraph-accounts","type-accounts-User","b"]]}}`)
-		require.Equal(t, [][]string{{"a", "b"}}, responseCacheTags(response, 1, false))
 	})
 
 	t.Run("a tag a header cannot carry is dropped, its neighbours are not", func(t *testing.T) {
@@ -392,6 +390,21 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 				isRootFetch: true,
 				opts:        all,
 			}))
+	})
+
+	t.Run("an unnamed subgraph is not indexed and emits no header tags", func(t *testing.T) {
+		// Every identity is scoped by the subgraph that answered, so without a
+		// name there is no scope to file the entry under. Indexing it unscoped
+		// would put it where another subgraph's invalidation could reach it,
+		// and its header tags would be shared by every unnamed source.
+		tags, headerTags := responseCacheIdentities(responseCacheTagInput{
+			declared: []string{"users"},
+			value:    entity(t),
+			subgraph: "",
+			opts:     all,
+		})
+		require.Nil(t, tags)
+		require.Nil(t, headerTags)
 	})
 
 	t.Run("nothing to index at all yields no tags", func(t *testing.T) {
@@ -719,6 +732,28 @@ func TestResponseCacheHeaderTags(t *testing.T) {
 		}, res.responseCacheHeaderTags, "the fetch reports the union")
 	})
 
+	t.Run("a declared tag spelled like a derived one is emitted verbatim but indexed as declared", func(t *testing.T) {
+		// The header is the CDN's contract: what the subgraph declared goes out
+		// as is. The index is the router's: the same tag is filed under the
+		// declaring subgraph, so invalidating employee never reaches it.
+		body := `{
+			"data": {"_entities": [{"__typename": "User", "id": 42}]},
+			"extensions": {"apolloEntityCacheTags": [["subgraph-employee", "type-employee-Employee"]]}
+		}`
+		loader, res := newLoader(t, body, ResponseCacheTagIndexOptions{CacheTag: true, Subgraph: true, Type: true})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42"}}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "subgraph-employee", "type-employee-Employee"},
+			prepared.responseCacheItems[0].HeaderTags)
+		require.Equal(t, []string{
+			"declared:accounts:subgraph-employee", "declared:accounts:type-employee-Employee",
+			"subgraph:accounts",
+			"type:accounts:User",
+		}, prepared.responseCacheItems[0].Tags)
+		require.NotContains(t, prepared.responseCacheItems[0].Tags, "subgraph:employee")
+	})
+
 	t.Run("cache_tag index off still keeps declared tags out of the index", func(t *testing.T) {
 		loader, res := newLoader(t, entitiesBody, ResponseCacheTagIndexOptions{Subgraph: true})
 		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42", "k-7"}}
@@ -774,6 +809,54 @@ func TestResponseCacheHeaderTags(t *testing.T) {
 
 		ctx.Free()
 		require.Nil(t, ctx.ResponseCacheHeaderTags(), "freed with the rest of the request")
+	})
+
+	t.Run("a declared tag equal to another fetch's derived tag is merged, not duplicated", func(t *testing.T) {
+		// accounts declares subgraph-employee; the employee fetch derives the
+		// same string. The header set is keyed by string, so it appears once.
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+		loader := &Loader{ctx: ctx}
+
+		fetch := func(subgraph, body string) {
+			res := &result{
+				out:        []byte(body),
+				statusCode: http.StatusOK,
+				httpResponseContext: &httpclient.ResponseContext{
+					Response: &http.Response{
+						Header: http.Header{"Cache-Control": []string{"public, max-age=60"}},
+					},
+				},
+			}
+			res.init(PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
+			}, &FetchInfo{DataSourceName: subgraph})
+			prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-" + subgraph}}
+			require.NoError(t, loader.responseCacheCollect(prepared))
+			loader.responseCacheMergeHeaderTags(res)
+		}
+
+		fetch("accounts", `{
+			"data": {"_entities": [{"__typename": "User", "id": 42}]},
+			"extensions": {"apolloEntityCacheTags": [["subgraph-employee"]]}
+		}`)
+		fetch("employee", `{
+			"data": {"_entities": [{"__typename": "Employee", "id": 7}]}
+		}`)
+
+		got := ctx.ResponseCacheHeaderTags()
+		require.Equal(t, []string{
+			"subgraph-accounts", "type-accounts-User", "subgraph-employee", "type-employee-Employee",
+		}, got)
+
+		seen := 0
+		for _, tag := range got {
+			if tag == "subgraph-employee" {
+				seen++
+			}
+		}
+		require.Equal(t, 1, seen, "one string, whoever put it there")
 	})
 
 	t.Run("no cache means no headerTags", func(t *testing.T) {
@@ -889,4 +972,141 @@ func TestResponseCacheHeaderTagsDefer(t *testing.T) {
 	require.True(t, w.complete)
 
 	require.ElementsMatch(t, want, ctx.ResponseCacheHeaderTags())
+}
+
+type blockingCachedDataSource struct{ *blockingDataSource }
+
+func (f blockingCachedDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	f.waitForRelease()
+	return cachedDataSource{body: string(f.data)}.Load(ctx, headers, input)
+}
+
+func (f blockingCachedDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return f.Load(ctx, headers, input)
+}
+
+type blockingFailingDataSource struct{ *blockingDataSource }
+
+func (f blockingFailingDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	f.waitForRelease()
+	return nil, errors.New("subgraph down")
+}
+
+func (f blockingFailingDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return f.Load(ctx, headers, input)
+}
+
+// A follower writes the leader's bytes through its own writer with a Context the
+// loader never ran on, so it has no subgraph errors to withhold the tag header
+// by. The leader must not hand tags to a body it would itself mark no-store.
+func TestResponseCacheHeaderTagsInboundDedupWithSubgraphErrors(t *testing.T) {
+	run := func(t *testing.T, fail bool) (leader, follower *Context) {
+		t.Helper()
+		r := newResolver(t.Context())
+
+		blocking := newBlockingDataSource([]byte(`{"data":{"b":"v"}}`))
+		defer blocking.Release()
+		var slow DataSource = blockingCachedDataSource{blocking}
+		if fail {
+			slow = blockingFailingDataSource{blocking}
+		}
+
+		rootFetch := func(subgraph string, ds DataSource) *FetchTreeNode {
+			return Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: ds,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath:   []string{"data"},
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				DataSourceIdentifier: graphqlDataSourceIdentifier,
+				Info: &FetchInfo{
+					OperationType:  ast.OperationTypeQuery,
+					DataSourceID:   subgraph,
+					DataSourceName: subgraph,
+				},
+			})
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Parallel(
+				rootFetch("a", cachedDataSource{body: `{"data":{"a":"v"}}`}),
+				rootFetch("b", slow),
+			),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{Name: []byte("a"), Value: &String{Path: []string{"a"}, Nullable: true}},
+					{Name: []byte("b"), Value: &String{Path: []string{"b"}, Nullable: true}},
+				},
+			},
+		}
+
+		// Each side gets its own Context and cache state: sharing one struct
+		// would let the follower's reset overwrite what the leader collected.
+		newCtx := func() *Context {
+			ctx := NewContext(context.Background())
+			ctx.Request.ID = 42
+			ctx.VariablesHash = 1337
+			ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+			return ctx
+		}
+		leader, follower = newCtx(), newCtx()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		leaderWriter := newBlockingWriter()
+		var leaderInfo, followerInfo *GraphQLResolveInfo
+		var leaderErr, followerErr error
+		var followerBuf bytes.Buffer
+
+		go func() {
+			defer wg.Done()
+			leaderInfo, leaderErr = r.ArenaResolveGraphQLResponse(leader, response, leaderWriter)
+		}()
+		select {
+		case <-blocking.Ready():
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for the leader to reach the slow subgraph")
+		}
+
+		go func() {
+			defer wg.Done()
+			followerInfo, followerErr = r.ArenaResolveGraphQLResponse(follower, response, &followerBuf)
+		}()
+		waitForFollowerCount(t, r, 1)
+
+		blocking.Release()
+		select {
+		case <-leaderWriter.Ready():
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for the leader to write")
+		}
+		leaderWriter.Release()
+		wg.Wait()
+
+		require.NoError(t, leaderErr)
+		require.NoError(t, followerErr)
+		require.False(t, leaderInfo.ResolveDeduplicated)
+		require.True(t, followerInfo.ResolveDeduplicated)
+		require.Equal(t, leaderWriter.String(), followerBuf.String(), "the follower sends the leader's bytes")
+		return leader, follower
+	}
+
+	t.Run("a clean leader hands its tags to the follower", func(t *testing.T) {
+		leader, follower := run(t, false)
+		require.NoError(t, leader.SubgraphErrors())
+		require.ElementsMatch(t, []string{"subgraph-a", "subgraph-b"}, leader.ResponseCacheHeaderTags())
+		require.Equal(t, leader.ResponseCacheHeaderTags(), follower.ResponseCacheHeaderTags())
+	})
+
+	t.Run("a leader with a subgraph error hands the follower none", func(t *testing.T) {
+		leader, follower := run(t, true)
+		require.Error(t, leader.SubgraphErrors())
+		// The subgraph-a tag is omitted when emitted in the response even though it is here when there is an error
+		require.Equal(t, []string{"subgraph-a"}, leader.ResponseCacheHeaderTags(), "the fetch that succeeded still contributed")
+		require.Nil(t, follower.ResponseCacheHeaderTags(), "no positive cache signal on an errored body")
+	})
 }

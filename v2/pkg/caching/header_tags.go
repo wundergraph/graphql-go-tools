@@ -1,7 +1,8 @@
 package caching
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -27,8 +28,11 @@ const (
 	declaredHeaderTagTier
 )
 
+// ValidDeclaredHeaderTag reports whether a declared tag can go in a header.
+// One spelled like a derived tag passes: the header is the CDN's contract and
+// carries what the subgraph declared, the index files it as declared.
 func ValidDeclaredHeaderTag(tag string) bool {
-	if tag == "" || headerTagTier(tag) != declaredHeaderTagTier {
+	if tag == "" {
 		return false
 	}
 	return !strings.ContainsFunc(tag, func(r rune) bool {
@@ -49,8 +53,8 @@ func headerTagTier(headerTag string) int {
 
 // SortHeaderTags groups by tier, coarsest first, keeping the order within a tier.
 func SortHeaderTags(headerTags []string) {
-	sort.SliceStable(headerTags, func(i, j int) bool {
-		return headerTagTier(headerTags[i]) < headerTagTier(headerTags[j])
+	slices.SortStableFunc(headerTags, func(a, b string) int {
+		return cmp.Compare(headerTagTier(a), headerTagTier(b))
 	})
 }
 

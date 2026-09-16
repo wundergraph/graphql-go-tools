@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.21.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.20.3...v2.21.0) (2026-09-16)
+
+
+### Features
+
+* support caching in multi fetches ([#1656](https://github.com/wundergraph/graphql-go-tools/issues/1656)) ([2a6610f](https://github.com/wundergraph/graphql-go-tools/commit/2a6610f501b75644257283816d9082e220289c14))
+
+
+### Bug Fixes
+
+* propagate invalid variable JSON errors ([#1623](https://github.com/wundergraph/graphql-go-tools/issues/1623)) ([076a96f](https://github.com/wundergraph/graphql-go-tools/commit/076a96fdc86b25291ab707180f3f0bec3007d6ef))
+
 ## [2.20.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.20.2...v2.20.3) (2026-09-08)
 
 
