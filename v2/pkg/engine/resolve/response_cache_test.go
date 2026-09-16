@@ -1,10 +1,13 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -969,4 +972,140 @@ func TestResponseCacheHeaderTagsDefer(t *testing.T) {
 	require.True(t, w.complete)
 
 	require.ElementsMatch(t, want, ctx.ResponseCacheHeaderTags())
+}
+
+type blockingCachedDataSource struct{ *blockingDataSource }
+
+func (f blockingCachedDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	f.waitForRelease()
+	return cachedDataSource{body: string(f.data)}.Load(ctx, headers, input)
+}
+
+func (f blockingCachedDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return f.Load(ctx, headers, input)
+}
+
+type blockingFailingDataSource struct{ *blockingDataSource }
+
+func (f blockingFailingDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	f.waitForRelease()
+	return nil, errors.New("subgraph down")
+}
+
+func (f blockingFailingDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return f.Load(ctx, headers, input)
+}
+
+// A follower writes the leader's bytes through its own writer with a Context the
+// loader never ran on, so it has no subgraph errors to withhold the tag header
+// by. The leader must not hand tags to a body it would itself mark no-store.
+func TestResponseCacheHeaderTagsInboundDedupWithSubgraphErrors(t *testing.T) {
+	run := func(t *testing.T, fail bool) (leader, follower *Context) {
+		t.Helper()
+		r := newResolver(t.Context())
+
+		blocking := newBlockingDataSource([]byte(`{"data":{"b":"v"}}`))
+		defer blocking.Release()
+		var slow DataSource = blockingCachedDataSource{blocking}
+		if fail {
+			slow = blockingFailingDataSource{blocking}
+		}
+
+		rootFetch := func(subgraph string, ds DataSource) *FetchTreeNode {
+			return Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: ds,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath:   []string{"data"},
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				DataSourceIdentifier: graphqlDataSourceIdentifier,
+				Info: &FetchInfo{
+					OperationType:  ast.OperationTypeQuery,
+					DataSourceID:   subgraph,
+					DataSourceName: subgraph,
+				},
+			})
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Parallel(
+				rootFetch("a", cachedDataSource{body: `{"data":{"a":"v"}}`}),
+				rootFetch("b", slow),
+			),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{Name: []byte("a"), Value: &String{Path: []string{"a"}, Nullable: true}},
+					{Name: []byte("b"), Value: &String{Path: []string{"b"}, Nullable: true}},
+				},
+			},
+		}
+
+		// Each side gets its own Context and cache state: sharing one struct
+		// would let the follower's reset overwrite what the leader collected.
+		newCtx := func() *Context {
+			ctx := NewContext(context.Background())
+			ctx.Request.ID = 42
+			ctx.VariablesHash = 1337
+			ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+			return ctx
+		}
+		leader, follower = newCtx(), newCtx()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		leaderWriter := newBlockingWriter()
+		var leaderInfo, followerInfo *GraphQLResolveInfo
+		var leaderErr, followerErr error
+		var followerBuf bytes.Buffer
+
+		go func() {
+			defer wg.Done()
+			leaderInfo, leaderErr = r.ArenaResolveGraphQLResponse(leader, response, leaderWriter)
+		}()
+		select {
+		case <-blocking.Ready():
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for the leader to reach the slow subgraph")
+		}
+
+		go func() {
+			defer wg.Done()
+			followerInfo, followerErr = r.ArenaResolveGraphQLResponse(follower, response, &followerBuf)
+		}()
+		waitForFollowerCount(t, r, 1)
+
+		blocking.Release()
+		select {
+		case <-leaderWriter.Ready():
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for the leader to write")
+		}
+		leaderWriter.Release()
+		wg.Wait()
+
+		require.NoError(t, leaderErr)
+		require.NoError(t, followerErr)
+		require.False(t, leaderInfo.ResolveDeduplicated)
+		require.True(t, followerInfo.ResolveDeduplicated)
+		require.Equal(t, leaderWriter.String(), followerBuf.String(), "the follower sends the leader's bytes")
+		return leader, follower
+	}
+
+	t.Run("a clean leader hands its tags to the follower", func(t *testing.T) {
+		leader, follower := run(t, false)
+		require.NoError(t, leader.SubgraphErrors())
+		require.ElementsMatch(t, []string{"subgraph-a", "subgraph-b"}, leader.ResponseCacheHeaderTags())
+		require.Equal(t, leader.ResponseCacheHeaderTags(), follower.ResponseCacheHeaderTags())
+	})
+
+	t.Run("a leader with a subgraph error hands the follower none", func(t *testing.T) {
+		leader, follower := run(t, true)
+		require.Error(t, leader.SubgraphErrors())
+		require.Equal(t, []string{"subgraph-a"}, leader.ResponseCacheHeaderTags(), "the fetch that succeeded still contributed")
+		require.Nil(t, follower.ResponseCacheHeaderTags(), "no positive cache signal on an errored body")
+	})
 }

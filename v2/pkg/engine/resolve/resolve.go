@@ -520,7 +520,12 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		if ctx.GetDeduplicationData != nil {
 			inflight.SharedData = ctx.GetDeduplicationData(ctx.ctx)
 		}
-		inflight.HeaderTags = ctx.ResponseCacheHeaderTags()
+		// Not on an errored body: the leader's writer marks it no-store and
+		// withholds the tag header, and a follower has no errors of its own to
+		// decide that by.
+		if ctx.SubgraphErrors() == nil {
+			inflight.HeaderTags = ctx.ResponseCacheHeaderTags()
+		}
 	}
 	r.inboundRequestSingleFlight.FinishOk(inflight, buf.Bytes())
 	// all data is written to the client
