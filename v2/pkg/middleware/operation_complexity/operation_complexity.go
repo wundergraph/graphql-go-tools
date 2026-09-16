@@ -308,8 +308,8 @@ func (c *complexityVisitor) endRootFieldComplexityCalculation() {
 }
 
 func (c *complexityVisitor) countField(ref int, fieldName string) {
-	typeName := c.EnclosingTypeDefinition.NameString(c.definition)
-	if c.isRootType(typeName) {
+	if c.isRootTypeField() {
+		typeName := c.EnclosingTypeDefinition.NameString(c.definition)
 		alias := c.operation.FieldAliasOrNameString(ref)
 		if fieldName == alias {
 			alias = ""
@@ -332,6 +332,10 @@ func (c *complexityVisitor) isRootType(name string) bool {
 }
 
 func (c *complexityVisitor) isRootTypeField() bool {
+	// Root types can also appear beneath other fields in the operation.
+	if c.fieldDepth != 0 {
+		return false
+	}
 	enclosingTypeName := c.EnclosingTypeDefinition.NameString(c.definition)
 	return c.isRootType(enclosingTypeName)
 }

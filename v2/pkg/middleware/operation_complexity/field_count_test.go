@@ -68,6 +68,26 @@ func TestOperationComplexityFieldCount(t *testing.T) {
 	}
 }
 
+func TestOperationComplexityNestedRootType(t *testing.T) {
+	t.Parallel()
+
+	const definition = `schema { query: Query } type Query { self: Query id: String } scalar String`
+	for _, field := range []string{"__typename", "id"} {
+		t.Run(field, func(t *testing.T) {
+			t.Parallel()
+
+			run(t, definition, `{ self { `+field+` } }`,
+				OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 2},
+				[]RootFieldStats{{
+					TypeName:  "Query",
+					FieldName: "self",
+					Stats:     OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1},
+				}},
+			)
+		})
+	}
+}
+
 func TestOperationComplexityFieldNamesSurviveOperationReuse(t *testing.T) {
 	t.Parallel()
 
