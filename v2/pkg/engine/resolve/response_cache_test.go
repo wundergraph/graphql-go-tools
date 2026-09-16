@@ -729,6 +729,28 @@ func TestResponseCacheHeaderTags(t *testing.T) {
 		}, res.responseCacheHeaderTags, "the fetch reports the union")
 	})
 
+	t.Run("a declared tag spelled like a derived one is emitted verbatim but indexed as declared", func(t *testing.T) {
+		// The header is the CDN's contract: what the subgraph declared goes out
+		// as is. The index is the router's: the same tag is filed under the
+		// declaring subgraph, so invalidating employee never reaches it.
+		body := `{
+			"data": {"_entities": [{"__typename": "User", "id": 42}]},
+			"extensions": {"apolloEntityCacheTags": [["subgraph-employee", "type-employee-Employee"]]}
+		}`
+		loader, res := newLoader(t, body, ResponseCacheTagIndexOptions{CacheTag: true, Subgraph: true, Type: true})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42"}}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "subgraph-employee", "type-employee-Employee"},
+			prepared.responseCacheItems[0].HeaderTags)
+		require.Equal(t, []string{
+			"declared:accounts:subgraph-employee", "declared:accounts:type-employee-Employee",
+			"subgraph:accounts",
+			"type:accounts:User",
+		}, prepared.responseCacheItems[0].Tags)
+		require.NotContains(t, prepared.responseCacheItems[0].Tags, "subgraph:employee")
+	})
+
 	t.Run("cache_tag index off still keeps declared tags out of the index", func(t *testing.T) {
 		loader, res := newLoader(t, entitiesBody, ResponseCacheTagIndexOptions{Subgraph: true})
 		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42", "k-7"}}
@@ -784,6 +806,54 @@ func TestResponseCacheHeaderTags(t *testing.T) {
 
 		ctx.Free()
 		require.Nil(t, ctx.ResponseCacheHeaderTags(), "freed with the rest of the request")
+	})
+
+	t.Run("a declared tag equal to another fetch's derived tag is merged, not duplicated", func(t *testing.T) {
+		// accounts declares subgraph-employee; the employee fetch derives the
+		// same string. The header set is keyed by string, so it appears once.
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+		loader := &Loader{ctx: ctx}
+
+		fetch := func(subgraph, body string) {
+			res := &result{
+				out:        []byte(body),
+				statusCode: http.StatusOK,
+				httpResponseContext: &httpclient.ResponseContext{
+					Response: &http.Response{
+						Header: http.Header{"Cache-Control": []string{"public, max-age=60"}},
+					},
+				},
+			}
+			res.init(PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
+			}, &FetchInfo{DataSourceName: subgraph})
+			prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-" + subgraph}}
+			require.NoError(t, loader.responseCacheCollect(prepared))
+			loader.responseCacheMergeHeaderTags(res)
+		}
+
+		fetch("accounts", `{
+			"data": {"_entities": [{"__typename": "User", "id": 42}]},
+			"extensions": {"apolloEntityCacheTags": [["subgraph-employee"]]}
+		}`)
+		fetch("employee", `{
+			"data": {"_entities": [{"__typename": "Employee", "id": 7}]}
+		}`)
+
+		got := ctx.ResponseCacheHeaderTags()
+		require.Equal(t, []string{
+			"subgraph-accounts", "type-accounts-User", "subgraph-employee", "type-employee-Employee",
+		}, got)
+
+		seen := 0
+		for _, tag := range got {
+			if tag == "subgraph-employee" {
+				seen++
+			}
+		}
+		require.Equal(t, 1, seen, "one string, whoever put it there")
 	})
 
 	t.Run("no cache means no headerTags", func(t *testing.T) {
