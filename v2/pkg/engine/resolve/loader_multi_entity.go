@@ -37,11 +37,15 @@ type preparedMultiEntry struct {
 	cachedValues [][]byte
 	// responseCacheTTL is the life left on the least fresh of cachedValues.
 	responseCacheTTL time.Duration
+	// responseCacheHeaderTags is what cachedValues were stored with.
+	responseCacheHeaderTags []string
 }
 
 // cacheHit reports whether every representation of this entry was found in the response cache.
 // Such an entry is never asked of the subgraph.
-func (e *preparedMultiEntry) cacheHit() bool { return len(e.cachedValues) > 0 }
+func (e *preparedMultiEntry) cacheHit() bool {
+	return len(e.cachedValues) > 0
+}
 
 // multiAssembly is what the load phase needs to rebuild the merged request
 // after the response-cache lookup switches warm entries off.
@@ -530,6 +534,15 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 			res.out = response.MarshalTo(nil)
 		}
 	}
+
+	// Hits and misses alike, as for an unmerged fetch: every entity in the body
+	// is in the header, whichever side answered it.
+	for i := range prepared.multiEntries {
+		if entry := &prepared.multiEntries[i]; entry.cacheHit() {
+			res.responseCacheHeaderTags = caching.MergeHeaderTags(res.responseCacheHeaderTags, entry.responseCacheHeaderTags)
+		}
+	}
+	l.responseCacheMergeHeaderTags(res)
 
 	return l.mergeEntryResults(prepared)
 }

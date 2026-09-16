@@ -436,6 +436,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	}
 
 	var items []caching.Item
+	var headerTagLists [][]string
 	for i := range prepared.multiEntries {
 		entry := &prepared.multiEntries[i]
 		if len(entry.responseCacheKeys) == 0 || entry.cacheHit() || entry.res.fetchSkipped {
@@ -467,23 +468,24 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 				TTL:   ttl,
 			}
 
-			if invalidation := l.ctx.responseCache.invalidation; invalidation.any() {
-				// Declared tags are left out: apolloEntityCacheTags is one flat
-				// list with no alias to attribute it to, so entries would take
-				// each other's tags. Subgraph and type identities still apply.
-				item.Tags = responseCacheTagIdentities(responseCacheTagInput{
-					value:       value,
-					subgraph:    prepared.res.ds.Name,
-					isRootFetch: prepared.isRootFetchCache,
-					opts:        invalidation,
-				})
-			}
+			// Declared tags are left out: apolloEntityCacheTags is one flat
+			// list with no alias to attribute it to, so entries would take
+			// each other's tags. Subgraph and type identities still apply, to
+			// the index and the header alike.
+			item.Tags, item.HeaderTags = responseCacheIdentities(responseCacheTagInput{
+				value:       value,
+				subgraph:    prepared.res.ds.Name,
+				isRootFetch: prepared.isRootFetchCache,
+				opts:        l.ctx.responseCache.invalidation,
+			})
+			headerTagLists = append(headerTagLists, item.HeaderTags)
 
 			items = append(items, item)
 		}
 	}
 
 	prepared.responseCacheItems = items
+	prepared.res.responseCacheHeaderTags = caching.MergeHeaderTags(nil, headerTagLists...)
 }
 
 // multiEntityCacheLookup asks the cache, in one round trip, for the entities of
@@ -541,6 +543,7 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 
 		entry.cachedValues = values
 		entry.responseCacheTTL = remainingTTL(found, entry.responseCacheKeys)
+		entry.responseCacheHeaderTags = foundHeaderTags(found, entry.responseCacheKeys)
 		anyHit = true
 	}
 
