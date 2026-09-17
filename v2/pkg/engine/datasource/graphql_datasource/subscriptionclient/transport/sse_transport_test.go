@@ -420,39 +420,50 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		}
 	})
 
-	t.Run("handles non-200 response", func(t *testing.T) {
+	t.Run("returns a connection failure when POST receives 401 without a body", func(t *testing.T) {
 		t.Parallel()
 
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodPost, r.Method)
 			w.WriteHeader(http.StatusUnauthorized)
 		})
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		_, err := tr.Subscribe(context.Background(), &common.Request{
+		cancel, err := tr.Subscribe(t.Context(), &common.Request{
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, func(_ *common.Message) {})
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "401")
+		var connectionErr ErrFailedSubscriptionConnection
+		require.ErrorAs(t, err, &connectionErr)
+		assert.Equal(t, server.URL, connectionErr.URL)
+		assert.Equal(t, http.StatusUnauthorized, connectionErr.StatusCode)
+		assert.Nil(t, cancel)
+		assert.Zero(t, tr.ConnCount())
 	})
 
-	t.Run("handles non-200 with body", func(t *testing.T) {
+	t.Run("returns a connection failure when GET receives 500 without exposing its body", func(t *testing.T) {
 		t.Parallel()
 
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodGet, r.Method)
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("Internal server error"))
 		})
 
 		tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
 
-		_, err := tr.Subscribe(context.Background(), &common.Request{
+		cancel, err := tr.Subscribe(t.Context(), &common.Request{
 			Query: "subscription { test }",
-		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, func(_ *common.Message) {})
+		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodGET}, func(_ *common.Message) {})
 
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "500")
+		var connectionErr ErrFailedSubscriptionConnection
+		require.ErrorAs(t, err, &connectionErr)
+		assert.Equal(t, server.URL, connectionErr.URL)
+		assert.Equal(t, http.StatusInternalServerError, connectionErr.StatusCode)
+		assert.NotContains(t, err.Error(), "Internal server error")
+		assert.Nil(t, cancel)
+		assert.Zero(t, tr.ConnCount())
 	})
 
 	t.Run("creates separate connection per subscription", func(t *testing.T) {
