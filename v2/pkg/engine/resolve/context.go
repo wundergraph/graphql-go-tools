@@ -261,9 +261,18 @@ type responseCache struct {
 	defaultTTL   time.Duration
 	onError      func(error)
 	invalidation ResponseCacheTagIndexOptions
+	privateID    caching.Digest
+	hasPrivateID bool
 	// surrogateKeys is the union over every fetch of the request, merged under
 	// the loader's data lock as each fetch is merged.
 	surrogateKeys []string
+}
+
+func (c *Context) responseCachePrivateID() (caching.Digest, bool) {
+	if c.responseCache == nil || !c.responseCache.hasPrivateID {
+		return caching.Digest{}, false
+	}
+	return c.responseCache.privateID, true
 }
 
 // ResponseCacheSurrogateKeys are the cache tags of every cached fetch in the
@@ -312,6 +321,8 @@ type ResponseCacheOptions struct {
 	OnError    func(error)
 	// Invalidation is taken as given; the zero value builds no indexes.
 	Invalidation ResponseCacheTagIndexOptions
+	// PrivateID is the id of the user this request acts for.
+	PrivateID string
 }
 
 func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
@@ -323,6 +334,10 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		defaultTTL:   opts.DefaultTTL,
 		onError:      opts.OnError,
 		invalidation: opts.Invalidation,
+	}
+	if opts.PrivateID != "" {
+		c.responseCache.privateID = caching.DigestString(opts.PrivateID)
+		c.responseCache.hasPrivateID = true
 	}
 }
 

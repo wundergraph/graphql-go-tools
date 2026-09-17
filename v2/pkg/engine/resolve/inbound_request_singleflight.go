@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"sync"
 	"sync/atomic"
@@ -21,6 +22,21 @@ type InboundRequestSingleFlight struct {
 type requestShard struct {
 	m sync.Map
 }
+
+// Byte layout of inboundRequestKey: three uint64 hashes, then the private
+// identity digest. Zero when the request has no private identity.
+const (
+	keyOperationIDOffset   = 0
+	keyVariablesHashOffset = keyOperationIDOffset + 8
+	keyHeadersHashOffset   = keyVariablesHashOffset + 8
+	keyPrivateIDOffset     = keyHeadersHashOffset + 8
+	keySize                = keyPrivateIDOffset + sha256.Size
+)
+
+// inboundRequestKey is the complete discriminator of one inbound request:
+// operation, variables, headers and private identity. It is the map identity
+// as is, so two requests share a flight only when every part matches.
+type inboundRequestKey [keySize]byte
 
 const defaultRequestSingleFlightShardCount = 8
 
@@ -48,7 +64,7 @@ type InflightRequest struct {
 	// serving the same body sends the same header.
 	SurrogateKeys []string
 	Err           error
-	ID            uint64
+	ID            inboundRequestKey
 
 	followerCount atomic.Int32
 }
@@ -77,28 +93,28 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 		return nil, nil
 	}
 
-	// Derive a robust key from request ID, variables hash and (optional) headers hash
-	var b [24]byte
-	binary.LittleEndian.PutUint64(b[0:8], ctx.Request.ID)
-	binary.LittleEndian.PutUint64(b[8:16], ctx.VariablesHash)
+	// Derive a robust key from request ID, variables hash, (optional) headers hash
+	// and the response cache user id (if present)
+	var b inboundRequestKey
+	binary.LittleEndian.PutUint64(b[keyOperationIDOffset:keyVariablesHashOffset], ctx.Request.ID)
+	binary.LittleEndian.PutUint64(b[keyVariablesHashOffset:keyHeadersHashOffset], ctx.VariablesHash)
 	hh := uint64(0)
 	if ctx.SubgraphHeadersBuilder != nil {
 		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
-	binary.LittleEndian.PutUint64(b[16:24], hh)
-	h := pool.Hash64.Get()
-	_, _ = h.Write(b[:])
-	key := h.Sum64()
-	pool.Hash64.Put(h)
+	binary.LittleEndian.PutUint64(b[keyHeadersHashOffset:keyPrivateIDOffset], hh)
+	if privateID, ok := ctx.responseCachePrivateID(); ok {
+		copy(b[keyPrivateIDOffset:], privateID[:])
+	}
 
-	shard := r.shardFor(key)
+	shard := r.shardFor(b)
 
 	request := &InflightRequest{
 		Done: make(chan struct{}),
-		ID:   key,
+		ID:   b,
 	}
 
-	inflight, shared := shard.m.LoadOrStore(key, request)
+	inflight, shared := shard.m.LoadOrStore(b, request)
 	if shared {
 		request = inflight.(*InflightRequest)
 		request.AddFollower()
@@ -140,9 +156,13 @@ func (r *InboundRequestSingleFlight) FinishErr(req *InflightRequest, err error) 
 	close(req.Done)
 }
 
-func (r *InboundRequestSingleFlight) shardFor(key uint64) *requestShard {
-	// Fast modulo using power-of-two shard count if desired in the future.
-	// For now, use standard modulo for clarity.
-	idx := int(key % uint64(len(r.shards)))
+// shardFor hashes the key down to pick a shard only; the map is keyed by the
+// full key, so a hash collision costs contention, never a shared flight.
+func (r *InboundRequestSingleFlight) shardFor(key inboundRequestKey) *requestShard {
+	h := pool.Hash64.Get()
+	_, _ = h.Write(key[:])
+	sum := h.Sum64()
+	pool.Hash64.Put(h)
+	idx := int(sum % uint64(len(r.shards)))
 	return &r.shards[idx]
 }

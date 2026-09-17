@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // Surrogate key tiers. Stored with the entry, unlike Tags which only name an index.
@@ -20,15 +21,33 @@ func TypeSurrogateKey(subgraph, typeName string) string {
 	return typeSurrogateKeyPrefix + subgraph + "-" + typeName
 }
 
-// surrogateKeyTier: coarsest first, so a size limit cuts the finest purge surface.
+// Coarsest first, so a size limit cuts the finest purge surface.
+const (
+	subgraphSurrogateKeyTier = iota
+	typeSurrogateKeyTier
+	declaredSurrogateKeyTier
+)
+
+// ValidDeclaredSurrogateKey reports whether a declared tag can go in a header.
+// One spelled like a derived key passes: the header is the CDN's contract and
+// carries what the subgraph declared, the index files it as declared.
+func ValidDeclaredSurrogateKey(tag string) bool {
+	if tag == "" {
+		return false
+	}
+	return !strings.ContainsFunc(tag, func(r rune) bool {
+		return unicode.IsControl(r) || r == ' ' || r > unicode.MaxASCII
+	})
+}
+
 func surrogateKeyTier(surrogateKey string) int {
 	switch {
 	case strings.HasPrefix(surrogateKey, subgraphSurrogateKeyPrefix):
-		return 0
+		return subgraphSurrogateKeyTier
 	case strings.HasPrefix(surrogateKey, typeSurrogateKeyPrefix):
-		return 1
+		return typeSurrogateKeyTier
 	default:
-		return 2
+		return declaredSurrogateKeyTier
 	}
 }
 
