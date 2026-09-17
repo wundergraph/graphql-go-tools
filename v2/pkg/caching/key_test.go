@@ -3,7 +3,6 @@ package caching
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"strings"
 	"testing"
 
 	"github.com/cespare/xxhash/v2"
@@ -21,19 +20,40 @@ func TestKey(t *testing.T) {
 	public := Key(entity, selection)
 	private := PrivateKey(entity, selection, u1)
 
-	assert.Equal(t, "v3:"+hex.EncodeToString(entity[:])+":"+hex.EncodeToString(selection[:]), public)
-	assert.Len(t, public, keyLen)
-	assert.True(t, strings.HasPrefix(private, public+":"))
-	assert.Len(t, private, privateKeyLen)
-	assert.Equal(t, hex.EncodeToString(u1[:]), strings.TrimPrefix(private, public+":"))
+	t.Run("a public key is the version and both digests in hex", func(t *testing.T) {
+		assert.Equal(t, keyFormatVersion+":"+hex.EncodeToString(entity[:])+":"+hex.EncodeToString(selection[:]), public)
+		assert.Len(t, public, keyLen)
+	})
 
-	assert.Equal(t, Digest(sha256.Sum256([]byte("u1"))), u1)
-	assert.Equal(t, DigestBytes([]byte("u1")), u1)
-	assert.Equal(t, public, Key(entity, selection))
-	assert.Equal(t, private, PrivateKey(entity, selection, u1))
+	t.Run("a private key is the public key with the user digest appended", func(t *testing.T) {
+		assert.Equal(t, public+":"+hex.EncodeToString(u1[:]), private)
+		assert.Len(t, private, privateKeyLen)
+	})
 
-	assert.NotEqual(t, private, PrivateKey(entity, selection, DigestString("u2")))
-	assert.NotEqual(t, public, Key(selection, entity))
+	t.Run("the same inputs build the same key", func(t *testing.T) {
+		assert.Equal(t, public, Key(entity, selection))
+		assert.Equal(t, private, PrivateKey(entity, selection, u1))
+	})
+
+	t.Run("a different user gives a different private key", func(t *testing.T) {
+		assert.NotEqual(t, private, PrivateKey(entity, selection, DigestString("u2")))
+	})
+
+	t.Run("swapping entity and selection gives a different key", func(t *testing.T) {
+		assert.NotEqual(t, public, Key(selection, entity))
+	})
+}
+
+func TestDigest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a digest is the SHA-256 of its input", func(t *testing.T) {
+		assert.Equal(t, Digest(sha256.Sum256([]byte("u1"))), DigestString("u1"))
+	})
+
+	t.Run("bytes and string forms agree", func(t *testing.T) {
+		assert.Equal(t, DigestBytes([]byte("u1")), DigestString("u1"))
+	})
 }
 
 func TestDigestParts(t *testing.T) {
