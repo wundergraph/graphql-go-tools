@@ -89,24 +89,41 @@ func responseCacheLookupKeys(keys, privateKeys []string) []string {
 }
 
 // responseCacheFoundItem picks the entry for one position: the user's own wins
-// over the shared one. An empty or invalid body is a miss.
+// over the shared one. It is a body, or a vary record pointing at one; an
+// empty or invalid body is a miss.
 func (l *Loader) responseCacheFoundItem(found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
 	if privateKey != "" {
 		item, ok = found[privateKey]
-		ok = ok && len(item.Value) > 0
+		ok = ok && (len(item.Value) > 0 || len(item.Vary) > 0)
 		private = ok
 	}
 	if !ok {
 		item, ok = found[key]
-		if !ok || len(item.Value) == 0 {
+		if !ok || (len(item.Value) == 0 && len(item.Vary) == 0) {
 			return caching.Item{}, false, false
 		}
 	}
-	if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
-		l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
+	if len(item.Vary) > 0 {
+		// A record has no body; the variant it points at is read next.
+		return item, private, true
+	}
+	if !l.responseCacheValidBody(key, item) {
 		return caching.Item{}, false, false
 	}
 	return item, private, true
+}
+
+// responseCacheValidBody reports whether a body read back is JSON. One that is
+// not is a miss, reported, rather than something to splice into a response.
+func (l *Loader) responseCacheValidBody(key string, item caching.Item) bool {
+	if len(item.Value) == 0 {
+		return false
+	}
+	if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
+		l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
+		return false
+	}
+	return true
 }
 
 func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
@@ -132,10 +149,12 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		return false
 	}
 
-	// Per position the user's own entry wins over the shared one.
 	items := make([]caching.Item, len(keys))
 	private := false
-	size := 0
+
+	// A vary record keeps its position in items, keyed by the variant it
+	// points at, until the second round replaces it with the body.
+	var variants []string
 	for i, key := range keys {
 		privateKey := ""
 		if privateKeys != nil {
@@ -146,7 +165,33 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 			return false
 		}
 		private = private || itemPrivate
+		if len(item.Vary) > 0 {
+			item.Key = caching.VariantKey(item.Key, l.responseCacheVaryDigest(prepared, item.Vary))
+			variants = append(variants, item.Key)
+		}
 		items[i] = item
+	}
+
+	if len(variants) > 0 {
+		found, err = l.ctx.responseCache.store.GetMany(l.ctx.ctx, variants)
+		if err != nil {
+			l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
+			return false
+		}
+		for i, item := range items {
+			if len(item.Vary) == 0 {
+				continue
+			}
+			body, ok := found[item.Key]
+			if !ok || !l.responseCacheValidBody(item.Key, body) {
+				return false
+			}
+			items[i] = body
+		}
+	}
+
+	size := 0
+	for _, item := range items {
 		size += len(item.Value)
 	}
 
@@ -174,6 +219,15 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.responseCacheHeaderTags = foundHeaderTags(items)
 
 	return true
+}
+
+// responseCacheVaryDigest digests the values this request will send the
+// fetch's subgraph for names. On the way out of the cache the request has not
+// been built yet, so the headers builder is asked; collect digests the headers
+// the request actually went out with.
+func (l *Loader) responseCacheVaryDigest(prepared *preparedFetch, names []string) caching.Digest {
+	sent, _ := l.ctx.HeadersForSubgraphRequest(prepared.res.ds.Name)
+	return caching.VaryDigest(names, sent)
 }
 
 // foundHeaderTags unions what the hit entries were stored with.
@@ -242,8 +296,15 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	ttl, private, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
+	headers := responseCacheHeaders(res)
+	ttl, private, ok := caching.TTL(headers, l.ctx.responseCache.defaultTTL)
 	if !ok {
+		return nil
+	}
+
+	// "Vary: *" matches no request; a record past the cap is not kept either.
+	vary, star := caching.Vary(headers)
+	if star || len(vary) > caching.MaxVaryHeaders {
 		return nil
 	}
 
@@ -254,6 +315,11 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			return nil
 		}
 		writeKeys = prepared.responseCachePrivateKeys
+	}
+
+	var varyDigest caching.Digest
+	if len(vary) > 0 {
+		varyDigest = caching.VaryDigest(vary, prepared.res.sentHeaders)
 	}
 
 	values, err := responseCacheValues(prepared, response)
@@ -267,14 +333,18 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	// Parsed whether or not the cache_tag index is on: the header always carries them.
 	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
-	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
+	items := make([]caching.Item, 0, 2*len(prepared.responseCacheKeys))
 	headerTagLists := make([][]string, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
 		}
+		key := writeKeys[i]
+		if len(vary) > 0 {
+			key = caching.VariantKey(key, varyDigest)
+		}
 		item := caching.Item{
-			Key:   writeKeys[i],
+			Key:   key,
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
 		}
@@ -293,6 +363,10 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		}
 		item.Tags, item.HeaderTags = responseCacheIdentities(input)
 		headerTagLists = append(headerTagLists, item.HeaderTags)
+		if len(vary) > 0 {
+			// Same tags, so invalidation takes the record down with the body.
+			items = append(items, caching.Item{Key: writeKeys[i], Vary: vary, TTL: ttl, Tags: item.Tags})
+		}
 		items = append(items, item)
 	}
 
@@ -587,7 +661,8 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 				privateKey = entry.responseCachePrivateKeys[j]
 			}
 			item, itemPrivate, ok := l.responseCacheFoundItem(found, key, privateKey)
-			if !ok {
+			// A merged fetch does not follow vary records: the entry is fetched.
+			if !ok || len(item.Vary) > 0 {
 				values = nil
 				break
 			}
