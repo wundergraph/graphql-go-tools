@@ -37,8 +37,8 @@ type preparedMultiEntry struct {
 	cachedValues [][]byte
 	// responseCacheTTL is the life left on the least fresh of cachedValues.
 	responseCacheTTL time.Duration
-	// responseCacheHeaderTags is what cachedValues were stored with.
-	responseCacheHeaderTags []string
+	// responseCacheSurrogateKeys is what cachedValues were stored with.
+	responseCacheSurrogateKeys []string
 }
 
 // cacheHit reports whether every representation of this entry was found in the response cache.
@@ -539,10 +539,10 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 	// is in the header, whichever side answered it.
 	for i := range prepared.multiEntries {
 		if entry := &prepared.multiEntries[i]; entry.cacheHit() {
-			res.responseCacheHeaderTags = caching.MergeHeaderTags(res.responseCacheHeaderTags, entry.responseCacheHeaderTags)
+			res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(res.responseCacheSurrogateKeys, entry.responseCacheSurrogateKeys)
 		}
 	}
-	l.responseCacheMergeHeaderTags(res)
+	l.responseCacheMergeSurrogateKeys(res)
 
 	return l.mergeEntryResults(prepared)
 }

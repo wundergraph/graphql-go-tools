@@ -1303,7 +1303,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheTags(t *testing.T) {
 	}
 }
 
-func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHeaderTags(t *testing.T) {
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheSurrogateKeys(t *testing.T) {
 	const mergedResponse = `{"data":{` +
 		`"f1":[{"__typename":"Employee","products":["a"]},{"__typename":"Employee","products":["b"]}],` +
 		`"f2":[{"__typename":"Employee","notes":"n"}]},` +
@@ -1338,11 +1338,11 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHeaderTags(t *testing.
 
 		require.Len(t, cache.items, 3)
 
-		want := []string{caching.SubgraphHeaderTag("products"), caching.TypeHeaderTag("products", "Employee")}
+		want := []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
 		for key, item := range cache.items {
-			assert.Equal(t, want, item.HeaderTags, key)
+			assert.Equal(t, want, item.SurrogateKeys, key)
 		}
-		assert.Equal(t, want, ctx.ResponseCacheHeaderTags())
+		assert.Equal(t, want, ctx.ResponseCacheSurrogateKeys())
 	})
 
 	t.Run("a fully warm fetch reports what its entries were stored with", func(t *testing.T) {
@@ -1353,8 +1353,8 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHeaderTags(t *testing.
 		ctx := run(t, cache, warm)
 		require.Equal(t, 0, warm.calls)
 
-		want := []string{caching.SubgraphHeaderTag("products"), caching.TypeHeaderTag("products", "Employee")}
-		assert.Equal(t, want, ctx.ResponseCacheHeaderTags())
+		want := []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
+		assert.Equal(t, want, ctx.ResponseCacheSurrogateKeys())
 	})
 
 	t.Run("a partially warm fetch unions the cache's entries with the origin's", func(t *testing.T) {
@@ -1377,14 +1377,14 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHeaderTags(t *testing.
 		ctx := run(t, cache, partial)
 		require.Equal(t, 1, partial.calls)
 		assert.ElementsMatch(t, []string{
-			caching.SubgraphHeaderTag("products"),
-			caching.TypeHeaderTag("products", "Contractor"),
-			caching.TypeHeaderTag("products", "Employee"),
-		}, ctx.ResponseCacheHeaderTags())
+			caching.SubgraphSurrogateKey("products"),
+			caching.TypeSurrogateKey("products", "Contractor"),
+			caching.TypeSurrogateKey("products", "Employee"),
+		}, ctx.ResponseCacheSurrogateKeys())
 	})
 
 	t.Run("an uncacheable origin answer contributes nothing", func(t *testing.T) {
 		ctx := run(t, newTestCache(), &recordingDataSource{response: []byte(mergedResponse)})
-		assert.Nil(t, ctx.ResponseCacheHeaderTags())
+		assert.Nil(t, ctx.ResponseCacheSurrogateKeys())
 	})
 }

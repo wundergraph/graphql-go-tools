@@ -431,7 +431,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		if ctx.SetDeduplicationData != nil && inflight.SharedData != nil {
 			ctx.SetDeduplicationData(ctx.ctx, inflight.SharedData)
 		}
-		ctx.setResponseCacheHeaderTags(inflight.HeaderTags)
+		ctx.setResponseCacheSurrogateKeys(inflight.SurrogateKeys)
 		responseWriteStart := time.Now()
 		_, err = writer.Write(inflight.Data)
 		resp.ResponseWriteStartTime = responseWriteStart
@@ -524,7 +524,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		// withholds the tag header, and a follower has no errors of its own to
 		// decide that by.
 		if ctx.SubgraphErrors() == nil {
-			inflight.HeaderTags = ctx.ResponseCacheHeaderTags()
+			inflight.SurrogateKeys = ctx.ResponseCacheSurrogateKeys()
 		}
 	}
 	r.inboundRequestSingleFlight.FinishOk(inflight, buf.Bytes())
