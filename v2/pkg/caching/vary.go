@@ -11,7 +11,7 @@ const MaxVaryHeaders = 100
 
 func Vary(headers http.Header) (names []string, star bool) {
 	for _, field := range headers.Values("Vary") {
-		for _, name := range strings.Split(field, ",") {
+		for name := range strings.SplitSeq(field, ",") {
 			name = strings.ToLower(strings.TrimSpace(name))
 			switch name {
 			case "":

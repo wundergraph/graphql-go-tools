@@ -221,8 +221,10 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	return true
 }
 
-// responseCacheVaryDigest digests the values this request sends the fetch's
-// subgraph for names, the same on the way in and the way out of the cache.
+// responseCacheVaryDigest digests the values this request will send the
+// fetch's subgraph for names. On the way out of the cache the request has not
+// been built yet, so the headers builder is asked; collect digests the headers
+// the request actually went out with.
 func (l *Loader) responseCacheVaryDigest(prepared *preparedFetch, names []string) caching.Digest {
 	sent, _ := l.ctx.HeadersForSubgraphRequest(prepared.res.ds.Name)
 	return caching.VaryDigest(names, sent)
@@ -317,7 +319,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 
 	var varyDigest caching.Digest
 	if len(vary) > 0 {
-		varyDigest = l.responseCacheVaryDigest(prepared, vary)
+		varyDigest = caching.VaryDigest(vary, prepared.res.sentHeaders)
 	}
 
 	values, err := responseCacheValues(prepared, response)

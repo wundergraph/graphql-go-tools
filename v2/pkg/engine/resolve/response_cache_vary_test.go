@@ -49,6 +49,7 @@ func varyLoader(t *testing.T, store caching.Cache, cacheControl, vary, body, pri
 		res.httpResponseContext.Response.Header.Set("Vary", vary)
 	}
 	loader.ctx.SubgraphHeadersBuilder = sent
+	res.sentHeaders = http.Header(sent)
 	return loader, res
 }
 
@@ -88,6 +89,14 @@ func TestResponseCacheVaryCollect(t *testing.T) {
 		items := collect(t, loader, res, public, nil)
 		require.Len(t, items, 4)
 		require.Equal(t, caching.VariantKey("pub-1", caching.VaryDigest([]string{"x-region"}, nil)), items[1].Key)
+	})
+
+	t.Run("the digest is of the headers the request went out with", func(t *testing.T) {
+		loader, res := varyLoader(t, newTestCache(), "max-age=60", "Accept-Language", body, "", lang("de"))
+		loader.ctx.SubgraphHeadersBuilder = lang("fr")
+		items := collect(t, loader, res, public, nil)
+		require.Len(t, items, 4)
+		require.Equal(t, caching.VariantKey("pub-1", langDigest("de")), items[1].Key, "not what the builder says now")
 	})
 
 	t.Run("without Vary nothing changes", func(t *testing.T) {
