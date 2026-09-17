@@ -28,15 +28,15 @@ type Item struct {
 	// naming what the entry is about so it can later be found by something other
 	// than its key for invalidation.
 	Tags []string
-	// Header tags are what a client response carries so a CDN can purge by them.
+	// Surrogate keys are what a client response carries so a CDN can purge by them.
 	// Stored with the value and returned by GetMany.
-	HeaderTags []string
+	SurrogateKeys []string
 }
 
 // Cache is a batch oriented key/value cache.
 type Cache interface {
 	// GetMany looks up every key and returns the ones it found, keyed by the
-	// key they were asked for, with the HeaderTags they were stored with. A
+	// key they were asked for, with the SurrogateKeys they were stored with. A
 	// miss is simply absent, never an error and never a zero Item.
 	GetMany(ctx context.Context, keys []string) (map[string]Item, error)
 

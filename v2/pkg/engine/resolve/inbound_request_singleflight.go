@@ -50,11 +50,11 @@ type InflightRequest struct {
 	// followers via Context.SetDeduplicationData. Typed as "any" because the resolve
 	// package is data-agnostic — the caller decides the concrete type.
 	SharedData any
-	// HeaderTags are the leader's response cache header tags, so a follower
+	// SurrogateKeys are the leader's response cache surrogate keys, so a follower
 	// serving the same body sends the same header.
-	HeaderTags []string
-	Err        error
-	ID         inboundRequestKey
+	SurrogateKeys []string
+	Err           error
+	ID            inboundRequestKey
 
 	followerCount atomic.Int32
 }
