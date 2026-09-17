@@ -15,7 +15,7 @@ import (
 // Layout: version ':' entity ':' selection, plus ':' privateID for an entry
 // that belongs to one user, each a Digest in hex. The segment count keeps the
 // two forms apart, so a private key never reads as a public one.
-const keyFormatVersion = "v3"
+const keyFormatVersion = "3"
 
 const (
 	digestHex     = 2 * sha256.Size
