@@ -1913,11 +1913,13 @@ func (w *Walker) walkField(ref int, skipFor SkipVisitors) {
 	w.setCurrent(ast.NodeKindField, ref)
 
 	for i := 0; i < len(w.visitors.enterField); {
-		ancestorAllowed := skipFor.Allow(w.visitors.enterField[i])
 		allowedToVisit := w.filter == nil || w.filter.AllowVisitor(EnterField, ref, w.visitors.enterField[i], skipFor)
 		skipFor = newSkipVisitors(skipFor, w.visitors.enterField[i], allowedToVisit)
 
-		if allowedToVisit && ancestorAllowed {
+		// gate on the filter decision alone: gating on the skip set from before this field's own
+		// allow/deny was applied could suppress EnterField for an explicitly allowed field while
+		// the LeaveField loop below, which sees the updated skip set, still fired
+		if allowedToVisit {
 			w.visitors.enterField[i].EnterField(ref)
 		}
 		if w.revisit {
