@@ -29,6 +29,11 @@ const (
 	DefaultHeartbeatInterval = 5 * time.Second
 )
 
+// ErrSubscriptionTriggerTerminating indicates that a matching subscription
+// trigger is draining and cannot accept another subscriber. Callers may retry
+// after the terminating trigger has been detached.
+var ErrSubscriptionTriggerTerminating = errors.New("subscription trigger is no longer accepting subscriptions")
+
 // ConnectionID identifies a client connection for subscription routing.
 type ConnectionID int64
 
@@ -58,8 +63,10 @@ type AsyncErrorWriter interface {
 }
 
 // Resolver manages GraphQL subscriptions using a mutex-protected trigger registry.
-// All trigger/subscription state is guarded by mu. Long-running I/O (writes to clients)
-// is performed outside the lock using a snapshot-and-release pattern.
+// Resolver.mu protects the registry and subscription indexes. Each trigger,
+// subscription updater, and subscription writer has narrower synchronization for
+// membership, lifecycle/admission, and downstream writes respectively, as documented
+// on those types. Long-running I/O is performed outside Resolver.mu.
 type Resolver struct {
 	ctx            context.Context
 	options        ResolverOptions
@@ -308,7 +315,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		resolver.maxConcurrency <- struct{}{}
 	}
 
-	go resolver.heartbeatLoop()
+	heartbeatTicker := time.NewTicker(resolver.heartbeatInterval)
+	go resolver.heartbeatLoop(heartbeatTicker)
 	context.AfterFunc(resolver.ctx, func() {
 		resolver.shutdownResolver()
 	})
@@ -919,8 +927,10 @@ type subscriptionState struct {
 	heartbeat bool
 	completed chan struct{}
 	// writeMu protects all writes to writer (Complete, Error, Write, Flush, Heartbeat).
-	// Paired with the removed atomic to prevent writes after removal.
+	// Paired with removed and terminal to prevent writes after removal or a terminal frame.
 	writeMu sync.Mutex
+	// terminal is guarded by writeMu and suppresses all writes after the first Complete or Error.
+	terminal bool
 	// removed guards against writes after the subscription has been removed.
 	// Uses CompareAndSwap to prevent double-close of the completed channel.
 	removed atomic.Bool
@@ -947,6 +957,10 @@ func (s *subscriptionState) done() {
 func (s *subscriptionState) complete() {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	if s.removed.Load() || s.terminal {
+		return
+	}
+	s.terminal = true
 	s.writer.Complete()
 }
 
@@ -955,6 +969,10 @@ func (s *subscriptionState) complete() {
 func (s *subscriptionState) error(data []byte) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	if s.removed.Load() || s.terminal {
+		return
+	}
+	s.terminal = true
 	s.writer.Error(data)
 }
 
@@ -962,7 +980,7 @@ func (s *subscriptionState) error(data []byte) {
 func (s *subscriptionState) writeError(w AsyncErrorWriter, ctx *Context, err error, response *GraphQLResponse) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if s.removed.Load() {
+	if s.removed.Load() || s.terminal {
 		return
 	}
 	w.WriteError(ctx, err, response, s.writer)
@@ -970,13 +988,16 @@ func (s *subscriptionState) writeError(w AsyncErrorWriter, ctx *Context, err err
 
 // sendHeartbeat sends a keep-alive frame to the downstream writer under writeMu.
 // @TODO: this is bad, see ENG-9356
-func (s *subscriptionState) sendHeartbeat() error {
+func (s *subscriptionState) sendHeartbeat() (sent bool, err error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if s.removed.Load() {
-		return nil
+	if s.removed.Load() || s.terminal {
+		return false, nil
 	}
-	return s.writer.Heartbeat()
+	if err := s.writer.Heartbeat(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) {
@@ -994,12 +1015,21 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	copy(input, sharedInput)
 
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
+	arenaReleased := false
+	releaseArena := func() {
+		if arenaReleased {
+			return
+		}
+		arenaReleased = true
+		r.resolveArenaPool.Release(resolveArena)
+	}
+	defer releaseArena()
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
 	authorization := NewFieldAuthorization(resolveCtx)
 	resolvable.SetFieldAuthorization(authorization)
 
 	if err := resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
+		releaseArena()
 		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
@@ -1010,7 +1040,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 		return
 	}
 	if err := authorization.authorizePreFetch(sub.resolve.Response); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
+		releaseArena()
 		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:authorization:failed:%d\n", sub.id.SubscriptionID)
@@ -1027,7 +1057,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if err := loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
+		releaseArena()
 		sub.writeError(r.errorFormatter, resolveCtx, err, sub.resolve.Response)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
@@ -1038,31 +1068,48 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 		return
 	}
 
-	sub.writeMu.Lock()
-	if sub.removed.Load() {
-		sub.writeMu.Unlock()
-		r.resolveArenaPool.Release(resolveArena)
+	var resolveErr, flushErr error
+	skipped := false
+	func() {
+		sub.writeMu.Lock()
+		defer sub.writeMu.Unlock()
+		if sub.removed.Load() || sub.terminal {
+			skipped = true
+			return
+		}
+
+		// Inject loader output into Resolvable before rendering. InitSubscription may
+		// have already set resolvable.errors from the event payload, so append the
+		// loader's fetch errors rather than overwrite them.
+		resolvable.data = loader.dataBuffer.Get()
+		resolvable.subgraphExtensions = loader.subgraphExtensions
+		if loader.errors != nil {
+			if resolvable.errors == nil {
+				resolvable.errors = loader.errors
+			} else {
+				resolvable.errors.AppendArrayItems(resolveArena.Arena, loader.errors)
+			}
+		}
+		resolvable.skipValueCompletion = loader.skipValueCompletion
+
+		resolveErr = resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer)
+		releaseArena()
+		if resolveErr != nil {
+			r.errorFormatter.WriteError(resolveCtx, resolveErr, sub.resolve.Response, sub.writer)
+			return
+		}
+
+		flushErr = sub.writer.Flush()
+		if flushErr != nil {
+			return
+		}
+		sub.lastWriteTime.Store(time.Now().UnixNano())
+	}()
+
+	if skipped {
 		return
 	}
-
-	// Inject loader output into Resolvable before rendering. InitSubscription may
-	// have already set resolvable.errors from the event payload, so append the
-	// loader's fetch errors rather than overwrite them.
-	resolvable.data = loader.dataBuffer.Get()
-	resolvable.subgraphExtensions = loader.subgraphExtensions
-	if loader.errors != nil {
-		if resolvable.errors == nil {
-			resolvable.errors = loader.errors
-		} else {
-			resolvable.errors.AppendArrayItems(resolveArena.Arena, loader.errors)
-		}
-	}
-	resolvable.skipValueCompletion = loader.skipValueCompletion
-
-	if err := resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
-		r.resolveArenaPool.Release(resolveArena)
-		r.errorFormatter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
-		sub.writeMu.Unlock()
+	if resolveErr != nil {
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -1071,17 +1118,11 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 		}
 		return
 	}
-
-	r.resolveArenaPool.Release(resolveArena)
-
-	if err := sub.writer.Flush(); err != nil {
-		sub.writeMu.Unlock()
+	if flushErr != nil {
 		// If flush fails (e.g. client disconnected), remove the subscription.
 		_ = r.UnsubscribeSubscription(sub.id)
 		return
 	}
-	sub.lastWriteTime.Store(time.Now().UnixNano())
-	sub.writeMu.Unlock()
 
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:flushed:%d\n", sub.id.SubscriptionID)
@@ -1104,12 +1145,13 @@ func (r *Resolver) executeSubscriptionHeartbeat(sub *subscriptionState) {
 		return
 	}
 
-	if err := sub.sendHeartbeat(); err != nil {
+	sent, err := sub.sendHeartbeat()
+	if err != nil {
 		_ = r.UnsubscribeSubscription(sub.id)
 		return
 	}
 
-	if r.reporter != nil {
+	if sent && r.reporter != nil {
 		r.reporter.SubscriptionUpdateSent()
 	}
 }
@@ -1137,11 +1179,35 @@ func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscripti
 	return err
 }
 
-// registerSubscriptionLocked updates the by-ID and by-connection indexes.
+// registerSubscriptionLocked updates the trigger and resolver subscription indexes.
+// r.mu must be held by the caller. This is used for a newly created trigger,
+// which cannot be terminating before its first subscription is registered.
 func (r *Resolver) registerSubscriptionLocked(trig *trigger, s *subscriptionState) {
 	trig.mu.Lock()
 	trig.subscriptions[s.id] = s
 	trig.mu.Unlock()
+	r.registerSubscriptionIndexesLocked(s)
+}
+
+// tryRegisterSubscriptionLocked registers on an existing trigger if it is still
+// accepting subscribers. Admission is linearized under trig.mu so a terminal
+// state published first rejects the subscription, while a subscription registered
+// first is included in the terminal snapshot. r.mu must be held by the caller.
+func (r *Resolver) tryRegisterSubscriptionLocked(trig *trigger, s *subscriptionState) bool {
+	trig.mu.Lock()
+	if trig.updater.terminating.Load() {
+		trig.mu.Unlock()
+		return false
+	}
+	trig.subscriptions[s.id] = s
+	trig.mu.Unlock()
+	r.registerSubscriptionIndexesLocked(s)
+	return true
+}
+
+// registerSubscriptionIndexesLocked updates the resolver's by-ID and
+// by-connection indexes. r.mu must be held by the caller.
+func (r *Resolver) registerSubscriptionIndexesLocked(s *subscriptionState) {
 	id := s.id
 	r.subscriptionsByID[id] = s
 	byConn, ok := r.subscriptionsByConnection[id.ConnectionID]
@@ -1189,14 +1255,15 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 
 	trig, ok := r.triggers[triggerID]
 	if ok {
+		if !r.tryRegisterSubscriptionLocked(trig, s) {
+			return ErrSubscriptionTriggerTerminating
+		}
 		if r.reporter != nil {
 			r.reporter.SubscriptionCountInc(1)
 		}
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
-		// Register first so startup hooks can deliver initial data via UpdateSubscription.
-		r.registerSubscriptionLocked(trig, s)
 		// Execute the startup hooks in a goroutine to avoid holding the lock.
 		go func() {
 			if err := r.executeStartupHooks(add, trig.updater); err != nil {
@@ -1608,8 +1675,7 @@ func (r *Resolver) shutdownResolver() {
 	}
 }
 
-func (r *Resolver) heartbeatLoop() {
-	ticker := time.NewTicker(r.heartbeatInterval)
+func (r *Resolver) heartbeatLoop(ticker *time.Ticker) {
 	defer ticker.Stop()
 	for {
 		select {
@@ -1908,25 +1974,70 @@ type subscriptionUpdater struct {
 	// mu serves two roles:
 	//
 	// 1. Event serialization gate -- held across the entire Update() call including
-	//    wg.Wait(), ensuring event A fully completes before event B begins.
+	//    updateWG.Wait(), ensuring lifecycle operations cannot overtake an admitted
+	//    per-subscription update.
 	//
-	// 2. Lifecycle guard -- the done flag prevents callbacks after Done() has torn down
-	//    the trigger. Every method checks done || ctx.Err() under the lock before proceeding.
-	mu        sync.Mutex
-	done      bool
-	debug     bool
-	triggerID uint64
-	resolver  *Resolver
-	ctx       context.Context
-	subsFn    func() map[context.Context]SubscriptionIdentifier
+	// 2. Lifecycle guard -- terminal prevents data/control frames after the first
+	//    Complete or Error, while done prevents callbacks after Done tears down the trigger.
+	// Lock ordering: mu must be acquired before updateMu when both are needed.
+	mu       sync.Mutex
+	done     bool
+	terminal bool
+	// terminating is published while mu is held and observed under trigger.mu to
+	// linearize late subscription admission against Complete, Error, and Done.
+	terminating atomic.Bool
+	debug       bool
+	triggerID   uint64
+	resolver    *Resolver
+	ctx         context.Context
+	subsFn      func() map[context.Context]SubscriptionIdentifier
+
+	// updateMu protects the per-subscription lane tails. An admitted update publishes
+	// a new tail, waits for its predecessor, resolves synchronously, then closes its
+	// tail so the next update in the same lane can proceed.
+	updateMu    sync.Mutex
+	updateTails map[SubscriptionIdentifier]chan struct{}
+	// Every updateWG.Add occurs while mu is held, and every lifecycle updateWG.Wait
+	// also holds mu, so Add cannot race a zero-count Wait. Update completion never
+	// needs mu, which lets lifecycle operations wait without deadlocking.
+	updateWG sync.WaitGroup
+}
+
+// admitSubscriptionUpdate's caller must hold mu so admission cannot race a
+// lifecycle operation waiting on updateWG.
+func (s *subscriptionUpdater) admitSubscriptionUpdate(id SubscriptionIdentifier) (previous <-chan struct{}, current chan struct{}) {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+
+	if s.updateTails == nil {
+		s.updateTails = make(map[SubscriptionIdentifier]chan struct{})
+	}
+	previous = s.updateTails[id]
+	current = make(chan struct{})
+	s.updateWG.Add(1)
+	s.updateTails[id] = current
+	return previous, current
+}
+
+func (s *subscriptionUpdater) finishSubscriptionUpdate(id SubscriptionIdentifier, current chan struct{}) {
+	// Completion deliberately never acquires mu: lifecycle code may hold mu while
+	// waiting for all admitted updates to finish.
+	s.updateMu.Lock()
+	close(current)
+	if s.updateTails[id] == current {
+		delete(s.updateTails, id)
+	}
+	s.updateMu.Unlock()
+	s.updateWG.Done()
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.done || s.ctx.Err() != nil {
+	if s.done || s.terminal || s.ctx.Err() != nil {
 		return
 	}
+	s.updateWG.Wait()
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
@@ -1936,16 +2047,31 @@ func (s *subscriptionUpdater) Update(data []byte) {
 func (s *subscriptionUpdater) Heartbeat() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.done || s.ctx.Err() != nil {
+	if s.done || s.terminal || s.ctx.Err() != nil {
 		return
 	}
+	s.updateWG.Wait()
 	s.resolver.heartbeatTriggerSubscriptions(s.triggerID)
 }
 
 func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.done || s.ctx.Err() != nil {
+	if s.done || s.terminal || s.ctx.Err() != nil {
+		s.mu.Unlock()
+		return
+	}
+	previous, current := s.admitSubscriptionUpdate(id)
+	s.mu.Unlock()
+	defer s.finishSubscriptionUpdate(id, current)
+
+	if previous != nil {
+		select {
+		case <-previous:
+		case <-s.ctx.Done():
+			return
+		}
+	}
+	if s.ctx.Err() != nil {
 		return
 	}
 	if s.debug {
@@ -1961,12 +2087,15 @@ func (s *subscriptionUpdater) Subscriptions() map[context.Context]SubscriptionId
 func (s *subscriptionUpdater) Complete() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.done || s.ctx.Err() != nil {
+	s.terminating.Store(true)
+	if s.done || s.terminal || s.ctx.Err() != nil {
 		if s.debug {
 			fmt.Printf("resolver:subscription_updater:complete:skip:%d\n", s.triggerID)
 		}
 		return
 	}
+	s.terminal = true
+	s.updateWG.Wait()
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:complete:%d\n", s.triggerID)
 	}
@@ -1976,12 +2105,15 @@ func (s *subscriptionUpdater) Complete() {
 func (s *subscriptionUpdater) Error(data []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.done || s.ctx.Err() != nil {
+	s.terminating.Store(true)
+	if s.done || s.terminal || s.ctx.Err() != nil {
 		if s.debug {
 			fmt.Printf("resolver:subscription_updater:error:skip:%d\n", s.triggerID)
 		}
 		return
 	}
+	s.terminal = true
+	s.updateWG.Wait()
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:error:%d\n", s.triggerID)
 	}
@@ -1991,10 +2123,12 @@ func (s *subscriptionUpdater) Error(data []byte) {
 func (s *subscriptionUpdater) Done() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.terminating.Store(true)
 	if s.done {
 		return
 	}
 	s.done = true
+	s.updateWG.Wait()
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
 	}
@@ -2010,6 +2144,7 @@ func (s *subscriptionUpdater) CloseSubscription(id SubscriptionIdentifier) {
 		}
 		return
 	}
+	s.updateWG.Wait()
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:close:%d\n", s.triggerID)
 	}
@@ -2028,22 +2163,33 @@ type addSubscription struct {
 	headers    http.Header
 }
 
+// SubscriptionUpdater receives events and lifecycle callbacks for one trigger.
+// Implementations must be safe for concurrent calls. Targeted updates for different
+// subscription identifiers may resolve concurrently, while targeted updates for the
+// same identifier execute in updater admission order. Lifecycle methods wait for
+// already admitted targeted updates before taking effect.
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
-	// UpdateSubscription sends an update to a single subscription. It is not guaranteed that the update is sent immediately.
+	// UpdateSubscription synchronously resolves an update for one subscription. The
+	// call returns after the update resolves or is skipped. Calls for the same identifier
+	// execute in updater admission order; calls for different identifiers may overlap.
 	UpdateSubscription(id SubscriptionIdentifier, data []byte)
 	// Complete delivers a "subscription done" signal to all subscriptions on the trigger.
-	// Does not perform cleanup — call Done() after Complete().
+	// The first Complete or Error call wins. Complete waits for admitted targeted
+	// updates and does not perform cleanup — call Done after Complete.
 	Complete()
 	// Error delivers a terminal error to all subscriptions on the trigger, bypassing the resolve pipeline.
-	// Does not perform cleanup — call Done() after Error().
+	// The first Complete or Error call wins. Error waits for admitted targeted
+	// updates and does not perform cleanup — call Done after Error.
 	Error(data []byte)
 	// Done performs internal cleanup: detaches the trigger, closes completed channels.
-	// Must always be the final call. Does not send any downstream messages.
+	// It waits for admitted targeted updates, must always be the final call, and is
+	// still required after Complete or Error. Done does not send downstream messages.
 	Done()
-	// CloseSubscription closes a single subscription. No more updates should be sent to that subscription after calling CloseSubscription.
+	// CloseSubscription waits for admitted targeted updates, then closes a single
+	// subscription. No more updates should be sent to it after the call returns.
 	CloseSubscription(id SubscriptionIdentifier)
-	// Subscriptions return all the subscriptions associated to this Updater
+	// Subscriptions returns a snapshot of subscriptions associated with this updater.
 	Subscriptions() map[context.Context]SubscriptionIdentifier
 }
