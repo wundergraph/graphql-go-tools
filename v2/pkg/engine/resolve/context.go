@@ -131,7 +131,13 @@ type ExecutionOptions struct {
 	IncludeQueryPlanInResponse bool
 	// SendHeartbeat sends regular HeartBeats for Subscriptions
 	SendHeartbeat bool
-	// DisableSubgraphRequestDeduplication disables deduplication of requests to the same subgraph with the same input within a single operation execution.
+	// DisableSubgraphRequestDeduplication disables deduplication of requests to the same subgraph with the same input.
+	// Deduplication is not limited to a single operation execution: a Resolver keeps one
+	// SubgraphRequestSingleFlight for its whole lifetime, so concurrent operations from different
+	// clients share an in-flight fetch whenever their keys match. The key covers the data source ID,
+	// the rendered input, and the hash returned by SubgraphHeadersBuilder, which is why per-client
+	// headers must reach subgraphs through that builder rather than through a transport wrapped
+	// around the data source HTTP client.
 	DisableSubgraphRequestDeduplication bool
 	// DisableInboundRequestDeduplication disables deduplication of inbound client requests
 	// The engine is hashing the normalized operation, variables, and forwarded headers to achieve robust deduplication
