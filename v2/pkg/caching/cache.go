@@ -1,4 +1,4 @@
-package entitycaching
+package caching
 
 import (
 	"context"
@@ -24,24 +24,32 @@ type Item struct {
 	// GetMany treats an entry with nothing left to live, or one it finds with
 	// no expiry attached at all, as a miss rather than a hit.
 	TTL time.Duration
+	// Tags are the cache tags the entry was stored under, a secondary index
+	// naming what the entry is about so it can later be found by something other
+	// than its key for invalidation.
+	Tags []string
 }
 
 // Cache is a batch oriented key/value cache.
 type Cache interface {
 	// GetMany looks up every key and returns the ones it found, keyed by the
 	// key they were asked for. A miss is simply absent, never an error and
-	// never a zero Item
+	// never a zero Item.
 	GetMany(ctx context.Context, keys []string) (map[string]Item, error)
 
 	// SetMany stores every item, all of which must carry a positive TTL. When
 	// items contains the same key twice, the last one wins. An error means an
 	// unspecified subset of the items may already have been stored.
 	// In case any of the passed ttls are invalid, SetMany should return
-	// without saving any items that may have valid ttl values
+	// without saving any items that may have valid ttl values.
 	SetMany(ctx context.Context, items []Item) error
 }
 
-var ErrMissingTTL = errors.New("cache item requires a positive TTL")
+var (
+	ErrMissingTTL = errors.New("cache item requires a positive TTL")
+	ErrNoKeys     = errors.New("response cache lookup requires at least one key")
+	ErrNoItems    = errors.New("response cache write requires at least one item")
+)
 
 type SetManyError struct {
 	// This depicts the known stored keys in a case of a partial write

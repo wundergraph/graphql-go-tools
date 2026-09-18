@@ -2,12 +2,14 @@ package astvisitor_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"testing"
 
 	"github.com/jensneuse/diffview"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -20,6 +22,57 @@ var must = func(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func TestWalkerErrorPath(t *testing.T) {
+	for _, stop := range []struct {
+		name string
+		call func(*astvisitor.Walker, operationreport.ExternalError)
+	}{
+		{"stop with external error", (*astvisitor.Walker).StopWithExternalErr},
+		{"stop with both errors", func(w *astvisitor.Walker, err operationreport.ExternalError) {
+			w.StopWithErr(errors.New("internal"), err)
+		}},
+	} {
+		t.Run("preserves path after "+stop.name+" when source memory changes", func(t *testing.T) {
+			walker := astvisitor.NewWalker(48)
+			walker.Report = &operationreport.Report{}
+			walker.Path = ast.Path{
+				{Kind: ast.FieldName, FieldName: []byte("alias")},
+				{Kind: ast.InlineFragmentName, FieldName: []byte("Product"), FragmentRef: 7},
+				{Kind: ast.ArrayIndex, ArrayIndex: 3},
+			}
+			expected := ast.Path{
+				{Kind: ast.FieldName, FieldName: []byte("alias")},
+				{Kind: ast.InlineFragmentName, FieldName: []byte("Product"), FragmentRef: 7},
+				{Kind: ast.ArrayIndex, ArrayIndex: 3},
+			}
+			stop.call(&walker, operationreport.ExternalError{Message: "invalid"})
+			require.Len(t, walker.Report.ExternalErrors, 1)
+
+			// Both the walker slice and names borrowed from the document are reusable.
+			copy(walker.Path[0].FieldName, "other")
+			copy(walker.Path[1].FieldName, "Changed")
+			require.Equal(t, expected, walker.Report.ExternalErrors[0].Path)
+			clear(walker.Path)
+			require.Equal(t, expected, walker.Report.ExternalErrors[0].Path)
+		})
+	}
+
+	t.Run("gives the error callback an owned path when stopping", func(t *testing.T) {
+		walker := astvisitor.NewWalker(48)
+		walker.Report = &operationreport.Report{}
+		walker.Path = ast.Path{{Kind: ast.FieldName, FieldName: []byte("alias")}}
+		walker.OnExternalError = func(err *operationreport.ExternalError) {
+			copy(err.Path[0].FieldName, "other")
+			err.Path[0].Kind = ast.InlineFragmentName
+			err.ExtensionCode = "VALIDATION_FAILED"
+		}
+		walker.StopWithExternalErr(operationreport.ExternalError{Message: "invalid"})
+
+		require.Equal(t, ast.Path{{Kind: ast.FieldName, FieldName: []byte("alias")}}, walker.Path)
+		require.Equal(t, "VALIDATION_FAILED", walker.Report.ExternalErrors[0].ExtensionCode)
+	})
 }
 
 func TestVisitOperation(t *testing.T) {

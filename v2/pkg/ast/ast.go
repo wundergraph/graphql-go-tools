@@ -1,4 +1,4 @@
-//go:generate stringer -type=OperationType,ValueKind,TypeKind,SelectionKind,NodeKind,PathKind -output ast_string.go
+//go:generate go tool stringer -type=OperationType,ValueKind,TypeKind,SelectionKind,NodeKind,PathKind -output ast_string.go
 
 // Package ast defines the GraphQL AST and offers helper methods to interact with the AST, mostly to get the necessary information from the ast.
 //

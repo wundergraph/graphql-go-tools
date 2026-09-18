@@ -1,12 +1,6 @@
 mkfile_dir := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 grpc_datasource_dir := $(mkfile_dir)/../engine/datasource/grpc_datasource
 
-.PHONY: install-protoc
-install-protoc:
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-	go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
-
 # generate-proto regenerates the Go code for product.proto via buf.
 # This drives three plugins: protoc-gen-go (messages), protoc-gen-go-grpc
 # (gRPC server/client), and protoc-gen-connect-go (Connect handler/client).
@@ -14,8 +8,8 @@ install-protoc:
 # endpoint, so the mock service can be exercised over either transport from
 # tests. See buf.gen.yaml for the plugin configuration.
 .PHONY: generate-proto
-generate-proto: install-protoc
-	buf generate
+generate-proto:
+	go tool buf generate
 
 .PHONY: build-plugin
 build-plugin:

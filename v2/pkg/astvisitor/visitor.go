@@ -3950,7 +3950,7 @@ func (w *Walker) HandleInternalErr(err error) bool {
 
 func (w *Walker) StopWithExternalErr(err operationreport.ExternalError) {
 	w.stop = true
-	err.Path = w.Path
+	err.Path = w.copyErrorPath()
 
 	if w.OnExternalError != nil {
 		w.OnExternalError(&err)
@@ -3961,9 +3961,18 @@ func (w *Walker) StopWithExternalErr(err operationreport.ExternalError) {
 
 func (w *Walker) StopWithErr(internal error, external operationreport.ExternalError) {
 	w.stop = true
-	external.Path = w.Path
+	external.Path = w.copyErrorPath()
 	w.Report.AddInternalError(internal)
 	w.Report.AddExternalError(external)
+}
+
+func (w *Walker) copyErrorPath() ast.Path {
+	// Errors can outlive both the walker and the document backing the path names.
+	path := slices.Clone(w.Path)
+	for i := range path {
+		path[i].FieldName = bytes.Clone(path[i].FieldName)
+	}
+	return path
 }
 
 func (w *Walker) ArgumentInputValueDefinition(argument int) (definition int, exits bool) {

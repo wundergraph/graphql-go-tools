@@ -12,6 +12,7 @@ import (
 
 	"github.com/wundergraph/astjson"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -50,6 +51,8 @@ type Context struct {
 	preFetchFieldAuthorizer BatchAuthorizer
 	rateLimiter             RateLimiter
 	fieldRenderer           FieldValueRenderer
+
+	responseCache *responseCache
 
 	subgraphErrors map[string]error
 
@@ -253,6 +256,55 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 	c.rateLimiter = limiter
 }
 
+type responseCache struct {
+	store        caching.Cache
+	defaultTTL   time.Duration
+	onError      func(error)
+	invalidation ResponseCacheTagIndexOptions
+}
+
+// ResponseCacheTagIndexOptions selects which secondary indexes are built.
+// Each is independent; all off caches entries untagged.
+type ResponseCacheTagIndexOptions struct {
+	// CacheTag indexes under the tags the subgraph declared.
+	CacheTag bool
+	// Subgraph indexes under the subgraph that answered.
+	Subgraph bool
+	// Type indexes entities under their __typename. Root fetches have none.
+	Type bool
+}
+
+func (o ResponseCacheTagIndexOptions) any() bool {
+	return o.CacheTag || o.Subgraph || o.Type
+}
+
+// DefaultResponseCacheTagIndexOptions builds every index.
+func DefaultResponseCacheTagIndexOptions() ResponseCacheTagIndexOptions {
+	return ResponseCacheTagIndexOptions{CacheTag: true, Subgraph: true, Type: true}
+}
+
+// ResponseCacheOptions is everything the cache needs, set in one call so no
+// part of it depends on being set before or after another.
+type ResponseCacheOptions struct {
+	Store      caching.Cache
+	DefaultTTL time.Duration
+	OnError    func(error)
+	// Invalidation is taken as given; the zero value builds no indexes.
+	Invalidation ResponseCacheTagIndexOptions
+}
+
+func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
+	if opts.Store == nil {
+		return
+	}
+	c.responseCache = &responseCache{
+		store:        opts.Store,
+		defaultTTL:   opts.DefaultTTL,
+		onError:      opts.OnError,
+		invalidation: opts.Invalidation,
+	}
+}
+
 func (c *Context) SubgraphErrors() error {
 	if len(c.subgraphErrors) == 0 {
 		return nil
@@ -348,6 +400,7 @@ func (c *Context) Free() {
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
+	c.responseCache = nil
 }
 
 func (c *Context) VariablesView() VariablesView {

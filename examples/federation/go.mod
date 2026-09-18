@@ -10,7 +10,7 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.30
 	github.com/wundergraph/cosmo/router v0.0.0-20260611115430-e8a965a40952
 	github.com/wundergraph/graphql-go-tools/execution v1.0.1
-	github.com/wundergraph/graphql-go-tools/v2 v2.4.4
+	github.com/wundergraph/graphql-go-tools/v2 v2.18.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.27.0
 	google.golang.org/protobuf v1.36.11
@@ -23,7 +23,6 @@ require (
 	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coder/websocket v1.8.14 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
@@ -41,7 +40,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/r3labs/sse/v2 v2.8.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sosodev/duration v1.3.1 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
@@ -49,17 +47,13 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	github.com/urfave/cli/v2 v2.27.7 // indirect
 	github.com/wundergraph/astjson v1.1.0 // indirect
 	github.com/wundergraph/go-arena v1.3.0 // indirect
-	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/mod v0.33.0 // indirect
-	golang.org/x/net v0.52.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
@@ -69,5 +63,3 @@ require (
 replace github.com/wundergraph/graphql-go-tools/v2 => ../../v2
 
 replace github.com/wundergraph/graphql-go-tools/execution => ../../execution
-
-tool github.com/99designs/gqlgen

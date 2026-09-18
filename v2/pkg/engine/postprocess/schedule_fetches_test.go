@@ -1110,7 +1110,7 @@ func durationProfiles(input []*resolve.FetchTreeNode, count int, seed int64) []m
 	for i := range profiles {
 		profile := make(map[int]int, len(input))
 		for _, node := range input {
-			id := node.Item.Fetch.Dependencies().FetchID
+			id := node.FetchID()
 			profile[id] = max(int(math.Round(math.Exp(rng.Float64()*math.Log(1000)))), 1)
 		}
 		profiles[i] = profile
@@ -1135,7 +1135,7 @@ func weightedMakespan(node *resolve.FetchTreeNode, durations map[int]int) int {
 	}
 	switch node.Kind {
 	case resolve.FetchTreeNodeKindSingle:
-		return durations[node.Item.Fetch.Dependencies().FetchID]
+		return durations[node.FetchID()]
 	case resolve.FetchTreeNodeKindSequence:
 		sum := 0
 		for _, child := range node.ChildNodes {

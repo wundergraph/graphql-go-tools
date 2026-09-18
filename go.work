@@ -4,6 +4,7 @@ use (
 	examples/engine
 	examples/federation
 	execution
+	tools
 	v2
 )
 
