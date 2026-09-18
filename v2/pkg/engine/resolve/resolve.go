@@ -969,9 +969,19 @@ func (s *subscriptionState) writeError(w AsyncErrorWriter, ctx *Context, err err
 }
 
 // sendHeartbeat sends a keep-alive frame to the downstream writer under writeMu.
-// @TODO: this is bad, see ENG-9356
+//
+// Uses TryLock rather than Lock: writeMu can be held for as long as a
+// downstream write stays unresponsive (this transport sets no write
+// deadline), and heartbeatTriggerSubscriptions processes every trigger on
+// the process sequentially in one goroutine. Blocking here would let one
+// stuck write freeze heartbeats for every other trigger, not just this one.
+// Skipping this cycle on contention is safe -- contention means a write is
+// genuinely in flight, not that the subscription is gone -- and the next
+// heartbeat tick retries.
 func (s *subscriptionState) sendHeartbeat() error {
-	s.writeMu.Lock()
+	if !s.writeMu.TryLock() {
+		return nil
+	}
 	defer s.writeMu.Unlock()
 	if s.removed.Load() {
 		return nil
