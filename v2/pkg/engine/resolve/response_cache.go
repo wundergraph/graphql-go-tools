@@ -11,7 +11,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 // responseCacheEnabled reports whether this request was handed a cache. It is the
@@ -24,36 +23,6 @@ func (l *Loader) reportResponseCacheError(err error) {
 	if l.responseCacheEnabled() && l.ctx.responseCache.onError != nil {
 		l.ctx.responseCache.onError(err)
 	}
-}
-
-func responseCacheSelectionHash(header, footer []byte) uint64 {
-	d := pool.Hash64.Get()
-	defer pool.Hash64.Put(d)
-	_, _ = d.Write(header)
-	// Written in between so that a byte moving from the end of the header to the
-	// start of the footer cannot go unnoticed.
-	_, _ = d.Write([]byte{0})
-	_, _ = d.Write(footer)
-	return d.Sum64()
-}
-
-// responseCacheEntrySelectionHash keys one entry of a merged fetch. The header
-// and footer span every alias, so two more parts are hashed in: the alias, or
-// entries over the same entity collide, and the entry's own variables, which
-// sit in between and would otherwise be left out of the key.
-func responseCacheEntrySelectionHash(header []byte, alias string, entryVariables, footer []byte) uint64 {
-	d := pool.Hash64.Get()
-	defer pool.Hash64.Put(d)
-	// A zero byte after every part, so material moving from the end of one to
-	// the start of the next cannot go unnoticed.
-	_, _ = d.Write(header)
-	_, _ = d.Write(zeroByte)
-	_, _ = d.WriteString(alias)
-	_, _ = d.Write(zeroByte)
-	_, _ = d.Write(entryVariables)
-	_, _ = d.Write(zeroByte)
-	_, _ = d.Write(footer)
-	return d.Sum64()
 }
 
 // rootFetchCacheable reports whether this fetch is the one shape the cache can
@@ -80,6 +49,66 @@ func rootFetchCacheable(fetchItem *FetchItem, fetch *SingleFetch) bool {
 	return bytes.Equal(fetch.DataSourceIdentifier, graphqlDataSourceIdentifier)
 }
 
+// responseCacheSetKeys builds the keys of a fetch, one per entity, and
+// their per-user twins when the request carries a user id. The response is
+// not known yet, so both are looked up and the response decides which one is
+// written.
+func (l *Loader) responseCacheSetKeys(prepared *preparedFetch, selection caching.Digest, entities []caching.Digest) {
+	prepared.responseCacheKeys, prepared.responseCachePrivateKeys = l.responseCacheKeys(selection, entities)
+}
+
+// responseCacheKeys is responseCacheSetKeys for a caller that keeps the keys
+// itself. privateKeys is nil when the request carries no user id.
+func (l *Loader) responseCacheKeys(selection caching.Digest, entities []caching.Digest) (keys, privateKeys []string) {
+	keys = make([]string, len(entities))
+	for i, entity := range entities {
+		keys[i] = caching.Key(entity, selection)
+	}
+
+	privateID, ok := l.ctx.responseCachePrivateID()
+	if !ok {
+		return keys, nil
+	}
+
+	privateKeys = make([]string, len(entities))
+	for i, entity := range entities {
+		privateKeys[i] = caching.PrivateKey(entity, selection, privateID)
+	}
+	return keys, privateKeys
+}
+
+// responseCacheLookupKeys is what one GetMany asks for: the shared keys and,
+// when the request carries a user id, their per-user twins.
+func responseCacheLookupKeys(keys, privateKeys []string) []string {
+	if privateKeys == nil {
+		return keys
+	}
+	lookup := make([]string, 0, len(keys)+len(privateKeys))
+	lookup = append(lookup, keys...)
+	return append(lookup, privateKeys...)
+}
+
+// responseCacheFoundItem picks the entry for one position: the user's own wins
+// over the shared one. An empty or invalid body is a miss.
+func (l *Loader) responseCacheFoundItem(found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
+	if privateKey != "" {
+		item, ok = found[privateKey]
+		ok = ok && len(item.Value) > 0
+		private = ok
+	}
+	if !ok {
+		item, ok = found[key]
+		if !ok || len(item.Value) == 0 {
+			return caching.Item{}, false, false
+		}
+	}
+	if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
+		l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
+		return caching.Item{}, false, false
+	}
+	return item, private, true
+}
+
 func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	if !l.responseCacheEnabled() {
 		return false
@@ -90,13 +119,35 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		return false
 	}
 
-	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, keys)
+	privateKeys := prepared.responseCachePrivateKeys
+	// Since we don't know in advance we need to query both key types
+	lookup := responseCacheLookupKeys(keys, privateKeys)
+
+	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, lookup)
 	if err != nil {
-		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(keys), err))
+		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(lookup), err))
 		return false
 	}
-	if len(found) != len(keys) {
+	if len(found) < len(keys) {
 		return false
+	}
+
+	// Per position the user's own entry wins over the shared one.
+	items := make([]caching.Item, len(keys))
+	private := false
+	size := 0
+	for i, key := range keys {
+		privateKey := ""
+		if privateKeys != nil {
+			privateKey = privateKeys[i]
+		}
+		item, itemPrivate, ok := l.responseCacheFoundItem(found, key, privateKey)
+		if !ok {
+			return false
+		}
+		private = private || itemPrivate
+		items[i] = item
+		size += len(item.Value)
 	}
 
 	prefix, suffix := entitiesResponsePrefix, entitiesResponseSuffix
@@ -104,27 +155,13 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		prefix, suffix = dataResponsePrefix, dataResponseSuffix
 	}
 
-	size := len(prefix) + len(suffix) + len(keys) - 1
-	for _, key := range keys {
-		item, ok := found[key]
-		if !ok || len(item.Value) == 0 {
-			return false
-		}
-		if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
-			l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
-			return false
-		}
-
-		size += len(item.Value)
-	}
-
-	out := make([]byte, 0, size)
+	out := make([]byte, 0, size+len(prefix)+len(suffix)+len(items)-1)
 	out = append(out, prefix...)
-	for i, key := range keys {
+	for i, item := range items {
 		if i > 0 {
 			out = append(out, ',')
 		}
-		out = append(out, found[key].Value...)
+		out = append(out, item.Value...)
 	}
 	out = append(out, suffix...)
 
@@ -132,17 +169,18 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.out = out
 	res.statusCode = http.StatusOK
 	res.responseCacheHit = true
-	res.responseCacheTTL = remainingTTL(found, keys)
-	res.responseCacheSurrogateKeys = foundSurrogateKeys(found, keys)
+	res.responseCachePrivate = private
+	res.responseCacheTTL = remainingTTL(items)
+	res.responseCacheSurrogateKeys = foundSurrogateKeys(items)
 
 	return true
 }
 
 // foundSurrogateKeys unions what the hit entries were stored with.
-func foundSurrogateKeys(found map[string]caching.Item, keys []string) []string {
-	lists := make([][]string, 0, len(keys))
-	for _, key := range keys {
-		lists = append(lists, found[key].SurrogateKeys)
+func foundSurrogateKeys(items []caching.Item) []string {
+	lists := make([][]string, 0, len(items))
+	for _, item := range items {
+		lists = append(lists, item.SurrogateKeys)
 	}
 	return caching.MergeSurrogateKeys(nil, lists...)
 }
@@ -150,10 +188,10 @@ func foundSurrogateKeys(found map[string]caching.Item, keys []string) []string {
 // remainingTTL is the shortest life left across a fetch's entries: a fetch is only
 // as fresh as its least fresh entry. Zero counts, it is an entry that is stale as
 // of now. Only a negative TTL is dropped, as no cache should report one.
-func remainingTTL(found map[string]caching.Item, keys []string) time.Duration {
+func remainingTTL(items []caching.Item) time.Duration {
 	ttl := time.Duration(-1)
-	for _, key := range keys {
-		cachedTTL := found[key].TTL
+	for _, item := range items {
+		cachedTTL := item.TTL
 		if cachedTTL < 0 {
 			continue
 		}
@@ -204,9 +242,18 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	ttl, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
+	ttl, private, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
 	if !ok {
 		return nil
+	}
+
+	// A private body only ever lands under a per-user key.
+	writeKeys := prepared.responseCacheKeys
+	if private {
+		if prepared.responseCachePrivateKeys == nil {
+			return nil
+		}
+		writeKeys = prepared.responseCachePrivateKeys
 	}
 
 	values, err := responseCacheValues(prepared, response)
@@ -227,7 +274,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			continue
 		}
 		item := caching.Item{
-			Key:   prepared.responseCacheKeys[i],
+			Key:   writeKeys[i],
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
 		}
@@ -332,8 +379,8 @@ func responseCacheTagList(list *astjson.Value) []string {
 			continue
 		}
 		tag := string(value.GetStringBytes())
-		// Empty is meaningless; over long is a key name the subgraph sized.
-		if tag == "" || len(tag) > maxResponseCacheTagLength {
+		// Over long is a key name the subgraph sized; the rest cannot go in a header.
+		if len(tag) > maxResponseCacheTagLength || !caching.ValidDeclaredSurrogateKey(tag) {
 			continue
 		}
 		// Stored with every entry and merged per request, so bounded as a whole
@@ -429,8 +476,9 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		return
 	}
 
-	// One HTTP response, one Cache-Control: the lifetime is genuinely shared.
-	ttl, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
+	// One HTTP response, one Cache-Control: the lifetime is genuinely shared,
+	// and so is being private.
+	ttl, private, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
 	if !ok {
 		return
 	}
@@ -441,6 +489,14 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		entry := &prepared.multiEntries[i]
 		if len(entry.responseCacheKeys) == 0 || entry.cacheHit() || entry.res.fetchSkipped {
 			continue
+		}
+		// A private body only ever lands under a per-user key.
+		writeKeys := entry.responseCacheKeys
+		if private {
+			if entry.responseCachePrivateKeys == nil {
+				continue
+			}
+			writeKeys = entry.responseCachePrivateKeys
 		}
 		if errs := entryErrors[i]; astjson.ValueIsNonNull(errs) && len(errs.GetArray()) > 0 {
 			continue
@@ -463,7 +519,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 				continue
 			}
 			item := caching.Item{
-				Key:   entry.responseCacheKeys[j],
+				Key:   writeKeys[j],
 				Value: value.MarshalTo(nil),
 				TTL:   ttl,
 			}
@@ -497,7 +553,8 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 	var keys []string
 	for i := range prepared.multiEntries {
 		if included[i] {
-			keys = append(keys, prepared.multiEntries[i].responseCacheKeys...)
+			entry := &prepared.multiEntries[i]
+			keys = append(keys, responseCacheLookupKeys(entry.responseCacheKeys, entry.responseCachePrivateKeys)...)
 		}
 	}
 	if len(keys) == 0 {
@@ -521,18 +578,21 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 			continue
 		}
 
+		items := make([]caching.Item, 0, len(entry.responseCacheKeys))
 		values := make([][]byte, 0, len(entry.responseCacheKeys))
-		for _, key := range entry.responseCacheKeys {
-			item, ok := found[key]
-			if !ok || len(item.Value) == 0 {
+		private := false
+		for j, key := range entry.responseCacheKeys {
+			privateKey := ""
+			if entry.responseCachePrivateKeys != nil {
+				privateKey = entry.responseCachePrivateKeys[j]
+			}
+			item, itemPrivate, ok := l.responseCacheFoundItem(found, key, privateKey)
+			if !ok {
 				values = nil
 				break
 			}
-			if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
-				l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
-				values = nil
-				break
-			}
+			private = private || itemPrivate
+			items = append(items, item)
 			values = append(values, item.Value)
 		}
 		if values == nil {
@@ -542,8 +602,9 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 		}
 
 		entry.cachedValues = values
-		entry.responseCacheTTL = remainingTTL(found, entry.responseCacheKeys)
-		entry.responseCacheSurrogateKeys = foundSurrogateKeys(found, entry.responseCacheKeys)
+		entry.responseCachePrivate = private
+		entry.responseCacheTTL = remainingTTL(items)
+		entry.responseCacheSurrogateKeys = foundSurrogateKeys(items)
 		anyHit = true
 	}
 
@@ -612,8 +673,6 @@ var (
 
 	// The data object of a root fetch response, taken apart on the way into the
 	// cache and put back together on the way out.
-	// Separator written between the parts of a selection hash.
-	zeroByte                       = []byte{0}
 	dataResponsePath               = []string{"data"}
 	dataResponsePrefix             = []byte(`{"data":`)
 	dataResponseSuffix             = []byte(`}`)

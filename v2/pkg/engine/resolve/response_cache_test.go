@@ -182,6 +182,11 @@ func TestResponseCacheTags(t *testing.T) {
 		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2, false))
 	})
 
+	t.Run("a tag a header cannot carry is dropped, its neighbours are not", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a","x\ty","x y","x\u0000y","x\u007fy","用户","b"]]}}`)
+		require.Equal(t, [][]string{{"a", "b"}}, responseCacheTags(response, 1, false))
+	})
+
 	t.Run("an over long tag is dropped, its neighbours are not", func(t *testing.T) {
 		long := strings.Repeat("x", maxResponseCacheTagLength+1)
 		atLimit := strings.Repeat("y", maxResponseCacheTagLength)
@@ -642,39 +647,34 @@ func TestRemainingTTL(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		found    map[string]caching.Item
-		keys     []string
+		items    []caching.Item
 		expected time.Duration
 	}{
 		{
 			name:     "the shortest of several entries",
-			found:    map[string]caching.Item{"a": item(30 * time.Second), "b": item(10 * time.Second)},
-			keys:     []string{"a", "b"},
+			items:    []caching.Item{item(30 * time.Second), item(10 * time.Second)},
 			expected: 10 * time.Second,
 		},
 		{
 			name:     "zero is a lifetime, not an absent one",
-			found:    map[string]caching.Item{"a": item(30 * time.Second), "b": item(0)},
-			keys:     []string{"a", "b"},
+			items:    []caching.Item{item(30 * time.Second), item(0)},
 			expected: 0,
 		},
 		{
 			name:     "a lone zero survives",
-			found:    map[string]caching.Item{"a": item(0)},
-			keys:     []string{"a"},
+			items:    []caching.Item{item(0)},
 			expected: 0,
 		},
 		{
 			name:     "a negative TTL is dropped in favour of its neighbours",
-			found:    map[string]caching.Item{"a": item(-5 * time.Second), "b": item(10 * time.Second)},
-			keys:     []string{"a", "b"},
+			items:    []caching.Item{item(-5 * time.Second), item(10 * time.Second)},
 			expected: 10 * time.Second,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, remainingTTL(tc.found, tc.keys))
+			require.Equal(t, tc.expected, remainingTTL(tc.items))
 		})
 	}
 }

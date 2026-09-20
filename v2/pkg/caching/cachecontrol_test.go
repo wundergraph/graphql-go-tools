@@ -18,6 +18,7 @@ func TestTTL(t *testing.T) {
 		cacheControl string
 		defaultTTL   time.Duration
 		wantTTL      time.Duration // Zero means the response should not be cached.
+		wantPrivate  bool
 	}{
 		// A positive freshness lifetime is sufficient to store a response. Public
 		// permits storage in cases that would otherwise forbid it; it is not a
@@ -56,9 +57,21 @@ func TestTTL(t *testing.T) {
 		{name: "no-store", cacheControl: "max-age=60, no-store", defaultTTL: defaultTTL},
 		{name: "no-cache", cacheControl: "max-age=60, no-cache", defaultTTL: defaultTTL},
 		{name: "field-specific no-cache", cacheControl: `max-age=60, no-cache="Set-Cookie"`, defaultTTL: defaultTTL},
-		{name: "private", cacheControl: "max-age=60, private", defaultTTL: defaultTTL},
-		{name: "private takes precedence after public", cacheControl: "public, private", defaultTTL: defaultTTL},
-		{name: "private takes precedence before public", cacheControl: "private, public", defaultTTL: defaultTTL},
+
+		// private is cacheable, but only under a user-scoped key. It opts in
+		// like any other recognized directive, follows the same lifetime rules
+		// and does not override an explicit refusal.
+		{name: "private alone", cacheControl: "private", defaultTTL: defaultTTL, wantTTL: defaultTTL, wantPrivate: true},
+		{name: "private with max-age", cacheControl: "private, max-age=60", defaultTTL: defaultTTL, wantTTL: time.Minute, wantPrivate: true},
+		{name: "private with s-maxage", cacheControl: "private, s-maxage=30, max-age=60", defaultTTL: defaultTTL, wantTTL: 30 * time.Second, wantPrivate: true},
+		{name: "private after public", cacheControl: "public, private", defaultTTL: defaultTTL, wantTTL: defaultTTL, wantPrivate: true},
+		{name: "private before public", cacheControl: "private, public", defaultTTL: defaultTTL, wantTTL: defaultTTL, wantPrivate: true},
+		{name: "field-specific private", cacheControl: `private="Set-Cookie", max-age=60`, defaultTTL: defaultTTL, wantTTL: time.Minute, wantPrivate: true},
+		{name: "private with no-store", cacheControl: "private, max-age=60, no-store", defaultTTL: defaultTTL},
+		{name: "private with no-cache", cacheControl: "private, max-age=60, no-cache", defaultTTL: defaultTTL},
+		{name: "private with zero max-age", cacheControl: "private, max-age=0", defaultTTL: defaultTTL},
+		{name: "private with non-positive default", cacheControl: "private"},
+		{name: "public is not private", cacheControl: "public, max-age=60", defaultTTL: defaultTTL, wantTTL: time.Minute},
 
 		// A lifetime of zero is a refusal, and malformed lifetimes cannot opt a
 		// response into caching.
@@ -81,9 +94,10 @@ func TestTTL(t *testing.T) {
 				headers.Set("Cache-Control", tc.cacheControl)
 			}
 
-			ttl, ok := TTL(headers, tc.defaultTTL)
+			ttl, private, ok := TTL(headers, tc.defaultTTL)
 			assert.Equal(t, tc.wantTTL > 0, ok)
 			assert.Equal(t, tc.wantTTL, ttl)
+			assert.Equal(t, tc.wantPrivate, private)
 		})
 	}
 }
