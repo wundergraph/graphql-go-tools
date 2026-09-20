@@ -44,8 +44,11 @@ type InflightRequest struct {
 	// followers via Context.SetDeduplicationData. Typed as "any" because the resolve
 	// package is data-agnostic — the caller decides the concrete type.
 	SharedData any
-	Err        error
-	ID         uint64
+	// SurrogateKeys are the leader's response cache surrogate keys, so a follower
+	// serving the same body sends the same header.
+	SurrogateKeys []string
+	Err           error
+	ID            uint64
 
 	followerCount atomic.Int32
 }

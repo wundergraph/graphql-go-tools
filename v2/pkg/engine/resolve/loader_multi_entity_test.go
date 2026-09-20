@@ -1302,3 +1302,89 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheTags(t *testing.T) {
 		assert.Contains(t, item.Tags, caching.TypeTag("products", "Employee"), key)
 	}
 }
+
+func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheSurrogateKeys(t *testing.T) {
+	const mergedResponse = `{"data":{` +
+		`"f1":[{"__typename":"Employee","products":["a"]},{"__typename":"Employee","products":["b"]}],` +
+		`"f2":[{"__typename":"Employee","notes":"n"}]},` +
+		`"extensions":{"apolloEntityCacheTags":[["tag-a"]]}}`
+
+	run := func(t *testing.T, cache *testCache, multiDS *recordingDataSource) *Context {
+		t.Helper()
+		ctx := multiEntityContext(t)
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: 60 * time.Second,
+			OnError:    func(err error) { t.Errorf("response cache error: %v", err) },
+		})
+		multi := twoEntryMultiFetch(multiEntityFirstVar())
+		multi.FetchID = 1
+		multi.DependsOnFetchIDs = []int{0}
+		multi.DataSource = multiDS
+		multi.Info.DataSourceName = "products"
+
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: Sequence(
+			Single(multiEntityRootFetch(&recordingDataSource{response: []byte(multiEntityRootResponse)})),
+			Single(multi),
+		)}))
+		assertMergedErrors(t, loader, "")
+		return ctx
+	}
+
+	t.Run("a miss stores and reports subgraph and type tags, never declared ones", func(t *testing.T) {
+		cache := newTestCache()
+		ctx := run(t, cache, &recordingDataSource{response: []byte(mergedResponse), responseHeaders: cacheableHeaders()})
+
+		require.Len(t, cache.items, 3)
+
+		want := []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
+		for key, item := range cache.items {
+			assert.Equal(t, want, item.SurrogateKeys, key)
+		}
+		assert.Equal(t, want, ctx.ResponseCacheSurrogateKeys())
+	})
+
+	t.Run("a fully warm fetch reports what its entries were stored with", func(t *testing.T) {
+		cache := newTestCache()
+		run(t, cache, &recordingDataSource{response: []byte(mergedResponse), responseHeaders: cacheableHeaders()})
+
+		warm := &recordingDataSource{err: errors.New("subgraph must not be called")}
+		ctx := run(t, cache, warm)
+		require.Equal(t, 0, warm.calls)
+
+		want := []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
+		assert.Equal(t, want, ctx.ResponseCacheSurrogateKeys())
+	})
+
+	t.Run("a partially warm fetch unions the cache's entries with the origin's", func(t *testing.T) {
+		cache := newTestCache()
+		run(t, cache, &recordingDataSource{response: []byte(mergedResponse), responseHeaders: cacheableHeaders()})
+
+		// Evict f2's entity and give the origin's answer for it a different type,
+		// so which side contributed which tag is visible in the result.
+		for key, item := range cache.items {
+			if bytes.Contains(item.Value, []byte("notes")) {
+				delete(cache.items, key)
+			}
+		}
+		require.Len(t, cache.items, 2)
+
+		partial := &recordingDataSource{
+			response:        []byte(`{"data":{"f2":[{"__typename":"Contractor","notes":"n"}]}}`),
+			responseHeaders: cacheableHeaders(),
+		}
+		ctx := run(t, cache, partial)
+		require.Equal(t, 1, partial.calls)
+		assert.ElementsMatch(t, []string{
+			caching.SubgraphSurrogateKey("products"),
+			caching.TypeSurrogateKey("products", "Contractor"),
+			caching.TypeSurrogateKey("products", "Employee"),
+		}, ctx.ResponseCacheSurrogateKeys())
+	})
+
+	t.Run("an uncacheable origin answer contributes nothing", func(t *testing.T) {
+		ctx := run(t, newTestCache(), &recordingDataSource{response: []byte(mergedResponse)})
+		assert.Nil(t, ctx.ResponseCacheSurrogateKeys())
+	})
+}

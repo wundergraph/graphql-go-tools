@@ -261,6 +261,27 @@ type responseCache struct {
 	defaultTTL   time.Duration
 	onError      func(error)
 	invalidation ResponseCacheTagIndexOptions
+	// surrogateKeys is the union over every fetch of the request, merged under
+	// the loader's data lock as each fetch is merged.
+	surrogateKeys []string
+}
+
+// ResponseCacheSurrogateKeys are the cache tags of every cached fetch in the
+// request so far, hits and misses alike, for the response header. Complete once
+// resolution has finished.
+func (c *Context) ResponseCacheSurrogateKeys() []string {
+	if c.responseCache == nil {
+		return nil
+	}
+	return c.responseCache.surrogateKeys
+}
+
+// setResponseCacheSurrogateKeys replaces the set: a fresh resolution starts empty,
+// and a deduplicated follower takes the leader's.
+func (c *Context) setResponseCacheSurrogateKeys(surrogateKeys []string) {
+	if c.responseCache != nil {
+		c.responseCache.surrogateKeys = surrogateKeys
+	}
 }
 
 // ResponseCacheTagIndexOptions selects which secondary indexes are built.
