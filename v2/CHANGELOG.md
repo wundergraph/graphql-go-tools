@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.22.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.21.1...v2.22.0) (2026-09-20)
+
+
+### Features
+
+* private key support for response caching ([#1670](https://github.com/wundergraph/graphql-go-tools/issues/1670)) ([e953c61](https://github.com/wundergraph/graphql-go-tools/commit/e953c612c48250bfa102353d6ef4245abe113272))
+* router cache tag based invalidation for cdns ([#1662](https://github.com/wundergraph/graphql-go-tools/issues/1662)) ([19e37ab](https://github.com/wundergraph/graphql-go-tools/commit/19e37ab3c5468d809fb7c8ffe6b819faa16b3baf))
+
 ## [2.21.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.21.0...v2.21.1) (2026-09-18)
 
 
