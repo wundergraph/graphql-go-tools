@@ -213,7 +213,7 @@ func buildMessageHandler(updater resolve.SubscriptionUpdater, errorCode string) 
 
 // isUpstreamError reports whether err is a connection-level upstream error
 // that should be surfaced as a GraphQL error to the client.
-// ErrFailedUpgrade and ErrInvalidSubprotocol are intentionally excluded so
+// ErrFailedSubscriptionConnection and ErrInvalidSubprotocol are intentionally excluded so
 // they propagate to the router, which formats detailed error messages
 // (e.g. including the subgraph name and HTTP status code).
 func isUpstreamError(err error) bool {

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.21.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.21.0...v2.21.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **subscriptionclient:** preserve SSE connection failure status ([#1676](https://github.com/wundergraph/graphql-go-tools/issues/1676)) ([09cfe13](https://github.com/wundergraph/graphql-go-tools/commit/09cfe131257e53d27e08ec02af100cc9342b5b38))
+
 ## [2.21.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.20.3...v2.21.0) (2026-09-16)
 
 
