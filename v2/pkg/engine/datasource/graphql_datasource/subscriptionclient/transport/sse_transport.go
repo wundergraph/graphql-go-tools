@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"maps"
 	"mime"
 	"net/http"
@@ -17,8 +16,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
-
-const maxErrorBodySize = 4096
 
 // SSETransport implements the Transport interface using Server-Sent Events.
 // Unlike WebSocket, each subscription creates a separate HTTP request.
@@ -105,16 +102,13 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 
 	if resp.StatusCode != http.StatusOK {
 		requestCancel()
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodySize))
 		resp.Body.Close()
 		t.log.Error("sseTransport.Subscribe",
 			abstractlogger.String("endpoint", opts.Endpoint),
 			abstractlogger.Int("status", resp.StatusCode),
 		)
-		if len(body) > 0 {
-			return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
-		}
-		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+		// Match WS connection failures so callers can propagate the upstream status.
+		return nil, ErrFailedSubscriptionConnection{URL: opts.Endpoint, StatusCode: resp.StatusCode}
 	}
 
 	// Verify content type (should be text/event-stream)
