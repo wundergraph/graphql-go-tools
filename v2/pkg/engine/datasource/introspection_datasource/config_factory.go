@@ -23,6 +23,10 @@ func NewIntrospectionConfigFactory(schema *ast.Document) (*IntrospectionConfigFa
 		return nil, report
 	}
 
+	if err := data.Schema.BuildJSON(); err != nil {
+		return nil, err
+	}
+
 	return &IntrospectionConfigFactory{introspectionData: &data}, nil
 }
 
