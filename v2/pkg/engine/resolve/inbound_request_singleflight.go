@@ -23,10 +23,20 @@ type requestShard struct {
 	m sync.Map
 }
 
+// Byte layout of inboundRequestKey: three uint64 hashes, then the private
+// identity digest. Zero when the request has no private identity.
+const (
+	keyOperationIDOffset   = 0
+	keyVariablesHashOffset = keyOperationIDOffset + 8
+	keyHeadersHashOffset   = keyVariablesHashOffset + 8
+	keyPrivateIDOffset     = keyHeadersHashOffset + 8
+	keySize                = keyPrivateIDOffset + sha256.Size
+)
+
 // inboundRequestKey is the complete discriminator of one inbound request:
 // operation, variables, headers and private identity. It is the map identity
 // as is, so two requests share a flight only when every part matches.
-type inboundRequestKey [24 + sha256.Size]byte
+type inboundRequestKey [keySize]byte
 
 const defaultRequestSingleFlightShardCount = 8
 
@@ -50,11 +60,11 @@ type InflightRequest struct {
 	// followers via Context.SetDeduplicationData. Typed as "any" because the resolve
 	// package is data-agnostic — the caller decides the concrete type.
 	SharedData any
-	// HeaderTags are the leader's response cache header tags, so a follower
+	// SurrogateKeys are the leader's response cache surrogate keys, so a follower
 	// serving the same body sends the same header.
-	HeaderTags []string
-	Err        error
-	ID         inboundRequestKey
+	SurrogateKeys []string
+	Err           error
+	ID            inboundRequestKey
 
 	followerCount atomic.Int32
 }
@@ -86,15 +96,15 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 	// Derive a robust key from request ID, variables hash, (optional) headers hash
 	// and the response cache user id (if present)
 	var b inboundRequestKey
-	binary.LittleEndian.PutUint64(b[0:8], ctx.Request.ID)
-	binary.LittleEndian.PutUint64(b[8:16], ctx.VariablesHash)
+	binary.LittleEndian.PutUint64(b[keyOperationIDOffset:keyVariablesHashOffset], ctx.Request.ID)
+	binary.LittleEndian.PutUint64(b[keyVariablesHashOffset:keyHeadersHashOffset], ctx.VariablesHash)
 	hh := uint64(0)
 	if ctx.SubgraphHeadersBuilder != nil {
 		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
-	binary.LittleEndian.PutUint64(b[16:24], hh)
+	binary.LittleEndian.PutUint64(b[keyHeadersHashOffset:keyPrivateIDOffset], hh)
 	if privateID, ok := ctx.responseCachePrivateID(); ok {
-		copy(b[24:], privateID[:])
+		copy(b[keyPrivateIDOffset:], privateID[:])
 	}
 
 	shard := r.shardFor(b)

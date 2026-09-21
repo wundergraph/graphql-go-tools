@@ -9,7 +9,7 @@ import (
 // tags ahead of the value so a hit reads them without touching the value, a
 // vary record carries only the header names it varies on.
 // kind      1 byte, entryFormatBody or entryFormatRecord
-// count     uvarint, number of header tags, or of names for a record
+// count     uvarint, number of surrogate keys, or of names for a record
 // tags      count times: uvarint byte length, then the tag, that many bytes
 // value     body only: everything after the last tag, the cached body itself, no length prefix
 //
@@ -31,11 +31,11 @@ func EncodeItem(item Item) []byte {
 	if len(item.Vary) > 0 {
 		return EncodeVaryRecord(item.Vary)
 	}
-	return EncodeEntry(item.Value, item.HeaderTags)
+	return EncodeEntry(item.Value, item.SurrogateKeys)
 }
 
-func EncodeEntry(value []byte, headerTags []string) []byte {
-	out := appendList(entryFormatBody, headerTags, len(value))
+func EncodeEntry(value []byte, surrogateKeys []string) []byte {
+	out := appendList(entryFormatBody, surrogateKeys, len(value))
 	return append(out, value...)
 }
 
@@ -60,9 +60,9 @@ func appendList(kind byte, list []string, extra int) []byte {
 }
 
 // DecodeEntry returns the value as a subslice of b. Exactly one of value and
-// vary is set, by the kind byte: a body decodes to value and headerTags, a
+// vary is set, by the kind byte: a body decodes to value and surrogateKeys, a
 // record to vary.
-func DecodeEntry(b []byte) (value []byte, headerTags, vary []string, err error) {
+func DecodeEntry(b []byte) (value []byte, surrogateKeys, vary []string, err error) {
 	if len(b) == 0 {
 		return nil, nil, nil, ErrEntryFormat
 	}

@@ -75,7 +75,7 @@ func TestResponseCacheVaryCollect(t *testing.T) {
 			require.Equal(t, base, record.Key)
 			require.Equal(t, acceptLanguage, record.Vary)
 			require.Empty(t, record.Value)
-			require.Empty(t, record.HeaderTags)
+			require.Empty(t, record.SurrogateKeys)
 			require.Equal(t, caching.VariantKey(base, langDigest("de")), variant.Key)
 			require.Empty(t, variant.Vary)
 			require.JSONEq(t, fmt.Sprintf(`{"__typename":"User","id":%d}`, i+1), string(variant.Value))

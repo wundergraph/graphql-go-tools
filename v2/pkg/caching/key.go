@@ -17,7 +17,7 @@ import (
 // two forms apart, so a private key never reads as a public one. Either form
 // may carry '+' vary for a variant of a response that varies by request
 // header; the separator differs so a variant never reads as a private key.
-const keyFormatVersion = "v4"
+const keyFormatVersion = "4"
 
 const (
 	digestHex     = 2 * sha256.Size

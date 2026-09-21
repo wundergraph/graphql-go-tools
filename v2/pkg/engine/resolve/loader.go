@@ -157,9 +157,9 @@ type result struct {
 	// responseCachePrivate records that a hit was served, in whole or part,
 	// from entries scoped to the requesting user.
 	responseCachePrivate bool
-	// responseCacheHeaderTags is what the fetch contributes to the cache tag
+	// responseCacheSurrogateKeys is what the fetch contributes to the cache tag
 	// header, read back on a hit and computed on a miss.
-	responseCacheHeaderTags []string
+	responseCacheSurrogateKeys []string
 	// out is the subgraph response body
 	out               []byte
 	singleFlightStats *singleFlightStats
@@ -494,7 +494,7 @@ func (l *Loader) mergePhase(prepared *preparedFetch) error {
 	if err := l.responseCacheCollect(prepared); err != nil {
 		l.reportResponseCacheError(fmt.Errorf("response cache collect error: %w", err))
 	}
-	l.responseCacheMergeHeaderTags(prepared.res)
+	l.responseCacheMergeSurrogateKeys(prepared.res)
 
 	err := l.mergeResult(prepared.item, prepared.res, prepared.items)
 	l.callOnFinished(prepared.res)

@@ -9,29 +9,29 @@ import (
 
 func TestEntryRoundTrip(t *testing.T) {
 	tests := []struct {
-		name       string
-		value      []byte
-		headerTags []string
+		name          string
+		value         []byte
+		surrogateKeys []string
 	}{
-		{name: "value and headerTags", value: []byte(`{"id":42}`), headerTags: []string{"subgraph-accounts", "type-accounts-User", "user-42"}},
-		{name: "no headerTags decodes to nil", value: []byte(`{"id":42}`)},
-		{name: "empty value", value: []byte{}, headerTags: []string{"a"}},
-		{name: "long, non ascii and empty headerTags", value: []byte("v"), headerTags: []string{strings.Repeat("x", 300), "ünïcödé", ""}},
+		{name: "value and surrogate keys", value: []byte(`{"id":42}`), surrogateKeys: []string{"subgraph-accounts", "type-accounts-User", "user-42"}},
+		{name: "no surrogate keys decodes to nil", value: []byte(`{"id":42}`)},
+		{name: "empty value", value: []byte{}, surrogateKeys: []string{"a"}},
+		{name: "long, non ascii and empty surrogate keys", value: []byte("v"), surrogateKeys: []string{strings.Repeat("x", 300), "ünïcödé", ""}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, headerTags, vary, err := DecodeEntry(EncodeEntry(tt.value, tt.headerTags))
+			value, surrogateKeys, vary, err := DecodeEntry(EncodeEntry(tt.value, tt.surrogateKeys))
 			require.NoError(t, err)
 			require.Equal(t, tt.value, value)
-			require.Equal(t, tt.headerTags, headerTags)
+			require.Equal(t, tt.surrogateKeys, surrogateKeys)
 			require.Nil(t, vary)
 		})
 	}
 }
 
 func TestEntryDecodeRefuses(t *testing.T) {
-	encoded := EncodeEntry([]byte("value"), []string{"a-long-headerTag", "another"})
+	encoded := EncodeEntry([]byte("value"), []string{"a-long-surrogateKey", "another"})
 
 	unknownVersion := append([]byte(nil), encoded...)
 	unknownVersion[0] = 9
@@ -43,11 +43,11 @@ func TestEntryDecodeRefuses(t *testing.T) {
 		{name: "nil", input: nil},
 		{name: "raw value", input: []byte(`{"id":42}`)},
 		{name: "unknown version", input: unknownVersion},
-		{name: "headerTag count larger than the input", input: []byte{entryFormatBody, 0xff, 0xff, 0x7f}},
+		{name: "surrogate key count larger than the input", input: []byte{entryFormatBody, 0xff, 0xff, 0x7f}},
 		{name: "cut inside the count", input: encoded[:1]},
-		{name: "cut inside a headerTag length", input: encoded[:2]},
-		{name: "cut inside a headerTag", input: encoded[:5]},
-		{name: "cut before the last headerTag", input: encoded[:len(encoded)-len("value")-len("another")-1]},
+		{name: "cut inside a surrogate key length", input: encoded[:2]},
+		{name: "cut inside a surrogate key", input: encoded[:5]},
+		{name: "cut before the last surrogate key", input: encoded[:len(encoded)-len("value")-len("another")-1]},
 	}
 
 	for _, tt := range tests {
@@ -57,7 +57,7 @@ func TestEntryDecodeRefuses(t *testing.T) {
 		})
 	}
 
-	// Every cut through the headerTag section, not just the ones named above.
+	// Every cut through the surrogateKey section, not just the ones named above.
 	for cut := 1; cut < len(encoded)-len("value"); cut++ {
 		_, _, _, err := DecodeEntry(encoded[:cut])
 		require.ErrorIs(t, err, ErrEntryFormat, "cut at %d", cut)
@@ -67,14 +67,14 @@ func TestEntryDecodeRefuses(t *testing.T) {
 func TestVaryRecordRoundTrip(t *testing.T) {
 	names := []string{"accept-language", "x-region"}
 
-	value, headerTags, vary, err := DecodeEntry(EncodeVaryRecord(names))
+	value, surrogateKeys, vary, err := DecodeEntry(EncodeVaryRecord(names))
 	require.NoError(t, err)
 	require.Nil(t, value)
-	require.Nil(t, headerTags)
+	require.Nil(t, surrogateKeys)
 	require.Equal(t, names, vary)
 
 	require.Equal(t, EncodeVaryRecord(names), EncodeItem(Item{Vary: names, Value: []byte("ignored")}), "a record has no body")
-	require.Equal(t, EncodeEntry([]byte("v"), []string{"a"}), EncodeItem(Item{Value: []byte("v"), HeaderTags: []string{"a"}}))
+	require.Equal(t, EncodeEntry([]byte("v"), []string{"a"}), EncodeItem(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}))
 
 	tests := []struct {
 		name  string

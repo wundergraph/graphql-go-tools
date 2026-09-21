@@ -216,7 +216,7 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.responseCacheHit = true
 	res.responseCachePrivate = private
 	res.responseCacheTTL = remainingTTL(items)
-	res.responseCacheHeaderTags = foundHeaderTags(items)
+	res.responseCacheSurrogateKeys = foundSurrogateKeys(items)
 
 	return true
 }
@@ -230,13 +230,13 @@ func (l *Loader) responseCacheVaryDigest(prepared *preparedFetch, names []string
 	return caching.VaryDigest(names, sent)
 }
 
-// foundHeaderTags unions what the hit entries were stored with.
-func foundHeaderTags(items []caching.Item) []string {
+// foundSurrogateKeys unions what the hit entries were stored with.
+func foundSurrogateKeys(items []caching.Item) []string {
 	lists := make([][]string, 0, len(items))
 	for _, item := range items {
-		lists = append(lists, item.HeaderTags)
+		lists = append(lists, item.SurrogateKeys)
 	}
-	return caching.MergeHeaderTags(nil, lists...)
+	return caching.MergeSurrogateKeys(nil, lists...)
 }
 
 // remainingTTL is the shortest life left across a fetch's entries: a fetch is only
@@ -334,7 +334,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
 	items := make([]caching.Item, 0, 2*len(prepared.responseCacheKeys))
-	headerTagLists := make([][]string, 0, len(prepared.responseCacheKeys))
+	surrogateKeyLists := make([][]string, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
@@ -361,8 +361,8 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			isRootFetch: prepared.isRootFetchCache,
 			opts:        invalidation,
 		}
-		item.Tags, item.HeaderTags = responseCacheIdentities(input)
-		headerTagLists = append(headerTagLists, item.HeaderTags)
+		item.Tags, item.SurrogateKeys = responseCacheIdentities(input)
+		surrogateKeyLists = append(surrogateKeyLists, item.SurrogateKeys)
 		if len(vary) > 0 {
 			// Same tags, so invalidation takes the record down with the body.
 			items = append(items, caching.Item{Key: writeKeys[i], Vary: vary, TTL: ttl, Tags: item.Tags})
@@ -371,7 +371,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	prepared.responseCacheItems = items
-	prepared.res.responseCacheHeaderTags = caching.MergeHeaderTags(nil, headerTagLists...)
+	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	return nil
 }
 
@@ -454,7 +454,7 @@ func responseCacheTagList(list *astjson.Value) []string {
 		}
 		tag := string(value.GetStringBytes())
 		// Over long is a key name the subgraph sized; the rest cannot go in a header.
-		if len(tag) > maxResponseCacheTagLength || !caching.ValidDeclaredHeaderTag(tag) {
+		if len(tag) > maxResponseCacheTagLength || !caching.ValidDeclaredSurrogateKey(tag) {
 			continue
 		}
 		// Stored with every entry and merged per request, so bounded as a whole
@@ -482,15 +482,15 @@ type responseCacheTagInput struct {
 	opts        ResponseCacheTagIndexOptions
 }
 
-// responseCacheIdentities: tags follow the index options, header tags carry
+// responseCacheIdentities: tags follow the index options, surrogate keys carry
 // every tier.
-func responseCacheIdentities(input responseCacheTagInput) (tags, headerTags []string) {
+func responseCacheIdentities(input responseCacheTagInput) (tags, surrogateKeys []string) {
 	if input.subgraph == "" {
 		return nil, nil
 	}
 
-	headerTags = make([]string, 0, len(input.declared)+2)
-	headerTags = append(headerTags, caching.SubgraphHeaderTag(input.subgraph))
+	surrogateKeys = make([]string, 0, len(input.declared)+2)
+	surrogateKeys = append(surrogateKeys, caching.SubgraphSurrogateKey(input.subgraph))
 
 	var typeName string
 	if !input.isRootFetch {
@@ -498,12 +498,12 @@ func responseCacheIdentities(input responseCacheTagInput) (tags, headerTags []st
 	}
 
 	if typeName != "" {
-		headerTags = append(headerTags, caching.TypeHeaderTag(input.subgraph, typeName))
+		surrogateKeys = append(surrogateKeys, caching.TypeSurrogateKey(input.subgraph, typeName))
 	}
-	headerTags = append(headerTags, input.declared...)
+	surrogateKeys = append(surrogateKeys, input.declared...)
 
 	if !input.opts.any() {
-		return nil, headerTags
+		return nil, surrogateKeys
 	}
 
 	tags = make([]string, 0, len(input.declared)+2)
@@ -522,16 +522,16 @@ func responseCacheIdentities(input responseCacheTagInput) (tags, headerTags []st
 		tags = nil
 	}
 
-	return tags, headerTags
+	return tags, surrogateKeys
 }
 
-// responseCacheMergeHeaderTags adds what one fetch contributed, hit or miss, to the
+// responseCacheMergeSurrogateKeys adds what one fetch contributed, hit or miss, to the
 // request's set. Called under the data lock, which is what serializes it.
-func (l *Loader) responseCacheMergeHeaderTags(res *result) {
-	if !l.responseCacheEnabled() || len(res.responseCacheHeaderTags) == 0 {
+func (l *Loader) responseCacheMergeSurrogateKeys(res *result) {
+	if !l.responseCacheEnabled() || len(res.responseCacheSurrogateKeys) == 0 {
 		return
 	}
-	l.ctx.responseCache.headerTags = caching.MergeHeaderTags(l.ctx.responseCache.headerTags, res.responseCacheHeaderTags)
+	l.ctx.responseCache.surrogateKeys = caching.MergeSurrogateKeys(l.ctx.responseCache.surrogateKeys, res.responseCacheSurrogateKeys)
 }
 
 // responseCacheCollectMultiEntity gathers what a merged response contributes to
@@ -558,7 +558,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	}
 
 	var items []caching.Item
-	var headerTagLists [][]string
+	var surrogateKeyLists [][]string
 	for i := range prepared.multiEntries {
 		entry := &prepared.multiEntries[i]
 		if len(entry.responseCacheKeys) == 0 || entry.cacheHit() || entry.res.fetchSkipped {
@@ -602,20 +602,20 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 			// list with no alias to attribute it to, so entries would take
 			// each other's tags. Subgraph and type identities still apply, to
 			// the index and the header alike.
-			item.Tags, item.HeaderTags = responseCacheIdentities(responseCacheTagInput{
+			item.Tags, item.SurrogateKeys = responseCacheIdentities(responseCacheTagInput{
 				value:       value,
 				subgraph:    prepared.res.ds.Name,
 				isRootFetch: prepared.isRootFetchCache,
 				opts:        l.ctx.responseCache.invalidation,
 			})
-			headerTagLists = append(headerTagLists, item.HeaderTags)
+			surrogateKeyLists = append(surrogateKeyLists, item.SurrogateKeys)
 
 			items = append(items, item)
 		}
 	}
 
 	prepared.responseCacheItems = items
-	prepared.res.responseCacheHeaderTags = caching.MergeHeaderTags(nil, headerTagLists...)
+	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 }
 
 // multiEntityCacheLookup asks the cache, in one round trip, for the entities of
@@ -679,7 +679,7 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 		entry.cachedValues = values
 		entry.responseCachePrivate = private
 		entry.responseCacheTTL = remainingTTL(items)
-		entry.responseCacheHeaderTags = foundHeaderTags(items)
+		entry.responseCacheSurrogateKeys = foundSurrogateKeys(items)
 		anyHit = true
 	}
 
