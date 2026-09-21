@@ -203,7 +203,7 @@ func buildMessageHandler(updater resolve.SubscriptionUpdater, errorCode string) 
 				updater.Done()
 				return
 			}
-			updater.Update(data)
+			updater.Update(data, "")
 		case client.MessageTypeComplete:
 			updater.Complete()
 			updater.Done()

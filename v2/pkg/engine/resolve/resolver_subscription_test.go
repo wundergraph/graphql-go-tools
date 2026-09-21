@@ -75,7 +75,7 @@ func (f *FakeSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 func (f *FakeSource) Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error {
 	go func() {
 		for i, u := range f.updates {
-			updater.Update([]byte(u))
+			updater.Update([]byte(u), "")
 			if i < len(f.updates)-1 {
 				time.Sleep(f.interval)
 			}
