@@ -8,17 +8,90 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+	"weak"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource/subscriptionclient/common"
 )
+
+func TestSSETransport(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name        string
+		status      int
+		unsubscribe bool
+	}{
+		{name: "releases request data when setup fails", status: http.StatusServiceUnavailable},
+		{name: "releases request data when unsubscribed", status: http.StatusOK, unsubscribe: true},
+		{name: "releases request data when the stream completes", status: http.StatusOK},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(tt.status)
+
+				if tt.status != http.StatusOK {
+					return
+				}
+
+				if tt.unsubscribe {
+					w.(http.Flusher).Flush()
+					<-r.Context().Done()
+
+					return
+				}
+
+				_, _ = io.WriteString(w, "event: complete\ndata:\n\n")
+			})
+
+			tr := NewSSETransport(t.Context(), http.DefaultClient, nil)
+
+			// Scope strong references to the subscription here; both parent
+			// contexts remain live until after the collection check.
+			ref := func() weak.Pointer[[1024]byte] {
+				data := new([1024]byte)
+				ref := weak.Make(data)
+
+				ctx := context.WithValue(t.Context(), struct{}{}, data)
+
+				cancel, err := tr.Subscribe(ctx, &common.Request{
+					Query: "subscription { test }",
+				}, common.Options{
+					Endpoint:  server.URL,
+					SSEMethod: common.SSEMethodPOST,
+				}, func(*common.Message) {})
+				if tt.status != http.StatusOK {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+
+					if tt.unsubscribe {
+						cancel()
+					}
+				}
+
+				return ref
+			}()
+
+			assert.Eventually(t, func() bool {
+				runtime.GC()
+				return ref.Value() == nil
+			}, 5*time.Second, 10*time.Millisecond, "ended subscription still retains request data")
+			runtime.KeepAlive(tr)
+		})
+	}
+}
 
 func TestSSETransport_Subscribe(t *testing.T) {
 	t.Parallel()
