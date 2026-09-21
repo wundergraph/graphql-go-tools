@@ -57,8 +57,10 @@ func NewSSETransport(ctx context.Context, client *http.Client, log abstractlogge
 //   - SSEMethodPOST: POST with JSON body (graphql-sse spec)
 //   - SSEMethodGET: GET with query parameters (traditional SSE)
 func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts common.Options, handler common.Handler) (func(), error) {
-	var httpReq *http.Request
-	var err error
+	var (
+		httpReq *http.Request
+		err     error
+	)
 
 	t.log.Debug("sseTransport.Subscribe",
 		abstractlogger.String("endpoint", opts.Endpoint),
@@ -103,6 +105,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 			abstractlogger.String("endpoint", opts.Endpoint),
 			abstractlogger.Error(err),
 		)
+
 		return nil, fmt.Errorf("execute request: %w", err)
 	}
 
@@ -121,6 +124,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	if err := t.validateContentType(resp); err != nil {
 		cleanup()
 		resp.Body.Close()
+
 		return nil, err
 	}
 
@@ -193,6 +197,7 @@ func buildGETRequest(req *common.Request, opts common.Options) (*http.Request, e
 		if err != nil {
 			return nil, fmt.Errorf("marshal variables: %w", err)
 		}
+
 		q.Set("variables", string(varsJSON))
 	}
 
@@ -205,6 +210,7 @@ func buildGETRequest(req *common.Request, opts common.Options) (*http.Request, e
 		if err != nil {
 			return nil, fmt.Errorf("marshal extensions: %w", err)
 		}
+
 		q.Set("extensions", string(extJSON))
 	}
 
@@ -252,10 +258,12 @@ func (t *SSETransport) removeConn(conn *sseConnection) {
 // closeAll terminates all active SSE connections. Called automatically when context is cancelled.
 func (t *SSETransport) closeAll() {
 	t.mu.Lock()
+
 	conns := make([]*sseConnection, 0, len(t.conns))
 	for conn := range t.conns {
 		conns = append(conns, conn)
 	}
+
 	t.conns = make(map[*sseConnection]struct{})
 	t.mu.Unlock()
 

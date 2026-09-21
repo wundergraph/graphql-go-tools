@@ -100,6 +100,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		t.Parallel()
 
 		var receivedBody map[string]any
+
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			// Verify POST method
 			assert.Equal(t, http.MethodPost, r.Method)
@@ -139,6 +140,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			SSEMethod: common.SSEMethodPOST,
 		}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		// Verify request body
@@ -159,8 +161,11 @@ func TestSSETransport_Subscribe(t *testing.T) {
 	t.Run("passes custom headers", func(t *testing.T) {
 		t.Parallel()
 
-		var receivedAuth string
-		var receivedCustom string
+		var (
+			receivedAuth   string
+			receivedCustom string
+		)
+
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			receivedAuth = r.Header.Get("Authorization")
 			receivedCustom = r.Header.Get("X-Custom-Header")
@@ -186,6 +191,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			SSEMethod: common.SSEMethodPOST,
 		}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		receive(t, time.Second)
@@ -216,6 +222,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			Query: "subscription { user { name } }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		msg := receive(t, time.Second)
@@ -241,6 +248,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		msg := receive(t, time.Second)
@@ -266,6 +274,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		msg := receive(t, time.Second)
@@ -311,12 +320,14 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			Query: "subscription { user { name } }",
 		}, common.Options{Endpoint: keepAliveServer.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err1)
+
 		defer cancel1()
 
 		cancel2, err2 := tr.Subscribe(context.Background(), &common.Request{
 			Query: "subscription { user { name } }",
 		}, common.Options{Endpoint: completeServer.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err2)
+
 		defer cancel2()
 
 		msgs := make([]*common.Message, 0, 2)
@@ -361,6 +372,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		msg := receive(t, time.Second)
@@ -401,6 +413,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, wrappedHandler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		msgs := collect(time.Second)
@@ -479,6 +492,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		_ = receive(t, time.Second)
@@ -543,6 +557,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 		t.Parallel()
 
 		var reqCount atomic.Int32
+
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			reqCount.Add(1)
 
@@ -601,6 +616,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		msg := receive(t, time.Second)
@@ -636,6 +652,7 @@ func TestSSETransport_Subscribe(t *testing.T) {
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		msg := receive(t, time.Second)
@@ -651,6 +668,7 @@ func TestSSETransport_ContextCancellation(t *testing.T) {
 		t.Parallel()
 
 		var closedCount atomic.Int32
+
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.WriteHeader(http.StatusOK)
@@ -700,6 +718,7 @@ func TestSSETransport_CustomClient(t *testing.T) {
 		t.Parallel()
 
 		var customHeaderReceived string
+
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			customHeaderReceived = r.Header.Get("X-Custom-Client")
 
@@ -725,6 +744,7 @@ func TestSSETransport_CustomClient(t *testing.T) {
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		receive(t, time.Second)
@@ -774,6 +794,7 @@ func TestSSETransport_ContentTypeValidation(t *testing.T) {
 			Query: "subscription { test }",
 		}, common.Options{Endpoint: server.URL, SSEMethod: common.SSEMethodPOST}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		msg := receive(t, time.Second)
@@ -806,10 +827,13 @@ func TestSSETransport_GETMethod(t *testing.T) {
 	t.Run("sends GET request with query parameters", func(t *testing.T) {
 		t.Parallel()
 
-		var receivedMethod string
-		var receivedQuery string
-		var receivedVariables string
-		var receivedOperationName string
+		var (
+			receivedMethod        string
+			receivedQuery         string
+			receivedVariables     string
+			receivedOperationName string
+		)
+
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			receivedMethod = r.Method
 			receivedQuery = r.URL.Query().Get("query")
@@ -848,6 +872,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 			SSEMethod: common.SSEMethodGET,
 		}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		// Verify GET method and query params
@@ -869,8 +894,11 @@ func TestSSETransport_GETMethod(t *testing.T) {
 	t.Run("GET preserves existing query parameters", func(t *testing.T) {
 		t.Parallel()
 
-		var receivedToken string
-		var receivedQuery string
+		var (
+			receivedToken string
+			receivedQuery string
+		)
+
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			receivedToken = r.URL.Query().Get("token")
 			receivedQuery = r.URL.Query().Get("query")
@@ -890,6 +918,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 			SSEMethod: common.SSEMethodGET,
 		}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		receive(t, time.Second)
@@ -902,6 +931,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 		t.Parallel()
 
 		var receivedAuth string
+
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			receivedAuth = r.Header.Get("Authorization")
 
@@ -925,6 +955,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 			Headers:   headers,
 		}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		receive(t, time.Second)
@@ -935,8 +966,11 @@ func TestSSETransport_GETMethod(t *testing.T) {
 	t.Run("GET omits empty variables and operationName", func(t *testing.T) {
 		t.Parallel()
 
-		var hasVariables bool
-		var hasOperationName bool
+		var (
+			hasVariables     bool
+			hasOperationName bool
+		)
+
 		server := newSSEServer(t, func(w http.ResponseWriter, r *http.Request) {
 			hasVariables = r.URL.Query().Has("variables")
 			hasOperationName = r.URL.Query().Has("operationName")
@@ -957,6 +991,7 @@ func TestSSETransport_GETMethod(t *testing.T) {
 			SSEMethod: common.SSEMethodGET,
 		}, handler)
 		require.NoError(t, err)
+
 		defer cancel()
 
 		receive(t, time.Second)
