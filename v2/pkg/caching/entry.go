@@ -31,12 +31,33 @@ const (
 
 var ErrEntryFormat = errors.New("cache entry is not in a known format")
 
-// EncodeItem picks the envelope the item calls for.
+// EncodeItem picks the envelope the item calls for. Empty vary sets are
+// dropped, since a set names at least one header and DecodeEntry refuses a
+// record that says otherwise; with no set left the item is a body.
 func EncodeItem(item Item) []byte {
-	if len(item.Vary) > 0 {
-		return encodeVaryRecord(item.Vary)
+	if sets := nonEmptySets(item.Vary); len(sets) > 0 {
+		return encodeVaryRecord(sets)
 	}
 	return encodeEntry(item.Value, item.SurrogateKeys)
+}
+
+// nonEmptySets is sets without its empty members, and sets itself when there
+// are none to drop.
+func nonEmptySets(sets [][]string) [][]string {
+	for i, set := range sets {
+		if len(set) != 0 {
+			continue
+		}
+		kept := make([][]string, 0, len(sets)-1)
+		kept = append(kept, sets[:i]...)
+		for _, set := range sets[i+1:] {
+			if len(set) != 0 {
+				kept = append(kept, set)
+			}
+		}
+		return kept
+	}
+	return sets
 }
 
 func encodeEntry(value []byte, surrogateKeys []string) []byte {

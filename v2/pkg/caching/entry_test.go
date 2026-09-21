@@ -88,6 +88,22 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 	require.Equal(t, encodeVaryRecord(sets), EncodeItem(Item{Vary: sets, Value: []byte("ignored")}), "a record has no body")
 	require.Equal(t, encodeEntry([]byte("v"), []string{"a"}), EncodeItem(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}))
 
+	t.Run("empty sets are dropped so every record decodes", func(t *testing.T) {
+		withEmpty := EncodeItem(Item{Vary: [][]string{{"accept-language"}, {}, {"accept"}}})
+		require.Equal(t, encodeVaryRecord([][]string{{"accept-language"}, {"accept"}}), withEmpty)
+		_, _, vary, err := DecodeEntry(withEmpty)
+		require.NoError(t, err)
+		require.Equal(t, [][]string{{"accept-language"}, {"accept"}}, vary)
+
+		onlyEmpty := EncodeItem(Item{Vary: [][]string{{}}, Value: []byte("v"), SurrogateKeys: []string{"a"}})
+		require.Equal(t, encodeEntry([]byte("v"), []string{"a"}), onlyEmpty, "no set left means a body")
+		value, surrogateKeys, vary, err := DecodeEntry(onlyEmpty)
+		require.NoError(t, err)
+		require.Equal(t, []byte("v"), value)
+		require.Equal(t, []string{"a"}, surrogateKeys)
+		require.Nil(t, vary)
+	})
+
 	encoded := encodeVaryRecord(sets)
 	tests := []struct {
 		name  string
