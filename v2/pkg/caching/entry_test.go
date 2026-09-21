@@ -21,7 +21,7 @@ func TestEntryRoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, surrogateKeys, vary, err := DecodeEntry(EncodeEntry(tt.value, tt.surrogateKeys))
+			value, surrogateKeys, vary, err := DecodeEntry(encodeEntry(tt.value, tt.surrogateKeys))
 			require.NoError(t, err)
 			require.Equal(t, tt.value, value)
 			require.Equal(t, tt.surrogateKeys, surrogateKeys)
@@ -31,7 +31,7 @@ func TestEntryRoundTrip(t *testing.T) {
 }
 
 func TestEntryDecodeRefuses(t *testing.T) {
-	encoded := EncodeEntry([]byte("value"), []string{"a-long-surrogateKey", "another"})
+	encoded := encodeEntry([]byte("value"), []string{"a-long-surrogateKey", "another"})
 
 	unknownVersion := append([]byte(nil), encoded...)
 	unknownVersion[0] = 9
@@ -77,7 +77,7 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 		{name: "long, non ascii and empty names", sets: [][]string{{strings.Repeat("x", 300), "ünïcödé", ""}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			value, surrogateKeys, vary, err := DecodeEntry(EncodeVaryRecord(tt.sets))
+			value, surrogateKeys, vary, err := DecodeEntry(encodeVaryRecord(tt.sets))
 			require.NoError(t, err)
 			require.Nil(t, value)
 			require.Nil(t, surrogateKeys)
@@ -85,17 +85,17 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 		})
 	}
 
-	require.Equal(t, EncodeVaryRecord(sets), EncodeItem(Item{Vary: sets, Value: []byte("ignored")}), "a record has no body")
-	require.Equal(t, EncodeEntry([]byte("v"), []string{"a"}), EncodeItem(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}))
+	require.Equal(t, encodeVaryRecord(sets), EncodeItem(Item{Vary: sets, Value: []byte("ignored")}), "a record has no body")
+	require.Equal(t, encodeEntry([]byte("v"), []string{"a"}), EncodeItem(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}))
 
-	encoded := EncodeVaryRecord(sets)
+	encoded := encodeVaryRecord(sets)
 	tests := []struct {
 		name  string
 		input []byte
 	}{
-		{name: "no sets", input: EncodeVaryRecord(nil)},
-		{name: "an empty set", input: EncodeVaryRecord([][]string{{"accept-language"}, {}})},
-		{name: "bytes after the sets", input: append(EncodeVaryRecord(sets), 'x')},
+		{name: "no sets", input: encodeVaryRecord(nil)},
+		{name: "an empty set", input: encodeVaryRecord([][]string{{"accept-language"}, {}})},
+		{name: "bytes after the sets", input: append(encodeVaryRecord(sets), 'x')},
 		{name: "cut inside a name", input: encoded[:5]},
 		{name: "cut between sets", input: encoded[:2+1+1+len("accept-language")]},
 		{name: "set count larger than the input", input: []byte{entryFormatRecord, 0xff, 0xff, 0x7f}},

@@ -34,19 +34,19 @@ var ErrEntryFormat = errors.New("cache entry is not in a known format")
 // EncodeItem picks the envelope the item calls for.
 func EncodeItem(item Item) []byte {
 	if len(item.Vary) > 0 {
-		return EncodeVaryRecord(item.Vary)
+		return encodeVaryRecord(item.Vary)
 	}
-	return EncodeEntry(item.Value, item.SurrogateKeys)
+	return encodeEntry(item.Value, item.SurrogateKeys)
 }
 
-func EncodeEntry(value []byte, surrogateKeys []string) []byte {
+func encodeEntry(value []byte, surrogateKeys []string) []byte {
 	out := make([]byte, 0, 1+listSize(surrogateKeys)+len(value))
 	out = append(out, entryFormatBody)
 	out = appendList(out, surrogateKeys)
 	return append(out, value...)
 }
 
-func EncodeVaryRecord(sets [][]string) []byte {
+func encodeVaryRecord(sets [][]string) []byte {
 	size := 1 + binary.MaxVarintLen64
 	for _, set := range sets {
 		size += listSize(set)
