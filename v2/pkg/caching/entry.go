@@ -5,17 +5,22 @@ import (
 	"errors"
 )
 
-// Entry envelope. The first byte says what follows: a body carries its header
-// tags ahead of the value so a hit reads them without touching the value, a
-// vary record carries only the header names it varies on.
+// Entry envelope. The first byte says what follows: a body carries its
+// surrogate keys ahead of the value so a hit reads them without touching the
+// value, a vary record carries the header name sets its variants are stored
+// under, newest first.
 // kind      1 byte, entryFormatBody or entryFormatRecord
-// count     uvarint, number of surrogate keys, or of names for a record
-// tags      count times: uvarint byte length, then the tag, that many bytes
-// value     body only: everything after the last tag, the cached body itself, no length prefix
+// body:
+// count     uvarint, number of surrogate keys
+// keys      count times: uvarint byte length, then the key, that many bytes
+// value     everything after the last key, the cached body itself, no length prefix
+// record:
+// sets      uvarint, number of name sets, at least one
+// names     sets times: uvarint count, then count names, each length prefixed like a key
 //
-// Example: Value {"id":42} with tags "users" and "user-42"
+// Example: Value {"id":42} with keys "users" and "user-42"
 // 01               kind: body
-// 02               count: 2 tags
+// 02               count: 2 keys
 // 05 users         length 5, then the bytes
 // 07 user-42       length 7, then the bytes
 // {"id":42}        value, afterwards
@@ -35,22 +40,35 @@ func EncodeItem(item Item) []byte {
 }
 
 func EncodeEntry(value []byte, surrogateKeys []string) []byte {
-	out := appendList(entryFormatBody, surrogateKeys, len(value))
+	out := make([]byte, 0, 1+listSize(surrogateKeys)+len(value))
+	out = append(out, entryFormatBody)
+	out = appendList(out, surrogateKeys)
 	return append(out, value...)
 }
 
-func EncodeVaryRecord(names []string) []byte {
-	return appendList(entryFormatRecord, names, 0)
+func EncodeVaryRecord(sets [][]string) []byte {
+	size := 1 + binary.MaxVarintLen64
+	for _, set := range sets {
+		size += listSize(set)
+	}
+	out := make([]byte, 0, size)
+	out = append(out, entryFormatRecord)
+	out = binary.AppendUvarint(out, uint64(len(sets)))
+	for _, set := range sets {
+		out = appendList(out, set)
+	}
+	return out
 }
 
-func appendList(kind byte, list []string, extra int) []byte {
-	size := 1 + binary.MaxVarintLen64 + extra
+func listSize(list []string) int {
+	size := binary.MaxVarintLen64
 	for _, s := range list {
 		size += binary.MaxVarintLen64 + len(s)
 	}
+	return size
+}
 
-	out := make([]byte, 0, size)
-	out = append(out, kind)
+func appendList(out []byte, list []string) []byte {
 	out = binary.AppendUvarint(out, uint64(len(list)))
 	for _, s := range list {
 		out = binary.AppendUvarint(out, uint64(len(s)))
@@ -62,42 +80,66 @@ func appendList(kind byte, list []string, extra int) []byte {
 // DecodeEntry returns the value as a subslice of b. Exactly one of value and
 // vary is set, by the kind byte: a body decodes to value and surrogateKeys, a
 // record to vary.
-func DecodeEntry(b []byte) (value []byte, surrogateKeys, vary []string, err error) {
+func DecodeEntry(b []byte) (value []byte, surrogateKeys []string, vary [][]string, err error) {
 	if len(b) == 0 {
 		return nil, nil, nil, ErrEntryFormat
 	}
-	kind := b[0]
-	if kind != entryFormatBody && kind != entryFormatRecord {
-		return nil, nil, nil, ErrEntryFormat
-	}
-	rest := b[1:]
+	kind, rest := b[0], b[1:]
 
-	count, n := binary.Uvarint(rest)
-	if n <= 0 || count > uint64(len(rest)) {
+	switch kind {
+	case entryFormatBody:
+		list, rest, ok := readList(rest)
+		if !ok {
+			return nil, nil, nil, ErrEntryFormat
+		}
+		return rest, list, nil, nil
+
+	case entryFormatRecord:
+		sets, n := binary.Uvarint(rest)
+		if n <= 0 || sets == 0 || sets > uint64(len(rest)) {
+			return nil, nil, nil, ErrEntryFormat
+		}
+		rest = rest[n:]
+		vary = make([][]string, 0, sets)
+		for range sets {
+			var set []string
+			var ok bool
+			set, rest, ok = readList(rest)
+			// A set names at least one header.
+			if !ok || len(set) == 0 {
+				return nil, nil, nil, ErrEntryFormat
+			}
+			vary = append(vary, set)
+		}
+		// A record is its sets and nothing after them.
+		if len(rest) != 0 {
+			return nil, nil, nil, ErrEntryFormat
+		}
+		return nil, nil, vary, nil
+
+	default:
 		return nil, nil, nil, ErrEntryFormat
 	}
-	rest = rest[n:]
+}
+
+// readList reads one length prefixed list off b and returns what follows it.
+func readList(b []byte) (list []string, rest []byte, ok bool) {
+	count, n := binary.Uvarint(b)
+	if n <= 0 || count > uint64(len(b)) {
+		return nil, nil, false
+	}
+	rest = b[n:]
 
 	// Not sized from count: it is the entry's own claim, not yet checked
 	// against its length prefixes.
-	var list []string
 	for range count {
 		size, n := binary.Uvarint(rest)
 		if n <= 0 || size > uint64(len(rest)-n) {
-			return nil, nil, nil, ErrEntryFormat
+			return nil, nil, false
 		}
 		rest = rest[n:]
 		list = append(list, string(rest[:size]))
 		rest = rest[size:]
 	}
-
-	if kind == entryFormatRecord {
-		// A record is its names and nothing after them.
-		if len(rest) != 0 || len(list) == 0 {
-			return nil, nil, nil, ErrEntryFormat
-		}
-		return nil, nil, list, nil
-	}
-
-	return rest, list, nil, nil
+	return list, rest, true
 }

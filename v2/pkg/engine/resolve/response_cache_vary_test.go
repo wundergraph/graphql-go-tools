@@ -12,6 +12,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
@@ -73,7 +74,7 @@ func TestResponseCacheVaryCollect(t *testing.T) {
 		for i, base := range public {
 			record, variant := items[2*i], items[2*i+1]
 			require.Equal(t, base, record.Key)
-			require.Equal(t, acceptLanguage, record.Vary)
+			require.Equal(t, [][]string{acceptLanguage}, record.Vary)
 			require.Empty(t, record.Value)
 			require.Empty(t, record.SurrogateKeys)
 			require.Equal(t, caching.VariantKey(base, langDigest("de")), variant.Key)
@@ -141,7 +142,7 @@ func TestResponseCacheVaryLookup(t *testing.T) {
 		return caching.Item{Key: key, Value: []byte(value), TTL: time.Minute}
 	}
 	record := func(key string) caching.Item {
-		return caching.Item{Key: key, Vary: acceptLanguage, TTL: time.Minute}
+		return caching.Item{Key: key, Vary: [][]string{acceptLanguage}, TTL: time.Minute}
 	}
 	variant := func(base, value, body string) caching.Item {
 		return caching.Item{Key: caching.VariantKey(base, langDigest(value)), Value: []byte(body), TTL: 30 * time.Second}
@@ -208,7 +209,7 @@ func TestResponseCacheVaryLookup(t *testing.T) {
 
 	t.Run("a record where a body should be is a miss", func(t *testing.T) {
 		store := newTestCache()
-		seed(t, store, record("pub-1"), caching.Item{Key: caching.VariantKey("pub-1", langDigest("de")), Vary: acceptLanguage, TTL: time.Minute})
+		seed(t, store, record("pub-1"), caching.Item{Key: caching.VariantKey("pub-1", langDigest("de")), Vary: [][]string{acceptLanguage}, TTL: time.Minute})
 		hit, _ := lookup(t, store, lang("de"), "", public[:1], nil)
 		require.False(t, hit)
 	})
@@ -368,5 +369,277 @@ func TestResponseCacheVaryResolve(t *testing.T) {
 		require.Equal(t, `{"data":{"greeting":"de"}}`, out, "the subgraph did not claim to vary on the language")
 		require.True(t, info.ResponseCacheHit)
 		require.Equal(t, int32(1), calls.Load())
+	})
+}
+
+// A merged fetch stores and serves variants like the single fetches it replaces:
+// one Vary for the whole answer, a record per entity, a body per language.
+func TestResponseCacheVaryMultiEntity(t *testing.T) {
+	const (
+		deResponse = `{"data":{` +
+			`"f1":[{"__typename":"Employee","products":["a"]},{"__typename":"Employee","products":["b"]}],` +
+			`"f2":[{"__typename":"Employee","notes":"n"}]}}`
+		enResponse = `{"data":{` +
+			`"f1":[{"__typename":"Employee","products":["x"]},{"__typename":"Employee","products":["y"]}],` +
+			`"f2":[{"__typename":"Employee","notes":"m"}]}}`
+	)
+
+	varyHeaders := func(vary string) http.Header {
+		headers := cacheableHeaders()
+		headers.Set("Vary", vary)
+		return headers
+	}
+
+	run := func(t *testing.T, cache *testCache, multiDS *recordingDataSource, sent sentHeaders) (*Context, string) {
+		t.Helper()
+		ctx := multiEntityContext(t)
+		ctx.SubgraphHeadersBuilder = sent
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:      cache,
+			DefaultTTL: 60 * time.Second,
+			OnError:    func(err error) { t.Errorf("response cache error: %v", err) },
+		})
+		multi := twoEntryMultiFetch(multiEntityFirstVar())
+		multi.FetchID = 1
+		multi.DependsOnFetchIDs = []int{0}
+		multi.DataSource = multiDS
+		multi.Info.DataSourceName = "products"
+
+		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+		require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: Sequence(
+			Single(multiEntityRootFetch(&recordingDataSource{response: []byte(multiEntityRootResponse)})),
+			Single(multi),
+		)}))
+		assertMergedErrors(t, loader, "")
+		return ctx, string(loader.dataBuffer.data.MarshalTo(nil))
+	}
+
+	// records and variants split what the cache holds: a record has no body.
+	records := func(cache *testCache) (records, variants []string) {
+		for key, item := range cache.items {
+			if len(item.Vary) > 0 {
+				records = append(records, key)
+			} else {
+				variants = append(variants, key)
+			}
+		}
+		return records, variants
+	}
+
+	t.Run("a miss stores a record per entity and its body under the language's variant", func(t *testing.T) {
+		cache := newTestCache()
+		run(t, cache, &recordingDataSource{response: []byte(deResponse), responseHeaders: varyHeaders("Accept-Language")}, lang("de"))
+
+		bases, variants := records(cache)
+		require.Len(t, bases, 3)
+		require.Len(t, variants, 3)
+		for _, base := range bases {
+			require.Equal(t, [][]string{acceptLanguage}, cache.items[base].Vary)
+			variant, ok := cache.items[caching.VariantKey(base, langDigest("de"))]
+			require.True(t, ok, "variant of %s", base)
+			require.NotEmpty(t, variant.Value)
+		}
+	})
+
+	t.Run("the same language is served whole from the cache", func(t *testing.T) {
+		cache := newTestCache()
+		run(t, cache, &recordingDataSource{response: []byte(deResponse), responseHeaders: varyHeaders("Accept-Language")}, lang("de"))
+
+		warm := &recordingDataSource{err: fmt.Errorf("subgraph must not be called")}
+		ctx, out := run(t, cache, warm, lang("de"))
+		require.Equal(t, 0, warm.calls)
+		require.Contains(t, out, `"products":["a"]`)
+		require.Contains(t, out, `"notes":"n"`)
+		require.ElementsMatch(t, []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}, ctx.ResponseCacheSurrogateKeys())
+	})
+
+	t.Run("another language is fetched and kept beside the first", func(t *testing.T) {
+		cache := newTestCache()
+		run(t, cache, &recordingDataSource{response: []byte(deResponse), responseHeaders: varyHeaders("Accept-Language")}, lang("de"))
+
+		en := &recordingDataSource{response: []byte(enResponse), responseHeaders: varyHeaders("Accept-Language")}
+		_, out := run(t, cache, en, lang("en"))
+		require.Equal(t, 1, en.calls)
+		require.Contains(t, out, `"products":["x"]`)
+
+		bases, variants := records(cache)
+		require.Len(t, bases, 3, "one record per entity, rewritten not doubled")
+		require.Len(t, variants, 6, "a body per language per entity")
+
+		warm := &recordingDataSource{err: fmt.Errorf("subgraph must not be called")}
+		_, out = run(t, cache, warm, lang("de"))
+		require.Contains(t, out, `"products":["a"]`)
+		_, out = run(t, cache, warm, lang("en"))
+		require.Contains(t, out, `"products":["x"]`)
+		require.Equal(t, 0, warm.calls)
+	})
+
+	t.Run("Vary: * is never stored", func(t *testing.T) {
+		cache := newTestCache()
+		ctx, _ := run(t, cache, &recordingDataSource{response: []byte(deResponse), responseHeaders: varyHeaders("*")}, lang("de"))
+		require.Empty(t, cache.items)
+		require.Nil(t, ctx.ResponseCacheSurrogateKeys())
+	})
+
+	t.Run("a record whose variant is gone sends its entry to the origin, the rest stay warm", func(t *testing.T) {
+		cache := newTestCache()
+		run(t, cache, &recordingDataSource{response: []byte(deResponse), responseHeaders: varyHeaders("Accept-Language")}, lang("de"))
+
+		// Evict f2's body, leaving its record pointing at nothing.
+		for key, item := range cache.items {
+			if bytes.Contains(item.Value, []byte("notes")) {
+				delete(cache.items, key)
+			}
+		}
+		bases, variants := records(cache)
+		require.Len(t, bases, 3)
+		require.Len(t, variants, 2)
+
+		partial := &recordingDataSource{
+			response:        []byte(`{"data":{"f2":[{"__typename":"Employee","notes":"again"}]}}`),
+			responseHeaders: varyHeaders("Accept-Language"),
+		}
+		_, out := run(t, cache, partial, lang("de"))
+		require.Equal(t, 1, partial.calls)
+		require.NotContains(t, string(partial.lastInput), `"id":1`, "f1 was warm and not asked for")
+		require.Contains(t, string(partial.lastInput), `"id":9`)
+		require.Contains(t, out, `"products":["a"]`)
+		require.Contains(t, out, `"notes":"again"`)
+
+		_, variants = records(cache)
+		require.Len(t, variants, 3, "the origin's answer is stored back under its variant")
+	})
+
+	t.Run("a narrower Vary later keeps the wider set's variants reachable", func(t *testing.T) {
+		cache := newTestCache()
+		deEU := sentHeaders{"Accept-Language": []string{"de"}, "X-Region": []string{"eu"}}
+		run(t, cache, &recordingDataSource{response: []byte(deResponse), responseHeaders: varyHeaders("Accept-Language, X-Region")}, deEU)
+
+		// Another language, no region: a miss, and this time the origin says
+		// it varies on the language alone.
+		narrow := &recordingDataSource{response: []byte(enResponse), responseHeaders: varyHeaders("Accept-Language")}
+		run(t, cache, narrow, lang("en"))
+		require.Equal(t, 1, narrow.calls)
+
+		bases, variants := records(cache)
+		require.Len(t, bases, 3)
+		require.Len(t, variants, 6)
+		for _, base := range bases {
+			require.Equal(t, [][]string{acceptLanguage, {"accept-language", "x-region"}}, cache.items[base].Vary)
+		}
+
+		warm := &recordingDataSource{err: fmt.Errorf("subgraph must not be called")}
+		_, out := run(t, cache, warm, deEU)
+		require.Contains(t, out, `"products":["a"]`, "the wide set's variant, under the narrow set there is none for de")
+		_, out = run(t, cache, warm, lang("en"))
+		require.Contains(t, out, `"products":["x"]`, "the narrow set's variant")
+		_, out = run(t, cache, warm, sentHeaders{"Accept-Language": []string{"en"}, "X-Region": []string{"us"}})
+		require.Contains(t, out, `"products":["x"]`, "the region is nothing to the narrow set")
+		require.Equal(t, 0, warm.calls)
+	})
+
+	t.Run("a header the router never sends shares one variant", func(t *testing.T) {
+		cache := newTestCache()
+		run(t, cache, &recordingDataSource{response: []byte(deResponse), responseHeaders: varyHeaders("Accept-Language")}, nil)
+
+		warm := &recordingDataSource{err: fmt.Errorf("subgraph must not be called")}
+		_, out := run(t, cache, warm, nil)
+		require.Equal(t, 0, warm.calls)
+		require.Contains(t, out, `"products":["a"]`)
+	})
+}
+
+// A record holds every name set responses at its key have varied on, and a
+// request is served from whichever set's variant is there.
+func TestResponseCacheVarySets(t *testing.T) {
+	langRegion := []string{"accept-language", "x-region"}
+	deEU := sentHeaders{"Accept-Language": []string{"de"}, "X-Region": []string{"eu"}}
+	digest := func(names []string, sent sentHeaders) caching.Digest {
+		return caching.VaryDigest(names, http.Header(sent))
+	}
+	variant := func(names []string, sent sentHeaders, body string) caching.Item {
+		return caching.Item{Key: caching.VariantKey("pub-1", digest(names, sent)), Value: []byte(body), TTL: time.Minute}
+	}
+	record := caching.Item{Key: "pub-1", Vary: [][]string{acceptLanguage, langRegion}, TTL: time.Minute}
+
+	seed := func(t *testing.T, store caching.Cache, items ...caching.Item) {
+		t.Helper()
+		require.NoError(t, store.SetMany(context.Background(), items))
+	}
+	lookup := func(t *testing.T, store caching.Cache, sent sentHeaders) (bool, *result) {
+		t.Helper()
+		loader, res := varyLoader(t, store, "", "", "", "", sent)
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+		return loader.responseCacheLookup(prepared), res
+	}
+
+	t.Run("one candidate per set, asked for in one round", func(t *testing.T) {
+		store := newSpyCache()
+		seed(t, store, record, variant(langRegion, deEU, `{"set":"lang-region"}`))
+
+		hit, res := lookup(t, store, deEU)
+		require.True(t, hit)
+		require.Contains(t, string(res.out), `"set":"lang-region"`)
+		require.Len(t, store.lookups, 2)
+		require.Equal(t, []string{
+			caching.VariantKey("pub-1", digest(acceptLanguage, deEU)),
+			caching.VariantKey("pub-1", digest(langRegion, deEU)),
+		}, store.lookups[1])
+	})
+
+	t.Run("when several sets hit the newest wins", func(t *testing.T) {
+		store := newTestCache()
+		seed(t, store, record, variant(acceptLanguage, deEU, `{"set":"lang"}`), variant(langRegion, deEU, `{"set":"lang-region"}`))
+
+		hit, res := lookup(t, store, deEU)
+		require.True(t, hit)
+		require.Contains(t, string(res.out), `"set":"lang"}`)
+	})
+
+	t.Run("no set's variant is a miss", func(t *testing.T) {
+		store := newTestCache()
+		seed(t, store, record, variant(langRegion, sentHeaders{"Accept-Language": []string{"fr"}}, `{}`))
+
+		hit, _ := lookup(t, store, deEU)
+		require.False(t, hit)
+	})
+
+	t.Run("a header the request does not send counts as empty", func(t *testing.T) {
+		store := newTestCache()
+		// Stored by a request that sent no region, under the wider set.
+		seed(t, store, record, variant(langRegion, lang("de"), `{"region":"none"}`))
+
+		hit, res := lookup(t, store, lang("de"))
+		require.True(t, hit, "no region again reads the same variant")
+		require.Contains(t, string(res.out), `"region":"none"`)
+
+		hit, _ = lookup(t, store, deEU)
+		require.False(t, hit, "a region sent is another variant")
+	})
+
+	t.Run("a write after a miss keeps the sets already there", func(t *testing.T) {
+		const body = `{"data":{"_entities":[{"__typename":"User","id":1}]}}`
+		store := newTestCache()
+		seed(t, store, caching.Item{Key: "pub-1", Vary: [][]string{acceptLanguage}, TTL: time.Minute})
+
+		loader, res := varyLoader(t, store, "max-age=60", "Accept-Language, X-Region", body, "", deEU)
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+		require.False(t, loader.responseCacheLookup(prepared), "a record without its variant")
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		items := prepared.responseCacheItems
+		require.Len(t, items, 2)
+		require.Equal(t, "pub-1", items[0].Key)
+		require.Equal(t, [][]string{langRegion, acceptLanguage}, items[0].Vary, "own set first, the seen one kept")
+		require.Equal(t, caching.VariantKey("pub-1", digest(langRegion, deEU)), items[1].Key)
+	})
+
+	t.Run("a first write holds its own set only", func(t *testing.T) {
+		const body = `{"data":{"_entities":[{"__typename":"User","id":1}]}}`
+		loader, res := varyLoader(t, newTestCache(), "max-age=60", "Accept-Language", body, "", lang("de"))
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+		require.False(t, loader.responseCacheLookup(prepared))
+		require.NoError(t, loader.responseCacheCollect(prepared))
+		require.Equal(t, [][]string{acceptLanguage}, prepared.responseCacheItems[0].Vary)
 	})
 }

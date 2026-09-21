@@ -37,3 +37,25 @@ func VaryDigest(names []string, sent http.Header) Digest {
 	}
 	return DigestParts(parts...)
 }
+
+// MaxVarySets bounds the name sets a record keeps. Past it the oldest go.
+const MaxVarySets = 8
+
+// MergeVarySets is the record to write after a response varying on own: own
+// first, then every set the record held before, so the variants stored under
+// them stay reachable. Names come sorted and deduplicated from Vary, so equal
+// sets are equal slices.
+func MergeVarySets(own []string, seen [][]string) [][]string {
+	sets := make([][]string, 0, 1+len(seen))
+	sets = append(sets, own)
+	for _, set := range seen {
+		if len(sets) == MaxVarySets {
+			break
+		}
+		if len(set) == 0 || slices.ContainsFunc(sets, func(kept []string) bool { return slices.Equal(kept, set) }) {
+			continue
+		}
+		sets = append(sets, set)
+	}
+	return sets
+}

@@ -31,10 +31,11 @@ type Item struct {
 	// Surrogate keys are what a client response carries so a CDN can purge by them.
 	// Stored with the value and returned by GetMany.
 	SurrogateKeys []string
-	// Vary makes the entry a vary record rather than a body: the request
-	// headers the response varies on, whose values select the variant stored
-	// under VariantKey. A record has no Value and no SurrogateKeys.
-	Vary []string
+	// Vary makes the entry a vary record rather than a body: the sets of
+	// request headers responses at this key have varied on, newest first.
+	// Each set's values select a variant stored under VariantKey. A record has
+	// no Value and no SurrogateKeys.
+	Vary [][]string
 }
 
 // Cache is a batch oriented key/value cache.

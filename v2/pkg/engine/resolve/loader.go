@@ -542,6 +542,10 @@ type preparedFetch struct {
 
 	responseCachePrivateKeys []string
 
+	// responseCacheRecords is what the lookup found under each key's record,
+	// by key, so a write after a miss keeps the sets already there.
+	responseCacheRecords map[string][][]string
+
 	isRootFetchCache bool
 
 	// responseCacheHit is set when the fetch was answered entirely from the cache.

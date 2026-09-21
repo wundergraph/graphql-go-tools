@@ -75,3 +75,24 @@ func TestVariantKey(t *testing.T) {
 	assert.NotEqual(t, variant, VariantKey(base, DigestString("accept-language=fr")))
 	assert.NotEqual(t, variant, VariantKey(PrivateKey(DigestString("entity"), DigestString("selection"), DigestString("u1")), vary))
 }
+
+func TestMergeVarySets(t *testing.T) {
+	t.Parallel()
+
+	lang := []string{"accept-language"}
+	langRegion := []string{"accept-language", "x-region"}
+
+	assert.Equal(t, [][]string{lang}, MergeVarySets(lang, nil), "a first record holds its own set")
+	assert.Equal(t, [][]string{langRegion, lang}, MergeVarySets(langRegion, [][]string{lang}), "own set first, then what was there")
+	assert.Equal(t, [][]string{lang, langRegion}, MergeVarySets(lang, [][]string{langRegion, lang}), "the same set again is not doubled")
+	assert.Equal(t, [][]string{lang}, MergeVarySets(lang, [][]string{{}, lang}), "an empty set is dropped")
+
+	var many [][]string
+	for i := range MaxVarySets + 3 {
+		many = append(many, []string{"h-" + string(rune('a'+i))})
+	}
+	merged := MergeVarySets([]string{"own"}, many)
+	require.Len(t, merged, MaxVarySets)
+	assert.Equal(t, []string{"own"}, merged[0])
+	assert.Equal(t, many[:MaxVarySets-1], merged[1:], "the oldest sets go first")
+}
