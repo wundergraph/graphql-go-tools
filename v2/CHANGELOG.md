@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.22.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.22.0...v2.22.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **sse_transport:** unregister context callbacks on subscription cleanup ([#1680](https://github.com/wundergraph/graphql-go-tools/issues/1680)) ([58aa6ad](https://github.com/wundergraph/graphql-go-tools/commit/58aa6ad9af02d019e77733e87bdab16cae5647fb))
+
 ## [2.22.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.21.1...v2.22.0) (2026-09-20)
 
 
