@@ -84,15 +84,21 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	//   - t.ctx cancel: transport-wide shutdown, tears down all in-flight requests.
 	//   - ctx cancel: individual subscription cancelled by the caller.
 	requestCtx, requestCancel := context.WithCancel(context.WithoutCancel(ctx))
-	context.AfterFunc(t.ctx, requestCancel)
-	context.AfterFunc(ctx, requestCancel)
+	stopTransport := context.AfterFunc(t.ctx, requestCancel)
+	stopSubscription := context.AfterFunc(ctx, requestCancel)
+	cleanup := func() {
+		// Cancellation alone does not unregister callbacks from their parents.
+		stopTransport()
+		stopSubscription()
+		requestCancel()
+	}
 
 	httpReq = httpReq.WithContext(requestCtx)
 
 	// Execute request
 	resp, err := t.client.Do(httpReq)
 	if err != nil {
-		requestCancel()
+		cleanup()
 		t.log.Error("sseTransport.Subscribe",
 			abstractlogger.String("endpoint", opts.Endpoint),
 			abstractlogger.Error(err),
@@ -101,7 +107,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		requestCancel()
+		cleanup()
 		resp.Body.Close()
 		t.log.Error("sseTransport.Subscribe",
 			abstractlogger.String("endpoint", opts.Endpoint),
@@ -113,7 +119,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 
 	// Verify content type (should be text/event-stream)
 	if err := t.validateContentType(resp); err != nil {
-		requestCancel()
+		cleanup()
 		resp.Body.Close()
 		return nil, err
 	}
@@ -128,7 +134,10 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	// When a connection's read loop terminates (terminal message, EOF, or read error),
 	// the onClose callback immediately removes it from the transport's connection map.
 	// This prevents naturally-completed streams from leaking until the transport is closed.
-	conn = newSSEConnection(resp, handler, func() { t.removeConn(conn) })
+	conn = newSSEConnection(resp, handler, func() {
+		cleanup()
+		t.removeConn(conn)
+	})
 
 	t.mu.Lock()
 	t.conns[conn] = struct{}{}
@@ -137,7 +146,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	go conn.readLoop()
 
 	cancelFn := func() {
-		requestCancel()
+		cleanup()
 		conn.closeConn()
 		t.removeConn(conn)
 	}
@@ -263,5 +272,6 @@ func (t *SSETransport) closeAll() {
 func (t *SSETransport) ConnCount() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
 	return len(t.conns)
 }
