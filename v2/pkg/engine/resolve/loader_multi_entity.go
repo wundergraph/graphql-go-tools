@@ -83,6 +83,9 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	// arena behind it (res.tools.a) survives until assembly.
 	itemInput := arena.NewArenaBuffer(res.tools.a)
 
+	// One subgraph answers the whole merged fetch, so one check covers every entry.
+	cacheItems := l.responseCacheEnabledFor(res.ds.Name)
+
 	for k := range fetch.Input.Entries {
 		entry := &fetch.Input.Entries[k]
 		entryRes := &result{}
@@ -98,7 +101,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 			continue
 		}
 
-		result, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools)
+		result, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools, cacheItems)
 		if err != nil {
 			return err
 		}
@@ -135,7 +138,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 
 	// Derived here, under the data lock, because the keys are what the lookup in
 	// the load phase asks for. The lookup itself stays out of the lock.
-	l.setResponseCacheKeys(entries, assembled)
+	l.setResponseCacheKeys(res.ds.Name, entries, assembled)
 
 	allowed, err := l.rateLimitFetch(assembled.inputBuffer, fetch.Info, res)
 	if err != nil {
@@ -198,6 +201,7 @@ func (l *Loader) renderEntryRepresentations(
 	items []*astjson.Value,
 	itemInput *arena.Buffer,
 	tools *batchEntityTools,
+	cacheItems bool,
 ) (*renderEntryRepresentationsResult, error) {
 	repsBuf := arena.NewArenaBuffer(tools.a)
 	batchStats := arena.AllocateSlice[[]*astjson.Value](tools.a, 0, len(items))
@@ -234,7 +238,7 @@ func (l *Loader) renderEntryRepresentations(
 			_ = repsBuf.WriteByte(',')
 		}
 		// Digested before WriteTo drains the buffer.
-		if l.responseCacheEnabled() {
+		if cacheItems {
 			responseCacheItems = append(responseCacheItems, caching.DigestBytes(itemInput.Bytes()))
 		}
 		start := repsBuf.Len()
@@ -357,9 +361,11 @@ func (l *Loader) assembleMultiEntity(opts *assembleMultiEntityOptions) (*assembl
 	}, nil
 }
 
-// setResponseCacheKeys derives and sets a key per unique representation of every entry.
-func (l *Loader) setResponseCacheKeys(entries []preparedMultiEntry, assembled *assembleMultiEntityResult) {
-	if !l.responseCacheEnabled() {
+// setResponseCacheKeys derives and sets a key per unique representation of every
+// entry. Nothing is set for a subgraph the cache is off for.
+func (l *Loader) setResponseCacheKeys(subgraph string, entries []preparedMultiEntry, assembled *assembleMultiEntityResult) {
+	sub, ok := l.responseCacheSubgraph(subgraph)
+	if !ok {
 		return
 	}
 
@@ -377,7 +383,7 @@ func (l *Loader) setResponseCacheKeys(entries []preparedMultiEntry, assembled *a
 			assembled.entryVariables[i],
 			assembled.footer,
 		)
-		multiEntry.responseCacheKeys, multiEntry.responseCachePrivateKeys = l.responseCacheKeys(selection, multiEntry.representations)
+		multiEntry.responseCacheKeys, multiEntry.responseCachePrivateKeys = l.responseCacheKeys(sub, selection, multiEntry.representations)
 	}
 }
 

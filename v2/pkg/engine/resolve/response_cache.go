@@ -14,10 +14,25 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 )
 
-// responseCacheEnabled reports whether this request was handed a cache. It is the
-// only enablement check in the engine; there is no configuration to consult.
+// responseCacheEnabled reports whether this request was handed a cache. Whether
+// a particular fetch is cached is responseCacheSubgraph's call.
 func (l *Loader) responseCacheEnabled() bool {
 	return l.ctx != nil && l.ctx.responseCache != nil
+}
+
+// responseCacheSubgraph is the cache's settings for the subgraph a fetch goes
+// to, or false when nothing of that subgraph is cached.
+func (l *Loader) responseCacheSubgraph(subgraph string) (responseCacheSubgraph, bool) {
+	if !l.responseCacheEnabled() {
+		return responseCacheSubgraph{}, false
+	}
+	return l.ctx.responseCacheFor(subgraph)
+}
+
+// responseCacheEnabledFor is responseCacheSubgraph for a caller that only gates.
+func (l *Loader) responseCacheEnabledFor(subgraph string) bool {
+	_, ok := l.responseCacheSubgraph(subgraph)
+	return ok
 }
 
 func (l *Loader) reportResponseCacheError(err error) {
@@ -51,29 +66,33 @@ func rootFetchCacheable(fetchItem *FetchItem, fetch *SingleFetch) bool {
 }
 
 // responseCacheSetKeys builds the keys of a fetch, one per entity, and
-// their per-user twins when the request carries a user id. The response is
-// not known yet, so both are looked up and the response decides which one is
-// written.
+// their per-user twins when the request carries a user id for this subgraph.
+// The response is not known yet, so both are looked up and the response
+// decides which one is written. A subgraph the cache is off for gets no keys,
+// and so no lookup and no write.
 func (l *Loader) responseCacheSetKeys(prepared *preparedFetch, selection caching.Digest, entities []caching.Digest) {
-	prepared.responseCacheKeys, prepared.responseCachePrivateKeys = l.responseCacheKeys(selection, entities)
+	sub, ok := l.responseCacheSubgraph(prepared.res.ds.Name)
+	if !ok {
+		return
+	}
+	prepared.responseCacheKeys, prepared.responseCachePrivateKeys = l.responseCacheKeys(sub, selection, entities)
 }
 
 // responseCacheKeys is responseCacheSetKeys for a caller that keeps the keys
-// itself. privateKeys is nil when the request carries no user id.
-func (l *Loader) responseCacheKeys(selection caching.Digest, entities []caching.Digest) (keys, privateKeys []string) {
+// itself. privateKeys is nil when the subgraph has no user id.
+func (l *Loader) responseCacheKeys(sub responseCacheSubgraph, selection caching.Digest, entities []caching.Digest) (keys, privateKeys []string) {
 	keys = make([]string, len(entities))
 	for i, entity := range entities {
 		keys[i] = caching.Key(entity, selection)
 	}
 
-	privateID, ok := l.ctx.responseCachePrivateID()
-	if !ok {
+	if !sub.hasPrivateID {
 		return keys, nil
 	}
 
 	privateKeys = make([]string, len(entities))
 	for i, entity := range entities {
-		privateKeys[i] = caching.PrivateKey(entity, selection, privateID)
+		privateKeys[i] = caching.PrivateKey(entity, selection, sub.privateID)
 	}
 	return keys, privateKeys
 }
@@ -386,8 +405,13 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
+	sub, ok := l.responseCacheSubgraph(res.ds.Name)
+	if !ok {
+		return nil
+	}
+
 	headers := responseCacheHeaders(res)
-	ttl, private, ok := caching.TTL(headers, l.ctx.responseCache.defaultTTL)
+	ttl, private, ok := caching.TTL(headers, sub.ttl)
 	if !ok {
 		return nil
 	}
@@ -625,9 +649,14 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		return
 	}
 
+	sub, ok := l.responseCacheSubgraph(res.ds.Name)
+	if !ok {
+		return
+	}
+
 	// One HTTP response, one Cache-Control: the lifetime is genuinely shared,
 	// and so is being private.
-	ttl, private, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
+	ttl, private, ok := caching.TTL(responseCacheHeaders(res), sub.ttl)
 	if !ok {
 		return
 	}

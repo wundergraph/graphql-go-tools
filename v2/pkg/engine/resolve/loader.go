@@ -1712,7 +1712,7 @@ func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, it
 		prepared.skipLoad = true
 		return nil
 	}
-	if l.responseCacheEnabled() && rootFetchCacheable(fetchItem, fetch) {
+	if l.responseCacheEnabledFor(res.ds.Name) && rootFetchCacheable(fetchItem, fetch) {
 		l.responseCacheSetKeys(prepared, caching.DigestString(fetch.Info.DataSourceID), []caching.Digest{caching.DigestBytes(fetchInput)})
 		prepared.isRootFetchCache = true
 	}
@@ -1790,7 +1790,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 
 	// Built before SetInputUndefinedVariables rewrites the buffer in place, so
 	// the offsets above still point at what they were taken from.
-	if l.responseCacheEnabled() {
+	if l.responseCacheEnabledFor(res.ds.Name) {
 		rendered := preparedInput.Bytes()
 		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
 		l.responseCacheSetKeys(prepared, selection, []caching.Digest{caching.DigestBytes(renderedItem)})
@@ -1911,6 +1911,7 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 	}
 	responseCacheHeaderEnd := preparedInput.Len()
 	var responseCacheItems []caching.Digest
+	cacheItems := l.responseCacheEnabledFor(res.ds.Name)
 
 	batchItemIndex := 0
 	addSeparator := false
@@ -1952,7 +1953,7 @@ WithNextItem:
 				}
 			}
 			// Digested before WriteTo drains the buffer.
-			if l.responseCacheEnabled() {
+			if cacheItems {
 				responseCacheItems = append(responseCacheItems, caching.DigestBytes(itemInput.Bytes()))
 			}
 			start := preparedInput.Len()
@@ -1988,7 +1989,7 @@ WithNextItem:
 		return errors.WithStack(err)
 	}
 
-	if l.responseCacheEnabled() && len(responseCacheItems) > 0 {
+	if len(responseCacheItems) > 0 {
 		rendered := preparedInput.Bytes()
 		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
 		l.responseCacheSetKeys(prepared, selection, responseCacheItems)
