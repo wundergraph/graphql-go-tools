@@ -63,7 +63,8 @@ func TestSSETransport(t *testing.T) {
 				data := new([1024]byte)
 				ref := weak.Make(data)
 
-				ctx := context.WithValue(t.Context(), struct{}{}, data)
+				type requestDataKey struct{}
+				ctx := context.WithValue(t.Context(), requestDataKey{}, data)
 
 				cancel, err := tr.Subscribe(ctx, &common.Request{
 					Query: "subscription { test }",
