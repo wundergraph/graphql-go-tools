@@ -62,7 +62,8 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		err     error
 	)
 
-	t.log.Debug("sseTransport.Subscribe",
+	t.log.Debug(
+		"sseTransport.Subscribe",
 		abstractlogger.String("endpoint", opts.Endpoint),
 		abstractlogger.String("method", string(opts.SSEMethod)),
 	)
@@ -80,18 +81,12 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		return nil, err
 	}
 
-	// Derive a request context that outlives ctx (via WithoutCancel) so we can
-	// control its lifetime independently. Two AfterFunc registrations tie the
-	// request to both shutdown paths:
-	//   - t.ctx cancel: transport-wide shutdown, tears down all in-flight requests.
-	//   - ctx cancel: individual subscription cancelled by the caller.
-	requestCtx, requestCancel := context.WithCancel(context.WithoutCancel(ctx))
+	// The request cancels with the subscription (ctx) and on transport shutdown (t.ctx).
+	requestCtx, requestCancel := context.WithCancel(ctx)
 	stopTransport := context.AfterFunc(t.ctx, requestCancel)
-	stopSubscription := context.AfterFunc(ctx, requestCancel)
 	cleanup := func() {
-		// Cancellation alone does not unregister callbacks from their parents.
+		// Cancellation alone does not unregister the callback from t.ctx.
 		stopTransport()
-		stopSubscription()
 		requestCancel()
 	}
 
@@ -101,7 +96,8 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	resp, err := t.client.Do(httpReq)
 	if err != nil {
 		cleanup()
-		t.log.Error("sseTransport.Subscribe",
+		t.log.Error(
+			"sseTransport.Subscribe",
 			abstractlogger.String("endpoint", opts.Endpoint),
 			abstractlogger.Error(err),
 		)
@@ -112,7 +108,8 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 	if resp.StatusCode != http.StatusOK {
 		cleanup()
 		resp.Body.Close()
-		t.log.Error("sseTransport.Subscribe",
+		t.log.Error(
+			"sseTransport.Subscribe",
 			abstractlogger.String("endpoint", opts.Endpoint),
 			abstractlogger.Int("status", resp.StatusCode),
 		)
@@ -128,7 +125,8 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		return nil, err
 	}
 
-	t.log.Debug("sseTransport.Subscribe",
+	t.log.Debug(
+		"sseTransport.Subscribe",
 		abstractlogger.String("endpoint", opts.Endpoint),
 		abstractlogger.String("status", "connected"),
 	)
@@ -267,7 +265,8 @@ func (t *SSETransport) closeAll() {
 	t.conns = make(map[*sseConnection]struct{})
 	t.mu.Unlock()
 
-	t.log.Debug("sseTransport.closeAll",
+	t.log.Debug(
+		"sseTransport.closeAll",
 		abstractlogger.Int("connections", len(conns)),
 	)
 
