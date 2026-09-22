@@ -16,21 +16,21 @@ type Description struct {
 	Position      position.Position
 }
 
-// nolint
-func (d *Document) PrintDescription(description Description, indent []byte, depth int, writer io.Writer) (err error) {
+func (d *Document) PrintDescription(description Description, indent []byte, depth int, writer io.Writer) error {
+	w := &printWriter{w: writer}
 	for range depth {
-		_, err = writer.Write(indent)
+		w.emit(indent)
 	}
 	if description.IsBlockString {
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.LINETERMINATOR)
+		w.emit(literal.QUOTE)
+		w.emit(literal.QUOTE)
+		w.emit(literal.QUOTE)
+		w.emit(literal.LINETERMINATOR)
 		for range depth {
-			_, err = writer.Write(indent)
+			w.emit(indent)
 		}
 	} else {
-		_, err = writer.Write(literal.QUOTE)
+		w.emit(literal.QUOTE)
 	}
 
 	content := d.Input.ByteSlice(description.Content)
@@ -60,25 +60,25 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 		default:
 			if skipWhitespace {
 				for range depth {
-					_, err = writer.Write(indent)
+					w.emit(indent)
 				}
 				skipWhitespace = false
 			}
 		}
-		_, err = writer.Write(content[i : i+1])
+		w.emit(content[i : i+1])
 	}
 	if description.IsBlockString {
-		_, err = writer.Write(literal.LINETERMINATOR)
+		w.emit(literal.LINETERMINATOR)
 		for range depth {
-			_, err = writer.Write(indent)
+			w.emit(indent)
 		}
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.QUOTE)
+		w.emit(literal.QUOTE)
+		w.emit(literal.QUOTE)
+		w.emit(literal.QUOTE)
 	} else {
-		_, err = writer.Write(literal.QUOTE)
+		w.emit(literal.QUOTE)
 	}
-	return nil
+	return w.err
 }
 
 func (d *Document) ImportDescription(desc string) (description Description) {
