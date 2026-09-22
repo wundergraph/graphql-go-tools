@@ -173,6 +173,11 @@ type Resolvable struct {
 	// incremental item. Reset at the start of every batch (ResolveDeferBatch) and
 	// on Init, so it never leaks across defer batches.
 	deferItemDataNull bool
+
+	// cursor is an opaque resume cursor for the subscription event currently being
+	// rendered, emitted into extensions.cursor when non-empty. Set per update by
+	// executeSubscriptionUpdate; empty for non-subscription resolves.
+	cursor string
 }
 
 type TypeNameStats struct {
@@ -944,6 +949,14 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
+	if r.cursor != "" {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		r.printCursorExtension()
+	}
+
 	if len(r.allowedExtensions) > 0 {
 		if writeComma {
 			r.printBytes(comma)
@@ -983,6 +996,16 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	r.printBytes(quote)
 	r.printBytes(colon)
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
+}
+
+func (r *Resolvable) printCursorExtension() {
+	r.printBytes(quote)
+	r.printBytes(literalCursor)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(quote)
+	r.printBytes([]byte(r.cursor))
+	r.printBytes(quote)
 }
 
 func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTreeNode) error {
@@ -1029,6 +1052,7 @@ func getDefaultReservedExtensions() map[string]struct{} {
 		string(literalQueryPlan):       {},
 		string(literalTrace):           {},
 		string(literalValueCompletion): {},
+		string(literalCursor):          {},
 	}
 }
 
@@ -1065,6 +1089,9 @@ func (r *Resolvable) printInlineArgumentsExtension() {
 func (r *Resolvable) hasExtensions() bool {
 	// Apply the filter first to avoid missing extensions or applying empty extensions.
 	if r.filterAllowedSubgraphExtensions(getDefaultReservedExtensions()) {
+		return true
+	}
+	if r.cursor != "" {
 		return true
 	}
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {

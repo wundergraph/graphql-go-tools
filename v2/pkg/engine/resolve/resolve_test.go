@@ -5839,7 +5839,7 @@ func (f *_fakeStream) Start(ctx *Context, headers http.Header, input []byte, upd
 				return
 			default:
 				message, done := f.messageFunc(counter)
-				updater.Update([]byte(message))
+				updater.Update([]byte(message), "")
 				if done {
 					time.Sleep(f.delay)
 					updater.Complete()
