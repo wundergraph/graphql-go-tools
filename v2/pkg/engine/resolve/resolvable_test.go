@@ -1510,12 +1510,10 @@ func TestResolvable_SubgraphExtensions(t *testing.T) {
 					{Data: []byte(`{}`), SegmentType: StaticSegmentType},
 				},
 			},
-			FetchConfiguration: FetchConfiguration{
-				DataSource: ds,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: ds,
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 		})
 

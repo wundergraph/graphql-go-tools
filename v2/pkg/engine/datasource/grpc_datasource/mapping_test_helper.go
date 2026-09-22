@@ -521,22 +521,18 @@ func testMapping() *GRPCMapping {
 		EntityRPCs: map[string][]EntityRPCConfig{
 			"Product": {
 				{
-					Key: "id",
-					RPCConfig: RPCConfig{
-						RPC:      "LookupProductById",
-						Request:  "LookupProductByIdRequest",
-						Response: "LookupProductByIdResponse",
-					},
+					Key:      "id",
+					RPC:      "LookupProductById",
+					Request:  "LookupProductByIdRequest",
+					Response: "LookupProductByIdResponse",
 				},
 			},
 			"Storage": {
 				{
-					Key: "id",
-					RPCConfig: RPCConfig{
-						RPC:      "LookupStorageById",
-						Request:  "LookupStorageByIdRequest",
-						Response: "LookupStorageByIdResponse",
-					},
+					Key:      "id",
+					RPC:      "LookupStorageById",
+					Request:  "LookupStorageByIdRequest",
+					Response: "LookupStorageByIdResponse",
 					RequiredFields: RequiredFieldsRPCMapping{
 						"stockHealthScore": {
 							TargetName: "stock_health_score",
@@ -767,12 +763,10 @@ func testMapping() *GRPCMapping {
 			},
 			"Warehouse": {
 				{
-					Key: "id",
-					RPCConfig: RPCConfig{
-						RPC:      "LookupWarehouseById",
-						Request:  "LookupWarehouseByIdRequest",
-						Response: "LookupWarehouseByIdResponse",
-					},
+					Key:      "id",
+					RPC:      "LookupWarehouseById",
+					Request:  "LookupWarehouseByIdRequest",
+					Response: "LookupWarehouseByIdResponse",
 					RequiredFields: RequiredFieldsRPCMapping{
 						"stockHealthScore": {
 							TargetName: "stock_health_score",

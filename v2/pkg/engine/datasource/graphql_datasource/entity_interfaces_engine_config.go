@@ -137,30 +137,28 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					FieldNames: []string{"id", "title"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				EntityInterfaces: []plan.EntityInterfaceConfiguration{
-					{
-						InterfaceTypeName: "Account",
-						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
-					},
+			EntityInterfaces: []plan.EntityInterfaceConfiguration{
+				{
+					InterfaceTypeName: "Account",
+					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
 				},
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Account",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Moderator",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
+			},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Moderator",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
 				},
 			},
 		},
@@ -238,37 +236,35 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					FieldNames: []string{"country"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				InterfaceObjects: []plan.EntityInterfaceConfiguration{
-					{
-						InterfaceTypeName: "Account",
-						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
-					},
+			InterfaceObjects: []plan.EntityInterfaceConfiguration{
+				{
+					InterfaceTypeName: "Account",
+					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
 				},
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Account",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Moderator",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
+			},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
 				},
-				Requires: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Account",
-						SelectionSet: "title",
-						FieldName:    "uniqueTitle",
-					},
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Moderator",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+			},
+			Requires: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "title",
+					FieldName:    "uniqueTitle",
 				},
 			},
 		},
@@ -309,12 +305,10 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					FieldNames: []string{"id", "title"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
 				},
 			},
 		},
@@ -370,37 +364,35 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					FieldNames: []string{"id", "age", "fullTitle"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				InterfaceObjects: []plan.EntityInterfaceConfiguration{
-					{
-						InterfaceTypeName: "Account",
-						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
-					},
+			InterfaceObjects: []plan.EntityInterfaceConfiguration{
+				{
+					InterfaceTypeName: "Account",
+					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
 				},
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Account",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Moderator",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
+			},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
 				},
-				Requires: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Account",
-						SelectionSet: "title",
-						FieldName:    "fullTitle",
-					},
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Moderator",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+			},
+			Requires: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "title",
+					FieldName:    "fullTitle",
 				},
 			},
 		},
@@ -537,30 +529,28 @@ func EntityInterfacesPlanConfigurationBench(t *testing.B, factory plan.PlannerFa
 					FieldNames: []string{"id", "title"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				EntityInterfaces: []plan.EntityInterfaceConfiguration{
-					{
-						InterfaceTypeName: "Account",
-						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
-					},
+			EntityInterfaces: []plan.EntityInterfaceConfiguration{
+				{
+					InterfaceTypeName: "Account",
+					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
 				},
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Account",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Moderator",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
+			},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Moderator",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
 				},
 			},
 		},
@@ -631,30 +621,28 @@ func EntityInterfacesPlanConfigurationBench(t *testing.B, factory plan.PlannerFa
 					FieldNames: []string{"country"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				InterfaceObjects: []plan.EntityInterfaceConfiguration{
-					{
-						InterfaceTypeName: "Account",
-						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
-					},
+			InterfaceObjects: []plan.EntityInterfaceConfiguration{
+				{
+					InterfaceTypeName: "Account",
+					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
 				},
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Account",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Moderator",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
+			},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Moderator",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
 				},
 			},
 		},
@@ -695,12 +683,10 @@ func EntityInterfacesPlanConfigurationBench(t *testing.B, factory plan.PlannerFa
 					FieldNames: []string{"id", "title"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
 				},
 			},
 		},
@@ -753,30 +739,28 @@ func EntityInterfacesPlanConfigurationBench(t *testing.B, factory plan.PlannerFa
 					FieldNames: []string{"id", "age"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				InterfaceObjects: []plan.EntityInterfaceConfiguration{
-					{
-						InterfaceTypeName: "Account",
-						ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
-					},
+			InterfaceObjects: []plan.EntityInterfaceConfiguration{
+				{
+					InterfaceTypeName: "Account",
+					ConcreteTypeNames: []string{"Admin", "Moderator", "User"},
 				},
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Account",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Moderator",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
+			},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Moderator",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
 				},
 			},
 		},

@@ -26,9 +26,9 @@ func TestProcess_ExtractFetches(t *testing.T) {
 			plan: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
-						{Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}},
-						{Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}}},
-						{Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}}},
+						{Fetch: &resolve.SingleFetch{FetchID: 1}},
+						{Fetch: &resolve.SingleFetch{FetchID: 2}},
+						{Fetch: &resolve.SingleFetch{FetchID: 3}},
 					},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
@@ -55,9 +55,9 @@ func TestProcess_ExtractFetches(t *testing.T) {
 						},
 					},
 					Fetches: resolve.Sequence(
-						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
-						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}}),
-						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}}),
+						resolve.Single(&resolve.SingleFetch{FetchID: 1}),
+						resolve.Single(&resolve.SingleFetch{FetchID: 2}),
+						resolve.Single(&resolve.SingleFetch{FetchID: 3}),
 					),
 				},
 			},
@@ -68,16 +68,16 @@ func TestProcess_ExtractFetches(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
 						{
-							Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+							Fetch: &resolve.SingleFetch{FetchID: 1},
 						},
 						{
-							Fetch:                &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
+							Fetch:                &resolve.SingleFetch{FetchID: 2},
 							ResponsePath:         "obj",
 							ResponsePathElements: []string{"obj"},
 							FetchPath:            []resolve.FetchItemPathElement{resolve.ObjectPath("obj")},
 						},
 						{
-							Fetch:                &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
+							Fetch:                &resolve.SingleFetch{FetchID: 3},
 							ResponsePath:         "obj",
 							ResponsePathElements: []string{"obj"},
 							FetchPath:            []resolve.FetchItemPathElement{resolve.ObjectPath("obj")},
@@ -152,9 +152,9 @@ func TestProcess_ExtractFetches(t *testing.T) {
 						},
 					},
 					Fetches: resolve.Sequence(
-						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
-						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}}, "obj", resolve.ObjectPath("obj")),
-						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}}, "obj", resolve.ObjectPath("obj")),
+						resolve.Single(&resolve.SingleFetch{FetchID: 1}),
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchID: 2}, "obj", resolve.ObjectPath("obj")),
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchID: 3}, "obj", resolve.ObjectPath("obj")),
 					),
 				},
 			},
@@ -165,16 +165,16 @@ func TestProcess_ExtractFetches(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
 						{
-							Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+							Fetch: &resolve.SingleFetch{FetchID: 1},
 						},
 						{
-							Fetch:                &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}},
+							Fetch:                &resolve.SingleFetch{FetchID: 2, DependsOnFetchIDs: []int{1}},
 							ResponsePath:         "objects",
 							ResponsePathElements: []string{"objects"},
 							FetchPath:            []resolve.FetchItemPathElement{resolve.ArrayPath("objects"), resolve.ObjectPath("obj")},
 						},
 						{
-							Fetch:                &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{1}}},
+							Fetch:                &resolve.SingleFetch{FetchID: 3, DependsOnFetchIDs: []int{1}},
 							ResponsePath:         "objects",
 							ResponsePathElements: []string{"objects"},
 							FetchPath:            []resolve.FetchItemPathElement{resolve.ArrayPath("objects"), resolve.ObjectPath("obj")},
@@ -265,9 +265,9 @@ func TestProcess_ExtractFetches(t *testing.T) {
 						},
 					},
 					Fetches: resolve.Sequence(
-						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
-						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}}, "objects", resolve.ArrayPath("objects"), resolve.ObjectPath("obj")),
-						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{1}}}, "objects", resolve.ArrayPath("objects"), resolve.ObjectPath("obj")),
+						resolve.Single(&resolve.SingleFetch{FetchID: 1}),
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchID: 2, DependsOnFetchIDs: []int{1}}, "objects", resolve.ArrayPath("objects"), resolve.ObjectPath("obj")),
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchID: 3, DependsOnFetchIDs: []int{1}}, "objects", resolve.ArrayPath("objects"), resolve.ObjectPath("obj")),
 					),
 				},
 			},
@@ -278,10 +278,10 @@ func TestProcess_ExtractFetches(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					RawFetches: []*resolve.FetchItem{
 						{
-							Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+							Fetch: &resolve.SingleFetch{FetchID: 1},
 						},
 						{
-							Fetch:                &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}},
+							Fetch:                &resolve.SingleFetch{FetchID: 2, DependsOnFetchIDs: []int{1}},
 							ResponsePath:         "objects.@.field1",
 							ResponsePathElements: []string{"objects", "@", "field1"},
 							FetchPath:            []resolve.FetchItemPathElement{resolve.ArrayPath("objects"), resolve.ObjectPath("field1")},
@@ -350,8 +350,8 @@ func TestProcess_ExtractFetches(t *testing.T) {
 						},
 					},
 					Fetches: resolve.Sequence(
-						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
-						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}}, "objects.@.field1", resolve.ArrayPath("objects"), resolve.ObjectPath("field1")),
+						resolve.Single(&resolve.SingleFetch{FetchID: 1}),
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchID: 2, DependsOnFetchIDs: []int{1}}, "objects.@.field1", resolve.ArrayPath("objects"), resolve.ObjectPath("field1")),
 					),
 				},
 			},
@@ -399,16 +399,14 @@ func TestProcess_AddMissingNestedDependenciesLock(t *testing.T) {
 			RawFetches: []*resolve.FetchItem{
 				{
 					Fetch: &resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{FetchID: 0},
-						FetchConfiguration: resolve.FetchConfiguration{
-							PostProcessing: resolve.PostProcessingConfiguration{MergePath: []string{"user"}},
-						},
+						FetchID:        0,
+						PostProcessing: resolve.PostProcessingConfiguration{MergePath: []string{"user"}},
 					},
 					ResponsePath: "",
 				},
 				{
 					Fetch: &resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+						FetchID: 1,
 					},
 					ResponsePath: "user",
 				},
@@ -470,7 +468,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+								FetchID: 1,
 							},
 						},
 						{
@@ -486,7 +484,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+								FetchID: 2,
 							},
 						},
 						{
@@ -502,7 +500,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
+								FetchID: 3,
 							},
 						},
 					},
@@ -548,7 +546,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 									},
 								},
 							},
-							FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+							FetchID: 1},
 						),
 						resolve.Single(
 							&resolve.SingleFetch{
@@ -563,7 +561,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+								FetchID: 2,
 							},
 						),
 						resolve.Single(
@@ -579,7 +577,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
+								FetchID: 3,
 							},
 						),
 					),
@@ -604,7 +602,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+								FetchID: 1,
 							},
 						},
 						{
@@ -620,7 +618,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+								FetchID: 2,
 							},
 						},
 						{
@@ -636,7 +634,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
+								FetchID: 3,
 							},
 						},
 					},
@@ -682,7 +680,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+								FetchID: 1,
 							},
 						),
 						resolve.Single(
@@ -698,7 +696,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+								FetchID: 2,
 							},
 						),
 						resolve.Single(
@@ -714,7 +712,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
+								FetchID: 3,
 							},
 						),
 					),

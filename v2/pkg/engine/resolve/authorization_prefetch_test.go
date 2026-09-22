@@ -497,12 +497,10 @@ func TestPreFetchFieldAuthorizationNoDuplicateErrorOnNullPropagation(t *testing.
 	response := &GraphQLResponse{
 		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: service,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: service,
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			InputTemplate: InputTemplate{Segments: []TemplateSegment{{SegmentType: StaticSegmentType, Data: []byte(`{}`)}}},
 			Info: &FetchInfo{
@@ -557,12 +555,10 @@ func singleFieldResponse(service DataSource, fieldName string, value Node, rootF
 			OperationType: ast.OperationTypeQuery,
 		},
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: service,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: service,
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
@@ -601,12 +597,10 @@ func sharedRootFieldResponse(service DataSource) *GraphQLResponse {
 			OperationType: ast.OperationTypeQuery,
 		},
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: service,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: service,
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
@@ -663,12 +657,10 @@ func productsSecretResponse(service DataSource) *GraphQLResponse {
 			OperationType: ast.OperationTypeQuery,
 		},
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: service,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: service,
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{
@@ -733,12 +725,10 @@ func interfaceSecretResponse(service DataSource) *GraphQLResponse {
 			OperationType: ast.OperationTypeQuery,
 		},
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: service,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: service,
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{

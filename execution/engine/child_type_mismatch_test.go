@@ -255,10 +255,8 @@ func newChildTypeMismatchEngine(t *testing.T, ctx context.Context, aURL, bURL st
 				{TypeName: "Query", FieldNames: []string{"users"}},
 				{TypeName: "User", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "User", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "User", SelectionSet: "id"},
 			},
 		},
 		aConfig,
@@ -287,10 +285,8 @@ func newChildTypeMismatchEngine(t *testing.T, ctx context.Context, aURL, bURL st
 			ChildNodes: []plan.TypeField{
 				{TypeName: "Admin", FieldNames: []string{"id", "name", "similarAccounts"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "User", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "User", SelectionSet: "id"},
 			},
 		},
 		bConfig,

@@ -549,12 +549,10 @@ func TestMergeMultiEntityResult_ExcludedEntry(t *testing.T) {
 // employee) that both merged and unmerged integration trees fetch on.
 func multiEntityRootFetch(ds DataSource) *SingleFetch {
 	return &SingleFetch{
-		FetchDependencies: FetchDependencies{FetchID: 0},
-		InputTemplate:     multiStaticTemplate(`{"method":"POST","url":"http://root","body":{"query":"{employees{__typename id} employee{__typename id}}"}}`),
-		FetchConfiguration: FetchConfiguration{
-			DataSource:     ds,
-			PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
-		},
+		FetchID:        0,
+		InputTemplate:  multiStaticTemplate(`{"method":"POST","url":"http://root","body":{"query":"{employees{__typename id} employee{__typename id}}"}}`),
+		DataSource:     ds,
+		PostProcessing: PostProcessingConfiguration{SelectResponseDataPath: []string{"data"}},
 	}
 }
 
@@ -594,7 +592,7 @@ func multiEntityMergedTree(rootDS, multiDS DataSource) *GraphQLResponse {
 // fetches MultiFetch merges, the baseline the merged run must match.
 func multiEntityUnmergedTree(rootDS, batchDS, entityDS DataSource) *GraphQLResponse {
 	batch := &BatchEntityFetch{
-		FetchDependencies: FetchDependencies{FetchID: 1, DependsOnFetchIDs: []int{0}},
+		FetchID: 1, DependsOnFetchIDs: []int{0},
 		Input: BatchInput{
 			Header:               multiStaticTemplate(`{"method":"POST","url":"http://products","body":{"query":"products","variables":{"representations":[`),
 			Items:                []InputTemplate{multiRepresentationsTemplate()},
@@ -609,7 +607,7 @@ func multiEntityUnmergedTree(rootDS, batchDS, entityDS DataSource) *GraphQLRespo
 		Info:           &FetchInfo{OperationType: ast.OperationTypeQuery, DataSourceID: "products-id"},
 	}
 	entity := &EntityFetch{
-		FetchDependencies: FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{0}},
+		FetchID: 2, DependsOnFetchIDs: []int{0},
 		Input: EntityInput{
 			Header: multiStaticTemplate(`{"method":"POST","url":"http://products","body":{"query":"notes","variables":{"representations":[`),
 			Item:   multiRepresentationsTemplate(),

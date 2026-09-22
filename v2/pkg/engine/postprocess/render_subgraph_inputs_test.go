@@ -13,15 +13,13 @@ import (
 func renderInputFetch(t *testing.T, fetchID int, operationName, source string, envelope resolve.SubgraphRequestEnvelope, fragments []resolve.SubgraphVariable, queryPlan *resolve.QueryPlan) *resolve.FetchTreeNode {
 	t.Helper()
 	return resolve.Single(&resolve.SingleFetch{
-		FetchDependencies: resolve.FetchDependencies{FetchID: fetchID},
-		FetchConfiguration: resolve.FetchConfiguration{
-			OperationName: operationName,
-			QueryPlan:     queryPlan,
-			SubgraphOperation: &resolve.SubgraphOperation{
-				Document:  parseUpstreamDocument(t, source),
-				Variables: fragments,
-				Envelope:  envelope,
-			},
+		FetchID:       fetchID,
+		OperationName: operationName,
+		QueryPlan:     queryPlan,
+		SubgraphOperation: &resolve.SubgraphOperation{
+			Document:  parseUpstreamDocument(t, source),
+			Variables: fragments,
+			Envelope:  envelope,
 		},
 	})
 }
@@ -104,11 +102,9 @@ func TestRenderSubgraphInputs_ClearsArtifactWithoutRenderingWhenInputPresent(t *
 	// When the planner already printed the input eagerly (non-empty Input), the
 	// stage keeps the bytes verbatim and only clears the artifact.
 	node := resolve.Single(&resolve.SingleFetch{
-		FetchDependencies: resolve.FetchDependencies{FetchID: 1},
-		FetchConfiguration: resolve.FetchConfiguration{
-			Input:             `{"q":"0"}`,
-			SubgraphOperation: &resolve.SubgraphOperation{},
-		},
+		FetchID:           1,
+		Input:             `{"q":"0"}`,
+		SubgraphOperation: &resolve.SubgraphOperation{},
 	})
 	(&renderSubgraphInputs{}).ProcessFetchTree(resolve.Sequence(node))
 	f := node.Item.Fetch.(*resolve.SingleFetch)

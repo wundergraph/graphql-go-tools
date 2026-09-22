@@ -183,8 +183,6 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 	}
 }
 
-func intPtr(v int) *int { return &v }
-
 func runWithAndCompareError(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return runExecutionTest(testCase, true, expectedErrorMessage, options...)
 }
@@ -4895,16 +4893,14 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							},
 						},
 						CostConfig: ds1CostConfig,
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-								{
-									TypeName:     "Admin",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Admin",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -4946,16 +4942,14 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							},
 						},
 						CostConfig: ds2CostConfig,
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-								{
-									TypeName:     "Admin",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Admin",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -5076,11 +5070,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				dataSources:      makeDataSource(t, makeDataSourceOpts{includeCostConfig: true}),
 				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
 				// 3 * (5 + max(7, 3))
-				expectedEstimatedCost: intPtr(36),
+				expectedEstimatedCost: new(36),
 				// total __ 2 Users ________ 1 Admin
 				// 3 * (5 + 0.67*(3 + 4*1) + 0.33*3)
 				// 3 * (5 + 4.69 + 1)
-				expectedActualCost: intPtr(32),
+				expectedActualCost: new(32),
 			},
 			computeCosts(),
 		))
@@ -5146,19 +5140,17 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								ExternalFieldNames: []string{"title"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
-							Requires: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									FieldName:    "full",
-									SelectionSet: "title",
-								},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "full",
+								SelectionSet: "title",
 							},
 						},
 					},
@@ -5195,12 +5187,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								FieldNames: []string{"id", "title"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -5310,19 +5300,17 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								ExternalFieldNames: []string{"title"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
-							Requires: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									FieldName:    "full",
-									SelectionSet: "title",
-								},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "full",
+								SelectionSet: "title",
 							},
 						},
 					},
@@ -5359,12 +5347,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								FieldNames: []string{"id", "title"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -5478,19 +5464,17 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								ExternalFieldNames: []string{"title"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
-							Requires: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									FieldName:    "full",
-									SelectionSet: "title",
-								},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "full",
+								SelectionSet: "title",
 							},
 						},
 					},
@@ -5527,12 +5511,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								FieldNames: []string{"id", "title"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -5665,19 +5647,17 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								ExternalFieldNames: []string{"property", "name"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
-							Requires: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									FieldName:    "complex",
-									SelectionSet: "nested { property name }",
-								},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "complex",
+								SelectionSet: "nested { property name }",
 							},
 						},
 					},
@@ -5722,12 +5702,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								FieldNames: []string{"id", "nested"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
 						},
 						ChildNodes: []plan.TypeField{
@@ -6343,16 +6321,14 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 					FieldNames: []string{"name"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Product",
-						SelectionSet: "upc",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Product",
+					SelectionSet: "upc",
 				},
 			},
 		},
@@ -6409,12 +6385,10 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 					FieldNames: []string{"setPrice"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Product",
-						SelectionSet: "upc",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "upc",
 				},
 			},
 		},
@@ -6501,16 +6475,14 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 					FieldNames: []string{"upc", "size"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Product",
-						SelectionSet: "upc",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Product",
+					SelectionSet: "upc",
 				},
 			},
 		},
@@ -6605,7 +6577,6 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 	return
 }
 
-//nolint
 func federationSchema() (*graphql.Schema, error) {
 	rawSchema := `
 type Query {

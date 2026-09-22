@@ -99,11 +99,9 @@ func scheduleFetchesDataSource(t *testing.T, name, sdl string, rec *multiFetchRe
 		mustFactory(t, recordingClient(t, rec, name, "/", responses)),
 		&plan.DataSourceMetadata{
 			RootNodes: rootNodes,
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "A", SelectionSet: "id"},
-					{TypeName: "B", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "A", SelectionSet: "id"},
+				{TypeName: "B", SelectionSet: "id"},
 			},
 		},
 		mustConfiguration(t, graphql_datasource.ConfigurationInput{

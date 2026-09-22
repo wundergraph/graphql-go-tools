@@ -47,9 +47,7 @@ func multiFetchPlanConfig(t *testing.T, enableMultiFetch bool) plan.Configuratio
 				{TypeName: "Query", FieldNames: []string{"employees", "employee"}},
 				{TypeName: "Employee", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
-			},
+			Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
 			Fetch:               &FetchConfiguration{URL: "http://accounts"},
@@ -59,9 +57,7 @@ func multiFetchPlanConfig(t *testing.T, enableMultiFetch bool) plan.Configuratio
 	products := mustDataSourceConfiguration(t, "products",
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{{TypeName: "Employee", FieldNames: []string{"id", "products", "notes"}}},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
-			},
+			Keys:      []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
 			Fetch:               &FetchConfiguration{URL: "http://products"},
@@ -196,12 +192,10 @@ func multiFetchRootFetch() *resolve.FetchTreeNode {
 		Kind: resolve.FetchTreeNodeKindSingle,
 		Item: &resolve.FetchItem{
 			Fetch: &resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					DataSource: &Source{},
-					PostProcessing: resolve.PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: &Source{},
+				PostProcessing: resolve.PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				InputTemplate: resolve.InputTemplate{
 					Segments: []resolve.TemplateSegment{
@@ -241,10 +235,8 @@ func TestGraphQLDataSourceFederation_MultiFetch(t *testing.T) {
 						Kind: resolve.FetchTreeNodeKindSingle,
 						Item: &resolve.FetchItem{
 							Fetch: &resolve.MultiEntityFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
 								Input: resolve.MultiEntityInput{
 									Header: resolve.InputTemplate{
 										Segments: []resolve.TemplateSegment{
@@ -369,10 +361,8 @@ func TestGraphQLDataSourceFederation_MultiFetch(t *testing.T) {
 							Kind: resolve.FetchTreeNodeKindSingle,
 							Item: &resolve.FetchItem{
 								Fetch: &resolve.BatchEntityFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
 									Input: resolve.BatchInput{
 										Header: resolve.InputTemplate{
 											Segments: []resolve.TemplateSegment{
@@ -433,10 +423,8 @@ func TestGraphQLDataSourceFederation_MultiFetch(t *testing.T) {
 							Kind: resolve.FetchTreeNodeKindSingle,
 							Item: &resolve.FetchItem{
 								Fetch: &resolve.EntityFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:           2,
+									DependsOnFetchIDs: []int{0},
 									Input: resolve.EntityInput{
 										Header: resolve.InputTemplate{
 											Segments: []resolve.TemplateSegment{
@@ -530,9 +518,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_ThreeFetchGroup(t *testing.T) {
 				{TypeName: "Query", FieldNames: []string{"employees", "employee", "contractors"}},
 				{TypeName: "Employee", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
-			},
+			Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
 			Fetch:               &FetchConfiguration{URL: "http://accounts"},
@@ -541,9 +527,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_ThreeFetchGroup(t *testing.T) {
 	products := mustDataSourceConfiguration(t, "products",
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{{TypeName: "Employee", FieldNames: []string{"id", "products", "notes"}}},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
-			},
+			Keys:      []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
 			Fetch:               &FetchConfiguration{URL: "http://products"},
@@ -708,12 +692,10 @@ func TestGraphQLDataSourceFederation_MultiFetch_ThreeFetchGroup(t *testing.T) {
 						Kind: resolve.FetchTreeNodeKindSingle,
 						Item: &resolve.FetchItem{
 							Fetch: &resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource: &Source{},
-									PostProcessing: resolve.PostProcessingConfiguration{
-										SelectResponseDataPath:   []string{"data"},
-										SelectResponseErrorsPath: []string{"errors"},
-									},
+								DataSource: &Source{},
+								PostProcessing: resolve.PostProcessingConfiguration{
+									SelectResponseDataPath:   []string{"data"},
+									SelectResponseErrorsPath: []string{"errors"},
 								},
 								InputTemplate: resolve.InputTemplate{
 									Segments: []resolve.TemplateSegment{
@@ -741,10 +723,8 @@ func TestGraphQLDataSourceFederation_MultiFetch_ThreeFetchGroup(t *testing.T) {
 						Kind: resolve.FetchTreeNodeKindSingle,
 						Item: &resolve.FetchItem{
 							Fetch: &resolve.MultiEntityFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
 								Input: resolve.MultiEntityInput{
 									Header: resolve.InputTemplate{
 										Segments: []resolve.TemplateSegment{
@@ -858,9 +838,7 @@ func multiFetchArgPlanConfig(t *testing.T) plan.Configuration {
 				{TypeName: "Query", FieldNames: []string{"employees", "employee"}},
 				{TypeName: "Employee", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
-			},
+			Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
 			Fetch:               &FetchConfiguration{URL: "http://accounts"},
@@ -869,9 +847,7 @@ func multiFetchArgPlanConfig(t *testing.T) plan.Configuration {
 	products := mustDataSourceConfiguration(t, "products",
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{{TypeName: "Employee", FieldNames: []string{"id", "products", "notes"}}},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
-			},
+			Keys:      []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
 			Fetch:               &FetchConfiguration{URL: "http://products"},
@@ -1062,10 +1038,8 @@ func TestGraphQLDataSourceFederation_MultiFetch_AdditionalVariables(t *testing.T
 						Kind: resolve.FetchTreeNodeKindSingle,
 						Item: &resolve.FetchItem{
 							Fetch: &resolve.MultiEntityFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
 								Input: resolve.MultiEntityInput{
 									Header: resolve.InputTemplate{
 										Segments: []resolve.TemplateSegment{
@@ -1121,10 +1095,8 @@ func TestGraphQLDataSourceFederation_MultiFetch_AdditionalVariables(t *testing.T
 						Kind: resolve.FetchTreeNodeKindSingle,
 						Item: &resolve.FetchItem{
 							Fetch: &resolve.MultiEntityFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
 								Input: resolve.MultiEntityInput{
 									Header: resolve.InputTemplate{
 										Segments: []resolve.TemplateSegment{
@@ -1190,10 +1162,8 @@ func TestGraphQLDataSourceFederation_MultiFetch_AdditionalVariables(t *testing.T
 						Kind: resolve.FetchTreeNodeKindSingle,
 						Item: &resolve.FetchItem{
 							Fetch: &resolve.MultiEntityFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
 								Input: resolve.MultiEntityInput{
 									Header: resolve.InputTemplate{
 										Segments: []resolve.TemplateSegment{
@@ -1300,9 +1270,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_WaveSeparation(t *testing.T) {
 				{TypeName: "Query", FieldNames: []string{"employee"}},
 				{TypeName: "Employee", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
-			},
+			Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
 			Fetch:               &FetchConfiguration{URL: "http://accounts"},
@@ -1314,11 +1282,9 @@ func TestGraphQLDataSourceFederation_MultiFetch_WaveSeparation(t *testing.T) {
 				{TypeName: "Employee", FieldNames: []string{"id", "manager"}},
 				{TypeName: "Manager", FieldNames: []string{"mid"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{
-					{TypeName: "Employee", SelectionSet: "id"},
-					{TypeName: "Manager", SelectionSet: "mid"},
-				},
+			Keys: []plan.FederationFieldConfiguration{
+				{TypeName: "Employee", SelectionSet: "id"},
+				{TypeName: "Manager", SelectionSet: "mid"},
 			},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
@@ -1331,11 +1297,9 @@ func TestGraphQLDataSourceFederation_MultiFetch_WaveSeparation(t *testing.T) {
 				{TypeName: "Employee", FieldNames: []string{"id", "upc"}},
 				{TypeName: "Manager", FieldNames: []string{"mid", "title"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{
-					{TypeName: "Employee", SelectionSet: "id"},
-					{TypeName: "Manager", SelectionSet: "mid"},
-				},
+			Keys: []plan.FederationFieldConfiguration{
+				{TypeName: "Employee", SelectionSet: "id"},
+				{TypeName: "Manager", SelectionSet: "mid"},
 			},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
@@ -1366,10 +1330,8 @@ func TestGraphQLDataSourceFederation_MultiFetch_WaveSeparation(t *testing.T) {
 	})
 	entityFetch := func(id int, dependsOn int, url, query string, renderer *resolve.GraphQLVariableResolveRenderer, info *resolve.FetchInfo) *resolve.EntityFetch {
 		return &resolve.EntityFetch{
-			FetchDependencies: resolve.FetchDependencies{
-				FetchID:           id,
-				DependsOnFetchIDs: []int{dependsOn},
-			},
+			FetchID:           id,
+			DependsOnFetchIDs: []int{dependsOn},
 			Input: resolve.EntityInput{
 				Header: resolve.InputTemplate{
 					Segments: []resolve.TemplateSegment{
@@ -1483,12 +1445,10 @@ func TestGraphQLDataSourceFederation_MultiFetch_WaveSeparation(t *testing.T) {
 						Kind: resolve.FetchTreeNodeKindSingle,
 						Item: &resolve.FetchItem{
 							Fetch: &resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource: &Source{},
-									PostProcessing: resolve.PostProcessingConfiguration{
-										SelectResponseDataPath:   []string{"data"},
-										SelectResponseErrorsPath: []string{"errors"},
-									},
+								DataSource: &Source{},
+								PostProcessing: resolve.PostProcessingConfiguration{
+									SelectResponseDataPath:   []string{"data"},
+									SelectResponseErrorsPath: []string{"errors"},
 								},
 								InputTemplate: resolve.InputTemplate{
 									Segments: []resolve.TemplateSegment{
@@ -1607,9 +1567,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_Subscription(t *testing.T) {
 				{TypeName: "Subscription", FieldNames: []string{"update"}},
 				{TypeName: "Update", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{{TypeName: "Update", SelectionSet: "id"}},
-			},
+			Keys: []plan.FederationFieldConfiguration{{TypeName: "Update", SelectionSet: "id"}},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
 			Fetch:               &FetchConfiguration{URL: "http://accounts"},
@@ -1622,11 +1580,9 @@ func TestGraphQLDataSourceFederation_MultiFetch_Subscription(t *testing.T) {
 				{TypeName: "Update", FieldNames: []string{"id", "employees", "employee"}},
 				{TypeName: "Employee", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{
-					{TypeName: "Update", SelectionSet: "id"},
-					{TypeName: "Employee", SelectionSet: "id"},
-				},
+			Keys: []plan.FederationFieldConfiguration{
+				{TypeName: "Update", SelectionSet: "id"},
+				{TypeName: "Employee", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
@@ -1636,9 +1592,7 @@ func TestGraphQLDataSourceFederation_MultiFetch_Subscription(t *testing.T) {
 	products := mustDataSourceConfiguration(t, "products",
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{{TypeName: "Employee", FieldNames: []string{"id", "products", "notes"}}},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
-			},
+			Keys:      []plan.FederationFieldConfiguration{{TypeName: "Employee", SelectionSet: "id"}},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
 			Fetch:               &FetchConfiguration{URL: "http://products"},
@@ -1824,10 +1778,8 @@ func TestGraphQLDataSourceFederation_MultiFetch_Subscription(t *testing.T) {
 								Kind: resolve.FetchTreeNodeKindSingle,
 								Item: &resolve.FetchItem{
 									Fetch: &resolve.EntityFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
 										Input: resolve.EntityInput{
 											Header: resolve.InputTemplate{
 												Segments: []resolve.TemplateSegment{
@@ -1882,10 +1834,8 @@ func TestGraphQLDataSourceFederation_MultiFetch_Subscription(t *testing.T) {
 								Kind: resolve.FetchTreeNodeKindSingle,
 								Item: &resolve.FetchItem{
 									Fetch: &resolve.MultiEntityFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           2,
-											DependsOnFetchIDs: []int{1},
-										},
+										FetchID:           2,
+										DependsOnFetchIDs: []int{1},
 										Input: resolve.MultiEntityInput{
 											Header: resolve.InputTemplate{
 												Segments: []resolve.TemplateSegment{
@@ -2060,10 +2010,8 @@ func TestGraphQLDataSourceFederation_MultiFetch_RepresentationsCollision(t *test
 							Kind: resolve.FetchTreeNodeKindSingle,
 							Item: &resolve.FetchItem{
 								Fetch: &resolve.MultiEntityFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
 									Input: resolve.MultiEntityInput{
 										Header: resolve.InputTemplate{
 											Segments: []resolve.TemplateSegment{

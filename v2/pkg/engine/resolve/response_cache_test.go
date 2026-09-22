@@ -27,11 +27,9 @@ func TestRootFetchCacheable(t *testing.T) {
 
 	queryFetch := func() *SingleFetch {
 		return &SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			DataSourceIdentifier: []byte("graphql_datasource.Source"),
 			Info:                 &FetchInfo{OperationType: ast.OperationTypeQuery},
@@ -914,12 +912,10 @@ func TestResponseCacheSurrogateKeysDefer(t *testing.T) {
 
 	cachedRootFetch := func(subgraph, body string) *FetchTreeNode {
 		return Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: cachedDataSource{body: body},
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: cachedDataSource{body: body},
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			DataSourceIdentifier: graphqlDataSourceIdentifier,
 			Info: &FetchInfo{
@@ -1013,12 +1009,10 @@ func TestResponseCacheSurrogateKeysInboundDedupWithSubgraphErrors(t *testing.T) 
 
 		rootFetch := func(subgraph string, ds DataSource) *FetchTreeNode {
 			return Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: ds,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: ds,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				DataSourceIdentifier: graphqlDataSourceIdentifier,
 				Info: &FetchInfo{

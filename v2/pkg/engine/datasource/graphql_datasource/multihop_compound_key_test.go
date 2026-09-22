@@ -125,9 +125,7 @@ func mustMultiHopDataSourceConfiguration(t *testing.T, id string, rootNodes []pl
 
 	ds, err := plan.NewDataSourceConfiguration[Configuration](id, &Factory[Configuration]{}, &plan.DataSourceMetadata{
 		RootNodes: rootNodes,
-		FederationMetaData: plan.FederationMetaData{
-			Keys: keys,
-		},
+		Keys:      keys,
 	}, mustCustomConfiguration(t, ConfigurationInput{
 		Fetch: &FetchConfiguration{
 			URL: "https://example.com/" + id,

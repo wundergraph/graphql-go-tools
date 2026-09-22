@@ -90,12 +90,10 @@ func TestGraphQLDataSourceFederation_ParentEntityCallComplex(t *testing.T) {
 					FieldNames: []string{"details"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Product",
-						SelectionSet: "id",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
 				},
 			},
 		},
@@ -128,17 +126,15 @@ func TestGraphQLDataSourceFederation_ParentEntityCallComplex(t *testing.T) {
 					FieldNames: []string{"id"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Product",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:              "Category",
-						SelectionSet:          "id",
-						DisableEntityResolver: true,
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:              "Category",
+					SelectionSet:          "id",
+					DisableEntityResolver: true,
 				},
 			},
 		},
@@ -166,12 +162,10 @@ func TestGraphQLDataSourceFederation_ParentEntityCallComplex(t *testing.T) {
 					FieldNames: []string{"id", "name"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Category",
-						SelectionSet: "id",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Category",
+					SelectionSet: "id",
 				},
 			},
 		},
@@ -203,12 +197,10 @@ func TestGraphQLDataSourceFederation_ParentEntityCallComplex(t *testing.T) {
 					FieldNames: []string{"id", "name"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Product",
-						SelectionSet: "id",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
 				},
 			},
 		},
@@ -298,72 +290,56 @@ func TestGraphQLDataSourceFederation_ParentEntityCallComplex(t *testing.T) {
 		Response: &resolve.GraphQLResponse{
 			Fetches: resolve.Sequence(
 				resolve.Single(&resolve.SingleFetch{
-					FetchDependencies: resolve.FetchDependencies{
-						FetchID: 0,
-					},
+					FetchID:              0,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:      `{"method":"POST","url":"http://d.service","body":{"query":"query($a: ID!){productFromD(id: $a){id name __typename}}","variables":{"a":$$0$$}}}`,
-						DataSource: &Source{},
-						Variables: []resolve.Variable{
-							&resolve.ContextVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
+					Input:                `{"method":"POST","url":"http://d.service","body":{"query":"query($a: ID!){productFromD(id: $a){id name __typename}}","variables":{"a":$$0$$}}}`,
+					DataSource:           &Source{},
+					Variables: []resolve.Variable{
+						&resolve.ContextVariable{
+							Path:     []string{"a"},
+							Renderer: resolve.NewJSONVariableRenderer(),
 						},
-						PostProcessing: DefaultPostProcessingConfiguration,
 					},
+					PostProcessing: DefaultPostProcessingConfiguration,
 				}),
 				resolve.SingleWithPath(&resolve.SingleFetch{
-					FetchDependencies: resolve.FetchDependencies{
-						FetchID:           1,
-						DependsOnFetchIDs: []int{0},
+					FetchID:                               1,
+					DependsOnFetchIDs:                     []int{0},
+					DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+					Input:                                 `{"method":"POST","url":"http://a.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename category {details __typename}}}}","variables":{"representations":[$$0$$]}}}`,
+					DataSource:                            &Source{},
+					SetTemplateOutputToNullOnVariableNull: true,
+					Variables: []resolve.Variable{
+						productKeyRepresentationVariable,
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:                                 `{"method":"POST","url":"http://a.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename category {details __typename}}}}","variables":{"representations":[$$0$$]}}}`,
-						DataSource:                            &Source{},
-						SetTemplateOutputToNullOnVariableNull: true,
-						Variables: []resolve.Variable{
-							productKeyRepresentationVariable,
-						},
-						PostProcessing:      SingleEntityPostProcessingConfiguration,
-						RequiresEntityFetch: true,
-					},
+					PostProcessing:      SingleEntityPostProcessingConfiguration,
+					RequiresEntityFetch: true,
 				}, "productFromD", resolve.ObjectPath("productFromD")),
 				resolve.SingleWithPath(&resolve.SingleFetch{
-					FetchDependencies: resolve.FetchDependencies{
-						FetchID:           2,
-						DependsOnFetchIDs: []int{0},
+					FetchID:                               2,
+					DependsOnFetchIDs:                     []int{0},
+					DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+					Input:                                 `{"method":"POST","url":"http://b.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename category {id}}}}","variables":{"representations":[$$0$$]}}}`,
+					DataSource:                            &Source{},
+					SetTemplateOutputToNullOnVariableNull: true,
+					Variables: []resolve.Variable{
+						productKeyRepresentationVariable,
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:                                 `{"method":"POST","url":"http://b.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename category {id}}}}","variables":{"representations":[$$0$$]}}}`,
-						DataSource:                            &Source{},
-						SetTemplateOutputToNullOnVariableNull: true,
-						Variables: []resolve.Variable{
-							productKeyRepresentationVariable,
-						},
-						PostProcessing:      SingleEntityPostProcessingConfiguration,
-						RequiresEntityFetch: true,
-					},
+					PostProcessing:      SingleEntityPostProcessingConfiguration,
+					RequiresEntityFetch: true,
 				}, "productFromD", resolve.ObjectPath("productFromD")),
 				resolve.SingleWithPath(&resolve.SingleFetch{
-					FetchDependencies: resolve.FetchDependencies{
-						FetchID:           3,
-						DependsOnFetchIDs: []int{2},
+					FetchID:                               3,
+					DependsOnFetchIDs:                     []int{2},
+					DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+					Input:                                 `{"method":"POST","url":"http://c.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Category {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+					DataSource:                            &Source{},
+					SetTemplateOutputToNullOnVariableNull: true,
+					Variables: []resolve.Variable{
+						categoryKeyRepresentationVariable,
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:                                 `{"method":"POST","url":"http://c.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Category {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-						DataSource:                            &Source{},
-						SetTemplateOutputToNullOnVariableNull: true,
-						Variables: []resolve.Variable{
-							categoryKeyRepresentationVariable,
-						},
-						PostProcessing:      SingleEntityPostProcessingConfiguration,
-						RequiresEntityFetch: true,
-					},
+					PostProcessing:      SingleEntityPostProcessingConfiguration,
+					RequiresEntityFetch: true,
 				}, "productFromD.category", resolve.ObjectPath("productFromD"), resolve.ObjectPath("category")),
 			),
 			Data: &resolve.Object{

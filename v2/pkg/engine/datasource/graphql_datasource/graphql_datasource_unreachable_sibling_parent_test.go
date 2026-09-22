@@ -167,12 +167,10 @@ func TestUnreachableSiblingParentDuplicate(t *testing.T) {
 				{TypeName: "Repost", FieldNames: []string{"id", "content"}},
 				{TypeName: "Content", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "UserGroup", SelectionSet: "id"},
-					{TypeName: "Message", SelectionSet: "id"},
-					{TypeName: "Comment", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "UserGroup", SelectionSet: "id"},
+				{TypeName: "Message", SelectionSet: "id"},
+				{TypeName: "Comment", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -217,13 +215,11 @@ func TestUnreachableSiblingParentDuplicate(t *testing.T) {
 				{TypeName: "Attachment", FieldNames: []string{"id"}},
 				{TypeName: "Author", FieldNames: []string{"id", "accountId"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Message", SelectionSet: "id"},
-					{TypeName: "Comment", SelectionSet: "id"},
-					{TypeName: "Attachment", SelectionSet: "id"},
-					{TypeName: "Author", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Message", SelectionSet: "id"},
+				{TypeName: "Comment", SelectionSet: "id"},
+				{TypeName: "Attachment", SelectionSet: "id"},
+				{TypeName: "Author", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -289,13 +285,11 @@ func TestUnreachableSiblingParentDuplicate(t *testing.T) {
 				{TypeName: "Repost", FieldNames: []string{"id", "content"}},
 				{TypeName: "Content", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "UserGroup", SelectionSet: "id"},
-					{TypeName: "Message", SelectionSet: "id"},
-					{TypeName: "Comment", SelectionSet: "id"},
-					{TypeName: "Attachment", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "UserGroup", SelectionSet: "id"},
+				{TypeName: "Message", SelectionSet: "id"},
+				{TypeName: "Comment", SelectionSet: "id"},
+				{TypeName: "Attachment", SelectionSet: "id"},
 			},
 		}
 	}
@@ -355,53 +349,45 @@ func TestUnreachableSiblingParentDuplicate(t *testing.T) {
 				Fetches: resolve.Sequence(
 					resolve.Single(
 						&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID: 0,
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								// The ... on Attachment fragments are dropped on both nesting levels:
-								// accounts can never return an Attachment. Message and Comment carry
-								// their key fields for the entity jumps into messages.
-								Input:          `{"method":"POST","url":"http://accounts","body":{"query":"{account {groups {edges {node {__typename posts {edges {node {__typename ... on Message {__typename id} ... on Repost {content {__typename ... on Comment {__typename id}}}}}}}}}}}"}}`,
-								DataSource:     &Source{},
-								PostProcessing: DefaultPostProcessingConfiguration,
-							},
+							FetchID: 0,
+							// The ... on Attachment fragments are dropped on both nesting levels:
+							// accounts can never return an Attachment. Message and Comment carry
+							// their key fields for the entity jumps into messages.
+							Input:                `{"method":"POST","url":"http://accounts","body":{"query":"{account {groups {edges {node {__typename posts {edges {node {__typename ... on Message {__typename id} ... on Repost {content {__typename ... on Comment {__typename id}}}}}}}}}}}"}}`,
+							DataSource:           &Source{},
+							PostProcessing:       DefaultPostProcessingConfiguration,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 					resolve.SingleWithPath(
 						&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           1,
-								DependsOnFetchIDs: []int{0},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:                                 `{"method":"POST","url":"http://messages","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Message {__typename delivered}}}","variables":{"representations":[$$0$$]}}}`,
-								DataSource:                            &Source{},
-								SetTemplateOutputToNullOnVariableNull: true,
-								RequiresEntityBatchFetch:              true,
-								PostProcessing:                        EntitiesPostProcessingConfiguration,
-								Variables: []resolve.Variable{
-									&resolve.ResolvableObjectVariable{
-										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("__typename"),
-													Value: &resolve.String{
-														Path: []string{"__typename"},
-													},
-													OnTypeNames: [][]byte{[]byte("Message")},
+							FetchID:                               1,
+							DependsOnFetchIDs:                     []int{0},
+							Input:                                 `{"method":"POST","url":"http://messages","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Message {__typename delivered}}}","variables":{"representations":[$$0$$]}}}`,
+							DataSource:                            &Source{},
+							SetTemplateOutputToNullOnVariableNull: true,
+							RequiresEntityBatchFetch:              true,
+							PostProcessing:                        EntitiesPostProcessingConfiguration,
+							Variables: []resolve.Variable{
+								&resolve.ResolvableObjectVariable{
+									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("__typename"),
+												Value: &resolve.String{
+													Path: []string{"__typename"},
 												},
-												{
-													Name: []byte("id"),
-													Value: &resolve.Scalar{
-														Path: []string{"id"},
-													},
-													OnTypeNames: [][]byte{[]byte("Message")},
-												},
+												OnTypeNames: [][]byte{[]byte("Message")},
 											},
-										}),
-									},
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+												OnTypeNames: [][]byte{[]byte("Message")},
+											},
+										},
+									}),
 								},
 							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -416,38 +402,34 @@ func TestUnreachableSiblingParentDuplicate(t *testing.T) {
 					),
 					resolve.SingleWithPath(
 						&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           2,
-								DependsOnFetchIDs: []int{0},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:                                 `{"method":"POST","url":"http://messages","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Comment {__typename author {accountId}}}}","variables":{"representations":[$$0$$]}}}`,
-								DataSource:                            &Source{},
-								SetTemplateOutputToNullOnVariableNull: true,
-								RequiresEntityBatchFetch:              true,
-								PostProcessing:                        EntitiesPostProcessingConfiguration,
-								Variables: []resolve.Variable{
-									&resolve.ResolvableObjectVariable{
-										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("__typename"),
-													Value: &resolve.String{
-														Path: []string{"__typename"},
-													},
-													OnTypeNames: [][]byte{[]byte("Comment")},
+							FetchID:                               2,
+							DependsOnFetchIDs:                     []int{0},
+							Input:                                 `{"method":"POST","url":"http://messages","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Comment {__typename author {accountId}}}}","variables":{"representations":[$$0$$]}}}`,
+							DataSource:                            &Source{},
+							SetTemplateOutputToNullOnVariableNull: true,
+							RequiresEntityBatchFetch:              true,
+							PostProcessing:                        EntitiesPostProcessingConfiguration,
+							Variables: []resolve.Variable{
+								&resolve.ResolvableObjectVariable{
+									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("__typename"),
+												Value: &resolve.String{
+													Path: []string{"__typename"},
 												},
-												{
-													Name: []byte("id"),
-													Value: &resolve.Scalar{
-														Path: []string{"id"},
-													},
-													OnTypeNames: [][]byte{[]byte("Comment")},
-												},
+												OnTypeNames: [][]byte{[]byte("Comment")},
 											},
-										}),
-									},
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+												OnTypeNames: [][]byte{[]byte("Comment")},
+											},
+										},
+									}),
 								},
 							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),

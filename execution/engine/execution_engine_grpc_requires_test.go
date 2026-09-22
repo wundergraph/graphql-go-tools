@@ -244,11 +244,9 @@ func newOwningSubgraphMetadata() *plan.DataSourceMetadata {
 			{TypeName: "StorageFailure", FieldNames: []string{"message", "errorCode"}},
 			{TypeName: "SecuritySetup", FieldNames: []string{"securityLevel", "primaryItem"}},
 		},
-		FederationMetaData: plan.FederationMetaData{
-			Keys: plan.FederationFieldConfigurations{
-				{TypeName: "Storage", SelectionSet: "id"},
-				{TypeName: "Warehouse", SelectionSet: "id"},
-			},
+		Keys: plan.FederationFieldConfigurations{
+			{TypeName: "Storage", SelectionSet: "id"},
+			{TypeName: "Warehouse", SelectionSet: "id"},
 		},
 	}
 }

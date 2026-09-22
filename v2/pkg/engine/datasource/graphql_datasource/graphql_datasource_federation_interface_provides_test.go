@@ -43,14 +43,10 @@ func interfaceProvidesPlan() *plan.SynchronousResponsePlan {
 	return &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Fetches: resolve.Sequence(resolve.Single(&resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					Input:          `{"method":"POST","url":"http://localhost:4250/provides-on-interface/b","body":{"query":"{media {__typename ... on Book {id animals {__typename id name}}}}"}}`,
-					DataSource:     &Source{},
-					PostProcessing: DefaultPostProcessingConfiguration,
-				},
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: 0,
-				},
+				Input:                `{"method":"POST","url":"http://localhost:4250/provides-on-interface/b","body":{"query":"{media {__typename ... on Book {id animals {__typename id name}}}}"}}`,
+				DataSource:           &Source{},
+				PostProcessing:       DefaultPostProcessingConfiguration,
+				FetchID:              0,
 				DataSourceIdentifier: []byte("graphql_datasource.Source"),
 			})),
 			Data: interfaceProvidesResponseData([]*resolve.Field{
@@ -66,47 +62,39 @@ func interfaceProvidesWithCatAgePlan() *plan.SynchronousResponsePlan {
 		Response: &resolve.GraphQLResponse{
 			Fetches: resolve.Sequence(
 				resolve.Single(&resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:          `{"method":"POST","url":"http://localhost:4250/provides-on-interface/b","body":{"query":"{media {__typename ... on Book {id animals {__typename ... on Cat {id name __typename} ... on Dog {id name}}}}}"}}`,
-						DataSource:     &Source{},
-						PostProcessing: DefaultPostProcessingConfiguration,
-					},
-					FetchDependencies: resolve.FetchDependencies{
-						FetchID: 0,
-					},
+					Input:                `{"method":"POST","url":"http://localhost:4250/provides-on-interface/b","body":{"query":"{media {__typename ... on Book {id animals {__typename ... on Cat {id name __typename} ... on Dog {id name}}}}}"}}`,
+					DataSource:           &Source{},
+					PostProcessing:       DefaultPostProcessingConfiguration,
+					FetchID:              0,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				}),
 				resolve.SingleWithPath(&resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:                                 `{"method":"POST","url":"http://localhost:4250/provides-on-interface/c","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Cat {__typename age}}}","variables":{"representations":[$$0$$]}}}`,
-						DataSource:                            &Source{},
-						PostProcessing:                        EntitiesPostProcessingConfiguration,
-						RequiresEntityBatchFetch:              true,
-						SetTemplateOutputToNullOnVariableNull: true,
-						Variables: resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{
-							Nullable: true,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("__typename"),
-									Value: &resolve.String{
-										Path: []string{"__typename"},
-									},
-									OnTypeNames: [][]byte{[]byte("Cat")},
+					Input:                                 `{"method":"POST","url":"http://localhost:4250/provides-on-interface/c","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Cat {__typename age}}}","variables":{"representations":[$$0$$]}}}`,
+					DataSource:                            &Source{},
+					PostProcessing:                        EntitiesPostProcessingConfiguration,
+					RequiresEntityBatchFetch:              true,
+					SetTemplateOutputToNullOnVariableNull: true,
+					Variables: resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{
+						Nullable: true,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("__typename"),
+								Value: &resolve.String{
+									Path: []string{"__typename"},
 								},
-								{
-									Name: []byte("id"),
-									Value: &resolve.Scalar{
-										Path: []string{"id"},
-									},
-									OnTypeNames: [][]byte{[]byte("Cat")},
-								},
+								OnTypeNames: [][]byte{[]byte("Cat")},
 							},
-						})),
-					},
-					FetchDependencies: resolve.FetchDependencies{
-						FetchID:           1,
-						DependsOnFetchIDs: []int{0},
-					},
+							{
+								Name: []byte("id"),
+								Value: &resolve.Scalar{
+									Path: []string{"id"},
+								},
+								OnTypeNames: [][]byte{[]byte("Cat")},
+							},
+						},
+					})),
+					FetchID:              1,
+					DependsOnFetchIDs:    []int{0},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				}, "media.animals", resolve.ObjectPath("media"), resolve.ArrayPath("animals")),
 			),
@@ -213,15 +201,13 @@ func interfaceProvidesDatasourceA(t *testing.T) plan.DataSource {
 				{TypeName: "Media", FieldNames: []string{"id"}},
 				{TypeName: "Animal", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Dog", SelectionSet: "id"},
-					{TypeName: "Cat", SelectionSet: "id"},
-				},
-				Provides: plan.FederationFieldConfigurations{
-					{TypeName: "Query", FieldName: "book", SelectionSet: "animals { ... on Dog { name } }"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Dog", SelectionSet: "id"},
+				{TypeName: "Cat", SelectionSet: "id"},
+			},
+			Provides: plan.FederationFieldConfigurations{
+				{TypeName: "Query", FieldName: "book", SelectionSet: "animals { ... on Dog { name } }"},
 			},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
@@ -251,43 +237,41 @@ func interfaceProvidesDatasourceB(t *testing.T) plan.DataSource {
 				{TypeName: "Dog", ExternalFieldNames: []string{"id", "name"}},
 				{TypeName: "Cat", ExternalFieldNames: []string{"id", "name"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id", DisableEntityResolver: true},
-					{
-						TypeName:              "Dog",
-						SelectionSet:          "id",
-						DisableEntityResolver: true,
-						Conditions: []plan.KeyCondition{
-							{
-								FieldPath: []string{"media", "animals", "id"},
-								Coordinates: []plan.FieldCoordinate{
-									{TypeName: "Query", FieldName: "media"},
-									{TypeName: "Media", FieldName: "animals"},
-									{TypeName: "Animal", FieldName: "id"},
-								},
-							},
-						},
-					},
-					{
-						TypeName:              "Cat",
-						SelectionSet:          "id",
-						DisableEntityResolver: true,
-						Conditions: []plan.KeyCondition{
-							{
-								FieldPath: []string{"media", "animals", "id"},
-								Coordinates: []plan.FieldCoordinate{
-									{TypeName: "Query", FieldName: "media"},
-									{TypeName: "Media", FieldName: "animals"},
-									{TypeName: "Animal", FieldName: "id"},
-								},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id", DisableEntityResolver: true},
+				{
+					TypeName:              "Dog",
+					SelectionSet:          "id",
+					DisableEntityResolver: true,
+					Conditions: []plan.KeyCondition{
+						{
+							FieldPath: []string{"media", "animals", "id"},
+							Coordinates: []plan.FieldCoordinate{
+								{TypeName: "Query", FieldName: "media"},
+								{TypeName: "Media", FieldName: "animals"},
+								{TypeName: "Animal", FieldName: "id"},
 							},
 						},
 					},
 				},
-				Provides: plan.FederationFieldConfigurations{
-					{TypeName: "Query", FieldName: "media", SelectionSet: "animals { id name }"},
+				{
+					TypeName:              "Cat",
+					SelectionSet:          "id",
+					DisableEntityResolver: true,
+					Conditions: []plan.KeyCondition{
+						{
+							FieldPath: []string{"media", "animals", "id"},
+							Coordinates: []plan.FieldCoordinate{
+								{TypeName: "Query", FieldName: "media"},
+								{TypeName: "Media", FieldName: "animals"},
+								{TypeName: "Animal", FieldName: "id"},
+							},
+						},
+					},
 				},
+			},
+			Provides: plan.FederationFieldConfigurations{
+				{TypeName: "Query", FieldName: "media", SelectionSet: "animals { id name }"},
 			},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{
@@ -316,12 +300,10 @@ func interfaceProvidesDatasourceC(t *testing.T) plan.DataSource {
 				{TypeName: "Media", FieldNames: []string{"id", "animals"}},
 				{TypeName: "Animal", FieldNames: []string{"id", "name"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Dog", SelectionSet: "id"},
-					{TypeName: "Cat", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Dog", SelectionSet: "id"},
+				{TypeName: "Cat", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t, ConfigurationInput{

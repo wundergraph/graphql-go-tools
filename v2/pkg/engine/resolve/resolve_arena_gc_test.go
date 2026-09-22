@@ -276,12 +276,10 @@ func TestArenaGCSafety_NullableFieldNull(t *testing.T) {
 		func() *Context { return NewContext(context.Background()) },
 		func() *GraphQLResponse {
 			fetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"obj":null}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"obj":null}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "test-ds",
@@ -325,12 +323,10 @@ func TestArenaGCSafety_NonNullableFieldNull(t *testing.T) {
 		func() *Context { return NewContext(context.Background()) },
 		func() *GraphQLResponse {
 			fetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"wrapper":{"name":null}}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"wrapper":{"name":null}}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "test-ds",
@@ -393,12 +389,10 @@ func TestArenaGCSafety_AuthRejectionNullableField(t *testing.T) {
 		},
 		func() *GraphQLResponse {
 			fetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"user":{"name":"Alice","secret":"classified"}}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"user":{"name":"Alice","secret":"classified"}}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "test-ds",
@@ -456,12 +450,10 @@ func TestArenaGCSafety_SequenceWithErrorThenSuccess(t *testing.T) {
 		func() *Context { return NewContext(context.Background()) },
 		func() *GraphQLResponse {
 			errorFetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"errors":[{"message":"first fetch failed"}],"data":{"field":null}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"errors":[{"message":"first fetch failed"}],"data":{"field":null}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "ds-1",
@@ -470,12 +462,10 @@ func TestArenaGCSafety_SequenceWithErrorThenSuccess(t *testing.T) {
 				},
 			}
 			successFetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"other":"ok"}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"other":"ok"}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "ds-2",
@@ -518,12 +508,10 @@ func TestArenaGCSafety_ParallelFetches(t *testing.T) {
 		func() *Context { return NewContext(context.Background()) },
 		func() *GraphQLResponse {
 			userFetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"user":{"name":"Bob"}}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"user":{"name":"Bob"}}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "ds-users",
@@ -532,12 +520,10 @@ func TestArenaGCSafety_ParallelFetches(t *testing.T) {
 				},
 			}
 			productFetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"product":{"title":"Widget"}}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"product":{"title":"Widget"}}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "ds-products",
@@ -593,12 +579,10 @@ func TestArenaGCSafety_NullableArrayWithNullItem(t *testing.T) {
 		func() *Context { return NewContext(context.Background()) },
 		func() *GraphQLResponse {
 			fetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"items":[null]}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"items":[null]}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "test-ds",
@@ -727,12 +711,10 @@ func TestArenaGCSafety_OutputIsValidJSON(t *testing.T) {
 // gcTestResponseWithField builds a GraphQLResponse with a single fetch and a custom field value node.
 func gcTestResponseWithField(ds DataSource, fieldName string, fieldValue Node) *GraphQLResponse {
 	fetch := &SingleFetch{
-		FetchConfiguration: FetchConfiguration{
-			DataSource: ds,
-			PostProcessing: PostProcessingConfiguration{
-				SelectResponseDataPath:   []string{"data"},
-				SelectResponseErrorsPath: []string{"errors"},
-			},
+		DataSource: ds,
+		PostProcessing: PostProcessingConfiguration{
+			SelectResponseDataPath:   []string{"data"},
+			SelectResponseErrorsPath: []string{"errors"},
 		},
 		Info: &FetchInfo{
 			DataSourceID:   "test-ds",
@@ -1060,12 +1042,10 @@ func TestArenaGCSafety_ArrayObjectItemWalkFail(t *testing.T) {
 		func() *Context { return NewContext(context.Background()) },
 		func() *GraphQLResponse {
 			fetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"items":[{"name":"ok"},{"name":null}]}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"items":[{"name":"ok"},{"name":null}]}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "test-ds",
@@ -1115,12 +1095,10 @@ func TestArenaGCSafety_ValueCompletion(t *testing.T) {
 		func() *Context { return NewContext(context.Background()) },
 		func() *GraphQLResponse {
 			fetch := &SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"wrapper":{"required":null}}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"wrapper":{"required":null}}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "test-ds",

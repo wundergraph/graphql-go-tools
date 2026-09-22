@@ -60,10 +60,8 @@ func TestChildTypeMismatchUnion(t *testing.T) {
 			ChildNodes: []plan.TypeField{
 				{TypeName: "Admin", FieldNames: []string{"id", "name"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "User", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "User", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -96,11 +94,9 @@ func TestChildTypeMismatchUnion(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(
 					resolve.Single(&resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://accounts.service","body":{"query":"{accounts {__typename ... on User {__internal_merge_User_id: id name} ... on Admin {__internal_merge_Admin_id: id name}}}"}}`,
-							PostProcessing: DefaultPostProcessingConfiguration,
-							DataSource:     &Source{},
-						},
+						Input:                `{"method":"POST","url":"http://accounts.service","body":{"query":"{accounts {__typename ... on User {__internal_merge_User_id: id name} ... on Admin {__internal_merge_Admin_id: id name}}}"}}`,
+						PostProcessing:       DefaultPostProcessingConfiguration,
+						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
 				),
@@ -177,11 +173,9 @@ func TestChildTypeMismatchUnion(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(
 					resolve.Single(&resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://accounts.service","body":{"query":"{accounts {__typename ... on User {__internal_merge_User_account_id: id name} ... on Admin {__internal_merge_Admin_account_id: id name}}}"}}`,
-							PostProcessing: DefaultPostProcessingConfiguration,
-							DataSource:     &Source{},
-						},
+						Input:                `{"method":"POST","url":"http://accounts.service","body":{"query":"{accounts {__typename ... on User {__internal_merge_User_account_id: id name} ... on Admin {__internal_merge_Admin_account_id: id name}}}"}}`,
+						PostProcessing:       DefaultPostProcessingConfiguration,
+						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
 				),
@@ -258,11 +252,9 @@ func TestChildTypeMismatchUnion(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(
 					resolve.Single(&resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://accounts.service","body":{"query":"{accounts {__typename ... on User {uid: id name} ... on Admin {aid: id name}}}"}}`,
-							PostProcessing: DefaultPostProcessingConfiguration,
-							DataSource:     &Source{},
-						},
+						Input:                `{"method":"POST","url":"http://accounts.service","body":{"query":"{accounts {__typename ... on User {uid: id name} ... on Admin {aid: id name}}}"}}`,
+						PostProcessing:       DefaultPostProcessingConfiguration,
+						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
 				),

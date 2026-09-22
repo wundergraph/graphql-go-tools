@@ -49,11 +49,9 @@ func unionIntersectionPlanConfiguration(t *testing.T) plan.Configuration {
 				{TypeName: "Book", FieldNames: []string{"id", "title"}},
 				{TypeName: "Song", FieldNames: []string{"id", "title"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Song", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Song", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -94,11 +92,9 @@ func unionIntersectionPlanConfiguration(t *testing.T) plan.Configuration {
 				{TypeName: "Book", FieldNames: []string{"id", "title"}},
 				{TypeName: "Movie", FieldNames: []string{"id", "title"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Movie", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Movie", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -151,11 +147,9 @@ func unionIntersectionSingleFetchPlan(url, query string, mediaFields []*resolve.
 		Response: &resolve.GraphQLResponse{
 			Fetches: resolve.Sequence(
 				resolve.Single(&resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:          fmt.Sprintf(`{"method":"POST","url":"%s","body":{"query":%q}}`, url, query),
-						PostProcessing: DefaultPostProcessingConfiguration,
-						DataSource:     &Source{},
-					},
+					Input:                fmt.Sprintf(`{"method":"POST","url":"%s","body":{"query":%q}}`, url, query),
+					PostProcessing:       DefaultPostProcessingConfiguration,
+					DataSource:           &Source{},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				}),
 			),

@@ -49,11 +49,9 @@ func TestLoader_LoadGraphQLResponseData(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: productsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 			}),
 			Parallel(
@@ -331,11 +329,9 @@ func TestLoader_MergeErrorDifferingTypes(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: names,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: names,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 				Info: &FetchInfo{
 					DataSourceName: "names",
@@ -350,11 +346,9 @@ func TestLoader_MergeErrorDifferingTypes(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: secondNames,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: secondNames,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 				Info: &FetchInfo{
 					DataSourceName: "secondNames",
@@ -416,11 +410,9 @@ func TestLoader_MergeErrorDifferingArrayLength(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: names,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: names,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 				Info: &FetchInfo{
 					DataSourceName: "names",
@@ -435,11 +427,9 @@ func TestLoader_MergeErrorDifferingArrayLength(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: ages,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: ages,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 				Info: &FetchInfo{
 					DataSourceName: "ages",
@@ -515,11 +505,9 @@ func TestLoader_MergeErrorDifferingArrayLengthParallel(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: names,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: names,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 				Info: &FetchInfo{
 					DataSourceName: "names",
@@ -534,11 +522,9 @@ func TestLoader_MergeErrorDifferingArrayLengthParallel(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: ages,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: ages,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 				Info: &FetchInfo{
 					DataSourceName: "ages",
@@ -612,11 +598,9 @@ func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: productsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 			}),
 			Parallel(
@@ -891,11 +875,9 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: productsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 			}),
 			Parallel(
@@ -1188,11 +1170,9 @@ func TestLoader_RedactHeaders(t *testing.T) {
 					},
 				},
 			},
-			FetchConfiguration: FetchConfiguration{
-				DataSource: productsService,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath: []string{"data"},
-				},
+			DataSource: productsService,
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath: []string{"data"},
 			},
 		}),
 		Data: &Object{
@@ -1290,11 +1270,9 @@ func TestLoader_InvalidBatchItemCount(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: productsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 			}),
 			Parallel(
@@ -2236,11 +2214,9 @@ func TestLoader_AllowCustomExtensionProperties(t *testing.T) {
 					{Data: []byte(`{}`), SegmentType: StaticSegmentType},
 				},
 			},
-			FetchConfiguration: FetchConfiguration{
-				DataSource: ds,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath: []string{"data"},
-				},
+			DataSource: ds,
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath: []string{"data"},
 			},
 		})
 	}
@@ -2444,11 +2420,9 @@ func TestLoader_CachedFetches(t *testing.T) {
 							},
 						},
 					},
-					FetchConfiguration: FetchConfiguration{
-						DataSource: productsService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
-						},
+					DataSource: productsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
 					},
 				}),
 				Parallel(

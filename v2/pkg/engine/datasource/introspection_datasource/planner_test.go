@@ -131,18 +131,16 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					{
 						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"request_type":2,"type_name":"$$0$$"}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"a"},
-										Renderer: resolve.NewPlainVariableRenderer(),
-									},
-								),
-								PostProcessing: resolve.PostProcessingConfiguration{
-									MergePath: []string{"__type"},
+							Input:                `{"request_type":2,"type_name":"$$0$$"}`,
+							DataSource:           &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
+							),
+							PostProcessing: resolve.PostProcessingConfiguration{
+								MergePath: []string{"__type"},
 							},
 						},
 					},
@@ -212,12 +210,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					{
 						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"request_type":1}`,
-								DataSource: &Source{},
-								PostProcessing: resolve.PostProcessingConfiguration{
-									MergePath: []string{"__schema"},
-								},
+							Input:                `{"request_type":1}`,
+							DataSource:           &Source{},
+							PostProcessing: resolve.PostProcessingConfiguration{
+								MergePath: []string{"__schema"},
 							},
 						},
 					},
@@ -280,12 +276,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					{
 						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"request_type":1}`,
-								DataSource: &Source{},
-								PostProcessing: resolve.PostProcessingConfiguration{
-									MergePath: []string{"__schema"},
-								},
+							Input:                `{"request_type":1}`,
+							DataSource:           &Source{},
+							PostProcessing: resolve.PostProcessingConfiguration{
+								MergePath: []string{"__schema"},
 							},
 						},
 					},
@@ -404,18 +398,16 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					{
 						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"request_type":2,"type_name":"$$0$$"}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"a"},
-										Renderer: resolve.NewPlainVariableRenderer(),
-									},
-								),
-								PostProcessing: resolve.PostProcessingConfiguration{
-									MergePath: []string{"__type"},
+							Input:                `{"request_type":2,"type_name":"$$0$$"}`,
+							DataSource:           &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
+							),
+							PostProcessing: resolve.PostProcessingConfiguration{
+								MergePath: []string{"__type"},
 							},
 						},
 					},

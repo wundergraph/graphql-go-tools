@@ -322,9 +322,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("BigInt", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"}`),
-				},
+				DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -356,7 +354,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("Scalar", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"int": 12345, "float": 3.5, "int_str": "12346", "bigint_str": "1152921504606846976", "str":"value", "object":{"foo": "bar"}, "encoded_object": "{\"foo\": \"bar\"}"}`)},
+				DataSource: FakeDataSource(`{"int": 12345, "float": 3.5, "int_str": "12346", "bigint_str": "1152921504606846976", "str":"value", "object":{"foo": "bar"}, "encoded_object": "{\"foo\": \"bar\"}"}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -440,7 +438,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("graphql object with simple data source", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`)},
+				DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -503,13 +501,11 @@ func TestResolver_ResolveNode(t *testing.T) {
 			Return([]byte(`{"name":"Jens"}`), nil)
 		res := &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					Input:      `{"id":$$0$$}`,
-					Variables: NewVariables(&ContextVariable{
-						Path: []string{"id"},
-					}),
-				},
+				DataSource: mockDataSource,
+				Input:      `{"id":$$0$$}`,
+				Variables: NewVariables(&ContextVariable{
+					Path: []string{"id"},
+				}),
 				InputTemplate: InputTemplate{
 					Segments: []TemplateSegment{
 						{
@@ -547,7 +543,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve array of strings", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`)},
+				DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -567,7 +563,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve array of mixed scalar types", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"strings": ["Alex", "true", 123]}`)},
+				DataSource: FakeDataSource(`{"strings": ["Alex", "true", 123]}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -589,7 +585,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json encoded input", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 				return &GraphQLResponse{
 					Fetches: Single(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`)},
+						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
 					}),
 					Data: &Object{
 						Fields: []*Field{
@@ -612,7 +608,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("json encoded input", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 				return &GraphQLResponse{
 					Fetches: Single(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`)},
+						DataSource: FakeDataSource(`{"jsonList":["{\"field\":\"value\"}"]}`),
 					}),
 					Data: &Object{
 						Fields: []*Field{
@@ -635,7 +631,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve arrays", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`)},
+				DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}],"strings":["foo","bar","baz"],"integers":[123,456,789],"floats":[1.2,3.4,5.6],"booleans":[true,false,true]}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -740,11 +736,9 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("array response from data source", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{
-						DataSource: FakeDataSource(`{"data":{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}}`),
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
-						},
+					DataSource: FakeDataSource(`{"data":{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}}`),
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
 					},
 				}),
 				Data: &Object{
@@ -774,7 +768,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("non null object with field condition can be null", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"__typename":"Dog","name":"Woofie"}`)},
+					DataSource: FakeDataSource(`{"__typename":"Dog","name":"Woofie"}`),
 				}),
 				Data: &Object{
 					Fields: []*Field{
@@ -801,7 +795,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("object with multiple type conditions", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"namespaceCreate":{"__typename":"Error","code":"UserAlreadyHasPersonalNamespace","message":""}}`)},
+					DataSource: FakeDataSource(`{"namespaceCreate":{"__typename":"Error","code":"UserAlreadyHasPersonalNamespace","message":""}}`),
 				}),
 				Data: &Object{
 					Fields: []*Field{
@@ -861,7 +855,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve fieldsets based on __typename", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`)},
+					DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`),
 				}),
 				Data: &Object{
 					Fields: []*Field{
@@ -891,7 +885,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve fieldsets based on __typename when field is Nullable", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"pet":{"id": "1", "detail": null}}`)},
+					DataSource: FakeDataSource(`{"pet":{"id": "1", "detail": null}}`),
 				}),
 				Data: &Object{
 					Fields: []*Field{
@@ -934,7 +928,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("resolve fieldsets asynchronous based on __typename", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`)},
+					DataSource: FakeDataSource(`{"pets":[{"__typename":"Dog","name":"Woofie"},{"__typename":"Cat","name":"Mietzie"}]}`),
 				}),
 				Data: &Object{
 					Fields: []*Field{
@@ -966,7 +960,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		// A User object should resolve email as non-null, and an Organization object should resolve email as nullable.
 		return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"entity":{"__typename":"User","email":"user@example.com"}}`)},
+					DataSource: FakeDataSource(`{"entity":{"__typename":"User","email":"user@example.com"}}`),
 				}),
 				Data: &Object{
 					Fields: []*Field{
@@ -1007,7 +1001,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		// Same scenario but the runtime object is Organization (nullable email) with a null email value
 		return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"entity":{"__typename":"Organization","email":null}}`)},
+					DataSource: FakeDataSource(`{"entity":{"__typename":"Organization","email":null}}`),
 				}),
 				Data: &Object{
 					Fields: []*Field{
@@ -1050,7 +1044,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
 					// Datasource returns a JSON object within a string
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":"{\"hello\":\"world\",\"numberAsString\":\"1\",\"number\":1,\"bool\":true,\"null\":null,\"array\":[1,2,3],\"object\":{\"key\":\"value\"}}"}`)},
+					DataSource: FakeDataSource(`{"data":"{\"hello\":\"world\",\"numberAsString\":\"1\",\"number\":1,\"bool\":true,\"null\":null,\"array\":[1,2,3],\"object\":{\"key\":\"value\"}}"}`),
 				}),
 				Data: &Object{
 					Nullable: false,
@@ -1078,7 +1072,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{
 					// Datasource returns a JSON array within a string
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":"[1,2,3]"}`)},
+					DataSource: FakeDataSource(`{"data":"[1,2,3]"}`),
 				}),
 				Data: &Object{
 					Nullable: false,
@@ -1107,7 +1101,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &GraphQLResponse{
 					Fetches: Single(&SingleFetch{
 						// Datasource returns a JSON boolean within a string
-						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":"true"}`)},
+						DataSource: FakeDataSource(`{"data":"true"}`),
 					}),
 					Data: &Object{
 						Nullable: false,
@@ -1131,7 +1125,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &GraphQLResponse{
 					Fetches: Single(&SingleFetch{
 						// Datasource returns a JSON number within a string
-						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": "1"}`)},
+						DataSource: FakeDataSource(`{"data": "1"}`),
 					}),
 					Data: &Object{
 						Nullable: false,
@@ -1159,7 +1153,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &GraphQLResponse{
 					Fetches: Single(&SingleFetch{
 						// Datasource returns a JSON number within a string
-						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": "2.0"}`)},
+						DataSource: FakeDataSource(`{"data": "2.0"}`),
 					}),
 					Data: &Object{
 						Nullable: false,
@@ -1187,7 +1181,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 				return &GraphQLResponse{
 					Fetches: Single(&SingleFetch{
 						// Datasource returns a JSON number within a string
-						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": "null"}`)},
+						DataSource: FakeDataSource(`{"data": "null"}`),
 					}),
 					Data: &Object{
 						Nullable: false,
@@ -1214,7 +1208,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 			t.Run("string", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 				return &GraphQLResponse{
 					Fetches: Single(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data": "hello world"}`)},
+						DataSource: FakeDataSource(`{"data": "hello world"}`),
 					}),
 					Data: &Object{
 						Nullable: false,
@@ -1244,7 +1238,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("custom", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id": "1"}`)},
+				DataSource: FakeDataSource(`{"id": "1"}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -1262,7 +1256,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("custom nullable", testGraphQLErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedErr string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id": null}`)},
+				DataSource: FakeDataSource(`{"id": null}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -1281,7 +1275,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("custom error", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOut string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id": "1"}`)},
+				DataSource: FakeDataSource(`{"id": "1"}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -1695,7 +1689,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("__typename without renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`)},
+				DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -1751,7 +1745,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("__typename checks", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}`)},
+				DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -1810,9 +1804,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("__typename checks apollo compatibility object", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":{"user":{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}}}`), PostProcessing: PostProcessingConfiguration{
+				DataSource: FakeDataSource(`{"data":{"user":{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}}}`), PostProcessing: PostProcessingConfiguration{
 					SelectResponseDataPath: []string{"data"},
-				}},
+				},
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -1872,9 +1866,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("__typename checks apollo compatibility array", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":{"users":[{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}]}}`), PostProcessing: PostProcessingConfiguration{
+				DataSource: FakeDataSource(`{"data":{"users":[{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}]}}`), PostProcessing: PostProcessingConfiguration{
 					SelectResponseDataPath: []string{"data"},
-				}},
+				},
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -1935,67 +1929,67 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	}, nil))
 	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
-				Fetches: Single(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`)},
-				}),
-				Data: &Object{
-					Fields: []*Field{
-						{
-							Name: []byte("user"),
-							Value: &Object{
-								Fields: []*Field{
-									{
-										Name: []byte("id"),
-										Value: &Integer{
-											Path:     []string{"id"},
-											Nullable: false,
-										},
+			Fetches: Single(&SingleFetch{
+				DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`),
+			}),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &Integer{
+										Path:     []string{"id"},
+										Nullable: false,
 									},
-									{
-										Name: []byte("name"),
-										Value: &String{
-											Path:     []string{"name"},
-											Nullable: false,
-										},
+								},
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: false,
 									},
-									{
-										Name: []byte("__typename"),
-										Value: &String{
-											Path:       []string{"__typename"},
-											Nullable:   false,
-											IsTypeName: true,
-										},
+								},
+								{
+									Name: []byte("__typename"),
+									Value: &String{
+										Path:       []string{"__typename"},
+										Nullable:   false,
+										IsTypeName: true,
 									},
-									{
-										Name: []byte("aliased"),
-										Value: &String{
-											Path:       []string{"__typename"},
-											Nullable:   false,
-											IsTypeName: true,
-										},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &String{
+										Path:       []string{"__typename"},
+										Nullable:   false,
+										IsTypeName: true,
 									},
-									{
-										Name: []byte("rewritten"),
-										Value: &String{
-											Path:       []string{"rewritten"},
-											Nullable:   false,
-											IsTypeName: true,
-										},
+								},
+								{
+									Name: []byte("rewritten"),
+									Value: &String{
+										Path:       []string{"rewritten"},
+										Nullable:   false,
+										IsTypeName: true,
 									},
 								},
 							},
 						},
 					},
 				},
-			}, Context{
-				ctx: context.Background(),
-				RenameTypeNames: []RenameTypeName{
-					{
-						From: []byte("User"),
-						To:   []byte("namespaced_User"),
-					},
+			},
+		}, Context{
+			ctx: context.Background(),
+			RenameTypeNames: []RenameTypeName{
+				{
+					From: []byte("User"),
+					To:   []byte("namespaced_User"),
 				},
-			}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
+			},
+		}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
 	}))
 	t.Run("empty graphql response for non-nullable object query field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2065,11 +2059,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 			}, ""),
 			Data: &Object{
@@ -2095,11 +2087,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 			}, "query"),
 			Data: &Object{
@@ -2125,11 +2115,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -2159,11 +2147,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -2196,11 +2182,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				OperationType: ast.OperationTypeQuery,
 			},
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -2230,11 +2214,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -2264,11 +2246,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 			}, "query"),
 			Data: &Object{
@@ -2294,11 +2274,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -2640,7 +2618,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("root field with nested non-nullable fields returns null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"user":{"name":null,"age":1}}`)},
+				DataSource: FakeDataSource(`{"user":{"name":null,"age":1}}`),
 			}),
 			Data: &Object{
 				Nullable: false,
@@ -2675,7 +2653,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("multiple root fields with nested non-nullable fields each return null", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"one":{"name":null,"age":1},"two":{"name":"user:","age":null}}`)},
+				DataSource: FakeDataSource(`{"one":{"name":null,"age":1},"two":{"name":"user:","age":null}}`),
 			}),
 			Data: &Object{
 				Nullable: false,
@@ -2733,7 +2711,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("root field with double nested non-nullable field returns partial data", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"user":{"nested":{"name":null,"age":1},"age":1}}`)},
+				DataSource: FakeDataSource(`{"user":{"nested":{"name":null,"age":1},"age":1}}`),
 			}),
 			Data: &Object{
 				Nullable: false,
@@ -2790,11 +2768,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			}).Times(1)
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 			}, "query"),
 			Data: &Object{
@@ -2813,7 +2789,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("non-nullable object in nullable field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"nullable_field": null}`)},
+				DataSource: FakeDataSource(`{"nullable_field": null}`),
 			}, "query"),
 			Data: &Object{
 				Nullable: false,
@@ -2853,10 +2829,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			obj := func(fakeData string) *GraphQLResponse {
 				return &GraphQLResponse{
 					Fetches: Single(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{
-							DataSource: FakeDataSource(fakeData),
-							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
-						},
+						DataSource:           FakeDataSource(fakeData),
+						Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
 					Data: &Object{
@@ -2924,12 +2898,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				return &GraphQLResponse{
 					Fetches: Single(&SingleFetch{
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						FetchConfiguration: FetchConfiguration{
-							DataSource: FakeDataSource(fakeData),
-							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{things {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
-							},
+						DataSource:           FakeDataSource(fakeData),
+						Input:                `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{things {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 					}),
 					Data: &Object{
@@ -2987,7 +2959,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("empty nullable array should resolve correctly", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"nullableArray": []}`)},
+				DataSource: FakeDataSource(`{"nullableArray": []}`),
 			}),
 			Data: &Object{
 				Nullable: true,
@@ -3017,7 +2989,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("empty not nullable array should resolve correctly", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"some_path": []}`)},
+				DataSource: FakeDataSource(`{"some_path": []}`),
 			}),
 			Data: &Object{
 				Nullable: false,
@@ -3047,11 +3019,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("when data null not nullable array should resolve to data null and errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":null}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: FakeDataSource(`{"data":null}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 			}, "query"),
 			Data: &Object{
@@ -3099,13 +3069,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("when data null and errors present not nullable array should result to null data upstream error and resolve error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(
-						`{"errors":[{"message":"Could not get name","locations":[{"line":3,"column":5}],"path":["todos","0","name"]}],"data":null}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(
+					`{"errors":[{"message":"Could not get name","locations":[{"line":3,"column":5}],"path":["todos","0","name"]}],"data":null}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 			}, "query"),
 			Data: &Object{
@@ -3201,20 +3169,18 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							Input:      `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
-							DataSource: serviceOne,
-							Variables: NewVariables(
-								&ContextVariable{
-									Path: []string{"firstArg"},
-								},
-								&ContextVariable{
-									Path: []string{"thirdArg"},
-								},
-							),
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
+						Input:      `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
+						DataSource: serviceOne,
+						Variables: NewVariables(
+							&ContextVariable{
+								Path: []string{"firstArg"},
 							},
+							&ContextVariable{
+								Path: []string{"thirdArg"},
+							},
+						),
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 					}, "query"),
 					SingleWithPath(&SingleFetch{
@@ -3246,20 +3212,18 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							Input:      `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
-							DataSource: serviceTwo,
-							Variables: NewVariables(
-								&ContextVariable{
-									Path: []string{"secondArg"},
-								},
-								&ContextVariable{
-									Path: []string{"fourthArg"},
-								},
-							),
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
+						Input:      `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
+						DataSource: serviceTwo,
+						Variables: NewVariables(
+							&ContextVariable{
+								Path: []string{"secondArg"},
 							},
+							&ContextVariable{
+								Path: []string{"fourthArg"},
+							},
+						),
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 					}, "query"),
 				),
@@ -3272,13 +3236,11 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 						},
 					},
-					FetchConfiguration: FetchConfiguration{
-						Input:      `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
-						DataSource: nestedServiceOne,
-						Variables:  Variables{},
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
-						},
+					Input:      `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`,
+					DataSource: nestedServiceOne,
+					Variables:  Variables{},
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
 					},
 				}, "query", ObjectPath("serviceTwo")),
 			),
@@ -3418,11 +3380,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: userService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
-							},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 					}, "query"),
 					SingleWithPath(&SingleFetch{
@@ -3458,19 +3418,15 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: reviewsService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities", "0"},
-							},
+						DataSource: reviewsService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
 						},
 					}, "query.me", ObjectPath("me")),
 					SingleWithPath(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{
-							DataSource: productService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities"},
-							},
+						DataSource: productService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
 						},
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
@@ -3615,11 +3571,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: userService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
-							},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 					}, "query"),
 					SingleWithPath(&SingleFetch{
@@ -3655,11 +3609,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: reviewsService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities", "0"},
-							},
+						DataSource: reviewsService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
 						},
 					}, "query.me", ObjectPath("me")),
 					SingleWithPath(&SingleFetch{
@@ -3697,12 +3649,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: productService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities"},
-								MergePath:              []string{"data"},
-							},
+						DataSource: productService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+							MergePath:              []string{"data"},
 						},
 					}, "query.me.reviews.@.product", ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
 				),
@@ -3820,11 +3770,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: userService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
-							},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 					}, "query"),
 					SingleWithPath(&SingleFetch{
@@ -3861,11 +3809,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 							SetTemplateOutputToNullOnVariableNull: true,
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: reviewsService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities", "0"},
-							},
+						DataSource: reviewsService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
 						},
 					}, "query.me", ObjectPath("me")),
 					SingleWithPath(&BatchEntityFetch{
@@ -4038,12 +3984,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: userService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath:   []string{"data"},
-								SelectResponseErrorsPath: []string{"errors"},
-							},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath:   []string{"data"},
+							SelectResponseErrorsPath: []string{"errors"},
 						},
 					}, "query"),
 					SingleWithPath(&SingleFetch{
@@ -4065,11 +4009,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: reviewsService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities", "0"},
-							},
+						DataSource: reviewsService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
 						},
 					}, "query.me", ObjectPath("me")),
 					SingleWithPath(&SingleFetch{
@@ -4108,11 +4050,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: productService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities"},
-							},
+						DataSource: productService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
 						},
 					}, "query.me.reviews.@.product", ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
 				),
@@ -4223,11 +4163,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: userService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
-							},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 					}, "query"),
 					SingleWithPath(&SingleFetch{
@@ -4249,11 +4187,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: reviewsService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities", "0"},
-							},
+						DataSource: reviewsService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
 						},
 					}, "query.me", ObjectPath("me")),
 					SingleWithPath(&SingleFetch{
@@ -4292,11 +4228,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: productService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities"},
-							},
+						DataSource: productService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
 						},
 					}, "query.me.reviews.@.product", ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
 				),
@@ -4406,11 +4340,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								},
 							},
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: userService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
-							},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 					}, "query"),
 					SingleWithPath(&SingleFetch{
@@ -4443,11 +4375,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 							SetTemplateOutputToNullOnVariableNull: true,
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: employeeService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities", "0"},
-							},
+						DataSource: employeeService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
 						},
 					}, "query.me", ObjectPath("me")),
 					SingleWithPath(&SingleFetch{
@@ -4480,11 +4410,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 							},
 							SetTemplateOutputToNullOnVariableNull: true,
 						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: timeService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data", "_entities", "0"},
-							},
+						DataSource: timeService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities", "0"},
 						},
 					}, "query.me.employment", ObjectPath("me"), ObjectPath("employment")),
 				),
@@ -4609,7 +4537,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true}`)},
+				DataSource: FakeDataSource(`{"id":"1","name":"Jens","registered":true}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -4650,7 +4578,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`)},
+				DataSource: FakeDataSource(`{"strings": ["Alex", "true", "123"]}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -4672,7 +4600,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}`)},
+				DataSource: FakeDataSource(`{"friends":[{"id":1,"name":"Alex"},{"id":2,"name":"Patric"}]}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -4709,7 +4637,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":"1","name":"Jens","pet":{"name":"Barky","kind":"Dog"}}`)},
+				DataSource: FakeDataSource(`{"id":"1","name":"Jens","pet":{"name":"Barky","kind":"Dog"}}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -4765,7 +4693,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"int": 12345, "float": 3.5, "str":"value", "bool": true}`)},
+				DataSource: FakeDataSource(`{"int": 12345, "float": 3.5, "str":"value", "bool": true}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -4820,7 +4748,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User"}`)},
+				DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User"}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -4862,7 +4790,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"user1":{"id":1,"name":"User1"},"user2":{"id":2,"name":"User2"}}`)},
+				DataSource: FakeDataSource(`{"user1":{"id":1,"name":"User1"},"user2":{"id":2,"name":"User2"}}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -4926,7 +4854,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx.Variables = astjson.MustParseBytes([]byte(`{"id":1}`))
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: mockDataSource},
+				DataSource: mockDataSource,
 				InputTemplate: InputTemplate{
 					Segments: []TemplateSegment{
 						{
@@ -4971,7 +4899,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: mockDataSource},
+				DataSource: mockDataSource,
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -4991,7 +4919,7 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 		resolveCtx := NewContext(context.Background())
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"}`)},
+				DataSource: FakeDataSource(`{"n": 12345, "ns_small": "12346", "ns_big": "1152921504606846976"}`),
 			}),
 			Data: &Object{
 				Fields: []*Field{
@@ -5049,9 +4977,7 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication(t *testing.T)
 			OperationType: ast.OperationTypeQuery,
 		},
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: ds,
-			},
+			DataSource: ds,
 		}),
 		Data: &Object{
 			Fields: []*Field{
@@ -5153,9 +5079,7 @@ func TestResolver_ArenaResolveGraphQLResponse_RequestDeduplication_SharedData(t 
 			OperationType: ast.OperationTypeQuery,
 		},
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: ds,
-			},
+			DataSource: ds,
 		}),
 		Data: &Object{
 			Fields: []*Field{
@@ -5295,12 +5219,10 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 			}, "query"),
 			Data: &Object{
@@ -5333,12 +5255,10 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 			}, "query"),
 			Data: &Object{
@@ -5396,11 +5316,9 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 							},
 						},
 					},
-					FetchConfiguration: FetchConfiguration{
-						DataSource: userService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data"},
-						},
+					DataSource: userService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
 					},
 				}, "query"),
 				SingleWithPath(&SingleFetch{
@@ -5422,11 +5340,9 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 							},
 						},
 					},
-					FetchConfiguration: FetchConfiguration{
-						DataSource: reviewsService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data", "_entities", "0"},
-						},
+					DataSource: reviewsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities", "0"},
 					},
 				}, "query.me", ObjectPath("me")),
 				SingleWithPath(&SingleFetch{
@@ -5465,12 +5381,10 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 							},
 						},
 					},
-					FetchConfiguration: FetchConfiguration{
-						DataSource: productService,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath:   []string{"data", "_entities"},
-							SelectResponseErrorsPath: []string{"errors"},
-						},
+					DataSource: productService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath:   []string{"data", "_entities"},
+						SelectResponseErrorsPath: []string{"errors"},
 					},
 				}, "query.me.reviews.@.product", ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
 			),
@@ -5580,9 +5494,7 @@ func TestResolver_WithHeader(t *testing.T) {
 					OperationType: ast.OperationTypeQuery,
 				},
 				Fetches: SingleWithPath(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{
-						DataSource: fakeService,
-					},
+					DataSource: fakeService,
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
@@ -5650,9 +5562,7 @@ func TestResolver_WithVariableRemapping(t *testing.T) {
 					OperationType: ast.OperationTypeQuery,
 				},
 				Fetches: SingleWithPath(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{
-						DataSource: fakeService,
-					},
+					DataSource: fakeService,
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
@@ -5887,9 +5797,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			Kind: FetchTreeNodeKindTrigger,
 			Item: &FetchItem{
 				Fetch: &SingleFetch{
-					FetchDependencies: FetchDependencies{
-						FetchID: 0,
-					},
+					FetchID: 0,
 					Info: &FetchInfo{
 						DataSourceID:   "0",
 						DataSourceName: "counter",
@@ -5963,9 +5871,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			Kind: FetchTreeNodeKindTrigger,
 			Item: &FetchItem{
 				Fetch: &SingleFetch{
-					FetchDependencies: FetchDependencies{
-						FetchID: 0,
-					},
+					FetchID: 0,
 					Info: &FetchInfo{
 						DataSourceID:   "0",
 						DataSourceName: "country",
@@ -5981,10 +5887,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			Kind: FetchTreeNodeKindSingle,
 			Item: &FetchItem{
 				Fetch: &SingleFetch{
-					FetchDependencies: FetchDependencies{
-						FetchID:           1,
-						DependsOnFetchIDs: []int{0},
-					},
+					FetchID:           1,
+					DependsOnFetchIDs: []int{0},
 					Info: &FetchInfo{
 						DataSourceID:   "1",
 						DataSourceName: "time",
@@ -7780,11 +7684,9 @@ func nestedBatchingFixture(tb TestingTB) (*GraphQLResponse, []byte) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: productsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 			}, ""),
 			Parallel(
@@ -8372,11 +8274,9 @@ func Benchmark_NoCheckNestedBatching(b *testing.B) {
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: productsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 				DataSourceIdentifier: []byte("graphql"),
 			}, "query"),

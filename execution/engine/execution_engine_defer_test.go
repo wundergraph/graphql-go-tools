@@ -268,12 +268,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							FieldNames: []string{"email"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -334,12 +332,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							FieldNames: []string{"phone"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -1092,10 +1088,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					{TypeName: "Query", FieldNames: []string{"article"}},
 					{TypeName: "Article", FieldNames: []string{"id", "title"}},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{TypeName: "Article", SelectionSet: "id"},
-					},
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Article", SelectionSet: "id"},
 				},
 			},
 			mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -1148,12 +1142,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					{TypeName: "Review", FieldNames: []string{"id", "author"}},
 					{TypeName: "Author", FieldNames: []string{"id"}},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{TypeName: "Article", SelectionSet: "id"},
-						{TypeName: "Review", SelectionSet: "id"},
-						{TypeName: "Author", SelectionSet: "id"},
-					},
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Article", SelectionSet: "id"},
+					{TypeName: "Review", SelectionSet: "id"},
+					{TypeName: "Author", SelectionSet: "id"},
 				},
 			},
 			mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -1186,10 +1178,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				RootNodes: []plan.TypeField{
 					{TypeName: "Author", FieldNames: []string{"id", "displayName"}},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{TypeName: "Author", SelectionSet: "id"},
-					},
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Author", SelectionSet: "id"},
 				},
 			},
 			mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -1409,19 +1399,17 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						ExternalFieldNames: []string{"region"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
 					},
-					Requires: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							FieldName:    "account",
-							SelectionSet: "billing { plan } settings { region }",
-						},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						FieldName:    "account",
+						SelectionSet: "billing { plan } settings { region }",
 					},
 				},
 			}, mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -1482,19 +1470,17 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						ExternalFieldNames: []string{"language"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
 					},
-					Requires: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							FieldName:    "notifications",
-							SelectionSet: "name settings { language }",
-						},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						FieldName:    "notifications",
+						SelectionSet: "name settings { language }",
 					},
 				},
 			}, mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -1567,12 +1553,10 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						FieldNames: []string{"region", "language"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
 					},
 				},
 			}, mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -2156,10 +2140,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 							{TypeName: "Query", FieldNames: []string{"product"}},
 							{TypeName: "Product", FieldNames: []string{"id", "name", "nameWithError"}},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{TypeName: "Product", SelectionSet: "id"},
-							},
+						Keys: plan.FederationFieldConfigurations{
+							{TypeName: "Product", SelectionSet: "id"},
 						},
 					},
 					mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -2189,10 +2171,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 						RootNodes: []plan.TypeField{
 							{TypeName: "Product", FieldNames: []string{"price"}},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{TypeName: "Product", SelectionSet: "id"},
-							},
+						Keys: plan.FederationFieldConfigurations{
+							{TypeName: "Product", SelectionSet: "id"},
 						},
 					},
 					mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -2384,11 +2364,9 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				ChildNodes: []plan.TypeField{
 					{TypeName: "SubItem", FieldNames: []string{"id"}},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{TypeName: "Item", SelectionSet: "id"},
-						{TypeName: "SubItem", SelectionSet: "id"},
-					},
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Item", SelectionSet: "id"},
+					{TypeName: "SubItem", SelectionSet: "id"},
 				},
 			},
 			mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -2424,10 +2402,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				RootNodes: []plan.TypeField{
 					{TypeName: "Item", FieldNames: []string{"id", "title"}},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{TypeName: "Item", SelectionSet: "id"},
-					},
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Item", SelectionSet: "id"},
 				},
 			},
 			mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -2463,10 +2439,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				RootNodes: []plan.TypeField{
 					{TypeName: "SubItem", FieldNames: []string{"id", "description"}},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{TypeName: "SubItem", SelectionSet: "id"},
-					},
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "SubItem", SelectionSet: "id"},
 				},
 			},
 			mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -2737,10 +2711,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 					{TypeName: "Query", FieldNames: []string{"products"}},
 					{TypeName: "Product", FieldNames: []string{"id", "sku"}},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{TypeName: "Product", SelectionSet: "id"},
-					},
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Product", SelectionSet: "id"},
 				},
 			},
 			mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -2780,10 +2752,8 @@ func TestExecutionEngine_Execute_Defer(t *testing.T) {
 				RootNodes: []plan.TypeField{
 					{TypeName: "Product", FieldNames: []string{"id", "name", "price"}},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{TypeName: "Product", SelectionSet: "id"},
-					},
+				Keys: plan.FederationFieldConfigurations{
+					{TypeName: "Product", SelectionSet: "id"},
 				},
 			},
 			mustConfiguration(t, graphql_datasource.ConfigurationInput{

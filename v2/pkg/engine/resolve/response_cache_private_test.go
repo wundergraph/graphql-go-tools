@@ -270,13 +270,11 @@ func TestResponseCachePrivateResolve(t *testing.T) {
 		return &GraphQLResponse{
 			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: ds,
-					Input:      `{"method":"POST","url":"http://accounts","body":{"query":"{me}"}}`,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: ds,
+				Input:      `{"method":"POST","url":"http://accounts","body":{"query":"{me}"}}`,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				InputTemplate: InputTemplate{Segments: []TemplateSegment{{
 					Data:        []byte(`{"method":"POST","url":"http://accounts","body":{"query":"{me}"}}`),

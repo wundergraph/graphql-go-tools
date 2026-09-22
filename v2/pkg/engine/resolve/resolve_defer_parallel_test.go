@@ -80,13 +80,13 @@ func TestResolveDeferTree_TwoParallelSiblings(t *testing.T) {
 	groupA := &DeferFetchGroup{
 		DeferID: 1,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"f1":"valueA"}`)},
+			DataSource: FakeDataSource(`{"f1":"valueA"}`),
 		}),
 	}
 	groupB := &DeferFetchGroup{
 		DeferID: 2,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"f2":"valueB"}`)},
+			DataSource: FakeDataSource(`{"f2":"valueB"}`),
 		}),
 	}
 
@@ -117,13 +117,13 @@ func TestResolveDeferTree_SequenceOrdering(t *testing.T) {
 	groupA := &DeferFetchGroup{
 		DeferID: 1,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"f1":"parent"}`)},
+			DataSource: FakeDataSource(`{"f1":"parent"}`),
 		}),
 	}
 	groupC := &DeferFetchGroup{
 		DeferID: 2,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"f2":"child"}`)},
+			DataSource: FakeDataSource(`{"f2":"child"}`),
 		}),
 	}
 
@@ -155,13 +155,13 @@ func TestResolveDeferTree_SiblingFailureIsIndependent(t *testing.T) {
 	groupA := &DeferFetchGroup{
 		DeferID: 1,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"f1":"valueA"}`)},
+			DataSource: FakeDataSource(`{"f1":"valueA"}`),
 		}),
 	}
 	groupB := &DeferFetchGroup{
 		DeferID: 2,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{}`)},
+			DataSource: FakeDataSource(`{}`),
 		}),
 	}
 
@@ -201,24 +201,20 @@ func TestResolveDeferTree_ParallelSiblings_ErrorsAreIsolated(t *testing.T) {
 	groupA := &DeferFetchGroup{
 		DeferID: 1,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group A"}]}`),
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group A"}]}`),
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 		}),
 	}
 	groupB := &DeferFetchGroup{
 		DeferID: 2,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group B"}]}`),
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group B"}]}`),
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 		}),
 	}
@@ -267,12 +263,10 @@ func TestResolveDeferTree_ParallelSiblings_SubgraphErrorsAggregateIntoContext(t 
 	groupA := &DeferFetchGroup{
 		DeferID: 1,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group A"}]}`),
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group A"}]}`),
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			Info: &FetchInfo{DataSourceID: "subgraph-A", DataSourceName: "subgraph-A"},
 		}),
@@ -280,12 +274,10 @@ func TestResolveDeferTree_ParallelSiblings_SubgraphErrorsAggregateIntoContext(t 
 	groupB := &DeferFetchGroup{
 		DeferID: 2,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group B"}]}`),
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: FakeDataSource(`{"data":{},"errors":[{"message":"error from group B"}]}`),
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			Info: &FetchInfo{DataSourceID: "subgraph-B", DataSourceName: "subgraph-B"},
 		}),

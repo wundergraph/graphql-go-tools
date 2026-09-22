@@ -405,9 +405,7 @@ func (p *Processor) appendTriggerToFetchTree(sub *resolve.GraphQLSubscription) {
 		Kind: resolve.FetchTreeNodeKindTrigger,
 		Item: &resolve.FetchItem{
 			Fetch: &resolve.SingleFetch{
-				FetchDependencies: resolve.FetchDependencies{
-					FetchID: info.FetchID,
-				},
+				FetchID: info.FetchID,
 				Info: &resolve.FetchInfo{
 					DataSourceID:   info.Source.IDs[0],
 					DataSourceName: info.Source.Names[0],

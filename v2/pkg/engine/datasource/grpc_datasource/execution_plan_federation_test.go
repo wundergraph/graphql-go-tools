@@ -33,12 +33,10 @@ func TestExecutionPlan_Federation_EntityLookup(t *testing.T) {
 				EntityRPCs: map[string][]EntityRPCConfig{
 					"Product": {
 						{
-							Key: "id",
-							RPCConfig: RPCConfig{
-								RPC:      "LookupProductById",
-								Request:  "LookupProductByIdRequest",
-								Response: "LookupProductByIdResponse",
-							},
+							Key:      "id",
+							RPC:      "LookupProductById",
+							Request:  "LookupProductByIdRequest",
+							Response: "LookupProductByIdResponse",
 						},
 					},
 				},
@@ -331,12 +329,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 				EntityRPCs: map[string][]EntityRPCConfig{
 					"User": {
 						{
-							Key: "id",
-							RPCConfig: RPCConfig{
-								RPC:      "LookupUserById",
-								Request:  "LookupUserByIdRequest",
-								Response: "LookupUserByIdResponse",
-							},
+							Key:      "id",
+							RPC:      "LookupUserById",
+							Request:  "LookupUserByIdRequest",
+							Response: "LookupUserByIdResponse",
 						},
 					},
 				},
@@ -442,12 +438,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 				EntityRPCs: map[string][]EntityRPCConfig{
 					"User": {
 						{
-							Key: "id address { id }",
-							RPCConfig: RPCConfig{
-								RPC:      "LookupUserByIdAndAddress",
-								Request:  "LookupUserByIdAndAddressRequest",
-								Response: "LookupUserByIdAndAddressResponse",
-							},
+							Key:      "id address { id }",
+							RPC:      "LookupUserByIdAndAddress",
+							Request:  "LookupUserByIdAndAddressRequest",
+							Response: "LookupUserByIdAndAddressResponse",
 						},
 					},
 				},
@@ -558,12 +552,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 				EntityRPCs: map[string][]EntityRPCConfig{
 					"User": {
 						{
-							Key: "id name",
-							RPCConfig: RPCConfig{
-								RPC:      "LookupUserByIdAndName",
-								Request:  "LookupUserByIdAndNameRequest",
-								Response: "LookupUserByIdAndNameResponse",
-							},
+							Key:      "id name",
+							RPC:      "LookupUserByIdAndName",
+							Request:  "LookupUserByIdAndNameRequest",
+							Response: "LookupUserByIdAndNameResponse",
 						},
 					},
 				},
@@ -661,12 +653,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 				EntityRPCs: map[string][]EntityRPCConfig{
 					"User": {
 						{
-							Key: "name id",
-							RPCConfig: RPCConfig{
-								RPC:      "LookupUserByIdAndName",
-								Request:  "LookupUserByIdAndNameRequest",
-								Response: "LookupUserByIdAndNameResponse",
-							},
+							Key:      "name id",
+							RPC:      "LookupUserByIdAndName",
+							Request:  "LookupUserByIdAndNameRequest",
+							Response: "LookupUserByIdAndNameResponse",
 						},
 					},
 				},
@@ -770,12 +760,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 				EntityRPCs: map[string][]EntityRPCConfig{
 					"User": {
 						{
-							Key: "name id address",
-							RPCConfig: RPCConfig{
-								RPC:      "LookupUserByIdAndNameAndAddress",
-								Request:  "LookupUserByIdAndNameAndAddressRequest",
-								Response: "LookupUserByIdAndNameAndAddressResponse",
-							},
+							Key:      "name id address",
+							RPC:      "LookupUserByIdAndNameAndAddress",
+							Request:  "LookupUserByIdAndNameAndAddressRequest",
+							Response: "LookupUserByIdAndNameAndAddressResponse",
 						},
 					},
 				},
@@ -894,12 +882,10 @@ func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 				EntityRPCs: map[string][]EntityRPCConfig{
 					"User": {
 						{
-							Key: "id",
-							RPCConfig: RPCConfig{
-								RPC:      "LookupUserById",
-								Request:  "LookupUserByIdRequest",
-								Response: "LookupUserByIdResponse",
-							},
+							Key:      "id",
+							RPC:      "LookupUserById",
+							Request:  "LookupUserByIdRequest",
+							Response: "LookupUserByIdResponse",
 						},
 					},
 				},
@@ -1049,12 +1035,10 @@ var nestedInlineFragmentFederationMapping = &GRPCMapping{
 	EntityRPCs: map[string][]EntityRPCConfig{
 		"User": {
 			{
-				Key: "id",
-				RPCConfig: RPCConfig{
-					RPC:      "LookupUserById",
-					Request:  "LookupUserByIdRequest",
-					Response: "LookupUserByIdResponse",
-				},
+				Key:      "id",
+				RPC:      "LookupUserById",
+				Request:  "LookupUserByIdRequest",
+				Response: "LookupUserByIdResponse",
 			},
 		},
 	},
@@ -1618,12 +1602,10 @@ var complexResolverInNestedMessageFederationMapping = &GRPCMapping{
 	EntityRPCs: map[string][]EntityRPCConfig{
 		"Product": {
 			{
-				Key: "id",
-				RPCConfig: RPCConfig{
-					RPC:      "LookupProductById",
-					Request:  "LookupProductByIdRequest",
-					Response: "LookupProductByIdResponse",
-				},
+				Key:      "id",
+				RPC:      "LookupProductById",
+				Request:  "LookupProductByIdRequest",
+				Response: "LookupProductByIdResponse",
 			},
 		},
 	},

@@ -205,15 +205,13 @@ func (c *createMultiFetch) mergeGroup(root, parent *resolve.FetchTreeNode, group
 	}
 
 	multi := &resolve.MultiEntityFetch{
-		FetchDependencies: resolve.FetchDependencies{
-			FetchID:           slices.Min(ids),
-			DependsOnFetchIDs: unionDependencies(members, ids),
-			DeferID:           members[0].DeferID,
-		},
-		Input:          resolve.MultiEntityInput{Header: header, Entries: entries, Footer: footer},
-		DataSource:     members[0].DataSource,
-		MergedFetchIDs: ids,
-		Info:           mergedFetchInfo(members, pretty),
+		FetchID:           slices.Min(ids),
+		DependsOnFetchIDs: unionDependencies(members, ids),
+		DeferID:           members[0].DeferID,
+		Input:             resolve.MultiEntityInput{Header: header, Entries: entries, Footer: footer},
+		DataSource:        members[0].DataSource,
+		MergedFetchIDs:    ids,
+		Info:              mergedFetchInfo(members, pretty),
 	}
 	// Entry items deliberately keep a nil Fetch: a backpointer to the multi
 	// would make the plan cyclic (breaking structural plan comparison), and

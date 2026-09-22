@@ -581,12 +581,10 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: userService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-						SelectResponseDataPath:   []string{"data"},
-					},
+				DataSource: userService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
+					SelectResponseDataPath:   []string{"data"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "users",
@@ -643,12 +641,10 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: reviewsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-						SelectResponseDataPath:   []string{"data", "_entities", "0"},
-					},
+				DataSource: reviewsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
+					SelectResponseDataPath:   []string{"data", "_entities", "0"},
 				},
 			}, "query.me", ObjectPath("me")),
 			SingleWithPath(&SingleFetch{
@@ -697,13 +693,11 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-						SelectResponseDataPath:   []string{"data", "_entities"},
-						MergePath:                []string{"data"},
-					},
+				DataSource: productService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
+					SelectResponseDataPath:   []string{"data", "_entities"},
+					MergePath:                []string{"data"},
 				},
 			}, "query.me.reviews.@.product", ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
 		),
@@ -883,11 +877,9 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: userService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: userService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "users",
@@ -943,11 +935,9 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: reviewsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data", "_entities", "0"},
-					},
+				DataSource: reviewsService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data", "_entities", "0"},
 				},
 			}, ObjectPath("me")),
 			Single(&SingleFetch{
@@ -995,12 +985,10 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 						},
 					},
 				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data", "_entities"},
-						MergePath:              []string{"data"},
-					},
+				DataSource: productService,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data", "_entities"},
+					MergePath:              []string{"data"},
 				},
 			}, ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
 		),

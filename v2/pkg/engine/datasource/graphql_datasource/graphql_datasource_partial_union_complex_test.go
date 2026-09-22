@@ -60,10 +60,8 @@ func partialUnionComplexPlanConfiguration(t *testing.T) plan.Configuration {
 				{TypeName: "Common", FieldNames: []string{"label"}},
 				{TypeName: "OnlyA", FieldNames: []string{"a"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Container", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Container", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -117,10 +115,8 @@ func partialUnionComplexPlanConfiguration(t *testing.T) plan.Configuration {
 				{TypeName: "Common", FieldNames: []string{"label"}},
 				{TypeName: "OnlyB", FieldNames: []string{"b"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Container", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Container", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -187,11 +183,9 @@ func partialUnionSingleFetchPlan(url, rootField, query string, itemFields []*res
 		Response: &resolve.GraphQLResponse{
 			Fetches: resolve.Sequence(
 				resolve.Single(&resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:          fmt.Sprintf(`{"method":"POST","url":"%s","body":{"query":%q}}`, url, query),
-						PostProcessing: DefaultPostProcessingConfiguration,
-						DataSource:     &Source{},
-					},
+					Input:                fmt.Sprintf(`{"method":"POST","url":"%s","body":{"query":%q}}`, url, query),
+					PostProcessing:       DefaultPostProcessingConfiguration,
+					DataSource:           &Source{},
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				}),
 			),
@@ -370,11 +364,9 @@ func TestPartialUnionComplex(t *testing.T) {
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(
 					resolve.Single(&resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://subgraph-a","body":{"query":"{rootA {id wrapper {actions {__typename}}}}"}}`,
-							PostProcessing: DefaultPostProcessingConfiguration,
-							DataSource:     &Source{},
-						},
+						Input:                `{"method":"POST","url":"http://subgraph-a","body":{"query":"{rootA {id wrapper {actions {__typename}}}}"}}`,
+						PostProcessing:       DefaultPostProcessingConfiguration,
+						DataSource:           &Source{},
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
 				),

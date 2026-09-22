@@ -17,14 +17,14 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: nil,
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+						Fetch:     &resolve.SingleFetch{Input: "a"},
 					},
 				},
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: nil,
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "b"}},
+						Fetch:     &resolve.SingleFetch{Input: "b"},
 					},
 				},
 			},
@@ -42,14 +42,14 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+						Fetch:     &resolve.SingleFetch{Input: "a"},
 					},
 				},
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+						Fetch:     &resolve.SingleFetch{Input: "a"},
 					},
 				},
 			},
@@ -61,7 +61,7 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+						Fetch:     &resolve.SingleFetch{Input: "a"},
 					},
 				},
 			},
@@ -80,14 +80,14 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 1, DeferID: 1}},
+						Fetch:     &resolve.SingleFetch{Input: "a", FetchID: 1, DeferID: 1},
 					},
 				},
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 2, DeferID: 2}},
+						Fetch:     &resolve.SingleFetch{Input: "a", FetchID: 2, DeferID: 2},
 					},
 				},
 			},
@@ -99,14 +99,14 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 1, DeferID: 1}},
+						Fetch:     &resolve.SingleFetch{Input: "a", FetchID: 1, DeferID: 1},
 					},
 				},
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 2, DeferID: 2}},
+						Fetch:     &resolve.SingleFetch{Input: "a", FetchID: 2, DeferID: 2},
 					},
 				},
 			},
@@ -125,14 +125,14 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 1, DeferID: 1}},
+						Fetch:     &resolve.SingleFetch{Input: "a", FetchID: 1, DeferID: 1},
 					},
 				},
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 2, DeferID: 1}},
+						Fetch:     &resolve.SingleFetch{Input: "a", FetchID: 2, DeferID: 1},
 					},
 				},
 			},
@@ -144,7 +144,7 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}, FetchDependencies: resolve.FetchDependencies{FetchID: 1, DeferID: 1}},
+						Fetch:     &resolve.SingleFetch{Input: "a", FetchID: 1, DeferID: 1},
 					},
 				},
 			},
@@ -164,11 +164,9 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root"}}},
 						Fetch: &resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           0,
-								DependsOnFetchIDs: []int{},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{Input: "rootQuery"},
+							FetchID:           0,
+							DependsOnFetchIDs: []int{},
+							Input:             "rootQuery",
 						},
 					},
 				},
@@ -177,13 +175,9 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a"}}},
 						Fetch: &resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           1,
-								DependsOnFetchIDs: []int{0},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input: "a",
-							},
+							FetchID:           1,
+							DependsOnFetchIDs: []int{0},
+							Input:             "a",
 							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
@@ -203,13 +197,9 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a"}}},
 						Fetch: &resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           2,
-								DependsOnFetchIDs: []int{0},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input: "a",
-							},
+							FetchID:           2,
+							DependsOnFetchIDs: []int{0},
+							Input:             "a",
 							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
@@ -229,13 +219,9 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a.b"}}},
 						Fetch: &resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           4,
-								DependsOnFetchIDs: []int{0, 2},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input: "b",
-							},
+							FetchID:           4,
+							DependsOnFetchIDs: []int{0, 2},
+							Input:             "b",
 							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
@@ -258,13 +244,9 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a.b"}}},
 						Fetch: &resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           3,
-								DependsOnFetchIDs: []int{0, 1},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input: "b",
-							},
+							FetchID:           3,
+							DependsOnFetchIDs: []int{0, 1},
+							Input:             "b",
 							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
@@ -292,11 +274,9 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root"}}},
 						Fetch: &resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           0,
-								DependsOnFetchIDs: []int{},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{Input: "rootQuery"},
+							FetchID:           0,
+							DependsOnFetchIDs: []int{},
+							Input:             "rootQuery",
 						},
 					},
 				},
@@ -305,13 +285,9 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a"}}},
 						Fetch: &resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           1,
-								DependsOnFetchIDs: []int{0},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input: "a",
-							},
+							FetchID:           1,
+							DependsOnFetchIDs: []int{0},
+							Input:             "a",
 							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
@@ -331,13 +307,9 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a.b"}}},
 						Fetch: &resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           4,
-								DependsOnFetchIDs: []int{0, 1},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input: "b",
-							},
+							FetchID:           4,
+							DependsOnFetchIDs: []int{0, 1},
+							Input:             "b",
 							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
@@ -371,14 +343,14 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+						Fetch:     &resolve.SingleFetch{Input: "a"},
 					},
 				},
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"b"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+						Fetch:     &resolve.SingleFetch{Input: "a"},
 					},
 				},
 			},
@@ -390,14 +362,14 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"a"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+						Fetch:     &resolve.SingleFetch{Input: "a"},
 					},
 				},
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
 						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"b"}}},
-						Fetch:     &resolve.SingleFetch{FetchConfiguration: resolve.FetchConfiguration{Input: "a"}},
+						Fetch:     &resolve.SingleFetch{Input: "a"},
 					},
 				},
 			},

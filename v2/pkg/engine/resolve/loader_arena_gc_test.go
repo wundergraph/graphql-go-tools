@@ -54,12 +54,10 @@ func (r *_testCustomResolve) Resolve(ctx *Context, value []byte) ([]byte, error)
 // Callers can override FetchConfiguration and Info fields on the returned SingleFetch.
 func gcTestResponse(ds DataSource) (*GraphQLResponse, *SingleFetch) {
 	fetch := &SingleFetch{
-		FetchConfiguration: FetchConfiguration{
-			DataSource: ds,
-			PostProcessing: PostProcessingConfiguration{
-				SelectResponseDataPath:   []string{"data"},
-				SelectResponseErrorsPath: []string{"errors"},
-			},
+		DataSource: ds,
+		PostProcessing: PostProcessingConfiguration{
+			SelectResponseDataPath:   []string{"data"},
+			SelectResponseErrorsPath: []string{"errors"},
 		},
 		Info: &FetchInfo{
 			DataSourceID:   "test-ds",

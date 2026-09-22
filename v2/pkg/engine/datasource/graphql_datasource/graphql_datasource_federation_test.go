@@ -38,11 +38,9 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Fetches: resolve.Sequence(resolve.Single(
 						&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource:     &Source{},
-								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{u {__typename}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-							},
+							DataSource:           &Source{},
+							Input:                `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{u {__typename}}"}}`,
+							PostProcessing:       DefaultPostProcessingConfiguration,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 					)),
@@ -270,12 +268,10 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 						FieldNames: []string{"id"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: []plan.FederationFieldConfiguration{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
+				Keys: []plan.FederationFieldConfiguration{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
 					},
 				},
 			},
@@ -308,12 +304,10 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 						FieldNames: []string{"id", "name"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: []plan.FederationFieldConfiguration{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
+				Keys: []plan.FederationFieldConfiguration{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
 					},
 				},
 			},
@@ -354,12 +348,10 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 						FieldNames: []string{"id", "address"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: []plan.FederationFieldConfiguration{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
+				Keys: []plan.FederationFieldConfiguration{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
 					},
 				},
 			},
@@ -396,11 +388,9 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource:     &Source{},
-								Input:          `{"method":"POST","url":"https://example-1.com/graphql","body":{"query":"{me {__typename}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-							},
+							DataSource:           &Source{},
+							Input:                `{"method":"POST","url":"https://example-1.com/graphql","body":{"query":"{me {__typename}}"}}`,
+							PostProcessing:       DefaultPostProcessingConfiguration,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 					),
@@ -443,48 +433,42 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource:     &Source{},
-								Input:          `{"method":"POST","url":"https://example-1.com/graphql","body":{"query":"{me {__typename id}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-							},
+							DataSource:           &Source{},
+							Input:                `{"method":"POST","url":"https://example-1.com/graphql","body":{"query":"{me {__typename id}}"}}`,
+							PostProcessing:       DefaultPostProcessingConfiguration,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 						resolve.SingleWithPath(&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           1,
-								DependsOnFetchIDs: []int{0},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-								DataSource:                            &Source{},
-								SetTemplateOutputToNullOnVariableNull: true,
-								Variables: []resolve.Variable{
-									&resolve.ResolvableObjectVariable{
-										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("__typename"),
-													Value: &resolve.String{
-														Path: []string{"__typename"},
-													},
-													OnTypeNames: [][]byte{[]byte("User")},
+							FetchID:                               1,
+							DependsOnFetchIDs:                     []int{0},
+							Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+							DataSource:                            &Source{},
+							SetTemplateOutputToNullOnVariableNull: true,
+							Variables: []resolve.Variable{
+								&resolve.ResolvableObjectVariable{
+									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("__typename"),
+												Value: &resolve.String{
+													Path: []string{"__typename"},
 												},
-												{
-													Name: []byte("id"),
-													Value: &resolve.String{
-														Path: []string{"id"},
-													},
-													OnTypeNames: [][]byte{[]byte("User")},
-												},
+												OnTypeNames: [][]byte{[]byte("User")},
 											},
-										}),
-									},
+											{
+												Name: []byte("id"),
+												Value: &resolve.String{
+													Path: []string{"id"},
+												},
+												OnTypeNames: [][]byte{[]byte("User")},
+											},
+										},
+									}),
 								},
-								PostProcessing:      SingleEntityPostProcessingConfiguration,
-								RequiresEntityFetch: true,
 							},
+							PostProcessing:       SingleEntityPostProcessingConfiguration,
+							RequiresEntityFetch:  true,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}, "me", resolve.ObjectPath("me")),
 					),
@@ -588,12 +572,10 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 								FieldNames: []string{"id", "field"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "Object",
-									SelectionSet: "id",
-								},
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "Object",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -621,12 +603,10 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 								FieldNames: []string{"a"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "Object",
-									SelectionSet: "id",
-								},
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "Object",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -668,129 +648,105 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 					Fetches: resolve.Sequence(
 						resolve.Single(
 							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{d {__typename id field}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								FetchID:              0,
+								DataSource:           &Source{},
+								Input:                `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{d {__typename id field}}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 						resolve.SingleWithPath(
 							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Object {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("Object")},
+								FetchID:                               1,
+								DependsOnFetchIDs:                     []int{0},
+								Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Object {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("Object")},
-													},
+													OnTypeNames: [][]byte{[]byte("Object")},
 												},
-											}),
-										},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("Object")},
+												},
+											},
+										}),
 									},
-									PostProcessing:      SingleEntityPostProcessingConfiguration,
-									RequiresEntityFetch: true,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
+								RequiresEntityFetch:  true,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "d", resolve.ObjectPath("d")),
 						resolve.Single(
 							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           2,
-									DependsOnFetchIDs: []int{0},
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{c}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								FetchID:              2,
+								DependsOnFetchIDs:    []int{0},
+								DataSource:           &Source{},
+								Input:                `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{c}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 						resolve.Single(
 							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           3,
-									DependsOnFetchIDs: []int{0, 2},
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{b {__typename id field}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								FetchID:              3,
+								DependsOnFetchIDs:    []int{0, 2},
+								DataSource:           &Source{},
+								Input:                `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{b {__typename id field}}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 						resolve.SingleWithPath(
 							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           4,
-									DependsOnFetchIDs: []int{3},
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Object {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("Object")},
+								FetchID:                               4,
+								DependsOnFetchIDs:                     []int{3},
+								Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Object {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("Object")},
-													},
+													OnTypeNames: [][]byte{[]byte("Object")},
 												},
-											}),
-										},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("Object")},
+												},
+											},
+										}),
 									},
-									PostProcessing:      SingleEntityPostProcessingConfiguration,
-									RequiresEntityFetch: true,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
+								RequiresEntityFetch:  true,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "b", resolve.ObjectPath("b")),
 						resolve.Single(
 							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           5,
-									DependsOnFetchIDs: []int{0, 2, 3},
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"mutation{a}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								FetchID:              5,
+								DependsOnFetchIDs:    []int{0, 2, 3},
+								DataSource:           &Source{},
+								Input:                `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"mutation{a}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 					),
@@ -901,40 +857,28 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 					Fetches: resolve.Sequence(
 						resolve.Single(
 							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{c}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								FetchID:              0,
+								DataSource:           &Source{},
+								Input:                `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{c}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 						resolve.Single(
 							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{b {field}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								FetchID:              1,
+								DependsOnFetchIDs:    []int{0},
+								DataSource:           &Source{},
+								Input:                `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{b {field}}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 						resolve.Single(
 							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           2,
-									DependsOnFetchIDs: []int{0, 1},
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"mutation{a}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								FetchID:              2,
+								DependsOnFetchIDs:    []int{0, 1},
+								DataSource:           &Source{},
+								Input:                `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"mutation{a}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 					),
@@ -1093,34 +1037,32 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						FieldNames: []string{"a", "b"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "Account",
-							SelectionSet: "id info {a b}",
-						},
-						{
-							TypeName:     "Address",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
 					},
-					Provides: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							FieldName:    "oldAccount",
-							SelectionSet: `name shippingInfo {zip}`,
-						},
+					{
+						TypeName:     "Account",
+						SelectionSet: "id info {a b}",
 					},
-					Requires: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Account",
-							FieldName:    "deliveryAddress",
-							SelectionSet: "shippingInfo {zip}",
-						},
+					{
+						TypeName:     "Address",
+						SelectionSet: "id",
+					},
+				},
+				Provides: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						FieldName:    "oldAccount",
+						SelectionSet: `name shippingInfo {zip}`,
+					},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						FieldName:    "deliveryAddress",
+						SelectionSet: "shippingInfo {zip}",
 					},
 				},
 			},
@@ -1201,37 +1143,35 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						FieldNames: []string{"zip"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Account",
-							FieldName:    "",
-							SelectionSet: "id info {a b}",
-						},
-						{
-							TypeName:     "Address",
-							FieldName:    "",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						FieldName:    "",
+						SelectionSet: "id info {a b}",
 					},
-					Requires: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Address",
-							FieldName:    "fullAddress",
-							SelectionSet: "line1 line2 line3(test:\"BOOM\") zip",
-						},
-						{
-							TypeName:     "Address",
-							FieldName:    "secretLine",
-							SelectionSet: "zip",
-						},
+					{
+						TypeName:     "Address",
+						FieldName:    "",
+						SelectionSet: "id",
 					},
-					Provides: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Account",
-							FieldName:    "providedAddress",
-							SelectionSet: "zip line1 line2 line3(test:\"BOOM\")",
-						},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Address",
+						FieldName:    "fullAddress",
+						SelectionSet: "line1 line2 line3(test:\"BOOM\") zip",
+					},
+					{
+						TypeName:     "Address",
+						FieldName:    "secretLine",
+						SelectionSet: "zip",
+					},
+				},
+				Provides: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						FieldName:    "providedAddress",
+						SelectionSet: "zip line1 line2 line3(test:\"BOOM\")",
 					},
 				},
 			},
@@ -1273,20 +1213,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						FetchReasonFields: []string{"line3", "zip"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Address",
-							FieldName:    "",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Address",
+						FieldName:    "",
+						SelectionSet: "id",
 					},
-					Requires: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Address",
-							FieldName:    "zip",
-							SelectionSet: "country city",
-						},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Address",
+						FieldName:    "zip",
+						SelectionSet: "country city",
 					},
 				},
 			},
@@ -1325,12 +1263,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						FieldNames: []string{"id", "country", "city"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Address",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Address",
+						SelectionSet: "id",
 					},
 				},
 			},
@@ -1401,73 +1337,65 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
+								FetchID:              0,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
-									DataSource:     &Source{},
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+								DataSource:           &Source{},
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							}),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("Account")},
+								FetchID:                               1,
+								DependsOnFetchIDs:                     []int{0},
+								Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("Account")},
+													OnTypeNames: [][]byte{[]byte("Account")},
+												},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
 													},
-													{
-														Name:        []byte("info"),
-														OnTypeNames: [][]byte{[]byte("Account")},
-														Value: &resolve.Object{
-															Path:     []string{"info"},
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("a"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"a"},
-																	},
+													OnTypeNames: [][]byte{[]byte("Account")},
+												},
+												{
+													Name:        []byte("info"),
+													OnTypeNames: [][]byte{[]byte("Account")},
+													Value: &resolve.Object{
+														Path:     []string{"info"},
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("a"),
+																Value: &resolve.Scalar{
+																	Path: []string{"a"},
 																},
-																{
-																	Name: []byte("b"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"b"},
-																	},
+															},
+															{
+																Name: []byte("b"),
+																Value: &resolve.Scalar{
+																	Path: []string{"b"},
 																},
 															},
 														},
 													},
 												},
-											}),
-										},
+											},
+										}),
 									},
-									PostProcessing:      SingleEntityPostProcessingConfiguration,
-									RequiresEntityFetch: true,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
+								RequiresEntityFetch:  true,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
 						),
@@ -1550,15 +1478,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
+								FetchID:              0,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
-									DataSource:     &Source{},
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+								DataSource:           &Source{},
+								PostProcessing:       DefaultPostProcessingConfiguration,
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "user.service",
 									DataSourceName: "user.service",
@@ -1572,10 +1496,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							}),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "account.service",
 									DataSourceName: "account.service",
@@ -1592,59 +1514,57 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									OperationType: ast.OperationTypeQuery,
 								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									RequiresEntityFetch:                   true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name:        []byte("__typename"),
-														OnTypeNames: [][]byte{[]byte("Account")},
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
+								DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+								Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								RequiresEntityFetch:                   true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name:        []byte("__typename"),
+													OnTypeNames: [][]byte{[]byte("Account")},
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name:        []byte("id"),
-														OnTypeNames: [][]byte{[]byte("Account")},
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
+												},
+												{
+													Name:        []byte("id"),
+													OnTypeNames: [][]byte{[]byte("Account")},
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
 													},
-													{
-														Name:        []byte("info"),
-														OnTypeNames: [][]byte{[]byte("Account")},
-														Value: &resolve.Object{
-															Path:     []string{"info"},
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("a"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"a"},
-																	},
+												},
+												{
+													Name:        []byte("info"),
+													OnTypeNames: [][]byte{[]byte("Account")},
+													Value: &resolve.Object{
+														Path:     []string{"info"},
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("a"),
+																Value: &resolve.Scalar{
+																	Path: []string{"a"},
 																},
-																{
-																	Name: []byte("b"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"b"},
-																	},
+															},
+															{
+																Name: []byte("b"),
+																Value: &resolve.Scalar{
+																	Path: []string{"b"},
 																},
 															},
 														},
 													},
 												},
-											}),
-										},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing: SingleEntityPostProcessingConfiguration,
 							}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
 						),
 						Info: &resolve.GraphQLResponseInfo{
@@ -1837,16 +1757,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "type"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Account",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "User",
-								SelectionSet: "account { id } id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Account",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "User",
+							SelectionSet: "account { id } id",
 						},
 					},
 				},
@@ -1892,18 +1810,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Account",
-								FieldName:    "",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "User",
-								FieldName:    "",
-								SelectionSet: "account { id } id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Account",
+							FieldName:    "",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "User",
+							FieldName:    "",
+							SelectionSet: "account { id } id",
 						},
 					},
 				},
@@ -1949,119 +1865,107 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://service-a","body":{"query":"{user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://service-a","body":{"query":"{user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              1,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+									Variables: resolve.NewVariables(
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("account"),
-															Value: &resolve.Object{
-																Path: []string{"account"},
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("account"),
+														Value: &resolve.Object{
+															Path: []string{"account"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("User")},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
+										},
+									),
+									DataSource:                            &Source{},
+									RequiresEntityFetch:                   true,
+									PostProcessing:                        SingleEntityPostProcessingConfiguration,
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              2,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+									Variables: resolve.NewVariables(
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("account"),
-															Value: &resolve.Object{
-																Path: []string{"account"},
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("account"),
+														Value: &resolve.Object{
+															Path: []string{"account"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("User")},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
+										},
+									),
+									DataSource:                            &Source{},
+									RequiresEntityFetch:                   true,
+									PostProcessing:                        SingleEntityPostProcessingConfiguration,
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "otherUser", resolve.ObjectPath("otherUser")),
 							),
 							Data: &resolve.Object{
@@ -2129,122 +2033,110 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 0,
-										},
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://service-a","body":{"query":"query CompositeKey__service_a__0 {user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
-											OperationName:  "CompositeKey__service_a",
-											DataSource:     &Source{},
-											PostProcessing: DefaultPostProcessingConfiguration,
-										},
+										Input:                `{"method":"POST","url":"http://service-a","body":{"query":"query CompositeKey__service_a__0 {user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
+										OperationName:        "CompositeKey__service_a",
+										DataSource:           &Source{},
+										PostProcessing:       DefaultPostProcessingConfiguration,
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
+										FetchID:              1,
+										DependsOnFetchIDs:    []int{0},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:         `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-											OperationName: "CompositeKey__service_b",
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+										OperationName:        "CompositeKey__service_b",
+										Variables: resolve.NewVariables(
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("account"),
-																Value: &resolve.Object{
-																	Path: []string{"account"},
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("id"),
-																			Value: &resolve.Scalar{
-																				Path: []string{"id"},
-																			},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("account"),
+															Value: &resolve.Object{
+																Path: []string{"account"},
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.Scalar{
+																			Path: []string{"id"},
 																		},
 																	},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											RequiresEntityFetch:                   true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
-										},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
+											},
+										),
+										DataSource:                            &Source{},
+										RequiresEntityFetch:                   true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
 									}, "user", resolve.ObjectPath("user")),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           2,
-											DependsOnFetchIDs: []int{0},
-										},
+										FetchID:              2,
+										DependsOnFetchIDs:    []int{0},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:         `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__2($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-											OperationName: "CompositeKey__service_b",
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__2($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+										OperationName:        "CompositeKey__service_b",
+										Variables: resolve.NewVariables(
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("account"),
-																Value: &resolve.Object{
-																	Path: []string{"account"},
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("id"),
-																			Value: &resolve.Scalar{
-																				Path: []string{"id"},
-																			},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("account"),
+															Value: &resolve.Object{
+																Path: []string{"account"},
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.Scalar{
+																			Path: []string{"id"},
 																		},
 																	},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											RequiresEntityFetch:                   true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
-										},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
+											},
+										),
+										DataSource:                            &Source{},
+										RequiresEntityFetch:                   true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
 									}, "otherUser", resolve.ObjectPath("otherUser")),
 								),
 								Data: &resolve.Object{
@@ -2320,119 +2212,107 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 0,
-										},
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://service-a","body":{"query":"{user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
-											DataSource:     &Source{},
-											PostProcessing: DefaultPostProcessingConfiguration,
-										},
+										Input:                `{"method":"POST","url":"http://service-a","body":{"query":"{user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
+										DataSource:           &Source{},
+										PostProcessing:       DefaultPostProcessingConfiguration,
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
+										FetchID:              1,
+										DependsOnFetchIDs:    []int{0},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("account"),
-																Value: &resolve.Object{
-																	Path: []string{"account"},
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("id"),
-																			Value: &resolve.Scalar{
-																				Path: []string{"id"},
-																			},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("account"),
+															Value: &resolve.Object{
+																Path: []string{"account"},
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.Scalar{
+																			Path: []string{"id"},
 																		},
 																	},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											RequiresEntityFetch:                   true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
-										},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
+											},
+										),
+										DataSource:                            &Source{},
+										RequiresEntityFetch:                   true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
 									}, "user", resolve.ObjectPath("user")),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           2,
-											DependsOnFetchIDs: []int{0},
-										},
+										FetchID:              2,
+										DependsOnFetchIDs:    []int{0},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("account"),
-																Value: &resolve.Object{
-																	Path: []string{"account"},
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("id"),
-																			Value: &resolve.Scalar{
-																				Path: []string{"id"},
-																			},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("account"),
+															Value: &resolve.Object{
+																Path: []string{"account"},
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.Scalar{
+																			Path: []string{"id"},
 																		},
 																	},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											RequiresEntityFetch:                   true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
-										},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
+											},
+										),
+										DataSource:                            &Source{},
+										RequiresEntityFetch:                   true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
 									}, "otherUser", resolve.ObjectPath("otherUser")),
 								),
 								Data: &resolve.Object{
@@ -2509,67 +2389,59 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://service-a","body":{"query":"{user {id name __typename account {id}}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://service-a","body":{"query":"{user {id name __typename account {id}}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              1,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+									Variables: resolve.NewVariables(
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("account"),
-															Value: &resolve.Object{
-																Path: []string{"account"},
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("account"),
+														Value: &resolve.Object{
+															Path: []string{"account"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("User")},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
+										},
+									),
+									DataSource:                            &Source{},
+									RequiresEntityFetch:                   true,
+									PostProcessing:                        SingleEntityPostProcessingConfiguration,
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user", resolve.ObjectPath("user")),
 							),
 							Data: &resolve.Object{
@@ -2632,67 +2504,59 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://service-a","body":{"query":"{user {id name account {type id} __typename}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://service-a","body":{"query":"{user {id name account {type id} __typename}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              1,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+									Variables: resolve.NewVariables(
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("account"),
-															Value: &resolve.Object{
-																Path: []string{"account"},
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("account"),
+														Value: &resolve.Object{
+															Path: []string{"account"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("User")},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
+										},
+									),
+									DataSource:                            &Source{},
+									RequiresEntityFetch:                   true,
+									PostProcessing:                        SingleEntityPostProcessingConfiguration,
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user", resolve.ObjectPath("user")),
 							),
 							Data: &resolve.Object{
@@ -2809,16 +2673,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "type"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Account",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "User",
-								SelectionSet: "account { id } id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Account",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "User",
+							SelectionSet: "account { id } id",
 						},
 					},
 				},
@@ -2864,18 +2726,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Account",
-								FieldName:    "",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "User",
-								FieldName:    "",
-								SelectionSet: "account { id } id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Account",
+							FieldName:    "",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "User",
+							FieldName:    "",
+							SelectionSet: "account { id } id",
 						},
 					},
 				},
@@ -2912,122 +2772,110 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://service-a","body":{"query":"query CompositeKey__s_rvic_e_a__0 {user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
-										OperationName:  "CompositeKey__s_rvic_e_a",
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://service-a","body":{"query":"query CompositeKey__s_rvic_e_a__0 {user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
+									OperationName:        "CompositeKey__s_rvic_e_a",
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              1,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:         `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-										OperationName: "CompositeKey__service_b",
-										Variables: resolve.NewVariables(
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+									OperationName:        "CompositeKey__service_b",
+									Variables: resolve.NewVariables(
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("account"),
-															Value: &resolve.Object{
-																Path: []string{"account"},
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("account"),
+														Value: &resolve.Object{
+															Path: []string{"account"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("User")},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
+										},
+									),
+									DataSource:                            &Source{},
+									RequiresEntityFetch:                   true,
+									PostProcessing:                        SingleEntityPostProcessingConfiguration,
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              2,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:         `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__2($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-										OperationName: "CompositeKey__service_b",
-										Variables: resolve.NewVariables(
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									Input:                `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__2($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+									OperationName:        "CompositeKey__service_b",
+									Variables: resolve.NewVariables(
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("account"),
-															Value: &resolve.Object{
-																Path: []string{"account"},
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("account"),
+														Value: &resolve.Object{
+															Path: []string{"account"},
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("User")},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
+										},
+									),
+									DataSource:                            &Source{},
+									RequiresEntityFetch:                   true,
+									PostProcessing:                        SingleEntityPostProcessingConfiguration,
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "otherUser", resolve.ObjectPath("otherUser")),
 							),
 							Data: &resolve.Object{
@@ -3112,15 +2960,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {line1 line2 __typename id}}}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {line1 line2 __typename id}}}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 									Info: &resolve.FetchInfo{
 										DataSourceID:   "user.service",
 										DataSourceName: "user.service",
@@ -3201,41 +3045,37 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              1,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
+									Input:                `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
+														OnTypeNames: [][]byte{[]byte("Address")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 									Info: &resolve.FetchInfo{
 										DataSourceID:   "address-enricher.service",
 										DataSourceName: "address-enricher.service",
@@ -3311,55 +3151,51 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 								}, "user.account.address", resolve.ObjectPath("user"), resolve.ObjectPath("account"), resolve.ObjectPath("address")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{0, 1},
-									},
+									FetchID:              2,
+									DependsOnFetchIDs:    []int{0, 1},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!, $a: String!){_entities(representations: $representations){... on Address {__typename line3(test: $a) zip}}}","variables":{"a":"BOOM","representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
+									Input:                `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!, $a: String!){_entities(representations: $representations){... on Address {__typename line3(test: $a) zip}}}","variables":{"a":"BOOM","representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
-														{
-															Name: []byte("country"),
-															Value: &resolve.String{
-																Path: []string{"country"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
-														{
-															Name: []byte("city"),
-															Value: &resolve.String{
-																Path: []string{"city"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
+														OnTypeNames: [][]byte{[]byte("Address")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+													{
+														Name: []byte("country"),
+														Value: &resolve.String{
+															Path: []string{"country"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+													{
+														Name: []byte("city"),
+														Value: &resolve.String{
+															Path: []string{"city"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 									Info: &resolve.FetchInfo{
 										DataSourceID:   "address.service",
 										DataSourceName: "address.service",
@@ -3467,69 +3303,65 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 								}, "user.account.address", resolve.ObjectPath("user"), resolve.ObjectPath("account"), resolve.ObjectPath("address")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           3,
-										DependsOnFetchIDs: []int{0, 2},
-									},
+									FetchID:              3,
+									DependsOnFetchIDs:    []int{0, 2},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
+									Input:                `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("line1"),
-															Value: &resolve.String{
-																Path: []string{"line1"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
-														{
-															Name: []byte("line2"),
-															Value: &resolve.String{
-																Path: []string{"line2"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
-														{
-															Name: []byte("line3"),
-															Value: &resolve.String{
-																Path: []string{"line3"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
-														{
-															Name: []byte("zip"),
-															Value: &resolve.String{
-																Path: []string{"zip"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
+														OnTypeNames: [][]byte{[]byte("Address")},
 													},
-												}),
-											},
+													{
+														Name: []byte("line1"),
+														Value: &resolve.String{
+															Path: []string{"line1"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+													{
+														Name: []byte("line2"),
+														Value: &resolve.String{
+															Path: []string{"line2"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+													{
+														Name: []byte("line3"),
+														Value: &resolve.String{
+															Path: []string{"line3"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+													{
+														Name: []byte("zip"),
+														Value: &resolve.String{
+															Path: []string{"zip"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 									Info: &resolve.FetchInfo{
 										DataSourceID:   "account.service",
 										DataSourceName: "account.service",
@@ -3771,206 +3603,186 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              1,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename secretAddress {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
+									Input:                `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename secretAddress {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
 														},
-														{
-															Name: []byte("info"),
-															Value: &resolve.Object{
-																Path:     []string{"info"},
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("a"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"a"},
-																		},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name: []byte("info"),
+														Value: &resolve.Object{
+															Path:     []string{"info"},
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("a"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"a"},
 																	},
-																	{
-																		Name: []byte("b"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"b"},
-																		},
+																},
+																{
+																	Name: []byte("b"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"b"},
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("Account")},
 														},
+														OnTypeNames: [][]byte{[]byte("Account")},
 													},
-												}),
-											},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									},
+									FetchID:              2,
+									DependsOnFetchIDs:    []int{1},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
+									Input:                `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
+														OnTypeNames: [][]byte{[]byte("Address")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user.account.secretAddress", resolve.ObjectPath("user"), resolve.ObjectPath("account"), resolve.ObjectPath("secretAddress")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           3,
-										DependsOnFetchIDs: []int{1, 2},
-									},
+									FetchID:              3,
+									DependsOnFetchIDs:    []int{1, 2},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename zip}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
+									Input:                `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename zip}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("country"),
-															Value: &resolve.String{
-																Path: []string{"country"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
-														{
-															Name: []byte("city"),
-															Value: &resolve.String{
-																Path: []string{"city"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
+														OnTypeNames: [][]byte{[]byte("Address")},
 													},
-												}),
-											},
+													{
+														Name: []byte("country"),
+														Value: &resolve.String{
+															Path: []string{"country"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+													{
+														Name: []byte("city"),
+														Value: &resolve.String{
+															Path: []string{"city"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user.account.secretAddress", resolve.ObjectPath("user"), resolve.ObjectPath("account"), resolve.ObjectPath("secretAddress")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           4,
-										DependsOnFetchIDs: []int{1, 3},
-									},
+									FetchID:              4,
+									DependsOnFetchIDs:    []int{1, 3},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename secretLine}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
+									Input:                `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename secretLine}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("zip"),
-															Value: &resolve.String{
-																Path: []string{"zip"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
+														OnTypeNames: [][]byte{[]byte("Address")},
 													},
-												}),
-											},
+													{
+														Name: []byte("zip"),
+														Value: &resolve.String{
+															Path: []string{"zip"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user.account.secretAddress", resolve.ObjectPath("user"), resolve.ObjectPath("account"), resolve.ObjectPath("secretAddress")),
 							),
 							Data: &resolve.Object{
@@ -4076,149 +3888,137 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              1,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
+									Input:                `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
 														},
-														{
-															Name: []byte("info"),
-															Value: &resolve.Object{
-																Path:     []string{"info"},
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("a"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"a"},
-																		},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name: []byte("info"),
+														Value: &resolve.Object{
+															Path:     []string{"info"},
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("a"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"a"},
 																	},
-																	{
-																		Name: []byte("b"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"b"},
-																		},
+																},
+																{
+																	Name: []byte("b"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"b"},
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("Account")},
 														},
+														OnTypeNames: [][]byte{[]byte("Account")},
 													},
-												}),
-											},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{0, 1},
-									},
+									FetchID:              2,
+									DependsOnFetchIDs:    []int{0, 1},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://user.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename deliveryAddress {line1}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
+									Input:                `{"method":"POST","url":"http://user.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename deliveryAddress {line1}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("shippingInfo"),
-															Value: &resolve.Object{
-																Path:     []string{"shippingInfo"},
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("zip"),
-																		Value: &resolve.String{
-																			Path: []string{"zip"},
-																		},
-																	},
-																},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
-														},
-														{
-															Name: []byte("info"),
-															Value: &resolve.Object{
-																Path:     []string{"info"},
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("a"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"a"},
-																		},
-																	},
-																	{
-																		Name: []byte("b"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"b"},
-																		},
-																	},
-																},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
-														},
+														OnTypeNames: [][]byte{[]byte("Account")},
 													},
-												}),
-											},
+													{
+														Name: []byte("shippingInfo"),
+														Value: &resolve.Object{
+															Path:     []string{"shippingInfo"},
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("zip"),
+																	Value: &resolve.String{
+																		Path: []string{"zip"},
+																	},
+																},
+															},
+														},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name: []byte("info"),
+														Value: &resolve.Object{
+															Path:     []string{"info"},
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("a"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"a"},
+																	},
+																},
+																{
+																	Name: []byte("b"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"b"},
+																	},
+																},
+															},
+														},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
 							),
 							Data: &resolve.Object{
@@ -4325,15 +4125,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {deliveryAddress {line1}}}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {deliveryAddress {line1}}}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 							),
 							Data: &resolve.Object{
@@ -4441,74 +4237,66 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
+									FetchID:              1,
+									DependsOnFetchIDs:    []int{0},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename providedAddress {secretLine fullAddress}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
+									Input:                `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename providedAddress {secretLine fullAddress}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:           &Source{},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:  true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
 														},
-														{
-															Name: []byte("info"),
-															Value: &resolve.Object{
-																Path:     []string{"info"},
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("a"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"a"},
-																		},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name: []byte("info"),
+														Value: &resolve.Object{
+															Path:     []string{"info"},
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("a"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"a"},
 																	},
-																	{
-																		Name: []byte("b"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"b"},
-																		},
+																},
+																{
+																	Name: []byte("b"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"b"},
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("Account")},
 														},
+														OnTypeNames: [][]byte{[]byte("Account")},
 													},
-												}),
-											},
+												},
+											}),
 										},
-										SetTemplateOutputToNullOnVariableNull: true,
 									},
+									SetTemplateOutputToNullOnVariableNull: true,
 								}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
 							),
 							Data: &resolve.Object{
@@ -4643,19 +4431,17 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								FieldNames: []string{"id", "fullName"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
-							Requires: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									FieldName:    "fullName",
-									SelectionSet: "firstName lastName",
-								},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "fullName",
+								SelectionSet: "firstName lastName",
 							},
 						},
 					},
@@ -4694,12 +4480,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								FieldNames: []string{"id", "firstName", "lastName"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -4743,101 +4527,91 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											RequiresEntityBatchFetch:              false,
-											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
-											DataSource:                            &Source{},
-											SetTemplateOutputToNullOnVariableNull: true,
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:                               1,
+										DependsOnFetchIDs:                     []int{0},
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
-											PostProcessing: SingleEntityPostProcessingConfiguration,
 										},
+										PostProcessing:       SingleEntityPostProcessingConfiguration,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}, "user", resolve.ObjectPath("user")),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           2,
-											DependsOnFetchIDs: []int{0, 1},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											RequiresEntityBatchFetch:              false,
-											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
-											DataSource:                            &Source{},
-											SetTemplateOutputToNullOnVariableNull: true,
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:                               2,
+										DependsOnFetchIDs:                     []int{0, 1},
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("firstName"),
-																Value: &resolve.String{
-																	Path: []string{"firstName"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("lastName"),
-																Value: &resolve.String{
-																	Path: []string{"lastName"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("firstName"),
+															Value: &resolve.String{
+																Path: []string{"firstName"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("lastName"),
+															Value: &resolve.String{
+																Path: []string{"lastName"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
-											PostProcessing: SingleEntityPostProcessingConfiguration,
 										},
+										PostProcessing:       SingleEntityPostProcessingConfiguration,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}, "user", resolve.ObjectPath("user")),
 								),
@@ -4890,101 +4664,91 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Response: &resolve.GraphQLResponse{
 									Fetches: resolve.Sequence(
 										resolve.Single(&resolve.SingleFetch{
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-												PostProcessing: DefaultPostProcessingConfiguration,
-												DataSource:     &Source{},
-											},
+											Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+											PostProcessing:       DefaultPostProcessingConfiguration,
+											DataSource:           &Source{},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           1,
-												DependsOnFetchIDs: []int{0},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              false,
-												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
+											FetchID:                               1,
+											DependsOnFetchIDs:                     []int{0},
+											RequiresEntityBatchFetch:              false,
+											RequiresEntityFetch:                   true,
+											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														}),
-													},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
 												},
-												PostProcessing: SingleEntityPostProcessingConfiguration,
 											},
+											PostProcessing:       SingleEntityPostProcessingConfiguration,
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}, "user", resolve.ObjectPath("user")),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           2,
-												DependsOnFetchIDs: []int{0, 1},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              false,
-												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
+											FetchID:                               2,
+											DependsOnFetchIDs:                     []int{0, 1},
+											RequiresEntityBatchFetch:              false,
+											RequiresEntityFetch:                   true,
+											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("firstName"),
-																	Value: &resolve.String{
-																		Path: []string{"firstName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("lastName"),
-																	Value: &resolve.String{
-																		Path: []string{"lastName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														}),
-													},
+															{
+																Name: []byte("firstName"),
+																Value: &resolve.String{
+																	Path: []string{"firstName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("lastName"),
+																Value: &resolve.String{
+																	Path: []string{"lastName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
 												},
-												PostProcessing: SingleEntityPostProcessingConfiguration,
 											},
+											PostProcessing:       SingleEntityPostProcessingConfiguration,
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}, "user", resolve.ObjectPath("user")),
 									),
@@ -5047,101 +4811,91 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Response: &resolve.GraphQLResponse{
 									Fetches: resolve.Sequence(
 										resolve.Single(&resolve.SingleFetch{
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-												PostProcessing: DefaultPostProcessingConfiguration,
-												DataSource:     &Source{},
-											},
+											Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+											PostProcessing:       DefaultPostProcessingConfiguration,
+											DataSource:           &Source{},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           1,
-												DependsOnFetchIDs: []int{0},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              false,
-												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
+											FetchID:                               1,
+											DependsOnFetchIDs:                     []int{0},
+											RequiresEntityBatchFetch:              false,
+											RequiresEntityFetch:                   true,
+											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														}),
-													},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
 												},
-												PostProcessing: SingleEntityPostProcessingConfiguration,
 											},
+											PostProcessing:       SingleEntityPostProcessingConfiguration,
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}, "user", resolve.ObjectPath("user")),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           2,
-												DependsOnFetchIDs: []int{0, 1},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              false,
-												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
+											FetchID:                               2,
+											DependsOnFetchIDs:                     []int{0, 1},
+											RequiresEntityBatchFetch:              false,
+											RequiresEntityFetch:                   true,
+											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("firstName"),
-																	Value: &resolve.String{
-																		Path: []string{"firstName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("lastName"),
-																	Value: &resolve.String{
-																		Path: []string{"lastName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														}),
-													},
+															{
+																Name: []byte("firstName"),
+																Value: &resolve.String{
+																	Path: []string{"firstName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("lastName"),
+																Value: &resolve.String{
+																	Path: []string{"lastName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
 												},
-												PostProcessing: SingleEntityPostProcessingConfiguration,
 											},
+											PostProcessing:       SingleEntityPostProcessingConfiguration,
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}, "user", resolve.ObjectPath("user")),
 									),
@@ -5204,101 +4958,91 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Response: &resolve.GraphQLResponse{
 									Fetches: resolve.Sequence(
 										resolve.Single(&resolve.SingleFetch{
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-												PostProcessing: DefaultPostProcessingConfiguration,
-												DataSource:     &Source{},
-											},
+											Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+											PostProcessing:       DefaultPostProcessingConfiguration,
+											DataSource:           &Source{},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           1,
-												DependsOnFetchIDs: []int{0},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              false,
-												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
+											FetchID:                               1,
+											DependsOnFetchIDs:                     []int{0},
+											RequiresEntityBatchFetch:              false,
+											RequiresEntityFetch:                   true,
+											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														}),
-													},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
 												},
-												PostProcessing: SingleEntityPostProcessingConfiguration,
 											},
+											PostProcessing:       SingleEntityPostProcessingConfiguration,
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}, "user", resolve.ObjectPath("user")),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           2,
-												DependsOnFetchIDs: []int{0, 1},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              false,
-												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
+											FetchID:                               2,
+											DependsOnFetchIDs:                     []int{0, 1},
+											RequiresEntityBatchFetch:              false,
+											RequiresEntityFetch:                   true,
+											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("firstName"),
-																	Value: &resolve.String{
-																		Path: []string{"firstName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("lastName"),
-																	Value: &resolve.String{
-																		Path: []string{"lastName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														}),
-													},
+															{
+																Name: []byte("firstName"),
+																Value: &resolve.String{
+																	Path: []string{"firstName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("lastName"),
+																Value: &resolve.String{
+																	Path: []string{"lastName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
 												},
-												PostProcessing: SingleEntityPostProcessingConfiguration,
 											},
+											PostProcessing:       SingleEntityPostProcessingConfiguration,
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}, "user", resolve.ObjectPath("user")),
 									),
@@ -5391,20 +5135,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								FieldNames: []string{"id", "otherID", "property"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:              "Entity",
-									SelectionSet:          "id otherID",
-									DisableEntityResolver: true,
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:              "Entity",
+								SelectionSet:          "id otherID",
+								DisableEntityResolver: true,
 							},
-							Requires: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "Entity",
-									FieldName:    "property",
-									SelectionSet: "name",
-								},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								FieldName:    "property",
+								SelectionSet: "name",
 							},
 						},
 					},
@@ -5443,12 +5185,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								FieldNames: []string{"id", "otherID", "name"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "Entity",
-									SelectionSet: "id otherID",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "Entity",
+								SelectionSet: "id otherID",
 							},
 						},
 					},
@@ -5494,106 +5234,96 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entities {__typename id otherID}}"}}`,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entities {__typename id otherID}}"}}`,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											RequiresEntityBatchFetch:              true,
-											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-											DataSource:                            &Source{},
-											SetTemplateOutputToNullOnVariableNull: true,
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("Entity")},
+										FetchID:                               1,
+										DependsOnFetchIDs:                     []int{0},
+										RequiresEntityBatchFetch:              true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("Entity")},
-															},
-															{
-																Name: []byte("otherID"),
-																Value: &resolve.Scalar{
-																	Path: []string{"otherID"},
-																},
-																OnTypeNames: [][]byte{[]byte("Entity")},
-															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
 														},
-													}),
-												},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+														{
+															Name: []byte("otherID"),
+															Value: &resolve.Scalar{
+																Path: []string{"otherID"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+													},
+												}),
 											},
-											PostProcessing: EntitiesPostProcessingConfiguration,
 										},
+										PostProcessing:       EntitiesPostProcessingConfiguration,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}, "entities", resolve.ArrayPath("entities")),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           2,
-											DependsOnFetchIDs: []int{0, 1},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											RequiresEntityBatchFetch:              true,
-											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename property}}}","variables":{"representations":[$$0$$]}}}`,
-											DataSource:                            &Source{},
-											SetTemplateOutputToNullOnVariableNull: true,
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("Entity")},
+										FetchID:                               2,
+										DependsOnFetchIDs:                     []int{0, 1},
+										RequiresEntityBatchFetch:              true,
+										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename property}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("name"),
-																Value: &resolve.String{
-																	Path: []string{"name"},
-																},
-																OnTypeNames: [][]byte{[]byte("Entity")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("Entity")},
-															},
-															{
-																Name: []byte("otherID"),
-																Value: &resolve.Scalar{
-																	Path: []string{"otherID"},
-																},
-																OnTypeNames: [][]byte{[]byte("Entity")},
-															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
 														},
-													}),
-												},
+														{
+															Name: []byte("name"),
+															Value: &resolve.String{
+																Path: []string{"name"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+														{
+															Name: []byte("otherID"),
+															Value: &resolve.Scalar{
+																Path: []string{"otherID"},
+															},
+															OnTypeNames: [][]byte{[]byte("Entity")},
+														},
+													},
+												}),
 											},
-											PostProcessing: EntitiesPostProcessingConfiguration,
 										},
+										PostProcessing:       EntitiesPostProcessingConfiguration,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}, "entities", resolve.ArrayPath("entities")),
 								),
@@ -5669,12 +5399,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								FieldNames: []string{"id", "firstName"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -5713,19 +5441,17 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								FieldNames: []string{"id", "fullName"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
-							Requires: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									FieldName:    "fullName",
-									SelectionSet: "firstName lastName",
-								},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "fullName",
+								SelectionSet: "firstName lastName",
 							},
 						},
 					},
@@ -5762,12 +5488,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								FieldNames: []string{"id", "lastName"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -5812,101 +5536,91 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {firstName __typename id}}"}}`,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {firstName __typename id}}"}}`,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											RequiresEntityBatchFetch:              false,
-											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename lastName}}}","variables":{"representations":[$$0$$]}}}`,
-											DataSource:                            &Source{},
-											SetTemplateOutputToNullOnVariableNull: true,
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:                               1,
+										DependsOnFetchIDs:                     []int{0},
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename lastName}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
-											PostProcessing: SingleEntityPostProcessingConfiguration,
 										},
+										PostProcessing:       SingleEntityPostProcessingConfiguration,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}, "user", resolve.ObjectPath("user")),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           2,
-											DependsOnFetchIDs: []int{0, 1},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											RequiresEntityBatchFetch:              false,
-											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
-											DataSource:                            &Source{},
-											SetTemplateOutputToNullOnVariableNull: true,
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:                               2,
+										DependsOnFetchIDs:                     []int{0, 1},
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("firstName"),
-																Value: &resolve.String{
-																	Path: []string{"firstName"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("lastName"),
-																Value: &resolve.String{
-																	Path: []string{"lastName"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("firstName"),
+															Value: &resolve.String{
+																Path: []string{"firstName"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("lastName"),
+															Value: &resolve.String{
+																Path: []string{"lastName"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
-											PostProcessing: SingleEntityPostProcessingConfiguration,
 										},
+										PostProcessing:       SingleEntityPostProcessingConfiguration,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}, "user", resolve.ObjectPath("user")),
 								),
@@ -5957,101 +5671,91 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {firstName __typename id}}"}}`,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {firstName __typename id}}"}}`,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											RequiresEntityBatchFetch:              false,
-											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename lastName}}}","variables":{"representations":[$$0$$]}}}`,
-											DataSource:                            &Source{},
-											SetTemplateOutputToNullOnVariableNull: true,
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:                               1,
+										DependsOnFetchIDs:                     []int{0},
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename lastName}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
-											PostProcessing: SingleEntityPostProcessingConfiguration,
 										},
+										PostProcessing:       SingleEntityPostProcessingConfiguration,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}, "user", resolve.ObjectPath("user")),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           2,
-											DependsOnFetchIDs: []int{0, 1},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											RequiresEntityBatchFetch:              false,
-											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
-											DataSource:                            &Source{},
-											SetTemplateOutputToNullOnVariableNull: true,
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:                               2,
+										DependsOnFetchIDs:                     []int{0, 1},
+										RequiresEntityBatchFetch:              false,
+										RequiresEntityFetch:                   true,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:                            &Source{},
+										SetTemplateOutputToNullOnVariableNull: true,
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("firstName"),
-																Value: &resolve.String{
-																	Path: []string{"firstName"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("lastName"),
-																Value: &resolve.String{
-																	Path: []string{"lastName"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("firstName"),
+															Value: &resolve.String{
+																Path: []string{"firstName"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("lastName"),
+															Value: &resolve.String{
+																Path: []string{"lastName"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
-											PostProcessing: SingleEntityPostProcessingConfiguration,
 										},
+										PostProcessing:       SingleEntityPostProcessingConfiguration,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}, "user", resolve.ObjectPath("user")),
 								),
@@ -6172,27 +5876,25 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								FieldNames: []string{"id", "fullName"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-								{
-									TypeName:     "UserList",
-									SelectionSet: "id",
-								},
-								{
-									TypeName:     "FullName",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
-							Requires: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									FieldName:    "fullName",
-									SelectionSet: "firstName lastName",
-								},
+							{
+								TypeName:     "UserList",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "FullName",
+								SelectionSet: "id",
+							},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "fullName",
+								SelectionSet: "firstName lastName",
 							},
 						},
 					},
@@ -6249,20 +5951,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								FieldNames: []string{"users"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: plan.FederationFieldConfigurations{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-								{
-									TypeName:     "UserList",
-									SelectionSet: "id",
-								},
-								{
-									TypeName:     "FullName",
-									SelectionSet: "id",
-								},
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "UserList",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "FullName",
+								SelectionSet: "id",
 							},
 						},
 					},
@@ -6320,99 +6020,89 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Response: &resolve.GraphQLResponse{
 									Fetches: resolve.Sequence(
 										resolve.Single(&resolve.SingleFetch{
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{list {__typename id}}"}}`,
-												PostProcessing: DefaultPostProcessingConfiguration,
-												DataSource:     &Source{},
-											},
+											Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{list {__typename id}}"}}`,
+											PostProcessing:       DefaultPostProcessingConfiguration,
+											DataSource:           &Source{},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           1,
-												DependsOnFetchIDs: []int{0},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              false,
-												RequiresEntityFetch:                   true,
-												PostProcessing:                        SingleEntityPostProcessingConfiguration,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on UserList {__typename users {users {id firstName lastName __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("UserList")},
+											FetchID:                               1,
+											DependsOnFetchIDs:                     []int{0},
+											RequiresEntityBatchFetch:              false,
+											RequiresEntityFetch:                   true,
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
+											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on UserList {__typename users {users {id firstName lastName __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("UserList")},
-																},
+																OnTypeNames: [][]byte{[]byte("UserList")},
 															},
-														}),
-													},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("UserList")},
+															},
+														},
+													}),
 												},
 											},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}, "list", resolve.ObjectPath("list")),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           2,
-												DependsOnFetchIDs: []int{1},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              true,
-												RequiresEntityFetch:                   false,
-												PostProcessing:                        EntitiesPostProcessingConfiguration,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {id fullName}}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
+											FetchID:                               2,
+											DependsOnFetchIDs:                     []int{1},
+											RequiresEntityBatchFetch:              true,
+											RequiresEntityFetch:                   false,
+											PostProcessing:                        EntitiesPostProcessingConfiguration,
+											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {id fullName}}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("firstName"),
-																	Value: &resolve.String{
-																		Path: []string{"firstName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("lastName"),
-																	Value: &resolve.String{
-																		Path: []string{"lastName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														}),
-													},
+															{
+																Name: []byte("firstName"),
+																Value: &resolve.String{
+																	Path: []string{"firstName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("lastName"),
+																Value: &resolve.String{
+																	Path: []string{"lastName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
 												},
 											},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -6524,99 +6214,89 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Response: &resolve.GraphQLResponse{
 									Fetches: resolve.Sequence(
 										resolve.Single(&resolve.SingleFetch{
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{list {__typename id}}"}}`,
-												PostProcessing: DefaultPostProcessingConfiguration,
-												DataSource:     &Source{},
-											},
+											Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{list {__typename id}}"}}`,
+											PostProcessing:       DefaultPostProcessingConfiguration,
+											DataSource:           &Source{},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           1,
-												DependsOnFetchIDs: []int{0},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              false,
-												RequiresEntityFetch:                   true,
-												PostProcessing:                        SingleEntityPostProcessingConfiguration,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on UserList {__typename users {users {id firstName lastName __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("UserList")},
+											FetchID:                               1,
+											DependsOnFetchIDs:                     []int{0},
+											RequiresEntityBatchFetch:              false,
+											RequiresEntityFetch:                   true,
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
+											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on UserList {__typename users {users {id firstName lastName __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("UserList")},
-																},
+																OnTypeNames: [][]byte{[]byte("UserList")},
 															},
-														}),
-													},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("UserList")},
+															},
+														},
+													}),
 												},
 											},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										}, "list", resolve.ObjectPath("list")),
 										resolve.SingleWithPath(&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           2,
-												DependsOnFetchIDs: []int{1},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												RequiresEntityBatchFetch:              true,
-												RequiresEntityFetch:                   false,
-												PostProcessing:                        EntitiesPostProcessingConfiguration,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {id fullName}}}}","variables":{"representations":[$$0$$]}}}`,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
+											FetchID:                               2,
+											DependsOnFetchIDs:                     []int{1},
+											RequiresEntityBatchFetch:              true,
+											RequiresEntityFetch:                   false,
+											PostProcessing:                        EntitiesPostProcessingConfiguration,
+											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {id fullName}}}}","variables":{"representations":[$$0$$]}}}`,
+											DataSource:                            &Source{},
+											SetTemplateOutputToNullOnVariableNull: true,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
 																},
-																{
-																	Name: []byte("firstName"),
-																	Value: &resolve.String{
-																		Path: []string{"firstName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("lastName"),
-																	Value: &resolve.String{
-																		Path: []string{"lastName"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.Scalar{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														}),
-													},
+															{
+																Name: []byte("firstName"),
+																Value: &resolve.String{
+																	Path: []string{"firstName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("lastName"),
+																Value: &resolve.String{
+																	Path: []string{"lastName"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
 												},
 											},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -6739,15 +6419,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {name shippingInfo {zip}}}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {oldAccount {name shippingInfo {zip}}}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 							),
 							Data: &resolve.Object{
@@ -6839,72 +6515,64 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
+									FetchID:              0,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}} oldAccount {name shippingInfo {zip}}}}"}}`,
-										DataSource:     &Source{},
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
+									Input:                `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}} oldAccount {name shippingInfo {zip}}}}"}}`,
+									DataSource:           &Source{},
+									PostProcessing:       DefaultPostProcessingConfiguration,
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch:                   true,
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+									Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									PostProcessing:                        SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch:                   true,
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Account")},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
 														},
-														{
-															Name:        []byte("info"),
-															OnTypeNames: [][]byte{[]byte("Account")},
-															Value: &resolve.Object{
-																Path:     []string{"info"},
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("a"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"a"},
-																		},
+														OnTypeNames: [][]byte{[]byte("Account")},
+													},
+													{
+														Name:        []byte("info"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.Object{
+															Path:     []string{"info"},
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("a"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"a"},
 																	},
-																	{
-																		Name: []byte("b"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"b"},
-																		},
+																},
+																{
+																	Name: []byte("b"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"b"},
 																	},
 																},
 															},
 														},
 													},
-												}),
-											},
+												},
+											}),
 										},
 									},
 								}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
@@ -7056,12 +6724,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FieldNames: []string{"id"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										SelectionSet: "id",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
 								},
 							},
 						},
@@ -7120,23 +6786,21 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FieldNames: []string{"id", "url", "width", "height"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										SelectionSet: "id",
-									},
-									{
-										TypeName:     "HostedImage",
-										SelectionSet: "id",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
 								},
-								Provides: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										FieldName:    "hostedImage",
-										SelectionSet: "image {url}",
-									},
+								{
+									TypeName:     "HostedImage",
+									SelectionSet: "id",
+								},
+							},
+							Provides: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									FieldName:    "hostedImage",
+									SelectionSet: "image {url}",
 								},
 							},
 						},
@@ -7185,12 +6849,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FieldNames: []string{"id", "url", "width", "height"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "HostedImage",
-										SelectionSet: "id",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "HostedImage",
+									SelectionSet: "id",
 								},
 							},
 						},
@@ -7242,48 +6904,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {url}}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
+												FetchID:                               1,
+												DependsOnFetchIDs:                     []int{0},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {url}}}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user", resolve.ObjectPath("user")),
 										),
@@ -7364,48 +7021,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename url}}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
+												FetchID:                               1,
+												DependsOnFetchIDs:                     []int{0},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename url}}}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user", resolve.ObjectPath("user")),
 										),
@@ -7496,48 +7148,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename url id width height}}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
+												FetchID:                               1,
+												DependsOnFetchIDs:                     []int{0},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename url id width height}}}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user", resolve.ObjectPath("user")),
 										),
@@ -7670,12 +7317,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FieldNames: []string{"id"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										SelectionSet: "id",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
 								},
 							},
 						},
@@ -7733,23 +7378,21 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									ExternalFieldNames: []string{"id", "url", "width", "height"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										SelectionSet: "id",
-									},
-									{
-										TypeName:     "HostedImage",
-										SelectionSet: "id",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
 								},
-								Provides: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										FieldName:    "hostedImage",
-										SelectionSet: "image {url}",
-									},
+								{
+									TypeName:     "HostedImage",
+									SelectionSet: "id",
+								},
+							},
+							Provides: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									FieldName:    "hostedImage",
+									SelectionSet: "image {url}",
 								},
 							},
 						},
@@ -7798,12 +7441,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FieldNames: []string{"id", "url", "width", "height"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "HostedImage",
-										SelectionSet: "id",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "HostedImage",
+									SelectionSet: "id",
 								},
 							},
 						},
@@ -7855,48 +7496,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {url}}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
+												FetchID:                               1,
+												DependsOnFetchIDs:                     []int{0},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {url}}}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user", resolve.ObjectPath("user")),
 										),
@@ -7977,48 +7613,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename url}}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
+												FetchID:                               1,
+												DependsOnFetchIDs:                     []int{0},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename url}}}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user", resolve.ObjectPath("user")),
 										),
@@ -8109,85 +7740,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename url} __typename id}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
+												FetchID:                               1,
+												DependsOnFetchIDs:                     []int{0},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename url} __typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("User")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user", resolve.ObjectPath("user")),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{1},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id width height}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
+												FetchID:                               2,
+												DependsOnFetchIDs:                     []int{1},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id width height}}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("HostedImage")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("HostedImage")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 										),
@@ -8347,23 +7970,21 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FieldNames: []string{"id", "url", "width", "height"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										SelectionSet: "id",
-									},
-									{
-										TypeName:     "HostedImage",
-										SelectionSet: "id",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
 								},
-								Provides: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										FieldName:    "hostedImage",
-										SelectionSet: "image {url}",
-									},
+								{
+									TypeName:     "HostedImage",
+									SelectionSet: "id",
+								},
+							},
+							Provides: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									FieldName:    "hostedImage",
+									SelectionSet: "image {url}",
 								},
 							},
 						},
@@ -8457,12 +8078,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FieldNames: []string{"id", "url", "width", "height"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "HostedImage",
-										SelectionSet: "id",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "HostedImage",
+									SelectionSet: "id",
 								},
 							},
 						},
@@ -8514,11 +8133,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {url}}}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {url}}}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 										),
@@ -8599,11 +8216,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url}}}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url}}}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 										),
@@ -8694,11 +8309,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url id width height}}}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url id width height}}}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 										),
@@ -8871,27 +8484,25 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									ExternalFieldNames: []string{"id", "url", "width", "height"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										SelectionSet: "id",
-									},
-									{
-										TypeName:     "HostedImage",
-										SelectionSet: "id",
-									},
-									{
-										TypeName:     "Hosting",
-										SelectionSet: "id category",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
 								},
-								Provides: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "User",
-										FieldName:    "hostedImage",
-										SelectionSet: "image {url} hosting {id}",
-									},
+								{
+									TypeName:     "HostedImage",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Hosting",
+									SelectionSet: "id category",
+								},
+							},
+							Provides: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									FieldName:    "hostedImage",
+									SelectionSet: "image {url} hosting {id}",
 								},
 							},
 						},
@@ -8928,12 +8539,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FieldNames: []string{"id", "category", "name"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "Hosting",
-										SelectionSet: "id category",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "Hosting",
+									SelectionSet: "id category",
 								},
 							},
 						},
@@ -8982,12 +8591,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FieldNames: []string{"id", "url", "width", "height"},
 								},
 							},
-							FederationMetaData: plan.FederationMetaData{
-								Keys: plan.FederationFieldConfigurations{
-									{
-										TypeName:     "HostedImage",
-										SelectionSet: "id",
-									},
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "HostedImage",
+									SelectionSet: "id",
 								},
 							},
 						},
@@ -9039,11 +8646,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {url}}}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {url}}}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 										),
@@ -9124,11 +8729,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url}}}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url}}}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 										),
@@ -9219,48 +8822,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url} __typename id}}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url} __typename id}}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id width height}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
+												FetchID:                               1,
+												DependsOnFetchIDs:                     []int{0},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id width height}}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("HostedImage")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("HostedImage")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 										),
@@ -9373,92 +8971,84 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Response: &resolve.GraphQLResponse{
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
-												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url} hosting {category __typename id} __typename id}}}"}}`,
-													PostProcessing: DefaultPostProcessingConfiguration,
-													DataSource:     &Source{},
-												},
+												Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url} hosting {category __typename id} __typename id}}}"}}`,
+												PostProcessing:       DefaultPostProcessingConfiguration,
+												DataSource:           &Source{},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id width height}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
+												FetchID:                               1,
+												DependsOnFetchIDs:                     []int{0},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id width height}}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("HostedImage")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("HostedImage")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Hosting {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("Hosting")},
+												FetchID:                               2,
+												DependsOnFetchIDs:                     []int{0},
+												RequiresEntityBatchFetch:              false,
+												RequiresEntityFetch:                   true,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Hosting {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+												DataSource:                            &Source{},
+												SetTemplateOutputToNullOnVariableNull: true,
+												Variables: []resolve.Variable{
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
 																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("Hosting")},
-																	},
-																	{
-																		Name: []byte("category"),
-																		Value: &resolve.String{
-																			Path: []string{"category"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("Hosting")},
-																	},
+																	OnTypeNames: [][]byte{[]byte("Hosting")},
 																},
-															}),
-														},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("Hosting")},
+																},
+																{
+																	Name: []byte("category"),
+																	Value: &resolve.String{
+																		Path: []string{"category"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("Hosting")},
+																},
+															},
+														}),
 													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
 												},
+												PostProcessing:       SingleEntityPostProcessingConfiguration,
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user.hostedImage.hosting", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage"), resolve.ObjectPath("hosting")),
 										),
@@ -9627,16 +9217,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						ExternalFieldNames: []string{"forename", "surname"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "details {forename surname}",
-						},
-						{
-							TypeName:     "Details",
-							SelectionSet: "forename surname",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "details {forename surname}",
+					},
+					{
+						TypeName:     "Details",
+						SelectionSet: "forename surname",
 					},
 				},
 			},
@@ -9684,16 +9272,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 				},
 
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "details {forename surname}",
-						},
-						{
-							TypeName:     "Details",
-							SelectionSet: "forename surname",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "details {forename surname}",
+					},
+					{
+						TypeName:     "Details",
+						SelectionSet: "forename surname",
 					},
 				},
 			},
@@ -9737,11 +9323,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {__typename}}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-								DataSource:     &Source{},
-							},
+							Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {__typename}}}"}}`,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+							DataSource:           &Source{},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 					),
@@ -9811,11 +9395,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename surname}}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-								DataSource:     &Source{},
-							},
+							Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename surname}}}"}}`,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+							DataSource:           &Source{},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 					),
@@ -9889,11 +9471,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {middlename}}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-								DataSource:     &Source{},
-							},
+							Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {middlename}}}"}}`,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+							DataSource:           &Source{},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 					),
@@ -9964,11 +9544,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				Response: &resolve.GraphQLResponse{
 					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {__typename forename surname middlename}}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-								DataSource:     &Source{},
-							},
+							Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {__typename forename surname middlename}}}"}}`,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+							DataSource:           &Source{},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 					),
@@ -10098,12 +9676,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"forename", "middlename"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -10160,12 +9736,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"forename", "surname"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -10213,12 +9787,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"age"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -10264,11 +9836,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          input,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                input,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 							),
@@ -10352,15 +9922,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 0,
-										},
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname}}}"}}`,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										Input:                `{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname}}}"}}`,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 									}),
 								),
 								Data: &resolve.Object{
@@ -10417,50 +9983,42 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 0,
-										},
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          input1,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										Input:                input1,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:                                 input2,
-											SetTemplateOutputToNullOnVariableNull: true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											RequiresEntityFetch:                   true,
-											DataSource:                            &Source{},
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:                               1,
+										DependsOnFetchIDs:                     []int{0},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										Input:                                 input2,
+										SetTemplateOutputToNullOnVariableNull: true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										RequiresEntityFetch:                   true,
+										DataSource:                            &Source{},
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
 										},
 									}, "me", resolve.ObjectPath("me")),
@@ -10558,50 +10116,42 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 0,
-										},
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          input1,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										Input:                input1,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:                                 input2,
-											SetTemplateOutputToNullOnVariableNull: true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											RequiresEntityFetch:                   true,
-											DataSource:                            &Source{},
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:                               1,
+										DependsOnFetchIDs:                     []int{0},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										Input:                                 input2,
+										SetTemplateOutputToNullOnVariableNull: true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										RequiresEntityFetch:                   true,
+										DataSource:                            &Source{},
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
 										},
 									}, "me", resolve.ObjectPath("me")),
@@ -10695,50 +10245,42 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 0,
-										},
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          input1,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										Input:                input1,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:                                 input2,
-											SetTemplateOutputToNullOnVariableNull: true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											RequiresEntityFetch:                   true,
-											DataSource:                            &Source{},
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:                               1,
+										DependsOnFetchIDs:                     []int{0},
+										DataSourceIdentifier:                  []byte("graphql_datasource.Source"),
+										Input:                                 input2,
+										SetTemplateOutputToNullOnVariableNull: true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										RequiresEntityFetch:                   true,
+										DataSource:                            &Source{},
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
 										},
 									}, "me", resolve.ObjectPath("me")),
@@ -10817,85 +10359,73 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Response: &resolve.GraphQLResponse{
 								Fetches: resolve.Sequence(
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 0,
-										},
+										FetchID:              0,
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          input1,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										Input:                input1,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 									}),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										}, DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:                                 input2,
-											SetTemplateOutputToNullOnVariableNull: true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											RequiresEntityFetch:                   true,
-											DataSource:                            &Source{},
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0}, DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										Input:                                 input2,
+										SetTemplateOutputToNullOnVariableNull: true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										RequiresEntityFetch:                   true,
+										DataSource:                            &Source{},
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
 										},
 									}, "me", resolve.ObjectPath("me")),
 									resolve.SingleWithPath(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           2,
-											DependsOnFetchIDs: []int{0},
-										}, DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:                                 input3,
-											SetTemplateOutputToNullOnVariableNull: true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											RequiresEntityFetch:                   true,
-											DataSource:                            &Source{},
-											Variables: []resolve.Variable{
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+										FetchID:           2,
+										DependsOnFetchIDs: []int{0}, DataSourceIdentifier: []byte("graphql_datasource.Source"),
+										Input:                                 input3,
+										SetTemplateOutputToNullOnVariableNull: true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										RequiresEntityFetch:                   true,
+										DataSource:                            &Source{},
+										Variables: []resolve.Variable{
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
 															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													}),
-												},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
 											},
 										},
 									}, "me", resolve.ObjectPath("me")),
@@ -11092,16 +10622,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "title", "some"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Admin",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Admin",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -11150,16 +10678,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "adminName", "title"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Admin",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Admin",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -11211,62 +10737,57 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename ... on User {__typename id} ... on Admin {__typename id}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename ... on User {__typename id} ... on Admin {__typename id}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "account", resolve.ObjectPath("account")),
 							),
@@ -11327,48 +10848,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename some {__typename id}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename some {__typename id}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "account.some", resolve.ObjectPath("account"), resolve.ObjectPath("some")),
 							),
@@ -11431,62 +10947,57 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename ... on Admin {__typename id} ... on User {__typename id}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename ... on Admin {__typename id} ... on User {__typename id}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
-														},
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "account", resolve.ObjectPath("account")),
 							),
@@ -11552,62 +11063,57 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename ... on Admin {__typename id} ... on User {id __typename}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename ... on Admin {__typename id} ... on User {id __typename}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
-														},
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "account", resolve.ObjectPath("account")),
 							),
@@ -11685,85 +11191,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{accounts {__typename ... on User {some {some {__typename id} __typename id}} ... on Admin {some {__typename id}}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{accounts {__typename ... on User {some {some {__typename id} __typename id}} ... on Admin {some {__typename id}}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              true,
-										RequiresEntityFetch:                   false,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              true,
+									RequiresEntityFetch:                   false,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: EntitiesPostProcessingConfiguration,
 									},
+									PostProcessing:       EntitiesPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "accounts.@.some", resolve.ArrayPath("accounts"), resolve.PathElementWithTypeNames(resolve.ObjectPath("some"), []string{"Admin", "User"})),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              true,
-										RequiresEntityFetch:                   false,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              true,
+									RequiresEntityFetch:                   false,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: EntitiesPostProcessingConfiguration,
 									},
+									PostProcessing:       EntitiesPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "accounts.@.some.some", resolve.ArrayPath("accounts"), resolve.PathElementWithTypeNames(resolve.ObjectPath("some"), []string{"User"}), resolve.ObjectPath("some")),
 							),
@@ -11875,48 +11373,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {id}}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {id}}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              true,
-										RequiresEntityFetch:                   false,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              true,
+									RequiresEntityFetch:                   false,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: EntitiesPostProcessingConfiguration,
 									},
+									PostProcessing:       EntitiesPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "accounts.@.some", resolve.ArrayPath("accounts"), resolve.PathElementWithTypeNames(resolve.ObjectPath("some"), []string{"User"})),
 							),
@@ -12054,16 +11547,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Admin",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Admin",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -12111,12 +11602,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Admin",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Admin",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -12165,11 +11654,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename ... on Admin {id} ... on User {id}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{account {__typename ... on Admin {id} ... on User {id}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 							),
@@ -12317,24 +11804,22 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"title"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Admin",
-								SelectionSet: "adminID",
-							},
-							{
-								TypeName:     "Moderator",
-								SelectionSet: "moderatorID",
-							},
-							{
-								TypeName:     "Address",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Admin",
+							SelectionSet: "adminID",
+						},
+						{
+							TypeName:     "Moderator",
+							SelectionSet: "moderatorID",
+						},
+						{
+							TypeName:     "Address",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -12382,16 +11867,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"adminID", "adminName"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Admin",
-								SelectionSet: "adminID",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Admin",
+							SelectionSet: "adminID",
 						},
 					},
 				},
@@ -12439,16 +11922,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Moderator",
-								SelectionSet: "moderatorID",
-							},
-							{
-								TypeName:     "Address",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Moderator",
+							SelectionSet: "moderatorID",
+						},
+						{
+							TypeName:     "Address",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -12501,96 +11982,87 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID} ... on Moderator {__typename moderatorID}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID} ... on Moderator {__typename moderatorID}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityBatchFetch:              true,
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityBatchFetch:              true,
+									PostProcessing:                        EntitiesPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
-														},
-														{
-															Name: []byte("adminID"),
-															Value: &resolve.Scalar{
-																Path: []string{"adminID"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
+													},
+													{
+														Name: []byte("adminID"),
+														Value: &resolve.Scalar{
+															Path: []string{"adminID"},
+														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "accounts", resolve.ArrayPath("accounts")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename subject}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityBatchFetch:              true,
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Moderator")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{0},
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename subject}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityBatchFetch:              true,
+									PostProcessing:                        EntitiesPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("moderatorID"),
-															Value: &resolve.Scalar{
-																Path: []string{"moderatorID"},
-															},
-															OnTypeNames: [][]byte{[]byte("Moderator")},
-														},
+														OnTypeNames: [][]byte{[]byte("Moderator")},
 													},
-												}),
-											},
+													{
+														Name: []byte("moderatorID"),
+														Value: &resolve.Scalar{
+															Path: []string{"moderatorID"},
+														},
+														OnTypeNames: [][]byte{[]byte("Moderator")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -12673,137 +12145,124 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first_service__0 {accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID} ... on Moderator {__typename moderatorID}}}"}}`,
-										OperationName:  "Accounts__first_service",
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first_service__0 {accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID} ... on Moderator {__typename moderatorID}}}"}}`,
+									OperationName:        "Accounts__first_service",
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query Accounts__second_service__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
-										OperationName:                         "Accounts__second_service",
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityBatchFetch:              true,
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query Accounts__second_service__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
+									OperationName:                         "Accounts__second_service",
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityBatchFetch:              true,
+									PostProcessing:                        EntitiesPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
-														},
-														{
-															Name: []byte("adminID"),
-															Value: &resolve.Scalar{
-																Path: []string{"adminID"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
+													},
+													{
+														Name: []byte("adminID"),
+														Value: &resolve.Scalar{
+															Path: []string{"adminID"},
+														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "accounts", resolve.ArrayPath("accounts")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query Accounts__third_service__2($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename subject address {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
-										OperationName:                         "Accounts__third_service",
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityBatchFetch:              true,
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Moderator")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{0},
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query Accounts__third_service__2($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename subject address {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+									OperationName:                         "Accounts__third_service",
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityBatchFetch:              true,
+									PostProcessing:                        EntitiesPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("moderatorID"),
-															Value: &resolve.Scalar{
-																Path: []string{"moderatorID"},
-															},
-															OnTypeNames: [][]byte{[]byte("Moderator")},
-														},
+														OnTypeNames: [][]byte{[]byte("Moderator")},
 													},
-												}),
-											},
+													{
+														Name: []byte("moderatorID"),
+														Value: &resolve.Scalar{
+															Path: []string{"moderatorID"},
+														},
+														OnTypeNames: [][]byte{[]byte("Moderator")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "accounts", resolve.ArrayPath("accounts")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           3,
-										DependsOnFetchIDs: []int{2},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first_service__3($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename zip}}}","variables":{"representations":[$$0$$]}}}`,
-										OperationName:                         "Accounts__first_service",
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityBatchFetch:              true,
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
+									FetchID:                               3,
+									DependsOnFetchIDs:                     []int{2},
+									Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first_service__3($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename zip}}}","variables":{"representations":[$$0$$]}}}`,
+									OperationName:                         "Accounts__first_service",
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityBatchFetch:              true,
+									PostProcessing:                        EntitiesPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Address")},
-														},
+														OnTypeNames: [][]byte{[]byte("Address")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Address")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -12902,81 +12361,73 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{nodes {__typename ... on Admin {title} ... on Moderator {__typename moderatorID} ... on User {__typename id}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{nodes {__typename ... on Admin {title} ... on Moderator {__typename moderatorID} ... on User {__typename id}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityBatchFetch:              true,
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Moderator")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityBatchFetch:              true,
+									PostProcessing:                        EntitiesPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("moderatorID"),
-															Value: &resolve.Scalar{
-																Path: []string{"moderatorID"},
-															},
-															OnTypeNames: [][]byte{[]byte("Moderator")},
-														},
+														OnTypeNames: [][]byte{[]byte("Moderator")},
 													},
-												}),
-											},
+													{
+														Name: []byte("moderatorID"),
+														Value: &resolve.Scalar{
+															Path: []string{"moderatorID"},
+														},
+														OnTypeNames: [][]byte{[]byte("Moderator")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "nodes", resolve.ArrayPath("nodes")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityBatchFetch:              true,
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{0},
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityBatchFetch:              true,
+									PostProcessing:                        EntitiesPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -13146,38 +12597,36 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 					ChildNodes: []plan.TypeField{},
-					FederationMetaData: plan.FederationMetaData{
-						EntityInterfaces: []plan.EntityInterfaceConfiguration{
-							{
-								InterfaceTypeName: "Node",
-								ConcreteTypeNames: []string{"Admin", "User"},
-							},
+					EntityInterfaces: []plan.EntityInterfaceConfiguration{
+						{
+							InterfaceTypeName: "Node",
+							ConcreteTypeNames: []string{"Admin", "User"},
 						},
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Admin",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "NodesWrapper",
-								SelectionSet: "id",
-							},
+					},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
-						Requires: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "NodesWrapper",
-								FieldName:    "summary1",
-								SelectionSet: "nodes { fieldA fieldB additionalInfo { fieldB } }",
-							},
-							{
-								TypeName:     "NodesWrapper",
-								FieldName:    "summary3",
-								SelectionSet: "nodes { fieldB }",
-							},
+						{
+							TypeName:     "Admin",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "NodesWrapper",
+							SelectionSet: "id",
+						},
+					},
+					Requires: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "NodesWrapper",
+							FieldName:    "summary1",
+							SelectionSet: "nodes { fieldA fieldB additionalInfo { fieldB } }",
+						},
+						{
+							TypeName:     "NodesWrapper",
+							FieldName:    "summary3",
+							SelectionSet: "nodes { fieldB }",
 						},
 					},
 				},
@@ -13261,20 +12710,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "fieldB", "additionalInfo"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Admin",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "AdditionalInfo",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Admin",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "AdditionalInfo",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -13312,12 +12759,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "fieldA", "fieldB"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "AdditionalInfo",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "AdditionalInfo",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -13380,152 +12825,140 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{nodes {nodes {__typename ... on Admin {title fieldA __typename id} ... on User {__typename id}} __typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{nodes {nodes {__typename ... on Admin {title fieldA __typename id} ... on User {__typename id}} __typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename fieldB additionalInfo {__typename id}} ... on User {__typename title fieldB additionalInfo {__typename id} fieldA}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityBatchFetch:              true,
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename fieldB additionalInfo {__typename id}} ... on User {__typename title fieldB additionalInfo {__typename id} fieldA}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityBatchFetch:              true,
+									PostProcessing:                        EntitiesPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Admin")},
-														},
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Admin")},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "nodes.nodes", resolve.ObjectPath("nodes"), resolve.ArrayPath("nodes")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on AdditionalInfo {__typename fieldA fieldB}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityBatchFetch:              true,
-										PostProcessing:                        EntitiesPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("AdditionalInfo")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on AdditionalInfo {__typename fieldA fieldB}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityBatchFetch:              true,
+									PostProcessing:                        EntitiesPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("AdditionalInfo")},
-														},
+														OnTypeNames: [][]byte{[]byte("AdditionalInfo")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("AdditionalInfo")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "nodes.nodes.@.additionalInfo", resolve.ObjectPath("nodes"), resolve.ArrayPath("nodes"), resolve.PathElementWithTypeNames(resolve.ObjectPath("additionalInfo"), []string{"Admin", "User"})),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           4,
-										DependsOnFetchIDs: []int{0, 1, 2, 2},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NodesWrapper {__typename summary1}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("NodesWrapper")},
+									FetchID:                               4,
+									DependsOnFetchIDs:                     []int{0, 1, 2, 2},
+									Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NodesWrapper {__typename summary1}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									RequiresEntityFetch:                   true,
+									PostProcessing:                        SingleEntityPostProcessingConfiguration,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("nodes"),
-															Value: &resolve.Array{
-																Path:     []string{"nodes"},
-																Nullable: true,
-																Item: &resolve.Object{
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("fieldA"),
-																			Value: &resolve.String{
-																				Path: []string{"fieldA"},
-																			},
+														OnTypeNames: [][]byte{[]byte("NodesWrapper")},
+													},
+													{
+														Name: []byte("nodes"),
+														Value: &resolve.Array{
+															Path:     []string{"nodes"},
+															Nullable: true,
+															Item: &resolve.Object{
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("fieldA"),
+																		Value: &resolve.String{
+																			Path: []string{"fieldA"},
 																		},
-																		{
-																			Name: []byte("fieldB"),
-																			Value: &resolve.String{
-																				Path: []string{"fieldB"},
-																			},
+																	},
+																	{
+																		Name: []byte("fieldB"),
+																		Value: &resolve.String{
+																			Path: []string{"fieldB"},
 																		},
-																		{
-																			Name: []byte("additionalInfo"),
-																			Value: &resolve.Object{
-																				Path:     []string{"additionalInfo"},
-																				Nullable: true,
-																				Fields: []*resolve.Field{
-																					{
-																						Name: []byte("fieldB"),
-																						Value: &resolve.String{
-																							Path: []string{"fieldB"},
-																						},
+																	},
+																	{
+																		Name: []byte("additionalInfo"),
+																		Value: &resolve.Object{
+																			Path:     []string{"additionalInfo"},
+																			Nullable: true,
+																			Fields: []*resolve.Field{
+																				{
+																					Name: []byte("fieldB"),
+																					Value: &resolve.String{
+																						Path: []string{"fieldB"},
 																					},
 																				},
 																			},
@@ -13533,18 +12966,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																	},
 																},
 															},
-															OnTypeNames: [][]byte{[]byte("NodesWrapper")},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("NodesWrapper")},
-														},
+														OnTypeNames: [][]byte{[]byte("NodesWrapper")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("NodesWrapper")},
+													},
+												},
+											}),
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -13713,12 +13146,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -13757,16 +13188,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "uuid", "name"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "User",
-								SelectionSet: "uuid",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "User",
+							SelectionSet: "uuid",
 						},
 					},
 				},
@@ -13804,12 +13233,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"uuid", "title"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "uuid",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "uuid",
 						},
 					},
 				},
@@ -13858,12 +13285,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"country"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -13912,122 +13337,111 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {id __typename}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-									DataSource:     &Source{},
-								},
+								Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {id __typename}}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
+								DataSource:           &Source{},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name uuid}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
+								FetchID:                               1,
+								DependsOnFetchIDs:                     []int{0},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name uuid}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
-													},
+													OnTypeNames: [][]byte{[]byte("User")},
 												},
-											}),
-										},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "user", resolve.ObjectPath("user")),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           2,
-									DependsOnFetchIDs: []int{0},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename address {country}}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
+								FetchID:                               2,
+								DependsOnFetchIDs:                     []int{0},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename address {country}}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
-													},
+													OnTypeNames: [][]byte{[]byte("User")},
 												},
-											}),
-										},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "user", resolve.ObjectPath("user")),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           3,
-									DependsOnFetchIDs: []int{1},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
+								FetchID:                               3,
+								DependsOnFetchIDs:                     []int{1},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("uuid"),
-														Value: &resolve.Scalar{
-															Path: []string{"uuid"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
-													},
+													OnTypeNames: [][]byte{[]byte("User")},
 												},
-											}),
-										},
+												{
+													Name: []byte("uuid"),
+													Value: &resolve.Scalar{
+														Path: []string{"uuid"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "user", resolve.ObjectPath("user")),
 						),
@@ -14135,12 +13549,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"key1", "field1"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "key1",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "key1",
 						},
 					},
 				},
@@ -14179,16 +13591,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"key1", "key2", "field2"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "key1",
-							},
-							{
-								TypeName:     "User",
-								SelectionSet: "key2",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "key1",
+						},
+						{
+							TypeName:     "User",
+							SelectionSet: "key2",
 						},
 					},
 				},
@@ -14227,16 +13637,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"key2", "key3", "field3"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "key2",
-							},
-							{
-								TypeName:     "User",
-								SelectionSet: "key3",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "key2",
+						},
+						{
+							TypeName:     "User",
+							SelectionSet: "key3",
 						},
 					},
 				},
@@ -14274,12 +13682,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"key3", "field4"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "key3",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "key3",
 						},
 					},
 				},
@@ -14330,122 +13736,111 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {field1 __typename key1}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {field1 __typename key1}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field2 key2}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field2 key2}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("key1"),
-															Value: &resolve.Scalar{
-																Path: []string{"key1"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("key1"),
+														Value: &resolve.Scalar{
+															Path: []string{"key1"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field3 key3}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field3 key3}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("key2"),
-															Value: &resolve.Scalar{
-																Path: []string{"key2"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("key2"),
+														Value: &resolve.Scalar{
+															Path: []string{"key2"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           3,
-										DependsOnFetchIDs: []int{2},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field4}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               3,
+									DependsOnFetchIDs:                     []int{2},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field4}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("key3"),
-															Value: &resolve.Scalar{
-																Path: []string{"key3"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("key3"),
+														Value: &resolve.Scalar{
+															Path: []string{"key3"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 							),
@@ -14512,122 +13907,111 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename key1}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename key1}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key2}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key2}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("key1"),
-															Value: &resolve.Scalar{
-																Path: []string{"key1"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("key1"),
+														Value: &resolve.Scalar{
+															Path: []string{"key1"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key3}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key3}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("key2"),
-															Value: &resolve.Scalar{
-																Path: []string{"key2"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("key2"),
+														Value: &resolve.Scalar{
+															Path: []string{"key2"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           3,
-										DependsOnFetchIDs: []int{2},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field4}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               3,
+									DependsOnFetchIDs:                     []int{2},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field4}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("key3"),
-															Value: &resolve.Scalar{
-																Path: []string{"key3"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("key3"),
+														Value: &resolve.Scalar{
+															Path: []string{"key3"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 							),
@@ -14682,122 +14066,111 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {key1 field1 __typename}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {key1 field1 __typename}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key2 field2}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key2 field2}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("key1"),
-															Value: &resolve.Scalar{
-																Path: []string{"key1"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("key1"),
+														Value: &resolve.Scalar{
+															Path: []string{"key1"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key3 field3}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key3 field3}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("key2"),
-															Value: &resolve.Scalar{
-																Path: []string{"key2"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("key2"),
+														Value: &resolve.Scalar{
+															Path: []string{"key2"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           3,
-										DependsOnFetchIDs: []int{2},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field4}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               3,
+									DependsOnFetchIDs:                     []int{2},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field4}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("key3"),
-															Value: &resolve.Scalar{
-																Path: []string{"key3"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("key3"),
+														Value: &resolve.Scalar{
+															Path: []string{"key3"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 							),
@@ -14909,12 +14282,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "title"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -14960,13 +14331,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"userWithName"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:              "User",
-								SelectionSet:          "id",
-								DisableEntityResolver: true,
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:              "User",
+							SelectionSet:          "id",
+							DisableEntityResolver: true,
 						},
 					},
 				},
@@ -15004,12 +14373,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "name"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -15055,48 +14422,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {id __typename}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {id __typename}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 							),
@@ -15152,48 +14514,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{userWithName {name __typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://second.service","body":{"query":"{userWithName {name __typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "userWithName", resolve.ObjectPath("userWithName")),
 							),
@@ -15273,13 +14630,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "name"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:              "Entity",
-								SelectionSet:          "id",
-								DisableEntityResolver: true,
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:              "Entity",
+							SelectionSet:          "id",
+							DisableEntityResolver: true,
 						},
 					},
 				},
@@ -15317,12 +14672,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "age"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -15369,48 +14722,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {id name __typename}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entity {id name __typename}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename age}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename age}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
-														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "entity", resolve.ObjectPath("entity")),
 							),
@@ -15498,18 +14846,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "name", "isEntity"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:              "Entity",
-								SelectionSet:          "id",
-								DisableEntityResolver: true,
-							},
-							{
-								TypeName:              "Entity",
-								SelectionSet:          "name",
-								DisableEntityResolver: true,
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:              "Entity",
+							SelectionSet:          "id",
+							DisableEntityResolver: true,
+						},
+						{
+							TypeName:              "Entity",
+							SelectionSet:          "name",
+							DisableEntityResolver: true,
 						},
 					},
 				},
@@ -15548,16 +14894,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "name", "age"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Entity",
-								SelectionSet: "name",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Entity",
+							SelectionSet: "name",
 						},
 					},
 				},
@@ -15605,48 +14949,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {id name isEntity __typename}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entity {id name isEntity __typename}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename age}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename age}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
-														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "entity", resolve.ObjectPath("entity")),
 							),
@@ -15744,12 +15083,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "isEntity"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -15798,21 +15135,19 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "uuid", "name", "age", "rating"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:              "Entity",
-								SelectionSet:          "name",
-								DisableEntityResolver: true,
-							},
-							{
-								TypeName:     "Entity",
-								SelectionSet: "uuid",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:              "Entity",
+							SelectionSet:          "name",
+							DisableEntityResolver: true,
+						},
+						{
+							TypeName:     "Entity",
+							SelectionSet: "uuid",
 						},
 					},
 				},
@@ -15859,17 +15194,15 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						FieldNames: []string{"uuid", "name", "age", "isImportant"},
 					},
 				},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity",
-								SelectionSet: "name",
-							},
-							{
-								TypeName:              "Entity",
-								SelectionSet:          "uuid",
-								DisableEntityResolver: true,
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity",
+							SelectionSet: "name",
+						},
+						{
+							TypeName:              "Entity",
+							SelectionSet:          "uuid",
+							DisableEntityResolver: true,
 						},
 					},
 				},
@@ -15911,40 +15244,37 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 
 					return &resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{0},
-						}, FetchConfiguration: resolve.FetchConfiguration{
-							RequiresEntityBatchFetch:              false,
-							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename ` + entitySelectionSet + `}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							SetTemplateOutputToNullOnVariableNull: true,
-							Variables: []resolve.Variable{
-								&resolve.ResolvableObjectVariable{
-									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-										Nullable: true,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path: []string{"__typename"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
+						FetchID:                               fetchID,
+						DependsOnFetchIDs:                     []int{0},
+						RequiresEntityBatchFetch:              false,
+						RequiresEntityFetch:                   true,
+						Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename ` + entitySelectionSet + `}}}","variables":{"representations":[$$0$$]}}}`,
+						DataSource:                            &Source{},
+						SetTemplateOutputToNullOnVariableNull: true,
+						Variables: []resolve.Variable{
+							&resolve.ResolvableObjectVariable{
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path: []string{"__typename"},
 											},
-											{
-												Name: []byte("id"),
-												Value: &resolve.Scalar{
-													Path: []string{"id"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
-											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
 										},
-									}),
-								},
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
+										},
+									},
+								}),
 							},
-							PostProcessing: SingleEntityPostProcessingConfiguration,
 						},
+						PostProcessing:       SingleEntityPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}
 				}
@@ -15957,196 +15287,181 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 
 					return &resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{1},
-						}, FetchConfiguration: resolve.FetchConfiguration{
-							RequiresEntityBatchFetch:              false,
-							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename ` + entitySelectionSet + `}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							SetTemplateOutputToNullOnVariableNull: true,
-							Variables: []resolve.Variable{
-								&resolve.ResolvableObjectVariable{
-									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-										Nullable: true,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path: []string{"__typename"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
+						FetchID:                               fetchID,
+						DependsOnFetchIDs:                     []int{1},
+						RequiresEntityBatchFetch:              false,
+						RequiresEntityFetch:                   true,
+						Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename ` + entitySelectionSet + `}}}","variables":{"representations":[$$0$$]}}}`,
+						DataSource:                            &Source{},
+						SetTemplateOutputToNullOnVariableNull: true,
+						Variables: []resolve.Variable{
+							&resolve.ResolvableObjectVariable{
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path: []string{"__typename"},
 											},
-											{
-												Name: []byte("name"),
-												Value: &resolve.String{
-													Path: []string{"name"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
-											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
 										},
-									}),
-								},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
+										},
+									},
+								}),
 							},
-							PostProcessing: SingleEntityPostProcessingConfiguration,
 						},
+						PostProcessing:       SingleEntityPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}
 				}
 				entityTwoNestedFetch2First := func(fetchID int) resolve.Fetch {
 					return &resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{3},
-						}, FetchConfiguration: resolve.FetchConfiguration{
-							RequiresEntityBatchFetch:              false,
-							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							SetTemplateOutputToNullOnVariableNull: true,
-							Variables: []resolve.Variable{
-								&resolve.ResolvableObjectVariable{
-									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-										Nullable: true,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path: []string{"__typename"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
+						FetchID:                               fetchID,
+						DependsOnFetchIDs:                     []int{3},
+						RequiresEntityBatchFetch:              false,
+						RequiresEntityFetch:                   true,
+						Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
+						DataSource:                            &Source{},
+						SetTemplateOutputToNullOnVariableNull: true,
+						Variables: []resolve.Variable{
+							&resolve.ResolvableObjectVariable{
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path: []string{"__typename"},
 											},
-											{
-												Name: []byte("id"),
-												Value: &resolve.Scalar{
-													Path: []string{"id"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
-											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
 										},
-									}),
-								},
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
+										},
+									},
+								}),
 							},
-							PostProcessing: SingleEntityPostProcessingConfiguration,
 						},
+						PostProcessing:       SingleEntityPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}
 				}
 				entityTwoNestedFetch2Third := func(fetchID int) resolve.Fetch {
 					return &resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{3},
-						}, FetchConfiguration: resolve.FetchConfiguration{
-							RequiresEntityBatchFetch:              false,
-							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isImportant}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							SetTemplateOutputToNullOnVariableNull: true,
-							Variables: []resolve.Variable{
-								&resolve.ResolvableObjectVariable{
-									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-										Nullable: true,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path: []string{"__typename"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
+						FetchID:                               fetchID,
+						DependsOnFetchIDs:                     []int{3},
+						RequiresEntityBatchFetch:              false,
+						RequiresEntityFetch:                   true,
+						Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isImportant}}}","variables":{"representations":[$$0$$]}}}`,
+						DataSource:                            &Source{},
+						SetTemplateOutputToNullOnVariableNull: true,
+						Variables: []resolve.Variable{
+							&resolve.ResolvableObjectVariable{
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path: []string{"__typename"},
 											},
-											{
-												Name: []byte("name"),
-												Value: &resolve.String{
-													Path: []string{"name"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
-											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
 										},
-									}),
-								},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
+										},
+									},
+								}),
 							},
-							PostProcessing: SingleEntityPostProcessingConfiguration,
 						},
+						PostProcessing:       SingleEntityPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}
 				}
 				entityThreeNestedFetch2First := func(fetchID int) resolve.Fetch {
 					return &resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{7},
-						}, FetchConfiguration: resolve.FetchConfiguration{
-							RequiresEntityBatchFetch:              false,
-							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							SetTemplateOutputToNullOnVariableNull: true,
-							Variables: []resolve.Variable{
-								&resolve.ResolvableObjectVariable{
-									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-										Nullable: true,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path: []string{"__typename"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
+						FetchID:                               fetchID,
+						DependsOnFetchIDs:                     []int{7},
+						RequiresEntityBatchFetch:              false,
+						RequiresEntityFetch:                   true,
+						Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
+						DataSource:                            &Source{},
+						SetTemplateOutputToNullOnVariableNull: true,
+						Variables: []resolve.Variable{
+							&resolve.ResolvableObjectVariable{
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path: []string{"__typename"},
 											},
-											{
-												Name: []byte("id"),
-												Value: &resolve.Scalar{
-													Path: []string{"id"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
-											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
 										},
-									}),
-								},
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
+										},
+									},
+								}),
 							},
-							PostProcessing: SingleEntityPostProcessingConfiguration,
 						},
+						PostProcessing:       SingleEntityPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}
 				}
 				entityThreeNestedFetch2Second := func(fetchID int) resolve.Fetch {
 					return &resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{6},
-						}, FetchConfiguration: resolve.FetchConfiguration{
-							RequiresEntityBatchFetch:              false,
-							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename id rating}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							SetTemplateOutputToNullOnVariableNull: true,
-							Variables: []resolve.Variable{
-								&resolve.ResolvableObjectVariable{
-									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-										Nullable: true,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path: []string{"__typename"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
+						FetchID:                               fetchID,
+						DependsOnFetchIDs:                     []int{6},
+						RequiresEntityBatchFetch:              false,
+						RequiresEntityFetch:                   true,
+						Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename id rating}}}","variables":{"representations":[$$0$$]}}}`,
+						DataSource:                            &Source{},
+						SetTemplateOutputToNullOnVariableNull: true,
+						Variables: []resolve.Variable{
+							&resolve.ResolvableObjectVariable{
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path: []string{"__typename"},
 											},
-											{
-												Name: []byte("uuid"),
-												Value: &resolve.Scalar{
-													Path: []string{"uuid"},
-												},
-												OnTypeNames: [][]byte{[]byte("Entity")},
-											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
 										},
-									}),
-								},
+										{
+											Name: []byte("uuid"),
+											Value: &resolve.Scalar{
+												Path: []string{"uuid"},
+											},
+											OnTypeNames: [][]byte{[]byte("Entity")},
+										},
+									},
+								}),
 							},
-							PostProcessing: SingleEntityPostProcessingConfiguration,
 						},
+						PostProcessing:       SingleEntityPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}
 				}
@@ -16164,36 +15479,24 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Fetches: resolve.Sequence(
 								resolve.Parallel(
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 0,
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {id isEntity __typename}}"}}`,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										FetchID:              0,
+										Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {id isEntity __typename}}"}}`,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}),
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 3,
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{entityTwo {id uuid name age rating __typename}}"}}`,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										FetchID:              3,
+										Input:                `{"method":"POST","url":"http://second.service","body":{"query":"{entityTwo {id uuid name age rating __typename}}"}}`,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}),
 									resolve.Single(&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 6,
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {uuid name age isImportant __typename}}"}}`,
-											PostProcessing: DefaultPostProcessingConfiguration,
-											DataSource:     &Source{},
-										},
+										FetchID:              6,
+										Input:                `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {uuid name age isImportant __typename}}"}}`,
+										PostProcessing:       DefaultPostProcessingConfiguration,
+										DataSource:           &Source{},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									}),
 								),
@@ -16448,89 +15751,79 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {__typename id}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-									DataSource:     &Source{},
-								},
+								FetchID:              0,
+								Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {__typename id}}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
+								DataSource:           &Source{},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
+								FetchID:                               1,
+								DependsOnFetchIDs:                     []int{0},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
+													OnTypeNames: [][]byte{[]byte("Entity")},
 												},
-											}),
-										},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("Entity")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "entityOne", resolve.ObjectPath("entityOne")),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           2,
-									DependsOnFetchIDs: []int{1},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isImportant}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
+								FetchID:                               2,
+								DependsOnFetchIDs:                     []int{1},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isImportant}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path: []string{"name"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
+													OnTypeNames: [][]byte{[]byte("Entity")},
 												},
-											}),
-										},
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path: []string{"name"},
+													},
+													OnTypeNames: [][]byte{[]byte("Entity")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "entityOne", resolve.ObjectPath("entityOne")),
 						),
@@ -16582,88 +15875,78 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {__typename uuid}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-									DataSource:     &Source{},
-								},
+								FetchID:              0,
+								Input:                `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {__typename uuid}}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
+								DataSource:           &Source{},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename id}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
+								FetchID:                               1,
+								DependsOnFetchIDs:                     []int{0},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename id}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("uuid"),
-														Value: &resolve.Scalar{
-															Path: []string{"uuid"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
+													OnTypeNames: [][]byte{[]byte("Entity")},
 												},
-											}),
-										},
+												{
+													Name: []byte("uuid"),
+													Value: &resolve.Scalar{
+														Path: []string{"uuid"},
+													},
+													OnTypeNames: [][]byte{[]byte("Entity")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "entityThree", resolve.ObjectPath("entityThree")),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           2,
-									DependsOnFetchIDs: []int{1},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
+								FetchID:                               2,
+								DependsOnFetchIDs:                     []int{1},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("Entity")},
-													},
+													OnTypeNames: [][]byte{[]byte("Entity")},
 												},
-											}),
-										},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("Entity")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "entityThree", resolve.ObjectPath("entityThree")),
 						),
@@ -16749,12 +16032,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						FieldNames: []string{"id"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
 					},
 				},
 			},
@@ -16793,12 +16074,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						FieldNames: []string{"id", "title", "userID"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "User",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
 					},
 				},
 			},
@@ -16843,48 +16122,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-									DataSource:     &Source{},
-								},
+								Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
+								DataSource:           &Source{},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename id: userID title}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
+								FetchID:                               1,
+								DependsOnFetchIDs:                     []int{0},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename id: userID title}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
-													},
+													OnTypeNames: [][]byte{[]byte("User")},
 												},
-											}),
-										},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "user", resolve.ObjectPath("user")),
 						),
@@ -16944,85 +16218,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{userA: user {id __typename} userB: user {id __typename}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-									DataSource:     &Source{},
-								},
+								Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{userA: user {id __typename} userB: user {id __typename}}"}}`,
+								PostProcessing:       DefaultPostProcessingConfiguration,
+								DataSource:           &Source{},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
+								FetchID:                               1,
+								DependsOnFetchIDs:                     []int{0},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
-													},
+													OnTypeNames: [][]byte{[]byte("User")},
 												},
-											}),
-										},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "userA", resolve.ObjectPath("userA")),
 							resolve.SingleWithPath(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           2,
-									DependsOnFetchIDs: []int{0},
-								}, FetchConfiguration: resolve.FetchConfiguration{
-									RequiresEntityBatchFetch:              false,
-									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-									DataSource:                            &Source{},
-									SetTemplateOutputToNullOnVariableNull: true,
-									Variables: []resolve.Variable{
-										&resolve.ResolvableObjectVariable{
-											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
+								FetchID:                               2,
+								DependsOnFetchIDs:                     []int{0},
+								RequiresEntityBatchFetch:              false,
+								RequiresEntityFetch:                   true,
+								Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
 													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("User")},
-													},
+													OnTypeNames: [][]byte{[]byte("User")},
 												},
-											}),
-										},
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+											},
+										}),
 									},
-									PostProcessing: SingleEntityPostProcessingConfiguration,
 								},
+								PostProcessing:       SingleEntityPostProcessingConfiguration,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							}, "userB", resolve.ObjectPath("userB")),
 						),
@@ -17151,16 +16417,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "host"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "HostedImage",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "HostedImage",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -17219,47 +16483,45 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							ExternalFieldNames: []string{"id", "url"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Image",
-								SelectionSet: "id",
-								Conditions: []plan.KeyCondition{
-									{
-										Coordinates: []plan.FieldCoordinate{
-											{
-												TypeName:  "User",
-												FieldName: "hostedImageWithProvides",
-											},
-											{
-												TypeName:  "HostedImage",
-												FieldName: "image",
-											},
-											{
-												TypeName:  "Image",
-												FieldName: "id",
-											},
-										},
-										FieldPath: []string{"hostedImageWithProvides", "image", "id"},
-									},
-								},
-								DisableEntityResolver: true,
-							},
-							{
-								TypeName:     "HostedImage",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
-						Provides: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								FieldName:    "hostedImageWithProvides",
-								SelectionSet: "image {id url}",
+						{
+							TypeName:     "Image",
+							SelectionSet: "id",
+							Conditions: []plan.KeyCondition{
+								{
+									Coordinates: []plan.FieldCoordinate{
+										{
+											TypeName:  "User",
+											FieldName: "hostedImageWithProvides",
+										},
+										{
+											TypeName:  "HostedImage",
+											FieldName: "image",
+										},
+										{
+											TypeName:  "Image",
+											FieldName: "id",
+										},
+									},
+									FieldPath: []string{"hostedImageWithProvides", "image", "id"},
+								},
 							},
+							DisableEntityResolver: true,
+						},
+						{
+							TypeName:     "HostedImage",
+							SelectionSet: "id",
+						},
+					},
+					Provides: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							FieldName:    "hostedImageWithProvides",
+							SelectionSet: "image {id url}",
 						},
 					},
 				},
@@ -17305,17 +16567,15 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "url"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "HostedImage",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:              "Image",
-								SelectionSet:          "id",
-								DisableEntityResolver: true,
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "HostedImage",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:              "Image",
+							SelectionSet:          "id",
+							DisableEntityResolver: true,
 						},
 					},
 				},
@@ -17352,12 +16612,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "cdnUrl"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Image",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Image",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -17409,85 +16667,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImageWithProvides {image {__typename id}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImageWithProvides {image {__typename id}}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename cdnUrl}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename cdnUrl}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
-														},
+														OnTypeNames: [][]byte{[]byte("Image")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Image")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user.hostedImageWithProvides.image", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImageWithProvides"), resolve.ObjectPath("image")),
 							),
@@ -17566,85 +16816,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {__typename id}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {__typename id}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id __typename}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id __typename}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
-														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename cdnUrl}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename cdnUrl}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
-														},
+														OnTypeNames: [][]byte{[]byte("Image")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Image")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user.hostedImage.image", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage"), resolve.ObjectPath("image")),
 							),
@@ -17741,85 +16983,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {__typename id}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {__typename id}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
-														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename cdnUrl}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename cdnUrl}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
-														},
+														OnTypeNames: [][]byte{[]byte("Image")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Image")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user.hostedImage.image", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage"), resolve.ObjectPath("image")),
 							),
@@ -17884,48 +17118,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {__typename id}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {__typename id}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"` + service + `","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"` + service + `","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
-														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 							),
@@ -18083,12 +17312,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -18160,46 +17387,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"image"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Image",
-								SelectionSet: "id",
-								Conditions: []plan.KeyCondition{
-									{
-										Coordinates: []plan.FieldCoordinate{
-											{
-												TypeName:  "Host",
-												FieldName: "image",
-											},
-											{
-												TypeName:  "HostedImage",
-												FieldName: "image",
-											},
-											{
-												TypeName:  "Image",
-												FieldName: "id",
-											},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Image",
+							SelectionSet: "id",
+							Conditions: []plan.KeyCondition{
+								{
+									Coordinates: []plan.FieldCoordinate{
+										{
+											TypeName:  "Host",
+											FieldName: "image",
 										},
-										FieldPath: []string{"image", "image", "id"},
+										{
+											TypeName:  "HostedImage",
+											FieldName: "image",
+										},
+										{
+											TypeName:  "Image",
+											FieldName: "id",
+										},
 									},
+									FieldPath: []string{"image", "image", "id"},
 								},
 							},
-							{
-								TypeName:     "HostedImage",
-								SelectionSet: "id",
-							},
 						},
-						Provides: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Host",
-								FieldName:    "image",
-								SelectionSet: "image {id url}",
-							},
+						{
+							TypeName:     "HostedImage",
+							SelectionSet: "id",
+						},
+					},
+					Provides: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Host",
+							FieldName:    "image",
+							SelectionSet: "image {id url}",
 						},
 					},
 				},
@@ -18245,12 +17470,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "url"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "HostedImage",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "HostedImage",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -18295,16 +17518,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "HostedImage",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "HostedImage",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -18357,85 +17578,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id url}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id url}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
-														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 							),
@@ -18506,85 +17719,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"` + service + `","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"` + service + `","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("HostedImage")},
-														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("HostedImage")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 							),
@@ -18726,12 +17931,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							ExternalFieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -18766,12 +17969,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "name"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -18814,11 +18015,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 							),
@@ -18901,12 +18100,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -18961,17 +18158,15 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"image"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:              "Image",
-								SelectionSet:          "id",
-								DisableEntityResolver: true,
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:              "Image",
+							SelectionSet:          "id",
+							DisableEntityResolver: true,
 						},
 					},
 				},
@@ -19018,12 +18213,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"image"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Image",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Image",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -19074,85 +18267,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename id}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename id}}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
+														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user", resolve.ObjectPath("user")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename url}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename url}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Image")},
-														},
+														OnTypeNames: [][]byte{[]byte("Image")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Image")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "user.hostedImage.image", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage"), resolve.ObjectPath("image")),
 							),
@@ -19282,12 +18467,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -19344,12 +18527,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "fieldOne", "fieldTwo"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -19406,12 +18587,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "fieldOne", "fieldTwo"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity2",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity2",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -19461,48 +18640,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {__typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entity {__typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {nested {fieldOne fieldTwo}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {nested {fieldOne fieldTwo}}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
-														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "entity", resolve.ObjectPath("entity")),
 							),
@@ -19588,48 +18762,43 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {nested {nested {id}} __typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entity {nested {nested {id}} __typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {nested {fieldOne fieldTwo}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {nested {fieldOne fieldTwo}}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
-														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "entity", resolve.ObjectPath("entity")),
 							),
@@ -19796,12 +18965,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"title"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -19891,16 +19058,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"value"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "Entity",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "NestedEntity",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "Entity",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "NestedEntity",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -19972,12 +19137,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"value"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "NestedEntity",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "NestedEntity",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -20040,85 +19203,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {__typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entity {__typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {__typename ... on NestedEntity {id __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {__typename ... on NestedEntity {id __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
-														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "entity", resolve.ObjectPath("entity")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NestedEntity {__typename nodeTitle {__typename ... on Title3 {__typename}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("NestedEntity")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NestedEntity {__typename nodeTitle {__typename ... on Title3 {__typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("NestedEntity")},
-														},
+														OnTypeNames: [][]byte{[]byte("NestedEntity")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("NestedEntity")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "entity.nested", resolve.ObjectPath("entity"), resolve.ObjectPath("nested")),
 							),
@@ -20214,85 +19369,77 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {__typename id}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entity {__typename id}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {__typename ... on NestedEntity {id __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename nested {__typename ... on NestedEntity {id __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Entity")},
-														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "entity", resolve.ObjectPath("entity")),
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           2,
-										DependsOnFetchIDs: []int{1},
-									}, FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              false,
-										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NestedEntity {__typename nodeTitle {__typename ... on Title3 {__typename}}}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("NestedEntity")},
+									FetchID:                               2,
+									DependsOnFetchIDs:                     []int{1},
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on NestedEntity {__typename nodeTitle {__typename ... on Title3 {__typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("NestedEntity")},
-														},
+														OnTypeNames: [][]byte{[]byte("NestedEntity")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("NestedEntity")},
+													},
+												},
+											}),
 										},
-										PostProcessing: SingleEntityPostProcessingConfiguration,
 									},
+									PostProcessing:       SingleEntityPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "entity.nested", resolve.ObjectPath("entity"), resolve.ObjectPath("nested")),
 							),
@@ -20474,16 +19621,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id", "uniqueField"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "NodeA",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Detail",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "NodeA",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Detail",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -20557,16 +19702,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							FieldNames: []string{"id"},
 						},
 					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "NodeA",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Detail",
-								SelectionSet: "id",
-							},
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "NodeA",
+							SelectionSet: "id",
+						},
+						{
+							TypeName:     "Detail",
+							SelectionSet: "id",
 						},
 					},
 				},
@@ -20612,51 +19755,45 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Fetches: resolve.Sequence(
 								// Fetch 0: root query — second subgraph resolves nodes and detail, returning Detail id keys
 								resolve.Single(&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{nodes {__typename ... on NodeA {detail {__typename ... on Detail {__typename id}}}}}"}}`,
-										PostProcessing: DefaultPostProcessingConfiguration,
-										DataSource:     &Source{},
-									},
+									Input:                `{"method":"POST","url":"http://second.service","body":{"query":"{nodes {__typename ... on NodeA {detail {__typename ... on Detail {__typename id}}}}}"}}`,
+									PostProcessing:       DefaultPostProcessingConfiguration,
+									DataSource:           &Source{},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}),
 								// Fetch 1: entity-resolve Detail from first subgraph to get uniqueField.
 								// This is the jump back — first subgraph is the only owner of Detail.uniqueField.
 								resolve.SingleWithPath(&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityBatchFetch:              true,
-										RequiresEntityFetch:                   false,
-										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Detail {__typename uniqueField}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:                            &Source{},
-										SetTemplateOutputToNullOnVariableNull: true,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("Detail")},
+									FetchID:                               1,
+									DependsOnFetchIDs:                     []int{0},
+									RequiresEntityBatchFetch:              true,
+									RequiresEntityFetch:                   false,
+									Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Detail {__typename uniqueField}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
 														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("Detail")},
-														},
+														OnTypeNames: [][]byte{[]byte("Detail")},
 													},
-												}),
-											},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Detail")},
+													},
+												},
+											}),
 										},
-										PostProcessing: EntitiesPostProcessingConfiguration,
 									},
+									PostProcessing:       EntitiesPostProcessingConfiguration,
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								}, "nodes.@.detail", resolve.ArrayPath("nodes"), resolve.PathElementWithTypeNames(resolve.ObjectPath("detail"), []string{"NodeA"})),
 							),
@@ -20797,20 +19934,18 @@ func TestGraphQLDataSourceFederation_RequiresWithAbstractFragments(t *testing.T)
 					FieldNames: []string{"id", "title"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Entity",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Entity",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
 				},
 			},
 		},
@@ -20876,27 +20011,25 @@ func TestGraphQLDataSourceFederation_RequiresWithAbstractFragments(t *testing.T)
 					FieldNames: []string{"id"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Entity",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
-					{
-						TypeName:     "Admin",
-						SelectionSet: "id",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Entity",
+					SelectionSet: "id",
 				},
-				Requires: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Entity",
-						FieldName:    "expensive",
-						SelectionSet: "node { ... on User { id } }",
-					},
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Admin",
+					SelectionSet: "id",
+				},
+			},
+			Requires: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Entity",
+					FieldName:    "expensive",
+					SelectionSet: "node { ... on User { id } }",
 				},
 			},
 		},
@@ -20946,116 +20079,108 @@ func TestGraphQLDataSourceFederation_RequiresWithAbstractFragments(t *testing.T)
 				Response: &resolve.GraphQLResponse{
 					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entity {node {__typename ... on Admin {__typename id} ... on User {__typename id}} __typename id}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-								DataSource:     &Source{},
-							},
+							Input:                `{"method":"POST","url":"http://first.service","body":{"query":"{entity {node {__typename ... on Admin {__typename id} ... on User {__typename id}} __typename id}}"}}`,
+							PostProcessing:       DefaultPostProcessingConfiguration,
+							DataSource:           &Source{},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 						resolve.SingleWithPath(&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           1,
-								DependsOnFetchIDs: []int{0},
-							}, FetchConfiguration: resolve.FetchConfiguration{
-								RequiresEntityBatchFetch:              false,
-								RequiresEntityFetch:                   true,
-								Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename expensive}}}","variables":{"representations":[$$0$$]}}}`,
-								DataSource:                            &Source{},
-								SetTemplateOutputToNullOnVariableNull: true,
-								Variables: []resolve.Variable{
-									&resolve.ResolvableObjectVariable{
-										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("__typename"),
-													Value: &resolve.String{
-														Path: []string{"__typename"},
-													},
-													OnTypeNames: [][]byte{[]byte("Entity")},
+							FetchID:                               1,
+							DependsOnFetchIDs:                     []int{0},
+							RequiresEntityBatchFetch:              false,
+							RequiresEntityFetch:                   true,
+							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename expensive}}}","variables":{"representations":[$$0$$]}}}`,
+							DataSource:                            &Source{},
+							SetTemplateOutputToNullOnVariableNull: true,
+							Variables: []resolve.Variable{
+								&resolve.ResolvableObjectVariable{
+									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("__typename"),
+												Value: &resolve.String{
+													Path: []string{"__typename"},
 												},
-												{
-													Name: []byte("node"),
-													Value: &resolve.Object{
-														Path:     []string{"node"},
-														Nullable: false,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("id"),
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-																OnTypeNames: [][]byte{[]byte("User")},
+												OnTypeNames: [][]byte{[]byte("Entity")},
+											},
+											{
+												Name: []byte("node"),
+												Value: &resolve.Object{
+													Path:     []string{"node"},
+													Nullable: false,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
 															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
 													},
-													OnTypeNames: [][]byte{[]byte("Entity")},
 												},
-												{
-													Name: []byte("id"),
-													Value: &resolve.Scalar{
-														Path: []string{"id"},
-													},
-													OnTypeNames: [][]byte{[]byte("Entity")},
-												},
+												OnTypeNames: [][]byte{[]byte("Entity")},
 											},
-										}),
-									},
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+												OnTypeNames: [][]byte{[]byte("Entity")},
+											},
+										},
+									}),
 								},
-								PostProcessing: SingleEntityPostProcessingConfiguration,
 							},
+							PostProcessing:       SingleEntityPostProcessingConfiguration,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}, "entity", resolve.ObjectPath("entity")),
 						resolve.SingleWithPath(&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           2,
-								DependsOnFetchIDs: []int{0},
-							}, FetchConfiguration: resolve.FetchConfiguration{
-								RequiresEntityBatchFetch:              false,
-								RequiresEntityFetch:                   true,
-								Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-								DataSource:                            &Source{},
-								SetTemplateOutputToNullOnVariableNull: true,
-								Variables: []resolve.Variable{
-									&resolve.ResolvableObjectVariable{
-										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("__typename"),
-													Value: &resolve.String{
-														Path: []string{"__typename"},
-													},
-													OnTypeNames: [][]byte{[]byte("Admin")},
+							FetchID:                               2,
+							DependsOnFetchIDs:                     []int{0},
+							RequiresEntityBatchFetch:              false,
+							RequiresEntityFetch:                   true,
+							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+							DataSource:                            &Source{},
+							SetTemplateOutputToNullOnVariableNull: true,
+							Variables: []resolve.Variable{
+								&resolve.ResolvableObjectVariable{
+									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("__typename"),
+												Value: &resolve.String{
+													Path: []string{"__typename"},
 												},
-												{
-													Name: []byte("id"),
-													Value: &resolve.Scalar{
-														Path: []string{"id"},
-													},
-													OnTypeNames: [][]byte{[]byte("Admin")},
-												},
-												{
-													Name: []byte("__typename"),
-													Value: &resolve.String{
-														Path: []string{"__typename"},
-													},
-													OnTypeNames: [][]byte{[]byte("User")},
-												},
-												{
-													Name: []byte("id"),
-													Value: &resolve.Scalar{
-														Path: []string{"id"},
-													},
-													OnTypeNames: [][]byte{[]byte("User")},
-												},
+												OnTypeNames: [][]byte{[]byte("Admin")},
 											},
-										}),
-									},
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+												OnTypeNames: [][]byte{[]byte("Admin")},
+											},
+											{
+												Name: []byte("__typename"),
+												Value: &resolve.String{
+													Path: []string{"__typename"},
+												},
+												OnTypeNames: [][]byte{[]byte("User")},
+											},
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+												OnTypeNames: [][]byte{[]byte("User")},
+											},
+										},
+									}),
 								},
-								PostProcessing: SingleEntityPostProcessingConfiguration,
 							},
+							PostProcessing:       SingleEntityPostProcessingConfiguration,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}, "entity.node", resolve.ObjectPath("entity"), resolve.ObjectPath("node")),
 					),

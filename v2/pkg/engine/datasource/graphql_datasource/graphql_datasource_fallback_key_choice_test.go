@@ -52,10 +52,8 @@ func TestFallbackKeyChoice(t *testing.T) {
 				{TypeName: "Query", FieldNames: []string{"product"}},
 				{TypeName: "Product", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Product", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Product", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -84,10 +82,8 @@ func TestFallbackKeyChoice(t *testing.T) {
 			RootNodes: []plan.TypeField{
 				{TypeName: "Product", FieldNames: []string{"id", "upc", "sku"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Product", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Product", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -117,11 +113,9 @@ func TestFallbackKeyChoice(t *testing.T) {
 			RootNodes: []plan.TypeField{
 				{TypeName: "Product", FieldNames: []string{"id", "upc", "sku", "price"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Product", SelectionSet: "id upc sku"},
-					{TypeName: "Product", SelectionSet: "id upc"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Product", SelectionSet: "id upc sku"},
+				{TypeName: "Product", SelectionSet: "id upc"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -153,95 +147,83 @@ func TestFallbackKeyChoice(t *testing.T) {
 				Fetches: resolve.Sequence(
 					resolve.Single(
 						&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID: 0,
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://entry","body":{"query":"{product {__typename id}}"}}`,
-								DataSource:     &Source{},
-								PostProcessing: DefaultPostProcessingConfiguration,
-							},
+							FetchID:              0,
+							Input:                `{"method":"POST","url":"http://entry","body":{"query":"{product {__typename id}}"}}`,
+							DataSource:           &Source{},
+							PostProcessing:       DefaultPostProcessingConfiguration,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 					resolve.SingleWithPath(
 						&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           1,
-								DependsOnFetchIDs: []int{0},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:                                 `{"method":"POST","url":"http://info","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename upc}}}","variables":{"representations":[$$0$$]}}}`,
-								DataSource:                            &Source{},
-								SetTemplateOutputToNullOnVariableNull: true,
-								RequiresEntityFetch:                   true,
-								PostProcessing:                        SingleEntityPostProcessingConfiguration,
-								Variables: []resolve.Variable{
-									&resolve.ResolvableObjectVariable{
-										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("__typename"),
-													Value: &resolve.String{
-														Path: []string{"__typename"},
-													},
-													OnTypeNames: [][]byte{[]byte("Product")},
+							FetchID:                               1,
+							DependsOnFetchIDs:                     []int{0},
+							Input:                                 `{"method":"POST","url":"http://info","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename upc}}}","variables":{"representations":[$$0$$]}}}`,
+							DataSource:                            &Source{},
+							SetTemplateOutputToNullOnVariableNull: true,
+							RequiresEntityFetch:                   true,
+							PostProcessing:                        SingleEntityPostProcessingConfiguration,
+							Variables: []resolve.Variable{
+								&resolve.ResolvableObjectVariable{
+									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("__typename"),
+												Value: &resolve.String{
+													Path: []string{"__typename"},
 												},
-												{
-													Name: []byte("id"),
-													Value: &resolve.Scalar{
-														Path: []string{"id"},
-													},
-													OnTypeNames: [][]byte{[]byte("Product")},
-												},
+												OnTypeNames: [][]byte{[]byte("Product")},
 											},
-										}),
-									},
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+												OnTypeNames: [][]byte{[]byte("Product")},
+											},
+										},
+									}),
 								},
 							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}, "product", resolve.ObjectPath("product")),
 					resolve.SingleWithPath(
 						&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID:           2,
-								DependsOnFetchIDs: []int{0, 1},
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:                                 `{"method":"POST","url":"http://pricing","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[$$0$$]}}}`,
-								DataSource:                            &Source{},
-								SetTemplateOutputToNullOnVariableNull: true,
-								RequiresEntityFetch:                   true,
-								PostProcessing:                        SingleEntityPostProcessingConfiguration,
-								Variables: []resolve.Variable{
-									&resolve.ResolvableObjectVariable{
-										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-											Nullable: true,
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("__typename"),
-													Value: &resolve.String{
-														Path: []string{"__typename"},
-													},
-													OnTypeNames: [][]byte{[]byte("Product")},
+							FetchID:                               2,
+							DependsOnFetchIDs:                     []int{0, 1},
+							Input:                                 `{"method":"POST","url":"http://pricing","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename price}}}","variables":{"representations":[$$0$$]}}}`,
+							DataSource:                            &Source{},
+							SetTemplateOutputToNullOnVariableNull: true,
+							RequiresEntityFetch:                   true,
+							PostProcessing:                        SingleEntityPostProcessingConfiguration,
+							Variables: []resolve.Variable{
+								&resolve.ResolvableObjectVariable{
+									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+										Nullable: true,
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("__typename"),
+												Value: &resolve.String{
+													Path: []string{"__typename"},
 												},
-												{
-													Name: []byte("id"),
-													Value: &resolve.Scalar{
-														Path: []string{"id"},
-													},
-													OnTypeNames: [][]byte{[]byte("Product")},
-												},
-												{
-													Name: []byte("upc"),
-													Value: &resolve.Scalar{
-														Path: []string{"upc"},
-													},
-													OnTypeNames: [][]byte{[]byte("Product")},
-												},
+												OnTypeNames: [][]byte{[]byte("Product")},
 											},
-										}),
-									},
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+												OnTypeNames: [][]byte{[]byte("Product")},
+											},
+											{
+												Name: []byte("upc"),
+												Value: &resolve.Scalar{
+													Path: []string{"upc"},
+												},
+												OnTypeNames: [][]byte{[]byte("Product")},
+											},
+										},
+									}),
 								},
 							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),

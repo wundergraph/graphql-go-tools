@@ -131,14 +131,10 @@ func TestObjectVsUnionMemberFieldAlias(t *testing.T) {
 				Fetches: resolve.Sequence(
 					resolve.Single(
 						&resolve.SingleFetch{
-							FetchDependencies: resolve.FetchDependencies{
-								FetchID: 0,
-							},
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://feed","body":{"query":"{feed {__typename ... on Post {__internal_merge_Post_author: author {__typename ... on User {name} ... on Bot {name}}} ... on Message {__internal_merge_Message_author: author {name}}}}"}}`,
-								DataSource:     &Source{},
-								PostProcessing: DefaultPostProcessingConfiguration,
-							},
+							FetchID:              0,
+							Input:                `{"method":"POST","url":"http://feed","body":{"query":"{feed {__typename ... on Post {__internal_merge_Post_author: author {__typename ... on User {name} ... on Bot {name}}} ... on Message {__internal_merge_Message_author: author {name}}}}"}}`,
+							DataSource:           &Source{},
+							PostProcessing:       DefaultPostProcessingConfiguration,
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						}),
 				),

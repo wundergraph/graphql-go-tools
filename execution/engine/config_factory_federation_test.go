@@ -87,16 +87,14 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 							},
 						},
 						ChildNodes: []plan.TypeField{},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
-							Requires: []plan.FederationFieldConfiguration{},
-							Provides: []plan.FederationFieldConfiguration{},
 						},
+						Requires:   []plan.FederationFieldConfiguration{},
+						Provides:   []plan.FederationFieldConfiguration{},
 						Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
 					},
 					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
@@ -133,16 +131,14 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 							},
 						},
 						ChildNodes: []plan.TypeField{},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "Product",
-									SelectionSet: "upc",
-								},
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "Product",
+								SelectionSet: "upc",
 							},
-							Requires: []plan.FederationFieldConfiguration{},
-							Provides: []plan.FederationFieldConfiguration{},
 						},
+						Requires:   []plan.FederationFieldConfiguration{},
+						Provides:   []plan.FederationFieldConfiguration{},
 						Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
 					},
 					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
@@ -184,24 +180,22 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 								FieldNames: []string{"body", "author", "product"},
 							},
 						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-								{
-									TypeName:     "Product",
-									SelectionSet: "upc",
-								},
+						Keys: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
 							},
-							Requires: []plan.FederationFieldConfiguration{},
-							Provides: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "Review",
-									FieldName:    "author",
-									SelectionSet: "username",
-								},
+							{
+								TypeName:     "Product",
+								SelectionSet: "upc",
+							},
+						},
+						Requires: []plan.FederationFieldConfiguration{},
+						Provides: []plan.FederationFieldConfiguration{
+							{
+								TypeName:     "Review",
+								FieldName:    "author",
+								SelectionSet: "username",
 							},
 						},
 						Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),

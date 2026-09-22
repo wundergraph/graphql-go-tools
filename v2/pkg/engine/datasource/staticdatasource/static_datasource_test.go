@@ -23,10 +23,8 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 					{
 						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: []byte("staticdatasource.Source"),
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"hello": "world"}`,
-								DataSource: Source{},
-							},
+							Input:                `{"hello": "world"}`,
+							DataSource:           Source{},
 						},
 					},
 				},

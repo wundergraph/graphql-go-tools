@@ -130,10 +130,8 @@ func multiFetchDataSources(t *testing.T, productsRec *multiFetchRecorder, accoun
 				{TypeName: "Query", FieldNames: []string{"employees", "topEmployee"}},
 				{TypeName: "Employee", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Employee", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Employee", SelectionSet: "id"},
 			},
 		},
 		mustConfiguration(t, graphql_datasource.ConfigurationInput{
@@ -155,10 +153,8 @@ func multiFetchDataSources(t *testing.T, productsRec *multiFetchRecorder, accoun
 			ChildNodes: []plan.TypeField{
 				{TypeName: "Product", FieldNames: []string{"upc"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Employee", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Employee", SelectionSet: "id"},
 			},
 		},
 		mustConfiguration(t, graphql_datasource.ConfigurationInput{

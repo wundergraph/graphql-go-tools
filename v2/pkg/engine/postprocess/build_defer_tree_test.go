@@ -16,7 +16,7 @@ func makeDeferPlan(descriptors map[int]resolve.DeferDescriptor, deferIDs ...int)
 	var children []*resolve.FetchTreeNode
 	for _, id := range deferIDs {
 		children = append(children, resolve.Single(&resolve.SingleFetch{
-			FetchDependencies: resolve.FetchDependencies{DeferID: id},
+			DeferID: id,
 		}))
 	}
 	return &plan.DeferResponsePlan{

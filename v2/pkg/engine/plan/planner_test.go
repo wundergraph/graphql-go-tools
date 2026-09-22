@@ -118,9 +118,7 @@ func TestPlanner_Plan(t *testing.T) {
 			RawFetches: []*resolve.FetchItem{
 				{
 					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							DataSource: &FakeDataSource{&StatefulSource{}},
-						},
+						DataSource:           &FakeDataSource{&StatefulSource{}},
 						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
 				},
@@ -188,9 +186,7 @@ func TestPlanner_Plan(t *testing.T) {
 			RawFetches: []*resolve.FetchItem{
 				{
 					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							DataSource: &FakeDataSource{&StatefulSource{}},
-						},
+						DataSource:           &FakeDataSource{&StatefulSource{}},
 						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
 				},
@@ -245,9 +241,7 @@ func TestPlanner_Plan(t *testing.T) {
 			RawFetches: []*resolve.FetchItem{
 				{
 					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							DataSource: &FakeDataSource{&StatefulSource{}},
-						},
+						DataSource:           &FakeDataSource{&StatefulSource{}},
 						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
 				},
@@ -313,9 +307,7 @@ func TestPlanner_Plan(t *testing.T) {
 				RawFetches: []*resolve.FetchItem{
 					{
 						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource: &FakeDataSource{&StatefulSource{}},
-							},
+							DataSource:           &FakeDataSource{&StatefulSource{}},
 							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
 					},
@@ -382,9 +374,7 @@ func TestPlanner_Plan(t *testing.T) {
 				RawFetches: []*resolve.FetchItem{
 					{
 						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource: &FakeDataSource{&StatefulSource{}},
-							},
+							DataSource:           &FakeDataSource{&StatefulSource{}},
 							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
 					},
@@ -552,9 +542,7 @@ func TestPlanner_Plan(t *testing.T) {
 						RawFetches: []*resolve.FetchItem{
 							{
 								Fetch: &resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										DataSource: &FakeDataSource{&StatefulSource{}},
-									},
+									DataSource:           &FakeDataSource{&StatefulSource{}},
 									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
 							},
@@ -609,9 +597,7 @@ func TestPlanner_Plan(t *testing.T) {
 						RawFetches: []*resolve.FetchItem{
 							{
 								Fetch: &resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										DataSource: &FakeDataSource{&StatefulSource{}},
-									},
+									DataSource:           &FakeDataSource{&StatefulSource{}},
 									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
 							},
@@ -671,9 +657,7 @@ func TestPlanner_Plan(t *testing.T) {
 						RawFetches: []*resolve.FetchItem{
 							{
 								Fetch: &resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										DataSource: &FakeDataSource{&StatefulSource{}},
-									},
+									DataSource:           &FakeDataSource{&StatefulSource{}},
 									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
 							},
@@ -806,9 +790,7 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 		RawFetches: []*resolve.FetchItem{
 			{
 				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &FakeDataSource{&StatefulSource{}},
-					},
+					DataSource:           &FakeDataSource{&StatefulSource{}},
 					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
 			},
@@ -851,9 +833,7 @@ var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 		RawFetches: []*resolve.FetchItem{
 			{
 				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &FakeDataSource{&StatefulSource{}},
-					},
+					DataSource:           &FakeDataSource{&StatefulSource{}},
 					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
 			},

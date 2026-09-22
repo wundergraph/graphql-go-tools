@@ -56,11 +56,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					OperationType: ast.OperationTypeQuery,
 				},
 				Fetches: SingleWithPath(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{
-						DataSource: mockDataSource,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseErrorsPath: []string{"errors"},
-						},
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
 					},
 					Info: &FetchInfo{
 						DataSourceID:   "Users",
@@ -125,11 +123,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				OperationType: ast.OperationTypeQuery,
 			},
 			Fetches: SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -190,11 +186,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				},
 				Fetches: Parallel(
 					SingleWithPath(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{
-							DataSource: mockDataSource,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseErrorsPath: []string{"errors"},
-							},
+						DataSource: mockDataSource,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseErrorsPath: []string{"errors"},
 						},
 						Info: &FetchInfo{
 							DataSourceID:   "Users",
@@ -250,11 +244,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					OperationType: ast.OperationTypeQuery,
 				},
 				Fetches: SingleWithPath(&SingleFetch{
-					FetchConfiguration: FetchConfiguration{
-						DataSource: mockDataSource,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseErrorsPath: []string{"errors"},
-						},
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
 					},
 					Info: &FetchInfo{
 						DataSourceID:   "Users",
@@ -306,11 +298,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -341,11 +331,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -376,11 +364,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -411,11 +397,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -446,11 +430,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -481,11 +463,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -516,11 +496,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -551,11 +529,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -586,11 +562,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -621,11 +595,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -684,11 +656,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 					Fetches: Sequence(
 						Single(&SingleFetch{
-							FetchConfiguration: FetchConfiguration{
-								DataSource: userService,
-								PostProcessing: PostProcessingConfiguration{
-									SelectResponseDataPath: []string{"data"},
-								},
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
 							},
 							Info: &FetchInfo{
 								DataSourceID:   "Users",
@@ -696,11 +666,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 							},
 						}),
 						tc.wrapSecondFetch(SingleWithPath(&SingleFetch{
-							FetchConfiguration: FetchConfiguration{
-								DataSource: detailsService,
-								PostProcessing: PostProcessingConfiguration{
-									SelectResponseDataPath: []string{"data"},
-								},
+							DataSource: detailsService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
 							},
 							Info: &FetchInfo{
 								DataSourceID:   "Details",
@@ -749,11 +717,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: mockDataSource,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: mockDataSource,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{
 					DataSourceID:   "Users",
@@ -797,11 +763,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				},
 				Fetches: Sequence(
 					Single(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{
-							DataSource: userService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
-							},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 						Info: &FetchInfo{
 							DataSourceID:   "Users",
@@ -809,10 +773,8 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						},
 					}),
 					SingleWithPath(&EntityFetch{
-						FetchDependencies: FetchDependencies{
-							FetchID:           1,
-							DependsOnFetchIDs: []int{0},
-						},
+						FetchID:           1,
+						DependsOnFetchIDs: []int{0},
 						Input: EntityInput{
 							Header: InputTemplate{
 								Segments: []TemplateSegment{
@@ -931,11 +893,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				},
 				Fetches: Sequence(
 					Single(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{
-							DataSource: userService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
-							},
+						DataSource: userService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
 						},
 						Info: &FetchInfo{
 							DataSourceID:   "Users",
@@ -943,10 +903,8 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						},
 					}),
 					SingleWithPath(&BatchEntityFetch{
-						FetchDependencies: FetchDependencies{
-							FetchID:           1,
-							DependsOnFetchIDs: []int{0},
-						},
+						FetchID:           1,
+						DependsOnFetchIDs: []int{0},
 						Input: BatchInput{
 							Header: InputTemplate{
 								Segments: []TemplateSegment{
@@ -1078,11 +1036,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 						OperationType: ast.OperationTypeQuery,
 					},
 					Fetches: SingleWithPath(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{
-							DataSource: mockDataSource,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseErrorsPath: []string{"errors"},
-							},
+						DataSource: mockDataSource,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseErrorsPath: []string{"errors"},
 						},
 						Info: &FetchInfo{
 							DataSourceID:   "Products",

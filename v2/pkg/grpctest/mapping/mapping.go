@@ -527,22 +527,18 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 		EntityRPCs: map[string][]grpcdatasource.EntityRPCConfig{
 			"Product": {
 				{
-					Key: "id",
-					RPCConfig: grpcdatasource.RPCConfig{
-						RPC:      "LookupProductById",
-						Request:  "LookupProductByIdRequest",
-						Response: "LookupProductByIdResponse",
-					},
+					Key:      "id",
+					RPC:      "LookupProductById",
+					Request:  "LookupProductByIdRequest",
+					Response: "LookupProductByIdResponse",
 				},
 			},
 			"Storage": {
 				{
-					Key: "id",
-					RPCConfig: grpcdatasource.RPCConfig{
-						RPC:      "LookupStorageById",
-						Request:  "LookupStorageByIdRequest",
-						Response: "LookupStorageByIdResponse",
-					},
+					Key:      "id",
+					RPC:      "LookupStorageById",
+					Request:  "LookupStorageByIdRequest",
+					Response: "LookupStorageByIdResponse",
 					RequiredFields: grpcdatasource.RequiredFieldsRPCMapping{
 						"stockHealthScore": {
 							TargetName: "stock_health_score",
@@ -773,12 +769,10 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 			},
 			"Warehouse": {
 				{
-					Key: "id",
-					RPCConfig: grpcdatasource.RPCConfig{
-						RPC:      "LookupWarehouseById",
-						Request:  "LookupWarehouseByIdRequest",
-						Response: "LookupWarehouseByIdResponse",
-					},
+					Key:      "id",
+					RPC:      "LookupWarehouseById",
+					Request:  "LookupWarehouseByIdRequest",
+					Response: "LookupWarehouseByIdResponse",
 					RequiredFields: grpcdatasource.RequiredFieldsRPCMapping{
 						"stockHealthScore": {
 							TargetName: "stock_health_score",

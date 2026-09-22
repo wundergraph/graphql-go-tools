@@ -1274,12 +1274,10 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	singleFetch := &resolve.SingleFetch{
-		FetchConfiguration: external,
-		FetchDependencies: resolve.FetchDependencies{
-			FetchID:           internal.fetchID,
-			DependsOnFetchIDs: internal.dependsOnFetchIDs,
-			DeferID:           internal.deferID,
-		},
+		FetchConfiguration:   external,
+		FetchID:              internal.fetchID,
+		DependsOnFetchIDs:    internal.dependsOnFetchIDs,
+		DeferID:              internal.deferID,
 		DataSourceIdentifier: []byte(dataSourceType),
 	}
 

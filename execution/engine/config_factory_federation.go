@@ -313,11 +313,9 @@ func (f *FederationEngineConfigFactory) dataSourceMetaData(in *nodev1.DataSource
 		RootNodes:  make([]plan.TypeField, 0, len(in.RootNodes)),
 		ChildNodes: make([]plan.TypeField, 0, len(in.ChildNodes)),
 		Directives: &d,
-		FederationMetaData: plan.FederationMetaData{
-			Keys:     make([]plan.FederationFieldConfiguration, 0, len(in.Keys)),
-			Requires: make([]plan.FederationFieldConfiguration, 0, len(in.Requires)),
-			Provides: make([]plan.FederationFieldConfiguration, 0, len(in.Provides)),
-		},
+		Keys:       make([]plan.FederationFieldConfiguration, 0, len(in.Keys)),
+		Requires:   make([]plan.FederationFieldConfiguration, 0, len(in.Requires)),
+		Provides:   make([]plan.FederationFieldConfiguration, 0, len(in.Provides)),
 	}
 
 	for _, node := range in.RootNodes {

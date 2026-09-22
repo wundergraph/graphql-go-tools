@@ -184,7 +184,7 @@ func TestProcess_CollectsAuthorizationCoordinates(t *testing.T) {
 	rawFetches := func() []*resolve.FetchItem {
 		return []*resolve.FetchItem{
 			{Fetch: &resolve.SingleFetch{
-				FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+				FetchID: 1,
 				Info: &resolve.FetchInfo{
 					DataSourceID: "catalog",
 					RootFields: []resolve.GraphCoordinate{

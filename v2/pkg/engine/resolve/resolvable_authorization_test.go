@@ -535,12 +535,10 @@ func deepOrdersResponse(service DataSource, rootProtected bool) *GraphQLResponse
 			AuthorizationCoordinates: coordinates,
 		},
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: service,
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: service,
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 			InputTemplate: InputTemplate{
 				Segments: []TemplateSegment{

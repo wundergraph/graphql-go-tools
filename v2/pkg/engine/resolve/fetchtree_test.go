@@ -15,10 +15,8 @@ func multiEntityTestNode() *FetchTreeNode {
 		Kind: FetchTreeNodeKindSingle,
 		Item: &FetchItem{
 			Fetch: &MultiEntityFetch{
-				FetchDependencies: FetchDependencies{
-					FetchID:           1,
-					DependsOnFetchIDs: []int{0},
-				},
+				FetchID:           1,
+				DependsOnFetchIDs: []int{0},
 				Info: &FetchInfo{
 					DataSourceID:   "products-id",
 					DataSourceName: "products",
@@ -195,9 +193,7 @@ func TestFetchTreeQueryPlanNode_PrettyPrint_Trigger(t *testing.T) {
 			Kind: FetchTreeNodeKindTrigger,
 			Item: &FetchItem{
 				Fetch: &SingleFetch{
-					FetchDependencies: FetchDependencies{
-						FetchID: 0,
-					},
+					FetchID: 0,
 					Info: &FetchInfo{
 						DataSourceID:   "0",
 						DataSourceName: "country",
@@ -240,9 +236,7 @@ QueryPlan {
 			Kind: FetchTreeNodeKindTrigger,
 			Item: &FetchItem{
 				Fetch: &SingleFetch{
-					FetchDependencies: FetchDependencies{
-						FetchID: 0,
-					},
+					FetchID: 0,
 					Info: &FetchInfo{
 						DataSourceID:   "0",
 						DataSourceName: "country",
@@ -265,10 +259,8 @@ QueryPlan {
 			Kind: FetchTreeNodeKindSingle,
 			Item: &FetchItem{
 				Fetch: &SingleFetch{
-					FetchDependencies: FetchDependencies{
-						FetchID:           1,
-						DependsOnFetchIDs: []int{0},
-					},
+					FetchID:           1,
+					DependsOnFetchIDs: []int{0},
 					Info: &FetchInfo{
 						DataSourceID:   "1",
 						DataSourceName: "time",
@@ -327,10 +319,8 @@ func TestFetchTreeQueryPlanNode_PrettyPrint_MultiEntity(t *testing.T) {
 		Kind: FetchTreeNodeKindSingle,
 		Item: &FetchItem{
 			Fetch: &MultiEntityFetch{
-				FetchDependencies: FetchDependencies{
-					FetchID:           1,
-					DependsOnFetchIDs: []int{0},
-				},
+				FetchID:           1,
+				DependsOnFetchIDs: []int{0},
 				Info: &FetchInfo{
 					DataSourceID:   "products-id",
 					DataSourceName: "products",

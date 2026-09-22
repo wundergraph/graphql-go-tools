@@ -31,7 +31,7 @@ func MergeDefinitionWithBaseSchemaWithInternal(definition *ast.Document, include
 	report := operationreport.Report{}
 	parser.Parse(definition, &report)
 	if report.HasErrors() {
-		return report
+		return &report
 	}
 	return handleSchema(definition)
 }

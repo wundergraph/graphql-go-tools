@@ -48,7 +48,7 @@ func mergePath(mergePath ...string) singleFetchOption {
 }
 
 func sf(id int, opts ...singleFetchOption) *resolve.FetchTreeNode {
-	node := resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: id}})
+	node := resolve.Single(&resolve.SingleFetch{FetchID: id})
 	for _, opt := range opts {
 		opt(node)
 	}

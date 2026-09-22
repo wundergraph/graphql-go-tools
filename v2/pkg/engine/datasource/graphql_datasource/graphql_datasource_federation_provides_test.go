@@ -83,37 +83,35 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 						FieldNames: []string{"trackingNumber", "carrier", "estimatedDelivery"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Order",
-							FieldName:    "",
-							SelectionSet: "id",
-						},
-						{
-							TypeName:     "ShippingInfo",
-							FieldName:    "",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Order",
+						FieldName:    "",
+						SelectionSet: "id",
 					},
-					Requires: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "ShippingInfo",
-							FieldName:    "status",
-							SelectionSet: "details { trackingNumber carrier }",
-						},
-						{
-							TypeName:     "ShippingInfo",
-							FieldName:    "fullLog",
-							SelectionSet: "details { trackingNumber carrier estimatedDelivery }",
-						},
+					{
+						TypeName:     "ShippingInfo",
+						FieldName:    "",
+						SelectionSet: "id",
 					},
-					Provides: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "Order",
-							FieldName:    "shippingInfo",
-							SelectionSet: "details { trackingNumber carrier }",
-						},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "ShippingInfo",
+						FieldName:    "status",
+						SelectionSet: "details { trackingNumber carrier }",
+					},
+					{
+						TypeName:     "ShippingInfo",
+						FieldName:    "fullLog",
+						SelectionSet: "details { trackingNumber carrier estimatedDelivery }",
+					},
+				},
+				Provides: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Order",
+						FieldName:    "shippingInfo",
+						SelectionSet: "details { trackingNumber carrier }",
 					},
 				},
 			},
@@ -162,13 +160,11 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 						FieldNames: []string{"trackingNumber", "carrier", "estimatedDelivery"},
 					},
 				},
-				FederationMetaData: plan.FederationMetaData{
-					Keys: plan.FederationFieldConfigurations{
-						{
-							TypeName:     "ShippingInfo",
-							FieldName:    "",
-							SelectionSet: "id",
-						},
+				Keys: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "ShippingInfo",
+						FieldName:    "",
+						SelectionSet: "id",
 					},
 				},
 			},
@@ -217,15 +213,11 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
+								FetchID:              0,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://service1","body":{"query":"{order {shippingInfo {status fullLog}}}"}}`,
-									DataSource:     &Source{},
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								Input:                `{"method":"POST","url":"http://service1","body":{"query":"{order {shippingInfo {status fullLog}}}"}}`,
+								DataSource:           &Source{},
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							}),
 							/*
 									// Nested fetch won't happen, because we provide sibling fields, so parent shippingInfo - is provided and could be selected.
@@ -368,15 +360,11 @@ func TestGraphQLDataSourceFederation_NestedRequiresProvides(t *testing.T) {
 					Response: &resolve.GraphQLResponse{
 						Fetches: resolve.Sequence(
 							resolve.Single(&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
+								FetchID:              0,
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://service1","body":{"query":"{order {shippingInfo {details {trackingNumber carrier estimatedDelivery}}}}"}}`,
-									DataSource:     &Source{},
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
+								Input:                `{"method":"POST","url":"http://service1","body":{"query":"{order {shippingInfo {details {trackingNumber carrier estimatedDelivery}}}}"}}`,
+								DataSource:           &Source{},
+								PostProcessing:       DefaultPostProcessingConfiguration,
 							}),
 						),
 						Data: &resolve.Object{
@@ -489,14 +477,12 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverUnionTypedField(t *test
 				{TypeName: "Book", FieldNames: []string{"id"}, ExternalFieldNames: []string{"title"}},
 				{TypeName: "Movie", FieldNames: []string{"id"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Movie", SelectionSet: "id"},
-				},
-				Provides: plan.FederationFieldConfigurations{
-					{TypeName: "Query", FieldName: "media", SelectionSet: "... on Book { title }"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Movie", SelectionSet: "id"},
+			},
+			Provides: plan.FederationFieldConfigurations{
+				{TypeName: "Query", FieldName: "media", SelectionSet: "... on Book { title }"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -540,11 +526,9 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverUnionTypedField(t *test
 				{TypeName: "Book", FieldNames: []string{"id", "title"}},
 				{TypeName: "Movie", FieldNames: []string{"id", "title"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Movie", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Movie", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -590,17 +574,13 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverUnionTypedField(t *test
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(resolve.Single(&resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {id title} ... on Movie {id}}}"}}`,
-						DataSource: &Source{},
-						PostProcessing: resolve.PostProcessingConfiguration{
-							SelectResponseDataPath:   []string{"data"},
-							SelectResponseErrorsPath: []string{"errors"},
-						},
+					Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {id title} ... on Movie {id}}}"}}`,
+					DataSource: &Source{},
+					PostProcessing: resolve.PostProcessingConfiguration{
+						SelectResponseDataPath:   []string{"data"},
+						SelectResponseErrorsPath: []string{"errors"},
 					},
-					FetchDependencies: resolve.FetchDependencies{
-						FetchID: 0,
-					},
+					FetchID:              0,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				})),
 				Data: &resolve.Object{
@@ -671,54 +651,46 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverUnionTypedField(t *test
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(
 					resolve.Single(&resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {id} ... on Movie {id __typename}}}"}}`,
-							DataSource: &Source{},
-							PostProcessing: resolve.PostProcessingConfiguration{
-								SelectResponseDataPath:   []string{"data"},
-								SelectResponseErrorsPath: []string{"errors"},
-							},
+						Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {id} ... on Movie {id __typename}}}"}}`,
+						DataSource: &Source{},
+						PostProcessing: resolve.PostProcessingConfiguration{
+							SelectResponseDataPath:   []string{"data"},
+							SelectResponseErrorsPath: []string{"errors"},
 						},
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID: 0,
-						},
+						FetchID:              0,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
 					resolve.SingleWithPath(&resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           1,
-							DependsOnFetchIDs: []int{0},
-						},
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:                                 `{"method":"POST","url":"http://service2","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Movie {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							SetTemplateOutputToNullOnVariableNull: true,
-							RequiresEntityBatchFetch:              true,
-							Variables: []resolve.Variable{
-								&resolve.ResolvableObjectVariable{
-									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-										Nullable: true,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path: []string{"__typename"},
-												},
-												OnTypeNames: [][]byte{[]byte("Movie")},
+						FetchID:                               1,
+						DependsOnFetchIDs:                     []int{0},
+						Input:                                 `{"method":"POST","url":"http://service2","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Movie {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+						DataSource:                            &Source{},
+						SetTemplateOutputToNullOnVariableNull: true,
+						RequiresEntityBatchFetch:              true,
+						Variables: []resolve.Variable{
+							&resolve.ResolvableObjectVariable{
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path: []string{"__typename"},
 											},
-											{
-												Name: []byte("id"),
-												Value: &resolve.Scalar{
-													Path: []string{"id"},
-												},
-												OnTypeNames: [][]byte{[]byte("Movie")},
-											},
+											OnTypeNames: [][]byte{[]byte("Movie")},
 										},
-									}),
-								},
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+											OnTypeNames: [][]byte{[]byte("Movie")},
+										},
+									},
+								}),
 							},
-							PostProcessing: EntitiesPostProcessingConfiguration,
 						},
+						PostProcessing:       EntitiesPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}, "media", resolve.ArrayPath("media")),
 				),
@@ -824,14 +796,12 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeField(t *t
 				{TypeName: "Book", FieldNames: []string{"id"}, ExternalFieldNames: []string{"title"}},
 				{TypeName: "Movie", FieldNames: []string{"id"}, ExternalFieldNames: []string{"title"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Movie", SelectionSet: "id"},
-				},
-				Provides: plan.FederationFieldConfigurations{
-					{TypeName: "Query", FieldName: "media", SelectionSet: "... on Book { title }"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Movie", SelectionSet: "id"},
+			},
+			Provides: plan.FederationFieldConfigurations{
+				{TypeName: "Query", FieldName: "media", SelectionSet: "... on Book { title }"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -876,11 +846,9 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeField(t *t
 				{TypeName: "Book", FieldNames: []string{"id", "title"}},
 				{TypeName: "Movie", FieldNames: []string{"id", "title"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Movie", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Movie", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -926,17 +894,13 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeField(t *t
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(resolve.Single(&resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {id title} ... on Movie {id}}}"}}`,
-						DataSource: &Source{},
-						PostProcessing: resolve.PostProcessingConfiguration{
-							SelectResponseDataPath:   []string{"data"},
-							SelectResponseErrorsPath: []string{"errors"},
-						},
+					Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {id title} ... on Movie {id}}}"}}`,
+					DataSource: &Source{},
+					PostProcessing: resolve.PostProcessingConfiguration{
+						SelectResponseDataPath:   []string{"data"},
+						SelectResponseErrorsPath: []string{"errors"},
 					},
-					FetchDependencies: resolve.FetchDependencies{
-						FetchID: 0,
-					},
+					FetchID:              0,
 					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				})),
 				Data: &resolve.Object{
@@ -1007,54 +971,46 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeField(t *t
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(
 					resolve.Single(&resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {title id} ... on Movie {id __typename}}}"}}`,
-							DataSource: &Source{},
-							PostProcessing: resolve.PostProcessingConfiguration{
-								SelectResponseDataPath:   []string{"data"},
-								SelectResponseErrorsPath: []string{"errors"},
-							},
+						Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {title id} ... on Movie {id __typename}}}"}}`,
+						DataSource: &Source{},
+						PostProcessing: resolve.PostProcessingConfiguration{
+							SelectResponseDataPath:   []string{"data"},
+							SelectResponseErrorsPath: []string{"errors"},
 						},
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID: 0,
-						},
+						FetchID:              0,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
 					resolve.SingleWithPath(&resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           1,
-							DependsOnFetchIDs: []int{0},
-						},
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:                                 `{"method":"POST","url":"http://service2","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Movie {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							SetTemplateOutputToNullOnVariableNull: true,
-							RequiresEntityBatchFetch:              true,
-							Variables: []resolve.Variable{
-								&resolve.ResolvableObjectVariable{
-									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-										Nullable: true,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path: []string{"__typename"},
-												},
-												OnTypeNames: [][]byte{[]byte("Movie")},
+						FetchID:                               1,
+						DependsOnFetchIDs:                     []int{0},
+						Input:                                 `{"method":"POST","url":"http://service2","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Movie {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+						DataSource:                            &Source{},
+						SetTemplateOutputToNullOnVariableNull: true,
+						RequiresEntityBatchFetch:              true,
+						Variables: []resolve.Variable{
+							&resolve.ResolvableObjectVariable{
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path: []string{"__typename"},
 											},
-											{
-												Name: []byte("id"),
-												Value: &resolve.Scalar{
-													Path: []string{"id"},
-												},
-												OnTypeNames: [][]byte{[]byte("Movie")},
-											},
+											OnTypeNames: [][]byte{[]byte("Movie")},
 										},
-									}),
-								},
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+											OnTypeNames: [][]byte{[]byte("Movie")},
+										},
+									},
+								}),
 							},
-							PostProcessing: EntitiesPostProcessingConfiguration,
 						},
+						PostProcessing:       EntitiesPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}, "media", resolve.ArrayPath("media")),
 				),
@@ -1172,14 +1128,12 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeFieldAndAb
 				{TypeName: "Book", FieldNames: []string{"id"}, ExternalFieldNames: []string{"title"}},
 				{TypeName: "Movie", FieldNames: []string{"id"}, ExternalFieldNames: []string{"title"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Movie", SelectionSet: "id"},
-				},
-				Provides: plan.FederationFieldConfigurations{
-					{TypeName: "Query", FieldName: "media", SelectionSet: "... on Book { title }"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Movie", SelectionSet: "id"},
+			},
+			Provides: plan.FederationFieldConfigurations{
+				{TypeName: "Query", FieldName: "media", SelectionSet: "... on Book { title }"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -1224,11 +1178,9 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeFieldAndAb
 				{TypeName: "Book", FieldNames: []string{"id", "title"}},
 				{TypeName: "Movie", FieldNames: []string{"id", "title"}},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{TypeName: "Book", SelectionSet: "id"},
-					{TypeName: "Movie", SelectionSet: "id"},
-				},
+			Keys: plan.FederationFieldConfigurations{
+				{TypeName: "Book", SelectionSet: "id"},
+				{TypeName: "Movie", SelectionSet: "id"},
 			},
 		},
 		mustCustomConfiguration(t,
@@ -1278,54 +1230,46 @@ func TestGraphQLDataSourceFederation_ProvidesFieldSetOverInterfaceTypeFieldAndAb
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(
 					resolve.Single(&resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {title} ... on Movie {__typename id}}}"}}`,
-							DataSource: &Source{},
-							PostProcessing: resolve.PostProcessingConfiguration{
-								SelectResponseDataPath:   []string{"data"},
-								SelectResponseErrorsPath: []string{"errors"},
-							},
+						Input:      `{"method":"POST","url":"http://service1","body":{"query":"{media {__typename ... on Book {title} ... on Movie {__typename id}}}"}}`,
+						DataSource: &Source{},
+						PostProcessing: resolve.PostProcessingConfiguration{
+							SelectResponseDataPath:   []string{"data"},
+							SelectResponseErrorsPath: []string{"errors"},
 						},
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID: 0,
-						},
+						FetchID:              0,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
 					resolve.SingleWithPath(&resolve.SingleFetch{
-						FetchDependencies: resolve.FetchDependencies{
-							FetchID:           1,
-							DependsOnFetchIDs: []int{0},
-						},
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:                                 `{"method":"POST","url":"http://service2","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Movie {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
-							DataSource:                            &Source{},
-							SetTemplateOutputToNullOnVariableNull: true,
-							RequiresEntityBatchFetch:              true,
-							Variables: []resolve.Variable{
-								&resolve.ResolvableObjectVariable{
-									Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-										Nullable: true,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path: []string{"__typename"},
-												},
-												OnTypeNames: [][]byte{[]byte("Movie")},
+						FetchID:                               1,
+						DependsOnFetchIDs:                     []int{0},
+						Input:                                 `{"method":"POST","url":"http://service2","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Movie {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
+						DataSource:                            &Source{},
+						SetTemplateOutputToNullOnVariableNull: true,
+						RequiresEntityBatchFetch:              true,
+						Variables: []resolve.Variable{
+							&resolve.ResolvableObjectVariable{
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path: []string{"__typename"},
 											},
-											{
-												Name: []byte("id"),
-												Value: &resolve.Scalar{
-													Path: []string{"id"},
-												},
-												OnTypeNames: [][]byte{[]byte("Movie")},
-											},
+											OnTypeNames: [][]byte{[]byte("Movie")},
 										},
-									}),
-								},
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+											OnTypeNames: [][]byte{[]byte("Movie")},
+										},
+									},
+								}),
 							},
-							PostProcessing: EntitiesPostProcessingConfiguration,
 						},
+						PostProcessing:       EntitiesPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}, "media", resolve.ArrayPath("media")),
 				),
@@ -1426,12 +1370,10 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 					FieldNames: []string{"upc", "weight", "price"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Product",
-						SelectionSet: "upc",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "upc",
 				},
 			},
 		},
@@ -1459,34 +1401,32 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 					FieldNames: []string{"upc", "estimateA", "estimateB", "estimateC", "estimateD"},
 				},
 			},
-			FederationMetaData: plan.FederationMetaData{
-				Keys: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Product",
-						SelectionSet: "upc",
-					},
+			Keys: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "upc",
 				},
-				Requires: plan.FederationFieldConfigurations{
-					{
-						TypeName:     "Product",
-						FieldName:    "estimateA",
-						SelectionSet: `price(currency: "USD") weight`,
-					},
-					{
-						TypeName:     "Product",
-						FieldName:    "estimateB",
-						SelectionSet: `price(currency: "EUR") weight`,
-					},
-					{
-						TypeName:     "Product",
-						FieldName:    "estimateC",
-						SelectionSet: `price(currency: "CAD") weight`,
-					},
-					{
-						TypeName:     "Product",
-						FieldName:    "estimateD",
-						SelectionSet: `price(currency: "UAH") weight`,
-					},
+			},
+			Requires: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					FieldName:    "estimateA",
+					SelectionSet: `price(currency: "USD") weight`,
+				},
+				{
+					TypeName:     "Product",
+					FieldName:    "estimateB",
+					SelectionSet: `price(currency: "EUR") weight`,
+				},
+				{
+					TypeName:     "Product",
+					FieldName:    "estimateC",
+					SelectionSet: `price(currency: "CAD") weight`,
+				},
+				{
+					TypeName:     "Product",
+					FieldName:    "estimateD",
+					SelectionSet: `price(currency: "UAH") weight`,
 				},
 			},
 		},
@@ -1506,54 +1446,50 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 
 	estimateFetch := func(fetchID int, fieldName string, pricePath string) *resolve.FetchTreeNode {
 		return resolve.SingleWithPath(&resolve.SingleFetch{
-			FetchDependencies: resolve.FetchDependencies{
-				FetchID:           fetchID,
-				DependsOnFetchIDs: []int{0},
-			},
-			FetchConfiguration: resolve.FetchConfiguration{
-				RequiresEntityBatchFetch:              true,
-				Input:                                 `{"method":"POST","url":"http://inventory.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename ` + fieldName + `}}}","variables":{"representations":[$$0$$]}}}`,
-				DataSource:                            &Source{},
-				PostProcessing:                        EntitiesPostProcessingConfiguration,
-				SetTemplateOutputToNullOnVariableNull: true,
-				Variables: resolve.NewVariables(
-					resolve.NewResolvableObjectVariable(&resolve.Object{
-						Nullable: true,
-						Fields: []*resolve.Field{
-							{
-								Name: []byte("__typename"),
-								Value: &resolve.String{
-									Path: []string{"__typename"},
-								},
-								OnTypeNames: [][]byte{[]byte("Product")},
+			FetchID:                               fetchID,
+			DependsOnFetchIDs:                     []int{0},
+			RequiresEntityBatchFetch:              true,
+			Input:                                 `{"method":"POST","url":"http://inventory.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename ` + fieldName + `}}}","variables":{"representations":[$$0$$]}}}`,
+			DataSource:                            &Source{},
+			PostProcessing:                        EntitiesPostProcessingConfiguration,
+			SetTemplateOutputToNullOnVariableNull: true,
+			Variables: resolve.NewVariables(
+				resolve.NewResolvableObjectVariable(&resolve.Object{
+					Nullable: true,
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("__typename"),
+							Value: &resolve.String{
+								Path: []string{"__typename"},
 							},
-							{
-								Name: []byte("price"),
-								Value: &resolve.Integer{
-									Path:     []string{pricePath},
-									Nullable: true,
-								},
-								OnTypeNames: [][]byte{[]byte("Product")},
-							},
-							{
-								Name: []byte("weight"),
-								Value: &resolve.Integer{
-									Path:     []string{"weight"},
-									Nullable: true,
-								},
-								OnTypeNames: [][]byte{[]byte("Product")},
-							},
-							{
-								Name: []byte("upc"),
-								Value: &resolve.String{
-									Path: []string{"upc"},
-								},
-								OnTypeNames: [][]byte{[]byte("Product")},
-							},
+							OnTypeNames: [][]byte{[]byte("Product")},
 						},
-					}),
-				),
-			},
+						{
+							Name: []byte("price"),
+							Value: &resolve.Integer{
+								Path:     []string{pricePath},
+								Nullable: true,
+							},
+							OnTypeNames: [][]byte{[]byte("Product")},
+						},
+						{
+							Name: []byte("weight"),
+							Value: &resolve.Integer{
+								Path:     []string{"weight"},
+								Nullable: true,
+							},
+							OnTypeNames: [][]byte{[]byte("Product")},
+						},
+						{
+							Name: []byte("upc"),
+							Value: &resolve.String{
+								Path: []string{"upc"},
+							},
+							OnTypeNames: [][]byte{[]byte("Product")},
+						},
+					},
+				}),
+			),
 			DataSourceIdentifier: []byte("graphql_datasource.Source"),
 		}, "products", resolve.ArrayPath("products"))
 	}
@@ -1576,11 +1512,9 @@ func TestGraphQLDataSourceFederation_RequiresSameFieldWithDifferentArguments(t *
 			Response: &resolve.GraphQLResponse{
 				Fetches: resolve.Sequence(
 					resolve.Single(&resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://catalog.service","body":{"query":"query($a: String!, $b: String!, $c: String!, $d: String!){products {upc price(currency: $a) weight __internal_price: price(currency: $b) __internal_price_1: price(currency: $c) __internal_price_2: price(currency: $d) __typename}}","variables":{"a":"USD","b":"EUR","c":"CAD","d":"UAH"}}}`,
-							DataSource:     &Source{},
-							PostProcessing: DefaultPostProcessingConfiguration,
-						},
+						Input:                `{"method":"POST","url":"http://catalog.service","body":{"query":"query($a: String!, $b: String!, $c: String!, $d: String!){products {upc price(currency: $a) weight __internal_price: price(currency: $b) __internal_price_1: price(currency: $c) __internal_price_2: price(currency: $d) __typename}}","variables":{"a":"USD","b":"EUR","c":"CAD","d":"UAH"}}}`,
+						DataSource:           &Source{},
+						PostProcessing:       DefaultPostProcessingConfiguration,
 						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					}),
 					estimateFetch(1, "estimateA", "price"),

@@ -90,11 +90,9 @@ func benchDeferResponse(groupCount, fieldCount int) *GraphQLDeferResponse {
 		group := &DeferFetchGroup{
 			DeferID: id,
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(benchGroupPayload(fieldName, fieldCount)),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: FakeDataSource(benchGroupPayload(fieldName, fieldCount)),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 			}),
 		}
@@ -190,11 +188,9 @@ func TestDeferGCSafety_SingleGroup(t *testing.T) {
 		group := &DeferFetchGroup{
 			DeferID: 1,
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"obj":{"a":"alpha","b":"bravo"}}}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
+				DataSource: FakeDataSource(`{"data":{"obj":{"a":"alpha","b":"bravo"}}}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
 				},
 			}),
 		}
@@ -273,12 +269,10 @@ func TestDeferGCSafety_ErrorFrames(t *testing.T) {
 		recoverable := &DeferFetchGroup{
 			DeferID: 1,
 			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: FakeDataSource(`{"data":{"f1":"hello"},"errors":[{"message":"partial failure"}]}`),
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath:   []string{"data"},
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: FakeDataSource(`{"data":{"f1":"hello"},"errors":[{"message":"partial failure"}]}`),
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 			}),
 		}

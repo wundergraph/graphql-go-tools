@@ -128,20 +128,16 @@ func TestOnFinished_SameSubgraphName_NoErrorInheritance(t *testing.T) {
 		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
 		Fetches: Sequence(
 			SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: failing,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: failing,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{DataSourceID: "Users", DataSourceName: "Users"},
 			}, "query"),
 			SingleWithPath(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{
-					DataSource: clean,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"errors"},
-					},
+				DataSource: clean,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseErrorsPath: []string{"errors"},
 				},
 				Info: &FetchInfo{DataSourceID: "Users", DataSourceName: "Users"},
 			}, "query"),

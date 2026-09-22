@@ -43,7 +43,7 @@ func GraphQLSchema() (ast.Document, error) {
 
 	doc, report := astparser.ParseGraphqlDocumentBytes(schemaBytes)
 	if report.HasErrors() {
-		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", report)
+		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", &report)
 	}
 
 	if err := asttransform.MergeDefinitionWithBaseSchema(&doc); err != nil {
@@ -52,7 +52,7 @@ func GraphQLSchema() (ast.Document, error) {
 
 	astvalidation.DefaultDefinitionValidator().Validate(&doc, &report)
 	if report.HasErrors() {
-		return ast.Document{}, fmt.Errorf("failed to validate schema: %w", report)
+		return ast.Document{}, fmt.Errorf("failed to validate schema: %w", &report)
 	}
 
 	return doc, nil
@@ -66,7 +66,7 @@ func GraphQLSchemaWithoutBaseDefinitions() (ast.Document, error) {
 
 	doc, report := astparser.ParseGraphqlDocumentBytes(schemaBytes)
 	if report.HasErrors() {
-		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", report)
+		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", &report)
 	}
 
 	return doc, nil
@@ -688,167 +688,165 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 
 func GetDataSourceMetadata() *plan.DataSourceMetadata {
 	return &plan.DataSourceMetadata{
-		FederationMetaData: plan.FederationMetaData{
-			Keys: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "Product",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Storage",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Warehouse",
-					SelectionSet: "id",
-				},
+		Keys: plan.FederationFieldConfigurations{
+			{
+				TypeName:     "Product",
+				SelectionSet: "id",
 			},
-			Requires: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "Storage",
-					FieldName:    "stockHealthScore",
-					SelectionSet: "itemCount restockData { lastRestockDate }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "tagSummary",
-					SelectionSet: "tags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "optionalTagSummary",
-					SelectionSet: "optionalTags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "metadataScore",
-					SelectionSet: "metadata { capacity zone }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "processedMetadata",
-					SelectionSet: "metadata { capacity zone priority }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "optionalProcessedMetadata",
-					SelectionSet: "metadata { capacity zone }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "processedTags",
-					SelectionSet: "tags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "optionalProcessedTags",
-					SelectionSet: "optionalTags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "processedMetadataHistory",
-					SelectionSet: "metadataHistory { capacity zone }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "kindSummary",
-					SelectionSet: "storageKind",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "categoryInfoSummary",
-					SelectionSet: "categoryInfo { kind name }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "itemInfo",
-					SelectionSet: "primaryItem { ... on PalletItem { __typename name palletCount } ... on ContainerItem { __typename name containerSize } }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "operationReport",
-					SelectionSet: "lastStorageOperation { ... on StorageSuccess { __typename message completedAt } ... on StorageFailure { __typename message errorCode } }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "securitySummary",
-					SelectionSet: "securitySetup { securityLevel primaryItem { ... on PalletItem { __typename name palletCount } ... on ContainerItem { __typename name containerSize } } }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "itemHandlerInfo",
-					SelectionSet: "primaryItem { ... on PalletItem { __typename handler { name } } ... on ContainerItem { __typename handler { name } } }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "itemSpecsInfo",
-					SelectionSet: "primaryItem { ... on PalletItem { __typename specs { name dimensions { length width } } } ... on ContainerItem { __typename specs { name dimensions { length width } } } }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "deepItemInfo",
-					SelectionSet: "primaryItem { ... on PalletItem { __typename handler { assignedItem { ... on ContainerItem { __typename name containerSize } ... on PalletItem { __typename name palletCount } } } } ... on ContainerItem { __typename handler { name } } }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "recommendedItem",
-					SelectionSet: "metadata { capacity zone }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "recommendedItems",
-					SelectionSet: "tags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "latestOperation",
-					SelectionSet: "storageKind",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "optionalLatestOperation",
-					SelectionSet: "optionalTags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "filteredTagSummary",
-					SelectionSet: "tags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "multiFilteredTagSummary",
-					SelectionSet: "tags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "nullableFilteredTagSummary",
-					SelectionSet: "tags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "optionalProcessedMetadataHistory",
-					SelectionSet: "metadataHistory { capacity zone }",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "optionalRecommendedItems",
-					SelectionSet: "tags",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "optionalOperationHistory",
-					SelectionSet: "storageKind",
-				},
-				{
-					TypeName:     "Storage",
-					FieldName:    "tagsByLengths",
-					SelectionSet: "tags",
-				},
-				{
-					TypeName:     "Warehouse",
-					FieldName:    "stockHealthScore",
-					SelectionSet: "inventoryCount restockData { lastRestockDate }",
-				},
+			{
+				TypeName:     "Storage",
+				SelectionSet: "id",
+			},
+			{
+				TypeName:     "Warehouse",
+				SelectionSet: "id",
+			},
+		},
+		Requires: plan.FederationFieldConfigurations{
+			{
+				TypeName:     "Storage",
+				FieldName:    "stockHealthScore",
+				SelectionSet: "itemCount restockData { lastRestockDate }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "tagSummary",
+				SelectionSet: "tags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "optionalTagSummary",
+				SelectionSet: "optionalTags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "metadataScore",
+				SelectionSet: "metadata { capacity zone }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "processedMetadata",
+				SelectionSet: "metadata { capacity zone priority }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "optionalProcessedMetadata",
+				SelectionSet: "metadata { capacity zone }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "processedTags",
+				SelectionSet: "tags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "optionalProcessedTags",
+				SelectionSet: "optionalTags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "processedMetadataHistory",
+				SelectionSet: "metadataHistory { capacity zone }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "kindSummary",
+				SelectionSet: "storageKind",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "categoryInfoSummary",
+				SelectionSet: "categoryInfo { kind name }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "itemInfo",
+				SelectionSet: "primaryItem { ... on PalletItem { __typename name palletCount } ... on ContainerItem { __typename name containerSize } }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "operationReport",
+				SelectionSet: "lastStorageOperation { ... on StorageSuccess { __typename message completedAt } ... on StorageFailure { __typename message errorCode } }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "securitySummary",
+				SelectionSet: "securitySetup { securityLevel primaryItem { ... on PalletItem { __typename name palletCount } ... on ContainerItem { __typename name containerSize } } }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "itemHandlerInfo",
+				SelectionSet: "primaryItem { ... on PalletItem { __typename handler { name } } ... on ContainerItem { __typename handler { name } } }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "itemSpecsInfo",
+				SelectionSet: "primaryItem { ... on PalletItem { __typename specs { name dimensions { length width } } } ... on ContainerItem { __typename specs { name dimensions { length width } } } }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "deepItemInfo",
+				SelectionSet: "primaryItem { ... on PalletItem { __typename handler { assignedItem { ... on ContainerItem { __typename name containerSize } ... on PalletItem { __typename name palletCount } } } } ... on ContainerItem { __typename handler { name } } }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "recommendedItem",
+				SelectionSet: "metadata { capacity zone }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "recommendedItems",
+				SelectionSet: "tags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "latestOperation",
+				SelectionSet: "storageKind",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "optionalLatestOperation",
+				SelectionSet: "optionalTags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "filteredTagSummary",
+				SelectionSet: "tags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "multiFilteredTagSummary",
+				SelectionSet: "tags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "nullableFilteredTagSummary",
+				SelectionSet: "tags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "optionalProcessedMetadataHistory",
+				SelectionSet: "metadataHistory { capacity zone }",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "optionalRecommendedItems",
+				SelectionSet: "tags",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "optionalOperationHistory",
+				SelectionSet: "storageKind",
+			},
+			{
+				TypeName:     "Storage",
+				FieldName:    "tagsByLengths",
+				SelectionSet: "tags",
+			},
+			{
+				TypeName:     "Warehouse",
+				FieldName:    "stockHealthScore",
+				SelectionSet: "inventoryCount restockData { lastRestockDate }",
 			},
 		},
 		RootNodes: plan.TypeFields{

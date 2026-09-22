@@ -108,7 +108,8 @@ func (b *dsBuilder) DS() DataSource {
 	return b.ds
 }
 
-func strptr(s string) *string { return &s }
+//go:fix inline
+func strptr(s string) *string { return new(s) }
 
 func newNodeSuggestions(nodes []NodeSuggestion) *NodeSuggestions {
 	items := make([]*NodeSuggestion, 0, len(nodes))

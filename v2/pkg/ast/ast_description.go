@@ -16,9 +16,9 @@ type Description struct {
 	Position      position.Position
 }
 
-//nolint
+// nolint
 func (d *Document) PrintDescription(description Description, indent []byte, depth int, writer io.Writer) (err error) {
-	for i := 0; i < depth; i++ {
+	for range depth {
 		_, err = writer.Write(indent)
 	}
 	if description.IsBlockString {
@@ -26,7 +26,7 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 		_, err = writer.Write(literal.QUOTE)
 		_, err = writer.Write(literal.QUOTE)
 		_, err = writer.Write(literal.LINETERMINATOR)
-		for i := 0; i < depth; i++ {
+		for range depth {
 			_, err = writer.Write(indent)
 		}
 	} else {
@@ -40,10 +40,7 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 	// (per the BlockStringValue() canonicalization in the GraphQL spec). The
 	// per-line depth prefix is then added back below. This preserves any
 	// deliberate inner indentation — e.g. code blocks inside a description.
-	commonIndent := commonBlockStringIndent(splitBytesIntoLines(content))
-	if commonIndent < 0 {
-		commonIndent = 0
-	}
+	commonIndent := max(commonBlockStringIndent(splitBytesIntoLines(content)), 0)
 
 	skipWhitespace := false
 	skippedBytes := 0
@@ -62,7 +59,7 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 			skippedBytes = 0
 		default:
 			if skipWhitespace {
-				for j := 0; j < depth; j++ {
+				for range depth {
 					_, err = writer.Write(indent)
 				}
 				skipWhitespace = false
@@ -72,7 +69,7 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 	}
 	if description.IsBlockString {
 		_, err = writer.Write(literal.LINETERMINATOR)
-		for i := 0; i < depth; i++ {
+		for range depth {
 			_, err = writer.Write(indent)
 		}
 		_, err = writer.Write(literal.QUOTE)

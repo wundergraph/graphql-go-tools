@@ -88,9 +88,7 @@ func deferQueryInfo() *GraphQLResponseInfo {
 // simpleFetch returns a fetch tree whose single fetch yields fetchJSON verbatim.
 func simpleFetch(fetchJSON string) *FetchTreeNode {
 	return Single(&SingleFetch{
-		FetchConfiguration: FetchConfiguration{
-			DataSource: FakeDataSource(fetchJSON),
-		},
+		DataSource: FakeDataSource(fetchJSON),
 	})
 }
 
@@ -154,12 +152,10 @@ func TestDefer_ErrorInIncremental(t *testing.T) {
 	group := &DeferFetchGroup{
 		DeferID: 1,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: FakeDataSource(`{"data":{"f1":"hello"},"errors":[{"message":"partial failure"}]}`),
-				PostProcessing: PostProcessingConfiguration{
-					SelectResponseDataPath:   []string{"data"},
-					SelectResponseErrorsPath: []string{"errors"},
-				},
+			DataSource: FakeDataSource(`{"data":{"f1":"hello"},"errors":[{"message":"partial failure"}]}`),
+			PostProcessing: PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
 			},
 		}),
 	}
@@ -728,10 +724,8 @@ func TestDefer_RateLimitErrorDuringDeferredFetch_MustComplete(t *testing.T) {
 	group := &DeferFetchGroup{
 		DeferID: 1,
 		Fetches: Single(&SingleFetch{
-			FetchConfiguration: FetchConfiguration{
-				DataSource: FakeDataSource(`{"f1":"value"}`),
-			},
-			Info: &FetchInfo{DataSourceID: "ds", DataSourceName: "ds"},
+			DataSource: FakeDataSource(`{"f1":"value"}`),
+			Info:       &FetchInfo{DataSourceID: "ds", DataSourceName: "ds"},
 		}),
 	}
 	response := rootDeferResponse(&String{Path: []string{"f1"}, Nullable: true}, nil, group)
