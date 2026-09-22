@@ -287,26 +287,26 @@ type responseCache struct {
 // of that subgraph is cached. No entry means the default. An entry replaces the
 // default whole: its private id is its own or none.
 func (c *Context) responseCacheFor(subgraph string) (responseCacheSubgraph, bool) {
-	rc := c.responseCache
-	if rc == nil {
+	if c.responseCache == nil {
 		return responseCacheSubgraph{}, false
 	}
-	opts, ok := rc.subgraphs[subgraph]
+	opts, ok := c.responseCache.subgraphs[subgraph]
+	// When no specific subgraph path is available
 	if !ok {
-		if rc.defaultDisabled {
+		if c.responseCache.defaultDisabled {
 			return responseCacheSubgraph{}, false
 		}
-		return rc.def, true
+		return c.responseCache.def, true
 	}
 	if opts.Disabled {
 		return responseCacheSubgraph{}, false
 	}
 	sub := responseCacheSubgraph{ttl: opts.DefaultTTL}
 	if sub.ttl <= 0 {
-		sub.ttl = rc.def.ttl
+		sub.ttl = c.responseCache.def.ttl
 	}
 	if opts.PrivateID != "" {
-		sub.privateID = rc.privateIDs[subgraph]
+		sub.privateID = c.responseCache.privateIDs[subgraph]
 		sub.hasPrivateID = true
 	}
 	return sub, true
@@ -420,11 +420,7 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		if rc.privateIDs == nil {
 			rc.privateIDs = make(map[string]caching.Digest)
 		}
-		if sub.PrivateID == opts.PrivateID {
-			rc.privateIDs[name] = rc.def.privateID
-		} else {
-			rc.privateIDs[name] = caching.DigestString(sub.PrivateID)
-		}
+		rc.privateIDs[name] = caching.DigestString(sub.PrivateID)
 		named = append(named, name)
 	}
 	if len(named) > 0 {

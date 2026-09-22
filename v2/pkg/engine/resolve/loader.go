@@ -1911,7 +1911,6 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 	}
 	responseCacheHeaderEnd := preparedInput.Len()
 	var responseCacheItems []caching.Digest
-	cacheItems := l.responseCacheEnabledFor(res.ds.Name)
 
 	batchItemIndex := 0
 	addSeparator := false
@@ -1953,7 +1952,7 @@ WithNextItem:
 				}
 			}
 			// Digested before WriteTo drains the buffer.
-			if cacheItems {
+			if l.responseCacheEnabledFor(res.ds.Name) {
 				responseCacheItems = append(responseCacheItems, caching.DigestBytes(itemInput.Bytes()))
 			}
 			start := preparedInput.Len()
