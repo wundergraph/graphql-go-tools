@@ -1,6 +1,6 @@
 module github.com/wundergraph/graphql-go-tools
 
-go 1.25
+go 1.27.0
 
 // Use github.com/wundergraph/graphql-go-tools/v2 instead.
 retract (

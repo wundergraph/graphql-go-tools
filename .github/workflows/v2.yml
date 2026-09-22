@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        go: [ "1.25" ]
+        go: [ "1.27" ]
         os: [ubuntu-latest, windows-latest]
     steps:
       - name: Set git to use LF
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ "1.25" ]
+        go: [ "1.27" ]
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '^1.25'
+          go-version: '^1.27'
       - name: Check go.work.sum is up to date
         run: |
           go mod download all
