@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.24.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.23.0...v2.24.0) (2026-09-23)
+
+
+### Features
+
+* response cache Vary support ([#1675](https://github.com/wundergraph/graphql-go-tools/issues/1675)) ([b717953](https://github.com/wundergraph/graphql-go-tools/commit/b7179539ddfa4808a0ccefa12305ff86da0f9f49))
+
 ## [2.23.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.22.1...v2.23.0) (2026-09-23)
 
 
