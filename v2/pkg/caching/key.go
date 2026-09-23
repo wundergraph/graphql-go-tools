@@ -5,22 +5,24 @@ import (
 	"encoding/hex"
 )
 
-// keyFormatVersion leads every key this package builds. A change to the key
-// layout, to the meaning of any digest, or to the stored entry format (see
-// entry.go) bumps it, which orphans the entries written under the old layout
-// instead of letting them be read back as something they are not. Orphaned
-// entries are not deleted, they simply stop being asked for and fall out on
-// their own TTL.
+// keyFormatVersion leads every key this package builds. It stays at 1 until
+// GA. After that a change to the key layout, to the meaning of any digest, or
+// to the stored entry format (see entry.go) bumps it, and the reader must then
+// still decode the older formats. Entries under an orphaned version are not
+// deleted, they simply stop being asked for and fall out on their own TTL.
 //
 // Layout: version ':' entity ':' selection, plus ':' privateID for an entry
 // that belongs to one user, each a Digest in hex. The segment count keeps the
-// two forms apart, so a private key never reads as a public one.
-const keyFormatVersion = "3"
+// two forms apart, so a private key never reads as a public one. Either form
+// may carry '+' vary for a variant of a response that varies by request
+// header; the separator differs so a variant never reads as a private key.
+const keyFormatVersion = "1"
 
 const (
 	digestHex     = 2 * sha256.Size
 	keyLen        = len(keyFormatVersion) + 1 + digestHex + 1 + digestHex
 	privateKeyLen = keyLen + 1 + digestHex
+	variantSep    = '+'
 )
 
 // Digest is the SHA-256 of one input to a key. Collision resistant, so two
@@ -66,6 +68,16 @@ func PrivateKey(entity, selection, privateID Digest) string {
 	buf = appendKey(buf, entity, selection)
 	buf = append(buf, ':')
 	buf = hex.AppendEncode(buf, privateID[:])
+	return string(buf)
+}
+
+// VariantKey builds the key of one variant of the entry at base, a public or
+// private key, for the request header values vary digests.
+func VariantKey(base string, vary Digest) string {
+	buf := make([]byte, 0, len(base)+1+digestHex)
+	buf = append(buf, base...)
+	buf = append(buf, variantSep)
+	buf = hex.AppendEncode(buf, vary[:])
 	return string(buf)
 }
 

@@ -88,25 +88,41 @@ func responseCacheLookupKeys(keys, privateKeys []string) []string {
 	return append(lookup, privateKeys...)
 }
 
-// responseCacheFoundItem picks the entry for one position: the user's own wins
-// over the shared one. An empty or invalid body is a miss.
+// responseCacheFoundItem picks one position's entry, the user's own over the
+// shared: a body, or a record pointing at one. An invalid body is a miss.
 func (l *Loader) responseCacheFoundItem(found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
 	if privateKey != "" {
 		item, ok = found[privateKey]
-		ok = ok && len(item.Value) > 0
+		ok = ok && (len(item.Value) > 0 || len(item.Vary) > 0)
 		private = ok
 	}
 	if !ok {
 		item, ok = found[key]
-		if !ok || len(item.Value) == 0 {
+		if !ok || (len(item.Value) == 0 && len(item.Vary) == 0) {
 			return caching.Item{}, false, false
 		}
 	}
-	if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
-		l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
+	if len(item.Vary) > 0 {
+		// A record has no body; the variant it points at is read next.
+		return item, private, true
+	}
+	if !l.responseCacheValidBody(key, item) {
 		return caching.Item{}, false, false
 	}
 	return item, private, true
+}
+
+// responseCacheValidBody reports whether a body read back is JSON. One that is
+// not is a miss, reported, rather than something to splice into a response.
+func (l *Loader) responseCacheValidBody(key string, item caching.Item) bool {
+	if len(item.Value) == 0 {
+		return false
+	}
+	if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
+		l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
+		return false
+	}
+	return true
 }
 
 func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
@@ -128,14 +144,13 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(lookup), err))
 		return false
 	}
+	prepared.responseCacheFound = found
 	if len(found) < len(keys) {
 		return false
 	}
 
-	// Per position the user's own entry wins over the shared one.
 	items := make([]caching.Item, len(keys))
 	private := false
-	size := 0
 	for i, key := range keys {
 		privateKey := ""
 		if privateKeys != nil {
@@ -147,6 +162,24 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		}
 		private = private || itemPrivate
 		items[i] = item
+	}
+
+	// A record keeps its position in items until the second round replaces
+	// it with the body it points at.
+	candidates, variants := l.responseCacheVariantKeys(prepared, items)
+	if len(variants) > 0 {
+		found, err = l.ctx.responseCache.store.GetMany(l.ctx.ctx, variants)
+		if err != nil {
+			l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
+			return false
+		}
+		if !l.responseCacheFillVariants(items, candidates, found) {
+			return false
+		}
+	}
+
+	size := 0
+	for _, item := range items {
 		size += len(item.Value)
 	}
 
@@ -174,6 +207,82 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.responseCacheSurrogateKeys = foundSurrogateKeys(items)
 
 	return true
+}
+
+// responseCacheVariantKeys names, per record in items, the variant each of its
+// sets points this request at; candidates[i] is nil for a body. flat is every
+// candidate for one GetMany. Records stay in place for responseCacheFillVariants.
+func (l *Loader) responseCacheVariantKeys(prepared *preparedFetch, items []caching.Item) (candidates [][]string, flat []string) {
+	var sent http.Header
+	for i, item := range items {
+		if len(item.Vary) == 0 {
+			continue
+		}
+		if candidates == nil {
+			candidates = make([][]string, len(items))
+			// Once: the headers builder is not free. Collect digests what was sent.
+			sent, _ = l.ctx.HeadersForSubgraphRequest(prepared.res.ds.Name)
+		}
+		for _, set := range item.Vary {
+			key := caching.VariantKey(item.Key, caching.VaryDigest(set, sent))
+			candidates[i] = append(candidates[i], key)
+			flat = append(flat, key)
+		}
+	}
+	return candidates, flat
+}
+
+// responseCacheFillVariants replaces each record with the first valid body
+// among its candidates, the newest set's. False when a record has none.
+func (l *Loader) responseCacheFillVariants(items []caching.Item, candidates [][]string, found map[string]caching.Item) bool {
+	for i := range candidates {
+		if len(candidates[i]) == 0 {
+			continue
+		}
+		filled := false
+		for _, key := range candidates[i] {
+			body, ok := found[key]
+			if ok && l.responseCacheValidBody(key, body) {
+				items[i] = body
+				filled = true
+				break
+			}
+		}
+		if !filled {
+			return false
+		}
+	}
+	return true
+}
+
+// responseVary is what an answer varied on and the digest of what the request
+// sent for it.
+type responseVary struct {
+	names  []string
+	digest caching.Digest
+}
+
+// responseCacheVary is not ok for "Vary: *", which matches no request, or more
+// names than a record keeps.
+func responseCacheVary(headers, sent http.Header) (responseVary, bool) {
+	names, star := caching.Vary(headers)
+	if star || len(names) > caching.MaxVaryHeaders {
+		return responseVary{}, false
+	}
+	return responseVary{names: names, digest: caching.VaryDigest(names, sent)}, true
+}
+
+// append adds body under base or, when the answer varied, a record at base and
+// body under its variant. The record keeps seen so earlier variants stay
+// reachable; same tags so invalidation drops both.
+func (v responseVary) append(items []caching.Item, base string, body caching.Item, seen [][]string) []caching.Item {
+	if len(v.names) == 0 {
+		body.Key = base
+		return append(items, body)
+	}
+	body.Key = caching.VariantKey(base, v.digest)
+	items = append(items, caching.Item{Key: base, Vary: caching.MergeVarySets(v.names, seen), TTL: body.TTL, Tags: body.Tags})
+	return append(items, body)
 }
 
 // foundSurrogateKeys unions what the hit entries were stored with.
@@ -242,7 +351,13 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	ttl, private, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
+	headers := responseCacheHeaders(res)
+	ttl, private, ok := caching.TTL(headers, l.ctx.responseCache.defaultTTL)
+	if !ok {
+		return nil
+	}
+
+	vary, ok := responseCacheVary(headers, res.sentHeaders)
 	if !ok {
 		return nil
 	}
@@ -267,14 +382,13 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	// Parsed whether or not the cache_tag index is on: the header always carries them.
 	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
-	items := make([]caching.Item, 0, len(prepared.responseCacheKeys))
+	items := make([]caching.Item, 0, 2*len(prepared.responseCacheKeys))
 	surrogateKeyLists := make([][]string, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
 		}
 		item := caching.Item{
-			Key:   writeKeys[i],
 			Value: value.MarshalTo(nil),
 			TTL:   ttl,
 		}
@@ -293,7 +407,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		}
 		item.Tags, item.SurrogateKeys = responseCacheIdentities(input)
 		surrogateKeyLists = append(surrogateKeyLists, item.SurrogateKeys)
-		items = append(items, item)
+		items = vary.append(items, writeKeys[i], item, prepared.responseCacheFound[writeKeys[i]].Vary)
 	}
 
 	prepared.responseCacheItems = items
@@ -478,7 +592,15 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 
 	// One HTTP response, one Cache-Control: the lifetime is genuinely shared,
 	// and so is being private.
-	ttl, private, ok := caching.TTL(responseCacheHeaders(res), l.ctx.responseCache.defaultTTL)
+	headers := responseCacheHeaders(res)
+	ttl, private, ok := caching.TTL(headers, l.ctx.responseCache.defaultTTL)
+	if !ok {
+		return
+	}
+
+	// One Vary as well: what the merged answer varied on covers every entry in
+	// it, even one that alone would have varied on less.
+	vary, ok := responseCacheVary(headers, res.sentHeaders)
 	if !ok {
 		return
 	}
@@ -519,7 +641,6 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 				continue
 			}
 			item := caching.Item{
-				Key:   writeKeys[j],
 				Value: value.MarshalTo(nil),
 				TTL:   ttl,
 			}
@@ -536,7 +657,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 			})
 			surrogateKeyLists = append(surrogateKeyLists, item.SurrogateKeys)
 
-			items = append(items, item)
+			items = vary.append(items, writeKeys[j], item, prepared.responseCacheFound[writeKeys[j]].Vary)
 		}
 	}
 
@@ -567,11 +688,19 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(keys), err))
 		return false
 	}
+	prepared.responseCacheFound = found
 	if len(found) == 0 {
 		return false
 	}
 
-	anyHit := false
+	// Round one per entry; items stays nil for a miss.
+	type entryLookup struct {
+		items      []caching.Item
+		candidates [][]string
+		private    bool
+	}
+	lookups := make([]entryLookup, len(prepared.multiEntries))
+	var variants []string
 	for i := range prepared.multiEntries {
 		entry := &prepared.multiEntries[i]
 		if !included[i] || len(entry.responseCacheKeys) == 0 {
@@ -579,7 +708,6 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 		}
 
 		items := make([]caching.Item, 0, len(entry.responseCacheKeys))
-		values := make([][]byte, 0, len(entry.responseCacheKeys))
 		private := false
 		for j, key := range entry.responseCacheKeys {
 			privateKey := ""
@@ -588,23 +716,53 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 			}
 			item, itemPrivate, ok := l.responseCacheFoundItem(found, key, privateKey)
 			if !ok {
-				values = nil
+				items = nil
 				break
 			}
 			private = private || itemPrivate
 			items = append(items, item)
-			values = append(values, item.Value)
 		}
-		if values == nil {
+		if items == nil {
 			// Partially warm: this entry is fetched whole, like a batch fetch
 			// missing one of its representations.
 			continue
 		}
 
+		candidates, flat := l.responseCacheVariantKeys(prepared, items)
+		variants = append(variants, flat...)
+		lookups[i] = entryLookup{items: items, candidates: candidates, private: private}
+	}
+
+	// One second round for every entry's records together.
+	if len(variants) > 0 {
+		found, err = l.ctx.responseCache.store.GetMany(l.ctx.ctx, variants)
+		if err != nil {
+			l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
+			return false
+		}
+	}
+
+	anyHit := false
+	for i := range lookups {
+		lookup := &lookups[i]
+		if lookup.items == nil {
+			continue
+		}
+		// A record whose variant is gone leaves the entry to the origin, whole.
+		if !l.responseCacheFillVariants(lookup.items, lookup.candidates, found) {
+			continue
+		}
+
+		values := make([][]byte, len(lookup.items))
+		for j, item := range lookup.items {
+			values[j] = item.Value
+		}
+
+		entry := &prepared.multiEntries[i]
 		entry.cachedValues = values
-		entry.responseCachePrivate = private
-		entry.responseCacheTTL = remainingTTL(items)
-		entry.responseCacheSurrogateKeys = foundSurrogateKeys(items)
+		entry.responseCachePrivate = lookup.private
+		entry.responseCacheTTL = remainingTTL(lookup.items)
+		entry.responseCacheSurrogateKeys = foundSurrogateKeys(lookup.items)
 		anyHit = true
 	}
 

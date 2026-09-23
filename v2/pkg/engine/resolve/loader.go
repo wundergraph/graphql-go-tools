@@ -146,6 +146,10 @@ type result struct {
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
+	// sentHeaders is what the subgraph request went out with. The response
+	// cache digests these for Vary, not a second call to the headers builder,
+	// which need not answer the same twice.
+	sentHeaders http.Header
 	// responseCacheHit and responseCacheTTL record that the fetch was served entirely from the cache
 	// and the min lifetime left across its entries. Fetch-local, so the unlocked load phase is safe.
 	responseCacheHit bool
@@ -537,6 +541,10 @@ type preparedFetch struct {
 	responseCacheKeys []string
 
 	responseCachePrivateKeys []string
+
+	// responseCacheFound is round one of the lookup, so a write after a miss
+	// keeps the sets its records held.
+	responseCacheFound map[string]caching.Item
 
 	isRootFetchCache bool
 
@@ -2135,6 +2143,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 	}
 
 	headers, extraKey := l.headersForSubgraphRequest(fetchItem)
+	res.sentHeaders = headers
 
 	if !l.singleFlightAllowed(fetchItem) {
 		// Disable single flight for mutations

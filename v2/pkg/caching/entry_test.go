@@ -21,16 +21,17 @@ func TestEntryRoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, surrogateKeys, err := DecodeEntry(EncodeEntry(tt.value, tt.surrogateKeys))
+			value, surrogateKeys, vary, err := DecodeEntry(encodeEntry(tt.value, tt.surrogateKeys))
 			require.NoError(t, err)
 			require.Equal(t, tt.value, value)
 			require.Equal(t, tt.surrogateKeys, surrogateKeys)
+			require.Nil(t, vary)
 		})
 	}
 }
 
 func TestEntryDecodeRefuses(t *testing.T) {
-	encoded := EncodeEntry([]byte("value"), []string{"a-long-surrogateKey", "another"})
+	encoded := encodeEntry([]byte("value"), []string{"a-long-surrogateKey", "another"})
 
 	unknownVersion := append([]byte(nil), encoded...)
 	unknownVersion[0] = 9
@@ -42,7 +43,7 @@ func TestEntryDecodeRefuses(t *testing.T) {
 		{name: "nil", input: nil},
 		{name: "raw value", input: []byte(`{"id":42}`)},
 		{name: "unknown version", input: unknownVersion},
-		{name: "surrogate key count larger than the input", input: []byte{entryFormatVersion, 0xff, 0xff, 0x7f}},
+		{name: "surrogate key count larger than the input", input: []byte{entryFormatBody, 0xff, 0xff, 0x7f}},
 		{name: "cut inside the count", input: encoded[:1]},
 		{name: "cut inside a surrogate key length", input: encoded[:2]},
 		{name: "cut inside a surrogate key", input: encoded[:5]},
@@ -51,14 +52,80 @@ func TestEntryDecodeRefuses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := DecodeEntry(tt.input)
+			_, _, _, err := DecodeEntry(tt.input)
 			require.ErrorIs(t, err, ErrEntryFormat)
 		})
 	}
 
 	// Every cut through the surrogateKey section, not just the ones named above.
 	for cut := 1; cut < len(encoded)-len("value"); cut++ {
-		_, _, err := DecodeEntry(encoded[:cut])
+		_, _, _, err := DecodeEntry(encoded[:cut])
+		require.ErrorIs(t, err, ErrEntryFormat, "cut at %d", cut)
+	}
+}
+
+func TestVaryRecordRoundTrip(t *testing.T) {
+	names := []string{"accept-language", "x-region"}
+	sets := [][]string{{"accept-language"}, names}
+
+	for _, tt := range []struct {
+		name string
+		sets [][]string
+	}{
+		{name: "one set", sets: [][]string{names}},
+		{name: "several sets, in order", sets: sets},
+		{name: "long, non ascii and empty names", sets: [][]string{{strings.Repeat("x", 300), "ünïcödé", ""}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			value, surrogateKeys, vary, err := DecodeEntry(encodeVaryRecord(tt.sets))
+			require.NoError(t, err)
+			require.Nil(t, value)
+			require.Nil(t, surrogateKeys)
+			require.Equal(t, tt.sets, vary)
+		})
+	}
+
+	require.Equal(t, encodeVaryRecord(sets), EncodeItem(Item{Vary: sets, Value: []byte("ignored")}), "a record has no body")
+	require.Equal(t, encodeEntry([]byte("v"), []string{"a"}), EncodeItem(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}))
+
+	t.Run("empty sets are dropped so every record decodes", func(t *testing.T) {
+		withEmpty := EncodeItem(Item{Vary: [][]string{{"accept-language"}, {}, {"accept"}}})
+		require.Equal(t, encodeVaryRecord([][]string{{"accept-language"}, {"accept"}}), withEmpty)
+		_, _, vary, err := DecodeEntry(withEmpty)
+		require.NoError(t, err)
+		require.Equal(t, [][]string{{"accept-language"}, {"accept"}}, vary)
+
+		onlyEmpty := EncodeItem(Item{Vary: [][]string{{}}, Value: []byte("v"), SurrogateKeys: []string{"a"}})
+		require.Equal(t, encodeEntry([]byte("v"), []string{"a"}), onlyEmpty, "no set left means a body")
+		value, surrogateKeys, vary, err := DecodeEntry(onlyEmpty)
+		require.NoError(t, err)
+		require.Equal(t, []byte("v"), value)
+		require.Equal(t, []string{"a"}, surrogateKeys)
+		require.Nil(t, vary)
+	})
+
+	encoded := encodeVaryRecord(sets)
+	tests := []struct {
+		name  string
+		input []byte
+	}{
+		{name: "no sets", input: encodeVaryRecord(nil)},
+		{name: "an empty set", input: encodeVaryRecord([][]string{{"accept-language"}, {}})},
+		{name: "bytes after the sets", input: append(encodeVaryRecord(sets), 'x')},
+		{name: "cut inside a name", input: encoded[:5]},
+		{name: "cut between sets", input: encoded[:2+1+1+len("accept-language")]},
+		{name: "set count larger than the input", input: []byte{entryFormatRecord, 0xff, 0xff, 0x7f}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, _, err := DecodeEntry(tt.input)
+			require.ErrorIs(t, err, ErrEntryFormat)
+		})
+	}
+
+	// Every cut through a record, not just the ones named above.
+	for cut := 1; cut < len(encoded); cut++ {
+		_, _, _, err := DecodeEntry(encoded[:cut])
 		require.ErrorIs(t, err, ErrEntryFormat, "cut at %d", cut)
 	}
 }
