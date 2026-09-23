@@ -24,24 +24,32 @@ type preparedMultiEntry struct {
 	items []*astjson.Value // merge targets from selectItemsForPath (jsonArena-backed)
 	res   *result          // per-entry view; init(entry.PostProcessing, entry.Info)
 
-	// representationItemHashes holds one hash per unique representation this
-	// entry rendered. Only live during prepare, where responseCacheKeys are
-	// derived from it.
-	representationItemHashes []uint64
+	// representations holds one digest per unique representation this entry
+	// rendered. Only live during prepare, where the keys are derived from it.
+	representations []caching.Digest
 	// responseCacheKeys holds one key per unique representation this entry
 	// rendered, in render order: the same order as res.batchStats and as the
-	// entry's slice of the response.
-	responseCacheKeys []string
+	// entry's slice of the response. responseCachePrivateKeys are their
+	// per-user twins when the request carries a user id.
+	responseCacheKeys        []string
+	responseCachePrivateKeys []string
 	// cachedValues is set only when every one of responseCacheKeys hit: the
 	// stored entity objects, written back into the response at merge time.
 	cachedValues [][]byte
+	// responseCachePrivate records that cachedValues came, in whole or part,
+	// from entries scoped to the requesting user.
+	responseCachePrivate bool
 	// responseCacheTTL is the life left on the least fresh of cachedValues.
 	responseCacheTTL time.Duration
+	// responseCacheSurrogateKeys is what cachedValues were stored with.
+	responseCacheSurrogateKeys []string
 }
 
 // cacheHit reports whether every representation of this entry was found in the response cache.
 // Such an entry is never asked of the subgraph.
-func (e *preparedMultiEntry) cacheHit() bool { return len(e.cachedValues) > 0 }
+func (e *preparedMultiEntry) cacheHit() bool {
+	return len(e.cachedValues) > 0
+}
 
 // multiAssembly is what the load phase needs to rebuild the merged request
 // after the response-cache lookup switches warm entries off.
@@ -100,7 +108,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 		}
 		included[k] = true
 		repsBytes[k] = result.representationBuffer
-		entries[k].representationItemHashes = result.representationItemHashes
+		entries[k].representations = result.representations
 		anyIncluded = true
 	}
 
@@ -170,8 +178,8 @@ func (l *Loader) authorizeEntry(entry *MultiEntityFetchEntry, entryRes *result) 
 type renderEntryRepresentationsResult struct {
 	// representationBuffer is the buffer containing the rendered representations.
 	representationBuffer []byte
-	// representationItemHashes is the list of hashes of the unique representations.
-	representationItemHashes []uint64
+	// representations is one digest per unique representation.
+	representations []caching.Digest
 	// entryIncluded is true if the entry is included in the merged request.
 	// Each entry in the request carries an `@include(if:)` directive which is
 	// controlled by the corresponding `includeFN` variable.
@@ -196,7 +204,7 @@ func (l *Loader) renderEntryRepresentations(
 	batchItemIndex := 0
 	addSeparator := false
 
-	var responseCacheItemHashes []uint64
+	var responseCacheItems []caching.Digest
 
 	for i, item := range items {
 		itemInput.Reset()
@@ -216,19 +224,22 @@ func (l *Loader) renderEntryRepresentations(
 		tools.keyGen.Reset()
 		_, _ = tools.keyGen.Write(itemInput.Bytes())
 		itemHash := tools.keyGen.Sum64()
-		if existingIndex, ok := tools.batchHashToIndex[itemHash]; ok {
-			batchStats[existingIndex] = arena.SliceAppend(tools.a, batchStats[existingIndex], items[i])
+		// The hash narrows, the bytes decide: a collision is a new representation.
+		if ref, ok := tools.batchHashToIndex[itemHash]; ok &&
+			bytes.Equal(repsBuf.Bytes()[ref.start:ref.end], itemInput.Bytes()) {
+			batchStats[ref.index] = arena.SliceAppend(tools.a, batchStats[ref.index], items[i])
 			continue
 		}
 		if addSeparator {
 			_ = repsBuf.WriteByte(',')
 		}
-		_, _ = itemInput.WriteTo(repsBuf)
-		tools.batchHashToIndex[itemHash] = batchItemIndex
+		// Digested before WriteTo drains the buffer.
 		if l.responseCacheEnabled() {
-			responseCacheItemHashes = append(responseCacheItemHashes, itemHash)
+			responseCacheItems = append(responseCacheItems, caching.DigestBytes(itemInput.Bytes()))
 		}
-
+		start := repsBuf.Len()
+		_, _ = itemInput.WriteTo(repsBuf)
+		tools.batchHashToIndex[itemHash] = batchItemRef{index: batchItemIndex, start: start, end: repsBuf.Len()}
 		// The targets bucket must live on the arena: a heap bucket referenced
 		// only from arena memory could be collected while still in use.
 		bucket := arena.AllocateSlice[*astjson.Value](tools.a, 1, 1)
@@ -255,9 +266,9 @@ func (l *Loader) renderEntryRepresentations(
 		}, nil
 	}
 	return &renderEntryRepresentationsResult{
-		representationBuffer:     repsBuf.Bytes(),
-		representationItemHashes: responseCacheItemHashes,
-		entryIncluded:            true,
+		representationBuffer: repsBuf.Bytes(),
+		representations:      responseCacheItems,
+		entryIncluded:        true,
 	}, nil
 }
 
@@ -354,20 +365,19 @@ func (l *Loader) setResponseCacheKeys(entries []preparedMultiEntry, assembled *a
 
 	for i := range entries {
 		multiEntry := &entries[i]
-		if len(multiEntry.representationItemHashes) == 0 {
+		if len(multiEntry.representations) == 0 {
 			continue
 		}
-		selectionHash := responseCacheEntrySelectionHash(
+		// The header and footer span every alias, so the alias goes in, or
+		// entries over the same entity collide, and so do the entry's own
+		// variables, which sit in between and would otherwise be left out.
+		selection := caching.DigestParts(
 			assembled.header,
-			multiEntry.entry.Alias,
+			[]byte(multiEntry.entry.Alias),
 			assembled.entryVariables[i],
 			assembled.footer,
 		)
-		keys := make([]string, len(multiEntry.representationItemHashes))
-		for j, itemHash := range multiEntry.representationItemHashes {
-			keys[j] = caching.Key(itemHash, selectionHash)
-		}
-		multiEntry.responseCacheKeys = keys
+		multiEntry.responseCacheKeys, multiEntry.responseCachePrivateKeys = l.responseCacheKeys(selection, multiEntry.representations)
 	}
 }
 
@@ -398,6 +408,7 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 	// A partial hit still contains data with this much life left,
 	// and the hook needs it for Cache-Control.
 	prepared.res.responseCacheTTL = shortestCachedEntryTTL(prepared.multiEntries)
+	prepared.res.responseCachePrivate = anyPrivateCachedEntry(prepared)
 
 	if !slices.Contains(assembly.included, true) {
 		// Every entry hit, so no request goes out and the body prepare assembled
@@ -530,6 +541,15 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 			res.out = response.MarshalTo(nil)
 		}
 	}
+
+	// Hits and misses alike, as for an unmerged fetch: every entity in the body
+	// is in the header, whichever side answered it.
+	for i := range prepared.multiEntries {
+		if entry := &prepared.multiEntries[i]; entry.cacheHit() {
+			res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(res.responseCacheSurrogateKeys, entry.responseCacheSurrogateKeys)
+		}
+	}
+	l.responseCacheMergeSurrogateKeys(res)
 
 	return l.mergeEntryResults(prepared)
 }
@@ -688,6 +708,12 @@ func (l *Loader) serveCachedEntriesWithoutResponse(prepared *preparedFetch) (*as
 // anyCachedEntry reports whether the response cache answered any entry.
 func anyCachedEntry(prepared *preparedFetch) bool {
 	return slices.ContainsFunc(prepared.multiEntries, func(e preparedMultiEntry) bool { return e.cacheHit() })
+}
+
+// anyPrivateCachedEntry reports whether any entry was answered from the
+// requesting user's own entries.
+func anyPrivateCachedEntry(prepared *preparedFetch) bool {
+	return slices.ContainsFunc(prepared.multiEntries, func(e preparedMultiEntry) bool { return e.responseCachePrivate })
 }
 
 // mergeEntryResults runs the standard mergeResult for each entry, joins every
