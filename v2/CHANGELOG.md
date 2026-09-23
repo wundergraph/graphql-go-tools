@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.23.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.22.1...v2.23.0) (2026-09-23)
+
+
+### Features
+
+* add selected field count to operation complexity estimates ([#1673](https://github.com/wundergraph/graphql-go-tools/issues/1673)) ([a163341](https://github.com/wundergraph/graphql-go-tools/commit/a1633415df276ad442babbbcbea22977bf4b7edf))
+
 ## [2.22.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.22.0...v2.22.1) (2026-09-21)
 
 
