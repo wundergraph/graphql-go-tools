@@ -28,8 +28,11 @@ from complexity calculations by default.
 package operation_complexity
 
 import (
+	"bytes"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -61,12 +64,6 @@ type RootFieldStats struct {
 var (
 	nodeCountMultiply = []byte("nodeCountMultiply")
 	nodeCountSkip     = []byte("nodeCountSkip")
-)
-
-const (
-	__schemaLiteral   = "__schema"
-	__typeLiteral     = "__type"
-	__typenameLiteral = "__typename"
 )
 
 // OperationComplexityEstimator estimates stats for normalized operations.
@@ -223,8 +220,8 @@ func (c *complexityVisitor) EnterField(ref int) {
 	definition, exists := c.FieldDefinition(ref)
 	if !exists {
 		// __typename is an implicit field and need not have a schema definition.
-		if c.operation.FieldNameUnsafeString(ref) == __typenameLiteral {
-			c.countField(ref, __typenameLiteral)
+		if bytes.Equal(c.operation.FieldNameBytes(ref), literal.TYPENAME) {
+			c.countField(ref, c.operation.FieldNameString(ref))
 		}
 		return
 	}
@@ -234,13 +231,16 @@ func (c *complexityVisitor) EnterField(ref int) {
 		return
 	}
 
-	fieldName := c.definition.FieldDefinitionNameString(definition)
-	if c.skipIntrospection && (fieldName == __schemaLiteral || fieldName == __typeLiteral) {
-		c.SkipNode()
-		return
+	if c.skipIntrospection {
+		fieldName := c.definition.FieldDefinitionNameBytes(definition)
+		if bytes.Equal(fieldName, literal.UNDERSCORESCHEMA) ||
+			bytes.Equal(fieldName, literal.UNDERSCORETYPE) {
+			c.SkipNode()
+			return
+		}
 	}
 
-	c.countField(ref, fieldName)
+	c.countField(ref, c.definition.FieldDefinitionNameString(definition))
 
 	if !c.operation.FieldHasSelections(ref) {
 		return
