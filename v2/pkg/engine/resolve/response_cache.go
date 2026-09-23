@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/wundergraph/astjson"
@@ -108,9 +107,8 @@ func responseCacheLookupKeys(keys, privateKeys []string) []string {
 	return append(lookup, privateKeys...)
 }
 
-// responseCacheFoundItem picks the entry for one position: the user's own wins
-// over the shared one. It is a body, or a vary record pointing at one; an
-// empty or invalid body is a miss.
+// responseCacheFoundItem picks one position's entry, the user's own over the
+// shared: a body, or a record pointing at one. An invalid body is a miss.
 func (l *Loader) responseCacheFoundItem(found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
 	if privateKey != "" {
 		item, ok = found[privateKey]
@@ -165,7 +163,7 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(lookup), err))
 		return false
 	}
-	prepared.responseCacheRecords = responseCacheRecordSets(found)
+	prepared.responseCacheFound = found
 	if len(found) < len(keys) {
 		return false
 	}
@@ -230,39 +228,22 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	return true
 }
 
-// responseCacheVaryDigest digests the values this request will send the
-// fetch's subgraph for names. On the way out of the cache the request has not
-// been built yet, so the headers builder is asked; collect digests the headers
-// the request actually went out with.
-func (l *Loader) responseCacheVaryDigest(prepared *preparedFetch, names []string) caching.Digest {
-	sent, _ := l.ctx.HeadersForSubgraphRequest(prepared.res.ds.Name)
-	return caching.VaryDigest(names, sent)
-}
-
-// responseCacheVariantKeys names, for each record in items, the variants this
-// request may read next, one per name set in record order; candidates[i] is
-// nil for a body. flat is every candidate for one GetMany. Records are left in
-// place, to be replaced by responseCacheFillVariants.
+// responseCacheVariantKeys names, per record in items, the variant each of its
+// sets points this request at; candidates[i] is nil for a body. flat is every
+// candidate for one GetMany. Records stay in place for responseCacheFillVariants.
 func (l *Loader) responseCacheVariantKeys(prepared *preparedFetch, items []caching.Item) (candidates [][]string, flat []string) {
-	var digests map[string]caching.Digest
+	var sent http.Header
 	for i, item := range items {
 		if len(item.Vary) == 0 {
 			continue
 		}
 		if candidates == nil {
 			candidates = make([][]string, len(items))
-			digests = make(map[string]caching.Digest)
+			// Once: the headers builder is not free. Collect digests what was sent.
+			sent, _ = l.ctx.HeadersForSubgraphRequest(prepared.res.ds.Name)
 		}
-		candidates[i] = make([]string, 0, len(item.Vary))
 		for _, set := range item.Vary {
-			// Once per distinct set: the headers builder is not free.
-			names := strings.Join(set, ",")
-			digest, ok := digests[names]
-			if !ok {
-				digest = l.responseCacheVaryDigest(prepared, set)
-				digests[names] = digest
-			}
-			key := caching.VariantKey(item.Key, digest)
+			key := caching.VariantKey(item.Key, caching.VaryDigest(set, sent))
 			candidates[i] = append(candidates[i], key)
 			flat = append(flat, key)
 		}
@@ -270,26 +251,8 @@ func (l *Loader) responseCacheVariantKeys(prepared *preparedFetch, items []cachi
 	return candidates, flat
 }
 
-// responseCacheRecordSets is what the records among found hold, by key, for
-// the write that may follow a miss.
-func responseCacheRecordSets(found map[string]caching.Item) map[string][][]string {
-	var records map[string][][]string
-	for key, item := range found {
-		if len(item.Vary) == 0 {
-			continue
-		}
-		if records == nil {
-			records = make(map[string][][]string)
-		}
-		records[key] = item.Vary
-	}
-	return records
-}
-
-// responseCacheFillVariants replaces each record with the first of its
-// candidates the second round found and validated: any is a right answer, the
-// newest set's is taken. False when a record has none: no variant of it is
-// there, so the position is a miss.
+// responseCacheFillVariants replaces each record with the first valid body
+// among its candidates, the newest set's. False when a record has none.
 func (l *Loader) responseCacheFillVariants(items []caching.Item, candidates [][]string, found map[string]caching.Item) bool {
 	for i := range candidates {
 		if len(candidates[i]) == 0 {
@@ -311,31 +274,33 @@ func (l *Loader) responseCacheFillVariants(items []caching.Item, candidates [][]
 	return true
 }
 
-// responseCacheVary reads what the response varies on and digests the values
-// the request sent for it. Not ok for "Vary: *", which matches no request, or
-// for more names than a record keeps.
-func responseCacheVary(res *result) (names []string, digest caching.Digest, ok bool) {
-	names, star := caching.Vary(responseCacheHeaders(res))
-	if star || len(names) > caching.MaxVaryHeaders {
-		return nil, caching.Digest{}, false
-	}
-	if len(names) > 0 {
-		digest = caching.VaryDigest(names, res.sentHeaders)
-	}
-	return names, digest, true
+// responseVary is what an answer varied on and the digest of what the request
+// sent for it.
+type responseVary struct {
+	names  []string
+	digest caching.Digest
 }
 
-// appendVaryItems appends body under base or, when the response varies, a
-// record at base and the body under its variant. The record keeps the sets
-// seen under base at lookup, so their variants stay reachable. Same tags on
-// both, so invalidation takes the record down with the body.
-func appendVaryItems(items []caching.Item, base string, vary []string, digest caching.Digest, body caching.Item, seen [][]string) []caching.Item {
-	if len(vary) == 0 {
+// responseCacheVary is not ok for "Vary: *", which matches no request, or more
+// names than a record keeps.
+func responseCacheVary(headers, sent http.Header) (responseVary, bool) {
+	names, star := caching.Vary(headers)
+	if star || len(names) > caching.MaxVaryHeaders {
+		return responseVary{}, false
+	}
+	return responseVary{names: names, digest: caching.VaryDigest(names, sent)}, true
+}
+
+// append adds body under base or, when the answer varied, a record at base and
+// body under its variant. The record keeps seen so earlier variants stay
+// reachable; same tags so invalidation drops both.
+func (v responseVary) append(items []caching.Item, base string, body caching.Item, seen [][]string) []caching.Item {
+	if len(v.names) == 0 {
 		body.Key = base
 		return append(items, body)
 	}
-	body.Key = caching.VariantKey(base, digest)
-	items = append(items, caching.Item{Key: base, Vary: caching.MergeVarySets(vary, seen), TTL: body.TTL, Tags: body.Tags})
+	body.Key = caching.VariantKey(base, v.digest)
+	items = append(items, caching.Item{Key: base, Vary: caching.MergeVarySets(v.names, seen), TTL: body.TTL, Tags: body.Tags})
 	return append(items, body)
 }
 
@@ -416,7 +381,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	vary, varyDigest, ok := responseCacheVary(res)
+	vary, ok := responseCacheVary(headers, res.sentHeaders)
 	if !ok {
 		return nil
 	}
@@ -466,7 +431,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		}
 		item.Tags, item.SurrogateKeys = responseCacheIdentities(input)
 		surrogateKeyLists = append(surrogateKeyLists, item.SurrogateKeys)
-		items = appendVaryItems(items, writeKeys[i], vary, varyDigest, item, prepared.responseCacheRecords[writeKeys[i]])
+		items = vary.append(items, writeKeys[i], item, prepared.responseCacheFound[writeKeys[i]].Vary)
 	}
 
 	prepared.responseCacheItems = items
@@ -656,14 +621,15 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 
 	// One HTTP response, one Cache-Control: the lifetime is genuinely shared,
 	// and so is being private.
-	ttl, private, ok := caching.TTL(responseCacheHeaders(res), sub.ttl)
+	headers := responseCacheHeaders(res)
+	ttl, private, ok := caching.TTL(headers, sub.ttl)
 	if !ok {
 		return
 	}
 
 	// One Vary as well: what the merged answer varied on covers every entry in
 	// it, even one that alone would have varied on less.
-	vary, varyDigest, ok := responseCacheVary(res)
+	vary, ok := responseCacheVary(headers, res.sentHeaders)
 	if !ok {
 		return
 	}
@@ -720,7 +686,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 			})
 			surrogateKeyLists = append(surrogateKeyLists, item.SurrogateKeys)
 
-			items = appendVaryItems(items, writeKeys[j], vary, varyDigest, item, prepared.responseCacheRecords[writeKeys[j]])
+			items = vary.append(items, writeKeys[j], item, prepared.responseCacheFound[writeKeys[j]].Vary)
 		}
 	}
 
@@ -751,13 +717,12 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(keys), err))
 		return false
 	}
-	prepared.responseCacheRecords = responseCacheRecordSets(found)
+	prepared.responseCacheFound = found
 	if len(found) == 0 {
 		return false
 	}
 
-	// What round one answered per entry: bodies, and records keyed by the
-	// variant to read next. items stays nil for an entry with a miss.
+	// Round one per entry; items stays nil for a miss.
 	type entryLookup struct {
 		items      []caching.Item
 		candidates [][]string
