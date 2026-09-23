@@ -17,11 +17,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 )
 
-// langVariant is base's variant key for a request that sent Accept-Language.
-func langVariant(base, lang string) string {
-	return caching.VariantKey(base, caching.VaryDigest([]string{"accept-language"}, http.Header{"Accept-Language": {lang}}))
-}
-
 func TestResponseCacheVary(t *testing.T) {
 	t.Parallel()
 	de, fr, en := sentHeaders{"Accept-Language": {"de"}}, sentHeaders{"Accept-Language": {"fr"}}, sentHeaders{"Accept-Language": {"en"}}
@@ -53,7 +48,7 @@ func TestResponseCacheVary(t *testing.T) {
 				require.Equal(t, [][]string{{"accept-language"}}, record.Vary)
 				require.Empty(t, record.Value)
 				require.Empty(t, record.SurrogateKeys)
-				require.Equal(t, langVariant(base, "de"), variant.Key)
+				require.Equal(t, caching.VariantKey(base, caching.VaryDigest([]string{"accept-language"}, http.Header(de))), variant.Key)
 				require.Empty(t, variant.Vary)
 				require.JSONEq(t, fmt.Sprintf(`{"__typename":"User","id":%d}`, i+1), string(variant.Value))
 				require.Equal(t, variant.Tags, record.Tags, "invalidation drops both")
@@ -83,7 +78,7 @@ func TestResponseCacheVary(t *testing.T) {
 			items := collect(t, loader, res, public, private)
 			require.Len(t, items, 4)
 			require.Equal(t, "prv-2", items[2].Key)
-			require.Equal(t, langVariant("prv-2", "de"), items[3].Key)
+			require.Equal(t, caching.VariantKey("prv-2", caching.VaryDigest([]string{"accept-language"}, http.Header(de))), items[3].Key)
 		})
 	})
 
@@ -105,15 +100,15 @@ func TestResponseCacheVary(t *testing.T) {
 			store := newSpyCache()
 			require.NoError(t, store.SetMany(context.Background(), []caching.Item{
 				{Key: "pub-1", Vary: langVary, TTL: time.Minute},
-				{Key: langVariant("pub-1", "de"), Value: []byte(`{"id":1,"lang":"de"}`), TTL: 30 * time.Second},
-				{Key: langVariant("pub-1", "fr"), Value: []byte(`{"id":1,"lang":"fr"}`), TTL: 30 * time.Second},
+				{Key: caching.VariantKey("pub-1", caching.VaryDigest([]string{"accept-language"}, http.Header(de))), Value: []byte(`{"id":1,"lang":"de"}`), TTL: 30 * time.Second},
+				{Key: caching.VariantKey("pub-1", caching.VaryDigest([]string{"accept-language"}, http.Header(fr))), Value: []byte(`{"id":1,"lang":"fr"}`), TTL: 30 * time.Second},
 			}))
 
 			hit, res := lookup(t, store, de, "", public[:1], nil)
 			require.True(t, hit)
 			require.JSONEq(t, `{"data":{"_entities":[{"id":1,"lang":"de"}]}}`, string(res.out))
 			require.Equal(t, 30*time.Second, res.responseCacheTTL, "the variant's life, not the record's")
-			require.Equal(t, [][]string{{"pub-1"}, {langVariant("pub-1", "de")}}, store.lookups)
+			require.Equal(t, [][]string{{"pub-1"}, {caching.VariantKey("pub-1", caching.VaryDigest([]string{"accept-language"}, http.Header(de)))}}, store.lookups)
 
 			hit, res = lookup(t, store, fr, "", public[:1], nil)
 			require.True(t, hit)
@@ -126,18 +121,18 @@ func TestResponseCacheVary(t *testing.T) {
 			require.NoError(t, store.SetMany(context.Background(), []caching.Item{
 				{Key: "pub-1", Value: []byte(`{"id":1}`), TTL: time.Minute},
 				{Key: "pub-2", Vary: langVary, TTL: time.Minute},
-				{Key: langVariant("pub-2", "de"), Value: []byte(`{"id":2,"lang":"de"}`), TTL: time.Minute},
+				{Key: caching.VariantKey("pub-2", caching.VaryDigest([]string{"accept-language"}, http.Header(de))), Value: []byte(`{"id":2,"lang":"de"}`), TTL: time.Minute},
 			}))
 			hit, res := lookup(t, store, de, "", public, nil)
 			require.True(t, hit)
 			require.JSONEq(t, `{"data":{"_entities":[{"id":1},{"id":2,"lang":"de"}]}}`, string(res.out))
-			require.Equal(t, [][]string{public, {langVariant("pub-2", "de")}}, store.lookups, "only the record needs a second round")
+			require.Equal(t, [][]string{public, {caching.VariantKey("pub-2", caching.VaryDigest([]string{"accept-language"}, http.Header(de)))}}, store.lookups, "only the record needs a second round")
 
 			hit, _ = lookup(t, store, en, "", public, nil)
 			require.False(t, hit, "a record without its variant is a miss for the whole fetch")
 			require.Len(t, store.lookups, 4)
 
-			require.NoError(t, store.SetMany(context.Background(), []caching.Item{{Key: langVariant("pub-2", "de"), Vary: langVary, TTL: time.Minute}}))
+			require.NoError(t, store.SetMany(context.Background(), []caching.Item{{Key: caching.VariantKey("pub-2", caching.VaryDigest([]string{"accept-language"}, http.Header(de))), Vary: langVary, TTL: time.Minute}}))
 			hit, _ = lookup(t, store, de, "", public, nil)
 			require.False(t, hit, "a record where a body should be")
 		})
@@ -148,14 +143,14 @@ func TestResponseCacheVary(t *testing.T) {
 			require.NoError(t, store.SetMany(context.Background(), []caching.Item{
 				{Key: "pub-1", Value: []byte(`{"id":1,"who":"everyone"}`), TTL: time.Minute},
 				{Key: "prv-1", Vary: langVary, TTL: time.Minute},
-				{Key: langVariant("prv-1", "de"), Value: []byte(`{"id":1,"who":"u1","lang":"de"}`), TTL: time.Minute},
+				{Key: caching.VariantKey("prv-1", caching.VaryDigest([]string{"accept-language"}, http.Header(de))), Value: []byte(`{"id":1,"who":"u1","lang":"de"}`), TTL: time.Minute},
 			}))
 
 			hit, res := lookup(t, store, de, "u1", public[:1], private[:1])
 			require.True(t, hit)
 			require.True(t, res.responseCachePrivate)
 			require.JSONEq(t, `{"data":{"_entities":[{"id":1,"who":"u1","lang":"de"}]}}`, string(res.out))
-			require.Equal(t, [][]string{{"pub-1", "prv-1"}, {langVariant("prv-1", "de")}}, store.lookups)
+			require.Equal(t, [][]string{{"pub-1", "prv-1"}, {caching.VariantKey("prv-1", caching.VaryDigest([]string{"accept-language"}, http.Header(de)))}}, store.lookups)
 
 			hit, _ = lookup(t, store, fr, "u1", public[:1], private[:1])
 			require.False(t, hit, "the user's record is followed, not the shared body")
@@ -231,7 +226,7 @@ func TestResponseCacheVary(t *testing.T) {
 			require.Len(t, variants, 3)
 			for _, base := range bases {
 				require.Equal(t, [][]string{{"accept-language"}}, cache.items[base].Vary)
-				variant, ok := cache.items[langVariant(base, "de")]
+				variant, ok := cache.items[caching.VariantKey(base, caching.VaryDigest([]string{"accept-language"}, http.Header(de)))]
 				require.True(t, ok, "variant of %s", base)
 				require.NotEmpty(t, variant.Value)
 			}
