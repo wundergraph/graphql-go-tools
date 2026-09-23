@@ -227,6 +227,186 @@ func TestMergeFields_Process(t *testing.T) {
 		},
 	))
 
+	// Regression test for https://github.com/wundergraph/cosmo/issues/2346
+	// When merging sibling object fields from different concrete type fragments,
+	// ParentOnTypeNames must include all types, not just the first one processed.
+	t.Run("merge object fields preserves ParentOnTypeNames from both types", runTest(
+		&resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte(`category`),
+					Value: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name:  []byte(`id`),
+								Value: &resolve.Scalar{},
+							},
+						},
+					},
+				},
+				{
+					Name: []byte(`category`),
+					Value: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte(`owner`),
+								Value: &resolve.Object{
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte(`name`),
+											Value: &resolve.String{},
+										},
+									},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte(`ProductB`)},
+				},
+				{
+					Name: []byte(`category`),
+					Value: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte(`owner`),
+								Value: &resolve.Object{
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte(`name`),
+											Value: &resolve.String{},
+										},
+									},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte(`ProductA`)},
+				},
+			},
+		},
+		&resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte(`category`),
+					Value: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name:  []byte(`id`),
+								Value: &resolve.Scalar{},
+							},
+							{
+								Name: []byte(`owner`),
+								Value: &resolve.Object{
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte(`name`),
+											Value: &resolve.String{},
+											ParentOnTypeNames: []resolve.ParentOnTypeNames{
+												{Depth: 2, Names: [][]byte{[]byte(`ProductB`), []byte(`ProductA`)}},
+											},
+										},
+									},
+								},
+								ParentOnTypeNames: []resolve.ParentOnTypeNames{
+									{Depth: 1, Names: [][]byte{[]byte(`ProductB`), []byte(`ProductA`)}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
+
+	// Same as above but with ProductA first — confirms order-independence.
+	t.Run("merge object fields preserves ParentOnTypeNames - reversed order", runTest(
+		&resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte(`category`),
+					Value: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name:  []byte(`id`),
+								Value: &resolve.Scalar{},
+							},
+						},
+					},
+				},
+				{
+					Name: []byte(`category`),
+					Value: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte(`owner`),
+								Value: &resolve.Object{
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte(`name`),
+											Value: &resolve.String{},
+										},
+									},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte(`ProductA`)},
+				},
+				{
+					Name: []byte(`category`),
+					Value: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte(`owner`),
+								Value: &resolve.Object{
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte(`name`),
+											Value: &resolve.String{},
+										},
+									},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte(`ProductB`)},
+				},
+			},
+		},
+		&resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte(`category`),
+					Value: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name:  []byte(`id`),
+								Value: &resolve.Scalar{},
+							},
+							{
+								Name: []byte(`owner`),
+								Value: &resolve.Object{
+									Fields: []*resolve.Field{
+										{
+											Name:  []byte(`name`),
+											Value: &resolve.String{},
+											ParentOnTypeNames: []resolve.ParentOnTypeNames{
+												{Depth: 2, Names: [][]byte{[]byte(`ProductA`), []byte(`ProductB`)}},
+											},
+										},
+									},
+								},
+								ParentOnTypeNames: []resolve.ParentOnTypeNames{
+									{Depth: 1, Names: [][]byte{[]byte(`ProductA`), []byte(`ProductB`)}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	))
+
 	t.Run("merge fields at the end of an object nested reverse", runTest(
 		&resolve.Object{
 			Fields: []*resolve.Field{

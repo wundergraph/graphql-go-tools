@@ -18,6 +18,12 @@ type AbstractListItem interface {
 	GetObj() OtherInterface
 }
 
+type Base interface {
+	IsBase()
+	GetID() string
+	GetCategory() *Category
+}
+
 type Cd interface {
 	IsCd()
 }
@@ -120,6 +126,11 @@ type Cat struct {
 	Name string `json:"name"`
 }
 
+type Category struct {
+	ID    string `json:"id"`
+	Owner *Owner `json:"owner,omitempty"`
+}
+
 type ConcreteListItem1 struct {
 	Obj OtherInterface `json:"obj"`
 }
@@ -143,11 +154,33 @@ func (D) IsCd() {}
 func (D) IsCDer()                {}
 func (this D) GetName() *CDerObj { return this.Name }
 
+type Owner struct {
+	Name string `json:"name"`
+}
+
 type Product struct {
 	Upc string `json:"upc"`
 }
 
 func (Product) IsEntity() {}
+
+type ProductA struct {
+	ID       string    `json:"id"`
+	Category *Category `json:"category,omitempty"`
+}
+
+func (ProductA) IsBase()                     {}
+func (this ProductA) GetID() string          { return this.ID }
+func (this ProductA) GetCategory() *Category { return this.Category }
+
+type ProductB struct {
+	ID       string    `json:"id"`
+	Category *Category `json:"category,omitempty"`
+}
+
+func (ProductB) IsBase()                     {}
+func (this ProductB) GetID() string          { return this.ID }
+func (this ProductB) GetCategory() *Category { return this.Category }
 
 type Purchase struct {
 	Product  *Product `json:"product"`
