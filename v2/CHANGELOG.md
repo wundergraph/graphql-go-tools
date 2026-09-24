@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.25.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.24.0...v2.25.0) (2026-09-24)
+
+
+### Features
+
+* bump Go version ([#1687](https://github.com/wundergraph/graphql-go-tools/issues/1687)) ([b692c2d](https://github.com/wundergraph/graphql-go-tools/commit/b692c2d1dcd07fea814b9d57dcc12395a3151e0b))
+
 ## [2.24.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.23.0...v2.24.0) (2026-09-23)
 
 
