@@ -254,7 +254,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("stale-if-error", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "stale-if-error=30", &CacheControlResponse{StaleIfError: seconds(30)})
+		requireParses(t, "stale-if-error=30", &CacheControlResponse{StaleIfError: new(DeltaSeconds(30))})
 	})
 
 	t.Run("bare stale-if-error", func(t *testing.T) {
@@ -264,12 +264,12 @@ func TestParse(t *testing.T) {
 
 	t.Run("stale-while-revalidate", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "stale-while-revalidate=30", &CacheControlResponse{StaleWhileRevalidate: seconds(30)})
+		requireParses(t, "stale-while-revalidate=30", &CacheControlResponse{StaleWhileRevalidate: new(DeltaSeconds(30))})
 	})
 
 	t.Run("unknown extension with quoted argument is ignored", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, `community="UCI", max-age=60`, &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, `community="UCI", max-age=60`, &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("unknown extension with comma inside quotes is ignored without breaking the list", func(t *testing.T) {
@@ -285,16 +285,16 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `MAX-AGE=60, S-MaxAge=120, No-Cache, PuBlIc, NO-STORE, PRIVATE, MuSt-Revalidate, PROXY-Revalidate, Stale-If-Error=30, Stale-While-Revalidate=40`,
 			&CacheControlResponse{
-				MaxAge:               seconds(60),
-				SMaxAge:              seconds(120),
+				MaxAge:               new(DeltaSeconds(60)),
+				SMaxAge:              new(DeltaSeconds(120)),
 				NoCache:              fieldNames(),
 				Public:               true,
 				NoStore:              true,
 				Private:              fieldNames(),
 				MustRevalidate:       true,
 				ProxyRevalidate:      true,
-				StaleIfError:         seconds(30),
-				StaleWhileRevalidate: seconds(40),
+				StaleIfError:         new(DeltaSeconds(30)),
+				StaleWhileRevalidate: new(DeltaSeconds(40)),
 			})
 	})
 
@@ -302,39 +302,39 @@ func TestParse(t *testing.T) {
 
 	t.Run("max-age zero", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=0", &CacheControlResponse{MaxAge: seconds(0)})
+		requireParses(t, "max-age=0", &CacheControlResponse{MaxAge: new(DeltaSeconds(0))})
 	})
 
 	t.Run("max-age", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, "max-age=60", &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("s-maxage", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "s-maxage=60", &CacheControlResponse{SMaxAge: seconds(60)})
+		requireParses(t, "s-maxage=60", &CacheControlResponse{SMaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("max-age at MaxInt32", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=2147483647", &CacheControlResponse{MaxAge: seconds(math.MaxInt32)})
+		requireParses(t, "max-age=2147483647", &CacheControlResponse{MaxAge: new(DeltaSeconds(math.MaxInt32))})
 	})
 
 	// D7
 	t.Run("max-age above MaxInt32 clamps", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=2147483648", &CacheControlResponse{MaxAge: seconds(math.MaxInt32)})
+		requireParses(t, "max-age=2147483648", &CacheControlResponse{MaxAge: new(DeltaSeconds(math.MaxInt32))})
 	})
 
 	// D7 — this one overflows int64 and makes strconv return ErrRange.
 	t.Run("max-age above MaxInt64 clamps", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=99999999999999999999999999", &CacheControlResponse{MaxAge: seconds(math.MaxInt32)})
+		requireParses(t, "max-age=99999999999999999999999999", &CacheControlResponse{MaxAge: new(DeltaSeconds(math.MaxInt32))})
 	})
 
 	t.Run("leading zeros", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=007", &CacheControlResponse{MaxAge: seconds(7)})
+		requireParses(t, "max-age=007", &CacheControlResponse{MaxAge: new(DeltaSeconds(7))})
 	})
 
 	// MaxAge / SMaxAge are pointers so that "absent" and "explicitly zero" are
@@ -345,7 +345,7 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 		requireParses(t, "no-store, max-age=0", &CacheControlResponse{
 			NoStore: true,
-			MaxAge:  seconds(0),
+			MaxAge:  new(DeltaSeconds(0)),
 		})
 	})
 
@@ -353,7 +353,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("max-age with quotes", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, `max-age="60"`, &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, `max-age="60"`, &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	// --- D5/D6: an unusable delta-seconds argument is an error --------------
@@ -583,7 +583,7 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `no-cache="Set Cookie", max-age=60`, &CacheControlResponse{
 			NoCache: fieldNames("Set Cookie"),
-			MaxAge:  seconds(60),
+			MaxAge:  new(DeltaSeconds(60)),
 		})
 	})
 
@@ -651,47 +651,47 @@ func TestParse(t *testing.T) {
 
 	t.Run("max-age and no-store", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60, no-store", &CacheControlResponse{MaxAge: seconds(60), NoStore: true})
+		requireParses(t, "max-age=60, no-store", &CacheControlResponse{MaxAge: new(DeltaSeconds(60)), NoStore: true})
 	})
 
 	t.Run("no space after comma", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60,no-store", &CacheControlResponse{MaxAge: seconds(60), NoStore: true})
+		requireParses(t, "max-age=60,no-store", &CacheControlResponse{MaxAge: new(DeltaSeconds(60)), NoStore: true})
 	})
 
 	t.Run("whitespace on both sides of the comma", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60 ,  no-store", &CacheControlResponse{MaxAge: seconds(60), NoStore: true})
+		requireParses(t, "max-age=60 ,  no-store", &CacheControlResponse{MaxAge: new(DeltaSeconds(60)), NoStore: true})
 	})
 
 	t.Run("tabs around the comma", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "\tmax-age=60\t,\tno-store\t", &CacheControlResponse{MaxAge: seconds(60), NoStore: true})
+		requireParses(t, "\tmax-age=60\t,\tno-store\t", &CacheControlResponse{MaxAge: new(DeltaSeconds(60)), NoStore: true})
 	})
 
 	t.Run("leading and trailing whitespace around the whole value", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "   max-age=60, no-store   ", &CacheControlResponse{MaxAge: seconds(60), NoStore: true})
+		requireParses(t, "   max-age=60, no-store   ", &CacheControlResponse{MaxAge: new(DeltaSeconds(60)), NoStore: true})
 	})
 
 	t.Run("public with max-age and s-maxage", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, "public, max-age=3600, s-maxage=7200", &CacheControlResponse{
-			Public: true, MaxAge: seconds(3600), SMaxAge: seconds(7200),
+			Public: true, MaxAge: new(DeltaSeconds(3600)), SMaxAge: new(DeltaSeconds(7200)),
 		})
 	})
 
 	t.Run("typical no-cache combination", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, "no-cache, no-store, must-revalidate, max-age=0", &CacheControlResponse{
-			NoCache: fieldNames(), NoStore: true, MustRevalidate: true, MaxAge: seconds(0),
+			NoCache: fieldNames(), NoStore: true, MustRevalidate: true, MaxAge: new(DeltaSeconds(0)),
 		})
 	})
 
 	t.Run("private field list alongside max-age", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `private="Set-Cookie", max-age=60`, &CacheControlResponse{
-			Private: fieldNames("Set-Cookie"), MaxAge: seconds(60),
+			Private: fieldNames("Set-Cookie"), MaxAge: new(DeltaSeconds(60)),
 		})
 	})
 
@@ -700,7 +700,7 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `no-cache="Set-Cookie, Authorization", max-age=60`, &CacheControlResponse{
 			NoCache: fieldNames("Set-Cookie", "Authorization"),
-			MaxAge:  seconds(60),
+			MaxAge:  new(DeltaSeconds(60)),
 		})
 	})
 
@@ -716,8 +716,8 @@ func TestParse(t *testing.T) {
 	t.Run("all modelled directives at once", func(t *testing.T) {
 		t.Parallel()
 		requireParses(t, `max-age=1, s-maxage=2, no-store, no-cache="A", public, private="B"`, &CacheControlResponse{
-			MaxAge:  seconds(1),
-			SMaxAge: seconds(2),
+			MaxAge:  new(DeltaSeconds(1)),
+			SMaxAge: new(DeltaSeconds(2)),
 			NoStore: true,
 			NoCache: fieldNames("A"),
 			Public:  true,
@@ -729,17 +729,17 @@ func TestParse(t *testing.T) {
 
 	t.Run("trailing comma is tolerated", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60,", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, "max-age=60,", &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("leading comma is tolerated", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, ",max-age=60", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, ",max-age=60", &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("double comma is tolerated", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60,,no-store", &CacheControlResponse{MaxAge: seconds(60), NoStore: true})
+		requireParses(t, "max-age=60,,no-store", &CacheControlResponse{MaxAge: new(DeltaSeconds(60)), NoStore: true})
 	})
 
 	// D13 + D1 — if a trailing empty element is skipped in "max-age=60,", then
@@ -779,12 +779,12 @@ func TestParse(t *testing.T) {
 	// structural problem rather than a stray space.
 	t.Run("space before equals is tolerated", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age =60", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, "max-age =60", &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("space after equals is tolerated", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age= 60", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, "max-age= 60", &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("space on both sides of equals is tolerated", func(t *testing.T) {
@@ -808,7 +808,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("duplicate max-age with equal values", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60, max-age=60", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, "max-age=60, max-age=60", &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("duplicate boolean directive", func(t *testing.T) {
@@ -820,12 +820,12 @@ func TestParse(t *testing.T) {
 	// path, so no error case is needed.
 	t.Run("duplicate max-age takes the first", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60, max-age=120", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, "max-age=60, max-age=120", &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("duplicate s-maxage takes the first", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "s-maxage=1, s-maxage=2", &CacheControlResponse{SMaxAge: seconds(1)})
+		requireParses(t, "s-maxage=1, s-maxage=2", &CacheControlResponse{SMaxAge: new(DeltaSeconds(1))})
 	})
 
 	// D14 — first even when it is the larger value. This is the case that
@@ -834,7 +834,7 @@ func TestParse(t *testing.T) {
 	// leaves those to the caller.
 	t.Run("duplicate max-age takes the first even when it is larger", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=120, max-age=60", &CacheControlResponse{MaxAge: seconds(120)})
+		requireParses(t, "max-age=120, max-age=60", &CacheControlResponse{MaxAge: new(DeltaSeconds(120))})
 	})
 
 	// D14 — zero is a real value, and later occurrences never override it.
@@ -843,17 +843,17 @@ func TestParse(t *testing.T) {
 	// indistinguishable from an absent one, so nothing caught it.
 	t.Run("duplicate max-age takes a leading zero value", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=0, max-age=3600", &CacheControlResponse{MaxAge: seconds(0)})
+		requireParses(t, "max-age=0, max-age=3600", &CacheControlResponse{MaxAge: new(DeltaSeconds(0))})
 	})
 
 	t.Run("duplicate max-age ignores a trailing zero value", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=3600, max-age=0", &CacheControlResponse{MaxAge: seconds(3600)})
+		requireParses(t, "max-age=3600, max-age=0", &CacheControlResponse{MaxAge: new(DeltaSeconds(3600))})
 	})
 
 	t.Run("duplicate max-age that both clamp to MaxInt32", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=2147483648, max-age=4294967296", &CacheControlResponse{MaxAge: seconds(math.MaxInt32)})
+		requireParses(t, "max-age=2147483648, max-age=4294967296", &CacheControlResponse{MaxAge: new(DeltaSeconds(math.MaxInt32))})
 	})
 
 	t.Run("invalid first occurrence fails the field", func(t *testing.T) {
@@ -866,7 +866,7 @@ func TestParse(t *testing.T) {
 	// lets a non-nil MaxAge stand in for "seen".
 	t.Run("invalid second occurrence does not disturb the first", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age=60, max-age=abc", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, "max-age=60, max-age=abc", &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	// D15 tier 2 — all occurrences qualified, so union. Stripping both A and B
@@ -921,12 +921,12 @@ func TestParse(t *testing.T) {
 
 	t.Run("no-store with a positive max-age", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "no-store, max-age=60", &CacheControlResponse{NoStore: true, MaxAge: seconds(60)})
+		requireParses(t, "no-store, max-age=60", &CacheControlResponse{NoStore: true, MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("no-cache with a positive max-age", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "no-cache, max-age=3600", &CacheControlResponse{NoCache: fieldNames(), MaxAge: seconds(3600)})
+		requireParses(t, "no-cache, max-age=3600", &CacheControlResponse{NoCache: fieldNames(), MaxAge: new(DeltaSeconds(3600))})
 	})
 
 	// --- D17: control characters and non-ASCII --------------------------------
@@ -987,7 +987,7 @@ func TestParse(t *testing.T) {
 		t.Parallel()
 
 		input := strings.TrimSuffix(strings.Repeat("must-revalidate, ", 1000), ", ") + ", max-age=60"
-		requireParses(t, input, &CacheControlResponse{MustRevalidate: true, MaxAge: seconds(60)})
+		requireParses(t, input, &CacheControlResponse{MustRevalidate: true, MaxAge: new(DeltaSeconds(60))})
 	})
 
 	t.Run("very long field list", func(t *testing.T) {
@@ -999,7 +999,7 @@ func TestParse(t *testing.T) {
 
 	t.Run("very long run of leading zeros", func(t *testing.T) {
 		t.Parallel()
-		requireParses(t, "max-age="+strings.Repeat("0", 100)+"60", &CacheControlResponse{MaxAge: seconds(60)})
+		requireParses(t, "max-age="+strings.Repeat("0", 100)+"60", &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 }
 
@@ -1033,7 +1033,7 @@ func TestParseCacheControlResponse(t *testing.T) {
 		t.Parallel()
 		requireHeaderParses(t,
 			http.Header{"Cache-Control": []string{"max-age=60, no-store"}},
-			&CacheControlResponse{MaxAge: seconds(60), NoStore: true},
+			&CacheControlResponse{MaxAge: new(DeltaSeconds(60)), NoStore: true},
 		)
 	})
 
@@ -1055,7 +1055,7 @@ func TestParseCacheControlResponse(t *testing.T) {
 		// http.Header.Get canonicalises, but a hand-built map may not.
 		h := http.Header{}
 		h.Set("cache-control", "max-age=60")
-		requireHeaderParses(t, h, &CacheControlResponse{MaxAge: seconds(60)})
+		requireHeaderParses(t, h, &CacheControlResponse{MaxAge: new(DeltaSeconds(60))})
 	})
 
 	// Repeated field lines are semantically one comma-joined value
@@ -1065,7 +1065,7 @@ func TestParseCacheControlResponse(t *testing.T) {
 		t.Parallel()
 		requireHeaderParses(t,
 			http.Header{"Cache-Control": []string{"max-age=60", "no-store"}},
-			&CacheControlResponse{MaxAge: seconds(60), NoStore: true},
+			&CacheControlResponse{MaxAge: new(DeltaSeconds(60)), NoStore: true},
 		)
 	})
 
@@ -1075,7 +1075,7 @@ func TestParseCacheControlResponse(t *testing.T) {
 		t.Parallel()
 		requireHeaderParses(t,
 			http.Header{"Cache-Control": []string{"max-age=60", "max-age=abc"}},
-			&CacheControlResponse{MaxAge: seconds(60)},
+			&CacheControlResponse{MaxAge: new(DeltaSeconds(60))},
 		)
 	})
 
@@ -1088,7 +1088,7 @@ func TestParseCacheControlResponse(t *testing.T) {
 		t.Parallel()
 		requireHeaderParses(t,
 			http.Header{"Cache-Control": []string{`no-cache="A, B"`, "max-age=60"}},
-			&CacheControlResponse{NoCache: fieldNames("A", "B"), MaxAge: seconds(60)},
+			&CacheControlResponse{NoCache: fieldNames("A", "B"), MaxAge: new(DeltaSeconds(60))},
 		)
 	})
 
@@ -1107,8 +1107,8 @@ func TestCacheControlResponseToHeaderString(t *testing.T) {
 	cc := &CacheControlResponse{
 		MustRevalidate:       true,
 		ProxyRevalidate:      true,
-		StaleIfError:         seconds(30),
-		StaleWhileRevalidate: seconds(60),
+		StaleIfError:         new(DeltaSeconds(30)),
+		StaleWhileRevalidate: new(DeltaSeconds(60)),
 	}
 	require.Equal(t, "must-revalidate, proxy-revalidate, stale-if-error=30, stale-while-revalidate=60", cc.ToHeaderString())
 }
@@ -1413,8 +1413,10 @@ func assertDeltaSeconds(t *testing.T, name string, expected, actual *DeltaSecond
 // field means the directive was absent or dropped; seconds(0) means it was
 // present and explicitly zero. Those are different responses, which is the
 // whole reason the fields are pointers.
+//
+//go:fix inline
 func seconds(d DeltaSeconds) *DeltaSeconds {
-	return &d
+	return new(d)
 }
 
 // fieldNames builds a *FieldNames marked as present containing the given names.

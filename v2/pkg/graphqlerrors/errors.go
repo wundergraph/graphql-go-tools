@@ -21,12 +21,10 @@ type Errors interface {
 type RequestErrors []RequestError
 
 func RequestErrorsFromError(err error) RequestErrors {
-	var requestErrors RequestErrors
-	if errors.As(err, &requestErrors) {
+	if requestErrors, ok := errors.AsType[RequestErrors](err); ok {
 		return requestErrors
 	}
-	var report operationreport.Report
-	if errors.As(err, &report) {
+	if report, ok := errors.AsType[*operationreport.Report](err); ok {
 		if len(report.ExternalErrors) == 0 {
 			return RequestErrors{
 				{
