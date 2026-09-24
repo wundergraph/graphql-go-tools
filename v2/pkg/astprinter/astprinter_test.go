@@ -18,8 +18,7 @@ import (
 
 func must(t *testing.T, err error) {
 	t.Helper()
-	var report operationreport.Report
-	if errors.As(err, &report) {
+	if report, ok := errors.AsType[*operationreport.Report](err); ok {
 		if report.HasErrors() {
 			t.Fatalf("report has errors %s", report.Error())
 		}

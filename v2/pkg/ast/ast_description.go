@@ -16,21 +16,21 @@ type Description struct {
 	Position      position.Position
 }
 
-//nolint
-func (d *Document) PrintDescription(description Description, indent []byte, depth int, writer io.Writer) (err error) {
-	for i := 0; i < depth; i++ {
-		_, err = writer.Write(indent)
+func (d *Document) PrintDescription(description Description, indent []byte, depth int, writer io.Writer) error {
+	w := &printWriter{w: writer}
+	for range depth {
+		w.emit(indent)
 	}
 	if description.IsBlockString {
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.LINETERMINATOR)
-		for i := 0; i < depth; i++ {
-			_, err = writer.Write(indent)
+		w.emit(literal.QUOTE)
+		w.emit(literal.QUOTE)
+		w.emit(literal.QUOTE)
+		w.emit(literal.LINETERMINATOR)
+		for range depth {
+			w.emit(indent)
 		}
 	} else {
-		_, err = writer.Write(literal.QUOTE)
+		w.emit(literal.QUOTE)
 	}
 
 	content := d.Input.ByteSlice(description.Content)
@@ -40,10 +40,7 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 	// (per the BlockStringValue() canonicalization in the GraphQL spec). The
 	// per-line depth prefix is then added back below. This preserves any
 	// deliberate inner indentation — e.g. code blocks inside a description.
-	commonIndent := commonBlockStringIndent(splitBytesIntoLines(content))
-	if commonIndent < 0 {
-		commonIndent = 0
-	}
+	commonIndent := max(commonBlockStringIndent(splitBytesIntoLines(content)), 0)
 
 	skipWhitespace := false
 	skippedBytes := 0
@@ -62,26 +59,26 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 			skippedBytes = 0
 		default:
 			if skipWhitespace {
-				for j := 0; j < depth; j++ {
-					_, err = writer.Write(indent)
+				for range depth {
+					w.emit(indent)
 				}
 				skipWhitespace = false
 			}
 		}
-		_, err = writer.Write(content[i : i+1])
+		w.emit(content[i : i+1])
 	}
 	if description.IsBlockString {
-		_, err = writer.Write(literal.LINETERMINATOR)
-		for i := 0; i < depth; i++ {
-			_, err = writer.Write(indent)
+		w.emit(literal.LINETERMINATOR)
+		for range depth {
+			w.emit(indent)
 		}
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.QUOTE)
-		_, err = writer.Write(literal.QUOTE)
+		w.emit(literal.QUOTE)
+		w.emit(literal.QUOTE)
+		w.emit(literal.QUOTE)
 	} else {
-		_, err = writer.Write(literal.QUOTE)
+		w.emit(literal.QUOTE)
 	}
-	return nil
+	return w.err
 }
 
 func (d *Document) ImportDescription(desc string) (description Description) {

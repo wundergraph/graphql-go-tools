@@ -43,7 +43,7 @@ func GraphQLSchema() (ast.Document, error) {
 
 	doc, report := astparser.ParseGraphqlDocumentBytes(schemaBytes)
 	if report.HasErrors() {
-		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", report)
+		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", &report)
 	}
 
 	if err := asttransform.MergeDefinitionWithBaseSchema(&doc); err != nil {
@@ -52,7 +52,7 @@ func GraphQLSchema() (ast.Document, error) {
 
 	astvalidation.DefaultDefinitionValidator().Validate(&doc, &report)
 	if report.HasErrors() {
-		return ast.Document{}, fmt.Errorf("failed to validate schema: %w", report)
+		return ast.Document{}, fmt.Errorf("failed to validate schema: %w", &report)
 	}
 
 	return doc, nil
@@ -66,7 +66,7 @@ func GraphQLSchemaWithoutBaseDefinitions() (ast.Document, error) {
 
 	doc, report := astparser.ParseGraphqlDocumentBytes(schemaBytes)
 	if report.HasErrors() {
-		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", report)
+		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", &report)
 	}
 
 	return doc, nil

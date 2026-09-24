@@ -81,7 +81,7 @@ func (r *Request) InternalRequest() resolve.Request {
 func (r *Request) Print(writer io.Writer) (n int, err error) {
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return 0, report
+		return 0, &report
 	}
 
 	return writer.Write(r.document.Input.RawBytes)
@@ -109,7 +109,7 @@ func (r *Request) parseQueryOnce() (report operationreport.Report) {
 func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return false, report
+		return false, &report
 	}
 
 	var operationDefinitionRef = ast.InvalidRef
@@ -175,7 +175,7 @@ func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 func (r *Request) OperationType() (OperationType, error) {
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return OperationTypeUnknown, report
+		return OperationTypeUnknown, &report
 	}
 
 	for _, rootNode := range r.document.RootNodes {
