@@ -74,7 +74,7 @@ func TestRenderEntryRepresentationsDedup(t *testing.T) {
 		defer batchEntityToolPool.Put(tools)
 		entry := &MultiEntityFetchEntry{Representations: plainIDTemplate()}
 		res := &result{}
-		rendered, err := loader.renderEntryRepresentations(entry, res, items, arena.NewArenaBuffer(tools.a), tools)
+		rendered, err := loader.renderEntryRepresentations(entry, res, items, arena.NewArenaBuffer(tools.a), tools, false)
 		require.NoError(t, err)
 		require.True(t, rendered.entryIncluded)
 		// The buffer is arena-backed and the deferred Put resets the arena.
