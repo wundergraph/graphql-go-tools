@@ -779,7 +779,7 @@ func (p *Planner[T]) EnterField(ref int) {
 	fieldName := p.visitor.Operation.FieldNameString(ref)
 
 	typeName := p.lastFieldEnclosingTypeName
-	if shouldRenameInterfaceObjectType, newTypeName := p.interfaceObjectTypeShouldBeRenamed(typeName); shouldRenameInterfaceObjectType {
+	if shouldRenameInterfaceObjectType, newTypeName := p.interfaceObjectTypeShouldBeRenamedForField(typeName, fieldName); shouldRenameInterfaceObjectType {
 		typeName = newTypeName
 	}
 
@@ -958,7 +958,8 @@ func (p *Planner[T]) addRepresentationsVariable() {
 func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
+		_, interfaceObjectName := p.interfaceObjectTypeShouldBeRenamed(cfg.TypeName)
+		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration(), interfaceObjectName)
 		if err != nil {
 			p.stopWithError(errors.WithStack(fmt.Errorf("buildRepresentationsVariable: failed to build representation variable node: %w", err)))
 			return nil
@@ -1057,13 +1058,27 @@ func (p *Planner[T]) isInEntitiesSelectionSet() bool {
 	return bytes.Equal(fieldName, []byte("_entities"))
 }
 
+// interfaceObjectTypeShouldBeRenamed reports whether the concrete typeName has to be renamed
+// to an interface object in the upstream operation, and returns the interface object name.
+// A planner bound to an interface object by the path builder always uses that one.
 func (p *Planner[T]) interfaceObjectTypeShouldBeRenamed(typeName string) (ok bool, newName string) {
-	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationConfiguration().InterfaceObjects {
-		if slices.Contains(interfaceObjectCfg.ConcreteTypeNames, typeName) {
-			return true, interfaceObjectCfg.InterfaceTypeName
-		}
+	if name, ok := p.dataSourcePlannerConfig.BoundInterfaceObjectName(typeName); ok {
+		return true, name
 	}
-	return false, ""
+
+	newName, ok = p.dataSourceConfig.InterfaceObjectNameForType(typeName)
+	return ok, newName
+}
+
+// interfaceObjectTypeShouldBeRenamedForField is like interfaceObjectTypeShouldBeRenamed,
+// but picks the interface object defining fieldName when the concrete type belongs to several.
+func (p *Planner[T]) interfaceObjectTypeShouldBeRenamedForField(typeName, fieldName string) (ok bool, newName string) {
+	if name, ok := p.dataSourcePlannerConfig.BoundInterfaceObjectName(typeName); ok {
+		return true, name
+	}
+
+	newName, ok = p.dataSourceConfig.InterfaceObjectNameForTypeField(typeName, fieldName)
+	return ok, newName
 }
 
 func (p *Planner[T]) addOnTypeInlineFragment() {
