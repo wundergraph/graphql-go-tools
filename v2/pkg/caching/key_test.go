@@ -69,8 +69,10 @@ func TestDigestParts(t *testing.T) {
 	assert.Equal(t, DigestParts([]byte("ab"), []byte("c")), DigestParts([]byte("ab"), []byte("c")))
 	assert.NotEqual(t, DigestParts([]byte("ab"), []byte("c")), DigestParts([]byte("a"), []byte("bc")),
 		"a byte crossing the boundary changes the digest")
-	assert.Equal(t, DigestParts([]byte("abc")), DigestBytes([]byte("abc")),
-		"a single part carries no separator")
+	assert.NotEqual(t, DigestParts([]byte("D"), []byte("X"), []byte("Y\x00Z")), DigestParts([]byte("D\x00X"), []byte("Y"), []byte("Z")),
+		"a zero byte inside a part is not a boundary")
+	assert.NotEqual(t, DigestParts([]byte("a"), nil), DigestParts([]byte("a")),
+		"an empty part still counts")
 }
 
 // Two ids the previous 64-bit key hash could not tell apart. Found by
