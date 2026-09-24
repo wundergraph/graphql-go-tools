@@ -28,13 +28,21 @@ type Item struct {
 	// naming what the entry is about so it can later be found by something other
 	// than its key for invalidation.
 	Tags []string
+	// Surrogate keys are what a client response carries so a CDN can purge by them.
+	// Stored with the value and returned by GetMany.
+	SurrogateKeys []string
+	// Vary makes the entry a vary record rather than a body: the sets of
+	// request headers responses at this key have varied on, newest first.
+	// Each set's values select a variant stored under VariantKey. A record has
+	// no Value and no SurrogateKeys.
+	Vary [][]string
 }
 
 // Cache is a batch oriented key/value cache.
 type Cache interface {
 	// GetMany looks up every key and returns the ones it found, keyed by the
-	// key they were asked for. A miss is simply absent, never an error and
-	// never a zero Item.
+	// key they were asked for, with the SurrogateKeys they were stored with. A
+	// miss is simply absent, never an error and never a zero Item.
 	GetMany(ctx context.Context, keys []string) (map[string]Item, error)
 
 	// SetMany stores every item, all of which must carry a positive TTL. When
