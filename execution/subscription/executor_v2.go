@@ -22,7 +22,7 @@ func NewExecutorV2Pool(engine *engine.ExecutionEngine, connectionInitReqCtx cont
 	return &ExecutorV2Pool{
 		engine: engine,
 		executorPool: &sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return &ExecutorV2{}
 			},
 		},

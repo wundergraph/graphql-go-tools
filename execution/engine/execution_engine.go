@@ -32,10 +32,10 @@ type internalExecutionContext struct {
 	postProcessor  *postprocess.Processor
 }
 
-func newInternalExecutionContext() *internalExecutionContext {
+func newInternalExecutionContext(postProcessorOptions ...postprocess.ProcessorOption) *internalExecutionContext {
 	return &internalExecutionContext{
 		resolveContext: resolve.NewContext(context.Background()),
-		postProcessor:  postprocess.NewProcessor(),
+		postProcessor:  postprocess.NewProcessor(postProcessorOptions...),
 	}
 }
 
@@ -60,6 +60,7 @@ type ExecutionEngine struct {
 	executionPlanCache       *lru.Cache
 	apolloCompatibilityFlags apollocompatibility.Flags
 	validationOptions        []astvalidation.Option
+	postProcessorOptions     []postprocess.ProcessorOption
 }
 
 type WebsocketBeforeStartHook interface {
@@ -101,6 +102,24 @@ func WithRequestTraceOptions(options resolve.TraceOptions) ExecutionOptions {
 	}
 }
 
+// WithAuthorizer sets the post-fetch authorizer on the resolve context.
+// Fields with an authorization rule are checked via AuthorizeObjectField
+// while the response is resolved.
+func WithAuthorizer(authorizer resolve.Authorizer) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SetAuthorizer(authorizer)
+	}
+}
+
+// WithPreFetchFieldAuthorizer enables pre-fetch field authorization: all protected
+// field coordinates of the operation are decided in one batch call before any fetch
+// executes, and fetches serving only denied fields are skipped.
+func WithPreFetchFieldAuthorizer(authorizer resolve.BatchAuthorizer) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.resolveContext.SetPreFetchFieldAuthorizer(authorizer)
+	}
+}
+
 func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engineConfig Configuration, resolverOptions resolve.ResolverOptions) (*ExecutionEngine, error) {
 	executionPlanCache, err := lru.New(1024)
 	if err != nil {
@@ -133,6 +152,16 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		validationOpts = append(validationOpts, astvalidation.WithRelaxFieldSelectionMergingNullability())
 	}
 
+	// MultiFetch needs the planner flag and the postprocess stage together;
+	// deriving the processor option from the same flag keeps them in lock-step.
+	var postProcessorOptions []postprocess.ProcessorOption
+	if engineConfig.plannerConfig.EnableMultiFetch {
+		postProcessorOptions = append(postProcessorOptions, postprocess.EnableMultiFetch())
+	}
+	if engineConfig.enableScheduleFetches {
+		postProcessorOptions = append(postProcessorOptions, postprocess.EnableScheduleFetches())
+	}
+
 	return &ExecutionEngine{
 		logger:             logger,
 		config:             engineConfig,
@@ -141,7 +170,8 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
-		validationOptions: validationOpts,
+		validationOptions:    validationOpts,
+		postProcessorOptions: postProcessorOptions,
 	}, nil
 }
 
@@ -153,6 +183,12 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			astnormalization.WithRemoveFragmentDefinitions(),
 			astnormalization.WithRemoveUnusedVariables(),
 			astnormalization.WithInlineFragmentSpreads(),
+			astnormalization.WithEnableDefer(),
+			astnormalization.WithPrevalidationRules(
+				astvalidation.DeferStreamOnValidOperations(),
+				astvalidation.DeferStreamHaveUniqueLabels(),
+				astvalidation.DirectivesAreInValidLocations(),
+				astvalidation.StreamAppliedToListFieldsOnly()),
 		)
 		if err != nil {
 			return err
@@ -191,7 +227,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			operation.Document(), e.config.schema.Document(), &remapReport,
 		)
 		if remapReport.HasErrors() {
-			return remapReport
+			return &remapReport
 		}
 	}
 
@@ -207,7 +243,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 	}
 
-	execContext := newInternalExecutionContext()
+	execContext := newInternalExecutionContext(e.postProcessorOptions...)
 	execContext.setContext(ctx)
 	execContext.setVariables(operation.Variables)
 	execContext.setRequest(operation.InternalRequest())
@@ -230,13 +266,13 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	var report operationreport.Report
 	cachedPlan, costCalculator := e.getCachedPlan(execContext, operation.Document(), e.config.schema.Document(), operation.OperationName, &report)
 	if report.HasErrors() {
-		return report
+		return &report
 	}
 	varsView := execContext.resolveContext.VariablesView()
 	if costCalculator != nil {
 		costCalculator.ValidateSliceArguments(varsView, &report)
 		if report.HasErrors() {
-			return report
+			return &report
 		}
 	}
 	operation.ComputeEstimatedCost(costCalculator, varsView)
@@ -258,9 +294,12 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			return err
 		}
 		if resp != nil {
-			operation.ComputeActualCost(costCalculator, varsView, execContext.resolveContext.ActualListSizes)
+			operation.ComputeActualCost(costCalculator, varsView, execContext.resolveContext)
 		}
 		return nil
+	case *plan.DeferResponsePlan:
+		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, writer)
+		return err
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:

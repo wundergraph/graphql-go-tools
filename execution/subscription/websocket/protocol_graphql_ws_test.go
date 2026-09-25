@@ -323,8 +323,7 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		expectedMessage := []byte(`{"type":"connection_error","payload":"unexpected message type: something"}`)
 		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"something"}`))
@@ -341,8 +340,7 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 		mockEngine := NewMockEngine(ctrl)
 		mockEngine.EXPECT().TerminateAllSubscriptions(gomock.Eq(protocol.EventHandler()))
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"connection_terminate"}`))
 		assert.NoError(t, err)
@@ -380,8 +378,7 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
@@ -396,8 +393,7 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)
@@ -412,8 +408,7 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 		testClient := NewTestClient(false)
 		protocol := NewTestProtocolGraphQLWSHandler(testClient)
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := t.Context()
 
 		ctrl := gomock.NewController(t)
 		mockEngine := NewMockEngine(ctrl)

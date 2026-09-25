@@ -157,6 +157,20 @@ func TestVariablesValidationApolloCompatibility(t *testing.T) {
 			}, err)
 		})
 	})
+
+	t.Run("apollo router compatibility ignore null variables", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: String!): String }`,
+			operation: `query Foo($input: String!) { hello(filter: $input) }`,
+			variables: `{"input":null}`,
+		}
+		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
+			ApolloRouterCompatibilityFlags: apollocompatibility.ApolloRouterFlags{
+				SkipNullVariablesError: true,
+			},
+		})
+		assert.Nil(t, err)
+	})
 }
 
 func TestVariablesValidation(t *testing.T) {
@@ -1757,12 +1771,12 @@ var inputSchema = `
 		satisfied(input: SelfSatisfiedInput!): Boolean
 		unsatisfied(input: SelfUnsatisfiedInput!): Boolean
 	}
-	
+
 	input NestedSelfSatisfiedInput {
 		a: String
 		b: Int! = 1
 	}
-	
+
 	input SelfSatisfiedInput {
 		nested: NestedSelfSatisfiedInput
 		value: String

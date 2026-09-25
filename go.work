@@ -1,9 +1,10 @@
-go 1.25
+go 1.26.0
 
 use (
 	examples/engine
 	examples/federation
 	execution
+	tools
 	v2
 )
 

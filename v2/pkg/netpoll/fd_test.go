@@ -25,7 +25,7 @@ func rawSocketFD(conn net.Conn) uint64 {
 			return 0
 		}
 		sfd := uint64(0)
-		raw.Control(func(fd uintptr) { // nolint: errcheck
+		raw.Control(func(fd uintptr) { //nolint: errcheck
 			sfd = uint64(fd)
 		})
 		return sfd

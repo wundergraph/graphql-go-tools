@@ -10,9 +10,18 @@ type Object struct {
 	Path     []string
 	Fields   []*Field
 
+	// Unresolvable marks an object whose selection set was dropped during planning
+	// because the abstract type has no possible runtime types able to provide the
+	// requested fields. Resolving such an object is always an error.
+	Unresolvable bool
+
 	PossibleTypes map[string]struct{} `json:"-"`
 	SourceName    string              `json:"-"`
 	TypeName      string              `json:"-"`
+
+	// InaccessibleTypes are members/implementers of the abstract type marked
+	// @inaccessible; excluded from PossibleTypes. Nil when none.
+	InaccessibleTypes map[string]struct{} `json:"-"`
 }
 
 func (o *Object) Copy() Node {
@@ -21,9 +30,10 @@ func (o *Object) Copy() Node {
 		fields[i] = f.Copy()
 	}
 	return &Object{
-		Nullable: o.Nullable,
-		Path:     o.Path,
-		Fields:   fields,
+		Nullable:     o.Nullable,
+		Path:         o.Path,
+		Fields:       fields,
+		Unresolvable: o.Unresolvable,
 	}
 }
 
@@ -48,6 +58,10 @@ func (o *Object) Equals(n Node) bool {
 		return false
 	}
 
+	if o.Unresolvable != other.Unresolvable {
+		return false
+	}
+
 	if !slices.Equal(o.Path, other.Path) {
 		return false
 	}
@@ -61,6 +75,20 @@ func (o *Object) Equals(n Node) bool {
 	// We ignore fetches in comparison, because we compare shape of the response nodes
 
 	return true
+}
+
+// isAbstract returns whether the object resolves an interface or union field.
+// An abstract object's PossibleTypes holds the concrete implementers/members
+// (an entity interface additionally includes the interface name itself).
+func (o *Object) isAbstract() bool {
+	if len(o.PossibleTypes) > 1 {
+		return true
+	}
+	if len(o.PossibleTypes) == 1 {
+		_, self := o.PossibleTypes[o.TypeName]
+		return !self
+	}
+	return false
 }
 
 type EmptyObject struct{}
@@ -103,11 +131,16 @@ type ParentOnTypeNames struct {
 }
 
 func (f *Field) Copy() *Field {
+	var deferField *DeferField
+	if f.Defer != nil {
+		cp := *f.Defer
+		deferField = &cp
+	}
 	return &Field{
 		Name:        f.Name,
 		Value:       f.Value.Copy(),
 		Position:    f.Position,
-		Defer:       f.Defer,
+		Defer:       deferField,
 		Stream:      f.Stream,
 		OnTypeNames: f.OnTypeNames,
 		Info:        f.Info,
@@ -179,4 +212,6 @@ type StreamField struct {
 	InitialBatchSize int
 }
 
-type DeferField struct{}
+type DeferField struct {
+	DeferID int
+}

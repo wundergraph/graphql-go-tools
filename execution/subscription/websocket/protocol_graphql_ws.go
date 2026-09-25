@@ -167,7 +167,7 @@ type GraphQLWSWriteEventHandler struct {
 
 // Emit is an implementation of subscription.EventHandler. It forwards events to the HandleWriteEvent.
 func (g *GraphQLWSWriteEventHandler) Emit(eventType subscription.EventType, id string, data []byte, err error) {
-	messageType := GraphQLWSMessageType("")
+	var messageType GraphQLWSMessageType
 	switch eventType {
 	case subscription.EventTypeOnSubscriptionCompleted:
 		messageType = GraphQLWSMessageTypeComplete
@@ -290,8 +290,7 @@ func NewProtocolGraphQLWSHandlerWithOptions(client subscription.TransportClient,
 func (p *ProtocolGraphQLWSHandler) Handle(ctx context.Context, engine subscription.Engine, data []byte) error {
 	message, err := p.reader.Read(data)
 	if err != nil {
-		var jsonSyntaxError *json.SyntaxError
-		if errors.As(err, &jsonSyntaxError) {
+		if _, ok := errors.AsType[*json.SyntaxError](err); ok {
 			p.writeEventHandler.HandleWriteEvent(GraphQLWSMessageTypeError, "", nil, errors.New("json syntax error"))
 			return nil
 		}

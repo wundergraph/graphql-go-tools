@@ -128,7 +128,7 @@ func (c *Client) Disconnect() error {
 
 // DisconnectWithReason will close the websocket and provide the close code and reason.
 // It can only consume CloseReason or CompiledCloseReason.
-func (c *Client) DisconnectWithReason(reason interface{}) error {
+func (c *Client) DisconnectWithReason(reason any) error {
 	var err error
 	switch reason := reason.(type) {
 	case CloseReason:
@@ -170,8 +170,7 @@ func (c *Client) writeCompiledFrame(compiledFrame []byte) error {
 func (c *Client) isClosedConnectionError(err error) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	var closedErr wsutil.ClosedError
-	if errors.As(err, &closedErr) {
+	if _, ok := errors.AsType[wsutil.ClosedError](err); ok {
 		c.isClosedConnection = true
 	}
 	return c.isClosedConnection

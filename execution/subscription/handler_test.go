@@ -256,8 +256,7 @@ func TestUniversalProtocolHandler_Handle(t *testing.T) {
 				}).
 				Times(1)
 
-			ctx, cancelFunc := context.WithCancel(context.Background())
-			defer cancelFunc()
+			ctx := t.Context()
 
 			options := UniversalProtocolHandlerOptions{
 				Logger:                           abstractlogger.Noop{},

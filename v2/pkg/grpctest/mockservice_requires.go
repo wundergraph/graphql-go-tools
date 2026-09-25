@@ -3,6 +3,7 @@ package grpctest
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -474,6 +475,227 @@ func (s *MockService) RequireStorageDeepItemInfoById(_ context.Context, req *pro
 	return &productv1.RequireStorageDeepItemInfoByIdResponse{Result: results}, nil
 }
 
+// newPalletStorageItem builds a fully populated PalletItem wrapped in the StorageItem interface message.
+// assignedItem is attached to the item's handler and may be nil to terminate the recursion,
+// as StorageItem is reachable from itself via handler.assignedItem.
+func newPalletStorageItem(id, name string, palletCount int32, assignedItem *productv1.StorageItem) *productv1.StorageItem {
+	return &productv1.StorageItem{
+		Instance: &productv1.StorageItem_PalletItem{
+			PalletItem: &productv1.PalletItem{
+				Id:          id,
+				Name:        name,
+				Weight:      float64(palletCount) * 12.5,
+				PalletCount: palletCount,
+				Handler: &productv1.ItemHandler{
+					Id:           id + "-handler",
+					Name:         "Handler for " + name,
+					AssignedItem: assignedItem,
+				},
+				Specs: &productv1.PalletSpecs{
+					Name:      name + " specs",
+					MaxWeight: float64(palletCount) * 100,
+					Dimensions: &productv1.Dimensions{
+						Length: 120.0,
+						Width:  80.0,
+						Height: 15.0,
+					},
+				},
+			},
+		},
+	}
+}
+
+// newContainerStorageItem builds a fully populated ContainerItem wrapped in the StorageItem interface message.
+// assignedItem is attached to the item's handler and may be nil to terminate the recursion,
+// as StorageItem is reachable from itself via handler.assignedItem.
+func newContainerStorageItem(id, name, containerSize string, assignedItem *productv1.StorageItem) *productv1.StorageItem {
+	return &productv1.StorageItem{
+		Instance: &productv1.StorageItem_ContainerItem{
+			ContainerItem: &productv1.ContainerItem{
+				Id:            id,
+				Name:          name,
+				Weight:        float64(len(containerSize)) * 7.5,
+				ContainerSize: containerSize,
+				Handler: &productv1.ItemHandler{
+					Id:           id + "-handler",
+					Name:         "Handler for " + name,
+					AssignedItem: assignedItem,
+				},
+				Specs: &productv1.ContainerSpecs{
+					Name:   name + " specs",
+					Volume: float64(len(containerSize)) * 33.3,
+					Dimensions: &productv1.Dimensions{
+						Length: 240.0,
+						Width:  120.0,
+						Height: 260.0,
+					},
+				},
+			},
+		},
+	}
+}
+
+// newHandledPalletStorageItem builds a PalletItem whose handler is assigned a ContainerItem,
+// so that a nested abstract type is reachable within an abstract result.
+func newHandledPalletStorageItem(id, name string, palletCount int32) *productv1.StorageItem {
+	assigned := newContainerStorageItem(id+"-assigned", name+" assigned container", "20ft", nil)
+	return newPalletStorageItem(id, name, palletCount, assigned)
+}
+
+// newHandledContainerStorageItem builds a ContainerItem whose handler is assigned a PalletItem,
+// so that a nested abstract type is reachable within an abstract result.
+func newHandledContainerStorageItem(id, name, containerSize string) *productv1.StorageItem {
+	assigned := newPalletStorageItem(id+"-assigned", name+" assigned pallet", 7, nil)
+	return newContainerStorageItem(id, name, containerSize, assigned)
+}
+
+// RequireStorageRecommendedItemById implements [productv1.ProductServiceServer].
+// Returns an interface (StorageItem) derived from the required metadata fields.
+func (s *MockService) RequireStorageRecommendedItemById(_ context.Context, req *productv1.RequireStorageRecommendedItemByIdRequest) (*productv1.RequireStorageRecommendedItemByIdResponse, error) {
+	results := make([]*productv1.RequireStorageRecommendedItemByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		metadata := ctx.GetFields().GetMetadata()
+		capacity := metadata.GetCapacity()
+		zone := metadata.GetZone()
+
+		// High capacity storages get a pallet recommendation, everything else a container.
+		var item *productv1.StorageItem
+		if capacity > 100 {
+			item = newHandledPalletStorageItem(
+				fmt.Sprintf("pallet-%s-%d", zone, capacity),
+				fmt.Sprintf("Pallet for zone %s", zone),
+				capacity/10,
+			)
+		} else {
+			item = newHandledContainerStorageItem(
+				fmt.Sprintf("container-%s-%d", zone, capacity),
+				fmt.Sprintf("Container for zone %s", zone),
+				fmt.Sprintf("%dL", capacity),
+			)
+		}
+
+		results = append(results, &productv1.RequireStorageRecommendedItemByIdResult{
+			RecommendedItem: item,
+		})
+	}
+
+	return &productv1.RequireStorageRecommendedItemByIdResponse{Result: results}, nil
+}
+
+// RequireStorageRecommendedItemsById implements [productv1.ProductServiceServer].
+// Returns a list of interfaces (StorageItem), one entry per required tag.
+func (s *MockService) RequireStorageRecommendedItemsById(_ context.Context, req *productv1.RequireStorageRecommendedItemsByIdRequest) (*productv1.RequireStorageRecommendedItemsByIdResponse, error) {
+	results := make([]*productv1.RequireStorageRecommendedItemsByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		tags := ctx.GetFields().GetTags()
+
+		items := make([]*productv1.StorageItem, 0, len(tags))
+		for i, tag := range tags {
+			// Alternate between both concrete types so every list contains a mix.
+			if i%2 == 0 {
+				items = append(items, newHandledPalletStorageItem(
+					fmt.Sprintf("pallet-%s", tag),
+					fmt.Sprintf("Pallet %s", tag),
+					int32(i+1),
+				))
+			} else {
+				items = append(items, newHandledContainerStorageItem(
+					fmt.Sprintf("container-%s", tag),
+					fmt.Sprintf("Container %s", tag),
+					strings.ToUpper(tag),
+				))
+			}
+		}
+
+		results = append(results, &productv1.RequireStorageRecommendedItemsByIdResult{
+			RecommendedItems: items,
+		})
+	}
+
+	return &productv1.RequireStorageRecommendedItemsByIdResponse{Result: results}, nil
+}
+
+// RequireStorageLatestOperationById implements [productv1.ProductServiceServer].
+// Returns a union (StorageOperationResult) derived from the required storageKind enum.
+func (s *MockService) RequireStorageLatestOperationById(_ context.Context, req *productv1.RequireStorageLatestOperationByIdRequest) (*productv1.RequireStorageLatestOperationByIdResponse, error) {
+	results := make([]*productv1.RequireStorageLatestOperationByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		kind := ctx.GetFields().GetStorageKind()
+
+		// Known kinds report a success, everything else a failure.
+		operation := &productv1.StorageOperationResult{}
+		switch kind {
+		case productv1.CategoryKind_CATEGORY_KIND_BOOK,
+			productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS,
+			productv1.CategoryKind_CATEGORY_KIND_FURNITURE:
+			operation.Value = &productv1.StorageOperationResult_StorageSuccess{
+				StorageSuccess: &productv1.StorageSuccess{
+					Message:     fmt.Sprintf("Operation completed for %s", kind.String()),
+					CompletedAt: "2024-01-01T00:00:00Z",
+				},
+			}
+		default:
+			operation.Value = &productv1.StorageOperationResult_StorageFailure{
+				StorageFailure: &productv1.StorageFailure{
+					Message:   fmt.Sprintf("Operation failed for %s", kind.String()),
+					ErrorCode: "UNSUPPORTED_KIND",
+				},
+			}
+		}
+
+		results = append(results, &productv1.RequireStorageLatestOperationByIdResult{
+			LatestOperation: operation,
+		})
+	}
+
+	return &productv1.RequireStorageLatestOperationByIdResponse{Result: results}, nil
+}
+
+// RequireStorageOptionalLatestOperationById implements [productv1.ProductServiceServer].
+// Returns a nullable union (StorageOperationResult) derived from the required optionalTags.
+func (s *MockService) RequireStorageOptionalLatestOperationById(_ context.Context, req *productv1.RequireStorageOptionalLatestOperationByIdRequest) (*productv1.RequireStorageOptionalLatestOperationByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOptionalLatestOperationByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		optionalTags := ctx.GetFields().GetOptionalTags()
+
+		var operation *productv1.StorageOperationResult
+		items := optionalTags.GetList().GetItems()
+		switch {
+		case len(items) == 0:
+			// No tags provided, the operation is unknown.
+			operation = nil
+		case len(items)%2 == 0:
+			operation = &productv1.StorageOperationResult{
+				Value: &productv1.StorageOperationResult_StorageFailure{
+					StorageFailure: &productv1.StorageFailure{
+						Message:   fmt.Sprintf("Operation failed for tags: %s", strings.Join(items, ", ")),
+						ErrorCode: "EVEN_TAG_COUNT",
+					},
+				},
+			}
+		default:
+			operation = &productv1.StorageOperationResult{
+				Value: &productv1.StorageOperationResult_StorageSuccess{
+					StorageSuccess: &productv1.StorageSuccess{
+						Message:     fmt.Sprintf("Operation completed for tags: %s", strings.Join(items, ", ")),
+						CompletedAt: "2024-01-02T00:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.RequireStorageOptionalLatestOperationByIdResult{
+			OptionalLatestOperation: operation,
+		})
+	}
+
+	return &productv1.RequireStorageOptionalLatestOperationByIdResponse{Result: results}, nil
+}
+
 // RequireStorageMultiFilteredTagSummaryById implements [productv1.ProductServiceServer].
 // Returns a comma separated list of tags matching any of the given prefixes, capped at maxResults.
 func (s *MockService) RequireStorageMultiFilteredTagSummaryById(_ context.Context, req *productv1.RequireStorageMultiFilteredTagSummaryByIdRequest) (*productv1.RequireStorageMultiFilteredTagSummaryByIdResponse, error) {
@@ -570,4 +792,183 @@ func (s *MockService) RequireStorageFilteredTagSummaryById(_ context.Context, re
 	}
 
 	return &productv1.RequireStorageFilteredTagSummaryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageOptionalProcessedMetadataHistoryById implements [productv1.ProductServiceServer].
+// Returns a nullable list of complex types (StorageMetadata) wrapped in a ListOfStorageMetadata
+// message, so a null list can be distinguished from an empty one:
+//   - no metadata history in the context -> null list
+//   - odd context index                  -> empty (but non-null) list
+//   - otherwise                          -> processed history
+func (s *MockService) RequireStorageOptionalProcessedMetadataHistoryById(_ context.Context, req *productv1.RequireStorageOptionalProcessedMetadataHistoryByIdRequest) (*productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		metadataHistory := ctx.GetFields().GetMetadataHistory()
+
+		var processedHistory *productv1.ListOfStorageMetadata
+		switch {
+		case len(metadataHistory) == 0:
+			// null list
+		case i%2 == 1:
+			processedHistory = &productv1.ListOfStorageMetadata{
+				List: &productv1.ListOfStorageMetadata_List{},
+			}
+		default:
+			items := make([]*productv1.StorageMetadata, 0, len(metadataHistory))
+			for j, metadata := range metadataHistory {
+				items = append(items, &productv1.StorageMetadata{
+					Capacity: metadata.GetCapacity() * int32(j+1),
+					Zone:     "OPT_HIST_" + metadata.GetZone(),
+					Priority: int32(j + 1),
+				})
+			}
+			processedHistory = &productv1.ListOfStorageMetadata{
+				List: &productv1.ListOfStorageMetadata_List{Items: items},
+			}
+		}
+
+		results = append(results, &productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResult{
+			OptionalProcessedMetadataHistory: processedHistory,
+		})
+	}
+
+	return &productv1.RequireStorageOptionalProcessedMetadataHistoryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageOptionalRecommendedItemsById implements [productv1.ProductServiceServer].
+// Returns a nullable list of interfaces (StorageItem) wrapped in a ListOfStorageItem message:
+//   - no tags in the context -> null list
+//   - odd context index      -> empty (but non-null) list
+//   - otherwise              -> one item per tag, alternating between both concrete types
+func (s *MockService) RequireStorageOptionalRecommendedItemsById(_ context.Context, req *productv1.RequireStorageOptionalRecommendedItemsByIdRequest) (*productv1.RequireStorageOptionalRecommendedItemsByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOptionalRecommendedItemsByIdResult, 0, len(req.GetContext()))
+
+	for i, ctx := range req.GetContext() {
+		tags := ctx.GetFields().GetTags()
+
+		var recommendedItems *productv1.ListOfStorageItem
+		switch {
+		case len(tags) == 0:
+			// null list
+		case i%2 == 1:
+			recommendedItems = &productv1.ListOfStorageItem{
+				List: &productv1.ListOfStorageItem_List{},
+			}
+		default:
+			items := make([]*productv1.StorageItem, 0, len(tags))
+			for j, tag := range tags {
+				if j%2 == 0 {
+					items = append(items, newHandledPalletStorageItem(
+						fmt.Sprintf("opt-pallet-%s", tag),
+						fmt.Sprintf("Optional pallet %s", tag),
+						int32(j+1),
+					))
+				} else {
+					items = append(items, newHandledContainerStorageItem(
+						fmt.Sprintf("opt-container-%s", tag),
+						fmt.Sprintf("Optional container %s", tag),
+						strings.ToUpper(tag),
+					))
+				}
+			}
+			recommendedItems = &productv1.ListOfStorageItem{
+				List: &productv1.ListOfStorageItem_List{Items: items},
+			}
+		}
+
+		results = append(results, &productv1.RequireStorageOptionalRecommendedItemsByIdResult{
+			OptionalRecommendedItems: recommendedItems,
+		})
+	}
+
+	return &productv1.RequireStorageOptionalRecommendedItemsByIdResponse{Result: results}, nil
+}
+
+// RequireStorageOptionalOperationHistoryById implements [productv1.ProductServiceServer].
+// Returns a nullable list of unions (StorageOperationResult) wrapped in a
+// ListOfStorageOperationResult message, derived from the required storageKind enum:
+//   - BOOK / ELECTRONICS -> a success followed by a failure
+//   - FURNITURE          -> empty (but non-null) list
+//   - OTHER / unspecified -> null list
+func (s *MockService) RequireStorageOptionalOperationHistoryById(_ context.Context, req *productv1.RequireStorageOptionalOperationHistoryByIdRequest) (*productv1.RequireStorageOptionalOperationHistoryByIdResponse, error) {
+	results := make([]*productv1.RequireStorageOptionalOperationHistoryByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		kind := ctx.GetFields().GetStorageKind()
+
+		var operationHistory *productv1.ListOfStorageOperationResult
+		switch kind {
+		case productv1.CategoryKind_CATEGORY_KIND_BOOK,
+			productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS:
+			operationHistory = &productv1.ListOfStorageOperationResult{
+				List: &productv1.ListOfStorageOperationResult_List{
+					Items: []*productv1.StorageOperationResult{
+						{
+							Value: &productv1.StorageOperationResult_StorageSuccess{
+								StorageSuccess: &productv1.StorageSuccess{
+									Message:     fmt.Sprintf("History entry completed for %s", kind.String()),
+									CompletedAt: "2024-01-03T00:00:00Z",
+								},
+							},
+						},
+						{
+							Value: &productv1.StorageOperationResult_StorageFailure{
+								StorageFailure: &productv1.StorageFailure{
+									Message:   fmt.Sprintf("History entry failed for %s", kind.String()),
+									ErrorCode: "HISTORIC_FAILURE",
+								},
+							},
+						},
+					},
+				},
+			}
+		case productv1.CategoryKind_CATEGORY_KIND_FURNITURE:
+			operationHistory = &productv1.ListOfStorageOperationResult{
+				List: &productv1.ListOfStorageOperationResult_List{},
+			}
+		default:
+			// OTHER and unspecified produce a null list.
+		}
+
+		results = append(results, &productv1.RequireStorageOptionalOperationHistoryByIdResult{
+			OptionalOperationHistory: operationHistory,
+		})
+	}
+
+	return &productv1.RequireStorageOptionalOperationHistoryByIdResponse{Result: results}, nil
+}
+
+// RequireStorageTagsByLengthsById implements [productv1.ProductServiceServer].
+// Both the nullable list field argument and the nullable list return type are carried in
+// ListOfX wrappers:
+//   - the lengths argument is null -> null list
+//   - the lengths argument is empty -> empty (but non-null) list
+//   - otherwise -> the tags whose length matches one of the given lengths
+func (s *MockService) RequireStorageTagsByLengthsById(_ context.Context, req *productv1.RequireStorageTagsByLengthsByIdRequest) (*productv1.RequireStorageTagsByLengthsByIdResponse, error) {
+	lengths := req.GetFieldArgs().GetLengths()
+	results := make([]*productv1.RequireStorageTagsByLengthsByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		tags := ctx.GetFields().GetTags()
+
+		var tagsByLengths *productv1.ListOfString
+		if lengths.GetList() != nil {
+			matched := make([]string, 0, len(tags))
+			for _, tag := range tags {
+				if slices.Contains(lengths.GetList().GetItems(), int32(len(tag))) {
+					matched = append(matched, tag)
+				}
+			}
+			tagsByLengths = &productv1.ListOfString{
+				List: &productv1.ListOfString_List{Items: matched},
+			}
+		}
+
+		results = append(results, &productv1.RequireStorageTagsByLengthsByIdResult{
+			TagsByLengths: tagsByLengths,
+		})
+	}
+
+	return &productv1.RequireStorageTagsByLengthsByIdResponse{Result: results}, nil
 }

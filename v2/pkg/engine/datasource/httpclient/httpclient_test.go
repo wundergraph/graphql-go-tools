@@ -214,3 +214,63 @@ func TestHttpClientDo(t *testing.T) {
 		assert.Contains(t, string(output), `"Authorization":["****"]`)
 	})
 }
+
+func TestAssembleGraphQLRequestInput(t *testing.T) {
+	variables := []byte(`{"representations":[$$0$$]}`)
+	query := []byte(`query{me{id}}`)
+
+	t.Run("with header", func(t *testing.T) {
+		input := AssembleGraphQLRequestInput(variables, query, []byte(`{"Authorization":["secret"]}`), "https://example.com/graphql", "POST")
+		assert.Equal(t, `{"method":"POST","url":"https://example.com/graphql","header":{"Authorization":["secret"]},"body":{"query":"query{me{id}}","variables":{"representations":[$$0$$]}}}`, string(input))
+	})
+
+	t.Run("without header", func(t *testing.T) {
+		input := AssembleGraphQLRequestInput(variables, query, nil, "https://example.com/graphql", "POST")
+		assert.Equal(t, `{"method":"POST","url":"https://example.com/graphql","body":{"query":"query{me{id}}","variables":{"representations":[$$0$$]}}}`, string(input))
+	})
+
+	t.Run("null header omitted like without header", func(t *testing.T) {
+		input := AssembleGraphQLRequestInput(variables, query, []byte("null"), "https://example.com/graphql", "POST")
+		assert.Equal(t, `{"method":"POST","url":"https://example.com/graphql","body":{"query":"query{me{id}}","variables":{"representations":[$$0$$]}}}`, string(input))
+	})
+}
+
+func TestAssembleGraphQLRequestInputSplitVariables(t *testing.T) {
+	query := []byte(`query{me{id}}`)
+
+	t.Run("with header", func(t *testing.T) {
+		prefix, suffix, err := AssembleGraphQLRequestInputSplitVariables(query, []byte(`{"Authorization":["secret"]}`), "https://example.com/graphql", "POST")
+		assert.NoError(t, err)
+		assert.Equal(t, `{"method":"POST","url":"https://example.com/graphql","header":{"Authorization":["secret"]},"body":{"query":"query{me{id}}","variables":{`, prefix)
+		assert.Equal(t, `}}}`, suffix)
+	})
+
+	t.Run("without header", func(t *testing.T) {
+		prefix, suffix, err := AssembleGraphQLRequestInputSplitVariables(query, nil, "https://example.com/graphql", "POST")
+		assert.NoError(t, err)
+		assert.Equal(t, `{"method":"POST","url":"https://example.com/graphql","body":{"query":"query{me{id}}","variables":{`, prefix)
+		assert.Equal(t, `}}}`, suffix)
+	})
+
+	// A header whose raw JSON contains the literal text `"variables":{}` would
+	// defeat a first-occurrence marker search: sjson prepends, so the header sits
+	// BEFORE the body slot in the assembled document. The tail-based split lands
+	// on the body slot regardless.
+	t.Run("header value containing the variables marker", func(t *testing.T) {
+		header := []byte(`{"X-Decoy":{"variables":{}}}`)
+		prefix, suffix, err := AssembleGraphQLRequestInputSplitVariables(query, header, "https://example.com/graphql", "POST")
+		assert.NoError(t, err)
+		assert.Equal(t, `{"method":"POST","url":"https://example.com/graphql","header":{"X-Decoy":{"variables":{}}},"body":{"query":"query{me{id}}","variables":{`, prefix)
+		assert.Equal(t, `}}}`, suffix)
+	})
+
+	// Reassembling prefix + rendered variables + suffix must be byte-identical to
+	// a plain AssembleGraphQLRequestInput call with the same variables.
+	t.Run("prefix and suffix reassemble to the unsplit envelope", func(t *testing.T) {
+		header := []byte(`{"Authorization":["secret"]}`)
+		prefix, suffix, err := AssembleGraphQLRequestInputSplitVariables(query, header, "https://example.com/graphql", "POST")
+		assert.NoError(t, err)
+		unsplit := AssembleGraphQLRequestInput([]byte(`{"representations":[$$0$$]}`), query, header, "https://example.com/graphql", "POST")
+		assert.Equal(t, string(unsplit), prefix+`"representations":[$$0$$]`+suffix)
+	})
+}

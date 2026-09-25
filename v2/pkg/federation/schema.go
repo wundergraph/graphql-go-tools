@@ -2,6 +2,7 @@ package federation
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -48,7 +49,7 @@ func (s *schemaBuilder) extendQueryTypeWithFederationFields(schema string, hasEn
 		return schema
 	}
 
-	if err := asttransform.MergeDefinitionWithBaseSchema(doc); err != nil {
+	if err := asttransform.MergeDefinitionWithBaseSchemaWithInternal(doc, false); err != nil {
 		return schema
 	}
 
@@ -142,10 +143,8 @@ type schemaBuilderVisitor struct {
 }
 
 func (s *schemaBuilderVisitor) addEntity(entity string) {
-	for i := range s.entityUnionTypes {
-		if s.entityUnionTypes[i] == entity {
-			return
-		}
+	if slices.Contains(s.entityUnionTypes, entity) {
+		return
 	}
 	s.entityUnionTypes = append(s.entityUnionTypes, entity)
 }

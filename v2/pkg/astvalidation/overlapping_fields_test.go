@@ -60,7 +60,6 @@ func TestOverlappingFieldsCanBeMerged(t *testing.T) {
 func BenchmarkOverlappingFieldsCanBeMerged(b *testing.B) {
 	multipliers := []int{1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 200}
 	for _, multiplier := range multipliers {
-		multiplier := multiplier
 		b.Run("valid"+strconv.Itoa(multiplier), func(b *testing.B) {
 			definitionBytes := RenderTemplate(multiplier, OverlappingFieldsDefinition)
 			operationBytes := RenderTemplate(multiplier, OverlappingFieldsOperationValid)
@@ -119,7 +118,7 @@ func BenchmarkOverlappingFieldsCanBeMerged(b *testing.B) {
 func RenderTemplate(multiplier int, tmpl string) []byte {
 	t := template.Must(template.New("tmpl").Parse(tmpl))
 	data := make([]int, 0, multiplier)
-	for i := 0; i < multiplier; i++ {
+	for i := range multiplier {
 		data = append(data, i+1)
 	}
 	buff := bytes.Buffer{}

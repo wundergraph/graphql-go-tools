@@ -331,7 +331,7 @@ func TestGetTaintedIndices(t *testing.T) {
 			errors, err := astjson.ParseBytes([]byte(tt.errorsJSON))
 			assert.NoError(t, err, "Failed to parse errors JSON")
 
-			indices := getTaintedIndices(mockFetch, response, errors)
+			indices := getTaintedIndices(mockFetch.FetchInfo(), "_entities", response, errors)
 			assert.ElementsMatch(t, tt.expectedIndices, indices)
 		})
 	}

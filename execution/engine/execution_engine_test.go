@@ -63,7 +63,6 @@ func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[grap
 
 func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return func(t *testing.T) {
-		t.Parallel()
 		t.Helper()
 
 		if testCase.skipReason != "" {
@@ -95,6 +94,7 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
 		engineConf.plannerConfig.ComputeCosts = opts.computeCosts
 		engineConf.plannerConfig.StaticCostDefaultListSize = 10
+		engineConf.plannerConfig.IgnoreImplementingTypeWeights = opts.ignoreImplementingTypeWeights
 		engineConf.plannerConfig.RelaxSubgraphOperationFieldSelectionMergingNullability = opts.relaxFieldSelectionMergingNullability
 		resolveOpts := resolve.ResolverOptions{
 			MaxConcurrency:    1024,
@@ -103,12 +103,30 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			PropagateFetchReasons:                        opts.propagateFetchReasons,
 			ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
 		}
+		resolveOpts.ResolvableOptions.EnableCostControl = opts.computeCosts
 		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolveOpts)
 		require.NoError(t, err)
 
 		operation := testCase.operation(t)
 		resultWriter := graphql.NewEngineResultWriter()
+
+		// One sequencer per execution, injected via context, so the round tripper
+		// (shared across parallel subtests) deterministically orders this
+		// execution's concurrent fetches without colliding with sibling subtests.
+		seq := newFetchSequencer(testCase.fetchGates)
+
+		streamingBuf := bytes.NewBuffer(nil)
+		if opts.streamingResponse {
+			resultWriter.SetFlushCallback(func(data []byte) {
+				streamingBuf.Write(data)
+				streamingBuf.Write([]byte{'\n'})
+				// Each flush is one streamed frame; release any fetch gated behind it.
+				seq.advance()
+			})
+		}
+
 		execCtx, execCtxCancel := context.WithCancel(context.Background())
+		execCtx = context.WithValue(execCtx, fetchSequencerCtxKey, seq)
 		defer execCtxCancel()
 		err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
 		actualResponse := resultWriter.String()
@@ -138,8 +156,19 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			assert.Equal(t, compactJSONForAssert(t, testCase.expectedJSONResponse), compactJSONForAssert(t, actualResponse))
 		}
 
-		if testCase.expectedResponse != "" {
-			assert.Equal(t, testCase.expectedResponse, actualResponse)
+		if opts.streamingResponse {
+			streamingResponse := streamingBuf.String()
+			if testCase.expectedResponse != "" {
+				assert.Equal(t, testCase.expectedResponse, streamingResponse)
+			}
+
+			if len(testCase.expectedResponses) > 0 {
+				assert.Contains(t, testCase.expectedResponses, streamingResponse)
+			}
+		} else {
+			if testCase.expectedResponse != "" {
+				assert.Equal(t, testCase.expectedResponse, actualResponse)
+			}
 		}
 
 		if testCase.expectedEstimatedCost != nil {
@@ -153,8 +182,6 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		}
 	}
 }
-
-func intPtr(v int) *int { return &v }
 
 func runWithAndCompareError(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return runExecutionTest(testCase, true, expectedErrorMessage, options...)
@@ -333,7 +360,15 @@ type ExecutionEngineTestCase struct {
 	skipReason       string
 	indentJSON       bool
 
+	// fetchGates deterministically orders concurrent subgraph fetches for
+	// order-dependent (streaming) defer tests. It maps an exact subgraph
+	// request body to the number of streamed frames that must be flushed before
+	// that fetch is allowed to return (see fetchSequencer). Replaces brittle
+	// per-response latencies.
+	fetchGates map[string]int
+
 	expectedResponse      string
+	expectedResponses     []string
 	expectedJSONResponse  string
 	expectedFixture       string
 	expectedEstimatedCost *int
@@ -347,7 +382,9 @@ type _executionTestOptions struct {
 	propagateFetchReasons                        bool
 	validateRequiredExternalFields               bool
 	computeCosts                                 bool
+	ignoreImplementingTypeWeights                bool
 	relaxFieldSelectionMergingNullability        bool
+	streamingResponse                            bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -378,9 +415,21 @@ func computeCosts() executionTestOptions {
 	}
 }
 
+func costsIgnoreImplementingTypeWeights() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.ignoreImplementingTypeWeights = true
+	}
+}
+
 func relaxFieldSelectionMergingNullability() executionTestOptions {
 	return func(options *_executionTestOptions) {
 		options.relaxFieldSelectionMergingNullability = true
+	}
+}
+
+func withStreamingResponse() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.streamingResponse = true
 	}
 }
 
@@ -753,7 +802,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     "",
-								sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+								sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 								sendStatusCode:   200,
 							}),
 						),
@@ -858,7 +907,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -905,8 +954,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							expectedBody:     `{"query":"{hero {__typename name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -964,8 +1013,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Droid","field":"name","by_user":true}]}}`,
-							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							expectedBody:     `{"query":"{hero {__typename name}}","extensions":{"fetch_reasons":[{"typename":"Droid","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Droid","name":"Droid Number 6"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1024,8 +1073,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
-							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							expectedBody:     `{"query":"{hero {__typename name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Droid","name":"Droid Number 6"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1228,7 +1277,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}, "errors": []}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}, "errors": []}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1280,7 +1329,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename":"Human","name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -1656,7 +1705,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						expectedHost:     "example.com",
 						expectedPath:     "/",
 						expectedBody:     "",
-						sendResponseBody: `{"data":{"__internal__typename_placeholder":"Query"}}`,
+						sendResponseBody: `doesn't matter, no fetch will be done, as query typename resolved by engine`,
 						sendStatusCode:   200,
 					}),
 				),
@@ -1692,6 +1741,82 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		},
 		expectedResponse: `{"data":{}}`,
+	}))
+
+	t.Run("execute operation with all nested fields skipped", runWithoutError(ExecutionEngineTestCase{
+		schema: func(t *testing.T) *graphql.Schema {
+			t.Helper()
+			schema := `
+			type Query {
+				hero(name: String!): Hero!
+			}
+
+			type Hero {
+				name: String!
+			}
+			`
+			parseSchema, err := graphql.NewSchemaFromString(schema)
+			require.NoError(t, err)
+			return parseSchema
+		}(t),
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "MyHero",
+				Variables:     []byte(`{"heroName": "Luke"}`),
+				Query: `query MyHero($heroName: String!){
+						hero(name: $heroName) {
+							name @skip(if: true)
+						}
+					}`,
+			}
+		},
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     "",
+						sendResponseBody: `{"data":{"hero":{"__typename":"Hero"}}}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+					ChildNodes: []plan.TypeField{
+						{TypeName: "Hero", FieldNames: []string{"name"}},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						`type Query { hero(name: String!): Hero! } type Hero { name: String! }`,
+					),
+				}),
+			),
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Path:      []string{"hero"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{"hero":{}}}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineTestCase{
@@ -2177,7 +2302,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{codeType {code __typename ... on Country {name}}}"}`,
+							expectedBody:     `{"query":"{codeType {__typename code ... on Country {name}}}"}`,
 							sendResponseBody: `{"data":{"codeType":{"__typename":"Country","code":"de","name":"Germany"}}}`,
 							sendStatusCode:   200,
 						}),
@@ -2308,7 +2433,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data":{"searchResults":[{"name":"Luke Skywalker"},{"length":13.37}]}}`,
+							sendResponseBody: `{"data":{"searchResults":[{"__typename":"Human","name":"Luke Skywalker"},{"__typename":"Starship","length":13.37}]}}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -2356,7 +2481,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				),
 			},
 			fields:           []plan.FieldConfiguration{},
-			expectedResponse: `{"data":{"searchResults":[{},{}]}}`,
+			expectedResponse: `{"data":{"searchResults":[{"name":"Luke Skywalker"},{"length":13.37}]}}`,
 		},
 	))
 
@@ -4948,22 +5073,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 				dataSources:      makeDataSource(t, makeDataSourceOpts{includeCostConfig: true}),
 				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
-				// Cost breakdown with federation:
-				// Query.accounts: fieldCost=5, multiplier=3 (listSize)
-				//   accounts returns interface [Node!]! with implementing types [User, Admin]
-				//
-				// Children (per interface member type):
-				//   User.some: User: fieldCost=3 (DS1:2 + DS2:1 summed)
-				//     User.title: 4 (DS2, resolved via _entities federation)
-				//   cost = 3 + 4 = 7
-				//
-				//   Admin.some: User: fieldCost=3 (DS1 only)
-				//   cost = 3
-				//
-				// Children total = 7 + 3 = 10
-				// (is it possible to improve accuracy here by using the largest fragment instead of the sum?)
-				// Total = (5 + 10) * 3 = 45
-				expectedEstimatedCost: intPtr(45),
+				// 3 * (5 + max(7, 3))
+				expectedEstimatedCost: new(36),
+				// total __ 2 Users ________ 1 Admin
+				// 3 * (5 + 0.67*(3 + 4*1) + 0.33*3)
+				// 3 * (5 + 4.69 + 1)
+				expectedActualCost: new(32),
 			},
 			computeCosts(),
 		))
@@ -5750,10 +5865,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					mustGraphqlDataSourceConfiguration(t, "ds-id",
 						mustFactory(t,
 							testNetHttpClient(t, roundTripperTestCase{
-								expectedHost:     "example.com",
-								expectedPath:     "/",
-								expectedBody:     "",
-								sendResponseBody: `{"data":{"entity":{"__typename":"User","email":"user@test.com"}}}`,
+								expectedHost: "example.com",
+								expectedPath: "/",
+								expectedBody: "",
+								// The engine disambiguates the conflicting `email` selection per member,
+								// so a real subgraph returns it under the generated alias.
+								sendResponseBody: `{"data":{"entity":{"__typename":"User","__internal_merge_User_email":"user@test.com"}}}`,
 								sendStatusCode:   200,
 							}),
 						),
@@ -5785,7 +5902,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								expectedHost:     "example.com",
 								expectedPath:     "/",
 								expectedBody:     "",
-								sendResponseBody: `{"data":{"entity":{"__typename":"Organization","email":null}}}`,
+								sendResponseBody: `{"data":{"entity":{"__typename":"Organization","__internal_merge_Organization_email":null}}}`,
 								sendStatusCode:   200,
 							}),
 						),
@@ -5832,19 +5949,25 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 	schema, err := graphql.NewSchemaFromString(testSubscriptionDefinition)
 	require.NoError(t, err)
 
-	gqlRequest := graphql.Request{
-		OperationName: "LastRegisteredUser",
-		Variables:     nil,
-		Query:         testSubscriptionLastRegisteredUserOperation,
+	newGraphqlRequest := func(t *testing.T) graphql.Request {
+		t.Helper()
+
+		gqlReq := graphql.Request{
+			OperationName: "LastRegisteredUser",
+			Variables:     nil,
+			Query:         testSubscriptionLastRegisteredUserOperation,
+		}
+
+		validationResult, err := gqlReq.ValidateForSchema(schema)
+		require.NoError(t, err)
+		require.True(t, validationResult.Valid)
+
+		normalizationResult, err := gqlReq.Normalize(schema)
+		require.NoError(t, err)
+		require.True(t, normalizationResult.Successful)
+
+		return gqlReq
 	}
-
-	validationResult, err := gqlRequest.ValidateForSchema(schema)
-	require.NoError(t, err)
-	require.True(t, validationResult.Valid)
-
-	normalizationResult, err := gqlRequest.Normalize(schema)
-	require.NoError(t, err)
-	require.True(t, normalizationResult.Successful)
 
 	differentGqlRequest := graphql.Request{
 		OperationName: "LiveUserCount",
@@ -5852,11 +5975,11 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		Query:         testSubscriptionLiveUserCountOperation,
 	}
 
-	validationResult, err = differentGqlRequest.ValidateForSchema(schema)
+	validationResult, err := differentGqlRequest.ValidateForSchema(schema)
 	require.NoError(t, err)
 	require.True(t, validationResult.Valid)
 
-	normalizationResult, err = differentGqlRequest.Normalize(schema)
+	normalizationResult, err := differentGqlRequest.Normalize(schema)
 	require.NoError(t, err)
 	require.True(t, normalizationResult.Successful)
 
@@ -5914,6 +6037,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
 
+		gqlRequest := newGraphqlRequest(t)
 		report := operationreport.Report{}
 		cachedPlan, _ := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
@@ -5944,6 +6068,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
 
+		gqlRequest := newGraphqlRequest(t)
 		report := operationreport.Report{}
 		cachedPlan, _ := engine.getCachedPlan(firstInternalExecCtx, gqlRequest.Document(), schema.Document(), gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
@@ -6478,7 +6603,6 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 	return
 }
 
-// nolint
 func federationSchema() (*graphql.Schema, error) {
 	rawSchema := `
 type Query {

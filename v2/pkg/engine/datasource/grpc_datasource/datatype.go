@@ -4,7 +4,7 @@ import protoref "google.golang.org/protobuf/reflect/protoreflect"
 
 // DataType represents the different types of data that can be stored in a protobuf field.
 //
-//go:generate stringer -type=DataType -trimprefix=DataType -output=datatype_string.go
+//go:generate go tool stringer -type=DataType -trimprefix=DataType -output=datatype_string.go
 type DataType int8
 
 // Protobuf data types supported by the compiler.

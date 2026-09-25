@@ -4,6 +4,7 @@ package operationreport
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type Report struct {
@@ -15,24 +16,25 @@ func NewReport() *Report {
 	return &Report{}
 }
 
-func (r Report) Error() string {
-	out := ""
+func (r *Report) Error() string {
+	var out strings.Builder
 	for i := range r.InternalErrors {
 		if i != 0 {
-			out += "\n"
+			out.WriteString("\n")
 		}
-		out += fmt.Sprintf("internal: %s", r.InternalErrors[i].Error())
+		out.WriteString("internal: ")
+		out.WriteString(r.InternalErrors[i].Error())
 	}
-	if len(out) > 0 && len(r.ExternalErrors) > 0 {
-		out += "\n"
+	if out.Len() > 0 && len(r.ExternalErrors) > 0 {
+		out.WriteString("\n")
 	}
 	for i := range r.ExternalErrors {
 		if i != 0 {
-			out += "\n"
+			out.WriteString("\n")
 		}
-		out += fmt.Sprintf("external: %s, locations: %+v, path: %v", r.ExternalErrors[i].Message, r.ExternalErrors[i].Locations, r.ExternalErrors[i].Path)
+		_, _ = fmt.Fprintf(&out, "external: %s, locations: %+v, path: %v", r.ExternalErrors[i].Message, r.ExternalErrors[i].Locations, r.ExternalErrors[i].Path)
 	}
-	return out
+	return out.String()
 }
 
 func (r *Report) HasErrors() bool {
@@ -55,9 +57,8 @@ func (r *Report) AddExternalError(gqlError ExternalError) {
 type FormatExternalErrorMessage func(report *Report) string
 
 func ExternalErrorMessage(err error, formatFunction FormatExternalErrorMessage) (message string, ok bool) {
-	var report Report
-	if errors.As(err, &report) {
-		msg := formatFunction(&report)
+	if report, ok := errors.AsType[*Report](err); ok {
+		msg := formatFunction(report)
 		return msg, true
 	}
 	return "", false

@@ -3,7 +3,6 @@ package graphqljsonschema
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/buger/jsonparser"
 	"github.com/santhosh-tekuri/jsonschema/v5"
@@ -54,7 +53,7 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int, opts ...Optio
 func resolveJsonSchemaPath(jsonSchema JsonSchema, path []string) JsonSchema {
 	switch typedJsonSchema := jsonSchema.(type) {
 	case Object:
-		for i := 0; i < len(path); i++ {
+		for i := range path {
 			propertyJsonSchema, exists := typedJsonSchema.Properties[path[i]]
 			if !exists {
 				return jsonSchema
@@ -102,7 +101,7 @@ func (r *fromTypeRefResolver) fromTypeRef(operation, definition *ast.Document, t
 		name := operation.Input.ByteSliceString(t.Name)
 		storeAsName := name
 		if nonNull {
-			storeAsName = fmt.Sprintf("%sNotNull", name)
+			storeAsName = name + "NotNull"
 		}
 
 		if schema, ok := r.overrides[name]; ok {
@@ -231,7 +230,7 @@ func MustNewValidatorFromString(schema string) *Validator {
 }
 
 func (v *Validator) Validate(ctx context.Context, inputJSON []byte) error {
-	var value interface{}
+	var value any
 	if err := json.Unmarshal(inputJSON, &value); err != nil {
 		return err
 	}
@@ -383,7 +382,7 @@ func (Ref) Kind() Kind {
 
 func NewRef(definitionName string) Ref {
 	return Ref{
-		Ref: fmt.Sprintf("#/$defs/%s", definitionName),
+		Ref: "#/$defs/" + definitionName,
 	}
 }
 

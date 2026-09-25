@@ -18,6 +18,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 				  currentPeriod
 				}`,
 			OperationStats{
+				FieldCount: 1,
 				NodeCount:  0,
 				Complexity: 0,
 				Depth:      0,
@@ -27,6 +28,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "currentPeriod",
 					Stats: OperationStats{
+						FieldCount: 1,
 						NodeCount:  0,
 						Complexity: 0,
 						Depth:      0,
@@ -50,6 +52,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 				  }
 				}`,
 			OperationStats{
+				FieldCount: 8,
 				NodeCount:  2,
 				Complexity: 2,
 				Depth:      3,
@@ -59,6 +62,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
+						FieldCount: 8,
 						NodeCount:  2,
 						Complexity: 2,
 						Depth:      2,
@@ -77,6 +81,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 				  }
 				}`,
 			OperationStats{
+				FieldCount: 0,
 				NodeCount:  0,
 				Complexity: 0,
 				Depth:      0,
@@ -100,6 +105,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 				  }
 				}`,
 			OperationStats{
+				FieldCount: 7,
 				NodeCount:  2,
 				Complexity: 2,
 				Depth:      3,
@@ -109,6 +115,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
+						FieldCount: 7,
 						NodeCount:  2,
 						Complexity: 2,
 						Depth:      2,
@@ -135,6 +142,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
                 }
 				`,
 			OperationStats{
+				FieldCount: 7,
 				NodeCount:  2,
 				Complexity: 2,
 				Depth:      3,
@@ -144,6 +152,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
+						FieldCount: 7,
 						NodeCount:  2,
 						Complexity: 2,
 						Depth:      2,
@@ -166,6 +175,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 				  }
 				}`,
 			OperationStats{
+				FieldCount: 7,
 				NodeCount:  20,
 				Complexity: 11,
 				Depth:      3,
@@ -175,6 +185,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
+						FieldCount: 7,
 						NodeCount:  20,
 						Complexity: 11,
 						Depth:      2,
@@ -201,6 +212,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 				  }
 				}`,
 			OperationStats{
+				FieldCount: 10,
 				NodeCount:  70,
 				Complexity: 21,
 				Depth:      3,
@@ -210,6 +222,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
+						FieldCount: 10,
 						NodeCount:  70,
 						Complexity: 21,
 						Depth:      2,
@@ -250,6 +263,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 				  }
 				}`,
 			OperationStats{
+				FieldCount: 20,
 				NodeCount:  920,
 				Complexity: 221,
 				Depth:      5,
@@ -259,6 +273,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
+						FieldCount: 20,
 						NodeCount:  920,
 						Complexity: 221,
 						Depth:      4,
@@ -297,6 +312,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 				  }
 				}`,
 			OperationStats{
+				FieldCount: 19,
 				NodeCount:  73,
 				Complexity: 24,
 				Depth:      3,
@@ -307,6 +323,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					FieldName: "user",
 					Alias:     "person",
 					Stats: OperationStats{
+						FieldCount: 2,
 						NodeCount:  1,
 						Complexity: 1,
 						Depth:      1,
@@ -316,6 +333,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
+						FieldCount: 7,
 						NodeCount:  2,
 						Complexity: 2,
 						Depth:      2,
@@ -326,6 +344,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					FieldName: "users",
 					Alias:     "bestUsers",
 					Stats: OperationStats{
+						FieldCount: 10,
 						NodeCount:  70,
 						Complexity: 21,
 						Depth:      2,
@@ -354,6 +373,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					}
 				}`,
 			OperationStats{
+				FieldCount: 10,
 				NodeCount:  5,
 				Complexity: 5,
 				Depth:      4,
@@ -363,6 +383,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "transactions",
 					Stats: OperationStats{
+						FieldCount: 6,
 						NodeCount:  3,
 						Complexity: 3,
 						Depth:      3,
@@ -372,6 +393,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
+						FieldCount: 4,
 						NodeCount:  2,
 						Complexity: 2,
 						Depth:      2,
@@ -400,6 +422,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					}
 				}`,
 			OperationStats{
+				FieldCount: 10,
 				NodeCount:  5,
 				Complexity: 5,
 				Depth:      4,
@@ -409,6 +432,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "users",
 					Stats: OperationStats{
+						FieldCount: 4,
 						NodeCount:  2,
 						Complexity: 2,
 						Depth:      2,
@@ -418,6 +442,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "transactions",
 					Stats: OperationStats{
+						FieldCount: 6,
 						NodeCount:  3,
 						Complexity: 3,
 						Depth:      3,
@@ -437,6 +462,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 				  }
 				}`,
 			OperationStats{
+				FieldCount: 4,
 				NodeCount:  2,
 				Complexity: 2,
 				Depth:      2,
@@ -447,6 +473,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					FieldName: "createUser",
 					Alias:     "createJohn",
 					Stats: OperationStats{
+						FieldCount: 2,
 						NodeCount:  1,
 						Complexity: 1,
 						Depth:      1,
@@ -457,6 +484,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					FieldName: "createUser",
 					Alias:     "createJane",
 					Stats: OperationStats{
+						FieldCount: 2,
 						NodeCount:  1,
 						Complexity: 1,
 						Depth:      1,
@@ -468,6 +496,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 	t.Run("introspection query", func(t *testing.T) {
 		run(t, testDefinition, introspectionQuery,
 			OperationStats{
+				FieldCount: 181,
 				NodeCount:  59,
 				Complexity: 59,
 				Depth:      13,
@@ -477,6 +506,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					TypeName:  "Query",
 					FieldName: "__schema",
 					Stats: OperationStats{
+						FieldCount: 181,
 						NodeCount:  59,
 						Complexity: 59,
 						Depth:      12,
@@ -488,6 +518,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 	t.Run("introspection query with skip", func(t *testing.T) {
 		runSkipIntrospection(t, testDefinition, introspectionQuery,
 			OperationStats{
+				FieldCount: 0,
 				NodeCount:  0,
 				Complexity: 0,
 				Depth:      0,
@@ -495,6 +526,162 @@ func TestCalculateOperationComplexity(t *testing.T) {
 			[]RootFieldStats{},
 		)
 	})
+}
+
+func TestCalculateOperationComplexityDepth(t *testing.T) {
+	t.Run("deep path", func(t *testing.T) {
+		runDepthTest(t, `{
+			root {
+				... on Concrete {
+					next {
+						... on Concrete {
+							next { leaf }
+						}
+					}
+				}
+			}
+		}`, OperationStats{FieldCount: 4, NodeCount: 3, Complexity: 3, Depth: 4})
+	})
+
+	t.Run("two shallower siblings", func(t *testing.T) {
+		runDepthTest(t, `{
+			root {
+				... on Concrete {
+					branchA { next { leaf } }
+					branchB { leaf }
+					next { next { next { leaf } } }
+				}
+			}
+		}`, OperationStats{FieldCount: 10, NodeCount: 7, Complexity: 7, Depth: 5})
+	})
+
+	t.Run("one shallower sibling", func(t *testing.T) {
+		runDepthTest(t, `{
+			root {
+				... on Concrete {
+					branchB { leaf }
+					next { next { next { leaf } } }
+				}
+			}
+		}`, OperationStats{FieldCount: 7, NodeCount: 5, Complexity: 5, Depth: 5})
+	})
+
+	t.Run("complex input literal on root field", func(t *testing.T) {
+		runDepthTest(t,
+			`{ root(input: {key: "value"}) { next { leaf } } }`,
+			OperationStats{FieldCount: 3, NodeCount: 2, Complexity: 2, Depth: 3},
+		)
+	})
+
+	t.Run("complex input literal on nested field", func(t *testing.T) {
+		runDepthTest(t,
+			`{ root { next(input: {key: "value"}) { next { leaf } } } }`,
+			OperationStats{FieldCount: 4, NodeCount: 3, Complexity: 3, Depth: 4},
+		)
+	})
+
+	t.Run("complex input literal on leaf field", func(t *testing.T) {
+		runDepthTest(t,
+			`{ root { next { leaf(input: {key: "value"}) } } }`,
+			OperationStats{FieldCount: 3, NodeCount: 2, Complexity: 2, Depth: 3},
+		)
+	})
+
+	t.Run("complex input literal on field inside inline fragment", func(t *testing.T) {
+		runDepthTest(t, `{
+			root {
+				... on Concrete {
+					next(input: {key: "value"}) { next { leaf } }
+				}
+			}
+		}`, OperationStats{FieldCount: 4, NodeCount: 3, Complexity: 3, Depth: 4})
+	})
+}
+
+func TestCalculateOperationComplexityDepthWithRootMultiplier(t *testing.T) {
+	t.Parallel()
+
+	runDepthTest(t, `{
+		root(first: 2) {
+			... on Concrete {
+				next { leaf }
+			}
+		}
+	}`, OperationStats{FieldCount: 3, NodeCount: 4, Complexity: 3, Depth: 3})
+}
+
+func TestCalculateOperationComplexityDepthWithStackedMultipliers(t *testing.T) {
+	t.Parallel()
+
+	runDepthTest(t, `{
+		root(first: 2) {
+			... on Concrete {
+				next(input: {key: "value"}, first: 3) { next { leaf } }
+			}
+		}
+	}`, OperationStats{FieldCount: 4, NodeCount: 14, Complexity: 9, Depth: 4})
+}
+
+func runDepthTest(t *testing.T, operationString string, expectedStats OperationStats) {
+	t.Helper()
+
+	definition := unsafeparser.ParseGraphqlDocumentString(depthRegressionDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(operationString)
+	report := operationreport.Report{}
+
+	astnormalization.NormalizeOperation(&operation, &definition, &report)
+	stats, rootFieldStats := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+
+	require.False(t, report.HasErrors(), report.Error())
+	assert.Equal(t, expectedStats, stats)
+	require.Len(t, rootFieldStats, 1)
+	expectedStats.Depth--
+	assert.Equal(t, expectedStats, rootFieldStats[0].Stats)
+}
+
+func TestOperationComplexityEstimatorReuseAfterAbortedWalk(t *testing.T) {
+	t.Parallel()
+
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	estimator := NewOperationComplexityEstimator(false)
+
+	invalidOperation := unsafeparser.ParseGraphqlDocumentString(`
+		{
+			users(first: 1) {
+				transactions(first: 1) {
+					sender {
+						address {
+							... on UnknownType {
+								city
+							}
+						}
+					}
+				}
+			}
+		}`)
+	invalidReport := operationreport.Report{}
+	estimator.Do(&invalidOperation, &definition, &invalidReport)
+	require.True(t, invalidReport.HasErrors())
+
+	operation := unsafeparser.ParseGraphqlDocumentString(`
+		{
+			users(first: 1) {
+				id
+				address {
+					city
+				}
+			}
+		}`)
+	wantReport := operationreport.Report{}
+	wantGlobal, wantRootFields := NewOperationComplexityEstimator(false).Do(&operation, &definition, &wantReport)
+	require.False(t, wantReport.HasErrors())
+
+	gotReport := operationreport.Report{}
+	gotGlobal, gotRootFields := estimator.Do(&operation, &definition, &gotReport)
+	require.False(t, gotReport.HasErrors())
+
+	assert.Equal(t, wantGlobal, gotGlobal)
+	assert.Equal(t, wantRootFields, gotRootFields)
 }
 
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
@@ -508,6 +695,7 @@ func runConfig(t *testing.T, definition, operation string, expectedGlobalComplex
 	actualGlobalComplexityResult, actualFieldsComplexityResult := estimator.Do(&op, &def, &report)
 	require.False(t, report.HasErrors())
 
+	assert.Equal(t, expectedGlobalComplexityResult.FieldCount, actualGlobalComplexityResult.FieldCount, "unexpected global field count")
 	assert.Equal(t, expectedGlobalComplexityResult.NodeCount, actualGlobalComplexityResult.NodeCount, "unexpected global node count")
 	assert.Equal(t, expectedGlobalComplexityResult.Complexity, actualGlobalComplexityResult.Complexity, "unexpected global complexity")
 	assert.Equal(t, expectedGlobalComplexityResult.Depth, actualGlobalComplexityResult.Depth, "unexpected global depth")
@@ -581,6 +769,33 @@ const complexQuery = `
 	}
   }
 }`
+
+const depthRegressionDefinition = `
+directive @nodeCountMultiply on ARGUMENT_DEFINITION
+
+scalar String
+
+schema { query: Query }
+
+input RootInput { key: String }
+type Query {
+  root(input: RootInput, first: Int @nodeCountMultiply): Node
+}
+
+interface Node {
+  next(input: RootInput, first: Int @nodeCountMultiply): Node
+  leaf(input: RootInput): String
+  branchA: Node
+  branchB: Node
+}
+
+type Concrete implements Node {
+  next(input: RootInput, first: Int @nodeCountMultiply): Node
+  leaf(input: RootInput): String
+  branchA: Node
+  branchB: Node
+}
+`
 
 const testDefinition = `
 

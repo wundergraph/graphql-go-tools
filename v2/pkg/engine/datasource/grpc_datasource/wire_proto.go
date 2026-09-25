@@ -259,6 +259,10 @@ func (f *wireField) appendProtoListWrapper(msg protoref.Message, fd protoref.Fie
 	if f.fieldMessage == nil {
 		return fmt.Errorf("runtime message not found for list wrapper field %s", f.jsonPath)
 	}
+	// A null list is not an empty list. Do not set the wrapper for a null optional list.
+	if isNullJSONValue(data) && f.listMetadata.LevelInfo[0].Optional {
+		return nil
+	}
 	wrapper := msg.Mutable(fd).Message()
 	return f.traverseProtoList(wrapper, f.fieldMessage, 0, data)
 }
@@ -329,6 +333,9 @@ func (f *wireField) traverseProtoList(rootMsg protoref.Message, wrapperRT *runti
 		return fmt.Errorf("nested list wrapper missing message for field %s", f.jsonPath)
 	}
 	for _, element := range elements {
+		if isNullJSONValue(element) && f.listMetadata.LevelInfo[level+1].Optional {
+			continue
+		}
 		elem := itemsList.NewElement()
 		if err := f.traverseProtoList(elem.Message(), nextWrapperRT, level+1, element); err != nil {
 			return err

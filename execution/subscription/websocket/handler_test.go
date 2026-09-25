@@ -36,8 +36,7 @@ func TestHandleWithOptions(t *testing.T) {
 		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL, nil)
 		serverConn, _ := net.Pipe()
@@ -112,8 +111,7 @@ func TestHandleWithOptions(t *testing.T) {
 		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL, nil)
 		serverConn, _ := net.Pipe()
@@ -188,8 +186,7 @@ func TestHandleWithOptions(t *testing.T) {
 		chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 		defer chatServer.Close()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		executorPoolV2 := setupExecutorPoolV2(t, ctx, chatServer.URL, &FailingOnBeforeStartHook{})
 		serverConn, _ := net.Pipe()

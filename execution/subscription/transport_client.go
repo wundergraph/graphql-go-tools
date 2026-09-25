@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-//go:generate mockgen -destination=transport_client_mock_test.go -package=subscription . TransportClient
+//go:generate go tool mockgen -destination=transport_client_mock_test.go -package=subscription . TransportClient
 
 // ErrTransportClientClosedConnection is an error to indicate that the transport client is using closed connection.
 var ErrTransportClientClosedConnection = errors.New("transport client has a closed connection")
@@ -23,5 +23,5 @@ type TransportClient interface {
 	// Disconnect will close the connection between server and client.
 	Disconnect() error
 	// DisconnectWithReason will close the connection but is also able to process a reason for closure.
-	DisconnectWithReason(reason interface{}) error
+	DisconnectWithReason(reason any) error
 }

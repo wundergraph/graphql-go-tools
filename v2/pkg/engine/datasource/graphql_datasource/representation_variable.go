@@ -308,7 +308,7 @@ func (v *representationVariableVisitor) resolveFieldValue(fieldRef, typeRef int,
 				Path:     path,
 				Fields:   []*resolve.Field{},
 			}
-			v.Walker.DefferOnEnterField(func() {
+			v.Walker.RunAfterEnterField(func() {
 				v.currentFields = append(v.currentFields, objectFields{
 					popOnField: fieldRef,
 					fields:     &object.Fields,

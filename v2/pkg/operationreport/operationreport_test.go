@@ -61,4 +61,4 @@ var testReport = Report{
 
 var errTestLevel1 = errors.New(testErrorString)
 var errTestLevel2 = fmt.Errorf("level 2: %w", errTestLevel1)
-var errTestWrappedReport = fmt.Errorf("level 2: %w", testReport)
+var errTestWrappedReport = fmt.Errorf("level 2: %w", &testReport)

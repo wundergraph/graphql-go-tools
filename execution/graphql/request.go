@@ -81,7 +81,7 @@ func (r *Request) InternalRequest() resolve.Request {
 func (r *Request) Print(writer io.Writer) (n int, err error) {
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return 0, report
+		return 0, &report
 	}
 
 	return writer.Write(r.document.Input.RawBytes)
@@ -109,7 +109,7 @@ func (r *Request) parseQueryOnce() (report operationreport.Report) {
 func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return false, report
+		return false, &report
 	}
 
 	var operationDefinitionRef = ast.InvalidRef
@@ -175,7 +175,7 @@ func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 func (r *Request) OperationType() (OperationType, error) {
 	report := r.parseQueryOnce()
 	if report.HasErrors() {
-		return OperationTypeUnknown, report
+		return OperationTypeUnknown, &report
 	}
 
 	for _, rootNode := range r.document.RootNodes {
@@ -195,27 +195,29 @@ func (r *Request) OperationType() (OperationType, error) {
 }
 
 func (r *Request) ComputeEstimatedCost(calc *plan.CostCalculator, vars resolve.VariablesView) {
-	if calc != nil {
-		r.estimatedCost = calc.EstimateCost(vars)
-		// Debugging of cost trees. Uncomment to debug.
-		// fmt.Println(calc.DebugPrint(vars, nil))
-	} else {
+	if calc == nil {
 		r.estimatedCost = 0
+		return
 	}
+	r.estimatedCost = calc.EstimateCost(vars)
+	// Debugging of cost trees. Uncomment to debug:
+	// fmt.Println(calc.DebugPrint(vars, nil))
 }
 
 func (r *Request) EstimatedCost() int {
 	return r.estimatedCost
 }
 
-func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, actualListSizes map[string]int) {
-	if calc != nil {
-		r.actualCost = calc.ActualCost(vars, actualListSizes)
-		// Debugging of cost trees. Uncomment to debug.
-		// fmt.Println(calc.DebugPrint(vars, actualListSizes))
-	} else {
+func (r *Request) ComputeActualCost(calc *plan.CostCalculator, vars resolve.VariablesView, resolveCtx *resolve.Context) {
+	// typeStats is nil unless the resolver was built with ResolvableOptions.EnableCostControl;
+	// without runtime stats the actual cost cannot be computed.
+	if calc == nil || resolveCtx == nil || resolveCtx.TypeNameStats == nil {
 		r.actualCost = 0
+		return
 	}
+	r.actualCost = calc.ActualCost(vars, resolveCtx.TypeNameStats)
+	// Debugging of cost trees. Uncomment to debug:
+	// fmt.Println(calc.DebugPrint(vars, resolveCtx.TypeNameStats))
 }
 
 func (r *Request) ActualCost() int {

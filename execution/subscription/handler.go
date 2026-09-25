@@ -1,6 +1,6 @@
 package subscription
 
-//go:generate mockgen -destination=handler_mock_test.go -package=subscription . Protocol,EventHandler
+//go:generate go tool mockgen -destination=handler_mock_test.go -package=subscription . Protocol,EventHandler
 
 import (
 	"bytes"
@@ -100,7 +100,7 @@ func NewUniversalProtocolHandlerWithOptions(client TransportClient, protocol Pro
 			subCancellations: subscriptionCancellations{},
 			executorPool:     executorPool,
 			bufferPool: &sync.Pool{
-				New: func() interface{} {
+				New: func() any {
 					writer := graphql.NewEngineResultWriterFromBuffer(bytes.NewBuffer(make([]byte, 0, 1024)))
 					return &writer
 				},
@@ -183,8 +183,7 @@ func (u *UniversalProtocolHandler) Handle(ctx context.Context) {
 			if len(message) > 0 {
 				err := u.protocol.Handle(ctxWithCancel, u.engine, message)
 				if err != nil {
-					var onBeforeStartHookError *errOnBeforeStartHookFailure
-					if errors.As(err, &onBeforeStartHookError) {
+					if _, ok := errors.AsType[*errOnBeforeStartHookFailure](err); ok {
 						// if we do have an errOnBeforeStartHookFailure than the error is expected and should be
 						// logged as 'Debug'.
 						u.logger.Debug("subscription.UniversalProtocolHandler.Handle: on protocol handling message",

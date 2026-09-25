@@ -1,0 +1,1112 @@
+package resolve
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/astjson"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
+)
+
+// What the root fetch cache may be asked to key is narrower than what the
+// loader sees: one case per condition that narrows it.
+func TestRootFetchCacheable(t *testing.T) {
+	rootItem := func() *FetchItem { return &FetchItem{} }
+
+	queryFetch := func() *SingleFetch {
+		return &SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			DataSourceIdentifier: []byte("graphql_datasource.Source"),
+			Info:                 &FetchInfo{OperationType: ast.OperationTypeQuery},
+		}
+	}
+
+	t.Run("a root query fetch against a subgraph is cacheable", func(t *testing.T) {
+		require.True(t, rootFetchCacheable(rootItem(), queryFetch()))
+	})
+
+	t.Run("a nested fetch is not", func(t *testing.T) {
+		// Its input carries parent data, which is a different thing to key on
+		// than a request the variables determine on their own.
+		nested := &FetchItem{FetchPath: []FetchItemPathElement{{Path: []string{"topProducts"}}}}
+		require.False(t, rootFetchCacheable(nested, queryFetch()))
+	})
+
+	t.Run("a mutation is not", func(t *testing.T) {
+		fetch := queryFetch()
+		fetch.Info.OperationType = ast.OperationTypeMutation
+		require.False(t, rootFetchCacheable(rootItem(), fetch))
+	})
+
+	t.Run("a subscription is not", func(t *testing.T) {
+		fetch := queryFetch()
+		fetch.Info.OperationType = ast.OperationTypeSubscription
+		require.False(t, rootFetchCacheable(rootItem(), fetch))
+	})
+
+	t.Run("a fetch answered by anything but a GraphQL subgraph is not", func(t *testing.T) {
+		// Introspection, pubsub and gRPC plugins answer without a Cache-Control
+		// header, so a lookup for them could only ever cost a round trip.
+		fetch := queryFetch()
+		fetch.DataSourceIdentifier = []byte("introspection_datasource.Source")
+		require.False(t, rootFetchCacheable(rootItem(), fetch))
+	})
+
+	t.Run("a fetch that reads its data from anywhere but data is not", func(t *testing.T) {
+		// A hit rebuilds {"data":...} around the stored bytes, which is only the
+		// response this fetch's merge would read back.
+		fetch := queryFetch()
+		fetch.PostProcessing.SelectResponseDataPath = []string{"data", "_entities"}
+		require.False(t, rootFetchCacheable(rootItem(), fetch))
+	})
+
+	t.Run("a fetch with no info is not", func(t *testing.T) {
+		fetch := queryFetch()
+		fetch.Info = nil
+		require.False(t, rootFetchCacheable(rootItem(), fetch))
+	})
+}
+
+// What a subgraph asserts about its own entries decides what an invalidation
+// would later remove, so the parser's job is to be unambiguous about what it
+// accepts and to keep what it accepts aligned with the values it belongs to.
+func TestResponseCacheTags(t *testing.T) {
+	parse := func(t *testing.T, doc string) *astjson.Value {
+		t.Helper()
+		value, err := astjson.Parse(doc)
+		require.NoError(t, err)
+		return value
+	}
+
+	t.Run("one tag list per value, in the order the values came in", func(t *testing.T) {
+		response := parse(t, `{"data":{"_entities":[{},{},{}]},"extensions":{"apolloEntityCacheTags":[
+			["users","user-42"],
+			["users","user-1023"],
+			["users","user-7"]
+		]}}`)
+		require.Equal(t, [][]string{
+			{"users", "user-42"},
+			{"users", "user-1023"},
+			{"users", "user-7"},
+		}, responseCacheTags(response, 3, false))
+	})
+
+	t.Run("a root fetch declares one flat list under its own key", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloCacheTags":["users","homepage"]}}`)
+		require.Equal(t, [][]string{{"users", "homepage"}}, responseCacheTags(response, 1, true))
+	})
+
+	t.Run("the two extension keys are not interchangeable", func(t *testing.T) {
+		// A root fetch caches one entry and an entity fetch one per entity, so
+		// each key carries the shape its own fetch needs. Reading either from
+		// the other's key would make the same document mean different things
+		// depending on a count the subgraph author cannot see.
+		entity := parse(t, `{"extensions":{"apolloEntityCacheTags":[["users","homepage"]]}}`)
+		require.Empty(t, responseCacheTags(entity, 1, true))
+
+		root := parse(t, `{"extensions":{"apolloCacheTags":["users","homepage"]}}`)
+		require.Empty(t, responseCacheTags(root, 1, false))
+	})
+
+	t.Run("a flat list is not shorthand for an entity fetch", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":["users","homepage"]}}`)
+		require.Equal(t, [][]string{nil, nil}, responseCacheTags(response, 2, false))
+	})
+
+	t.Run("a root fetch with nothing usable in its list gets no tags", func(t *testing.T) {
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":[]}}`), 1, true))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":[""]}}`), 1, true))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{"apolloCacheTags":null}}`), 1, true))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{}}`), 1, true))
+	})
+
+	t.Run("nothing at all is not an error", func(t *testing.T) {
+		require.Empty(t, responseCacheTags(parse(t, `{"data":{"_entities":[{}]}}`), 1, false))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{}}`), 1, false))
+		require.Empty(t, responseCacheTags(parse(t, `{"extensions":{"apolloEntityCacheTags":null}}`), 1, false))
+	})
+
+	t.Run("too many tag lists for the values discards all of them", func(t *testing.T) {
+		// Zipping as far as the shorter of the two would tag the first entries
+		// correctly and say nothing about which of the rest went astray.
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"],["b"],["c"]]}}`)
+		require.Empty(t, responseCacheTags(response, 2, false))
+	})
+
+	t.Run("too few tag lists for the values discards all of them", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"]]}}`)
+		require.Empty(t, responseCacheTags(response, 3, false))
+	})
+
+	t.Run("no values means there is nothing for tags to belong to", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"]]}}`)
+		require.Empty(t, responseCacheTags(response, 0, false))
+	})
+
+	t.Run("one malformed element costs that value its tags and no other", func(t *testing.T) {
+		// The list is still positional, so the elements either side are known to
+		// belong where they sit.
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a"],"not-a-list",["c"]]}}`)
+		require.Equal(t, [][]string{{"a"}, nil, {"c"}}, responseCacheTags(response, 3, false))
+	})
+
+	t.Run("non string tags are skipped, the rest of the list survives", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a",7,null,{"x":1},"b"]]}}`)
+		require.Equal(t, [][]string{{"a", "b"}}, responseCacheTags(response, 1, false))
+	})
+
+	t.Run("an empty tag is dropped", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["","a"]]}}`)
+		require.Equal(t, [][]string{{"a"}}, responseCacheTags(response, 1, false))
+	})
+
+	t.Run("a value whose tags are all unusable gets none", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[[""],["a"]]}}`)
+		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2, false))
+	})
+
+	t.Run("a tag a header cannot carry is dropped, its neighbours are not", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":[["a","x\ty","x y","x\u0000y","x\u007fy","用户","b"]]}}`)
+		require.Equal(t, [][]string{{"a", "b"}}, responseCacheTags(response, 1, false))
+	})
+
+	t.Run("an over long tag is dropped, its neighbours are not", func(t *testing.T) {
+		long := strings.Repeat("x", maxResponseCacheTagLength+1)
+		atLimit := strings.Repeat("y", maxResponseCacheTagLength)
+		response := parse(t, fmt.Sprintf(
+			`{"extensions":{"apolloEntityCacheTags":[["a",%q,%q]]}}`, long, atLimit))
+		require.Equal(t, [][]string{{"a", atLimit}}, responseCacheTags(response, 1, false))
+	})
+
+	tagList := func(n int) string {
+		tags := make([]string, 0, n)
+		for i := range n {
+			tags = append(tags, fmt.Sprintf("%q", fmt.Sprintf("tag-%d", i)))
+		}
+		return strings.Join(tags, ",")
+	}
+
+	t.Run("a value at maxResponseCacheTagsPerValue tags is kept whole", func(t *testing.T) {
+		response := parse(t, fmt.Sprintf(
+			`{"extensions":{"apolloEntityCacheTags":[[%s]]}}`, tagList(maxResponseCacheTagsPerValue)))
+
+		got := responseCacheTags(response, 1, false)
+		require.Len(t, got, 1)
+		require.Len(t, got[0], maxResponseCacheTagsPerValue)
+	})
+
+	t.Run("a value over the cap is rejected, not truncated", func(t *testing.T) {
+		// Truncating would leave the entry uninvalidatable by the tags dropped,
+		// with nothing saying so.
+		response := parse(t, fmt.Sprintf(
+			`{"extensions":{"apolloEntityCacheTags":[[%s]]}}`, tagList(maxResponseCacheTagsPerValue+1)))
+
+		require.Equal(t, [][]string{nil}, responseCacheTags(response, 1, false))
+	})
+
+	t.Run("one value over the cap costs that value only", func(t *testing.T) {
+		response := parse(t, fmt.Sprintf(
+			`{"extensions":{"apolloEntityCacheTags":[[%s],["a"]]}}`, tagList(maxResponseCacheTagsPerValue+1)))
+
+		require.Equal(t, [][]string{nil, {"a"}}, responseCacheTags(response, 2, false))
+	})
+
+	// Tags under the per tag limit, enough of them to reach the per value one.
+	const budgetTag = 8 * 1024
+	budgetTags := func(n int) string {
+		tags := make([]string, 0, n)
+		for i := range n {
+			tags = append(tags, fmt.Sprintf("%q", strings.Repeat(string(rune('a'+i%26)), budgetTag)))
+		}
+		return strings.Join(tags, ",")
+	}
+
+	t.Run("a value at maxResponseCacheTagBytesPerValue is kept whole", func(t *testing.T) {
+		n := maxResponseCacheTagBytesPerValue / budgetTag
+		response := parse(t, fmt.Sprintf(
+			`{"extensions":{"apolloEntityCacheTags":[[%s]]}}`, budgetTags(n)))
+
+		got := responseCacheTags(response, 1, false)
+		require.Len(t, got, 1)
+		require.Len(t, got[0], n)
+	})
+
+	t.Run("a value over the byte cap is rejected, not truncated", func(t *testing.T) {
+		n := maxResponseCacheTagBytesPerValue / budgetTag
+		response := parse(t, fmt.Sprintf(
+			`{"extensions":{"apolloEntityCacheTags":[[%s,"x"],["c"]]}}`, budgetTags(n)))
+
+		require.Equal(t, [][]string{nil, {"c"}}, responseCacheTags(response, 2, false))
+	})
+
+	t.Run("an object where the array should be is not tags", func(t *testing.T) {
+		response := parse(t, `{"extensions":{"apolloEntityCacheTags":{"users":["user-42"]}}}`)
+		require.Empty(t, responseCacheTags(response, 1, false))
+	})
+}
+
+// An entry is indexed under three separate kinds of thing, and which kind a tag
+// came from has to survive into the index or one could be mistaken for another.
+func TestResponseCacheTagIdentities(t *testing.T) {
+	tagsOf := func(input responseCacheTagInput) []string {
+		tags, _ := responseCacheIdentities(input)
+		return tags
+	}
+
+	parse := func(t *testing.T, doc string) *astjson.Value {
+		t.Helper()
+		value, err := astjson.Parse(doc)
+		require.NoError(t, err)
+		return value
+	}
+
+	all := ResponseCacheTagIndexOptions{CacheTag: true, Subgraph: true, Type: true}
+	entity := func(t *testing.T) *astjson.Value {
+		return parse(t, `{"__typename":"User","id":42}`)
+	}
+
+	t.Run("everything an entry is about, each under where it came from", func(t *testing.T) {
+		got := tagsOf(responseCacheTagInput{
+			declared: []string{"users", "user-42"},
+			value:    entity(t),
+			subgraph: "accounts",
+			opts:     all,
+		})
+		require.Equal(t, []string{
+			"declared:accounts:users", "declared:accounts:user-42",
+			"subgraph:accounts",
+			"type:accounts:User",
+		}, got)
+	})
+
+	t.Run("a subgraph cannot declare its way into the router's own indexes", func(t *testing.T) {
+		// The namespace is applied to what the subgraph said, not taken from
+		// it, so a tag spelled like a derived one lands beside them and not
+		// among them.
+		got := tagsOf(responseCacheTagInput{
+			declared: []string{"subgraph:evil", "type:Admin"},
+			value:    entity(t),
+			subgraph: "accounts",
+			opts:     all,
+		})
+		require.Equal(t, []string{
+			"declared:accounts:subgraph:evil", "declared:accounts:type:Admin",
+			"subgraph:accounts",
+			"type:accounts:User",
+		}, got)
+	})
+
+	t.Run("the by-subgraph index can be turned off on its own", func(t *testing.T) {
+		opts := all
+		opts.Subgraph = false
+		require.Equal(t, []string{"declared:accounts:users", "type:accounts:User"},
+			tagsOf(responseCacheTagInput{
+				declared: []string{"users"},
+				value:    entity(t),
+				subgraph: "accounts",
+				opts:     opts,
+			}))
+	})
+
+	t.Run("the by-type index can be turned off on its own", func(t *testing.T) {
+		opts := all
+		opts.Type = false
+		require.Equal(t, []string{"declared:accounts:users", "subgraph:accounts"},
+			tagsOf(responseCacheTagInput{
+				declared: []string{"users"},
+				value:    entity(t),
+				subgraph: "accounts",
+				opts:     opts,
+			}))
+	})
+
+	t.Run("both derived indexes off leaves only what the subgraph declared", func(t *testing.T) {
+		opts := ResponseCacheTagIndexOptions{CacheTag: true}
+		require.Equal(t, []string{"declared:accounts:users"},
+			tagsOf(responseCacheTagInput{
+				declared: []string{"users"},
+				value:    entity(t),
+				subgraph: "accounts",
+				opts:     opts,
+			}))
+	})
+
+	t.Run("the derived indexes stand on their own when nothing was declared", func(t *testing.T) {
+		// The point of deriving them: an entry is findable without its subgraph
+		// having said anything at all.
+		require.Equal(t, []string{"subgraph:accounts", "type:accounts:User"},
+			tagsOf(responseCacheTagInput{
+				value:    entity(t),
+				subgraph: "accounts",
+				opts:     all,
+			}))
+	})
+
+	t.Run("a value that does not say what it is is not indexed by type", func(t *testing.T) {
+		// A root fetch's data object is a selection set, not an entity, and an
+		// entity fetch that did not select __typename did not return one.
+		require.Equal(t, []string{"subgraph:accounts"},
+			tagsOf(responseCacheTagInput{
+				value:    parse(t, `{"id":42}`),
+				subgraph: "accounts",
+				opts:     all,
+			}))
+		require.Equal(t, []string{"subgraph:accounts"},
+			tagsOf(responseCacheTagInput{
+				value:    parse(t, `{"__typename":null}`),
+				subgraph: "accounts",
+				opts:     all,
+			}))
+		require.Equal(t, []string{"subgraph:accounts"},
+			tagsOf(responseCacheTagInput{
+				value:    parse(t, `{"__typename":""}`),
+				subgraph: "accounts",
+				opts:     all,
+			}))
+	})
+
+	t.Run("a root fetch is not indexed by type", func(t *testing.T) {
+		require.Equal(t, []string{"subgraph:accounts"},
+			tagsOf(responseCacheTagInput{
+				value:       parse(t, `{"__typename":"Query"}`),
+				subgraph:    "accounts",
+				isRootFetch: true,
+				opts:        all,
+			}))
+	})
+
+	t.Run("an unnamed subgraph is not indexed and emits no surrogate keys", func(t *testing.T) {
+		// Every identity is scoped by the subgraph that answered, so without a
+		// name there is no scope to file the entry under. Indexing it unscoped
+		// would put it where another subgraph's invalidation could reach it,
+		// and its surrogate keys would be shared by every unnamed source.
+		tags, surrogateKeys := responseCacheIdentities(responseCacheTagInput{
+			declared: []string{"users"},
+			value:    entity(t),
+			subgraph: "",
+			opts:     all,
+		})
+		require.Nil(t, tags)
+		require.Nil(t, surrogateKeys)
+	})
+
+	t.Run("nothing to index at all yields no tags", func(t *testing.T) {
+		opts := ResponseCacheTagIndexOptions{CacheTag: true}
+		require.Empty(t, tagsOf(responseCacheTagInput{
+			value:    entity(t),
+			subgraph: "accounts",
+			opts:     opts,
+		}))
+	})
+
+	t.Run("the derived indexes are not charged to the subgraph's cap", func(t *testing.T) {
+		// The cap bounds what a subgraph asserts. The two the router adds for
+		// itself are one entry each and are not the subgraph's to spend.
+		got := tagsOf(responseCacheTagInput{
+			declared: []string{"a", "b"},
+			value:    entity(t),
+			subgraph: "accounts",
+			opts:     all,
+		})
+		require.Len(t, got, 4)
+	})
+}
+
+// The seam between a subgraph response and the cache: what responseCacheCollect
+// hands to SetMany is what the store will be asked to index, so this covers the
+// whole path from the extension a subgraph wrote to the tags on an item.
+func TestResponseCacheCollectTags(t *testing.T) {
+	t.Parallel()
+
+	newLoader := func(t *testing.T, body string, opts ResponseCacheTagIndexOptions) (*Loader, *result) {
+		t.Helper()
+
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:        newTestCache(),
+			DefaultTTL:   time.Minute,
+			Invalidation: opts,
+		})
+
+		res := &result{
+			out:        []byte(body),
+			statusCode: http.StatusOK,
+			httpResponseContext: &httpclient.ResponseContext{
+				Response: &http.Response{
+					// An explicit freshness lifetime is cacheable without public.
+					Header: http.Header{"Cache-Control": []string{"max-age=60"}},
+				},
+			},
+		}
+		res.init(PostProcessingConfiguration{
+			SelectResponseDataPath:   []string{"data"},
+			SelectResponseErrorsPath: []string{"errors"},
+		}, &FetchInfo{DataSourceName: "accounts"})
+
+		return &Loader{ctx: ctx}, res
+	}
+
+	// Declared tags only, so what these assert is not mixed in with what the
+	// router derives. The derived indexes get their own cases below.
+	declaredOnly := ResponseCacheTagIndexOptions{CacheTag: true}
+
+	collect := func(t *testing.T, body string, keys []string, opts ResponseCacheTagIndexOptions) []caching.Item {
+		t.Helper()
+		loader, res := newLoader(t, body, opts)
+		prepared := &preparedFetch{res: res, responseCacheKeys: keys}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+		return prepared.responseCacheItems
+	}
+
+	const entitiesBody = `{
+		"data": {"_entities": [
+			{"__typename": "User", "id": 42, "name": "Alice"},
+			{"__typename": "User", "id": 1023, "name": "Bob"},
+			{"__typename": "User", "id": 7, "name": "Charlie"}
+		]},
+		"extensions": {"apolloEntityCacheTags": [
+			["users", "user-42"],
+			["users", "user-1023"],
+			["users", "user-7"]
+		]}
+	}`
+
+	t.Run("each entity is stored with the tags named for its position", func(t *testing.T) {
+		items := collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"}, declaredOnly)
+
+		require.Len(t, items, 3)
+		require.Equal(t, []string{"declared:accounts:users", "declared:accounts:user-42"}, items[0].Tags)
+		require.Equal(t, []string{"declared:accounts:users", "declared:accounts:user-1023"}, items[1].Tags)
+		require.Equal(t, []string{"declared:accounts:users", "declared:accounts:user-7"}, items[2].Tags)
+
+		// The tags ride alongside the value, they do not replace or alter it.
+		require.JSONEq(t, `{"__typename":"User","id":42,"name":"Alice"}`, string(items[0].Value))
+		require.Equal(t, "k-42", items[0].Key)
+		require.Equal(t, time.Minute, items[0].TTL)
+	})
+
+	t.Run("the derived indexes reach the item alongside the declared ones", func(t *testing.T) {
+		opts := declaredOnly
+		opts.Subgraph = true
+		opts.Type = true
+
+		items := collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"}, opts)
+
+		require.Len(t, items, 3)
+		require.Equal(t, []string{
+			"declared:accounts:users", "declared:accounts:user-42",
+			"subgraph:accounts",
+			"type:accounts:User",
+		}, items[0].Tags)
+	})
+
+	t.Run("an untagging subgraph is still indexed by subgraph and type", func(t *testing.T) {
+		opts := declaredOnly
+		opts.Subgraph = true
+		opts.Type = true
+
+		body := `{"data":{"_entities":[{"__typename":"User","id":42}]}}`
+		items := collect(t, body, []string{"k-42"}, opts)
+
+		require.Len(t, items, 1)
+		require.Equal(t, []string{"subgraph:accounts", "type:accounts:User"}, items[0].Tags)
+	})
+
+	t.Run("a null entity keeps the remaining tags on their own entities", func(t *testing.T) {
+		// The null is skipped without consuming a tag list, which is the only
+		// thing keeping the two aligned past it.
+		body := `{
+			"data": {"_entities": [{"id": 42}, null, {"id": 7}]},
+			"extensions": {"apolloEntityCacheTags": [["user-42"], ["user-1023"], ["user-7"]]}
+		}`
+		items := collect(t, body, []string{"k-42", "k-1023", "k-7"}, declaredOnly)
+
+		require.Len(t, items, 2)
+		require.Equal(t, "k-42", items[0].Key)
+		require.Equal(t, []string{"declared:accounts:user-42"}, items[0].Tags)
+		require.Equal(t, "k-7", items[1].Key)
+		require.Equal(t, []string{"declared:accounts:user-7"}, items[1].Tags)
+	})
+
+	t.Run("max-age without public is cached when the response has no tags", func(t *testing.T) {
+		t.Parallel()
+
+		body := `{"data": {"_entities": [{"id": 42}]}}`
+		items := collect(t, body, []string{"k-42"}, declaredOnly)
+
+		require.Len(t, items, 1)
+		require.Empty(t, items[0].Tags)
+		require.Equal(t, time.Minute, items[0].TTL)
+	})
+
+	t.Run("tags that do not line up cost the whole response its tags, not its caching", func(t *testing.T) {
+		body := `{
+			"data": {"_entities": [{"id": 42}, {"id": 7}]},
+			"extensions": {"apolloEntityCacheTags": [["user-42"]]}
+		}`
+		items := collect(t, body, []string{"k-42", "k-7"}, declaredOnly)
+
+		require.Len(t, items, 2, "the entities are still cacheable")
+		require.Empty(t, items[0].Tags)
+		require.Empty(t, items[1].Tags)
+	})
+
+	t.Run("every switch off leaves the entries untagged", func(t *testing.T) {
+		items := collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"},
+			ResponseCacheTagIndexOptions{})
+
+		require.Len(t, items, 3)
+		for _, item := range items {
+			require.Empty(t, item.Tags)
+		}
+	})
+
+	t.Run("cache_tag off keeps the derived indexes", func(t *testing.T) {
+		items := collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"},
+			ResponseCacheTagIndexOptions{Subgraph: true, Type: true})
+
+		require.Len(t, items, 3)
+		require.Equal(t, []string{"subgraph:accounts", "type:accounts:User"}, items[0].Tags)
+	})
+
+	t.Run("each switch is independent", func(t *testing.T) {
+		only := func(opts ResponseCacheTagIndexOptions) []string {
+			return collect(t, entitiesBody, []string{"k-42", "k-1023", "k-7"}, opts)[0].Tags
+		}
+
+		require.Equal(t, []string{"declared:accounts:users", "declared:accounts:user-42"},
+			only(ResponseCacheTagIndexOptions{CacheTag: true}))
+		require.Equal(t, []string{"subgraph:accounts"},
+			only(ResponseCacheTagIndexOptions{Subgraph: true}))
+		require.Equal(t, []string{"type:accounts:User"},
+			only(ResponseCacheTagIndexOptions{Type: true}))
+	})
+
+	t.Run("a root fetch takes its tags from one flat list", func(t *testing.T) {
+		body := `{
+			"data": {"employees": [{"id": 1}]},
+			"extensions": {"apolloCacheTags": ["employees", "homepage"]}
+		}`
+
+		opts := declaredOnly
+		opts.Subgraph = true
+		opts.Type = true
+
+		loader, res := newLoader(t, body, opts)
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Len(t, prepared.responseCacheItems, 1)
+		// No type: a root fetch's data object is a selection set rather than an
+		// entity, so there is no one typename it could be indexed under.
+		require.Equal(t, []string{
+			"declared:accounts:employees", "declared:accounts:homepage",
+			"subgraph:accounts",
+		}, prepared.responseCacheItems[0].Tags)
+		require.JSONEq(t, `{"employees":[{"id":1}]}`, string(prepared.responseCacheItems[0].Value))
+	})
+
+	t.Run("an errored response is not cached and so is not tagged", func(t *testing.T) {
+		body := `{
+			"data": {"_entities": [{"id": 42}]},
+			"errors": [{"message": "boom"}],
+			"extensions": {"apolloEntityCacheTags": [["user-42"]]}
+		}`
+		require.Empty(t, collect(t, body, []string{"k-42"}, declaredOnly))
+	})
+
+	t.Run("a root fetch is never indexed by type", func(t *testing.T) {
+		body := `{"data":{"__typename":"Query","employees":[{"id":1}]}}`
+		loader, res := newLoader(t, body, ResponseCacheTagIndexOptions{Type: true})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+		require.Len(t, prepared.responseCacheItems, 1)
+		require.Empty(t, prepared.responseCacheItems[0].Tags)
+	})
+}
+
+func TestRemainingTTL(t *testing.T) {
+	item := func(ttl time.Duration) caching.Item { return caching.Item{TTL: ttl} }
+
+	testCases := []struct {
+		name     string
+		items    []caching.Item
+		expected time.Duration
+	}{
+		{
+			name:     "the shortest of several entries",
+			items:    []caching.Item{item(30 * time.Second), item(10 * time.Second)},
+			expected: 10 * time.Second,
+		},
+		{
+			name:     "zero is a lifetime, not an absent one",
+			items:    []caching.Item{item(30 * time.Second), item(0)},
+			expected: 0,
+		},
+		{
+			name:     "a lone zero survives",
+			items:    []caching.Item{item(0)},
+			expected: 0,
+		},
+		{
+			name:     "a negative TTL is dropped in favour of its neighbours",
+			items:    []caching.Item{item(-5 * time.Second), item(10 * time.Second)},
+			expected: 10 * time.Second,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, remainingTTL(tc.items))
+		})
+	}
+}
+
+// Surrogate keys ride with the entry so a hit can rebuild the header without the index.
+func TestResponseCacheSurrogateKeys(t *testing.T) {
+	newLoader := func(t *testing.T, body string, opts ResponseCacheTagIndexOptions) (*Loader, *result) {
+		t.Helper()
+
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{
+			Store:        newTestCache(),
+			DefaultTTL:   time.Minute,
+			Invalidation: opts,
+		})
+
+		res := &result{
+			out:        []byte(body),
+			statusCode: http.StatusOK,
+			httpResponseContext: &httpclient.ResponseContext{
+				Response: &http.Response{
+					Header: http.Header{"Cache-Control": []string{"public, max-age=60"}},
+				},
+			},
+		}
+		res.init(PostProcessingConfiguration{
+			SelectResponseDataPath:   []string{"data"},
+			SelectResponseErrorsPath: []string{"errors"},
+		}, &FetchInfo{DataSourceName: "accounts"})
+
+		return &Loader{ctx: ctx}, res
+	}
+
+	const entitiesBody = `{
+		"data": {"_entities": [
+			{"__typename": "User", "id": 42},
+			{"__typename": "Group", "id": 7}
+		]},
+		"extensions": {"apolloEntityCacheTags": [["users", "user-42"], ["groups"]]}
+	}`
+
+	t.Run("an entity carries every tier and no index has to be on", func(t *testing.T) {
+		loader, res := newLoader(t, entitiesBody, ResponseCacheTagIndexOptions{})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42", "k-7"}}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Len(t, prepared.responseCacheItems, 2)
+		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "users", "user-42"},
+			prepared.responseCacheItems[0].SurrogateKeys)
+		require.Equal(t, []string{"subgraph-accounts", "type-accounts-Group", "groups"},
+			prepared.responseCacheItems[1].SurrogateKeys)
+		require.Empty(t, prepared.responseCacheItems[0].Tags)
+		require.Equal(t, []string{
+			"subgraph-accounts", "type-accounts-User", "users", "user-42", "type-accounts-Group", "groups",
+		}, res.responseCacheSurrogateKeys, "the fetch reports the union")
+	})
+
+	t.Run("a declared tag spelled like a derived one is emitted verbatim but indexed as declared", func(t *testing.T) {
+		// The header is the CDN's contract: what the subgraph declared goes out
+		// as is. The index is the router's: the same tag is filed under the
+		// declaring subgraph, so invalidating employee never reaches it.
+		body := `{
+			"data": {"_entities": [{"__typename": "User", "id": 42}]},
+			"extensions": {"apolloEntityCacheTags": [["subgraph-employee", "type-employee-Employee"]]}
+		}`
+		loader, res := newLoader(t, body, ResponseCacheTagIndexOptions{CacheTag: true, Subgraph: true, Type: true})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42"}}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "subgraph-employee", "type-employee-Employee"},
+			prepared.responseCacheItems[0].SurrogateKeys)
+		require.Equal(t, []string{
+			"declared:accounts:subgraph-employee", "declared:accounts:type-employee-Employee",
+			"subgraph:accounts",
+			"type:accounts:User",
+		}, prepared.responseCacheItems[0].Tags)
+		require.NotContains(t, prepared.responseCacheItems[0].Tags, "subgraph:employee")
+	})
+
+	t.Run("cache_tag index off still keeps declared tags out of the index", func(t *testing.T) {
+		loader, res := newLoader(t, entitiesBody, ResponseCacheTagIndexOptions{Subgraph: true})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42", "k-7"}}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Equal(t, []string{"subgraph:accounts"}, prepared.responseCacheItems[0].Tags)
+	})
+
+	t.Run("a root fetch has no type surrogate key", func(t *testing.T) {
+		body := `{
+			"data": {"__typename": "Query", "employees": [{"id": 1}]},
+			"extensions": {"apolloCacheTags": ["employees", "homepage"]}
+		}`
+		loader, res := newLoader(t, body, ResponseCacheTagIndexOptions{})
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+
+		require.Equal(t, []string{"subgraph-accounts", "employees", "homepage"},
+			prepared.responseCacheItems[0].SurrogateKeys)
+	})
+
+	t.Run("a hit reports the union of what its entries were stored with", func(t *testing.T) {
+		store := newTestCache()
+		require.NoError(t, store.SetMany(context.Background(), []caching.Item{
+			{Key: "k-42", Value: []byte(`{"id":42}`), TTL: time.Minute,
+				SurrogateKeys: []string{"subgraph-accounts", "type-accounts-User", "user-42"}},
+			{Key: "k-7", Value: []byte(`{"id":7}`), TTL: time.Minute,
+				SurrogateKeys: []string{"subgraph-accounts", "type-accounts-User", "user-7"}},
+		}))
+
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{Store: store, DefaultTTL: time.Minute})
+		loader := &Loader{ctx: ctx}
+
+		res := &result{}
+		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42", "k-7"}}
+		require.True(t, loader.responseCacheLookup(prepared))
+
+		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "user-42", "user-7"},
+			res.responseCacheSurrogateKeys)
+	})
+
+	t.Run("the request collects every fetch's surrogate keys once", func(t *testing.T) {
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+		loader := &Loader{ctx: ctx}
+
+		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: []string{"subgraph-accounts", "user-42"}})
+		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: []string{"subgraph-products", "subgraph-accounts"}})
+		loader.responseCacheMergeSurrogateKeys(&result{})
+
+		require.Equal(t, []string{"subgraph-accounts", "user-42", "subgraph-products"}, ctx.ResponseCacheSurrogateKeys())
+
+		ctx.Free()
+		require.Nil(t, ctx.ResponseCacheSurrogateKeys(), "freed with the rest of the request")
+	})
+
+	t.Run("a declared tag equal to another fetch's derived tag is merged, not duplicated", func(t *testing.T) {
+		// accounts declares subgraph-employee; the employee fetch derives the
+		// same string. The header set is keyed by string, so it appears once.
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+		loader := &Loader{ctx: ctx}
+
+		fetch := func(subgraph, body string) {
+			res := &result{
+				out:        []byte(body),
+				statusCode: http.StatusOK,
+				httpResponseContext: &httpclient.ResponseContext{
+					Response: &http.Response{
+						Header: http.Header{"Cache-Control": []string{"public, max-age=60"}},
+					},
+				},
+			}
+			res.init(PostProcessingConfiguration{
+				SelectResponseDataPath:   []string{"data"},
+				SelectResponseErrorsPath: []string{"errors"},
+			}, &FetchInfo{DataSourceName: subgraph})
+			prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-" + subgraph}}
+			require.NoError(t, loader.responseCacheCollect(prepared))
+			loader.responseCacheMergeSurrogateKeys(res)
+		}
+
+		fetch("accounts", `{
+			"data": {"_entities": [{"__typename": "User", "id": 42}]},
+			"extensions": {"apolloEntityCacheTags": [["subgraph-employee"]]}
+		}`)
+		fetch("employee", `{
+			"data": {"_entities": [{"__typename": "Employee", "id": 7}]}
+		}`)
+
+		got := ctx.ResponseCacheSurrogateKeys()
+		require.Equal(t, []string{
+			"subgraph-accounts", "type-accounts-User", "subgraph-employee", "type-employee-Employee",
+		}, got)
+
+		seen := 0
+		for _, tag := range got {
+			if tag == "subgraph-employee" {
+				seen++
+			}
+		}
+		require.Equal(t, 1, seen, "one string, whoever put it there")
+	})
+
+	t.Run("no cache means no surrogate keys", func(t *testing.T) {
+		ctx := NewContext(context.Background())
+		require.Nil(t, ctx.ResponseCacheSurrogateKeys())
+		ctx.setResponseCacheSurrogateKeys([]string{"ignored"})
+		require.Nil(t, ctx.ResponseCacheSurrogateKeys(), "nowhere to store them")
+	})
+
+	t.Run("a new resolution on the same context starts empty", func(t *testing.T) {
+		ctx := NewContext(context.Background())
+		ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+		loader := &Loader{ctx: ctx}
+		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: []string{"user-1"}})
+		require.Equal(t, []string{"user-1"}, ctx.ResponseCacheSurrogateKeys())
+
+		// What a resolution does on entry, and a follower with the leader's set.
+		ctx.setResponseCacheSurrogateKeys(nil)
+		require.Nil(t, ctx.ResponseCacheSurrogateKeys())
+
+		// A loader on its own keeps what the request has: defer groups share one Context.
+		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: []string{"user-1"}})
+		loader.Init(ctx, nil)
+		require.Equal(t, []string{"user-1"}, ctx.ResponseCacheSurrogateKeys())
+		ctx.setResponseCacheSurrogateKeys(nil)
+		ctx.setResponseCacheSurrogateKeys([]string{"user-2"})
+		require.Equal(t, []string{"user-2"}, ctx.ResponseCacheSurrogateKeys())
+	})
+}
+
+// cachedDataSource answers with a fixed body and a public Cache-Control header,
+// so a root fetch through it is response-cached.
+type cachedDataSource struct{ body string }
+
+func (d cachedDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	if rc := httpclient.GetResponseContext(ctx); rc != nil {
+		rc.StatusCode = http.StatusOK
+		rc.Response = &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": []string{"public, max-age=60"}},
+		}
+	}
+	return []byte(d.body), nil
+}
+
+func (d cachedDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return d.Load(ctx, headers, input)
+}
+
+// Every defer group runs its own Loader on the shared Context, concurrently.
+// The surrogate key set must be the union of what the initial fetch and every
+// group contributed, and nothing may reset it mid-response. Run with -race.
+func TestResponseCacheSurrogateKeysDefer(t *testing.T) {
+	const groupCount = 8
+
+	cachedRootFetch := func(subgraph, body string) *FetchTreeNode {
+		return Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: cachedDataSource{body: body},
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			DataSourceIdentifier: graphqlDataSourceIdentifier,
+			Info: &FetchInfo{
+				OperationType:  ast.OperationTypeQuery,
+				DataSourceID:   subgraph,
+				DataSourceName: subgraph,
+			},
+		})
+	}
+
+	fields := make([]*Field, 0, groupCount+1)
+	fields = append(fields, &Field{
+		Name:  []byte("initial"),
+		Value: &String{Path: []string{"initial"}, Nullable: true},
+	})
+	descriptors := make(map[int]DeferDescriptor, groupCount)
+	leaves := make([]*DeferTreeNode, groupCount)
+	want := []string{"subgraph-initial"}
+	for g := range groupCount {
+		id := g + 1
+		name := fmt.Sprintf("g%d", id)
+		fields = append(fields, deferredField(name, id, &String{Path: []string{name}, Nullable: true}, nil))
+		descriptors[id] = DeferDescriptor{ID: id, ParentID: 0}
+		leaves[g] = DeferSingle(&DeferFetchGroup{
+			DeferID: id,
+			Fetches: cachedRootFetch(name, fmt.Sprintf(`{"data":{%q:"v"}}`, name)),
+		})
+		want = append(want, "subgraph-"+name)
+	}
+
+	response := &GraphQLDeferResponse{
+		DeferDescriptors: descriptors,
+		DeferTree:        DeferParallel(leaves...),
+		Response: &GraphQLResponse{
+			Info:    deferQueryInfo(),
+			Fetches: cachedRootFetch("initial", `{"data":{"initial":"v"}}`),
+			Data:    &Object{Nullable: true, Fields: fields},
+		},
+	}
+
+	resolver := newTestResolver(t, baseResolverOpts())
+	ctx := NewContext(context.Background())
+	ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+	// Left over from an earlier resolution on the same Context.
+	ctx.setResponseCacheSurrogateKeys([]string{"stale"})
+
+	w := &testDeferWriter{}
+	_, err := resolver.ResolveGraphQLDeferResponse(ctx, response, w)
+	require.NoError(t, err)
+	require.True(t, w.complete)
+
+	require.ElementsMatch(t, want, ctx.ResponseCacheSurrogateKeys())
+}
+
+type blockingCachedDataSource struct{ *blockingDataSource }
+
+func (f blockingCachedDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	f.waitForRelease()
+	return cachedDataSource{body: string(f.data)}.Load(ctx, headers, input)
+}
+
+func (f blockingCachedDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return f.Load(ctx, headers, input)
+}
+
+type blockingFailingDataSource struct{ *blockingDataSource }
+
+func (f blockingFailingDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	f.waitForRelease()
+	return nil, errors.New("subgraph down")
+}
+
+func (f blockingFailingDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return f.Load(ctx, headers, input)
+}
+
+// A follower writes the leader's bytes through its own writer with a Context the
+// loader never ran on, so it has no subgraph errors to withhold the tag header
+// by. The leader must not hand tags to a body it would itself mark no-store.
+func TestResponseCacheSurrogateKeysInboundDedupWithSubgraphErrors(t *testing.T) {
+	run := func(t *testing.T, fail bool) (leader, follower *Context) {
+		t.Helper()
+		r := newResolver(t.Context())
+
+		blocking := newBlockingDataSource([]byte(`{"data":{"b":"v"}}`))
+		defer blocking.Release()
+		var slow DataSource = blockingCachedDataSource{blocking}
+		if fail {
+			slow = blockingFailingDataSource{blocking}
+		}
+
+		rootFetch := func(subgraph string, ds DataSource) *FetchTreeNode {
+			return Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: ds,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath:   []string{"data"},
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				DataSourceIdentifier: graphqlDataSourceIdentifier,
+				Info: &FetchInfo{
+					OperationType:  ast.OperationTypeQuery,
+					DataSourceID:   subgraph,
+					DataSourceName: subgraph,
+				},
+			})
+		}
+
+		response := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+			Fetches: Parallel(
+				rootFetch("a", cachedDataSource{body: `{"data":{"a":"v"}}`}),
+				rootFetch("b", slow),
+			),
+			Data: &Object{
+				Nullable: true,
+				Fields: []*Field{
+					{Name: []byte("a"), Value: &String{Path: []string{"a"}, Nullable: true}},
+					{Name: []byte("b"), Value: &String{Path: []string{"b"}, Nullable: true}},
+				},
+			},
+		}
+
+		// Each side gets its own Context and cache state: sharing one struct
+		// would let the follower's reset overwrite what the leader collected.
+		newCtx := func() *Context {
+			ctx := NewContext(context.Background())
+			ctx.Request.ID = 42
+			ctx.VariablesHash = 1337
+			ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+			return ctx
+		}
+		leader, follower = newCtx(), newCtx()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		leaderWriter := newBlockingWriter()
+		var leaderInfo, followerInfo *GraphQLResolveInfo
+		var leaderErr, followerErr error
+		var followerBuf bytes.Buffer
+
+		go func() {
+			defer wg.Done()
+			leaderInfo, leaderErr = r.ArenaResolveGraphQLResponse(leader, response, leaderWriter)
+		}()
+		select {
+		case <-blocking.Ready():
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for the leader to reach the slow subgraph")
+		}
+
+		go func() {
+			defer wg.Done()
+			followerInfo, followerErr = r.ArenaResolveGraphQLResponse(follower, response, &followerBuf)
+		}()
+		waitForFollowerCount(t, r, 1)
+
+		blocking.Release()
+		select {
+		case <-leaderWriter.Ready():
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for the leader to write")
+		}
+		leaderWriter.Release()
+		wg.Wait()
+
+		require.NoError(t, leaderErr)
+		require.NoError(t, followerErr)
+		require.False(t, leaderInfo.ResolveDeduplicated)
+		require.True(t, followerInfo.ResolveDeduplicated)
+		require.Equal(t, leaderWriter.String(), followerBuf.String(), "the follower sends the leader's bytes")
+		return leader, follower
+	}
+
+	t.Run("a clean leader hands its tags to the follower", func(t *testing.T) {
+		leader, follower := run(t, false)
+		require.NoError(t, leader.SubgraphErrors())
+		require.ElementsMatch(t, []string{"subgraph-a", "subgraph-b"}, leader.ResponseCacheSurrogateKeys())
+		require.Equal(t, leader.ResponseCacheSurrogateKeys(), follower.ResponseCacheSurrogateKeys())
+	})
+
+	t.Run("a leader with a subgraph error hands the follower none", func(t *testing.T) {
+		leader, follower := run(t, true)
+		require.Error(t, leader.SubgraphErrors())
+		// The subgraph-a tag is omitted when emitted in the response even though it is here when there is an error
+		require.Equal(t, []string{"subgraph-a"}, leader.ResponseCacheSurrogateKeys(), "the fetch that succeeded still contributed")
+		require.Nil(t, follower.ResponseCacheSurrogateKeys(), "no positive cache signal on an errored body")
+	})
+}

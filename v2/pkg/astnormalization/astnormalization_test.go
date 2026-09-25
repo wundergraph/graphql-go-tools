@@ -41,6 +41,7 @@ func TestNormalizeOperation(t *testing.T) {
 			WithRemoveFragmentDefinitions(),
 			WithRemoveUnusedVariables(),
 			WithNormalizeDefinition(),
+			WithEnableDefer(),
 		)
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
@@ -48,8 +49,8 @@ func TestNormalizeOperation(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		got := mustString(astprinter.PrintString(&operationDocument))
-		want := mustString(astprinter.PrintString(&expectedOutputDocument))
+		got := mustString(astprinter.PrintStringIndent(&operationDocument, "  "))
+		want := mustString(astprinter.PrintStringIndent(&expectedOutputDocument, "  "))
 
 		assert.Equal(t, want, got)
 		assert.Equal(t, expectedVariables, string(operationDocument.Input.Variables))
@@ -101,6 +102,102 @@ func TestNormalizeOperation(t *testing.T) {
 					}
 					disallowedSecondRootField
 				}`, "", "")
+	})
+
+	t.Run("defer parent ids preserved across merged and discarded scopes", func(t *testing.T) {
+		// A non-deferred user.info.address sits next to a top-level @defer wrapping
+		// the same user, which itself nests sibling and deeper defers. Field merging
+		// collapses the duplicated user/info/nestedInfo containers, relocating the
+		// deferred leaves under a single nestedInfo. Every defer id survives via its
+		// own uniquely-named leaf (a..d, phone, email), so every stamped parentDeferId
+		// still references a live defer and must be preserved unchanged.
+		run(t, `
+			type Query { user: User }
+			type User { info: Info }
+			type Info { address: String email: String phone: String nestedInfo: NestedInfo }
+			type NestedInfo { a: String b: String c: String d: String }`, `
+			query DeferUserTitle {
+				user {
+					info {
+						address
+					}
+				}
+				... @defer {
+					user {
+						info {
+							nestedInfo {
+								a
+							}
+						}
+						... @defer {
+							info {
+								nestedInfo {
+									b
+								}
+								... @defer {
+									nestedInfo {
+										c
+									}
+									phone
+								}
+							}
+						}
+						... @defer {
+							info {
+								email
+								... @defer {
+									nestedInfo {
+										d
+									}
+								}
+							}
+						}
+					}
+				}
+			}`, `
+			query DeferUserTitle {
+				user {
+					info {
+						address
+						nestedInfo @__defer_internal(id: 1) {
+							a @__defer_internal(id: 1)
+							b @__defer_internal(id: 2, parentDeferId: 1)
+							c @__defer_internal(id: 3, parentDeferId: 2)
+							d @__defer_internal(id: 5, parentDeferId: 4)
+						}
+						phone @__defer_internal(id: 3, parentDeferId: 2)
+						email @__defer_internal(id: 4, parentDeferId: 1)
+					}
+				}
+			}`, "", "")
+	})
+	t.Run("deferred __typename on initial entity becomes non-deferred", func(t *testing.T) {
+		// __typename is selected inside @defer on `article`, but `article` is
+		// materialized in the initial response. __typename must align to its
+		// object's (initial) scope so it stays a literal, non-deferred __typename
+		// (needed for type discrimination / entity representations). `title` keeps
+		// its defer.
+		run(t, `
+			type Query { article: Article }
+			type Article { id: ID! title: String! reviews: [Review!]! }
+			type Review { id: ID! }`, `
+			query Q {
+				article {
+					id
+					... @defer { __typename title }
+					reviews { id }
+				}
+			}`, `
+			query Q {
+				article {
+					id
+					__typename
+					title @__defer_internal(id: 1)
+					reviews {
+						id
+					}
+				}
+			}`, "", "")
 	})
 	t.Run("inject default", func(t *testing.T) {
 		run(t,
@@ -508,6 +605,142 @@ func TestNormalizeOperation(t *testing.T) {
 				simple
 				...D
 			}`, ``, ``)
+	})
+
+	t.Run("defer", func(t *testing.T) {
+		t.Run("defer - no conditions, typename placeholder needed", func(t *testing.T) {
+			run(t, testDefinition, `
+			query pet {
+				pet {
+					... on Dog @defer {
+						name
+						nickname
+						... @defer {
+							barkVolume
+						}
+					}
+					... on Dog {
+						... @defer {
+							extra {
+								noString
+							}
+						}
+						... @defer {
+							extra {
+								string
+								noString
+							}
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer {
+						name
+						meowVolume
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer {
+						name
+						nickname
+						meowVolume
+					}
+				}
+			}`, `
+			query pet {
+				pet {
+					... on Dog {
+						name @__defer_internal(id: 1)
+						nickname @__defer_internal(id: 1)
+						barkVolume @__defer_internal(id: 2, parentDeferId: 1)
+						extra @__defer_internal(id: 3) {
+							noString @__defer_internal(id: 3)
+							string @__defer_internal(id: 4, parentDeferId: 3)
+						}
+						__internal_typename: __typename
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+						meowVolume @__defer_internal(id: 5)
+						nickname @__defer_internal(id: 6)
+					}
+				}
+			}`, ``, ``)
+		})
+
+		t.Run("defer - with conditions", func(t *testing.T) {
+			run(t, testDefinition, `
+			query pet($dogExtraString: Boolean!, $catExtra: Boolean!, $catNoExtra: Boolean!) {
+				pet {
+					... on Dog @defer(if: true) {
+						name
+						nickname
+						... @defer {
+							barkVolume
+						}
+					}
+					... on Dog {
+						... @defer(if: false) {
+							extra {
+								noString
+							}
+						}
+						... @defer(if: $dogExtraString) {
+							extra {
+								string
+								noString
+							}
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer(if: $catExtra) {
+						name
+						meowVolume
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer(if: $catNoExtra) {
+						name
+						nickname
+					}
+				}
+			}`, `
+			query pet {
+				pet {
+					... on Dog {
+						name @__defer_internal(id: 1)
+						nickname @__defer_internal(id: 1)
+						barkVolume @__defer_internal(id: 2, parentDeferId: 1)
+						extra {
+							noString
+							string
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+						meowVolume @__defer_internal(id: 3)
+						nickname
+					}
+				}
+			}`, `{"dogExtraString": false, "catExtra": true, "catNoExtra": false}`, `{}`)
+		})
 	})
 
 }
@@ -1243,7 +1476,24 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, d
 	assert.Equal(t, want, got)
 }
 
-var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, indent ...bool) {
+type runOptions struct {
+	indent bool
+}
+
+func withIndent() func(options *runOptions) {
+	return func(options *runOptions) {
+		options.indent = true
+	}
+}
+
+var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options ...func(options *runOptions)) {
+	t.Helper()
+
+	var opts runOptions
+
+	for _, opt := range options {
+		opt(&opts)
+	}
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
@@ -1265,7 +1515,7 @@ var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, op
 	}
 
 	var got, want string
-	if len(indent) > 0 && indent[0] {
+	if opts.indent {
 		got = mustString(astprinter.PrintStringIndent(&operationDocument, "  "))
 		want = mustString(astprinter.PrintStringIndent(&expectedOutputDocument, "  "))
 	} else {

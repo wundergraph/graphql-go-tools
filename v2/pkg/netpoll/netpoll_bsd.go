@@ -1,5 +1,4 @@
 //go:build darwin || netbsd || freebsd || openbsd || dragonfly
-// +build darwin netbsd freebsd openbsd dragonfly
 
 package netpoll
 
@@ -79,7 +78,7 @@ func (e *KQueue) Close(closeConns bool) error {
 func (e *KQueue) Add(conn net.Conn) error {
 	conn = newConnImpl(conn)
 	fd := SocketFD(conn)
-	if e := syscall.SetNonblock(int(fd), true); e != nil {
+	if e := syscall.SetNonblock(fd, true); e != nil {
 		return errors.New("udev: unix.SetNonblock failed")
 	}
 
@@ -150,7 +149,7 @@ retry:
 	}
 
 	e.mu.RLock()
-	for i := 0; i < n; i++ {
+	for i := range n {
 		conn := e.conns[int(e.events[i].Ident)]
 		if conn != nil {
 			conns = append(conns, conn)

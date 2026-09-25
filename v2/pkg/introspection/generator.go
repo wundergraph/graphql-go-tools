@@ -329,6 +329,9 @@ func (i *introspectionVisitor) EnterDirectiveDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) LeaveDirectiveDefinition(ref int) {
+	if strings.HasPrefix(i.currentDirective.Name, "__") {
+		return
+	}
 	i.data.Schema.Directives = append(i.data.Schema.Directives, i.currentDirective)
 }
 

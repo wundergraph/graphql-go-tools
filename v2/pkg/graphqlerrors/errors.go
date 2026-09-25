@@ -2,6 +2,7 @@ package graphqlerrors
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,10 +21,10 @@ type Errors interface {
 type RequestErrors []RequestError
 
 func RequestErrorsFromError(err error) RequestErrors {
-	if errors, ok := err.(RequestErrors); ok {
-		return errors
+	if requestErrors, ok := errors.AsType[RequestErrors](err); ok {
+		return requestErrors
 	}
-	if report, ok := err.(operationreport.Report); ok {
+	if report, ok := errors.AsType[*operationreport.Report](err); ok {
 		if len(report.ExternalErrors) == 0 {
 			return RequestErrors{
 				{
@@ -31,9 +32,9 @@ func RequestErrorsFromError(err error) RequestErrors {
 				},
 			}
 		}
-		var errors RequestErrors
+		var requestErrors RequestErrors
 		for _, externalError := range report.ExternalErrors {
-			errors = append(errors, RequestError{
+			requestErrors = append(requestErrors, RequestError{
 				Message:   externalError.Message,
 				Locations: externalError.Locations,
 				Path: ErrorPath{
@@ -41,7 +42,7 @@ func RequestErrorsFromError(err error) RequestErrors {
 				},
 			})
 		}
-		return errors
+		return requestErrors
 	}
 	return RequestErrors{
 		{

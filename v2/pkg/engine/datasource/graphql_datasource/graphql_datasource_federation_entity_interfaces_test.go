@@ -4254,7 +4254,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates()),
+			WithPostProcessor(postprocess.DisableResolveInputTemplates()),
 		))
 	})
 
@@ -4554,7 +4554,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates()),
+			WithPostProcessor(postprocess.DisableResolveInputTemplates()),
 		))
 	})
 
@@ -4924,7 +4924,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates()),
+			WithPostProcessor(postprocess.DisableResolveInputTemplates()),
 			// WithPrintPlan(),
 		))
 	})
@@ -5126,7 +5126,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates()),
+			WithPostProcessor(postprocess.DisableResolveInputTemplates()),
 			// WithPrintPlan(),
 		))
 	})
@@ -5199,7 +5199,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 					},
 				},
 				planConfiguration,
-				WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates()),
+				WithPostProcessor(postprocess.DisableResolveInputTemplates()),
 				// WithPrintPlan(),
 			))
 		})
@@ -5307,7 +5307,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 					},
 				},
 				planConfiguration,
-				WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates()),
+				WithPostProcessor(postprocess.DisableResolveInputTemplates()),
 				// WithPrintPlan(),
 			))
 		})

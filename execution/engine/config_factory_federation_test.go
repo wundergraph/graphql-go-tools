@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"testing"
@@ -18,8 +17,7 @@ import (
 )
 
 func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
-	engineCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	engineCtx := t.Context()
 
 	runWithoutErrorUsingRouteConfig := func(
 		t *testing.T,

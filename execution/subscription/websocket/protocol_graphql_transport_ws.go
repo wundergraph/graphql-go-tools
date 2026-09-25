@@ -349,8 +349,7 @@ func (p *ProtocolGraphQLTransportWSHandler) Handle(ctx context.Context, engine s
 
 	message, err := p.reader.Read(data)
 	if err != nil {
-		var jsonSyntaxError *json.SyntaxError
-		if errors.As(err, &jsonSyntaxError) {
+		if _, ok := errors.AsType[*json.SyntaxError](err); ok {
 			p.closeConnectionWithReason(NewCloseReason(4400, "JSON syntax error"))
 			return nil
 		}
@@ -514,7 +513,7 @@ func (p *ProtocolGraphQLTransportWSHandler) handleComplete(engine subscription.E
 	return engine.StopSubscription(id, &p.eventHandler)
 }
 
-func (p *ProtocolGraphQLTransportWSHandler) closeConnectionWithReason(reason interface{}) {
+func (p *ProtocolGraphQLTransportWSHandler) closeConnectionWithReason(reason any) {
 	err := p.eventHandler.Writer.Client.DisconnectWithReason(
 		reason,
 	)

@@ -352,6 +352,61 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 		})
 	})
 
+	t.Run("list value against non-list schema field does not panic", func(t *testing.T) {
+		const findItemByColumnValueSchema = `
+			schema { query: Query }
+			type Query {
+				boards(ids: [ID!], limit: Int): [Board]
+			}
+			type Board {
+				items_page(limit: Int, query_params: ItemsQuery): ItemsPage
+			}
+			type ItemsPage {
+				items: [Item]
+			}
+			type Item {
+				id: ID
+			}
+			input ItemsQuery {
+				rules: [ItemsQueryRule]
+			}
+			input ItemsQueryRule {
+				column_id: ID!
+				compare_value: CompareValue
+			}
+			scalar CompareValue
+		`
+
+		const findItemByColumnValueQuery = `
+			query FindItemByColumnValue($boardId: ID!, $columnId: String!, $value: String!) {
+				boards(ids: [$boardId], limit: 1) {
+					items_page(limit: 1, query_params: {rules:[{column_id:$columnId,compare_value:[$value]}]}) {
+						items {
+							id
+						}
+					}
+				}
+			}
+		`
+
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("unexpected panic: %v", r)
+			}
+		}()
+
+		runWithVariablesDefaultValues(
+			t,
+			extractVariablesDefaultValue,
+			findItemByColumnValueSchema,
+			findItemByColumnValueQuery,
+			"",
+			findItemByColumnValueQuery,
+			`{"boardId":"1609319205","columnId":"numeric_mm03yy2r","value":"51.00"}`,
+			`{"boardId":"1609319205","columnId":"numeric_mm03yy2r","value":"51.00"}`,
+		)
+	})
+
 	t.Run("variables used in directive argument expecting non null value", func(t *testing.T) {
 		t.Run("nullable boolean with default value and variable value exists", func(t *testing.T) {
 			runWithVariablesDefaultValues(t, extractVariablesDefaultValue, variablesDefaultValueExtractionDefinition, `

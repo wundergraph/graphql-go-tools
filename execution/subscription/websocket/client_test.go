@@ -421,7 +421,7 @@ func (t *TestClient) Disconnect() error {
 	return nil
 }
 
-func (t *TestClient) DisconnectWithReason(reason interface{}) error {
+func (t *TestClient) DisconnectWithReason(reason any) error {
 	t.connectionMutex.Lock()
 	defer t.connectionMutex.Unlock()
 	t.isConnected = false

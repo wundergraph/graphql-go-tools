@@ -14,9 +14,11 @@ type keyVisitorInput struct {
 	key, definition *ast.Document
 	report          *operationreport.Report
 
-	dataSource       DataSource
-	providesEntries  map[string]struct{}
-	keyIsConditional bool
+	dataSource DataSource
+	// providedSelection is the provided selection applying to the fields of the
+	// entity at the parent path, nil when nothing is provided there
+	providedSelection providesSelection
+	keyIsConditional  bool
 }
 
 type KeyInfo struct {
@@ -86,7 +88,7 @@ type Entity {
 
 */
 
-func (f *collectNodesDSVisitor) collectKeysForPath(typeName, parentPath string) error {
+func (f *collectNodesDSVisitor) collectKeysForPath(typeName, parentPath string, providedSelection providesSelection) error {
 	indexKey := SeenKeyPath{
 		TypeName: typeName,
 		Path:     parentPath,
@@ -122,9 +124,9 @@ func (f *collectNodesDSVisitor) collectKeysForPath(typeName, parentPath string) 
 			report:     report,
 			parentPath: parentPath,
 
-			dataSource:       f.dataSource,
-			providesEntries:  f.providesEntries,
-			keyIsConditional: len(key.Conditions) > 0,
+			dataSource:        f.dataSource,
+			providedSelection: providedSelection,
+			keyIsConditional:  len(key.Conditions) > 0,
 		}
 
 		keyPaths, hasExternalFields := getKeyPaths(input)
@@ -173,11 +175,13 @@ func (f *collectNodesDSVisitor) collectKeysForPath(typeName, parentPath string) 
 func getKeyPaths(input *keyVisitorInput) (keyPaths []KeyInfoFieldPath, hasExternalFields bool) {
 	walker := astvisitor.NewWalkerWithID(48, "KeyInfoVisitor")
 	visitor := &keyInfoVisitor{
-		walker: &walker,
-		input:  input,
+		walker:         &walker,
+		input:          input,
+		selectionStack: []providesSelection{input.providedSelection},
 	}
 
 	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterLeaveFieldVisitor(&keyInfoSelectionPopper{visitor: visitor})
 	walker.Walk(input.key, input.definition, input.report)
 
 	return visitor.keyPaths, visitor.hasExternalFields
@@ -191,11 +195,31 @@ type keyInfoVisitor struct {
 	hasExternalFields bool
 
 	currentKeyPath []KeyInfoFieldPath
+
+	// selectionStack tracks the provided selection at each nesting level of the key
+	// fragment walk; entries are nil below levels which are not provided
+	selectionStack []providesSelection
+}
+
+// keyInfoSelectionPopper keeps the selection stack of keyInfoVisitor in sync on field
+// leave; a separate type as keyInfoVisitor has an unregistered LeaveField method
+type keyInfoSelectionPopper struct {
+	visitor *keyInfoVisitor
+}
+
+func (p *keyInfoSelectionPopper) LeaveField(ref int) {
+	p.visitor.selectionStack = p.visitor.selectionStack[:len(p.visitor.selectionStack)-1]
 }
 
 func (v *keyInfoVisitor) EnterField(ref int) {
 	fieldName := v.input.key.FieldNameUnsafeString(ref)
 	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
+
+	// resolve provided-ness against the provided selection of the current nesting
+	// level and push the nested selection for the child fields
+	currentSelection := v.selectionStack[len(v.selectionStack)-1]
+	childSelection, isProvided := currentSelection.providedTypeSelection(fieldName, typeName)
+	v.selectionStack = append(v.selectionStack, childSelection)
 
 	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.input.typeName)
 	currentPath := parentPath + "." + fieldName
@@ -216,8 +240,6 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 	isExternal := hasExternalRootNode || hasExternalChildNode
 
 	if isExternal {
-		_, isProvided := v.input.providesEntries[providedFieldKey(typeName, fieldName, currentPath)]
-
 		if isProvided {
 			// if the field is provided, it should not be marked as external
 			isExternal = false

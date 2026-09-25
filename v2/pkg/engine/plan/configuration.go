@@ -20,7 +20,14 @@ type Configuration struct {
 	DisableResolveFieldPositions bool
 	// EnableOperationNamePropagation appends the operation name from nested operations
 	EnableOperationNamePropagation bool
-	CustomResolveMap               map[string]resolve.CustomResolve
+
+	// EnableMultiFetch records planner artifacts on entity fetches so the
+	// postprocess MultiFetch stage can merge same-subgraph, same-wave entity
+	// fetches into one request. Default false; the artifacts never reach the
+	// executable plan (they are cleared during postprocessing).
+	EnableMultiFetch bool
+
+	CustomResolveMap map[string]resolve.CustomResolve
 
 	// Debug - configure debug options
 	Debug DebugConfiguration
@@ -34,6 +41,10 @@ type Configuration struct {
 	// field dependency structures.
 	// It requires DisableIncludeInfo set to false.
 	DisableIncludeFieldDependencies bool
+
+	// DisableCalculateFieldDependencies controls whether the planner calculates
+	// field dependencies at all.
+	DisableCalculateFieldDependencies bool
 
 	// BuildFetchReasons allows generating the FetchReasons structure for all the fields.
 	// It may be enabled by some other components of the engine.
@@ -52,6 +63,11 @@ type Configuration struct {
 
 	// When the list size is unknown from directives, this value is used as a default for static cost.
 	StaticCostDefaultListSize int
+
+	// IgnoreImplementingTypeWeights, when true, ignores @cost weights contributed by
+	// implementing types on abstract (interface/union) fields that have no weight of their own.
+	// Emulates Apollo's cost behavior.
+	IgnoreImplementingTypeWeights bool
 
 	// RelaxSubgraphOperationFieldSelectionMergingNullability relaxes the nullability validation
 	// for field selection merging in upstream (subgraph) operations when enclosing types are

@@ -59,6 +59,8 @@ func (v *TypeNameVisitor) LeaveInterfaceTypeDefinition(ref int) {
 
 func (v *TypeNameVisitor) LeaveObjectTypeDefinition(ref int) {
 	objectTypeDefName := v.definition.ObjectTypeDefinitionNameBytes(ref)
+
+	// TODO: corresponding validation rule is missing
 	if bytes.Equal(objectTypeDefName, v.definition.Index.SubscriptionTypeName) ||
 		bytes.Equal(objectTypeDefName, ast.DefaultSubscriptionTypeName) {
 		return

@@ -616,6 +616,22 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 								Response: "RequireStorageProcessedMetadataHistoryByIdResponse",
 							},
 						},
+						"optionalProcessedMetadataHistory": {
+							TargetName: "optional_processed_metadata_history",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageOptionalProcessedMetadataHistoryById",
+								Request:  "RequireStorageOptionalProcessedMetadataHistoryByIdRequest",
+								Response: "RequireStorageOptionalProcessedMetadataHistoryByIdResponse",
+							},
+						},
+						"tagsByLengths": {
+							TargetName: "tags_by_lengths",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageTagsByLengthsById",
+								Request:  "RequireStorageTagsByLengthsByIdRequest",
+								Response: "RequireStorageTagsByLengthsByIdResponse",
+							},
+						},
 						"kindSummary": {
 							TargetName: "kind_summary",
 							RPCConfig: grpcdatasource.RPCConfig{
@@ -678,6 +694,54 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 								RPC:      "RequireStorageDeepItemInfoById",
 								Request:  "RequireStorageDeepItemInfoByIdRequest",
 								Response: "RequireStorageDeepItemInfoByIdResponse",
+							},
+						},
+						"recommendedItem": {
+							TargetName: "recommended_item",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageRecommendedItemById",
+								Request:  "RequireStorageRecommendedItemByIdRequest",
+								Response: "RequireStorageRecommendedItemByIdResponse",
+							},
+						},
+						"recommendedItems": {
+							TargetName: "recommended_items",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageRecommendedItemsById",
+								Request:  "RequireStorageRecommendedItemsByIdRequest",
+								Response: "RequireStorageRecommendedItemsByIdResponse",
+							},
+						},
+						"latestOperation": {
+							TargetName: "latest_operation",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageLatestOperationById",
+								Request:  "RequireStorageLatestOperationByIdRequest",
+								Response: "RequireStorageLatestOperationByIdResponse",
+							},
+						},
+						"optionalLatestOperation": {
+							TargetName: "optional_latest_operation",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageOptionalLatestOperationById",
+								Request:  "RequireStorageOptionalLatestOperationByIdRequest",
+								Response: "RequireStorageOptionalLatestOperationByIdResponse",
+							},
+						},
+						"optionalRecommendedItems": {
+							TargetName: "optional_recommended_items",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageOptionalRecommendedItemsById",
+								Request:  "RequireStorageOptionalRecommendedItemsByIdRequest",
+								Response: "RequireStorageOptionalRecommendedItemsByIdResponse",
+							},
+						},
+						"optionalOperationHistory": {
+							TargetName: "optional_operation_history",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageOptionalOperationHistoryById",
+								Request:  "RequireStorageOptionalOperationHistoryByIdRequest",
+								Response: "RequireStorageOptionalOperationHistoryByIdResponse",
 							},
 						},
 						"filteredTagSummary": {
@@ -1094,6 +1158,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"processedMetadataHistory": {
 					TargetName: "processed_metadata_history",
 				},
+				"optionalProcessedMetadataHistory": {
+					TargetName: "optional_processed_metadata_history",
+				},
+				"tagsByLengths": {
+					TargetName: "tags_by_lengths",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"lengths": "lengths",
+					},
+				},
 				"storageKind": {
 					TargetName: "storage_kind",
 				},
@@ -1132,6 +1205,24 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"deepItemInfo": {
 					TargetName: "deep_item_info",
+				},
+				"recommendedItem": {
+					TargetName: "recommended_item",
+				},
+				"recommendedItems": {
+					TargetName: "recommended_items",
+				},
+				"latestOperation": {
+					TargetName: "latest_operation",
+				},
+				"optionalLatestOperation": {
+					TargetName: "optional_latest_operation",
+				},
+				"optionalRecommendedItems": {
+					TargetName: "optional_recommended_items",
+				},
+				"optionalOperationHistory": {
+					TargetName: "optional_operation_history",
 				},
 				"storageStatus": {
 					TargetName: "storage_status",

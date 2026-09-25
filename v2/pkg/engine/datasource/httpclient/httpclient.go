@@ -66,7 +66,7 @@ func wrapQuotesIfString(b []byte) []byte {
 	case gjson.Number, gjson.String:
 		return b
 	case gjson.JSON:
-		var value interface{}
+		var value any
 		withoutTemplate := bytes.ReplaceAll(b, []byte("$$"), nil)
 
 		buf := &bytes.Buffer{}

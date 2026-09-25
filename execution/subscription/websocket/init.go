@@ -19,7 +19,7 @@ func (p InitPayload) GetString(key string) string {
 		return ""
 	}
 
-	var payload map[string]interface{}
+	var payload map[string]any
 	if err := json.Unmarshal(p, &payload); err != nil {
 		return ""
 	}

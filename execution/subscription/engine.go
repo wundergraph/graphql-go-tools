@@ -1,12 +1,11 @@
 package subscription
 
-//go:generate mockgen -destination=engine_mock_test.go -package=subscription . Engine
-//go:generate mockgen -destination=websocket/engine_mock_test.go -package=websocket . Engine
+//go:generate go tool mockgen -destination=engine_mock_test.go -package=subscription . Engine
+//go:generate go tool mockgen -destination=websocket/engine_mock_test.go -package=websocket . Engine
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -25,7 +24,7 @@ func (e *errOnBeforeStartHookFailure) Unwrap() error {
 }
 
 func (e *errOnBeforeStartHookFailure) Error() string {
-	return fmt.Sprintf("on before start hook failed: %s", e.wrappedErr.Error())
+	return "on before start hook failed: " + e.wrappedErr.Error()
 }
 
 // Engine defines the function for a subscription engine.

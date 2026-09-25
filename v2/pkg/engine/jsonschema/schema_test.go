@@ -50,62 +50,81 @@ func TestJsonSchema_MarshalJSON(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "object",
+  "additionalProperties": false,
+  "description": "Test object schema",
   "properties": {
-    "name": {
-      "type": "string",
-      "description": "A string property",
-      "default": "default value",
-      "nullable": true
-    },
-    "age": {
-      "type": "integer",
-      "minimum": 0,
-      "nullable": true
-    },
-    "category": {
-      "type": "string",
-      "enum": [
-        "ONE",
-        "TWO",
-        "THREE"
-      ],
-      "nullable": true
-    },
     "address": {
-      "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "street": {
-          "type": "string",
-          "nullable": true
-        },
         "city": {
-          "type": "string",
-          "nullable": true
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "street": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
         "street"
       ],
-      "additionalProperties": false,
-      "nullable": true
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "age": {
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "category": {
+      "enum": [
+        "ONE",
+        "TWO",
+        "THREE",
+        null
+      ],
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "name": {
+      "default": "default value",
+      "description": "A string property",
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "tags": {
-      "type": "array",
       "items": {
-        "type": "string",
-        "nullable": true
+        "type": [
+          "string",
+          "null"
+        ]
       },
-      "nullable": true
+      "type": [
+        "array",
+        "null"
+      ]
     }
   },
   "required": [
     "name",
     "age"
   ],
-  "additionalProperties": false,
-  "description": "Test object schema",
-  "nullable": true
+  "type": [
+    "object",
+    "null"
+  ]
 }`
 
 		// Compare actual JSON with expected JSON
@@ -134,26 +153,27 @@ func TestJsonSchema_MarshalJSON(t *testing.T) {
 		require.NoError(t, err)
 
 		// Parse it back to verify
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
 		// Verify structure - there should be no $ref
-		properties := parsed["properties"].(map[string]interface{})
-		nestedProp := properties["nested"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
+		nestedProp := properties["nested"].(map[string]any)
 
-		// Check that it's properly inlined
-		assert.Equal(t, "object", nestedProp["type"])
+		// Check that it's properly inlined; nullable schemas serialize "type" as
+		// the JSON Schema 2020-12 two-element array [<type>, "null"].
+		assert.Equal(t, []any{"object", "null"}, nestedProp["type"])
 		assert.Equal(t, "Nested schema", nestedProp["description"])
 		assert.Contains(t, nestedProp, "properties")
 
 		// Check the array contains the same schema inline
-		itemsProp := properties["items"].(map[string]interface{})
-		assert.Equal(t, "array", itemsProp["type"])
+		itemsProp := properties["items"].(map[string]any)
+		assert.Equal(t, []any{"array", "null"}, itemsProp["type"])
 		assert.Contains(t, itemsProp, "items")
 
-		itemsSchema := itemsProp["items"].(map[string]interface{})
-		assert.Equal(t, "object", itemsSchema["type"])
+		itemsSchema := itemsProp["items"].(map[string]any)
+		assert.Equal(t, []any{"object", "null"}, itemsSchema["type"])
 		assert.Equal(t, "Nested schema", itemsSchema["description"])
 	})
 }
@@ -170,13 +190,16 @@ func TestSchemaFeatures(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "string",
   "enum": [
     "RED",
     "GREEN",
-    "BLUE"
+    "BLUE",
+    null
   ],
-  "nullable": true
+  "type": [
+    "string",
+    "null"
+  ]
 }`
 
 		// Compare actual JSON with expected JSON
@@ -199,27 +222,35 @@ func TestSchemaFeatures(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "object",
+  "additionalProperties": false,
   "properties": {
+    "age": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
     "id": {
-      "type": "string",
-      "nullable": true
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "name": {
-      "type": "string",
-      "nullable": true
-    },
-    "age": {
-      "type": "integer",
-      "nullable": true
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "required": [
     "id",
     "age"
   ],
-  "additionalProperties": false,
-  "nullable": true
+  "type": [
+    "object",
+    "null"
+  ]
 }`
 
 		// Compare actual JSON with expected JSON
@@ -241,10 +272,9 @@ func TestSchemaFeatures(t *testing.T) {
 
 		// Define expected JSON schema for integer
 		expectedIntJSON := `{
-  "type": "integer",
+  "type": ["integer", "null"],
   "minimum": 0,
-  "maximum": 100,
-  "nullable": true
+  "maximum": 100
 }`
 
 		// Compare actual JSON with expected JSON
@@ -260,10 +290,9 @@ func TestSchemaFeatures(t *testing.T) {
 
 		// Define expected JSON schema for number
 		expectedNumJSON := `{
-  "type": "number",
+  "type": ["number", "null"],
   "minimum": 0,
-  "maximum": 100,
-  "nullable": true
+  "maximum": 100
 }`
 
 		// Compare actual JSON with expected JSON
@@ -278,7 +307,7 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -305,19 +334,19 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(objSchema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
-		strProp := properties["str"].(map[string]interface{})
+		strProp := properties["str"].(map[string]any)
 		assert.Equal(t, "default string", strProp["default"])
 
-		numProp := properties["num"].(map[string]interface{})
+		numProp := properties["num"].(map[string]any)
 		assert.Equal(t, float64(42), numProp["default"])
 
-		boolProp := properties["bool"].(map[string]interface{})
+		boolProp := properties["bool"].(map[string]any)
 		assert.Equal(t, true, boolProp["default"])
 	})
 
@@ -329,7 +358,7 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -352,13 +381,18 @@ func TestSchemaFeatures(t *testing.T) {
 			data, err := json.Marshal(schema)
 			require.NoError(t, err)
 
-			var parsed map[string]interface{}
+			var parsed map[string]any
 			err = json.Unmarshal(data, &parsed)
 			require.NoError(t, err)
 
-			// For string type assertions, we expect the primary type (without null)
-			typeVal := parsed["type"].(string)
-			assert.NotEqual(t, "null", typeVal)
+			// A nullable schema serializes "type" as the JSON Schema 2020-12 two-
+			// element array [<primary>, "null"], not the OpenAPI "nullable: true".
+			typeArr, ok := parsed["type"].([]any)
+			require.True(t, ok, "nullable schema should serialize type as an array")
+			require.Len(t, typeArr, 2)
+			require.Contains(t, typeArr, "null")
+			require.NotEqual(t, "null", typeArr[0],
+				"primary (non-null) type should appear first in the type array")
 		}
 	})
 
@@ -372,7 +406,7 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -426,67 +460,88 @@ func TestSchemaFeatures(t *testing.T) {
 
 		// Define expected JSON schema
 		expectedJSON := `{
-  "type": "object",
+  "additionalProperties": false,
+  "description": "User schema with all features",
   "properties": {
-    "id": {
-      "type": "string",
-      "pattern": "^[a-zA-Z0-9]{8,}$",
-      "nullable": true
-    },
-    "email": {
-      "type": "string",
-      "format": "email",
-      "default": "user@example.com",
-      "nullable": true
-    },
-    "age": {
-      "type": "integer",
-      "minimum": 13,
-      "nullable": true
-    },
-    "role": {
-      "type": "string",
-      "enum": [
-        "ADMIN",
-        "USER",
-        "GUEST"
-      ],
-      "default": "USER",
-      "nullable": true
-    },
-    "tags": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "nullable": true
-      },
-      "nullable": true
-    },
     "address": {
-      "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "street": {
-          "type": "string",
-          "nullable": true
-        },
         "city": {
-          "type": "string",
-          "nullable": true
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "street": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
         "street"
       ],
-      "additionalProperties": false,
-      "nullable": true
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "age": {
+      "minimum": 13,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "email": {
+      "default": "user@example.com",
+      "format": "email",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "id": {
+      "pattern": "^[a-zA-Z0-9]{8,}$",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "role": {
+      "default": "USER",
+      "enum": [
+        "ADMIN",
+        "USER",
+        "GUEST",
+        null
+      ],
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tags": {
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "type": [
+        "array",
+        "null"
+      ]
     }
   },
   "required": [
     "id"
   ],
-  "additionalProperties": false,
-  "description": "User schema with all features",
-  "nullable": true
+  "type": [
+    "object",
+    "null"
+  ]
 }`
 
 		// Compare actual JSON with expected JSON
@@ -527,24 +582,30 @@ func TestSchemaFeatures(t *testing.T) {
 		data, err := json.Marshal(schema)
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
-		properties := parsed["properties"].(map[string]interface{})
+		properties := parsed["properties"].(map[string]any)
 
-		// Explicitly nullable property should have nullable=true
-		nullableProp := properties["nullableString"].(map[string]interface{})
-		assert.Equal(t, true, nullableProp["nullable"])
+		// Nullability is expressed via the JSON Schema 2020-12 type-union form,
+		// not the OpenAPI "nullable" keyword (which is no longer emitted).
 
-		// Non-nullable property should not have nullable field (omitempty)
-		nonNullableProp := properties["nonNullableString"].(map[string]interface{})
-		_, hasNullable := nonNullableProp["nullable"]
-		assert.False(t, hasNullable)
+		// Explicitly nullable property: "type" is the two-element [<t>, "null"] array.
+		nullableProp := properties["nullableString"].(map[string]any)
+		assert.Equal(t, []any{"string", "null"}, nullableProp["type"])
+		_, hasNullableKey := nullableProp["nullable"]
+		assert.False(t, hasNullableKey, "nullable keyword should not be emitted")
 
-		// Default property should have nullable=true
-		defaultProp := properties["defaultString"].(map[string]interface{})
-		assert.Equal(t, true, defaultProp["nullable"])
+		// Non-nullable property: "type" is a single string and no "nullable" key.
+		nonNullableProp := properties["nonNullableString"].(map[string]any)
+		assert.Equal(t, "string", nonNullableProp["type"])
+		_, hasNullableOnNonNullable := nonNullableProp["nullable"]
+		assert.False(t, hasNullableOnNonNullable)
+
+		// Default (factory-nullable) property: same shape as explicitly nullable.
+		defaultProp := properties["defaultString"].(map[string]any)
+		assert.Equal(t, []any{"string", "null"}, defaultProp["type"])
 
 		// Test WithNullable method
 		schema = NewStringSchema()

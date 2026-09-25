@@ -66,7 +66,7 @@ func (s *Scanner) scanFile(inputFilePath string) (*GraphQLFile, error) {
 	}
 
 	importStatements := importStatementRegex.FindAll(content, -1)
-	for i := 0; i < len(importStatements); i++ {
+	for i := range importStatements {
 		importFilePath := s.importFilePath(string(importStatements[i]))
 		filePathPattern := filepath.Join(fileDir, importFilePath)
 		if importFilePath != "" {

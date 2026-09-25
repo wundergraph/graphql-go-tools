@@ -45,8 +45,7 @@ func TestTimeOutChecker(t *testing.T) {
 			wg.Done()
 		}
 
-		timeOutCtx, timeOutCancel := context.WithCancel(context.Background())
-		defer timeOutCancel()
+		timeOutCtx := t.Context()
 
 		params := TimeOutParams{
 			Name:            "",

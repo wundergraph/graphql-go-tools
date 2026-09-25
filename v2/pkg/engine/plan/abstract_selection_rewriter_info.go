@@ -8,7 +8,6 @@ import (
 )
 
 type selectionSetInfo struct {
-	hasTypeNameSelection           bool // __typename is selected
 	fields                         []fieldSelection
 	hasFields                      bool
 	isInterfaceObject              bool
@@ -18,11 +17,27 @@ type selectionSetInfo struct {
 	hasInlineFragmentsOnInterfaces bool
 	inlineFragmentsOnUnions        []inlineFragmentSelectionOnUnion
 	hasInlineFragmentsOnUnions     bool
+	typenameSelectionRef           int // selection ref of the __typename selection; ast.InvalidRef when __typename is not selected
+}
+
+// hasTypeNameSelection reports whether __typename is selected in this selection set.
+// Valid only on infos built by collectSelectionSetInformation - on a zero-value
+// selectionSetInfo the ref 0 would be mistaken for a selection.
+func (s *selectionSetInfo) hasTypeNameSelection() bool {
+	return s.typenameSelectionRef != ast.InvalidRef
 }
 
 type fieldSelection struct {
 	fieldSelectionRef int
 	fieldName         string
+}
+
+// hasNonTypenameFields returns whether the selection set has field selections
+// other than the __typename field.
+func (s *selectionSetInfo) hasNonTypenameFields() bool {
+	return slices.ContainsFunc(s.fields, func(f fieldSelection) bool {
+		return f.fieldName != typeNameField
+	})
 }
 
 type inlineFragmentSelection struct {
@@ -62,15 +77,17 @@ func (s *inlineFragmentSelection) isFragmentOnInterface() bool {
 	return s.definitionNodeKind == ast.NodeKindInterfaceTypeDefinition
 }
 
-func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int) (fieldSelections []fieldSelection, hasTypename bool) {
+func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int) (fieldSelections []fieldSelection, typenameSelectionRef int) {
+	typenameSelectionRef = ast.InvalidRef
+
 	fieldSelectionRefs := r.operation.SelectionSetFieldSelections(selectionSetRef)
 	fieldSelections = make([]fieldSelection, 0, len(fieldSelectionRefs))
 	for _, fieldSelectionRef := range fieldSelectionRefs {
 		fieldRef := r.operation.Selections[fieldSelectionRef].Ref
 		fieldName := r.operation.FieldNameString(fieldRef)
 
-		if fieldName == "__typename" {
-			hasTypename = true
+		if fieldName == typeNameField {
+			typenameSelectionRef = fieldSelectionRef
 		}
 
 		fieldSelections = append(fieldSelections, fieldSelection{
@@ -79,7 +96,7 @@ func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int
 		})
 	}
 
-	return fieldSelections, hasTypename
+	return fieldSelections, typenameSelectionRef
 }
 
 func (r *fieldSelectionRewriter) collectFieldInformation(fieldRef int) (selectionSetInfo, error) {
@@ -185,7 +202,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 }
 
 func (r *fieldSelectionRewriter) collectSelectionSetInformation(selectionSetRef int) (selectionSetInfo, error) {
-	fieldSelections, hasSharedTypename := r.selectionSetFieldSelections(selectionSetRef)
+	fieldSelections, typenameSelectionRef := r.selectionSetFieldSelections(selectionSetRef)
 
 	inlineFragmentSelectionRefs := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
 	inlineFragmentSelectionsOnObjects := make([]inlineFragmentSelection, 0, len(inlineFragmentSelectionRefs))
@@ -202,7 +219,7 @@ func (r *fieldSelectionRewriter) collectSelectionSetInformation(selectionSetRef 
 	return selectionSetInfo{
 		fields:                         fieldSelections,
 		hasFields:                      len(fieldSelections) > 0,
-		hasTypeNameSelection:           hasSharedTypename,
+		typenameSelectionRef:           typenameSelectionRef,
 		inlineFragmentsOnObjects:       inlineFragmentSelectionsOnObjects,
 		hasInlineFragmentsOnObjects:    len(inlineFragmentSelectionsOnObjects) > 0,
 		inlineFragmentsOnInterfaces:    inlineFragmentsOnInterfaces,

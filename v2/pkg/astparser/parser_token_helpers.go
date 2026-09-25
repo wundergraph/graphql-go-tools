@@ -1,6 +1,8 @@
 package astparser
 
 import (
+	"slices"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/identkeyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/keyword"
@@ -80,10 +82,8 @@ func (p *Parser) mustReadOneOf(keys ...identkeyword.IdentKeyword) (token.Token, 
 	next := p.read()
 
 	identKey := p.identKeywordToken(next)
-	for _, expectation := range keys {
-		if identKey == expectation {
-			return next, identKey
-		}
+	if slices.Contains(keys, identKey) {
+		return next, identKey
 	}
 	p.errUnexpectedToken(next)
 	return next, identKey

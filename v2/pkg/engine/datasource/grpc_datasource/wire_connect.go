@@ -385,6 +385,11 @@ func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value,
 		return fmt.Errorf("items field not found for message %s but was expected", listMessage.name)
 	}
 
+	// A null list is not an empty list. Do not write the wrapper for a null optional list.
+	if isNullJSONValue(data) && md.Optional {
+		return nil
+	}
+
 	elements := data.GetArray()
 	if len(elements) == 0 && !md.Optional {
 		return fmt.Errorf("list is required but has no elements")
@@ -421,6 +426,11 @@ func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value,
 	buf.Write(listBuffer.Bytes())
 
 	return nil
+}
+
+// isNullJSONValue returns true if the value is missing or JSON null.
+func isNullJSONValue(data *astjson.Value) bool {
+	return data == nil || data.Type() == astjson.TypeNull
 }
 
 func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astjson.Value) error {
@@ -652,6 +662,10 @@ func resolveDataForPath(message protoref.Message, path ast.Path) []protoref.Valu
 	switch fd.Kind() {
 	case protoref.MessageKind:
 		if fd.IsList() {
+			if path.Len() > 1 {
+				return resolveListDataForPath(field.List(), fd, path[1:])
+			}
+
 			// We always return a list value here even if the list is empty.
 			// Repeatable fields in protobuf are always at least an empty list.
 			return []protoref.Value{protoref.ValueOfList(field.List())}
@@ -738,7 +752,7 @@ func resolveUnderlyingListItems(value protoref.Value, nestingLevel int) []protor
 
 	if nestingLevel > 1 {
 		items := make([]protoref.Value, 0, itemsListLen)
-		for i := 0; i < itemsListLen; i++ {
+		for i := range itemsListLen {
 			items = append(items, resolveUnderlyingListItems(itemsList.Get(i), nestingLevel-1)...)
 		}
 
@@ -746,7 +760,7 @@ func resolveUnderlyingListItems(value protoref.Value, nestingLevel int) []protor
 	}
 
 	result := make([]protoref.Value, itemsListLen)
-	for i := 0; i < itemsListLen; i++ {
+	for i := range itemsListLen {
 		result[i] = itemsList.Get(i)
 	}
 

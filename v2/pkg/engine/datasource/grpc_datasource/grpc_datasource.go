@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -107,6 +108,11 @@ func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+	// If the transport is nil we will return the following error message instead
+	if d.transport == nil {
+		return nil, fmt.Errorf("gRPC / connect configuration requires an rpc transport")
+	}
+
 	// convert headers to grpc metadata and attach to ctx
 	// TODO: ConnectRPC will have to handle headers differently when using a http client.
 	if len(headers) > 0 {
@@ -170,7 +176,7 @@ func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest req
 	builder := newJSONBuilder(item.Arena, d.mapping)
 
 	if d.disabled {
-		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
+		return builder.writeErrorBytes(fmt.Errorf("gRPC / connect datasource needs to be enabled to be used")), nil
 	}
 
 	root := astjson.ObjectValue(nil)
@@ -341,7 +347,7 @@ func wireRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]fetc
 
 		buffer, err = fetch.request.createProtoWireWithContext(a, requestVariables, contextFetch.responseMessage)
 		if err != nil {
-			if err == errShouldSkip {
+			if errors.Is(err, errShouldSkip) {
 				return nil, true, nil
 			}
 
@@ -386,7 +392,7 @@ func messageRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]f
 
 		message, err = fetch.request.createProtoMessageWithContext(a, requestVariables, contextFetch.responseMessage)
 		if err != nil {
-			if err == errShouldSkip {
+			if errors.Is(err, errShouldSkip) {
 				return nil, true, nil
 			}
 			return nil, false, err

@@ -16,11 +16,11 @@ import (
 
 func TestParser_Parse(t *testing.T) {
 
-	type check func(doc *ast.Document, extra interface{})
-	type action func(parser *Parser) (interface{}, operationreport.Report)
+	type check func(doc *ast.Document, extra any)
+	type action func(parser *Parser) (any, operationreport.Report)
 
 	parse := func() action {
-		return func(parser *Parser) (interface{}, operationreport.Report) {
+		return func(parser *Parser) (any, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.Parse(parser.document, &report)
 			return nil, report
@@ -28,7 +28,7 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseType := func() action {
-		return func(parser *Parser) (interface{}, operationreport.Report) {
+		return func(parser *Parser) (any, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
 			parser.tokenize()
@@ -38,7 +38,7 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseValue := func() action {
-		return func(parser *Parser) (interface{}, operationreport.Report) {
+		return func(parser *Parser) (any, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
 			parser.tokenize()
@@ -48,7 +48,7 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseSelectionSet := func() action {
-		return func(parser *Parser) (interface{}, operationreport.Report) {
+		return func(parser *Parser) (any, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
 			parser.tokenize()
@@ -58,7 +58,7 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseFragmentSpread := func() action {
-		return func(parser *Parser) (interface{}, operationreport.Report) {
+		return func(parser *Parser) (any, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
 			parser.tokenize()
@@ -68,7 +68,7 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseInlineFragment := func() action {
-		return func(parser *Parser) (interface{}, operationreport.Report) {
+		return func(parser *Parser) (any, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
 			parser.tokenize()
@@ -78,7 +78,7 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	parseVariableDefinitionList := func() action {
-		return func(parser *Parser) (interface{}, operationreport.Report) {
+		return func(parser *Parser) (any, operationreport.Report) {
 			report := operationreport.Report{}
 			parser.report = &report
 			parser.tokenize()
@@ -88,7 +88,7 @@ func TestParser_Parse(t *testing.T) {
 	}
 
 	wantIndexedNode := func(key string, kind ast.NodeKind) check {
-		return func(doc *ast.Document, extra interface{}) {
+		return func(doc *ast.Document, extra any) {
 			node, exists := doc.Index.FirstNodeByNameStr(key)
 			if !exists {
 				panic("want true")
@@ -161,7 +161,7 @@ func TestParser_Parse(t *testing.T) {
 						subscription: Subscription 
 					}`, parse,
 				false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					definition := doc.RootNodes[0]
 					if definition.Ref != 0 {
 						panic("want 0")
@@ -204,7 +204,7 @@ func TestParser_Parse(t *testing.T) {
 						query: Query 
 					}`, parse,
 				false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					definition := doc.RootNodes[0]
 					if definition.Ref != 0 {
 						panic("want 0")
@@ -234,7 +234,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("with directives", func(t *testing.T) {
 			run(`schema @foo @bar(baz: "bal") {
 						query: Query 
-					}`, parse, false, func(doc *ast.Document, extra interface{}) {
+					}`, parse, false, func(doc *ast.Document, extra any) {
 				schema := doc.SchemaDefinitions[0]
 				foo := doc.Directives[schema.Directives.Refs[0]]
 				fooName := doc.Input.ByteSliceString(foo.Name)
@@ -440,7 +440,7 @@ func TestParser_Parse(t *testing.T) {
 						mutation: Mutation
 						subscription: Subscription 
 					}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 
 					schema := doc.SchemaExtensions[0]
 
@@ -474,7 +474,7 @@ func TestParser_Parse(t *testing.T) {
 
 		t.Run("empty with directive", func(t *testing.T) {
 			run(`extend schema @myDirective`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					require.Len(t, doc.SchemaExtensions, 1)
 
 					schema := doc.SchemaExtensions[0]
@@ -500,7 +500,7 @@ func TestParser_Parse(t *testing.T) {
 							date of birth
 							"""
 							dateOfBirth: Date
-						}`, parse, false, func(doc *ast.Document, extra interface{}) {
+						}`, parse, false, func(doc *ast.Document, extra any) {
 
 				person := doc.ObjectTypeExtensions[0]
 				personName := doc.Input.ByteSliceString(person.Name)
@@ -587,7 +587,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`extend interface NamedEntity @foo {
  								name: String
 							}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					namedEntity := doc.InterfaceTypeExtensions[0]
 					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
@@ -610,7 +610,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`extend interface NamedEntity implements Foo & Bar {
  								name: String
 							}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					namedEntity := doc.InterfaceTypeExtensions[0]
 					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
@@ -643,7 +643,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("scalar type extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`extend scalar JSON @foo`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					scalar := doc.ScalarTypeExtensions[0]
 					if doc.Input.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
@@ -658,7 +658,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("union type extension", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`extend union SearchResult = Photo | Person`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					SearchResult := doc.UnionTypeExtensions[0]
 
 					// union member types
@@ -697,7 +697,7 @@ func TestParser_Parse(t *testing.T) {
 							  "describes WEST"
 							  WEST @foo
 							}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					direction := doc.EnumTypeExtensions[0]
 					if doc.Input.ByteSliceString(direction.Name) != "Direction" {
 						panic("want Direction")
@@ -747,7 +747,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`	extend input Person {
 									name: String = "Gopher"
 								}`, parse,
-				false, func(doc *ast.Document, extra interface{}) {
+				false, func(doc *ast.Document, extra any) {
 					person := doc.InputObjectTypeExtensions[0]
 					if doc.Input.ByteSliceString(person.Name) != "Person" {
 						panic("want person")
@@ -802,7 +802,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("scalar type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`scalar JSON`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					scalar := doc.ScalarTypeDefinitions[0]
 					if doc.Input.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
@@ -811,7 +811,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("with description", func(t *testing.T) {
 			run(`"JSON scalar description" scalar JSON`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					scalar := doc.ScalarTypeDefinitions[0]
 					if doc.Input.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
@@ -826,7 +826,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("with directive", func(t *testing.T) {
 			run(`scalar JSON @foo`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					scalar := doc.ScalarTypeDefinitions[0]
 					if doc.Input.ByteSliceString(scalar.Name) != "JSON" {
 						panic("want JSON")
@@ -848,7 +848,7 @@ func TestParser_Parse(t *testing.T) {
 							date of birth
 							"""
 							dateOfBirth: Date
-						}`, parse, false, func(doc *ast.Document, extra interface{}) {
+						}`, parse, false, func(doc *ast.Document, extra any) {
 				person := doc.ObjectTypeDefinitions[0]
 				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
@@ -929,7 +929,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("with directives", func(t *testing.T) {
-			run(`type Person @foo @bar {}`, parse, false, func(doc *ast.Document, extra interface{}) {
+			run(`type Person @foo @bar {}`, parse, false, func(doc *ast.Document, extra any) {
 				person := doc.ObjectTypeDefinitions[0]
 				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
@@ -950,7 +950,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("implements optional variant", func(t *testing.T) {
-			run(`type Person implements & Foo & Bar {}`, parse, false, func(doc *ast.Document, extra interface{}) {
+			run(`type Person implements & Foo & Bar {}`, parse, false, func(doc *ast.Document, extra any) {
 				person := doc.ObjectTypeDefinitions[0]
 				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
@@ -987,7 +987,7 @@ func TestParser_Parse(t *testing.T) {
 										"""
 										c: Float
 									): String
-								}`, parse, false, func(doc *ast.Document, extra interface{}) {
+								}`, parse, false, func(doc *ast.Document, extra any) {
 				person := doc.ObjectTypeDefinitions[0]
 				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
@@ -1059,7 +1059,7 @@ func TestParser_Parse(t *testing.T) {
 							   name: String
 							   # tbd: String
 							   age: Int
-							}`, parse, false, func(doc *ast.Document, extra interface{}) {
+							}`, parse, false, func(doc *ast.Document, extra any) {
 				person := doc.ObjectTypeDefinitions[0]
 				personName := doc.Input.ByteSliceString(person.Name)
 				if personName != "Person" {
@@ -1107,7 +1107,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`	input Person {
 									name: String = "Gopher"
 								}`, parse,
-				false, func(doc *ast.Document, extra interface{}) {
+				false, func(doc *ast.Document, extra any) {
 					person := doc.InputObjectTypeDefinitions[0]
 					if doc.Input.ByteSliceString(person.Name) != "Person" {
 						panic("want person")
@@ -1134,7 +1134,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`interface NamedEntity @foo {
  								name: String
 							}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					namedEntity := doc.InterfaceTypeDefinitions[0]
 					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
@@ -1157,7 +1157,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`"describes NamedEntity" interface NamedEntity {
  								name: String
 							}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					namedEntity := doc.InterfaceTypeDefinitions[0]
 					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
@@ -1174,7 +1174,7 @@ func TestParser_Parse(t *testing.T) {
 			run(`interface NamedEntity implements Foo & Bar {
  								name: String
 							}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					namedEntity := doc.InterfaceTypeDefinitions[0]
 					if doc.Input.ByteSliceString(namedEntity.Name) != "NamedEntity" {
 						panic("want NamedEntity")
@@ -1200,7 +1200,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("union type definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`union SearchResult = Photo | Person`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					SearchResult := doc.UnionTypeDefinitions[0]
 
 					// union member types
@@ -1231,7 +1231,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("without members", func(t *testing.T) {
 			run(`union SearchResult`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					SearchResult := doc.UnionTypeDefinitions[0]
 
 					// union member types
@@ -1251,7 +1251,7 @@ func TestParser_Parse(t *testing.T) {
 	})
 	t.Run("type", func(t *testing.T) {
 		t.Run("named", func(t *testing.T) {
-			run("String", parseType, false, func(doc *ast.Document, extra interface{}) {
+			run("String", parseType, false, func(doc *ast.Document, extra any) {
 				stringType := doc.Types[0]
 				if stringType.TypeKind != ast.TypeKindNamed {
 					panic("want TypeKindNamed")
@@ -1262,7 +1262,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null named", func(t *testing.T) {
-			run("String!", parseType, false, func(doc *ast.Document, extra interface{}) {
+			run("String!", parseType, false, func(doc *ast.Document, extra any) {
 				nonNull := doc.Types[1]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -1277,7 +1277,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null list of named", func(t *testing.T) {
-			run("[String]!", parseType, false, func(doc *ast.Document, extra interface{}) {
+			run("[String]!", parseType, false, func(doc *ast.Document, extra any) {
 				nonNull := doc.Types[2]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -1296,7 +1296,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null list of non null named", func(t *testing.T) {
-			run("[String!]!", parseType, false, func(doc *ast.Document, extra interface{}) {
+			run("[String!]!", parseType, false, func(doc *ast.Document, extra any) {
 				nonNull := doc.Types[3]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -1319,7 +1319,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null list of non null list of named", func(t *testing.T) {
-			run("[[String]!]!", parseType, false, func(doc *ast.Document, extra interface{}) {
+			run("[[String]!]!", parseType, false, func(doc *ast.Document, extra any) {
 				nonNull := doc.Types[4]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -1346,7 +1346,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 		})
 		t.Run("non null list of non null list of non null named", func(t *testing.T) {
-			run("[[String!]!]!", parseType, false, func(doc *ast.Document, extra interface{}) {
+			run("[[String!]!]!", parseType, false, func(doc *ast.Document, extra any) {
 				nonNull := doc.Types[5]
 				if nonNull.TypeKind != ast.TypeKindNonNull {
 					panic("want TypeKindNonNull")
@@ -1408,7 +1408,7 @@ func TestParser_Parse(t *testing.T) {
 							  "describes WEST"
 							  WEST @foo
 							}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					direction := doc.EnumTypeDefinitions[0]
 					if doc.Input.ByteSliceString(direction.Name) != "Direction" {
 						panic("want Direction")
@@ -1456,7 +1456,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("directive definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`directive @example on FIELD`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					example := doc.DirectiveDefinitions[0]
 					if doc.Input.ByteSliceString(example.Name) != "example" {
 						panic("want example")
@@ -1475,7 +1475,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("repeatable", func(t *testing.T) {
 			run(`directive @example repeatable on FIELD`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					example := doc.DirectiveDefinitions[0]
 					if doc.Input.ByteSliceString(example.Name) != "example" {
 						panic("want example")
@@ -1487,7 +1487,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("multiple directive locations", func(t *testing.T) {
 			run(`directive @example on FIELD | SCALAR | SCHEMA`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					example := doc.DirectiveDefinitions[0]
 					if doc.Input.ByteSliceString(example.Name) != "example" {
 						panic("want example")
@@ -1530,7 +1530,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("variable value", func(t *testing.T) {
 			t.Run("simple", func(t *testing.T) {
 				run(`$foo`, parseValue, false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindVariable {
 							t.Fatal("want ValueKindVariable")
@@ -1543,7 +1543,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 			t.Run("with underscore", func(t *testing.T) {
 				run(`$_foo`, parseValue, false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindVariable {
 							t.Fatal("want ValueKindVariable")
@@ -1556,7 +1556,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 			t.Run("with numbers", func(t *testing.T) {
 				run(`$foo123`, parseValue, false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindVariable {
 							t.Fatal("want ValueKindVariable")
@@ -1577,7 +1577,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("int value", func(t *testing.T) {
 			t.Run("simple", func(t *testing.T) {
 				run(`123`, parseValue, false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindInteger {
 							panic("want ValueKindInteger")
@@ -1593,7 +1593,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 			t.Run("negative", func(t *testing.T) {
 				run(`-123`, parseValue, false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindInteger {
 							panic("want ValueKindInteger")
@@ -1614,7 +1614,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("float value", func(t *testing.T) {
 			t.Run("simple", func(t *testing.T) {
 				run(`13.37`, parseValue, false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindFloat {
 							panic("want ValueKindFloat")
@@ -1630,7 +1630,7 @@ func TestParser_Parse(t *testing.T) {
 			})
 			t.Run("negative", func(t *testing.T) {
 				run(`-13.37`, parseValue, false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindFloat {
 							panic("want ValueKindFloat")
@@ -1650,7 +1650,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("null value", func(t *testing.T) {
 			run(`null`, parseValue, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					value := extra.(ast.Value)
 					if value.Kind != ast.ValueKindNull {
 						panic("want ValueKindNull")
@@ -1660,7 +1660,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("list value", func(t *testing.T) {
 			t.Run("complex", func(t *testing.T) {
 				run(`[1,2,"3",[4]]`, parseValue, false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindList {
 							panic("want ValueKindList")
@@ -1723,7 +1723,7 @@ func TestParser_Parse(t *testing.T) {
 		t.Run("object value", func(t *testing.T) {
 			t.Run("complex", func(t *testing.T) {
 				run(`{lon: 12.43, lat: -53.211, list: [1] }`, parseValue, false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						value := extra.(ast.Value)
 						if value.Kind != ast.ValueKindObject {
 							panic("want ValueKindObject")
@@ -1781,7 +1781,7 @@ func TestParser_Parse(t *testing.T) {
 	t.Run("operation definition", func(t *testing.T) {
 		t.Run("unnamed query", func(t *testing.T) {
 			run(`query {field}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					query := doc.OperationDefinitions[0]
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
@@ -1804,7 +1804,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("shorthand query", func(t *testing.T) {
 			run(`{field}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					query := doc.OperationDefinitions[0]
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
@@ -1824,7 +1824,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("named query", func(t *testing.T) {
 			run(`query Query1 {field}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					query := doc.OperationDefinitions[0]
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
@@ -1844,7 +1844,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("unnamed mutation", func(t *testing.T) {
 			run(`mutation {field}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					mutation := doc.OperationDefinitions[0]
 					if mutation.OperationType != ast.OperationTypeMutation {
 						panic("want OperationTypeMutation")
@@ -1864,7 +1864,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("named mutation", func(t *testing.T) {
 			run(`mutation Mutation1 {field}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					mutation := doc.OperationDefinitions[0]
 					if mutation.OperationType != ast.OperationTypeMutation {
 						panic("want OperationTypeMutation")
@@ -1884,7 +1884,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("unnamed subscription", func(t *testing.T) {
 			run(`subscription {field}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					mutation := doc.OperationDefinitions[0]
 					if mutation.OperationType != ast.OperationTypeSubscription {
 						panic("want OperationTypeSubscription")
@@ -1904,7 +1904,7 @@ func TestParser_Parse(t *testing.T) {
 		})
 		t.Run("named subscription", func(t *testing.T) {
 			run(`subscription Sub1 {field}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					mutation := doc.OperationDefinitions[0]
 					if mutation.OperationType != ast.OperationTypeSubscription {
 						panic("want OperationTypeSubscription")
@@ -1936,7 +1936,7 @@ func TestParser_Parse(t *testing.T) {
 								  }
 							}`,
 				parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					subscription := doc.OperationDefinitions[0]
 					if subscription.OperationType != ast.OperationTypeSubscription {
 						panic("want OperationTypeSubscription")
@@ -1989,7 +1989,7 @@ func TestParser_Parse(t *testing.T) {
 
 		t.Run("query with description", func(t *testing.T) {
 			run(`"Fetches a user by ID" query GetUser($id: ID!) { user(id: $id) { id name } }`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					query := doc.OperationDefinitions[0]
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
@@ -2013,7 +2013,7 @@ Fetches a user by their unique identifier.
 This operation returns detailed user information.
 """
 query GetUser($id: ID!) { user(id: $id) { id name } }`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					query := doc.OperationDefinitions[0]
 					if query.OperationType != ast.OperationTypeQuery {
 						panic("want OperationTypeQuery")
@@ -2034,7 +2034,7 @@ query GetUser($id: ID!) { user(id: $id) { id name } }`, parse, false,
 
 		t.Run("mutation with description", func(t *testing.T) {
 			run(`"Creates a new user" mutation CreateUser($input: UserInput!) { createUser(input: $input) { id } }`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					mutation := doc.OperationDefinitions[0]
 					if mutation.OperationType != ast.OperationTypeMutation {
 						panic("want OperationTypeMutation")
@@ -2051,7 +2051,7 @@ query GetUser($id: ID!) { user(id: $id) { id name } }`, parse, false,
 
 		t.Run("subscription with description", func(t *testing.T) {
 			run(`"""Subscribes to user updates""" subscription UserUpdated($userId: ID!) { userUpdated(userId: $userId) { id } }`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					subscription := doc.OperationDefinitions[0]
 					if subscription.OperationType != ast.OperationTypeSubscription {
 						panic("want OperationTypeSubscription")
@@ -2076,7 +2076,7 @@ mutation CreateUser { createUser { id } }
 "Subscribe to updates"
 subscription Updates { updates { id } }
 `, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					// First operation with description
 					query := doc.OperationDefinitions[0]
 					if !query.Description.IsDefined {
@@ -2106,7 +2106,7 @@ subscription Updates { updates { id } }
 	t.Run("variable definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`($devicePicSize: Int = 1 $var2: String)`, parseVariableDefinitionList, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					list := extra.(ast.VariableDefinitionList)
 
 					var1 := doc.VariableDefinitions[list.Refs[0]]
@@ -2171,7 +2171,7 @@ subscription Updates { updates { id } }
 								}
 							  }
 							}`, parseSelectionSet, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					set := doc.SelectionSets[extra.(int)]
 
 					// me
@@ -2258,7 +2258,7 @@ subscription Updates { updates { id } }
 	t.Run("fragment spread", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
 			run(`friendFields @foo`, parseFragmentSpread, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					fragmentSpread := extra.(ast.FragmentSpread)
 					if doc.Input.ByteSliceString(fragmentSpread.FragmentName) != "friendFields" {
 						panic("want friendFields")
@@ -2279,7 +2279,7 @@ subscription Updates { updates { id } }
 								count
 							  }
 							}`, parseInlineFragment, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					fragment := extra.(ast.InlineFragment)
 					user := doc.Types[fragment.TypeCondition.Type]
 					if user.TypeKind != ast.TypeKindNamed {
@@ -2316,7 +2316,7 @@ subscription Updates { updates { id } }
 							  name
 							  profilePic(size: 50)
 							}`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					fragment := doc.FragmentDefinitions[0]
 					if doc.Input.ByteSliceString(fragment.Name) != "friendFields" {
 						panic("want friendFields")
@@ -2342,7 +2342,7 @@ subscription Updates { updates { id } }
 
 		t.Run("with description", func(t *testing.T) {
 			run(`"User fields fragment" fragment UserFields on User { id name }`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					fragment := doc.FragmentDefinitions[0]
 					if doc.Input.ByteSliceString(fragment.Name) != "UserFields" {
 						panic("want UserFields")
@@ -2363,7 +2363,7 @@ This fragment selects user information.
 It demonstrates fragment descriptions in GraphQL.
 """
 fragment UserInfo on User { id name email }`, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					fragment := doc.FragmentDefinitions[0]
 					if doc.Input.ByteSliceString(fragment.Name) != "UserInfo" {
 						panic("want UserInfo")
@@ -2392,7 +2392,7 @@ fragment Fragment2 on User { name }
 "Third fragment"
 fragment Fragment3 on User { email }
 `, parse, false,
-				func(doc *ast.Document, extra interface{}) {
+				func(doc *ast.Document, extra any) {
 					// First fragment with description
 					fragment1 := doc.FragmentDefinitions[0]
 					if !fragment1.Description.IsDefined {
@@ -2441,7 +2441,7 @@ fragment Fragment3 on User { email }
 			directive @directive1 on FIELD
 			directive @directive2 on FIELD
 			`, parse, false,
-			func(doc *ast.Document, extra interface{}) {
+			func(doc *ast.Document, extra any) {
 				if string(doc.Index.QueryTypeName) != "Query" {
 					panic("want Query")
 				}
@@ -2479,7 +2479,7 @@ this is a schema \
 						query: Query 
 					}`, parse,
 					false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						definition := doc.RootNodes[0]
 						if definition.Ref != 0 {
 							panic("want 0")
@@ -2513,7 +2513,7 @@ this is a schema \
 						query: Query 
 					}`, parse,
 					false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						definition := doc.RootNodes[0]
 						if definition.Ref != 0 {
 							panic("want 0")
@@ -2548,7 +2548,7 @@ this is a schema \
 						query: Query 
 					}`, parse,
 					false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						definition := doc.RootNodes[0]
 						if definition.Ref != 0 {
 							panic("want 0")
@@ -2580,7 +2580,7 @@ this is a schema \
 						query: Query 
 					}`, parse,
 					false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						definition := doc.RootNodes[0]
 						if definition.Ref != 0 {
 							panic("want 0")
@@ -2615,7 +2615,7 @@ this is a schema \
 						query: Query # my comment \
 					}`, parse,
 					false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						definition := doc.RootNodes[0]
 						if definition.Ref != 0 {
 							panic("want 0")
@@ -2647,7 +2647,7 @@ this is a schema \
 						query: Query # my comment \\
 					}`, parse,
 					false,
-					func(doc *ast.Document, extra interface{}) {
+					func(doc *ast.Document, extra any) {
 						definition := doc.RootNodes[0]
 						if definition.Ref != 0 {
 							panic("want 0")
@@ -2679,7 +2679,7 @@ this is a schema \
 				run(`	input Person {
 									name: String = "Gopher \ "
 								}`, parse,
-					false, func(doc *ast.Document, extra interface{}) {
+					false, func(doc *ast.Document, extra any) {
 						person := doc.InputObjectTypeDefinitions[0]
 						if doc.Input.ByteSliceString(person.Name) != "Person" {
 							panic("want person")
@@ -2703,7 +2703,7 @@ this is a schema \
 				run(`	input Person {
 									name: String = "Gopher \\ "
 								}`, parse,
-					false, func(doc *ast.Document, extra interface{}) {
+					false, func(doc *ast.Document, extra any) {
 						person := doc.InputObjectTypeDefinitions[0]
 						if doc.Input.ByteSliceString(person.Name) != "Person" {
 							panic("want person")

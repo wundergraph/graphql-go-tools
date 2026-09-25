@@ -22,10 +22,10 @@ import (
 
 func loggingInterceptor(
 	ctx context.Context,
-	req interface{},
+	req any,
 	info *grpc.UnaryServerInfo,
 	handler grpc.UnaryHandler,
-) (resp interface{}, err error) {
+) (resp any, err error) {
 	start := time.Now()
 	// Calls the handler to proceed with normal execution of RPC.
 	resp, err = handler(ctx, req)

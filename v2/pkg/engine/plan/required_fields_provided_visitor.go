@@ -1,23 +1,20 @@
 package plan
 
 import (
-	"strings"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 type areRequiredFieldsProvidedInput struct {
-	typeName       string
-	requiredFields string
-	definition     *ast.Document
-	dataSource     DataSource
-	providedFields map[string]struct{}
-	parentPath     string
+	typeName          string
+	requiredFields    string
+	definition        *ast.Document
+	dataSource        DataSource
+	providedSelection providesSelection
 }
 
-// areRequiredFieldsProvided checks if all required fields are provided on the given path in a query
+// areRequiredFieldsProvided checks if all required fields are provided on the given position in a query
 // Example subgraph schema:
 // type Address @key(fields: "zip") {
 //  id: ID!
@@ -44,10 +41,12 @@ type areRequiredFieldsProvidedInput struct {
 //	  }
 //	}
 //
-// When one of the parent nodes provides fields, which are mentioned in requires.
-// We can skip fetching these requirements, because fields are already available under the given path.
+// When one of the parent nodes provides fields, which are mentioned in requires,
+// we can skip fetching these requirements, because fields are already available.
+// providedSelection is the provided selection applying to the field with @requires
+// and its siblings, e.g. the fields of the entity holding the requirement.
 func areRequiredFieldsProvided(input areRequiredFieldsProvidedInput) (bool, *operationreport.Report) {
-	if len(input.providedFields) == 0 {
+	if len(input.providedSelection) == 0 {
 		return false, operationreport.NewReport()
 	}
 
@@ -59,53 +58,53 @@ func areRequiredFieldsProvided(input areRequiredFieldsProvidedInput) (bool, *ope
 	walker := astvisitor.NewWalkerWithID(4, "RequiredFieldsProvidedVisitor")
 
 	visitor := &requiredFieldsProvidedVisitor{
-		walker:      &walker,
-		input:       input,
-		key:         key,
-		allProvided: true,
+		walker:         &walker,
+		input:          input,
+		key:            key,
+		selectionStack: []providesSelection{input.providedSelection},
+		allProvided:    true,
 	}
 
-	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterFieldVisitor(visitor)
 	walker.Walk(key, input.definition, report)
 
 	return visitor.allProvided, report
 }
 
 type requiredFieldsProvidedVisitor struct {
-	walker      *astvisitor.Walker
-	input       areRequiredFieldsProvidedInput
-	key         *ast.Document
-	allProvided bool
+	walker *astvisitor.Walker
+	input  areRequiredFieldsProvidedInput
+	key    *ast.Document
+
+	// selectionStack tracks the provided selection at each nesting level of the
+	// requires fragment walk; entries are nil below levels which are not provided
+	selectionStack []providesSelection
+	allProvided    bool
 }
 
 func (v *requiredFieldsProvidedVisitor) EnterField(ref int) {
+	fieldName := v.key.FieldNameString(ref)
 	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
-	currentFieldName := v.key.FieldNameUnsafeString(ref)
 
-	currentPathWithoutFragments := v.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
-	// remove the parent type name from the path because we are walking a fragment with the required fields
-	parentPath := v.input.parentPath + strings.TrimPrefix(currentPathWithoutFragments, v.input.typeName)
-	currentPath := parentPath + "." + currentFieldName
+	currentSelection := v.selectionStack[len(v.selectionStack)-1]
+	childSelection, provided := currentSelection.providedTypeSelection(fieldName, typeName)
+	v.selectionStack = append(v.selectionStack, childSelection)
 
-	key := providedFieldKey(typeName, currentFieldName, currentPath)
-
-	_, provided := v.input.providedFields[key]
-
-	if !provided {
-		// if we are on a nested path - it means that parent was provided as we reach this
-		if parentPath != "" {
-			hasRootNode := v.input.dataSource.HasRootNode(typeName, currentFieldName)
-			hasChildNode := v.input.dataSource.HasChildNode(typeName, currentFieldName)
-
-			// if the field is not external under the parent
-			if hasRootNode || hasChildNode {
-				// we consider it accessible.
-				// e.g., implicitly provided
-				return
-			}
-		}
-
-		v.allProvided = false
-		v.walker.Stop()
+	if provided {
+		return
 	}
+
+	// the field is not explicitly provided, but when it is a regular node of the
+	// data source it is accessible under the provided parent,
+	// e.g. implicitly provided
+	if v.input.dataSource.HasRootNode(typeName, fieldName) || v.input.dataSource.HasChildNode(typeName, fieldName) {
+		return
+	}
+
+	v.allProvided = false
+	v.walker.Stop()
+}
+
+func (v *requiredFieldsProvidedVisitor) LeaveField(ref int) {
+	v.selectionStack = v.selectionStack[:len(v.selectionStack)-1]
 }
