@@ -40,7 +40,8 @@ type Context struct {
 	Extensions       []byte
 	LoaderHooks      LoaderHooks
 	// OnSubscriptionEnd runs once after this downstream subscription is removed
-	// from the resolver. It is not called for a shared trigger's other subscribers.
+	// from the resolver, or after setup ends without registering a subscriber.
+	// It is not called for a shared trigger's other subscribers.
 	// The callback must not retain the Context or block indefinitely.
 	OnSubscriptionEnd func()
 
