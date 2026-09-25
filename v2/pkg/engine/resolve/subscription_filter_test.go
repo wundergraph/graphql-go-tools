@@ -1147,4 +1147,94 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, false, skip)
 	})
+	t.Run("in: remapped variable reads original name when new name collides", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			In: &SubscriptionFieldFilter{
+				FieldPath: []string{"id"},
+				Values: []InputTemplate{
+					{
+						Segments: []TemplateSegment{
+							{
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ContextVariableKind,
+								VariableSourcePath: []string{"a"},
+								Renderer:           NewPlainVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{
+			Variables:      astjson.MustParseBytes([]byte(`{"id":1,"a":"x"}`)),
+			RemapVariables: map[string]string{"a": "id", "b": "a"},
+		}
+		skip, err := filter.SkipEvent(c, []byte(`{"id":1}`))
+		assert.NoError(t, err)
+		assert.Equal(t, false, skip)
+
+		skip, err = filter.SkipEvent(c, []byte(`{"id":"x"}`))
+		assert.NoError(t, err)
+		assert.Equal(t, true, skip)
+	})
+	t.Run("in: remapped variable whose original name is another variable's new name", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			In: &SubscriptionFieldFilter{
+				FieldPath: []string{"id"},
+				Values: []InputTemplate{
+					{
+						Segments: []TemplateSegment{
+							{
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ContextVariableKind,
+								VariableSourcePath: []string{"b"},
+								Renderer:           NewPlainVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{
+			Variables:      astjson.MustParseBytes([]byte(`{"id":1,"a":"x"}`)),
+			RemapVariables: map[string]string{"a": "id", "b": "a"},
+		}
+		skip, err := filter.SkipEvent(c, []byte(`{"id":"x"}`))
+		assert.NoError(t, err)
+		assert.Equal(t, false, skip)
+
+		skip, err = filter.SkipEvent(c, []byte(`{"id":1}`))
+		assert.NoError(t, err)
+		assert.Equal(t, true, skip)
+	})
+	t.Run("in: remapped nested variable path", func(t *testing.T) {
+		filter := &SubscriptionFilter{
+			In: &SubscriptionFieldFilter{
+				FieldPath: []string{"id"},
+				Values: []InputTemplate{
+					{
+						Segments: []TemplateSegment{
+							{
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ContextVariableKind,
+								VariableSourcePath: []string{"b", "id"},
+								Renderer:           NewPlainVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+		c := &Context{
+			Variables:      astjson.MustParseBytes([]byte(`{"id":1,"y":{"id":"x"}}`)),
+			RemapVariables: map[string]string{"a": "id", "b": "y"},
+		}
+		skip, err := filter.SkipEvent(c, []byte(`{"id":"x"}`))
+		assert.NoError(t, err)
+		assert.Equal(t, false, skip)
+
+		skip, err = filter.SkipEvent(c, []byte(`{"id":1}`))
+		assert.NoError(t, err)
+		assert.Equal(t, true, skip)
+	})
 }
