@@ -3,7 +3,6 @@ package grpcdatasource
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -986,10 +985,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			}
 
 			require.Empty(t, tt.expectedError)
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -1252,10 +1248,7 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 			}
 
 			require.Empty(t, tt.expectedError)
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }

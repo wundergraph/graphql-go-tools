@@ -7,7 +7,6 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/require"
-	protoref "google.golang.org/protobuf/reflect/protoreflect"
 
 	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
 )
@@ -74,6 +73,6 @@ func TestNewConfiguration_EmptyConfigMentionsGRPC(t *testing.T) {
 // end (that path is exercised in pkg/engine/datasource/grpc_datasource).
 type stubRPCTransport struct{}
 
-func (*stubRPCTransport) Invoke(ctx context.Context, methodFullName string, input, output protoref.Message) error {
+func (*stubRPCTransport) Invoke(ctx context.Context, methodFullName string, input, output any) error {
 	return fmt.Errorf("stub: %s", methodFullName)
 }

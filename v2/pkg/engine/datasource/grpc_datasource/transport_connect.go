@@ -185,17 +185,17 @@ func (t *connectTransport) clientFor(procedure string, respDesc protoreflect.Mes
 // input is expected to be a *dynamicpb.Message produced by the calling
 // data source; output is a *dynamicpb.Message pre-built with the response
 // descriptor that this transport will populate on success.
-func (t *connectTransport) Invoke(ctx context.Context, methodFullName string, input, output protoreflect.Message) error {
-	inDyn, ok := input.Interface().(*dynamicpb.Message)
+func (t *connectTransport) Invoke(ctx context.Context, methodFullName string, input, output any) error {
+	inDyn, ok := input.(*dynamicpb.Message)
 	if !ok {
-		return fmt.Errorf("connect: input is %T, want *dynamicpb.Message", input.Interface())
+		return fmt.Errorf("connect: input is %T, want *dynamicpb.Message", input)
 	}
-	outDyn, ok := output.Interface().(*dynamicpb.Message)
+	outDyn, ok := output.(*dynamicpb.Message)
 	if !ok {
-		return fmt.Errorf("connect: output is %T, want *dynamicpb.Message", output.Interface())
+		return fmt.Errorf("connect: output is %T, want *dynamicpb.Message", output)
 	}
 
-	cli := t.clientFor(methodFullName, output.Descriptor())
+	cli := t.clientFor(methodFullName, outDyn.Descriptor())
 
 	req := connect.NewRequest(inDyn)
 	if md, ok := metadata.FromOutgoingContext(ctx); ok {

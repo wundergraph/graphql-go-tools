@@ -1,9 +1,11 @@
 package grpcdatasource
 
 import (
+	"fmt"
+	"slices"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -28,6 +30,7 @@ type testConfig struct {
 }
 
 func runTestWithConfig(t *testing.T, testCase testCase, testConfig testConfig) {
+	t.Helper()
 	rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
 		subgraphName: testConfig.subgraphName,
 		mapping:      testConfig.mapping,
@@ -42,13 +45,11 @@ func runTestWithConfig(t *testing.T, testCase testCase, testConfig testConfig) {
 	}
 
 	require.Empty(t, testCase.expectedError)
-	diff := cmp.Diff(testCase.expectedPlan, plan)
-	if diff != "" {
-		t.Fatalf("execution plan mismatch: %s", diff)
-	}
+	assertExecutionPlanEqual(t, testCase.expectedPlan, plan)
 }
 
 func runTest(t *testing.T, testCase testCase) {
+	t.Helper()
 	// Parse the GraphQL schema
 	schemaDoc := grpctest.MustGraphQLSchema(t)
 
@@ -1148,10 +1149,7 @@ func TestExecutionPlan_Query(t *testing.T) {
 			}
 
 			require.Empty(t, tt.expectedError)
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -2578,6 +2576,93 @@ func TestExecutionPlan_Operations_WithAliases(t *testing.T) {
 		})
 	}
 
+}
+
+func assertExecutionPlanEqual(t *testing.T, expected, got *RPCExecutionPlan) {
+	t.Helper()
+	require.Equal(t, len(expected.Calls), len(got.Calls), "call count mismatch: expected %d, got %d", len(expected.Calls), len(got.Calls))
+
+	gotByID := make(map[int]RPCCall, len(got.Calls))
+	for _, c := range got.Calls {
+		gotByID[c.ID] = c
+	}
+
+	for _, expectedCall := range expected.Calls {
+		gotCall, ok := gotByID[expectedCall.ID]
+		require.True(t, ok, "missing call with ID %d (method %s)", expectedCall.ID, expectedCall.MethodName)
+		assertCallEqual(t, expectedCall, gotCall, fmt.Sprintf("call[ID=%d]", expectedCall.ID))
+	}
+}
+
+func assertCallEqual(t *testing.T, expected, got RPCCall, path string) {
+	t.Helper()
+	assert.Equal(t, expected.ID, got.ID, "%s.ID", path)
+	assert.Equal(t, expected.Kind, got.Kind, "%s.Kind", path)
+	assert.Equal(t, expected.ServiceName, got.ServiceName, "%s.ServiceName", path)
+	assert.Equal(t, expected.MethodName, got.MethodName, "%s.MethodName", path)
+	assert.Equal(t, expected.RequestedEntityType, got.RequestedEntityType, "%s.RequestedEntityType", path)
+	assert.Equal(t, expected.ResponsePath, got.ResponsePath, "%s.ResponsePath", path)
+
+	expectedDeps := slices.Clone(expected.DependentCalls)
+	gotDeps := slices.Clone(got.DependentCalls)
+	slices.Sort(expectedDeps)
+	slices.Sort(gotDeps)
+	assert.Equal(t, expectedDeps, gotDeps, "%s.DependentCalls", path)
+
+	assertMessageEqual(t, expected.Request, got.Request, path+".Request")
+	assertMessageEqual(t, expected.Response, got.Response, path+".Response")
+}
+
+func assertMessageEqual(t *testing.T, expected, got RPCMessage, path string) {
+	t.Helper()
+	assert.Equal(t, expected.Name, got.Name, "%s.Name", path)
+	assert.Equal(t, expected.OneOfType, got.OneOfType, "%s.OneOfType", path)
+	assert.Equal(t, expected.MemberTypes, got.MemberTypes, "%s.MemberTypes", path)
+
+	assertFieldsEqual(t, expected.Fields, got.Fields, path+".Fields")
+
+	// FragmentFields
+	if expected.FragmentFields == nil && got.FragmentFields == nil {
+		return
+	}
+	require.Equal(t, len(expected.FragmentFields), len(got.FragmentFields), "%s.FragmentFields length mismatch", path)
+	for typeName, expectedFields := range expected.FragmentFields {
+		gotFields, ok := got.FragmentFields[typeName]
+		require.True(t, ok, "%s.FragmentFields missing type %q", path, typeName)
+		assertFieldsEqual(t, expectedFields, gotFields, fmt.Sprintf("%s.FragmentFields[%s]", path, typeName))
+	}
+}
+
+func assertFieldsEqual(t *testing.T, expected, got RPCFields, path string) {
+	t.Helper()
+	require.Equal(t, len(expected), len(got), "%s length mismatch: expected %d, got %d", path, len(expected), len(got))
+
+	for i := range expected {
+		fp := fmt.Sprintf("%s[%d]", path, i)
+		ef := expected[i]
+		gf := got[i]
+
+		assert.Equal(t, ef.Name, gf.Name, "%s.Name", fp)
+		assert.Equal(t, ef.Alias, gf.Alias, "%s.Alias", fp)
+		assert.Equal(t, ef.ProtoTypeName, gf.ProtoTypeName, "%s.ProtoTypeName", fp)
+		assert.Equal(t, ef.JSONPath, gf.JSONPath, "%s.JSONPath", fp)
+		assert.Equal(t, ef.EnumName, gf.EnumName, "%s.EnumName", fp)
+		assert.Equal(t, ef.StaticValue, gf.StaticValue, "%s.StaticValue", fp)
+		assert.Equal(t, ef.Repeated, gf.Repeated, "%s.Repeated", fp)
+		assert.Equal(t, ef.Optional, gf.Optional, "%s.Optional", fp)
+		assert.Equal(t, ef.IsListType, gf.IsListType, "%s.IsListType", fp)
+		assert.Equal(t, ef.ResolvePath, gf.ResolvePath, "%s.ResolvePath", fp)
+		assert.Equal(t, ef.ListMetadata, gf.ListMetadata, "%s.ListMetadata", fp)
+
+		switch {
+		case ef.Message == nil && gf.Message == nil:
+			// ok
+		case ef.Message == nil || gf.Message == nil:
+			t.Errorf("%s.Message: expected nil=%v, got nil=%v", fp, ef.Message == nil, gf.Message == nil)
+		default:
+			assertMessageEqual(t, *ef.Message, *gf.Message, fp+".Message")
+		}
+	}
 }
 
 func testSchema(t *testing.T, schema string) ast.Document {
