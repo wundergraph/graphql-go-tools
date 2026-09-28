@@ -95,13 +95,25 @@ func (v *VariablesValidator) ValidateWithRemap(operation, definition *ast.Docume
 	return v.Validate(operation, definition, variables)
 }
 
+// ValidateValueWithRemap is like ValidateWithRemap, but takes variables that are already parsed.
+func (v *VariablesValidator) ValidateValueWithRemap(operation, definition *ast.Document, variables *astjson.Value, variablesMap map[string]string) error {
+	v.visitor.variablesMap = variablesMap
+	return v.validate(operation, definition, variables)
+}
+
 func (v *VariablesValidator) Validate(operation, definition *ast.Document, variables []byte) error {
+	value, err := astjson.ParseBytes(variables)
+	if err != nil {
+		return err
+	}
+	return v.validate(operation, definition, value)
+}
+
+func (v *VariablesValidator) validate(operation, definition *ast.Document, variables *astjson.Value) error {
 	v.visitor.definition = definition
 	v.visitor.operation = operation
-	v.visitor.variables, v.visitor.err = astjson.ParseBytes(variables)
-	if v.visitor.err != nil {
-		return v.visitor.err
-	}
+	v.visitor.variables = variables
+	v.visitor.err = nil
 	report := &operationreport.Report{}
 	v.walker.Walk(operation, definition, report)
 	if report.HasErrors() {

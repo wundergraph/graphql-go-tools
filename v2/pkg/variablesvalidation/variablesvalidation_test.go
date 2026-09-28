@@ -6,6 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -195,6 +197,20 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		require.Error(t, err)
 		assert.Equal(t, `Variable "$bazz" of required type "String!" was not provided.`, err.Error())
+	})
+
+	t.Run("validation error is reset when reusing validator", func(t *testing.T) {
+		def := unsafeparser.ParseGraphqlDocumentString(`type Query { hello(arg: String!): String }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query Foo($bar: String!) { hello }`)
+		require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
+		validator := NewVariablesValidator(VariablesValidatorOptions{})
+
+		err := validator.ValidateValueWithRemap(&op, &def, astjson.MustParse(`{}`), nil)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$bar" of required type "String!" was not provided.`, err.Error())
+
+		err = validator.ValidateValueWithRemap(&op, &def, astjson.MustParse(`{"bar":"hello"}`), nil)
+		require.NoError(t, err)
 	})
 
 	t.Run("a missing required input produces an error", func(t *testing.T) {
@@ -1763,7 +1779,12 @@ func runTestWithOptions(t *testing.T, tc testCase, options VariablesValidatorOpt
 	}
 	validator := NewVariablesValidator(options)
 
-	return validator.ValidateWithRemap(&op, &def, op.Input.Variables, tc.mapping)
+	err = validator.ValidateWithRemap(&op, &def, op.Input.Variables, tc.mapping)
+	// Already parsed variables must validate exactly like their bytes.
+	if variables, parseErr := astjson.ParseBytes(op.Input.Variables); parseErr == nil {
+		assert.Equal(t, err, validator.ValidateValueWithRemap(&op, &def, variables, tc.mapping))
+	}
+	return err
 }
 
 var inputSchema = `
