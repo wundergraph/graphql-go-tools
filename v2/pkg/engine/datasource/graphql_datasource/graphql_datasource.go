@@ -2039,15 +2039,6 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 	// remove null variables which actually was undefined in the original user request
 	variables = s.cleanupVariables(variables, undefinedVariables)
 
-	// compact
-	if !bytes.ContainsAny(variables, " \t\n\r") {
-		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
-		if err := json.Compact(buf, variables); err != nil {
-			return variables
-		}
-		variables = buf.Bytes()
-	}
-
 	input, _ = jsonparser.Set(input, variables, "body", "variables")
 	return input
 }
