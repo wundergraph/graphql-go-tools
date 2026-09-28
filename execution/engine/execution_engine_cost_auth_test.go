@@ -160,8 +160,8 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 			engineOptions:    preFetchAuth(nil),
 			expectedResponse: `{"data":{"user":{"id":"1","secret":"s3cr3t","address":{"street":"Main"}}}}`,
 			// Query.user (5) + User.secret (17) + User.address (7) + Address.street (3)
-			expectedEstimatedCost: intPtr(32),
-			expectedActualCost:    intPtr(32),
+			expectedEstimatedCost: new(32),
+			expectedActualCost:    new(32),
 		},
 		computeCosts(),
 	))
@@ -182,8 +182,8 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 			}),
 			expectedResponse: `{"errors":[{"message":"Unauthorized to load field 'Query.user.secret', Reason: missing scope 'secret:read'.","path":["user","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"user":{"id":"1","secret":null}}}`,
 
-			expectedEstimatedCost: intPtr(22), // Query.user (5) + User.secret (17)
-			expectedActualCost:    intPtr(5),  // Query.user (5)
+			expectedEstimatedCost: new(22), // Query.user (5) + User.secret (17)
+			expectedActualCost:    new(5),  // Query.user (5)
 		},
 		computeCosts(),
 	))
@@ -204,8 +204,8 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 			}),
 			expectedResponse: `{"errors":[{"message":"Unauthorized to load field 'Query.user.address', Reason: missing scope 'address:read'.","path":["user","address"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"user":{"id":"1","address":null}}}`,
 
-			expectedEstimatedCost: intPtr(15), // Query.user (5) + User.address (7) + Address.street (3)
-			expectedActualCost:    intPtr(5),  // Query.user (5)
+			expectedEstimatedCost: new(15), // Query.user (5) + User.address (7) + Address.street (3)
+			expectedActualCost:    new(5),  // Query.user (5)
 		},
 		computeCosts(),
 	))
@@ -228,8 +228,8 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 			}),
 			expectedResponse: `{"errors":[{"message":"Unauthorized to load field 'Query.user', Reason: missing scope 'user:read'.","path":["user"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"user":null}}`,
 
-			expectedEstimatedCost: intPtr(22), //  Query.user (5) + User.secret (17)
-			expectedActualCost:    intPtr(0),
+			expectedEstimatedCost: new(22), //  Query.user (5) + User.secret (17)
+			expectedActualCost:    new(0),
 		},
 		computeCosts(),
 	))
@@ -252,8 +252,8 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 			},
 			expectedResponse: `{"errors":[{"message":"Unauthorized to load field 'Query.user.secret', Reason: missing scope 'secret:read'.","path":["user","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"user":{"id":"1","secret":null}}}`,
 
-			expectedEstimatedCost: intPtr(22), // Query.user (5) + User.secret (17)
-			expectedActualCost:    intPtr(5),  // Query.user (5)
+			expectedEstimatedCost: new(22), // Query.user (5) + User.secret (17)
+			expectedActualCost:    new(5),  // Query.user (5)
 		},
 		computeCosts(),
 	))
@@ -276,9 +276,9 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 			}),
 			expectedResponse: `{"errors":[{"message":"Unauthorized to load field 'Query.user.token', Reason: missing scope 'token:read'.","path":["user","token"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"user":null}}`,
 			// Query.user (5) + User.token (11) + User.petName (2)
-			expectedEstimatedCost: intPtr(18),
+			expectedEstimatedCost: new(18),
 			// Query.user (5) only
-			expectedActualCost: intPtr(5),
+			expectedActualCost: new(5),
 		},
 		computeCosts(),
 	))
@@ -299,9 +299,9 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 			}),
 			expectedResponse: `{"errors":[{"message":"Unauthorized to load field 'Query.user.token', Reason: missing scope 'token:read'.","path":["user","token"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"user":null}}`,
 			// Same selection as above, only the field order differs: estimation is unaffected.
-			expectedEstimatedCost: intPtr(18),
+			expectedEstimatedCost: new(18),
 			// Query.user (5) only.
-			expectedActualCost: intPtr(5),
+			expectedActualCost: new(5),
 		},
 		computeCosts(),
 	))
@@ -320,9 +320,9 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 				`{"data":{"user":{"id":"1","petName":"Rex","token":null}}}`),
 			fields:                fields,
 			expectedResponse:      `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.token'.","path":["user","token"]}],"data":{"user":null}}`,
-			expectedEstimatedCost: intPtr(18),
+			expectedEstimatedCost: new(18),
 			// Query.user (5) only.
-			expectedActualCost: intPtr(5),
+			expectedActualCost: new(5),
 		},
 		computeCosts(),
 	))
@@ -339,9 +339,9 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 				`{"data":{"user":{"id":"1","token":null,"petName":"Rex"}}}`),
 			fields:                fields,
 			expectedResponse:      `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.token'.","path":["user","token"]}],"data":{"user":null}}`,
-			expectedEstimatedCost: intPtr(18),
+			expectedEstimatedCost: new(18),
 			// Query.user (5) only.
-			expectedActualCost: intPtr(5),
+			expectedActualCost: new(5),
 		},
 		computeCosts(),
 	))
@@ -361,9 +361,9 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 				{TypeName: "Account", FieldName: "token"}: "missing scope 'token:read'",
 			}),
 			expectedResponse:      `{"errors":[{"message":"Unauthorized to load field 'Query.account.token', Reason: missing scope 'token:read'.","path":["account","token"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":null}`,
-			expectedEstimatedCost: intPtr(18),
+			expectedEstimatedCost: new(18),
 			// The denial took the entire response away, so nothing is charged.
-			expectedActualCost: intPtr(0),
+			expectedActualCost: new(0),
 		},
 		computeCosts(),
 	))
@@ -386,10 +386,10 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 			}),
 			expectedResponse: `{"errors":[{"message":"Unauthorized to load field 'Query.users.secret', Reason: missing scope 'secret:read'.","path":["users",0,"secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.users.secret', Reason: missing scope 'secret:read'.","path":["users",1,"secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"users":[{"petName":"Rex","secret":null},{"petName":"Bob","secret":null}]}}`,
 			// User type weight (1) x default list size (10) + (petName (2) + secret (17)) x 10
-			expectedEstimatedCost: intPtr(200),
+			expectedEstimatedCost: new(200),
 			// Two delivered elements: User type weight (1) x 2 + petName (2) x 2. secret is
 			// denied and free.
-			expectedActualCost: intPtr(6),
+			expectedActualCost: new(6),
 		},
 		computeCosts(),
 	))
@@ -411,9 +411,9 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 			}),
 			expectedResponse: `{"errors":[{"message":"Unauthorized to load field 'Query.users.token', Reason: missing scope 'token:read'.","path":["users",0,"token"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}},{"message":"Unauthorized to load field 'Query.users.token', Reason: missing scope 'token:read'.","path":["users",1,"token"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}],"data":{"users":[null,null]}}`,
 			// User type weight (1) x default list size (10) + (petName (2) + token (11)) x 10
-			expectedEstimatedCost: intPtr(140),
+			expectedEstimatedCost: new(140),
 			// The client received only null elements: no User objects, no fields.
-			expectedActualCost: intPtr(0),
+			expectedActualCost: new(0),
 		},
 		computeCosts(),
 	))
@@ -432,9 +432,9 @@ func TestExecutionEngine_Cost_DeniedFields(t *testing.T) {
 				`{"data":{"users":[{"petName":"Rex","token":"a"},{"petName":"Bob","token":null}]}}`),
 			fields:                fields,
 			expectedResponse:      `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.users.token'.","path":["users",1,"token"]}],"data":{"users":[{"petName":"Rex","token":"a"},null]}}`,
-			expectedEstimatedCost: intPtr(140),
+			expectedEstimatedCost: new(140),
 			// One delivered element: User type weight (1) + petName (2) + token (11).
-			expectedActualCost: intPtr(14),
+			expectedActualCost: new(14),
 		},
 		computeCosts(),
 	))

@@ -231,14 +231,14 @@ func (d *Document) ValueToJSON(value Value) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-//nolint
-func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
+func (d *Document) PrintValue(value Value, writer io.Writer) error {
+	w := &printWriter{w: writer}
 	switch value.Kind {
 	case ValueKindBoolean:
 		if d.BooleanValues[value.Ref] {
-			_, err = w.Write(literal.TRUE)
+			w.emit(literal.TRUE)
 		} else {
-			_, err = w.Write(literal.FALSE)
+			w.emit(literal.FALSE)
 		}
 	case ValueKindString:
 		// This code assumes string content is valid for the associated string
@@ -248,75 +248,61 @@ func (d *Document) PrintValue(value Value, w io.Writer) (err error) {
 		//
 		// GraphQL spec: https://spec.graphql.org/June2018/#StringValue
 		isBlockString := d.StringValues[value.Ref].BlockString
-		_, err = w.Write(literal.QUOTE)
+		w.emit(literal.QUOTE)
 		if isBlockString {
-			_, err = w.Write(literal.QUOTE)
-			_, err = w.Write(literal.QUOTE)
+			w.emit(literal.QUOTE)
+			w.emit(literal.QUOTE)
 		}
-		_, err = w.Write(d.Input.ByteSlice(d.StringValues[value.Ref].Content))
-		_, err = w.Write(literal.QUOTE)
+		w.emit(d.Input.ByteSlice(d.StringValues[value.Ref].Content))
+		w.emit(literal.QUOTE)
 		if isBlockString {
-			_, err = w.Write(literal.QUOTE)
-			_, err = w.Write(literal.QUOTE)
+			w.emit(literal.QUOTE)
+			w.emit(literal.QUOTE)
 		}
 	case ValueKindInteger:
 		if d.IntValues[value.Ref].Negative {
-			_, err = w.Write(literal.SUB)
+			w.emit(literal.SUB)
 		}
-		_, err = w.Write(d.Input.ByteSlice(d.IntValues[value.Ref].Raw))
+		w.emit(d.Input.ByteSlice(d.IntValues[value.Ref].Raw))
 	case ValueKindFloat:
 		if d.FloatValues[value.Ref].Negative {
-			_, err = w.Write(literal.SUB)
+			w.emit(literal.SUB)
 		}
-		_, err = w.Write(d.Input.ByteSlice(d.FloatValues[value.Ref].Raw))
+		w.emit(d.Input.ByteSlice(d.FloatValues[value.Ref].Raw))
 	case ValueKindVariable:
-		_, err = w.Write(literal.DOLLAR)
-		_, err = w.Write(d.Input.ByteSlice(d.VariableValues[value.Ref].Name))
+		w.emit(literal.DOLLAR)
+		w.emit(d.Input.ByteSlice(d.VariableValues[value.Ref].Name))
 	case ValueKindNull:
-		_, err = w.Write(literal.NULL)
+		w.emit(literal.NULL)
 	case ValueKindList:
-		_, err = w.Write(literal.LBRACK)
+		w.emit(literal.LBRACK)
 		for i, j := range d.ListValues[value.Ref].Refs {
-			err = d.PrintValue(d.Value(j), w)
-			if err != nil {
-				return
+			if err := d.PrintValue(d.Value(j), w); err != nil {
+				return err
 			}
 			if i != len(d.ListValues[value.Ref].Refs)-1 {
-				_, err = w.Write(literal.COMMA)
+				w.emit(literal.COMMA)
 			}
 		}
-		_, err = w.Write(literal.RBRACK)
+		w.emit(literal.RBRACK)
 	case ValueKindObject:
-		_, err = w.Write(literal.LBRACE)
+		w.emit(literal.LBRACE)
 		for i, j := range d.ObjectValues[value.Ref].Refs {
-			_, err = w.Write(d.ObjectFieldNameBytes(j))
-			if err != nil {
-				return
-			}
-			_, err = w.Write(literal.COLON)
-			if err != nil {
-				return
-			}
-			_, err = w.Write(literal.SPACE)
-			if err != nil {
-				return
-			}
-			err = d.PrintValue(d.ObjectFieldValue(j), w)
-			if err != nil {
-				return
+			w.emit(d.ObjectFieldNameBytes(j))
+			w.emit(literal.COLON)
+			w.emit(literal.SPACE)
+			if err := d.PrintValue(d.ObjectFieldValue(j), w); err != nil {
+				return err
 			}
 			if i != len(d.ObjectValues[value.Ref].Refs)-1 {
-				_, err = w.Write(literal.COMMA)
-				if err != nil {
-					return
-				}
+				w.emit(literal.COMMA)
 			}
 		}
-		_, err = w.Write(literal.RBRACE)
+		w.emit(literal.RBRACE)
 	case ValueKindEnum:
-		_, err = w.Write(d.Input.ByteSlice(d.EnumValues[value.Ref].Name))
+		w.emit(d.Input.ByteSlice(d.EnumValues[value.Ref].Name))
 	}
-	return
+	return w.err
 }
 
 func (d *Document) PrintValueBytes(value Value, buf []byte) ([]byte, error) {

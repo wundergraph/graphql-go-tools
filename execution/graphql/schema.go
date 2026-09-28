@@ -395,7 +395,7 @@ func (s *Schema) putChildNode(nodes *[]TypeFields, typeName, fieldName string) (
 func createSchema(schemaContent []byte, mergeWithBaseSchema bool) (*Schema, error) {
 	document, report := astparser.ParseGraphqlDocumentBytes(schemaContent)
 	if report.HasErrors() {
-		return nil, report
+		return nil, &report
 	}
 
 	rawSchema := schemaContent

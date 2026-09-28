@@ -87,7 +87,6 @@ type options struct {
 
 type option func(options *options)
 
-//nolint
 func withDisableNormalization() option {
 	return func(options *options) {
 		options.disableNormalization = true
@@ -109,8 +108,7 @@ func withValidationErrors(errMsgs ...string) option {
 
 func TestExecutionValidation(t *testing.T) {
 	must := func(err error) {
-		var report operationreport.Report
-		if errors.As(err, &report) {
+		if report, ok := errors.AsType[*operationreport.Report](err); ok {
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
@@ -123,7 +121,7 @@ func TestExecutionValidation(t *testing.T) {
 
 	mustDocument := func(doc ast.Document, report operationreport.Report) ast.Document {
 		if report.HasErrors() {
-			must(report)
+			must(&report)
 		}
 		return doc
 	}
@@ -5635,7 +5633,7 @@ func BenchmarkValidation(b *testing.B) {
 
 	mustDocument := func(doc ast.Document, report operationreport.Report) ast.Document {
 		if report.HasErrors() {
-			must(report)
+			must(&report)
 		}
 		return doc
 	}

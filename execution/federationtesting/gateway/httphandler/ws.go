@@ -115,8 +115,7 @@ func (w *WebsocketSubscriptionClient) Disconnect() error {
 
 // isClosedConnectionError will indicate if the given error is a connection closed error.
 func (w *WebsocketSubscriptionClient) isClosedConnectionError(err error) bool {
-	var closedError wsutil.ClosedError
-	if errors.As(err, &closedError) {
+	if _, ok := errors.AsType[wsutil.ClosedError](err); ok {
 		w.isClosedConnection = true
 	}
 
