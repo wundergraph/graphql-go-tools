@@ -103,7 +103,7 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
 	binary.LittleEndian.PutUint64(b[keyHeadersHashOffset:keyPrivateIDOffset], hh)
-	if privateID, ok := ctx.responseCachePrivateID(); ok {
+	if privateID, ok := ctx.responseCacheSingleFlightID(); ok {
 		copy(b[keyPrivateIDOffset:], privateID[:])
 	}
 
