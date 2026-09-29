@@ -38,11 +38,9 @@ func (l *Loader) responseCacheEnabledFor(subgraph string) bool {
 type ResponseCacheOperation string
 
 const (
-	ResponseCacheOperationLookup ResponseCacheOperation = "lookup"
-	ResponseCacheOperationWrite  ResponseCacheOperation = "write"
-	// ResponseCacheOperationRead is an entry that was found and could not be used.
-	ResponseCacheOperationRead ResponseCacheOperation = "read"
-	// ResponseCacheOperationCollect is a response that could not be taken apart for the cache.
+	ResponseCacheOperationLookup  ResponseCacheOperation = "lookup"
+	ResponseCacheOperationWrite   ResponseCacheOperation = "write"
+	ResponseCacheOperationRead    ResponseCacheOperation = "read"
 	ResponseCacheOperationCollect ResponseCacheOperation = "collect"
 )
 

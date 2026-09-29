@@ -85,7 +85,6 @@ const (
 	// ResponseCacheStatusNotCacheable is a fetch the cache was never asked about.
 	ResponseCacheStatusNotCacheable ResponseCacheStatus = iota
 	ResponseCacheStatusMiss
-	// ResponseCacheStatusPartialHit is a merged fetch that was sent without the entries the cache answered.
 	ResponseCacheStatusPartialHit
 	ResponseCacheStatusHit
 )
@@ -110,10 +109,8 @@ type ResponseCacheInfo struct {
 	// The write itself happens after OnFinished, its failure is reported to OnError.
 	StoreDecision caching.StoreDecision
 	// KeysRequested and KeysFound count what the cache was asked for and answered.
-	KeysRequested int
-	KeysFound     int
-	// LookupDuration is the time spent asking the cache, which is not part of
-	// the time between OnLoad and OnFinished.
+	KeysRequested  int
+	KeysFound      int
 	LookupDuration time.Duration
 }
 
