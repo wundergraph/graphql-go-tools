@@ -447,6 +447,26 @@ func TestCreateProtoWire(t *testing.T) {
 		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
 	})
 
+	t.Run("int32 and double fields with negative values", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ScalarRequest",
+			Fields: RPCFields{
+				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
+				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
+			},
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+		got, err := wm.createProtoWire(astjson.MustParse(`{"age":-7,"score":-99.5}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("age"), protoref.ValueOfInt32(-7))
+			msg.Set(desc.Fields().ByName("score"), protoref.ValueOfFloat64(-99.5))
+		})
+
+		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
+	})
+
 	t.Run("wrapper string value present", func(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",

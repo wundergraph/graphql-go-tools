@@ -352,7 +352,7 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 func getUint64Value(data *astjson.Value) uint64 {
 	switch data.Type() {
 	case astjson.TypeNumber:
-		return data.GetUint64()
+		return uint64(data.GetInt())
 	case astjson.TypeTrue:
 		return 1
 	default:
