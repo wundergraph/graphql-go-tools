@@ -690,8 +690,8 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		return
 	}
 
-	// What kept the last entry out, reported when nothing of the fetch is stored.
-	skipped := caching.StoreDecisionNoEntity
+	// The reason of the last entry skipped, unless something is stored.
+	storeDecision := caching.StoreDecisionNoEntity
 
 	var items []caching.Item
 	var surrogateKeyLists [][]string
@@ -704,19 +704,19 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		writeKeys := entry.responseCacheKeys
 		if private {
 			if entry.responseCachePrivateKeys == nil {
-				skipped = caching.StoreDecisionPrivateWithoutID
+				storeDecision = caching.StoreDecisionPrivateWithoutID
 				continue
 			}
 			writeKeys = entry.responseCachePrivateKeys
 		}
 		if errs := entryErrors[i]; astjson.ValueIsNonNull(errs) && len(errs.GetArray()) > 0 {
-			skipped = caching.StoreDecisionResponseErrors
+			storeDecision = caching.StoreDecisionResponseErrors
 			continue
 		}
 
 		entities := response.Get("data", entry.entry.Alias)
 		if entities == nil || entities.Type() != astjson.TypeArray {
-			skipped = caching.StoreDecisionInvalidResponse
+			storeDecision = caching.StoreDecisionInvalidResponse
 			continue
 		}
 		values := entities.GetArray()
@@ -724,7 +724,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		// answers them. A different count means the response does not line up
 		// with what was asked, which is not something to cache.
 		if len(values) != len(entry.responseCacheKeys) {
-			skipped = caching.StoreDecisionInvalidResponse
+			storeDecision = caching.StoreDecisionInvalidResponse
 			continue
 		}
 
@@ -756,9 +756,9 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	prepared.responseCacheItems = items
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	if len(items) > 0 {
-		skipped = caching.StoreDecisionStored
+		storeDecision = caching.StoreDecisionStored
 	}
-	res.responseCache.StoreDecision = skipped
+	res.responseCache.StoreDecision = storeDecision
 }
 
 // multiEntityCacheLookup asks the cache, in one round trip, for the entities of
