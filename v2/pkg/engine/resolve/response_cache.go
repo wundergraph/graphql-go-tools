@@ -424,7 +424,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 
 	vary, ok := responseCacheVary(headers, res.sentHeaders)
 	if !ok {
-		res.responseCache.StoreDecision = caching.StoreDecisionVary
+		res.responseCache.StoreDecision = caching.StoreDecisionUnusableVary
 		return nil
 	}
 
@@ -686,7 +686,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	// it, even one that alone would have varied on less.
 	vary, ok := responseCacheVary(headers, res.sentHeaders)
 	if !ok {
-		res.responseCache.StoreDecision = caching.StoreDecisionVary
+		res.responseCache.StoreDecision = caching.StoreDecisionUnusableVary
 		return
 	}
 

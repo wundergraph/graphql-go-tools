@@ -15,25 +15,16 @@ const (
 	// answered from the cache, or is not cached at all.
 	StoreDecisionNone StoreDecision = iota
 	StoreDecisionStored
-	// StoreDecisionFetchFailed is a fetch that failed or was answered with an error status.
 	StoreDecisionFetchFailed
-	// StoreDecisionResponseErrors is a response carrying GraphQL errors.
 	StoreDecisionResponseErrors
-	// StoreDecisionInvalidResponse is a response that does not line up with what was asked.
 	StoreDecisionInvalidResponse
-	// StoreDecisionInvalidCacheControl is a Cache-Control that could not be parsed.
 	StoreDecisionInvalidCacheControl
 	StoreDecisionNoStore
 	StoreDecisionNoCache
-	// StoreDecisionNoDirective is a response without a caching directive, which opts out of the default TTL.
 	StoreDecisionNoDirective
-	// StoreDecisionNoLifetime is a lifetime of zero or less.
 	StoreDecisionNoLifetime
-	// StoreDecisionVary is a Vary that matches no request, or names too many headers.
-	StoreDecisionVary
-	// StoreDecisionPrivateWithoutID is a private response to a request without a user id.
+	StoreDecisionUnusableVary
 	StoreDecisionPrivateWithoutID
-	// StoreDecisionNoEntity is a response with nothing in it to store.
 	StoreDecisionNoEntity
 )
 
@@ -57,8 +48,8 @@ func (d StoreDecision) String() string {
 		return "no_directive"
 	case StoreDecisionNoLifetime:
 		return "no_lifetime"
-	case StoreDecisionVary:
-		return "vary"
+	case StoreDecisionUnusableVary:
+		return "unusable_vary"
 	case StoreDecisionPrivateWithoutID:
 		return "private_without_id"
 	case StoreDecisionNoEntity:
