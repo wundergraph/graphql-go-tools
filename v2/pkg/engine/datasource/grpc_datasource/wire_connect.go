@@ -327,12 +327,14 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 		buf.Write(f.tag)
 		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), getBytesValue(data)))
 	case protowire.VarintType:
-		value := getUint64Value(data)
+		var value uint64
 		if f.runtimeEnum != nil {
 			var err error
 			if value, err = f.getEnumValue(data); err != nil {
 				return err
 			}
+		} else {
+			value = getUint64Value(data)
 		}
 
 		buf.Write(f.tag)

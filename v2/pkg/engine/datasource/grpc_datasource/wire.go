@@ -65,12 +65,12 @@ func compileWireMessageFromRequest(schema *runtimeSchema, request *request) (*wi
 }
 
 func compileWireMessage(schema *runtimeSchema, msg *programMessage, cycleMap map[string]*wireMessage) (*wireMessage, error) {
-	if seen, ok := cycleMap[msg.name]; ok {
-		return seen, nil
-	}
-
 	if msg == nil {
 		return nil, fmt.Errorf("message not found for fetch request")
+	}
+
+	if seen, ok := cycleMap[msg.name]; ok {
+		return seen, nil
 	}
 
 	messageFields := msg.fields
