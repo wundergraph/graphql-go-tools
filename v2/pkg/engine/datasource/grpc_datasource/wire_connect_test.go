@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 
@@ -96,6 +97,26 @@ message NestedListRequest {
 message EnumRequest {
   Status status = 1;
   repeated Status statuses = 2;
+}
+
+message ListOfStatus {
+	message List {
+		repeated Status items = 1;
+	}
+	List list = 1;
+}
+
+
+message ListOfListOfStatus {
+	message List {
+		repeated ListOfStatus items = 1;
+	}
+	List list = 1;
+}
+
+message EnumListRequest {
+	ListOfStatus statuses = 1;
+	ListOfListOfStatus status_groups = 2;
 }
 
 message MixedRequest {
@@ -691,6 +712,44 @@ func TestCreateProtoWire(t *testing.T) {
 		})
 
 		assertProtoEqual(t, runtime, "ListWrapperRequest", expected, got)
+	})
+
+	t.Run("list wrapper with enums", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "EnumListRequest",
+			Fields: RPCFields{
+				{Name: "statuses", ProtoTypeName: DataTypeEnum, JSONPath: "statuses", IsListType: true, ListMetadata: &ListMetadata{NestingLevel: 1, LevelInfo: []LevelInfo{{Optional: false}}}, EnumName: "Status"},
+			},
+		}, runtime.getMessageByName("EnumListRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+		got, err := wm.createProtoWire(astjson.MustParse(`{"statuses":["ACTIVE","INACTIVE"]}`))
+		require.NoError(t, err)
+
+		e := runtime.enumByName["Status"]
+		activeValue := e.valuesByName["ACTIVE"]
+		inactiveValue := e.valuesByName["INACTIVE"]
+
+		expected := marshalDynamic(t, runtime, "EnumListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			// Build: ListWrapperRequest { optional_tags: ListOfString { list: List { items: ["a","b"] } } }
+			statusesField := desc.Fields().ByName("statuses")
+			listOfStringDesc := statusesField.Message()
+
+			listField := listOfStringDesc.Fields().ByName("list")
+			listDesc := listField.Message()
+
+			innerList := dynamicpb.NewMessage(listDesc)
+			items := innerList.Mutable(listDesc.Fields().ByName("items")).List()
+			items.Append(protoref.ValueOfEnum(protoreflect.EnumNumber(activeValue.value)))
+			items.Append(protoref.ValueOfEnum(protoreflect.EnumNumber(inactiveValue.value)))
+
+			listOfString := dynamicpb.NewMessage(listOfStringDesc)
+			listOfString.Set(listField, protoref.ValueOfMessage(innerList))
+
+			msg.Set(statusesField, protoref.ValueOfMessage(listOfString))
+		})
+
+		require.NoError(t, err)
+		assertProtoEqual(t, runtime, "EnumListRequest", expected, got)
 	})
 
 	t.Run("nested list wrapper two levels", func(t *testing.T) {

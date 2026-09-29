@@ -36,7 +36,7 @@ type request struct {
 	message *programMessage
 	fields  []programField
 	context *fetchRequestContext
-	// The wire message will be created fromt the
+	// The wire message will be created from the
 	// request structure.
 	wire *wireMessage
 }
