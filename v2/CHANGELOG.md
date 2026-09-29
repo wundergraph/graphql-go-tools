@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.26.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.25.0...v2.26.0) (2026-09-28)
+
+
+### Features
+
+* per-subgraph response cache options ([#1682](https://github.com/wundergraph/graphql-go-tools/issues/1682)) ([b060e9b](https://github.com/wundergraph/graphql-go-tools/commit/b060e9be16f1082c17db8d64b0c7ce98a62e599b))
+
 ## [2.25.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.24.0...v2.25.0) (2026-09-24)
 
 
