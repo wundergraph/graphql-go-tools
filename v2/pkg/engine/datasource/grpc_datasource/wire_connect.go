@@ -227,15 +227,15 @@ func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value,
 	}
 
 	// A null list is not an empty list. Do not write the wrapper for a null optional list.
-	if isNullJSONValue(data) && md.Optional {
-		return nil
-	}
+	if isNullJSONValue(data) {
+		if md.Optional {
+			return nil
+		}
 
-	elements := data.GetArray()
-	if len(elements) == 0 && !md.Optional {
 		return fmt.Errorf("list is required but has no elements")
 	}
 
+	elements := data.GetArray()
 	listBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
 
 	// We will always have a message type here, therefore we must use the bytes type.
