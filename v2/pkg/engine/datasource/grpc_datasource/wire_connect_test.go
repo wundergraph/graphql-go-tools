@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 
@@ -739,8 +738,8 @@ func TestCreateProtoWire(t *testing.T) {
 
 			innerList := dynamicpb.NewMessage(listDesc)
 			items := innerList.Mutable(listDesc.Fields().ByName("items")).List()
-			items.Append(protoref.ValueOfEnum(protoreflect.EnumNumber(activeValue.value)))
-			items.Append(protoref.ValueOfEnum(protoreflect.EnumNumber(inactiveValue.value)))
+			items.Append(protoref.ValueOfEnum(protoref.EnumNumber(activeValue.value)))
+			items.Append(protoref.ValueOfEnum(protoref.EnumNumber(inactiveValue.value)))
 
 			listOfString := dynamicpb.NewMessage(listOfStringDesc)
 			listOfString.Set(listField, protoref.ValueOfMessage(innerList))
