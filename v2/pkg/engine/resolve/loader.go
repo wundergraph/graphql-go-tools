@@ -69,8 +69,52 @@ type ResponseInfo struct {
 	// ResponseCachePrivate reports that at least one entry the hit was served
 	// from belongs to the requesting user, so the response is private.
 	ResponseCachePrivate bool
+	// ResponseCache is what the response cache did for the fetch.
+	ResponseCache ResponseCacheInfo
+	// RootFields are the coordinates the fetch resolves, for an entity fetch the
+	// fields of the entity type. Shared with the plan, for reading only.
+	RootFields []GraphCoordinate
 	// This should be private as we do not want user's to access the raw responseBody directly
 	responseBody []byte
+}
+
+// ResponseCacheStatus is how much of a fetch the response cache answered.
+type ResponseCacheStatus uint8
+
+const (
+	// ResponseCacheStatusNotCacheable is a fetch the cache was never asked about.
+	ResponseCacheStatusNotCacheable ResponseCacheStatus = iota
+	ResponseCacheStatusMiss
+	// ResponseCacheStatusPartialHit is a merged fetch that was sent without the entries the cache answered.
+	ResponseCacheStatusPartialHit
+	ResponseCacheStatusHit
+)
+
+func (s ResponseCacheStatus) String() string {
+	switch s {
+	case ResponseCacheStatusMiss:
+		return "miss"
+	case ResponseCacheStatusPartialHit:
+		return "partial_hit"
+	case ResponseCacheStatusHit:
+		return "hit"
+	default:
+		return "not_cacheable"
+	}
+}
+
+// ResponseCacheInfo is what the response cache did for a fetch.
+type ResponseCacheInfo struct {
+	Status ResponseCacheStatus
+	// StoreDecision is what was decided for the response of a fetch that was sent.
+	// The write itself happens after OnFinished, its failure is reported to OnError.
+	StoreDecision caching.StoreDecision
+	// KeysRequested and KeysFound count what the cache was asked for and answered.
+	KeysRequested int
+	KeysFound     int
+	// LookupDuration is the time spent asking the cache, which is not part of
+	// the time between OnLoad and OnFinished.
+	LookupDuration time.Duration
 }
 
 func (r *ResponseInfo) GetResponseBody() string {
@@ -84,6 +128,8 @@ func newResponseInfo(res *result) *ResponseInfo {
 		ResponseCacheHit:     res.responseCacheHit,
 		ResponseCacheTTL:     res.responseCacheTTL,
 		ResponseCachePrivate: res.responseCachePrivate,
+		ResponseCache:        res.responseCache,
+		RootFields:           res.rootFields,
 		responseBody:         res.out,
 	}
 	if res.httpResponseContext != nil {
@@ -160,6 +206,9 @@ type result struct {
 	// responseCacheSurrogateKeys is what the fetch contributes to the cache tag
 	// header, read back on a hit and computed on a miss.
 	responseCacheSurrogateKeys []string
+	// responseCache is what the hooks are told the cache did for the fetch.
+	responseCache ResponseCacheInfo
+	rootFields    []GraphCoordinate
 	// out is the subgraph response body
 	out               []byte
 	singleFlightStats *singleFlightStats
@@ -178,6 +227,7 @@ func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInf
 			ID:   info.DataSourceID,
 			Name: info.DataSourceName,
 		}
+		r.rootFields = info.RootFields
 	}
 }
 
@@ -492,7 +542,7 @@ func (l *Loader) mergePhase(prepared *preparedFetch) error {
 	}
 
 	if err := l.responseCacheCollect(prepared); err != nil {
-		l.reportResponseCacheError(fmt.Errorf("response cache collect error: %w", err))
+		l.reportResponseCacheError(ResponseCacheOperationCollect, prepared.res.ds.Name, fmt.Errorf("response cache collect error: %w", err))
 	}
 	l.responseCacheMergeSurrogateKeys(prepared.res)
 

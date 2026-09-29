@@ -415,6 +415,7 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 	// and the hook needs it for Cache-Control.
 	prepared.res.responseCacheTTL = shortestCachedEntryTTL(prepared.multiEntries)
 	prepared.res.responseCachePrivate = anyPrivateCachedEntry(prepared)
+	prepared.res.responseCache.Status = ResponseCacheStatusPartialHit
 
 	if !slices.Contains(assembly.included, true) {
 		// Every entry hit, so no request goes out and the body prepare assembled
@@ -427,6 +428,7 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 		}
 		prepared.res.statusCode = http.StatusOK
 		prepared.res.responseCacheHit = true
+		prepared.res.responseCache.Status = ResponseCacheStatusHit
 		prepared.responseCacheHit = true
 		if prepared.trace != nil {
 			prepared.trace.LoadSkipped = true
