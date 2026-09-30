@@ -16,6 +16,9 @@ type plannerConfiguration[T any] struct {
 
 	requiredFields FederationFieldConfigurations
 	options        plannerConfigurationOptions
+	// interfaceObjectNames maps a concrete type to the interface object this planner is bound to,
+	// see bindInterfaceObject.
+	interfaceObjectNames map[string]string
 }
 
 type plannerConfigurationOptions struct {
@@ -33,6 +36,10 @@ type PlannerConfiguration interface {
 
 	RequiredFields() *FederationFieldConfigurations
 
+	InterfaceObjectNameForTypeField(typeName, fieldName string) (string, bool)
+	bindInterfaceObject(typeName, interfaceObjectName string)
+	isBoundToOtherInterfaceObject(typeName, interfaceObjectName string) bool
+
 	Debugger() (d DataSourceDebugger, ok bool)
 	Planner() any
 	Register(visitor *Visitor) error
@@ -40,11 +47,12 @@ type PlannerConfiguration interface {
 
 func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 	dataSourcePlannerConfig := DataSourcePlannerConfiguration{
-		RequiredFields: p.requiredFields,
-		ParentPath:     p.parentPath,
-		PathType:       p.parentPathType,
-		IsNested:       p.IsNestedPlanner(),
-		Options:        p.options,
+		RequiredFields:       p.requiredFields,
+		ParentPath:           p.parentPath,
+		PathType:             p.parentPathType,
+		IsNested:             p.IsNestedPlanner(),
+		Options:              p.options,
+		InterfaceObjectNames: p.interfaceObjectNames,
 	}
 
 	return p.planner.Register(visitor, p.dataSourceConfiguration, dataSourcePlannerConfig)
@@ -77,6 +85,32 @@ func (p *plannerConfiguration[T]) RequiredFields() *FederationFieldConfiguration
 
 func (p *plannerConfiguration[T]) DataSourceConfiguration() DataSource {
 	return p.dataSourceConfiguration
+}
+
+// InterfaceObjectNameForTypeField returns the interface object this planner uses to query
+// fieldName on the concrete typeName: the bound one when present,
+// otherwise the one derived from the data source configuration.
+func (p *plannerConfiguration[T]) InterfaceObjectNameForTypeField(typeName, fieldName string) (string, bool) {
+	if name, ok := p.interfaceObjectNames[typeName]; ok {
+		return name, true
+	}
+
+	return p.dataSourceConfiguration.InterfaceObjectNameForTypeField(typeName, fieldName)
+}
+
+// bindInterfaceObject binds the planner to the interface object it uses for the concrete typeName.
+// A single entity fetch could only select fields of one interface object,
+// so fields of another interface object of the same concrete type require a separate planner.
+func (p *plannerConfiguration[T]) bindInterfaceObject(typeName, interfaceObjectName string) {
+	if p.interfaceObjectNames == nil {
+		p.interfaceObjectNames = make(map[string]string, 1)
+	}
+	p.interfaceObjectNames[typeName] = interfaceObjectName
+}
+
+func (p *plannerConfiguration[T]) isBoundToOtherInterfaceObject(typeName, interfaceObjectName string) bool {
+	name, ok := p.interfaceObjectNames[typeName]
+	return ok && name != interfaceObjectName
 }
 
 type PlannerPathConfiguration interface {
