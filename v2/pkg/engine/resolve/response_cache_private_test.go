@@ -69,7 +69,7 @@ func TestResponseCachePrivateKeys(t *testing.T) {
 		loader.responseCacheSetKeys(prepared, sel, []caching.Digest{e1, e2})
 		require.Equal(t, []string{caching.Key(e1, sel), caching.Key(e2, sel)}, prepared.responseCacheKeys)
 		require.Nil(t, prepared.responseCachePrivateKeys)
-		_, ok := loader.ctx.responseCachePrivateID()
+		_, ok := loader.ctx.responseCacheSingleFlightID()
 		require.False(t, ok)
 	})
 
@@ -77,7 +77,7 @@ func TestResponseCachePrivateKeys(t *testing.T) {
 		loader, res := privateLoader(t, newTestCache(), "public", `{}`, "u1")
 		prepared := &preparedFetch{res: res}
 		loader.responseCacheSetKeys(prepared, sel, []caching.Digest{e1, e2})
-		digest, ok := loader.ctx.responseCachePrivateID()
+		digest, ok := loader.ctx.responseCacheSingleFlightID()
 		require.True(t, ok)
 		require.Equal(t, caching.DigestString("u1"), digest)
 		require.Equal(t, []string{caching.PrivateKey(e1, sel, digest), caching.PrivateKey(e2, sel, digest)}, prepared.responseCachePrivateKeys)
@@ -86,7 +86,7 @@ func TestResponseCachePrivateKeys(t *testing.T) {
 
 	t.Run("no cache means no id", func(t *testing.T) {
 		ctx := NewContext(context.Background())
-		digest, ok := ctx.responseCachePrivateID()
+		digest, ok := ctx.responseCacheSingleFlightID()
 		require.False(t, ok)
 		require.Zero(t, digest)
 	})

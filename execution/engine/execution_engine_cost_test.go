@@ -82,8 +82,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 				},
 				expectedResponse:      `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
-				expectedEstimatedCost: intPtr(18), // Query.droid (1) + droid.name (17)
-				expectedActualCost:    intPtr(18),
+				expectedEstimatedCost: new(18), // Query.droid (1) + droid.name (17)
+				expectedActualCost:    new(18),
 			},
 			computeCosts(),
 		))
@@ -139,8 +139,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 				},
 				expectedResponse:      `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
-				expectedEstimatedCost: intPtr(21), // Query.droid (1) + Query.droid.id (3) + droid.name (17)
-				expectedActualCost:    intPtr(21),
+				expectedEstimatedCost: new(21), // Query.droid (1) + Query.droid.id (3) + droid.name (17)
+				expectedActualCost:    new(21),
 			},
 			computeCosts(),
 		))
@@ -203,8 +203,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"droid":{"name":"R2D2","primaryFunction":"no"}}}`,
 				// All weights are negative.
 				// But cost should be floored to 0 (never negative)
-				expectedEstimatedCost: intPtr(0),
-				expectedActualCost:    intPtr(0),
+				expectedEstimatedCost: new(0),
+				expectedActualCost:    new(0),
 			},
 			computeCosts(),
 		))
@@ -246,9 +246,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
-				expectedEstimatedCost: intPtr(22), // Query.hero (2) + Human.height (3) + Droid.name (17=max(7, 17))
+				expectedEstimatedCost: new(22), // Query.hero (2) + Human.height (3) + Droid.name (17=max(7, 17))
 				// hero resolved to Human: the interface-selected name is billed at Human.name, not max.
-				expectedActualCost: intPtr(12), // Query.hero (2) + Human.height (3) + Human.name (7)
+				expectedActualCost: new(12), // Query.hero (2) + Human.height (3) + Human.name (7)
 			},
 			computeCosts(),
 		))
@@ -289,8 +289,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{}}}`,
-				expectedEstimatedCost: intPtr(19), // Query.hero (2) + Droid.name (17=max(7, 17))
-				expectedActualCost:    intPtr(2),
+				expectedEstimatedCost: new(19), // Query.hero (2) + Droid.name (17=max(7, 17))
+				expectedActualCost:    new(2),
 			},
 			computeCosts(),
 		))
@@ -323,9 +323,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						customConfig,
 					),
 				},
-				expectedEstimatedCost: intPtr(13), // Query.hero(13)
+				expectedEstimatedCost: new(13), // Query.hero(13)
 				// the abstract hero value is rejected and nulled, so nothing is billed
-				expectedActualCost: intPtr(0),
+				expectedActualCost: new(0),
 			},
 			computeCosts(),
 		))
@@ -367,8 +367,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"searchResults":[{"name":"Luke","height":"12"},{"name":"D2"}]}}`,
-				expectedEstimatedCost: intPtr(190), // 190 = 10 * (2+max(17, 7+3))
-				expectedActualCost:    intPtr(31),  // 31 = 2 * (2) + 1 * (17) + 1 * (7+3)
+				expectedEstimatedCost: new(190), // 190 = 10 * (2+max(17, 7+3))
+				expectedActualCost:    new(31),  // 31 = 2 * (2) + 1 * (17) + 1 * (7+3)
 			},
 			computeCosts(),
 		))
@@ -406,9 +406,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
-				expectedEstimatedCost: intPtr(30), // Query.Human (13) + Droid.name (17=max(7, 17))
+				expectedEstimatedCost: new(30), // Query.Human (13) + Droid.name (17=max(7, 17))
 				// name is selected on the interface; hero resolved to Human, so its actual weight is Human.name.
-				expectedActualCost: intPtr(20), // Human (13) + Human.name (7)
+				expectedActualCost: new(20), // Human (13) + Human.name (7)
 			},
 			computeCosts(),
 		))
@@ -459,8 +459,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(107), // 7 + 10*(max(7,5) + max(Human(2+1),Droid(2)))
-				expectedActualCost:    intPtr(22),  // 5 +  2*(       6 + 0.5 * (2+0+2+1))
+				expectedEstimatedCost: new(107), // 7 + 10*(max(7,5) + max(Human(2+1),Droid(2)))
+				expectedActualCost:    new(22),  // 5 +  2*(       6 + 0.5 * (2+0+2+1))
 			},
 			computeCosts(),
 		))
@@ -515,8 +515,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(207), // max(7,5)+ 20 * (7 + max(2,2+1))
-				expectedActualCost:    intPtr(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
+				expectedEstimatedCost: new(207), // max(7,5)+ 20 * (7 + max(2,2+1))
+				expectedActualCost:    new(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
 			},
 			computeCosts(),
 		))
@@ -573,8 +573,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(147), // hero(max(7,5))+ 20 * (4+max(2, 2+1))
-				expectedActualCost:    intPtr(18),  // 7       +  2 * (3+0.5*(2+2+1))
+				expectedEstimatedCost: new(147), // hero(max(7,5))+ 20 * (4+max(2, 2+1))
+				expectedActualCost:    new(18),  // 7       +  2 * (3+0.5*(2+2+1))
 			},
 			computeCosts(),
 		))
@@ -615,8 +615,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					),
 				},
 				expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-				expectedEstimatedCost: intPtr(11), // Query.hero(max(1,1))+ 10 * 1
-				expectedActualCost:    intPtr(3),  // Query.hero(1) + 2 * 1
+				expectedEstimatedCost: new(11), // Query.hero(max(1,1))+ 10 * 1
+				expectedActualCost:    new(3),  // Query.hero(1) + 2 * 1
 			},
 			computeCosts(),
 		))
@@ -672,9 +672,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse: `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
 				// Estimated with default list size 10: hero(7) + 10 * (7 + max(2, 2+1))
-				expectedEstimatedCost: intPtr(107),
+				expectedEstimatedCost: new(107),
 				// Actual uses real list size 2:        hero(7) +  2 * (6 + 0.5 * (2 + 2 + 1))
-				expectedActualCost: intPtr(24),
+				expectedActualCost: new(24),
 			},
 			computeCosts(),
 		))
@@ -723,9 +723,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse: `{"data":{"hero":{"friends":[]}}}`,
 				// default list size 10: hero(7) + 10 * (max(7,5) + max(2, 2))
-				expectedEstimatedCost: intPtr(97),
+				expectedEstimatedCost: new(97),
 				// empty list returned: hero(7) + 0 * (7 + 2 + 2)
-				expectedActualCost: intPtr(7),
+				expectedActualCost: new(7),
 			},
 			computeCosts(),
 		))
@@ -786,11 +786,11 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//   friends listSize: max(4, 6) = 6
 				//   Character type: max(Human=2, Droid=3) = 3
 				//   name: max(Human.name=3, Droid.name=5) = 5
-				expectedEstimatedCost: intPtr(55), // 2 + 1*(5 + 6*(3 + 1*5))
+				expectedEstimatedCost: new(55), // 2 + 1*(5 + 6*(3 + 1*5))
 				// hero returned __typename Human, so its name is billed at Human.name (3).
 				// The rejected friends element is nulled: its max type weight is still
 				// counted for the returned element, but no field weights are billed.
-				expectedActualCost: intPtr(8), // 2 + 1*(3 + 1*3)
+				expectedActualCost: new(8), // 2 + 1*(3 + 1*3)
 			},
 			computeCosts(),
 		))
@@ -850,9 +850,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//   Character type: max(Human=2, Droid=3) = 3
 				//   name: max(Human.name=3, Droid.name=5) = 5
 				// Total: 2 + 5 + 6 * (3 + 5)
-				expectedEstimatedCost: intPtr(55),
+				expectedEstimatedCost: new(55),
 				// Both hero and the friends item resolved to Human: both names billed at Human.name (3).
-				expectedActualCost: intPtr(10), // 2 + 1*3 + 1*(2 + 1*3)
+				expectedActualCost: new(10), // 2 + 1*3 + 1*(2 + 1*3)
 			},
 			computeCosts(),
 		))
@@ -903,8 +903,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				expectedResponse: `{"data":{"hero":{"name":"Luke","height":"1.72"}}}`,
 				// Total: 2 + 3 + 7
-				expectedEstimatedCost: intPtr(12),
-				expectedActualCost:    intPtr(12),
+				expectedEstimatedCost: new(12),
+				expectedActualCost:    new(12),
 			},
 			computeCosts(),
 		))
@@ -966,8 +966,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 					expectedResponse: `{"data":{"search":{"name":"Luke"}}}`,
 					// Query.search(3) + name arg(2) + Human.name(5) + @approx.tolerance(-5) = 5
-					expectedEstimatedCost: intPtr(5),
-					expectedActualCost:    intPtr(5),
+					expectedEstimatedCost: new(5),
+					expectedActualCost:    new(5),
 				},
 				computeCosts(),
 			))
@@ -1010,8 +1010,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           []plan.FieldConfiguration{},
 					expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 					// Query.hero(1) + Human.name(5) + @approx.tolerance(-5) = 1
-					expectedEstimatedCost: intPtr(1),
-					expectedActualCost:    intPtr(1),
+					expectedEstimatedCost: new(1),
+					expectedActualCost:    new(1),
 				},
 				computeCosts(),
 			))
@@ -1064,8 +1064,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 					expectedResponse: `{"data":{"droid":{"primaryFunction":"no"}}}`,
 					// Query.droid (1) + droid.primaryFunction (17); @approx.tolerance is null
-					expectedEstimatedCost: intPtr(18),
-					expectedActualCost:    intPtr(18),
+					expectedEstimatedCost: new(18),
+					expectedActualCost:    new(18),
 				},
 				computeCosts(),
 			))
@@ -1105,8 +1105,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						),
 					},
 					expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
-					expectedEstimatedCost: intPtr(13), // Query.Human (13)
-					expectedActualCost:    intPtr(13),
+					expectedEstimatedCost: new(13), // Query.Human (13)
+					expectedActualCost:    new(13),
 				},
 				computeCosts(),
 				costsIgnoreImplementingTypeWeights(),
@@ -1148,8 +1148,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						),
 					},
 					expectedResponse:      `{"data":{"hero":{"name":"Luke Skywalker","height":"12"}}}`,
-					expectedEstimatedCost: intPtr(5), // Query.hero (2) + Human.height (3)
-					expectedActualCost:    intPtr(5),
+					expectedEstimatedCost: new(5), // Query.hero (2) + Human.height (3)
+					expectedActualCost:    new(5),
 				},
 				computeCosts(),
 				costsIgnoreImplementingTypeWeights(),
@@ -1204,8 +1204,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						),
 					},
 					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-					expectedEstimatedCost: intPtr(207), // max(7,5)+ 20 * (7 + max(2,2+1))
-					expectedActualCost:    intPtr(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
+					expectedEstimatedCost: new(207), // max(7,5)+ 20 * (7 + max(2,2+1))
+					expectedActualCost:    new(24),  // hero(7) +  2 * (6 + 0.5*(2+0+2+1))
 				},
 				computeCosts(),
 				costsIgnoreImplementingTypeWeights(),
@@ -1262,8 +1262,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						),
 					},
 					expectedResponse:      `{"data":{"hero":{"friends":[{"name":"Luke Skywalker","height":"12"},{"name":"R2DO","primaryFunction":"joke"}]}}}`,
-					expectedEstimatedCost: intPtr(207), // hero(max(7,5))+ 20 * (7+max(2, 2+1))
-					expectedActualCost:    intPtr(24),  // hero(7)       +  2 * (6+0.5*(2+2+1))
+					expectedEstimatedCost: new(207), // hero(max(7,5))+ 20 * (7+max(2, 2+1))
+					expectedActualCost:    new(24),  // hero(7)       +  2 * (6+0.5*(2+2+1))
 				},
 				computeCosts(),
 				costsIgnoreImplementingTypeWeights(),
@@ -1318,8 +1318,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 					// friends items carry no __typename, so they are rejected and nulled
 					expectedResponse:      `{"errors":[{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["hero","friends",0],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"hero":{"name":"Luke","friends":[null]}}}`,
-					expectedEstimatedCost: intPtr(20), // 2 + 1*(0 + 6*(3 + 1*0))
-					expectedActualCost:    intPtr(5),  // 2 + 1*(0 + 1*3)
+					expectedEstimatedCost: new(20), // 2 + 1*(0 + 6*(3 + 1*0))
+					expectedActualCost:    new(5),  // 2 + 1*(0 + 1*3)
 				},
 				computeCosts(),
 				costsIgnoreImplementingTypeWeights(),
@@ -1373,8 +1373,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 						),
 					},
 					expectedResponse:      `{"data":{"hero":{"name":"Luke","friends":[{"name":"Leia"}]}}}`,
-					expectedEstimatedCost: intPtr(20), // 2 + 1*(0 + 6*(3 + 1*0))
-					expectedActualCost:    intPtr(4),  // 2 + 1*(0 + 1*(2 + 1*0))
+					expectedEstimatedCost: new(20), // 2 + 1*(0 + 6*(3 + 1*0))
+					expectedActualCost:    new(4),  // 2 + 1*(0 + 1*(2 + 1*0))
 				},
 				computeCosts(),
 				costsIgnoreImplementingTypeWeights(),
@@ -1484,8 +1484,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// search listSize: 10
 				// For each SearchResult, use max across all union members:
 				//   Type weight: max(User=5, Post=9, Comment=1) = 9
-				expectedEstimatedCost: intPtr(60), // 5 * (3 + max(5, 9, 1))
-				expectedActualCost:    intPtr(7),  // 1 * (2 + 1*2 + 1*3)
+				expectedEstimatedCost: new(60), // 5 * (3 + max(5, 9, 1))
+				expectedActualCost:    new(7),  // 1 * (2 + 1*2 + 1*3)
 			},
 			computeCosts(),
 		))
@@ -1535,8 +1535,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"search":[{"name":"John"}]}}`,
-				expectedEstimatedCost: intPtr(45), // 3 * (max(6,10) + max(2,5))
-				expectedActualCost:    intPtr(8),  // 1 * (6 + 1*2)
+				expectedEstimatedCost: new(45), // 3 * (max(6,10) + max(2,5))
+				expectedActualCost:    new(8),  // 1 * (6 + 1*2)
 			},
 			computeCosts(),
 		))
@@ -1648,8 +1648,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: intPtr(48), // slicingArgument(12) * (Item(3)+Item.id(1))
-				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+				expectedEstimatedCost: new(48), // slicingArgument(12) * (Item(3)+Item.id(1))
+				expectedActualCost:    new(8),  // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -1696,8 +1696,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: intPtr(100), // slicingArgument($limit=25) * (Item(3)+Item.id(1))
-				expectedActualCost:    intPtr(8),   // 2 * (Item(3)+Item.id(1))
+				expectedEstimatedCost: new(100), // slicingArgument($limit=25) * (Item(3)+Item.id(1))
+				expectedActualCost:    new(8),   // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -1742,8 +1742,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: intPtr(32), // slicingArgument(8) * (Item(3)+Item.id(1))
-				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+				expectedEstimatedCost: new(32), // slicingArgument(8) * (Item(3)+Item.id(1))
+				expectedActualCost:    new(8),  // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -1788,8 +1788,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: intPtr(40), // defaultListSize(10) * (Item(3)+Item.id(1))
-				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+				expectedEstimatedCost: new(40), // defaultListSize(10) * (Item(3)+Item.id(1))
+				expectedActualCost:    new(8),  // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -1835,8 +1835,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: intPtr(60), // AssumedSize(15) * (Item(3)+Item.id(1))
-				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+				expectedEstimatedCost: new(60), // AssumedSize(15) * (Item(3)+Item.id(1))
+				expectedActualCost:    new(8),  // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -1881,8 +1881,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: intPtr(40), // defaultListSize(10) * (Item(3)+Item.id(1))
-				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+				expectedEstimatedCost: new(40), // defaultListSize(10) * (Item(3)+Item.id(1))
+				expectedActualCost:    new(8),  // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -1927,8 +1927,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: intPtr(48), // slicingArgument($input.pagination.first=12) * (Item(3)+Item.id(1))
-				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+				expectedEstimatedCost: new(48), // slicingArgument($input.pagination.first=12) * (Item(3)+Item.id(1))
+				expectedActualCost:    new(8),  // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -1974,8 +1974,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"search":[{"id":"2"},{"id":"3"}]}}`,
-				expectedEstimatedCost: intPtr(28), // slicingArgument(7) * (Item(3)+Item.id(1))
-				expectedActualCost:    intPtr(8),  // 2 * (Item(3)+Item.id(1))
+				expectedEstimatedCost: new(28), // slicingArgument(7) * (Item(3)+Item.id(1))
+				expectedActualCost:    new(8),  // 2 * (Item(3)+Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -2158,8 +2158,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"},{"id":"2"}]}}`,
-				expectedEstimatedCost: intPtr(45), // Total: 15 * (2 + 1)
-				expectedActualCost:    intPtr(6),  // 2 * (2 + 1)
+				expectedEstimatedCost: new(45), // Total: 15 * (2 + 1)
+				expectedActualCost:    new(6),  // 2 * (2 + 1)
 			},
 			computeCosts(),
 		))
@@ -2205,8 +2205,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[]}}`,
-				expectedEstimatedCost: intPtr(60), // 20 * (2 + 1)
-				expectedActualCost:    intPtr(0),  // empty response list
+				expectedEstimatedCost: new(60), // 20 * (2 + 1)
+				expectedActualCost:    new(0),  // empty response list
 			},
 			computeCosts(),
 		))
@@ -2252,8 +2252,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[]}}`,
-				expectedEstimatedCost: intPtr(75), //  25 * (2 + 1)
-				expectedActualCost:    intPtr(0),  // empty response list
+				expectedEstimatedCost: new(75), //  25 * (2 + 1)
+				expectedActualCost:    new(0),  // empty response list
 			},
 			computeCosts(),
 		))
@@ -2325,8 +2325,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 					fields:                fieldConfig,
 					expectedResponse:      `{"data":{"items":[{"id":"2"},{"id":"3"}]}}`,
-					expectedEstimatedCost: intPtr(100), // max(first=25, last=10) * (Item(3)+Item.id(1))
-					expectedActualCost:    intPtr(8),   // 2 * (Item(3)+Item.id(1))
+					expectedEstimatedCost: new(100), // max(first=25, last=10) * (Item(3)+Item.id(1))
+					expectedActualCost:    new(8),   // 2 * (Item(3)+Item.id(1))
 				},
 				computeCosts(),
 			))
@@ -2369,8 +2369,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 					fields:                fieldConfig,
 					expectedResponse:      `{"data":{"search":[{"id":"2"}]}}`,
-					expectedEstimatedCost: intPtr(32), // outer default { pagination: { first: 8 } } * (Item(3)+Item.id(1))
-					expectedActualCost:    intPtr(4),  // 1 * (Item(3)+Item.id(1))
+					expectedEstimatedCost: new(32), // outer default { pagination: { first: 8 } } * (Item(3)+Item.id(1))
+					expectedActualCost:    new(4),  // 1 * (Item(3)+Item.id(1))
 				},
 				computeCosts(),
 			))
@@ -2415,8 +2415,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 					fields:                fieldConfig,
 					expectedResponse:      `{"data":{"search":[{"id":"2"}]}}`,
-					expectedEstimatedCost: intPtr(40), // inner Page.first default (10) * (Item(3)+Item.id(1))
-					expectedActualCost:    intPtr(4),  // 1 * (Item(3)+Item.id(1))
+					expectedEstimatedCost: new(40), // inner Page.first default (10) * (Item(3)+Item.id(1))
+					expectedActualCost:    new(4),  // 1 * (Item(3)+Item.id(1))
 				},
 				computeCosts(),
 			))
@@ -2460,9 +2460,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fieldConfig,
 					expectedResponse: `{"data":{"search":[{"id":"2"}]}}`,
 					// AssumedSize (5) * (Item(3)+Item.id(1))
-					expectedEstimatedCost: intPtr(20),
+					expectedEstimatedCost: new(20),
 					// 1 * (Item(3)+Item.id(1))
-					expectedActualCost: intPtr(4),
+					expectedActualCost: new(4),
 				},
 				computeCosts(),
 			))
@@ -2507,9 +2507,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fieldConfig,
 					expectedResponse: `{"data":{"search":[{"id":"2"}]}}`,
 					// AssumedSize (5) * (Item(3)+Item.id(1))
-					expectedEstimatedCost: intPtr(20),
+					expectedEstimatedCost: new(20),
 					// 1 * (Item(3)+Item.id(1))
-					expectedActualCost: intPtr(4),
+					expectedActualCost: new(4),
 				},
 				computeCosts(),
 			))
@@ -2645,8 +2645,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				//     comments(first:3): multiplier 3
 				//       Comment type weight: 2
 				//       text weight: 1
-				expectedEstimatedCost: intPtr(640), // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
-				expectedActualCost:    intPtr(10),
+				expectedEstimatedCost: new(640), // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
+				expectedActualCost:    new(10),
 			},
 			computeCosts(),
 		))
@@ -2689,8 +2689,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"texts":[["hello"]]}]}]}]}}`,
-				expectedEstimatedCost: intPtr(490), // 10 * (4 + 5 * (3 + 3 * (2 + 10 * 0)))
-				expectedActualCost:    intPtr(9),   //  1 * (4 + 1 * (3 + 1 * (2 +  1 * 0)))
+				expectedEstimatedCost: new(490), // 10 * (4 + 5 * (3 + 3 * (2 + 10 * 0)))
+				expectedActualCost:    new(9),   //  1 * (4 + 1 * (3 + 1 * (2 +  1 * 0)))
 			},
 			computeCosts(),
 		))
@@ -2733,8 +2733,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"enums":["SPAM"]}]}]}]}}`,
-				expectedEstimatedCost: intPtr(490), // 10 * (4 + 5 * (3 + 3 * (2 + 10 * 0)))
-				expectedActualCost:    intPtr(9),   //  1 * (4 + 1 * (3 + 1 * (2 +  1 * 0)))
+				expectedEstimatedCost: new(490), // 10 * (4 + 5 * (3 + 3 * (2 + 10 * 0)))
+				expectedActualCost:    new(9),   //  1 * (4 + 1 * (3 + 1 * (2 +  1 * 0)))
 			},
 			computeCosts(),
 		))
@@ -2796,8 +2796,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"hi"}]}]}]}}`,
-				expectedEstimatedCost: intPtr(1508), // 2 * (4 + 50 * (3 + 4 * (2 + 1)))
-				expectedActualCost:    intPtr(10),
+				expectedEstimatedCost: new(1508), // 2 * (4 + 50 * (3 + 4 * (2 + 1)))
+				expectedActualCost:    new(10),
 			},
 			computeCosts(),
 		))
@@ -2863,10 +2863,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"hello"}]}]}]}}`,
 				// Estimated cost with slicing arguments (10, 5, 3):
 				// Total: 10 * (4 + 5 * (3 + 3 * (2 + 1))) = 640
-				expectedEstimatedCost: intPtr(640),
+				expectedEstimatedCost: new(640),
 				// Actual cost with 1 item at each level:
 				// Total: 1 * (4 + 1 * (3 + 1 * (2 + 1))) = 10
-				expectedActualCost: intPtr(10),
+				expectedActualCost: new(10),
 			},
 			computeCosts(),
 		))
@@ -2936,9 +2936,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"a"},{"text":"b"},{"text":"c"}]},{"comments":[{"text":"d"},{"text":"e"},{"text":"f"}]}]},{"posts":[{"comments":[{"text":"g"},{"text":"h"},{"text":"i"}]},{"comments":[{"text":"j"},{"text":"k"},{"text":"l"}]}]}]}}`,
-				expectedEstimatedCost: intPtr(640),
+				expectedEstimatedCost: new(640),
 				// Actual cost: 2 * (4 + 2 * (3 + 3 * (2 + 1))) = 56
-				expectedActualCost: intPtr(56),
+				expectedActualCost: new(56),
 			},
 			computeCosts(),
 		))
@@ -3008,9 +3008,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":[{"posts":[{"comments":[{"text":"d"},{"text":"e"},{"text":"f"}]}]},{"posts":[{"comments":[{"text":"g"},{"text":"h"},{"text":"i"}]},{"comments":[{"text":"j"},{"text":"k"},{"text":"l"}]}]}]}}`,
 				// Estimated : 10 * (4 + 5 * (3 + 2 * (2 + 1))) = 490
-				expectedEstimatedCost: intPtr(490),
+				expectedEstimatedCost: new(490),
 				// Actual cost: 2 * (4 + 1.5 * (3 + 3 * (2 + 1))) = 44
-				expectedActualCost: intPtr(44),
+				expectedActualCost: new(44),
 			},
 			computeCosts(),
 		))
@@ -3062,10 +3062,10 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":[{"id":"1"},{"id":"2"},{"id":"3"}]}}`,
 				// Estimated: 10 * (4 + 1) = 50
-				expectedEstimatedCost: intPtr(50),
+				expectedEstimatedCost: new(50),
 				// Actual cost: 3 users at root
 				// 3 * (4 + 1) = 15
-				expectedActualCost: intPtr(15),
+				expectedActualCost: new(15),
 			},
 			computeCosts(),
 		))
@@ -3137,7 +3137,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"users":[{"posts":[{"comments":[{"text":"a"},{"text":"b"}]},{"comments":[{"text":"c"},{"text":"d"}]}]},{"posts":[]},{"posts":[{"comments":[]}]}]}}`,
-				expectedEstimatedCost: intPtr(640), // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
+				expectedEstimatedCost: new(640), // 10 * (4 + 5 * (3 + 3 * (2 + 1)))
 				// Actual cost with mixed empty/non-empty lists:
 				// Users: 3 items, multiplier 3.0
 				// Posts: 3 items, 3 parents => multiplier 1.0 (avg)
@@ -3149,7 +3149,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// Users:    RoundToEven((4 + 7) * 3.00)  = 33
 				//
 				// Empty lists are included in the averaging:
-				expectedActualCost: intPtr(33),
+				expectedActualCost: new(33),
 			},
 			computeCosts(),
 		))
@@ -3365,7 +3365,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 				},
 				expectedResponse:      `{"data":{"level1":[{"level2":[{"level3":[{"level4":[{"level5":[{"value":"a"}]},{"level5":[{"value":"b"},{"value":"c"}]}]},{"level4":[{"level5":[{"value":"d"}]}]}]},{"level3":[{"level4":[{"level5":[{"value":"e"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"f"},{"value":"g"}]},{"level5":[{"value":"h"}]}]},{"level4":[{"level5":[{"value":"i"}]}]}]}]},{"level2":[{"level3":[{"level4":[{"level5":[{"value":"j"}]},{"level5":[{"value":"k"}]}]},{"level4":[{"level5":[{"value":"l"}]},{"level5":[{"value":"m"}]}]}]}]}]}}`,
-				expectedEstimatedCost: intPtr(211110),
+				expectedEstimatedCost: new(211110),
 				// Actual cost with fractional multipliers:
 				// Level5: 13 items, 11 parents => multiplier 1.18 (13/11 = 1.181818...)
 				// Level4: 11 items,  7 parents => multiplier 1.57 (11/7 = 1.571428...)
@@ -3376,7 +3376,7 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// Ideal calculation without rounding:
 				// cost = 3 * (1 + 1.33 * (1 + 1.75 * (1 + 1.57 * (1 + 1.18 * (1 + 1)))))
 				//      = 50.806584 ~= 51
-				expectedActualCost: intPtr(51),
+				expectedActualCost: new(51),
 			},
 			computeCosts(),
 		))
@@ -3510,9 +3510,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{},{},{}]}]}}]}}`,
 				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
-				expectedEstimatedCost: intPtr(140),
+				expectedEstimatedCost: new(140),
 				// 1 * (10 + 1 * (10 + 1 * (10 + 1 * (1 + 0*10))))
-				expectedActualCost: intPtr(33),
+				expectedActualCost: new(33),
 			},
 			computeCosts(),
 		))
@@ -3552,9 +3552,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[` +
 					`{"text":"p1"},{"text":"p2"},{"text":"p3"},{"text":"p4"},{},{},{},{},{},{}]}]}}]}}`,
 				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
-				expectedEstimatedCost: intPtr(140),
+				expectedEstimatedCost: new(140),
 				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 0.4*10))))
-				expectedActualCost: intPtr(80),
+				expectedActualCost: new(80),
 			},
 			computeCosts(),
 		))
@@ -3606,11 +3606,11 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// Estimation (default list size 10): abstract picks the max-cost member subtree.
 				//   PeopleValue member subtree = person(1) + name(10) = 11
 				//   1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 11))))
-				expectedEstimatedCost: intPtr(150),
+				expectedEstimatedCost: new(150),
 				// Actual: 10 column_values, 4 matched PeopleValue.
 				//   name multiplier = 1 (one Person per matched item), person multiplier = 4/10.
 				//   1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 0.4 * (1 + 10)))))
-				expectedActualCost: intPtr(84),
+				expectedActualCost: new(84),
 			},
 			computeCosts(),
 		))
@@ -3659,11 +3659,11 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1","person":{"name":"p1"}},{"text":"p2","person":{"name":"p2"}},{"text":"p3","person":{"name":"p3"}},{"text":"p4","person":{"name":"p4"}},{"text":"s1"},{"text":"s2"},{"text":"s3"},{"text":"s4"},{"text":"s5"},{"text":"s6"}]}]}}]}}`,
 				//   1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 10 + 1 + 10))))
-				expectedEstimatedCost: intPtr(250),
+				expectedEstimatedCost: new(250),
 				// Actual: 10 column_values, 4 matched PeopleValue.
 				//   name multiplier = 1 (one Person per matched item), person multiplier = 4/10.
 				//   1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 0.4*10 + 0.4 * (1 + 10)))))
-				expectedActualCost: intPtr(124),
+				expectedActualCost: new(124),
 			},
 			computeCosts(),
 		))
@@ -3705,9 +3705,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
 				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
-				expectedEstimatedCost: intPtr(140),
+				expectedEstimatedCost: new(140),
 				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*10))))
-				expectedActualCost: intPtr(55),
+				expectedActualCost: new(55),
 			},
 			computeCosts(),
 		))
@@ -3749,9 +3749,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
 				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*0))))
-				expectedEstimatedCost: intPtr(40),
+				expectedEstimatedCost: new(40),
 				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*0))))
-				expectedActualCost: intPtr(35),
+				expectedActualCost: new(35),
 			},
 			computeCosts(),
 			costsIgnoreImplementingTypeWeights(),
@@ -3796,9 +3796,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
 				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
-				expectedEstimatedCost: intPtr(140),
+				expectedEstimatedCost: new(140),
 				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*10))))
-				expectedActualCost: intPtr(55),
+				expectedActualCost: new(55),
 			},
 			computeCosts(),
 		))
@@ -3841,9 +3841,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{"text":"s1"},{"text":"s2"},{"text":"s3"}]}]}}]}}`,
 				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*10))))
-				expectedEstimatedCost: intPtr(140),
+				expectedEstimatedCost: new(140),
 				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0.4*10))))
-				expectedActualCost: intPtr(55),
+				expectedActualCost: new(55),
 			},
 			computeCosts(),
 		))
@@ -3907,9 +3907,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"boards":[{"items_page":{"items":[{"column_values":[{"text":"p1"},{"text":"p2"},{},{},{}]}]}}]}}`,
 				// 1 * (10 + 1 * (10 + 1 * (10 + 10 * (1 + 1*0))))
-				expectedEstimatedCost: intPtr(40), //
+				expectedEstimatedCost: new(40), //
 				// 1 * (10 + 1 * (10 + 1 * (10 + 5 * (1 + 0*0.4))))
-				expectedActualCost: intPtr(35),
+				expectedActualCost: new(35),
 			},
 			computeCosts(),
 		))
@@ -4021,9 +4021,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					`{"id":"1"},{"id":"2"}` +
 					`]}}`,
 				// 8 * (10 + 1   * 0 + 7   * (5 + 1*20))
-				expectedEstimatedCost: intPtr(1480),
+				expectedEstimatedCost: new(1480),
 				// 4 * (10 + 0.5 * 0 + 1.5 * (5 + 0.5*20))
-				expectedActualCost: intPtr(130),
+				expectedActualCost: new(130),
 			},
 			computeCosts(),
 		))
@@ -4063,9 +4063,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					`{"id":"1"},{"id":"2"}` +
 					`]}}`,
 				// 8 * (10 + 1   * 0 + 7    * (5 + 1*20))
-				expectedEstimatedCost: intPtr(1480),
+				expectedEstimatedCost: new(1480),
 				// 4 * (10 + 0.5 * 0 + 0.75 * (5 + 0*20)))
-				expectedActualCost: intPtr(55),
+				expectedActualCost: new(55),
 			},
 			computeCosts(),
 		))
@@ -4096,9 +4096,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					`{"id":"1"},{"id":"2"}` +
 					`]}}`,
 				// 8 * (10 + 1 * 0 + 7 * (5 + 1*20))
-				expectedEstimatedCost: intPtr(1480),
+				expectedEstimatedCost: new(1480),
 				// 2 * (10 + 1 * 0 + 0 * (5 + 1*20))
-				expectedActualCost: intPtr(20),
+				expectedActualCost: new(20),
 			},
 			computeCosts(),
 		))
@@ -4126,9 +4126,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"things":[` +
 					`]}}`,
 				// 8 * (10 + 1 * 0 + 7 * (5 + 1*20))
-				expectedEstimatedCost: intPtr(1480),
+				expectedEstimatedCost: new(1480),
 				// 0 * (10 + 0 * 0 + 0 * (5 + 1*20))
-				expectedActualCost: intPtr(0),
+				expectedActualCost: new(0),
 			},
 			computeCosts(),
 		))
@@ -4241,9 +4241,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}],"nodes":[{"name":"Alice"}],"totalCount":1}}}`,
 				// UserConnection(1) + Int(0) + 8*(UserEdge(1)+User(1)+User.name(2)) + 8*(User(1)+User.name(2))
-				expectedEstimatedCost: intPtr(57),
+				expectedEstimatedCost: new(57),
 				// UserConnection(1) + Int(0) + 1*(UserEdge(1)+User(1)+User.name(2)) + 1*(User(1)+User.name(2))
-				expectedActualCost: intPtr(8),
+				expectedActualCost: new(8),
 			},
 			computeCosts(),
 		))
@@ -4292,9 +4292,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 				// UserConnection(1) + 3*(UserEdge(1)+User(1)+User.name(2))
-				expectedEstimatedCost: intPtr(13),
+				expectedEstimatedCost: new(13),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
-				expectedActualCost: intPtr(5),
+				expectedActualCost: new(5),
 			},
 			computeCosts(),
 		))
@@ -4354,9 +4354,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice","posts":[{"title":"Hello"}]}}]}}}`,
 				// UserConnection(1) + 5*(UserEdge(1)+User(1)+User.name(2)+2*(Post(1)+Post.title(3)))
-				expectedEstimatedCost: intPtr(61),
+				expectedEstimatedCost: new(61),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2)+1*(Post(1)+Post.title(3)))
-				expectedActualCost: intPtr(9),
+				expectedActualCost: new(9),
 			},
 			computeCosts(),
 		))
@@ -4412,9 +4412,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 				// UserConnection(1) + 10*(UserEdge(1)+User(1)+User.name(2)))
-				expectedEstimatedCost: intPtr(41),
+				expectedEstimatedCost: new(41),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
-				expectedActualCost: intPtr(5),
+				expectedActualCost: new(5),
 			},
 			computeCosts(),
 		))
@@ -4462,8 +4462,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"totalCount":42}}}`,
 				// UserConnection(1) + Int(0) = 1
-				expectedEstimatedCost: intPtr(1),
-				expectedActualCost:    intPtr(1),
+				expectedEstimatedCost: new(1),
+				expectedActualCost:    new(1),
 			},
 			computeCosts(),
 		))
@@ -4512,9 +4512,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				fields:           fieldConfig,
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 				// UserConnection(1) + 7*(UserEdge(1)+User(1)+User.name(2))
-				expectedEstimatedCost: intPtr(29),
+				expectedEstimatedCost: new(29),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
-				expectedActualCost: intPtr(5),
+				expectedActualCost: new(5),
 			},
 			computeCosts(),
 		))
@@ -4563,9 +4563,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 				// No slicing arg provided, no AssumedSize -> falls back to defaultListSize(10)
 				// UserConnection(1) + 10*(UserEdge(1)+User(1)+User.name(2))
-				expectedEstimatedCost: intPtr(41),
+				expectedEstimatedCost: new(41),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2))
-				expectedActualCost: intPtr(5),
+				expectedActualCost: new(5),
 			},
 			computeCosts(),
 		))
@@ -4615,9 +4615,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				// edges is a sizedField -> multiplier from parent slicing arg = 5
 				// nodes is NOT a sizedField -> falls back to defaultListSize(10)
 				// UserConnection(1) + 5*(UserEdge(1)+User(1)+User.name(2)) + 10*(User(1)+User.name(2))
-				expectedEstimatedCost: intPtr(51),
+				expectedEstimatedCost: new(51),
 				// UserConnection(1) + 1*(UserEdge(1)+User(1)+User.name(2)) + 1*(User(1)+User.name(2))
-				expectedActualCost: intPtr(8),
+				expectedActualCost: new(8),
 			},
 			computeCosts(),
 		))
@@ -4744,8 +4744,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           boardsFieldConfig,
 					expectedResponse: expectedResponse,
 					// 4 * ( 10 + 1 * (10 + 1 * 10))
-					expectedEstimatedCost: intPtr(120),
-					expectedActualCost:    intPtr(120),
+					expectedEstimatedCost: new(120),
+					expectedActualCost:    new(120),
 				},
 				computeCosts(),
 			))
@@ -4849,8 +4849,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fields,
 					expectedResponse: `{"data":{"users":{"edges":[{"node":{"name":"Alice"}}]}}}`,
 					// max(Connection,UserConnection)(1) + 3*(UserEdge(3)+User(1)+User.name(2))
-					expectedEstimatedCost: intPtr(19),
-					expectedActualCost:    intPtr(7),
+					expectedEstimatedCost: new(19),
+					expectedActualCost:    new(7),
 				},
 				computeCosts(),
 			))
@@ -4938,8 +4938,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fields,
 					expectedResponse: `{"data":{"users":{"edges":[{"cursor":"abc"}]}}}`,
 					// Connection(1) + 4*(Edge(3)+String(0))
-					expectedEstimatedCost: intPtr(13),
-					expectedActualCost:    intPtr(4),
+					expectedEstimatedCost: new(13),
+					expectedActualCost:    new(4),
 				},
 				computeCosts(),
 			))
@@ -5048,8 +5048,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fields,
 					expectedResponse: `{"data":{"search":{"items":{"edges":[{"node":{"name":"Alice"}}]}}}}`,
 					// Paginated(max(1,1)) + ItemConnection(1) + 5*(ItemEdge(2)+Item(1)+Item.name(0))
-					expectedEstimatedCost: intPtr(17),
-					expectedActualCost:    intPtr(5),
+					expectedEstimatedCost: new(17),
+					expectedActualCost:    new(5),
 				},
 				computeCosts(),
 			))
@@ -5175,8 +5175,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					// ListSizes only has {UserPaginated, items} and {PostPaginated, items}.
 					// If not considering implementations, multiplier for edges falls back to
 					// defaultListSize(10): 1 + 1 + 10*(3+1) = 42.
-					expectedEstimatedCost: intPtr(22),
-					expectedActualCost:    intPtr(6),
+					expectedEstimatedCost: new(22),
+					expectedActualCost:    new(6),
 				},
 				computeCosts(),
 			))
@@ -5267,8 +5267,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					fields:           fields,
 					expectedResponse: `{"data":{"feed":{"items":[{"id":"1"},{"id":"2"}],"count":2}}}`,
 					// FeedConnection(1) + Int(0) + 3*(max(Post(3))+ID(0))
-					expectedEstimatedCost: intPtr(10),
-					expectedActualCost:    intPtr(7),
+					expectedEstimatedCost: new(10),
+					expectedActualCost:    new(7),
 				},
 				computeCosts(),
 			))
@@ -5388,8 +5388,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"itemsNoSlicing":[{"id":"1"}]}}`,
-				expectedEstimatedCost: intPtr(15), // assumedSize(5) * (Item(2) + Item.id(1))
-				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
+				expectedEstimatedCost: new(15), // assumedSize(5) * (Item(2) + Item.id(1))
+				expectedActualCost:    new(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -5421,8 +5421,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
-				expectedEstimatedCost: intPtr(12), // 4 * (Item(2) + Item.id(1))
-				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
+				expectedEstimatedCost: new(12), // 4 * (Item(2) + Item.id(1))
+				expectedActualCost:    new(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -5516,8 +5516,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
-				expectedEstimatedCost: intPtr(30), // assumedSize(10) * (Item(2) + Item.id(1))
-				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
+				expectedEstimatedCost: new(30), // assumedSize(10) * (Item(2) + Item.id(1))
+				expectedActualCost:    new(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -5549,8 +5549,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
-				expectedEstimatedCost: intPtr(15), // max(5,3)=5 * (Item(2) + Item.id(1))
-				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
+				expectedEstimatedCost: new(15), // max(5,3)=5 * (Item(2) + Item.id(1))
+				expectedActualCost:    new(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -5583,8 +5583,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"items":[{"id":"1"}]}}`,
-				expectedEstimatedCost: intPtr(21), // 7 * (Item(2) + Item.id(1))
-				expectedActualCost:    intPtr(3),  // 1 * (Item(2) + Item.id(1))
+				expectedEstimatedCost: new(21), // 7 * (Item(2) + Item.id(1))
+				expectedActualCost:    new(3),  // 1 * (Item(2) + Item.id(1))
 			},
 			computeCosts(),
 		))
@@ -5789,8 +5789,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					dataSources:           makeDS(t, items1Body, listSchema),
 					fields:                fieldConfig,
 					expectedResponse:      items1Body,
-					expectedEstimatedCost: intPtr(15), // first default (5) * (Item(2)+Item.id(1))
-					expectedActualCost:    intPtr(3),
+					expectedEstimatedCost: new(15), // first default (5) * (Item(2)+Item.id(1))
+					expectedActualCost:    new(3),
 				},
 				computeCosts(),
 			)(t)
@@ -5810,8 +5810,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					dataSources:           makeDS(t, items1Body, listSchema),
 					fields:                fieldConfig,
 					expectedResponse:      items1Body,
-					expectedEstimatedCost: intPtr(15), // first default (5) * (Item(2)+Item.id(1))
-					expectedActualCost:    intPtr(3),  // 1 * (Item(2)+Item.id(1))
+					expectedEstimatedCost: new(15), // first default (5) * (Item(2)+Item.id(1))
+					expectedActualCost:    new(3),  // 1 * (Item(2)+Item.id(1))
 				},
 				computeCosts(),
 			)(t)
@@ -5833,8 +5833,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					dataSources:           makeDS(t, items1Body, listSchema),
 					fields:                fieldConfig,
 					expectedResponse:      items1Body,
-					expectedEstimatedCost: intPtr(15), // first default (5) * (Item(2)+Item.id(1))
-					expectedActualCost:    intPtr(3),  // 1 * (Item(2)+Item.id(1))
+					expectedEstimatedCost: new(15), // first default (5) * (Item(2)+Item.id(1))
+					expectedActualCost:    new(3),  // 1 * (Item(2)+Item.id(1))
 				},
 				computeCosts(),
 			)(t)
@@ -5889,8 +5889,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					dataSources:           makeDS(t, items2Body, listSchema),
 					fields:                fieldConfig,
 					expectedResponse:      items2Body,
-					expectedEstimatedCost: intPtr(21), // first (7) * (Item(2)+Item.id(1))
-					expectedActualCost:    intPtr(3),
+					expectedEstimatedCost: new(21), // first (7) * (Item(2)+Item.id(1))
+					expectedActualCost:    new(3),
 				},
 				computeCosts(),
 			)(t)
@@ -5908,8 +5908,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					dataSources:           makeDS(t, items2Body, listSchema),
 					fields:                fieldConfig,
 					expectedResponse:      items2Body,
-					expectedEstimatedCost: intPtr(21), // first default (7) * (Item(2)+Item.id(1))
-					expectedActualCost:    intPtr(3),
+					expectedEstimatedCost: new(21), // first default (7) * (Item(2)+Item.id(1))
+					expectedActualCost:    new(3),
 				},
 				computeCosts(),
 			)(t)
@@ -5927,8 +5927,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					dataSources:           makeDS(t, searchBody, listSchema),
 					fields:                fieldConfig,
 					expectedResponse:      searchBody,
-					expectedEstimatedCost: intPtr(24), // Page.first default (8) * (Item(2)+Item.id(1))
-					expectedActualCost:    intPtr(3),
+					expectedEstimatedCost: new(24), // Page.first default (8) * (Item(2)+Item.id(1))
+					expectedActualCost:    new(3),
 				},
 				computeCosts(),
 			)(t)
@@ -6102,8 +6102,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                abstractFieldConfig,
 				expectedResponse:      `{"data":{"search":{"items":[{"id":"1"}]}}}`,
-				expectedEstimatedCost: intPtr(11), // Paginated(1) + 5 * (Item(2) + Item.id(0))
-				expectedActualCost:    intPtr(3),  // Paginated(1) + 1 * (Item(2) + Item.id(0))
+				expectedEstimatedCost: new(11), // Paginated(1) + 5 * (Item(2) + Item.id(0))
+				expectedActualCost:    new(3),  // Paginated(1) + 1 * (Item(2) + Item.id(0))
 			},
 			computeCosts(),
 		))
@@ -6378,8 +6378,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"create":{"id":"1","name":"Alice"}}}`,
-				expectedEstimatedCost: intPtr(11), // argsCost(name:5 + email:3 + age:2 = 10) + round((0 + 1) * 1) = 11
-				expectedActualCost:    intPtr(11),
+				expectedEstimatedCost: new(11), // argsCost(name:5 + email:3 + age:2 = 10) + round((0 + 1) * 1) = 11
+				expectedActualCost:    new(11),
 			},
 			computeCosts(),
 		))
@@ -6408,8 +6408,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"create":{"id":"1","name":"Alice"}}}`,
-				expectedEstimatedCost: intPtr(9), // argsCost(name:5 + email:3 = 8, age omitted) + round((0 + 1) * 1) = 9
-				expectedActualCost:    intPtr(9),
+				expectedEstimatedCost: new(9), // argsCost(name:5 + email:3 = 8, age omitted) + round((0 + 1) * 1) = 9
+				expectedActualCost:    new(9),
 			},
 			computeCosts(),
 		))
@@ -6437,8 +6437,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"nested":true}}`,
-				expectedEstimatedCost: intPtr(10), // argsCost(label:2 + inner:3 + value:4 + note:1 = 10) + round((0 + 0) * 1) = 10
-				expectedActualCost:    intPtr(10),
+				expectedEstimatedCost: new(10), // argsCost(label:2 + inner:3 + value:4 + note:1 = 10) + round((0 + 0) * 1) = 10
+				expectedActualCost:    new(10),
 			},
 			computeCosts(),
 		))
@@ -6469,8 +6469,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 
 				// countedInputCoords = {A.i: 3, A.rec: 2} implies
 				// argsCost(3*2 + 2*3 = 12) = 12
-				expectedEstimatedCost: intPtr(12),
-				expectedActualCost:    intPtr(12),
+				expectedEstimatedCost: new(12),
+				expectedActualCost:    new(12),
 			},
 			computeCosts(),
 		))
@@ -6498,8 +6498,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"createList":[{"id":"1","name":"Eve"},{"id":"2","name":"Eve2"}]}}`,
-				expectedEstimatedCost: intPtr(18), // argsCost(name:5 + email:3 = 8) + round((0 + 1) * 10) = 18
-				expectedActualCost:    intPtr(10), // argsCost(8) + round((0 + 1) * 2) = 10
+				expectedEstimatedCost: new(18), // argsCost(name:5 + email:3 = 8) + round((0 + 1) * 10) = 18
+				expectedActualCost:    new(10), // argsCost(8) + round((0 + 1) * 2) = 10
 			},
 			computeCosts(),
 		))
@@ -6527,8 +6527,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"inputOverride":{"id":"1"}}}`,
-				expectedEstimatedCost: intPtr(18), // argsCost(input:7 + name:5 + email:3 + age:2 = 17) + round((0 + 1) * 1) = 18
-				expectedActualCost:    intPtr(18),
+				expectedEstimatedCost: new(18), // argsCost(input:7 + name:5 + email:3 + age:2 = 17) + round((0 + 1) * 1) = 18
+				expectedActualCost:    new(18),
 			},
 			computeCosts(),
 		))
@@ -6557,8 +6557,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"update":{"id":"1"}}}`,
-				expectedEstimatedCost: intPtr(7), // argsCost(name:6) + round((0 + 1) * 1) = 7
-				expectedActualCost:    intPtr(7),
+				expectedEstimatedCost: new(7), // argsCost(name:6) + round((0 + 1) * 1) = 7
+				expectedActualCost:    new(7),
 			},
 			computeCosts(),
 		))
@@ -6587,8 +6587,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"update":{"id":"1"}}}`,
-				expectedEstimatedCost: intPtr(1), // argsCost(0) + round((0 + 1) * 1) = 1
-				expectedActualCost:    intPtr(1),
+				expectedEstimatedCost: new(1), // argsCost(0) + round((0 + 1) * 1) = 1
+				expectedActualCost:    new(1),
 			},
 			computeCosts(),
 		))
@@ -6628,8 +6628,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"listed":true}}`,
-				expectedEstimatedCost: intPtr(25), // 7 + 5*2 + 4*2
-				expectedActualCost:    intPtr(25),
+				expectedEstimatedCost: new(25), // 7 + 5*2 + 4*2
+				expectedActualCost:    new(25),
 			},
 			computeCosts(),
 		))
@@ -6656,8 +6656,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"discounted":true}}`,
-				expectedEstimatedCost: intPtr(11), // create:(name:5 + email:3) + create:-2 + discount:-3 + priority:8
-				expectedActualCost:    intPtr(11),
+				expectedEstimatedCost: new(11), // create:(name:5 + email:3) + create:-2 + discount:-3 + priority:8
+				expectedActualCost:    new(11),
 			},
 			computeCosts(),
 		))
@@ -6685,8 +6685,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"discounted":true}}`,
-				expectedEstimatedCost: intPtr(14), // create→(name:5 + email:3) + create:-2 + priority:8 = 14 (no discount:-3)
-				expectedActualCost:    intPtr(14),
+				expectedEstimatedCost: new(14), // create→(name:5 + email:3) + create:-2 + priority:8 = 14 (no discount:-3)
+				expectedActualCost:    new(14),
 			},
 			computeCosts(),
 		))
@@ -6714,8 +6714,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"negNested":true}}`,
-				expectedEstimatedCost: intPtr(2), // label:2 + inner→(value:5 + reduction:-4) + inner:-1 = 2
-				expectedActualCost:    intPtr(2),
+				expectedEstimatedCost: new(2), // label:2 + inner→(value:5 + reduction:-4) + inner:-1 = 2
+				expectedActualCost:    new(2),
 			},
 			computeCosts(),
 		))
@@ -6743,8 +6743,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"negNested":true}}`,
-				expectedEstimatedCost: intPtr(6), // label:2 + inner→(value:5) + inner:-1 = 6 (no reduction:-4)
-				expectedActualCost:    intPtr(6),
+				expectedEstimatedCost: new(6), // label:2 + inner→(value:5) + inner:-1 = 6 (no reduction:-4)
+				expectedActualCost:    new(6),
 			},
 			computeCosts(),
 		))
@@ -6772,8 +6772,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                fieldConfig,
 				expectedResponse:      `{"data":{"heavyDiscount":true}}`,
-				expectedEstimatedCost: intPtr(0), // base:2 + rebate:-10 = -8 → floored to 0
-				expectedActualCost:    intPtr(0),
+				expectedEstimatedCost: new(0), // base:2 + rebate:-10 = -8 → floored to 0
+				expectedActualCost:    new(0),
 			},
 			computeCosts(),
 		))
@@ -6803,8 +6803,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					},
 					fields:                fieldConfig,
 					expectedResponse:      `{"data":{"createMany":true}}`,
-					expectedEstimatedCost: intPtr(18), // item1(name:5 + email:3) + item2(name:5 + email:3 + age:2) = 18
-					expectedActualCost:    intPtr(18),
+					expectedEstimatedCost: new(18), // item1(name:5 + email:3) + item2(name:5 + email:3 + age:2) = 18
+					expectedActualCost:    new(18),
 				},
 				computeCosts(),
 			))
@@ -6885,8 +6885,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                itemsFieldConfig,
 				expectedResponse:      expectedResponse,
-				expectedEstimatedCost: intPtr(estimatedCost),
-				expectedActualCost:    intPtr(actualCost),
+				expectedEstimatedCost: new(estimatedCost),
+				expectedActualCost:    new(actualCost),
 			}
 		}
 		t.Run("with child fields group and board", runWithoutError(
@@ -7132,8 +7132,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                []plan.FieldConfiguration{},
 				expectedResponse:      response,
-				expectedEstimatedCost: intPtr(3120), // 10 * (1 + (1 +  10 * (1 + 30)))
-				expectedActualCost:    intPtr(97),   //  2 * (1 + (1 + 0.5 * (3 * (1 + 30))))
+				expectedEstimatedCost: new(3120), // 10 * (1 + (1 +  10 * (1 + 30)))
+				expectedActualCost:    new(97),   //  2 * (1 + (1 + 0.5 * (3 * (1 + 30))))
 			},
 			computeCosts(),
 		))
@@ -7214,9 +7214,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					`{"id":"1","hero":null},` +
 					`{"id":"2","hero":{"name":"Luke"}},` +
 					`{"id":"3","hero":null}]}}`,
-				expectedEstimatedCost: intPtr(300), // 10 * (1 * 30)
+				expectedEstimatedCost: new(300), // 10 * (1 * 30)
 				// Human.name is resolved exactly once (only 1 of 3 heroes is non-null) => 30.
-				expectedActualCost: intPtr(30), // 3 * (0.33 * 30)
+				expectedActualCost: new(30), // 3 * (0.33 * 30)
 			},
 			computeCosts(),
 		))
@@ -7267,8 +7267,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					`{"id":"1","hero":{"id":"h1","name":"Luke"}},` +
 					`{"id":"2","hero":{"id":"h2","name":"Han"}},` +
 					`{"id":"3","hero":{"id":"d1"}}]}}`,
-				expectedEstimatedCost: intPtr(300), // 10 * (1    * 30)
-				expectedActualCost:    intPtr(60),  //  3 * (0.67 * 30)
+				expectedEstimatedCost: new(300), // 10 * (1    * 30)
+				expectedActualCost:    new(60),  //  3 * (0.67 * 30)
 			},
 			computeCosts(),
 		))
@@ -7318,8 +7318,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					`{"id":"2","hero":{"id":"h2","name":"Han"}},` +
 					`{"id":"3","hero":{"id":"d1"}},` +
 					`{"id":"4","hero":null}]}}`,
-				expectedEstimatedCost: intPtr(300), // 10 * (1    * (1    * 30))
-				expectedActualCost:    intPtr(60),  //  4 * (0.75 * (0.67 * 30))
+				expectedEstimatedCost: new(300), // 10 * (1    * (1    * 30))
+				expectedActualCost:    new(60),  //  4 * (0.75 * (0.67 * 30))
 			},
 			computeCosts(),
 		))
@@ -7390,8 +7390,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                []plan.FieldConfiguration{},
 				expectedResponse:      `{"data":{"heroes":[{"pet":{"id":"p1","name":"a"}},{"pet":{"id":"p2","name":"b"}}]}}`,
-				expectedEstimatedCost: intPtr(10), // 10 * (0 + (Pet 1))
-				expectedActualCost:    intPtr(2),  //  2 * (0 + (Pet 1))
+				expectedEstimatedCost: new(10), // 10 * (0 + (Pet 1))
+				expectedActualCost:    new(2),  //  2 * (0 + (Pet 1))
 			},
 			computeCosts(),
 		))
@@ -7466,9 +7466,9 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					`{"hero":{"name":"Luke"}},` +
 					`{"hero":{"name":"Han"}},` +
 					`{"hero":{"name":"R2D2"}}]}}`,
-				expectedEstimatedCost: intPtr(170), // 10 * (0 + (0 + max(7, 17)))
+				expectedEstimatedCost: new(170), // 10 * (0 + (0 + max(7, 17)))
 				// 2 Human heroes and 1 Droid hero: name billed per returned type.
-				expectedActualCost: intPtr(31), // 2*7 + 1*17
+				expectedActualCost: new(31), // 2*7 + 1*17
 			},
 			computeCosts(),
 		))
@@ -7505,8 +7505,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 					`{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["items",1,"hero"],"extensions":{"code":"INVALID_GRAPHQL"}},` +
 					`{"message":"Subgraph 'id' returned an invalid value for __typename field.","path":["items",2,"hero"],"extensions":{"code":"INVALID_GRAPHQL"}}],` +
 					`"data":{"items":[{"hero":null},{"hero":null},{"hero":null}]}}`,
-				expectedEstimatedCost: intPtr(170), // 10 * (0 + (0 + max(7, 17)))
-				expectedActualCost:    intPtr(0),
+				expectedEstimatedCost: new(170), // 10 * (0 + (0 + max(7, 17)))
+				expectedActualCost:    new(0),
 			},
 			computeCosts(),
 		))
@@ -7572,8 +7572,8 @@ func TestExecutionEngine_Cost(t *testing.T) {
 				},
 				fields:                []plan.FieldConfiguration{},
 				expectedResponse:      expectedResponse,
-				expectedEstimatedCost: intPtr(estimatedCost),
-				expectedActualCost:    intPtr(actualCost),
+				expectedEstimatedCost: new(estimatedCost),
+				expectedActualCost:    new(actualCost),
 			}
 		}
 
