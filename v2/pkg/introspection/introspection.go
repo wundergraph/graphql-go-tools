@@ -95,7 +95,7 @@ UNION
 INPUT_OBJECT
 )
 */
-type __TypeKind int
+type __TypeKind int //nolint:recvcheck
 
 func (x __TypeKind) MarshalJSON() ([]byte, error) {
 

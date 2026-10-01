@@ -4,7 +4,7 @@ import "math/bits"
 
 // bitset stores non-negative integers as bit positions. A nil bitset is empty.
 // It is not compressed, so it suits dense sets whose copying as maps is expensive.
-type bitset []uint64
+type bitset []uint64 //nolint:recvcheck
 
 func (b *bitset) set(i int) {
 	w := i / 64

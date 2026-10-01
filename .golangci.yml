@@ -20,6 +20,7 @@ linters:
     - nolintlint
     - perfsprint
     - reassign
+    - recvcheck
     - spancheck
     - embeddedstructfieldcheck
     - modernize
@@ -46,6 +47,11 @@ linters:
         linters:
           - staticcheck
   settings:
+    recvcheck:
+      exclusions:
+        # Value String() methods keep fmt working on non-pointer values,
+        # even when the type's other methods need pointer receivers.
+        - "*.String"
     embeddedstructfieldcheck:
       # Checks that sync.Mutex and sync.RWMutex are not used as embedded fields.
       forbid-mutex: true

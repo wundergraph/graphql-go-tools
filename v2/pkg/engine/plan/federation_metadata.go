@@ -146,8 +146,8 @@ type FederationFieldConfigurations []FederationFieldConfiguration
 //	  __internal_fetch_requires_field_a: _entites(representations: $representations) { ... }
 //	  __internal_fetch_requires_field_b: _entites(representations: $representations) { ... }
 //	}
-func (f FederationFieldConfigurations) HasArgumentConflictWith(other []FederationFieldConfiguration) bool {
-	if len(f) == 0 || len(other) == 0 {
+func (f *FederationFieldConfigurations) HasArgumentConflictWith(other []FederationFieldConfiguration) bool {
+	if len(*f) == 0 || len(other) == 0 {
 		return false
 	}
 
@@ -157,12 +157,12 @@ func (f FederationFieldConfigurations) HasArgumentConflictWith(other []Federatio
 
 	// Store all fields with arguments in a map
 	seenFields := map[string]string{}
-	for i := range f {
-		if f[i].FieldName == "" || len(f[i].RequiredFieldArguments) == 0 {
+	for i := range *f {
+		if (*f)[i].FieldName == "" || len((*f)[i].RequiredFieldArguments) == 0 {
 			continue
 		}
 
-		for _, argInfo := range f[i].RequiredFieldArguments {
+		for _, argInfo := range (*f)[i].RequiredFieldArguments {
 			seenFields[keyFunc(argInfo)] = argInfo.Value
 		}
 	}

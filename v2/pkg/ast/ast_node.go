@@ -16,7 +16,7 @@ type Node struct {
 
 var InvalidNode = Node{Kind: NodeKindUnknown, Ref: InvalidRef}
 
-func (n *Node) IsExtensionKind() bool {
+func (n Node) IsExtensionKind() bool {
 	switch n.Kind {
 	case NodeKindSchemaExtension,
 		NodeKindObjectTypeExtension,

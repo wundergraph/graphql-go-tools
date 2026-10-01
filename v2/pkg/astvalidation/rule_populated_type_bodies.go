@@ -37,7 +37,7 @@ func (p *populatedTypeBodiesVisitor) EnterDocument(operation, _ *ast.Document) {
 	p.definition = operation
 }
 
-func (p populatedTypeBodiesVisitor) EnterEnumTypeDefinition(ref int) {
+func (p *populatedTypeBodiesVisitor) EnterEnumTypeDefinition(ref int) {
 	if !p.definition.EnumTypeDefinitions[ref].HasEnumValuesDefinition {
 		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("enum", p.definition.EnumTypeDefinitionNameString(ref)))
 		return
@@ -51,7 +51,7 @@ func (p *populatedTypeBodiesVisitor) EnterEnumTypeExtension(ref int) {
 	}
 }
 
-func (p populatedTypeBodiesVisitor) EnterInputObjectTypeDefinition(ref int) {
+func (p *populatedTypeBodiesVisitor) EnterInputObjectTypeDefinition(ref int) {
 	if !p.definition.InputObjectTypeDefinitions[ref].HasInputFieldsDefinition {
 		p.Report.AddExternalError(operationreport.ErrTypeBodyMustNotBeEmpty("input", p.definition.InputObjectTypeDefinitionNameString(ref)))
 		return
@@ -65,7 +65,7 @@ func (p *populatedTypeBodiesVisitor) EnterInputObjectTypeExtension(ref int) {
 	}
 }
 
-func (p populatedTypeBodiesVisitor) EnterInterfaceTypeDefinition(ref int) {
+func (p *populatedTypeBodiesVisitor) EnterInterfaceTypeDefinition(ref int) {
 	switch p.definition.InterfaceTypeDefinitions[ref].HasFieldDefinitions {
 	case true:
 		if !p.doesTypeOnlyContainReservedFields(p.definition.InterfaceTypeDefinitions[ref].FieldsDefinition.Refs) {
@@ -85,7 +85,7 @@ func (p *populatedTypeBodiesVisitor) EnterInterfaceTypeExtension(ref int) {
 	}
 }
 
-func (p populatedTypeBodiesVisitor) EnterObjectTypeDefinition(ref int) {
+func (p *populatedTypeBodiesVisitor) EnterObjectTypeDefinition(ref int) {
 	nameBytes := p.definition.ObjectTypeDefinitionNameBytes(ref)
 	object := p.definition.ObjectTypeDefinitions[ref]
 	switch object.HasFieldDefinitions {
