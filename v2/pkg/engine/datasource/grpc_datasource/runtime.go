@@ -74,8 +74,8 @@ func newSchemaRuntime(doc *Document) (*runtimeSchema, error) {
 	}
 
 	for _, service := range doc.Services {
-		for i := range service.MethodsRefs {
-			runtime.serviceNamesByMethod[doc.Methods[i].Name] = service.FullName
+		for _, ref := range service.MethodsRefs {
+			runtime.serviceNamesByMethod[doc.Methods[ref].Name] = service.FullName
 		}
 	}
 
