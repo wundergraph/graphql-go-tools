@@ -34,9 +34,53 @@ func (l *Loader) responseCacheEnabledFor(subgraph string) bool {
 	return ok
 }
 
-func (l *Loader) reportResponseCacheError(err error) {
+// ResponseCacheOperation is what the engine was doing when the cache failed it.
+type ResponseCacheOperation string
+
+const (
+	ResponseCacheOperationLookup  ResponseCacheOperation = "lookup"
+	ResponseCacheOperationWrite   ResponseCacheOperation = "write"
+	ResponseCacheOperationRead    ResponseCacheOperation = "read"
+	ResponseCacheOperationCollect ResponseCacheOperation = "collect"
+)
+
+// ResponseCacheError is what OnError is handed, for errors.As.
+type ResponseCacheError struct {
+	Operation ResponseCacheOperation
+	// Subgraph is the name of the subgraph the fetch went to.
+	Subgraph string
+	Err      error
+}
+
+func (e *ResponseCacheError) Error() string { return e.Err.Error() }
+func (e *ResponseCacheError) Unwrap() error { return e.Err }
+
+func (l *Loader) reportResponseCacheError(operation ResponseCacheOperation, subgraph string, err error) {
 	if l.responseCacheEnabled() && l.ctx.responseCache.onError != nil {
-		l.ctx.responseCache.onError(err)
+		l.ctx.responseCache.onError(&ResponseCacheError{Operation: operation, Subgraph: subgraph, Err: err})
+	}
+}
+
+// responseCacheGetMany is GetMany, timed for the hooks.
+func (l *Loader) responseCacheGetMany(res *result, keys []string) (map[string]caching.Item, error) {
+	start := time.Now()
+	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, keys)
+	res.responseCache.LookupDuration += time.Since(start)
+	return found, err
+}
+
+// countKeys counts entities, not lookup keys: a shared key and its per-user
+// twin are one entity, found when either is.
+func (i *ResponseCacheInfo) countKeys(found map[string]caching.Item, keys, privateKeys []string) {
+	i.KeysRequested += len(keys)
+	for j, key := range keys {
+		_, ok := found[key]
+		if !ok && privateKeys != nil {
+			_, ok = found[privateKeys[j]]
+		}
+		if ok {
+			i.KeysFound++
+		}
 	}
 }
 
@@ -109,13 +153,15 @@ func responseCacheLookupKeys(keys, privateKeys []string) []string {
 
 // responseCacheFoundItem picks one position's entry, the user's own over the
 // shared: a body, or a record pointing at one. An invalid body is a miss.
-func (l *Loader) responseCacheFoundItem(found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
+func (l *Loader) responseCacheFoundItem(subgraph string, found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
 	if privateKey != "" {
 		item, ok = found[privateKey]
 		ok = ok && (len(item.Value) > 0 || len(item.Vary) > 0)
 		private = ok
 	}
-	if !ok {
+	if private {
+		key = privateKey
+	} else {
 		item, ok = found[key]
 		if !ok || (len(item.Value) == 0 && len(item.Vary) == 0) {
 			return caching.Item{}, false, false
@@ -125,7 +171,7 @@ func (l *Loader) responseCacheFoundItem(found map[string]caching.Item, key, priv
 		// A record has no body; the variant it points at is read next.
 		return item, private, true
 	}
-	if !l.responseCacheValidBody(key, item) {
+	if !l.responseCacheValidBody(subgraph, key, item) {
 		return caching.Item{}, false, false
 	}
 	return item, private, true
@@ -133,12 +179,12 @@ func (l *Loader) responseCacheFoundItem(found map[string]caching.Item, key, priv
 
 // responseCacheValidBody reports whether a body read back is JSON. One that is
 // not is a miss, reported, rather than something to splice into a response.
-func (l *Loader) responseCacheValidBody(key string, item caching.Item) bool {
+func (l *Loader) responseCacheValidBody(subgraph, key string, item caching.Item) bool {
 	if len(item.Value) == 0 {
 		return false
 	}
 	if validationErr := astjson.ValidateBytes(item.Value); validationErr != nil {
-		l.reportResponseCacheError(fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
+		l.reportResponseCacheError(ResponseCacheOperationRead, subgraph, fmt.Errorf("wrong response cache value for key %v: %w", key, validationErr))
 		return false
 	}
 	return true
@@ -154,13 +200,17 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		return false
 	}
 
+	subgraph := prepared.res.ds.Name
+	prepared.res.responseCache.Status = ResponseCacheStatusMiss
+
 	privateKeys := prepared.responseCachePrivateKeys
 	// Since we don't know in advance we need to query both key types
 	lookup := responseCacheLookupKeys(keys, privateKeys)
 
-	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, lookup)
+	found, err := l.responseCacheGetMany(prepared.res, lookup)
+	prepared.res.responseCache.countKeys(found, keys, privateKeys)
 	if err != nil {
-		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(lookup), err))
+		l.reportResponseCacheError(ResponseCacheOperationLookup, subgraph, fmt.Errorf("response cache lookup of %d keys: %w", len(lookup), err))
 		return false
 	}
 	prepared.responseCacheFound = found
@@ -175,7 +225,7 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 		if privateKeys != nil {
 			privateKey = privateKeys[i]
 		}
-		item, itemPrivate, ok := l.responseCacheFoundItem(found, key, privateKey)
+		item, itemPrivate, ok := l.responseCacheFoundItem(subgraph, found, key, privateKey)
 		if !ok {
 			return false
 		}
@@ -187,12 +237,12 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	// it with the body it points at.
 	candidates, variants := l.responseCacheVariantKeys(prepared, items)
 	if len(variants) > 0 {
-		found, err = l.ctx.responseCache.store.GetMany(l.ctx.ctx, variants)
+		found, err = l.responseCacheGetMany(prepared.res, variants)
 		if err != nil {
-			l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
+			l.reportResponseCacheError(ResponseCacheOperationLookup, subgraph, fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
 			return false
 		}
-		if !l.responseCacheFillVariants(items, candidates, found) {
+		if !l.responseCacheFillVariants(subgraph, items, candidates, found) {
 			return false
 		}
 	}
@@ -221,6 +271,7 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.out = out
 	res.statusCode = http.StatusOK
 	res.responseCacheHit = true
+	res.responseCache.Status = ResponseCacheStatusHit
 	res.responseCachePrivate = private
 	res.responseCacheTTL = remainingTTL(items)
 	res.responseCacheSurrogateKeys = foundSurrogateKeys(items)
@@ -253,7 +304,7 @@ func (l *Loader) responseCacheVariantKeys(prepared *preparedFetch, items []cachi
 
 // responseCacheFillVariants replaces each record with the first valid body
 // among its candidates, the newest set's. False when a record has none.
-func (l *Loader) responseCacheFillVariants(items []caching.Item, candidates [][]string, found map[string]caching.Item) bool {
+func (l *Loader) responseCacheFillVariants(subgraph string, items []caching.Item, candidates [][]string, found map[string]caching.Item) bool {
 	for i := range candidates {
 		if len(candidates[i]) == 0 {
 			continue
@@ -261,7 +312,7 @@ func (l *Loader) responseCacheFillVariants(items []caching.Item, candidates [][]
 		filled := false
 		for _, key := range candidates[i] {
 			body, ok := found[key]
-			if ok && l.responseCacheValidBody(key, body) {
+			if ok && l.responseCacheValidBody(subgraph, key, body) {
 				items[i] = body
 				filled = true
 				break
@@ -353,11 +404,13 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	if res.err != nil || len(res.out) == 0 || res.statusCode >= 400 {
 		// A failed fetch is not cacheable, which is not a collection failure and is
 		// handled at other locations.
+		res.responseCache.StoreDecision = caching.StoreDecisionFetchFailed
 		return nil //nolint:nilerr
 	}
 
 	response, err := res.parsedResponse(l)
 	if err != nil {
+		res.responseCache.StoreDecision = caching.StoreDecisionInvalidResponse
 		return fmt.Errorf("parse error: %w", err)
 	}
 
@@ -367,6 +420,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	if errs := response.Get(errorsPath...); astjson.ValueIsNonNull(errs) && len(errs.GetArray()) > 0 {
+		res.responseCache.StoreDecision = caching.StoreDecisionResponseErrors
 		return nil
 	}
 
@@ -376,13 +430,15 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	headers := responseCacheHeaders(res)
-	ttl, private, ok := caching.TTL(headers, sub.ttl)
-	if !ok {
+	ttl, private, decision := caching.Lifetime(headers, sub.ttl)
+	if decision != caching.StoreDecisionStored {
+		res.responseCache.StoreDecision = decision
 		return nil
 	}
 
 	vary, ok := responseCacheVary(headers, res.sentHeaders)
 	if !ok {
+		res.responseCache.StoreDecision = caching.StoreDecisionUnusableVary
 		return nil
 	}
 
@@ -390,6 +446,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	writeKeys := prepared.responseCacheKeys
 	if private {
 		if prepared.responseCachePrivateKeys == nil {
+			res.responseCache.StoreDecision = caching.StoreDecisionPrivateWithoutID
 			return nil
 		}
 		writeKeys = prepared.responseCachePrivateKeys
@@ -397,6 +454,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 
 	values, err := responseCacheValues(prepared, response)
 	if err != nil {
+		res.responseCache.StoreDecision = caching.StoreDecisionInvalidResponse
 		return err
 	}
 
@@ -436,7 +494,16 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 
 	prepared.responseCacheItems = items
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
+	res.responseCache.StoreDecision = storeDecisionFor(items)
 	return nil
+}
+
+// storeDecisionFor is the decision for a response that was taken apart into items.
+func storeDecisionFor(items []caching.Item) caching.StoreDecision {
+	if len(items) == 0 {
+		return caching.StoreDecisionNoEntity
+	}
+	return caching.StoreDecisionStored
 }
 
 func responseCacheValues(prepared *preparedFetch, response *astjson.Value) ([]*astjson.Value, error) {
@@ -604,13 +671,23 @@ func (l *Loader) responseCacheMergeSurrogateKeys(res *result) {
 // served from the cache) has no alias in the response at all, and an entry whose
 // alias carries errors is skipped on its own so the others are still stored —
 // the unmerged fetches this replaces are independent that way.
-func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, response *astjson.Value, entryErrors []*astjson.Value) {
-	if !l.responseCacheEnabled() {
+func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, response *astjson.Value, entryErrors []*astjson.Value, unmatchedErrors bool) {
+	if !l.responseCacheEnabled() || prepared.skipLoad || !sentCacheableEntry(prepared) {
 		return
 	}
 
 	res := prepared.res
 	if res.err != nil || len(res.out) == 0 || res.statusCode >= 400 {
+		res.responseCache.StoreDecision = caching.StoreDecisionFetchFailed
+		return
+	}
+	if response == nil {
+		res.responseCache.StoreDecision = caching.StoreDecisionInvalidResponse
+		return
+	}
+	// Errors no alias can be blamed for taint every entry.
+	if unmatchedErrors {
+		res.responseCache.StoreDecision = caching.StoreDecisionResponseErrors
 		return
 	}
 
@@ -620,41 +697,52 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	}
 
 	// One HTTP response, one Cache-Control: the lifetime is genuinely shared,
-	// and so is being private.
+	// and so is being private. Checked per entry, after its errors, as the
+	// single-fetch path does.
 	headers := responseCacheHeaders(res)
-	ttl, private, ok := caching.TTL(headers, sub.ttl)
-	if !ok {
-		return
-	}
+	ttl, private, headerDecision := caching.Lifetime(headers, sub.ttl)
 
 	// One Vary as well: what the merged answer varied on covers every entry in
 	// it, even one that alone would have varied on less.
-	vary, ok := responseCacheVary(headers, res.sentHeaders)
-	if !ok {
-		return
+	var vary responseVary
+	if headerDecision == caching.StoreDecisionStored {
+		if vary, ok = responseCacheVary(headers, res.sentHeaders); !ok {
+			headerDecision = caching.StoreDecisionUnusableVary
+		}
 	}
+
+	// Unless something is stored, the lowest reason any entry was skipped for:
+	// the decisions are ordered so errors win, as on the single-fetch path.
+	storeDecision := caching.StoreDecisionNoEntity
 
 	var items []caching.Item
 	var surrogateKeyLists [][]string
 	for i := range prepared.multiEntries {
 		entry := &prepared.multiEntries[i]
-		if len(entry.responseCacheKeys) == 0 || entry.cacheHit() || entry.res.fetchSkipped {
+		if !entry.sentCacheable() {
+			continue
+		}
+		if errs := entryErrors[i]; astjson.ValueIsNonNull(errs) && len(errs.GetArray()) > 0 {
+			storeDecision = min(storeDecision, caching.StoreDecisionResponseErrors)
+			continue
+		}
+		if headerDecision != caching.StoreDecisionStored {
+			storeDecision = min(storeDecision, headerDecision)
 			continue
 		}
 		// A private body only ever lands under a per-user key.
 		writeKeys := entry.responseCacheKeys
 		if private {
 			if entry.responseCachePrivateKeys == nil {
+				storeDecision = min(storeDecision, caching.StoreDecisionPrivateWithoutID)
 				continue
 			}
 			writeKeys = entry.responseCachePrivateKeys
 		}
-		if errs := entryErrors[i]; astjson.ValueIsNonNull(errs) && len(errs.GetArray()) > 0 {
-			continue
-		}
 
 		entities := response.Get("data", entry.entry.Alias)
 		if entities == nil || entities.Type() != astjson.TypeArray {
+			storeDecision = min(storeDecision, caching.StoreDecisionInvalidResponse)
 			continue
 		}
 		values := entities.GetArray()
@@ -662,6 +750,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		// answers them. A different count means the response does not line up
 		// with what was asked, which is not something to cache.
 		if len(values) != len(entry.responseCacheKeys) {
+			storeDecision = min(storeDecision, caching.StoreDecisionInvalidResponse)
 			continue
 		}
 
@@ -692,6 +781,20 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 
 	prepared.responseCacheItems = items
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
+	if len(items) > 0 {
+		storeDecision = caching.StoreDecisionStored
+	}
+	res.responseCache.StoreDecision = storeDecision
+}
+
+// sentCacheable reports whether the entry went to the origin with keys to store under.
+func (e *preparedMultiEntry) sentCacheable() bool {
+	return len(e.responseCacheKeys) > 0 && !e.cacheHit() && !e.res.fetchSkipped
+}
+
+// sentCacheableEntry reports whether any entry went to the origin with keys to store under.
+func sentCacheableEntry(prepared *preparedFetch) bool {
+	return slices.ContainsFunc(prepared.multiEntries, func(e preparedMultiEntry) bool { return e.sentCacheable() })
 }
 
 // multiEntityCacheLookup asks the cache, in one round trip, for the entities of
@@ -711,10 +814,19 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 		return false
 	}
 
-	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, keys)
+	subgraph := prepared.res.ds.Name
+	prepared.res.responseCache.Status = ResponseCacheStatusMiss
+
+	found, err := l.responseCacheGetMany(prepared.res, keys)
+	for i := range prepared.multiEntries {
+		if included[i] {
+			entry := &prepared.multiEntries[i]
+			prepared.res.responseCache.countKeys(found, entry.responseCacheKeys, entry.responseCachePrivateKeys)
+		}
+	}
 	if err != nil {
 		// A cache failure is not a fetch failure: ask the origin for everything.
-		l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d keys: %w", len(keys), err))
+		l.reportResponseCacheError(ResponseCacheOperationLookup, subgraph, fmt.Errorf("response cache lookup of %d keys: %w", len(keys), err))
 		return false
 	}
 	prepared.responseCacheFound = found
@@ -743,7 +855,7 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 			if entry.responseCachePrivateKeys != nil {
 				privateKey = entry.responseCachePrivateKeys[j]
 			}
-			item, itemPrivate, ok := l.responseCacheFoundItem(found, key, privateKey)
+			item, itemPrivate, ok := l.responseCacheFoundItem(subgraph, found, key, privateKey)
 			if !ok {
 				items = nil
 				break
@@ -764,9 +876,9 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 
 	// One second round for every entry's records together.
 	if len(variants) > 0 {
-		found, err = l.ctx.responseCache.store.GetMany(l.ctx.ctx, variants)
+		found, err = l.responseCacheGetMany(prepared.res, variants)
 		if err != nil {
-			l.reportResponseCacheError(fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
+			l.reportResponseCacheError(ResponseCacheOperationLookup, subgraph, fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
 			return false
 		}
 	}
@@ -778,7 +890,7 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 			continue
 		}
 		// A record whose variant is gone leaves the entry to the origin, whole.
-		if !l.responseCacheFillVariants(lookup.items, lookup.candidates, found) {
+		if !l.responseCacheFillVariants(subgraph, lookup.items, lookup.candidates, found) {
 			continue
 		}
 
@@ -831,7 +943,7 @@ func (l *Loader) responseCacheFlush(prepared *preparedFetch) {
 	prepared.responseCacheItems = nil
 
 	if err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items); err != nil {
-		l.reportResponseCacheError(fmt.Errorf("response cache write of %d entities: %w", len(items), err))
+		l.reportResponseCacheError(ResponseCacheOperationWrite, prepared.res.ds.Name, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
 	}
 }
 
