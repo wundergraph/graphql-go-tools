@@ -2,6 +2,7 @@ package grpcdatasource
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -139,6 +140,19 @@ func Test_DataSource_loadWithConnect_ParityWithGRPC(t *testing.T) {
 
 			require.NoError(t, grpcErr)
 			require.NoError(t, connectErr)
+
+			// Errors are written into the response body, not returned as err.
+			// Make sure the gRPC path succeeds, so that the parity check is not
+			// a comparison of two identical error responses.
+			var grpcResp struct {
+				Data   json.RawMessage `json:"data"`
+				Errors json.RawMessage `json:"errors"`
+			}
+			require.NoError(t, json.Unmarshal(grpcOut, &grpcResp))
+			require.Empty(t, grpcResp.Errors, "loadWithGRPC returned errors: %s", grpcOut)
+			require.NotEmpty(t, grpcResp.Data, "loadWithGRPC returned no data: %s", grpcOut)
+			require.NotEqual(t, "null", string(grpcResp.Data), "loadWithGRPC returned null data: %s", grpcOut)
+
 			require.JSONEq(t, string(grpcOut), string(connectOut),
 				"loadWithConnect output must match loadWithGRPC output")
 		})
