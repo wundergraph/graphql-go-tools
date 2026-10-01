@@ -56,7 +56,7 @@ func Supported() error {
 	}
 	defer poller.Close(true)
 
-	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", "127.0.0.1:0") //nolint:noctx // short-lived loopback listener for a capability probe
 	if err != nil {
 		return fmt.Errorf("failed to create listener: %w", err)
 	}

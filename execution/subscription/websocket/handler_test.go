@@ -233,7 +233,7 @@ func TestWithProtocolFromRequestHeaders(t *testing.T) {
 	runTest := func(headerKey string, headerValue string, expectedProtocol Protocol) func(t *testing.T) {
 		return func(t *testing.T) {
 			t.Parallel()
-			request, err := http.NewRequestWithContext(t.Context(), "", "", nil)
+			request, err := http.NewRequest("", "", nil)
 			require.NoError(t, err)
 			request.Header.Set(headerKey, headerValue)
 

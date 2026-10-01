@@ -27,7 +27,7 @@ func TestPoller(t *testing.T) {
 	require.NoError(t, err)
 
 	// start server
-	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer ln.Close()
 
@@ -45,7 +45,7 @@ func TestPoller(t *testing.T) {
 	// create num connections and send msgPerConn messages per connection
 	for range num {
 		go func() {
-			conn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", ln.Addr().String())
+			conn, err := net.Dial("tcp", ln.Addr().String())
 			if err != nil {
 				t.Error(err)
 				return
@@ -150,7 +150,7 @@ func TestPoller_growstack(t *testing.T) {
 
 	poller := nps[0].Poller
 	// start server
-	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestPoller_growstack(t *testing.T) {
 		}
 	}()
 
-	conn, err := (&net.Dialer{}).DialContext(t.Context(), "tcp", ln.Addr().String())
+	conn, err := net.Dial("tcp", ln.Addr().String())
 	if err != nil {
 		t.Error(err)
 		return
