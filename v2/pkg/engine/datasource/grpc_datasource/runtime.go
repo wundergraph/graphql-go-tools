@@ -37,7 +37,6 @@ type runtimeField struct {
 	name     string
 	owner    *runtimeMessage
 	desc     protoref.FieldDescriptor
-	genDesc  protoref.FieldDescriptor
 	dataType DataType
 	message  *runtimeMessage
 	repeated bool

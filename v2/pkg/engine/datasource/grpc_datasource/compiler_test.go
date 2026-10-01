@@ -110,6 +110,11 @@ func TestNewProtoCompiler(t *testing.T) {
 
 	// At this point, compiler.doc should contain all the services, methods, and messages
 	// defined in the protobuf definition
+	require.Len(t, compiler.doc.Methods, 2)
+	method := compiler.doc.Methods[0]
+	require.Equal(t, "LookupProductById", method.Name)
+	require.Equal(t, "LookupProductByIdRequest", compiler.doc.Messages[method.InputRef].Name)
+	require.Equal(t, "LookupProductByIdResponse", compiler.doc.Messages[method.OutputRef].Name)
 }
 
 func TestNewProtoCompilerInvalid(t *testing.T) {
@@ -124,13 +129,15 @@ func TestNewProtoCompilerRecursiveType(t *testing.T) {
 	require.Equal(t, "product.v1", compiler.doc.Package)
 	require.Equal(t, 1, len(compiler.doc.Messages))
 	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Name)
-	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields))
-	require.Equal(t, "nested", compiler.doc.Messages[0].GetField("nested").Name)
-	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).Name)
-	require.Equal(t, 2, len(compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).Fields))
-	require.Equal(t, "id", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).GetField("id").Name)
-	require.Equal(t, "nested", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).GetField("nested").Name)
-	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).GetField("nested").ResolveUnderlyingMessage(compiler.doc).Name)
+
+	message := compiler.runtime.getMessageByName("RecursiveMessage")
+	require.NotNil(t, message)
+	require.Equal(t, 2, len(message.fieldsByName))
+	require.Contains(t, message.fieldsByName, "id")
+
+	nested := message.fieldsByName["nested"].message
+	require.Same(t, message, nested)
+	require.Same(t, message, nested.fieldsByName["nested"].message)
 }
 
 func TestNewProtoCompilerNestedRecursiveType(t *testing.T) {
@@ -155,33 +162,20 @@ message RecursiveMessage {
 	require.NoError(t, err)
 	require.Equal(t, "product.v1", compiler.doc.Package)
 	require.Equal(t, 2, len(compiler.doc.Messages))
-
 	require.Equal(t, "NestedRecursiveMessage", compiler.doc.Messages[0].Name)
-	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields))
-	require.Equal(t, "id", compiler.doc.Messages[0].GetField("id").Name)
-	require.Equal(t, "nested", compiler.doc.Messages[0].GetField("nested").Name)
 
-	nested := compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc)
-	require.Equal(t, "RecursiveMessage", nested.Name)
+	outer := compiler.runtime.getMessageByName("NestedRecursiveMessage")
+	inner := compiler.runtime.getMessageByName("RecursiveMessage")
+	require.NotNil(t, outer)
+	require.NotNil(t, inner)
 
-	require.Equal(t, 2, len(nested.Fields))
-	require.Equal(t, "id", nested.GetField("id").Name)
-	require.Equal(t, "nested", nested.GetField("nested").Name)
+	require.Equal(t, 2, len(outer.fieldsByName))
+	require.Contains(t, outer.fieldsByName, "id")
+	require.Same(t, inner, outer.fieldsByName["nested"].message)
 
-	nested = nested.GetField("nested").ResolveUnderlyingMessage(compiler.doc)
-	require.Equal(t, "NestedRecursiveMessage", nested.Name)
-
-	require.Equal(t, 2, len(nested.Fields))
-	require.Equal(t, "id", nested.GetField("id").Name)
-	require.Equal(t, "nested", nested.GetField("nested").Name)
-
-	nested = nested.GetField("nested").ResolveUnderlyingMessage(compiler.doc)
-	require.Equal(t, "RecursiveMessage", nested.Name)
-
-	require.Equal(t, 2, len(nested.Fields))
-	require.Equal(t, "id", nested.GetField("id").Name)
-	require.Equal(t, "nested", nested.GetField("nested").Name)
-	require.Equal(t, "NestedRecursiveMessage", nested.GetField("nested").ResolveUnderlyingMessage(compiler.doc).Name)
+	require.Equal(t, 2, len(inner.fieldsByName))
+	require.Contains(t, inner.fieldsByName, "id")
+	require.Same(t, outer, inner.fieldsByName["nested"].message)
 }
 
 func TestCompileNestedMessages(t *testing.T) {

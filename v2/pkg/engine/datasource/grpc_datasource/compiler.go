@@ -121,71 +121,15 @@ type Service struct {
 
 // Method represents a gRPC method with input and output message types.
 type Method struct {
-	Name       string // The name of the method
-	InputName  string // The name of the input message type
-	InputRef   int    // Reference to the input message in the Document.Messages slice
-	OutputName string // The name of the output message type
-	OutputRef  int    // Reference to the output message in the Document.Messages slice
+	Name      string // The name of the method
+	InputRef  int    // Reference to the input message in the Document.Messages slice
+	OutputRef int    // Reference to the output message in the Document.Messages slice
 }
 
-// Message represents a protobuf message type with its fields.
+// Message represents a protobuf message type.
 type Message struct {
-	Fields map[uint64]Field
-	Name   string                     // The name of the message
-	Desc   protoref.MessageDescriptor // The protobuf descriptor for the message
-}
-
-// GetField returns a field by its name.
-// Returns nil if no field with the given name exists.
-func (m *Message) GetField(name string) *Field {
-	digest := pool.Hash64.Get()
-	defer pool.Hash64.Put(digest)
-	_, _ = digest.WriteString(name)
-
-	field, found := m.Fields[digest.Sum64()]
-	if !found {
-		return nil
-	}
-
-	return &field
-}
-
-func (m *Message) SetField(f Field) {
-	digest := pool.Hash64.Get()
-	defer pool.Hash64.Put(digest)
-	_, _ = digest.WriteString(f.Name)
-
-	if m.Fields == nil {
-		m.Fields = make(map[uint64]Field)
-	}
-
-	m.Fields[digest.Sum64()] = f
-}
-
-// AllocFields allocates a new map of fields with the given count.
-func (m *Message) AllocFields(count int) {
-	m.Fields = make(map[uint64]Field, count)
-}
-
-// Field represents a field in a protobuf message.
-type Field struct {
-	Name       string   // The name of the field
-	Type       DataType // The data type of the field
-	Number     int32    // The field number in the protobuf message
-	Ref        int      // Reference to the field (used for complex types)
-	Repeated   bool     // Whether the field is a repeated field (array/list)
-	Optional   bool     // Whether the field is optional
-	MessageRef int      // If the field is a message type, this points to the message definition
-}
-
-// ResolveUnderlyingMessage returns the Message that this field points to via
-// MessageRef, or nil if the field is not a message type.
-func (f *Field) ResolveUnderlyingMessage(doc *Document) *Message {
-	if f.MessageRef >= 0 {
-		return &doc.Messages[f.MessageRef]
-	}
-
-	return nil
+	Name string                     // The name of the message
+	Desc protoref.MessageDescriptor // The protobuf descriptor for the message
 }
 
 // Enum represents a protobuf enum type with its values.
@@ -300,11 +244,6 @@ func (p *RPCCompiler) processFile(f protoref.FileDescriptor, mapping *GRPCMappin
 		p.doc.newNode(ref, message.Name, NodeKindMessage)
 	}
 
-	// We need to reiterate over the messages to handle recursive types.
-	for ref, message := range p.doc.Messages {
-		p.enrichMessageData(ref, message.Desc)
-	}
-
 	// Process all services in the schema
 	for i := 0; i < f.Services().Len(); i++ {
 		service := p.parseService(f.Services().Get(i))
@@ -379,11 +318,9 @@ func (p *RPCCompiler) parseMethod(m protoref.MethodDescriptor) Method {
 	input, output := m.Input(), m.Output()
 
 	return Method{
-		Name:       name,
-		InputName:  string(input.Name()),
-		InputRef:   p.doc.MessageRefByName(string(input.Name())),
-		OutputName: string(output.Name()),
-		OutputRef:  p.doc.MessageRefByName(string(output.Name())),
+		Name:      name,
+		InputRef:  p.doc.MessageRefByName(p.fullMessageName(input)),
+		OutputRef: p.doc.MessageRefByName(p.fullMessageName(output)),
 	}
 }
 
@@ -415,43 +352,4 @@ func (p *RPCCompiler) parseMessageDefinitions(messages protoref.MessageDescripto
 // In our case don't need the fqn as we only have one package where we need to resolve the messages.
 func (p *RPCCompiler) fullMessageName(m protoref.MessageDescriptor) string {
 	return strings.TrimPrefix(string(m.FullName()), p.doc.Package+".")
-}
-
-// enrichMessageData enriches the message data with the field information.
-func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
-	fields := make([]Field, m.Fields().Len())
-	msg := &p.doc.Messages[ref]
-	// Process all fields in the message
-	for i := 0; i < m.Fields().Len(); i++ {
-		f := m.Fields().Get(i)
-
-		field := p.parseField(f)
-
-		if f.Kind() == protoref.MessageKind {
-			// Handle nested messages when they are recursive types
-			field.MessageRef = p.doc.MessageRefByName(p.fullMessageName(f.Message()))
-		}
-
-		fields[i] = field
-	}
-
-	msg.AllocFields(len(fields))
-
-	for i := range fields {
-		msg.SetField(fields[i])
-	}
-}
-
-// parseField extracts information from a protobuf field descriptor.
-func (p *RPCCompiler) parseField(f protoref.FieldDescriptor) Field {
-	name := string(f.Name())
-
-	return Field{
-		Name:       name,
-		Type:       parseDataType(f.Kind()),
-		Number:     int32(f.Number()),
-		Repeated:   f.IsList(),
-		Optional:   f.Cardinality() == protoref.Optional,
-		MessageRef: InvalidRef,
-	}
 }

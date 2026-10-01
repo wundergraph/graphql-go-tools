@@ -7,7 +7,6 @@
 package grpcdatasource
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -55,11 +54,6 @@ type DataSource struct {
 
 	pool    *arena.Pool
 	program *program
-	wireBuf bytes.Buffer
-}
-
-type ProtoConfig struct {
-	Schema string
 }
 
 type DataSourceConfig struct {
