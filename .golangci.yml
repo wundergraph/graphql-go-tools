@@ -46,11 +46,6 @@ linters:
       - path: pkg/astvalidation/reference
         linters:
           - staticcheck
-      # Tests create root contexts freely; tracking context inheritance through
-      # test helpers and subtests adds noise without catching real leaks.
-      - path: _test\.go
-        linters:
-          - contextcheck
   settings:
     embeddedstructfieldcheck:
       # Checks that sync.Mutex and sync.RWMutex are not used as embedded fields.
