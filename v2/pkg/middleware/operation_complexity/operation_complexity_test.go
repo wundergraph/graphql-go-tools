@@ -1,11 +1,16 @@
 package operation_complexity
 
 import (
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -684,6 +689,935 @@ func TestOperationComplexityEstimatorReuseAfterAbortedWalk(t *testing.T) {
 	assert.Equal(t, wantRootFields, gotRootFields)
 }
 
+func TestCalculateOperationComplexityFragmentSpreads(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		operation string
+		// inlined is the operation with each fragment spread replaced by an
+		// inline fragment with the fragment's type condition and selections.
+		inlined    string
+		stats      OperationStats
+		rootFields []RootFieldStats
+	}{
+		{
+			name:      "spread in a field",
+			operation: `{ me { ...UserFields } } fragment UserFields on User { id name address { city } }`,
+			inlined:   `{ me { ... on User { id name address { city } } } }`,
+			stats:     OperationStats{FieldCount: 5, NodeCount: 2, Complexity: 2, Depth: 3},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 5, NodeCount: 2, Complexity: 2, Depth: 2}},
+			},
+		},
+		{
+			name: "spreads inside a fragment",
+			operation: `
+				{ me { ...UserFields } }
+				fragment UserFields on User { id ...NameFields address { ...AddressFields } }
+				fragment NameFields on User { name }
+				fragment AddressFields on Address { city country }`,
+			inlined: `{ me { ... on User { id ... on User { name } address { ... on Address { city country } } } } }`,
+			stats:   OperationStats{FieldCount: 6, NodeCount: 2, Complexity: 2, Depth: 3},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 6, NodeCount: 2, Complexity: 2, Depth: 2}},
+			},
+		},
+		{
+			name:      "spread inside an inline fragment",
+			operation: `{ node(id: "1") { ... on User { ...UserFields } } } fragment UserFields on User { id name }`,
+			inlined:   `{ node(id: "1") { ... on User { ... on User { id name } } } }`,
+			stats:     OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "node", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name:      "fragment defined before the operation",
+			operation: `fragment UserFields on User { id name } query { me { ...UserFields } }`,
+			inlined:   `query { me { ... on User { id name } } }`,
+			stats:     OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name:      "root spread on query",
+			operation: `query { ...RootFields currentPeriod } fragment RootFields on Query { me { id } users(first: 2) { name } __typename }`,
+			inlined:   `query { ... on Query { me { id } users(first: 2) { name } __typename } currentPeriod }`,
+			stats:     OperationStats{FieldCount: 6, NodeCount: 3, Complexity: 2, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+				{TypeName: "Query", FieldName: "users", Stats: OperationStats{FieldCount: 2, NodeCount: 2, Complexity: 1, Depth: 1}},
+				{TypeName: "Query", FieldName: "__typename", Stats: OperationStats{FieldCount: 1}},
+				{TypeName: "Query", FieldName: "currentPeriod", Stats: OperationStats{FieldCount: 1}},
+			},
+		},
+		{
+			name:      "root spread with aliases",
+			operation: `{ ...AliasedFields } fragment AliasedFields on Query { first: user(id: "1") { id } second: user(id: "2") { id } period: currentPeriod }`,
+			inlined:   `{ ... on Query { first: user(id: "1") { id } second: user(id: "2") { id } period: currentPeriod } }`,
+			stats:     OperationStats{FieldCount: 5, NodeCount: 2, Complexity: 2, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "user", Alias: "first", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+				{TypeName: "Query", FieldName: "user", Alias: "second", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+				{TypeName: "Query", FieldName: "currentPeriod", Alias: "period", Stats: OperationStats{FieldCount: 1}},
+			},
+		},
+		{
+			name:      "root spread on mutation",
+			operation: `mutation { ...Mutations } fragment Mutations on Mutation { createUser(name: "Jane") { id } removed: deleteUser(id: "1") { id name } }`,
+			inlined:   `mutation { ... on Mutation { createUser(name: "Jane") { id } removed: deleteUser(id: "1") { id name } } }`,
+			stats:     OperationStats{FieldCount: 5, NodeCount: 2, Complexity: 2, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Mutation", FieldName: "createUser", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+				{TypeName: "Mutation", FieldName: "deleteUser", Alias: "removed", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name: "interface spreads",
+			operation: `
+				{ node(id: "1") { ...NodeFields ...DogFields } }
+				fragment NodeFields on Node { id __typename }
+				fragment DogFields on Dog { name owner { id } }`,
+			inlined: `{ node(id: "1") { ... on Node { id __typename } ... on Dog { name owner { id } } } }`,
+			stats:   OperationStats{FieldCount: 6, NodeCount: 2, Complexity: 2, Depth: 3},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "node", Stats: OperationStats{FieldCount: 6, NodeCount: 2, Complexity: 2, Depth: 2}},
+			},
+		},
+		{
+			name: "union spreads",
+			operation: `
+				{ search(first: 3) { ...SearchFields } }
+				fragment SearchFields on SearchResult { __typename ... on User { name } ...PetFields }
+				fragment PetFields on Pet { name owner { id } }`,
+			inlined: `{ search(first: 3) { ... on SearchResult { __typename ... on User { name } ... on Pet { name owner { id } } } } }`,
+			stats:   OperationStats{FieldCount: 6, NodeCount: 6, Complexity: 4, Depth: 3},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "search", Stats: OperationStats{FieldCount: 6, NodeCount: 6, Complexity: 4, Depth: 2}},
+			},
+		},
+		{
+			name:      "multipliers around and inside a fragment",
+			operation: `{ users(first: 10) { ...UserFields } } fragment UserFields on User { id friends(first: 5) { name } }`,
+			inlined:   `{ users(first: 10) { ... on User { id friends(first: 5) { name } } } }`,
+			stats:     OperationStats{FieldCount: 4, NodeCount: 60, Complexity: 11, Depth: 3},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "users", Stats: OperationStats{FieldCount: 4, NodeCount: 60, Complexity: 11, Depth: 2}},
+			},
+		},
+		{
+			name: "skipped fields inside fragments",
+			operation: `
+				{ me { ...UserFields } ...RootFields }
+				fragment UserFields on User { id secret }
+				fragment RootFields on Query { hidden { id name } currentPeriod }`,
+			inlined: `{ me { ... on User { id secret } } ... on Query { hidden { id name } currentPeriod } }`,
+			stats:   OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+				{TypeName: "Query", FieldName: "currentPeriod", Stats: OperationStats{FieldCount: 1}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stats, rootFields := estimateUnnormalized(t, fragmentTestDefinition, tt.operation, false)
+			assert.Equal(t, tt.stats, stats)
+			assert.Equal(t, tt.rootFields, rootFields)
+
+			inlinedStats, inlinedRootFields := estimateUnnormalized(t, fragmentTestDefinition, tt.inlined, false)
+			assert.Equal(t, inlinedStats, stats, "unexpected stats compared to inline fragments")
+			assert.Equal(t, inlinedRootFields, rootFields, "unexpected root fields compared to inline fragments")
+
+			normalizedStats, normalizedRootFields := estimateNormalized(t, fragmentTestDefinition, tt.operation, false)
+			assert.Equal(t, normalizedStats, stats, "unexpected stats compared to the normalized operation")
+			assert.Equal(t, normalizedRootFields, rootFields, "unexpected root fields compared to the normalized operation")
+		})
+	}
+}
+
+func TestCalculateOperationComplexityFragmentSpreadsMatchInlinedQuery(t *testing.T) {
+	t.Parallel()
+
+	stats, rootFields := estimateUnnormalized(t, testDefinition, complexQueryWithFragments, false)
+	wantStats, wantRootFields := estimateUnnormalized(t, testDefinition, complexQuery, false)
+
+	assert.Equal(t, OperationStats{FieldCount: 20, NodeCount: 920, Complexity: 221, Depth: 5}, stats)
+	assert.Equal(t, wantStats, stats)
+	assert.Equal(t, wantRootFields, rootFields)
+}
+
+func TestCalculateOperationComplexityIntrospectionFragments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		operation         string
+		skipIntrospection bool
+		stats             OperationStats
+		rootFields        []RootFieldStats
+	}{
+		{
+			name:      "introspection query",
+			operation: introspectionQuery,
+			stats:     OperationStats{FieldCount: 181, NodeCount: 59, Complexity: 59, Depth: 13},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "__schema", Stats: OperationStats{FieldCount: 181, NodeCount: 59, Complexity: 59, Depth: 12}},
+			},
+		},
+		{
+			name:              "introspection query with skip",
+			operation:         introspectionQuery,
+			skipIntrospection: true,
+			rootFields:        []RootFieldStats{},
+		},
+		{
+			name:      "introspection field in a root spread",
+			operation: `{ ...RootFields } fragment RootFields on Query { __schema { queryType { name } } currentPeriod }`,
+			stats:     OperationStats{FieldCount: 4, NodeCount: 2, Complexity: 2, Depth: 3},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "__schema", Stats: OperationStats{FieldCount: 3, NodeCount: 2, Complexity: 2, Depth: 2}},
+				{TypeName: "Query", FieldName: "currentPeriod", Stats: OperationStats{FieldCount: 1}},
+			},
+		},
+		{
+			name:              "introspection field in a root spread with skip",
+			operation:         `{ ...RootFields } fragment RootFields on Query { __schema { queryType { name } } currentPeriod }`,
+			skipIntrospection: true,
+			stats:             OperationStats{FieldCount: 1},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "currentPeriod", Stats: OperationStats{FieldCount: 1}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stats, rootFields := estimateUnnormalized(t, testDefinition, tt.operation, tt.skipIntrospection)
+			assert.Equal(t, tt.stats, stats)
+			assert.Equal(t, tt.rootFields, rootFields)
+
+			normalizedStats, normalizedRootFields := estimateNormalized(t, testDefinition, tt.operation, tt.skipIntrospection)
+			assert.Equal(t, normalizedStats, stats, "unexpected stats compared to the normalized operation")
+			assert.Equal(t, normalizedRootFields, rootFields, "unexpected root fields compared to the normalized operation")
+		})
+	}
+}
+
+func TestCalculateOperationComplexityRepeatedFragmentSpreads(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		operation  string
+		stats      OperationStats
+		rootFields []RootFieldStats
+	}{
+		{
+			name:      "same fragment twice in a field",
+			operation: `{ me { ...UserFields ...UserFields } } fragment UserFields on User { id name }`,
+			stats:     OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name:      "same fragment again in an inline fragment on the same type",
+			operation: `{ me { ...UserFields ... on User { ...UserFields } } } fragment UserFields on User { id name }`,
+			stats:     OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name:      "same fragment on different enclosing types",
+			operation: `{ search(first: 1) { ... on Dog { ...PetFields } ... on Cat { ...PetFields } } } fragment PetFields on Pet { name }`,
+			stats:     OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "search", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name:      "same fragment in different fields",
+			operation: `{ me { ...UserFields } user(id: "1") { ...UserFields } } fragment UserFields on User { id }`,
+			stats:     OperationStats{FieldCount: 4, NodeCount: 2, Complexity: 2, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+				{TypeName: "Query", FieldName: "user", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name:      "same fragment in a nested field",
+			operation: `{ me { ...UserFields friends(first: 2) { ...UserFields } } } fragment UserFields on User { id }`,
+			stats:     OperationStats{FieldCount: 4, NodeCount: 3, Complexity: 2, Depth: 3},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 4, NodeCount: 3, Complexity: 2, Depth: 2}},
+			},
+		},
+		{
+			name: "same fragments under different aliases",
+			operation: `
+				{ first: me { ...FriendFields } second: me { ...FriendFields } }
+				fragment FriendFields on User { friends(first: 1) { ...UserFields } }
+				fragment UserFields on User { id }`,
+			stats: OperationStats{FieldCount: 6, NodeCount: 4, Complexity: 4, Depth: 3},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Alias: "first", Stats: OperationStats{FieldCount: 3, NodeCount: 2, Complexity: 2, Depth: 2}},
+				{TypeName: "Query", FieldName: "me", Alias: "second", Stats: OperationStats{FieldCount: 3, NodeCount: 2, Complexity: 2, Depth: 2}},
+			},
+		},
+		{
+			name:      "same root fragment repeatedly",
+			operation: `{ ...RootFields ...RootFields currentPeriod ... on Query { ...RootFields } } fragment RootFields on Query { me { id } }`,
+			stats:     OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+				{TypeName: "Query", FieldName: "currentPeriod", Stats: OperationStats{FieldCount: 1}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stats, rootFields := estimateUnnormalized(t, fragmentTestDefinition, tt.operation, false)
+			assert.Equal(t, tt.stats, stats)
+			assert.Equal(t, tt.rootFields, rootFields)
+
+			normalizedStats, normalizedRootFields := estimateNormalized(t, fragmentTestDefinition, tt.operation, false)
+			assert.Equal(t, normalizedStats, stats, "unexpected stats compared to the normalized operation")
+			assert.Equal(t, normalizedRootFields, rootFields, "unexpected root fields compared to the normalized operation")
+		})
+	}
+}
+
+func TestCalculateOperationComplexityFragmentSpreadBomb(t *testing.T) {
+	t.Parallel()
+
+	// Each fragment spreads the next one twice, so expanding every spread
+	// would take 2^30 expansions.
+	const levels = 30
+
+	tests := []struct {
+		name       string
+		operation  string
+		stats      OperationStats
+		rootFields []RootFieldStats
+	}{
+		{
+			name:      "root",
+			operation: `{ ...Bomb0 }` + fragmentSpreadBomb(levels, "Query", "currentPeriod"),
+			stats:     OperationStats{FieldCount: 1},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "currentPeriod", Stats: OperationStats{FieldCount: 1}},
+			},
+		},
+		{
+			name:      "field",
+			operation: `{ me { ...Bomb0 } }` + fragmentSpreadBomb(levels, "User", "id"),
+			stats:     OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			// Each fragment spreads the next one on User and on Dog, so every
+			// fragment is expanded once per type.
+			name:      "type conditions",
+			operation: `{ node(id: "1") { ...Bomb0 } }` + typeConditionFragmentSpreadBomb(levels),
+			stats:     OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "node", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stats, rootFields := estimateInTime(t, fragmentTestDefinition, tt.operation)
+			assert.Equal(t, tt.stats, stats)
+			assert.Equal(t, tt.rootFields, rootFields)
+		})
+	}
+}
+
+func TestCalculateOperationComplexityLargeFragmentDocuments(t *testing.T) {
+	t.Parallel()
+
+	// Both documents took far longer than the timeout when each spread scanned
+	// the fragments already expanded in its scope and each fragment walk
+	// visited every root node of the document.
+	tests := []struct {
+		name       string
+		definition string
+		operation  string
+		stats      OperationStats
+		rootFields []RootFieldStats
+	}{
+		{
+			// 200 levels of 20 fragments on 20 types, where each fragment spreads
+			// every fragment of the next level. Each fragment is expanded once per
+			// type it is spread on: about 80000 expansions in one scope.
+			name:       "many fragments expanded in one scope",
+			definition: implementationsDefinition(20),
+			operation:  `{ node { ...Level0_0 } }` + typeConditionFragmentLevels(200, 20),
+			stats:      OperationStats{FieldCount: 401, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "node", Stats: OperationStats{FieldCount: 401, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			// A type definition with 20000 fields before 15 levels of fragments
+			// that each spread the next one in two fields: 65534 expansions.
+			name:       "type definition in the operation document",
+			definition: fragmentTestDefinition,
+			operation:  largeTypeDefinition(20000) + `{ me { ...Friends0 } }` + friendsFragmentLevels(15),
+			stats:      OperationStats{FieldCount: 98303, NodeCount: 65535, Complexity: 65535, Depth: 17},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 98303, NodeCount: 65535, Complexity: 65535, Depth: 16}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stats, rootFields := estimateInTime(t, tt.definition, tt.operation)
+			assert.Equal(t, tt.stats, stats)
+			assert.Equal(t, tt.rootFields, rootFields)
+		})
+	}
+}
+
+func TestCalculateOperationComplexityFragmentDepthLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fragments nested up to the limit", func(t *testing.T) {
+		t.Parallel()
+
+		operation := `{ me { ...Chain0 } }` + fragmentChain(maxFragmentDepth, "User", "id")
+		stats, rootFields := estimateUnnormalized(t, fragmentTestDefinition, operation, false)
+		assert.Equal(t, OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 2}, stats)
+		assert.Equal(t, []RootFieldStats{
+			{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+		}, rootFields)
+	})
+
+	t.Run("fragments nested beyond the limit", func(t *testing.T) {
+		t.Parallel()
+
+		definition := unsafeparser.ParseGraphqlDocumentString(fragmentTestDefinition)
+		operation := unsafeparser.ParseGraphqlDocumentString(`{ me { ...Chain0 } }` + fragmentChain(maxFragmentDepth+1, "User", "id"))
+		report := operationreport.Report{}
+		NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+
+		assert.Empty(t, report.InternalErrors)
+		require.Len(t, report.ExternalErrors, 1)
+		assert.Equal(t, "fragment spread: Chain1000 exceeds the maximum fragment nesting depth of 1000", report.ExternalErrors[0].Message)
+	})
+}
+
+func TestCalculateOperationComplexityFragmentCycles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		operation  string
+		stats      OperationStats
+		rootFields []RootFieldStats
+	}{
+		{
+			name:      "fragment spreading itself",
+			operation: `{ me { ...UserFields } } fragment UserFields on User { id ...UserFields }`,
+			stats:     OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name: "fragments spreading each other",
+			operation: `
+				{ me { ...UserFields } }
+				fragment UserFields on User { id ...NameFields }
+				fragment NameFields on User { name ...UserFields }`,
+			stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name:      "fragment spreading itself in a nested field",
+			operation: `{ me { ...UserFields } } fragment UserFields on User { id friends(first: 2) { ...UserFields } }`,
+			stats:     OperationStats{FieldCount: 3, NodeCount: 3, Complexity: 2, Depth: 3},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 3, NodeCount: 3, Complexity: 2, Depth: 2}},
+			},
+		},
+		{
+			name:      "root fragment spreading itself",
+			operation: `{ ...RootFields } fragment RootFields on Query { currentPeriod self { ...RootFields } }`,
+			stats:     OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "currentPeriod", Stats: OperationStats{FieldCount: 1}},
+				{TypeName: "Query", FieldName: "self", Stats: OperationStats{FieldCount: 1, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stats, rootFields := estimateUnnormalized(t, fragmentTestDefinition, tt.operation, false)
+			assert.Equal(t, tt.stats, stats)
+			assert.Equal(t, tt.rootFields, rootFields)
+		})
+	}
+}
+
+func TestCalculateOperationComplexityUnresolvedFragmentSpreads(t *testing.T) {
+	t.Parallel()
+
+	t.Run("undefined fragment", func(t *testing.T) {
+		t.Parallel()
+
+		stats, rootFields := estimateUnnormalized(t, fragmentTestDefinition, `{ me { id ...Missing } }`, false)
+		assert.Equal(t, OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 2}, stats)
+		assert.Equal(t, []RootFieldStats{
+			{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+		}, rootFields)
+	})
+
+	t.Run("undefined fragment next to a defined one", func(t *testing.T) {
+		t.Parallel()
+
+		stats, rootFields := estimateUnnormalized(t, fragmentTestDefinition, `{ me { ...Missing ...UserFields } } fragment UserFields on User { id }`, false)
+		assert.Equal(t, OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 2}, stats)
+		assert.Equal(t, []RootFieldStats{
+			{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+		}, rootFields)
+	})
+
+	t.Run("fragment definition removed by normalization", func(t *testing.T) {
+		t.Parallel()
+
+		definition := unsafeparser.ParseGraphqlDocumentString(fragmentTestDefinition)
+		operation := unsafeparser.ParseGraphqlDocumentString(`{ me { ...UserFields } } fragment UserFields on User { id name }`)
+		// Normalization removes a fragment definition from the root nodes, but
+		// keeps it in FragmentDefinitions.
+		require.Equal(t, ast.NodeKindFragmentDefinition, operation.RootNodes[1].Kind)
+		operation.RootNodes[1].Kind = ast.NodeKindUnknown
+
+		report := operationreport.Report{}
+		stats, rootFields := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+		require.False(t, report.HasErrors(), report.Error())
+		assert.Equal(t, OperationStats{FieldCount: 1, NodeCount: 1, Complexity: 1, Depth: 2}, stats)
+		assert.Equal(t, []RootFieldStats{
+			{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 1, NodeCount: 1, Complexity: 1, Depth: 1}},
+		}, rootFields)
+	})
+
+	t.Run("fragment definition removed by normalization next to a live one", func(t *testing.T) {
+		t.Parallel()
+
+		definition := unsafeparser.ParseGraphqlDocumentString(fragmentTestDefinition)
+		operation := unsafeparser.ParseGraphqlDocumentString(`
+			{ me { ...RemovedFields ...UserFields } }
+			fragment RemovedFields on User { id name address { city } }
+			fragment UserFields on User { id }`)
+		require.Equal(t, ast.NodeKindFragmentDefinition, operation.RootNodes[1].Kind)
+		operation.RootNodes[1].Kind = ast.NodeKindUnknown
+
+		report := operationreport.Report{}
+		stats, rootFields := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+		require.False(t, report.HasErrors(), report.Error())
+		assert.Equal(t, OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 2}, stats)
+		assert.Equal(t, []RootFieldStats{
+			{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+		}, rootFields)
+	})
+}
+
+func TestCalculateOperationComplexityFragmentSpreadsLeftByNormalization(t *testing.T) {
+	t.Parallel()
+
+	// Normalization does not inline a spread of a fragment on an unrelated
+	// type, so the spread and its definition reach the estimator.
+	definition := unsafeparser.ParseGraphqlDocumentString(fragmentTestDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(`{ me { id ...DogFields } } fragment DogFields on Dog { barks }`)
+	report := operationreport.Report{}
+	astnormalization.NormalizeOperation(&operation, &definition, &report)
+	require.False(t, report.HasErrors(), report.Error())
+	require.True(t, slices.ContainsFunc(operation.RootNodes, func(node ast.Node) bool {
+		return node.Kind == ast.NodeKindFragmentDefinition
+	}), "the normalized operation should keep the fragment definition")
+
+	stats, rootFields := NewOperationComplexityEstimator(false).Do(&operation, &definition, &report)
+	require.False(t, report.HasErrors(), report.Error())
+	assert.Equal(t, OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2}, stats)
+	assert.Equal(t, []RootFieldStats{
+		{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+	}, rootFields)
+
+	inlinedStats, inlinedRootFields := estimateNormalized(t, fragmentTestDefinition, `{ me { id ... on Dog { barks } } }`, false)
+	assert.Equal(t, inlinedStats, stats, "unexpected stats compared to inline fragments")
+	assert.Equal(t, inlinedRootFields, rootFields, "unexpected root fields compared to inline fragments")
+}
+
+func TestCalculateOperationComplexityMergedFragmentSpreads(t *testing.T) {
+	t.Parallel()
+
+	// Repeated spreads are merged by scope and by the type they are spread on,
+	// whatever the outer type conditions and the spreads' directives are. The
+	// estimate is lower than for the inlined operation, which keeps a copy per
+	// spread, but not lower than what field collection selects.
+	tests := []struct {
+		name       string
+		operation  string
+		stats      OperationStats
+		rootFields []RootFieldStats
+	}{
+		{
+			name: "same fragment through different type conditions",
+			operation: `
+				{ node(id: "1") { ...NodeFields } }
+				fragment NodeFields on Node { ... on User { ...BranchFields } ... on Dog { ...BranchFields } }
+				fragment BranchFields on Node { ... on User { ...IdFields } ... on Dog { ...IdFields } }
+				fragment IdFields on Node { id }`,
+			stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "node", Stats: OperationStats{FieldCount: 3, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+		{
+			name: "same fragment with different directives",
+			operation: `
+				query ($withUser: Boolean!) { me { ...UserFields @include(if: $withUser) ...UserFields @skip(if: $withUser) } }
+				fragment UserFields on User { id }`,
+			stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 2},
+			rootFields: []RootFieldStats{
+				{TypeName: "Query", FieldName: "me", Stats: OperationStats{FieldCount: 2, NodeCount: 1, Complexity: 1, Depth: 1}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stats, rootFields := estimateUnnormalized(t, fragmentTestDefinition, tt.operation, false)
+			assert.Equal(t, tt.stats, stats)
+			assert.Equal(t, tt.rootFields, rootFields)
+		})
+	}
+}
+
+func TestOperationComplexityEstimatorReuseWithFragments(t *testing.T) {
+	t.Parallel()
+
+	definition := unsafeparser.ParseGraphqlDocumentString(fragmentTestDefinition)
+	estimator := NewOperationComplexityEstimator(false)
+
+	for _, operationString := range []string{
+		`{ me { id } }`,
+		`{ me { ...UserFields } } fragment UserFields on User { id friends(first: 2) { ...FriendFields } } fragment FriendFields on User { name }`,
+		`{ me { id } }`,
+		`{ me { ...UserFields } } fragment UserFields on User { address { city } }`,
+		`{ ...RootFields } fragment RootFields on Query { currentPeriod me { id } }`,
+		`{ me { ...UserFields } } fragment UserFields on User { id friends(first: 2) { ...FriendFields } } fragment FriendFields on User { name }`,
+	} {
+		operation := unsafeparser.ParseGraphqlDocumentString(operationString)
+
+		wantReport := operationreport.Report{}
+		wantStats, wantRootFields := NewOperationComplexityEstimator(false).Do(&operation, &definition, &wantReport)
+		require.False(t, wantReport.HasErrors(), wantReport.Error())
+
+		gotReport := operationreport.Report{}
+		gotStats, gotRootFields := estimator.Do(&operation, &definition, &gotReport)
+		require.False(t, gotReport.HasErrors(), gotReport.Error())
+
+		assert.Equal(t, wantStats, gotStats, operationString)
+		assert.Equal(t, wantRootFields, gotRootFields, operationString)
+	}
+}
+
+func TestOperationComplexityEstimatorReuseAfterAbortedFragmentWalk(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		operation string
+	}{
+		{
+			name:      "unknown type inside a fragment",
+			operation: `{ users(first: 1) { ...UserFields } } fragment UserFields on User { friends(first: 1) { address { ... on UnknownType { city } } } }`,
+		},
+		{
+			name:      "unknown fragment type condition",
+			operation: `{ me { ...UserFields } } fragment UserFields on UnknownType { id }`,
+		},
+		{
+			name: "unknown type inside a nested fragment",
+			operation: `
+				{ me { ...UserFields } }
+				fragment UserFields on User { friends(first: 1) { ...FriendFields } }
+				fragment FriendFields on User { address { ... on UnknownType { city } } }`,
+		},
+		{
+			// The first aborted fragment walk aborts the whole walk, so the second
+			// unknown type is not reported.
+			name: "unknown types inside fragments of two fields",
+			operation: `
+				{ me { ...UserFields } user(id: "1") { ...OtherUserFields } }
+				fragment UserFields on User { address { ... on UnknownType { city } } }
+				fragment OtherUserFields on User { address { ... on OtherUnknownType { city } } }`,
+		},
+		{
+			name:      "fragments nested beyond the limit",
+			operation: `{ me { ...Chain0 } }` + fragmentChain(maxFragmentDepth+1, "User", "id"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := unsafeparser.ParseGraphqlDocumentString(fragmentTestDefinition)
+			estimator := NewOperationComplexityEstimator(false)
+
+			invalidOperation := unsafeparser.ParseGraphqlDocumentString(tt.operation)
+			invalidReport := operationreport.Report{}
+			estimator.Do(&invalidOperation, &definition, &invalidReport)
+			require.True(t, invalidReport.HasErrors())
+			assert.Len(t, invalidReport.ExternalErrors, 1)
+
+			operation := unsafeparser.ParseGraphqlDocumentString(`
+				{ me { ...UserFields } }
+				fragment UserFields on User { id friends(first: 2) { ...FriendFields } }
+				fragment FriendFields on User { name address { city } }`)
+			wantReport := operationreport.Report{}
+			wantStats, wantRootFields := NewOperationComplexityEstimator(false).Do(&operation, &definition, &wantReport)
+			require.False(t, wantReport.HasErrors(), wantReport.Error())
+
+			gotReport := operationreport.Report{}
+			gotStats, gotRootFields := estimator.Do(&operation, &definition, &gotReport)
+			require.False(t, gotReport.HasErrors(), gotReport.Error())
+
+			assert.Equal(t, OperationStats{FieldCount: 6, NodeCount: 5, Complexity: 4, Depth: 4}, gotStats)
+			assert.Equal(t, wantStats, gotStats)
+			assert.Equal(t, wantRootFields, gotRootFields)
+		})
+	}
+}
+
+func TestOperationComplexityEstimatorReuseForAbortedWalk(t *testing.T) {
+	t.Parallel()
+
+	// An aborted walk leaves its fields without restoring the enclosing types,
+	// so a field can end as a root field without having started as one. Its
+	// stats must not come from the previous operation.
+	tests := []struct {
+		name      string
+		operation string
+	}{
+		{
+			name:      "unknown type in an inline fragment",
+			operation: `{ ... on User { viewer { me { ... on UnknownType { id } } } } }`,
+		},
+		{
+			name:      "unknown fragment type condition",
+			operation: `{ ... on User { viewer { ...UserFields } } } fragment UserFields on UnknownType { id }`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition := unsafeparser.ParseGraphqlDocumentString(fragmentTestDefinition)
+			estimator := NewOperationComplexityEstimator(false)
+
+			previousOperation := unsafeparser.ParseGraphqlDocumentString(`{ me { id name } }`)
+			previousReport := operationreport.Report{}
+			estimator.Do(&previousOperation, &definition, &previousReport)
+			require.False(t, previousReport.HasErrors(), previousReport.Error())
+
+			operation := unsafeparser.ParseGraphqlDocumentString(tt.operation)
+			wantReport := operationreport.Report{}
+			wantStats, wantRootFields := NewOperationComplexityEstimator(false).Do(&operation, &definition, &wantReport)
+			require.True(t, wantReport.HasErrors())
+
+			gotReport := operationreport.Report{}
+			gotStats, gotRootFields := estimator.Do(&operation, &definition, &gotReport)
+			require.True(t, gotReport.HasErrors())
+
+			assert.Equal(t, wantStats, gotStats)
+			assert.Equal(t, wantRootFields, gotRootFields)
+		})
+	}
+}
+
+// estimateUnnormalized estimates the operation as parsed. Unlike run, it does
+// not normalize the operation first, so fragment spreads reach the estimator.
+func estimateUnnormalized(t *testing.T, definition, operation string, skipIntrospection bool) (OperationStats, []RootFieldStats) {
+	t.Helper()
+
+	def := unsafeparser.ParseGraphqlDocumentString(definition)
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
+	report := operationreport.Report{}
+
+	stats, rootFields := NewOperationComplexityEstimator(skipIntrospection).Do(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+	return stats, rootFields
+}
+
+// estimateNormalized estimates the operation after normalizing it, which
+// inlines its fragment spreads.
+func estimateNormalized(t *testing.T, definition, operation string, skipIntrospection bool) (OperationStats, []RootFieldStats) {
+	t.Helper()
+
+	def := unsafeparser.ParseGraphqlDocumentString(definition)
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
+	report := operationreport.Report{}
+
+	astnormalization.NormalizeOperation(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	stats, rootFields := NewOperationComplexityEstimator(skipIntrospection).Do(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+	return stats, rootFields
+}
+
+// fragmentSpreadBomb returns fragment definitions Bomb0 to Bomb<levels>, where
+// each fragment spreads the next one twice and the last one selects leaf.
+func fragmentSpreadBomb(levels int, typeName, leaf string) string {
+	var fragments strings.Builder
+	for i := range levels {
+		fmt.Fprintf(&fragments, "\nfragment Bomb%d on %s { ...Bomb%d ...Bomb%d }", i, typeName, i+1, i+1)
+	}
+	fmt.Fprintf(&fragments, "\nfragment Bomb%d on %s { %s }", levels, typeName, leaf)
+	return fragments.String()
+}
+
+// typeConditionFragmentSpreadBomb returns fragment definitions Bomb0 to
+// Bomb<levels> on Node, where each fragment spreads the next one in an inline
+// fragment on User and in one on Dog, and the last one selects id.
+func typeConditionFragmentSpreadBomb(levels int) string {
+	var fragments strings.Builder
+	for i := range levels {
+		fmt.Fprintf(&fragments, "\nfragment Bomb%d on Node { ... on User { ...Bomb%d } ... on Dog { ...Bomb%d } }", i, i+1, i+1)
+	}
+	fmt.Fprintf(&fragments, "\nfragment Bomb%d on Node { id }", levels)
+	return fragments.String()
+}
+
+// fragmentChain returns fragment definitions Chain0 to Chain<count-1>, where
+// each fragment spreads the next one and the last one selects leaf.
+func fragmentChain(count int, typeName, leaf string) string {
+	var fragments strings.Builder
+	for i := range count - 1 {
+		fmt.Fprintf(&fragments, "\nfragment Chain%d on %s { ...Chain%d }", i, typeName, i+1)
+	}
+	fmt.Fprintf(&fragments, "\nfragment Chain%d on %s { %s }", count-1, typeName, leaf)
+	return fragments.String()
+}
+
+// implementationsDefinition returns a schema where Query.node returns the
+// interface Node, which the types T0 to T<types-1> implement.
+func implementationsDefinition(types int) string {
+	var definition strings.Builder
+	definition.WriteString("scalar ID\nschema { query: Query }\ntype Query { node: Node }\ninterface Node { id: ID! }")
+	for i := range types {
+		fmt.Fprintf(&definition, "\ntype T%d implements Node { id: ID! }", i)
+	}
+	return definition.String()
+}
+
+// typeConditionFragmentLevels returns fragment definitions Level<i>_<j> on
+// T<j> for i up to levels and j below types. Each fragment spreads every
+// fragment of the next level, and the fragments of the last level select id.
+func typeConditionFragmentLevels(levels, types int) string {
+	var fragments strings.Builder
+	for i := range levels {
+		for j := range types {
+			fmt.Fprintf(&fragments, "\nfragment Level%d_%d on T%d {", i, j, j)
+			for k := range types {
+				fmt.Fprintf(&fragments, " ...Level%d_%d", i+1, k)
+			}
+			fragments.WriteString(" }")
+		}
+	}
+	for j := range types {
+		fmt.Fprintf(&fragments, "\nfragment Level%d_%d on T%d { id }", levels, j, j)
+	}
+	return fragments.String()
+}
+
+// largeTypeDefinition returns an object type definition with the given number
+// of fields, each with an argument and a directive.
+func largeTypeDefinition(fields int) string {
+	var definition strings.Builder
+	definition.WriteString("type Large {")
+	for i := range fields {
+		fmt.Fprintf(&definition, " field%d(arg: Int @deprecated(reason: \"none\")): String", i)
+	}
+	definition.WriteString(" }\n")
+	return definition.String()
+}
+
+// friendsFragmentLevels returns fragment definitions Friends0 to
+// Friends<levels> on User, where each fragment spreads the next one in two
+// friends fields and the last one selects id.
+func friendsFragmentLevels(levels int) string {
+	var fragments strings.Builder
+	for i := range levels {
+		fmt.Fprintf(&fragments, "\nfragment Friends%d on User { friends(first: 1) { ...Friends%d } others: friends(first: 1) { ...Friends%d } }", i, i+1, i+1)
+	}
+	fmt.Fprintf(&fragments, "\nfragment Friends%d on User { id }", levels)
+	return fragments.String()
+}
+
+// estimateInTime estimates the operation as parsed and fails the test if that
+// takes longer than 10 seconds.
+func estimateInTime(t *testing.T, definition, operation string) (OperationStats, []RootFieldStats) {
+	t.Helper()
+
+	def := unsafeparser.ParseGraphqlDocumentString(definition)
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
+
+	type result struct {
+		stats      OperationStats
+		rootFields []RootFieldStats
+		report     operationreport.Report
+	}
+	done := make(chan result, 1)
+	go func() {
+		report := operationreport.Report{}
+		stats, rootFields := NewOperationComplexityEstimator(false).Do(&op, &def, &report)
+		done <- result{stats: stats, rootFields: rootFields, report: report}
+	}()
+
+	select {
+	case got := <-done:
+		require.False(t, got.report.HasErrors(), got.report.Error())
+		return got.stats, got.rootFields
+	case <-time.After(10 * time.Second):
+		t.Fatal("estimating the operation did not finish in time")
+		return OperationStats{}, nil
+	}
+}
+
 func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
@@ -739,6 +1673,33 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 	}
 }
 
+func BenchmarkEstimateComplexityWithFragments(b *testing.B) {
+	def := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	op := unsafeparser.ParseGraphqlDocumentString(complexQueryWithFragments)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		estimator := NewOperationComplexityEstimator(false)
+		report := operationreport.Report{}
+		globalComplexityResult, _ := estimator.Do(&op, &def, &report)
+		if report.HasErrors() {
+			b.Fatal(report)
+		}
+
+		if globalComplexityResult.NodeCount != 920 {
+			b.Fatalf("want nodeCount: 920, got: %d\n", globalComplexityResult.NodeCount)
+		}
+		if globalComplexityResult.Complexity != 221 {
+			b.Fatalf("want complexity: 221, got: %d\n", globalComplexityResult.Complexity)
+		}
+		if globalComplexityResult.Depth != 5 {
+			b.Fatalf("want depth: 5, got: %d\n", globalComplexityResult.Depth)
+		}
+	}
+}
+
 const complexQuery = `
 {
   users(first: 10) {
@@ -769,6 +1730,120 @@ const complexQuery = `
 	}
   }
 }`
+
+// complexQueryWithFragments is complexQuery with some of its selections moved
+// into fragments.
+const complexQueryWithFragments = `
+{
+  users(first: 10) {
+	...UserFields
+  }
+}
+
+fragment UserFields on User {
+	id
+	balance
+	name
+	address {
+	  ...AddressFields
+	}
+	transactions(first: 5) {
+		...TransactionFields
+		sender {
+			id
+			transactions(first: 10) {
+				...TransactionFields
+			}
+		}
+		recipient {
+			id
+			transactions(first: 5) {
+				...TransactionFields
+			}
+		}
+	}
+}
+
+fragment AddressFields on Address {
+	city
+	country
+}
+
+fragment TransactionFields on Transaction {
+	id
+	amount
+}`
+
+const fragmentTestDefinition = `
+directive @nodeCountMultiply on ARGUMENT_DEFINITION
+directive @nodeCountSkip on FIELD
+
+scalar ID
+scalar Int
+scalar String
+scalar Boolean
+
+schema {
+	query: Query
+	mutation: Mutation
+}
+
+type Query {
+	me: User
+	user(id: ID!): User
+	users(first: Int! @nodeCountMultiply): [User]
+	node(id: ID!): Node
+	search(first: Int! @nodeCountMultiply): [SearchResult]
+	self: Query
+	currentPeriod: String
+	hidden: User @nodeCountSkip
+}
+
+type Mutation {
+	createUser(name: String!): User
+	deleteUser(id: ID!): User
+}
+
+interface Node {
+	id: ID!
+}
+
+interface Pet {
+	name: String!
+	owner: User
+}
+
+type User implements Node {
+	id: ID!
+	name: String!
+	secret: String @nodeCountSkip
+	address: Address
+	friends(first: Int! @nodeCountMultiply): [User]
+	pets: [Pet]
+	viewer: Query
+}
+
+type Address {
+	city: String
+	country: String
+}
+
+type Dog implements Node & Pet {
+	id: ID!
+	name: String!
+	owner: User
+	barks: Boolean
+}
+
+type Cat implements Node & Pet {
+	id: ID!
+	name: String!
+	owner: User
+	meows: Boolean
+}
+
+union SearchResult = User | Dog | Cat
+`
 
 const depthRegressionDefinition = `
 directive @nodeCountMultiply on ARGUMENT_DEFINITION

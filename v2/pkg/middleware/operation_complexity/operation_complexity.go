@@ -22,6 +22,18 @@ should be used as a Node multiplier.
 "nodeCountSkip" indicates that the algorithm should skip this Node.
 It can be used to allowlist certain query paths.
 
+Fragment spreads are expanded where they are used: a spread contributes what
+an inline fragment with the fragment's type condition and selections would.
+Within one field's selections (or an operation's root selections), a fragment
+that was already spread on the same enclosing type adds nothing, as field
+collection merges it. Directives on spreads are not evaluated for this. The
+estimate can therefore be lower than for the operation with its spreads
+inlined, which keeps a copy per spread, but not lower than what field
+collection selects. Spreads of undefined fragments and spreads that would
+form a cycle contribute nothing. Fragment spreads nested more than 1000
+fragments deep stop the estimation with an error. Fragment definitions are
+only counted through their spreads.
+
 Note: Introspection fields (__schema and __type) are automatically skipped
 from complexity calculations by default.
 */
@@ -29,6 +41,7 @@ package operation_complexity
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -38,9 +51,9 @@ import (
 
 // OperationStats contains estimates for an operation or root field.
 type OperationStats struct {
-	// FieldCount is the number of field selections in the normalized operation,
-	// including leaf fields and __typename. Each selection contributes one,
-	// regardless of list-size multipliers.
+	// FieldCount is the number of field selections in the operation, with
+	// fragment spreads expanded, including leaf fields and __typename. Each
+	// selection contributes one, regardless of list-size multipliers.
 	// Fields excluded by @nodeCountSkip or skipIntrospection are not counted.
 	FieldCount int
 	// NodeCount is the maximum number of returned nodes.
@@ -66,11 +79,15 @@ var (
 	nodeCountSkip     = []byte("nodeCountSkip")
 )
 
-// OperationComplexityEstimator estimates stats for normalized operations.
+// OperationComplexityEstimator estimates stats for operations. Operations are
+// usually normalized first; fragment spreads left in the operation are
+// expanded as described in the package documentation.
 // It may be reused sequentially, but is not safe for concurrent use.
 type OperationComplexityEstimator struct {
 	walker  *astvisitor.Walker
 	visitor *complexityVisitor
+
+	fragmentVisitorsRegistered bool
 }
 
 // NewOperationComplexityEstimator creates an estimator. If skipIntrospection
@@ -84,11 +101,7 @@ func NewOperationComplexityEstimator(skipIntrospection bool) *OperationComplexit
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterEnterArgumentVisitor(visitor)
-	walker.RegisterLeaveFieldVisitor(visitor)
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.RegisterEnterSelectionSetVisitor(visitor)
-	walker.RegisterEnterFragmentDefinitionVisitor(visitor)
+	visitor.registerVisitors(&walker)
 
 	return &OperationComplexityEstimator{
 		walker:  &walker,
@@ -96,8 +109,12 @@ func NewOperationComplexityEstimator(skipIntrospection bool) *OperationComplexit
 	}
 }
 
-// Do returns global and per-root-field estimates for the operation.
+// Do returns global and per-root-field estimates for the operation. If the
+// walk adds an error to the report, the estimates are incomplete.
 func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, report *operationreport.Report) (OperationStats, []RootFieldStats) {
+	// Fragment expansion swaps the visitor's walker; always start from the
+	// operation walker.
+	n.visitor.Walker = n.walker
 	n.visitor.fieldCount = 0
 	n.visitor.count = 0
 	n.visitor.complexity = 0
@@ -105,7 +122,17 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	n.visitor.multipliers = n.visitor.multipliers[:0]
 
 	n.visitor.fieldDepth = 0
+	// An aborted walk can end a root field that it did not start.
+	n.visitor.currentRootFieldStats = RootFieldStats{}
 	n.visitor.maxRootFieldDepth = 0
+
+	n.visitor.fragments = newFragmentExpansion(operation)
+	// Normalized operations have no fragment definitions left, so the operation
+	// walker only gets the fragment callbacks once an operation needs them.
+	if n.visitor.fragments != nil && !n.fragmentVisitorsRegistered {
+		n.visitor.registerFragmentVisitors(n.walker)
+		n.fragmentVisitorsRegistered = true
+	}
 
 	if n.visitor.calculatedRootFieldStats == nil {
 		n.visitor.calculatedRootFieldStats = make([]RootFieldStats, 0, len(definition.RootOperationTypeDefinitions))
@@ -120,6 +147,11 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	}
 
 	n.walker.Walk(operation, definition, report)
+
+	if n.visitor.fragments != nil {
+		n.visitor.fragments.releaseWalkers()
+		n.visitor.fragments = nil
+	}
 
 	globalResult := OperationStats{
 		FieldCount: n.visitor.fieldCount,
@@ -167,11 +199,111 @@ type complexityVisitor struct {
 
 	// Enforces to ignore introspection queries in calculations.
 	skipIntrospection bool
+
+	// fragments is the state for expanding fragment spreads. It is nil when the
+	// operation has no fragment definitions.
+	fragments *fragmentExpansion
 }
 
 type multiplier struct {
 	fieldRef int
 	multi    int
+}
+
+// maxFragmentDepth limits how deep fragment expansions can be nested. Each
+// level walks its fragment with its own walker, so the limit bounds the stack
+// and the walkers in use. Real operations stay far below it.
+const maxFragmentDepth = 1000
+
+// fragmentExpansion is the state for expanding the fragment spreads of one
+// operation.
+type fragmentExpansion struct {
+	// definitions maps fragment names to the fragment definitions that are
+	// root nodes of the operation. Definitions removed by normalization are not
+	// included.
+	definitions map[string]int
+
+	// document is a copy of the operation whose only root node is the fragment
+	// definition being expanded, so a fragment walk visits nothing else.
+	document  ast.Document
+	rootNodes [1]ast.Node
+
+	// expanding marks the fragment definitions being expanded, by ref. depth is
+	// the number of nested expansions; walkers[i] walks the fragment expanded
+	// at depth i.
+	expanding []bool
+	depth     int
+	walkers   []*astvisitor.Walker
+
+	// expanded contains the fragments expanded in each selection scope; scopes
+	// contains the ids of the open scopes, innermost last.
+	expanded   map[expandedFragment]struct{}
+	scopes     []int
+	scopeCount int
+}
+
+type expandedFragment struct {
+	scope         int
+	enclosingType ast.Node
+	fragmentRef   int
+}
+
+// newFragmentExpansion returns the state for expanding the operation's
+// fragment spreads, or nil if the operation has no fragment definitions left.
+func newFragmentExpansion(operation *ast.Document) *fragmentExpansion {
+	if operation == nil {
+		return nil
+	}
+
+	var f *fragmentExpansion
+	for _, node := range operation.RootNodes {
+		if node.Kind != ast.NodeKindFragmentDefinition {
+			continue
+		}
+		if f == nil {
+			f = &fragmentExpansion{
+				definitions: make(map[string]int),
+				expanding:   make([]bool, len(operation.FragmentDefinitions)),
+				expanded:    make(map[expandedFragment]struct{}),
+			}
+		}
+		// The first definition of a name wins, as in ast.Document.FragmentDefinitionRef.
+		name := operation.FragmentDefinitionNameString(node.Ref)
+		if _, exists := f.definitions[name]; !exists {
+			f.definitions[name] = node.Ref
+		}
+	}
+	if f == nil {
+		return nil
+	}
+
+	f.document = *operation
+	f.document.RootNodes = f.rootNodes[:]
+	return f
+}
+
+// releaseWalkers returns the fragment walkers to the walker pool, so they keep
+// no references to the operation.
+func (f *fragmentExpansion) releaseWalkers() {
+	for _, walker := range f.walkers {
+		walker.Release()
+	}
+}
+
+// registerVisitors registers the callbacks that count selections and skip
+// fragment definitions.
+func (c *complexityVisitor) registerVisitors(walker *astvisitor.Walker) {
+	walker.RegisterEnterArgumentVisitor(c)
+	walker.RegisterLeaveFieldVisitor(c)
+	walker.RegisterEnterFieldVisitor(c)
+	walker.RegisterEnterSelectionSetVisitor(c)
+	walker.RegisterEnterFragmentDefinitionVisitor(c)
+}
+
+// registerFragmentVisitors registers the callbacks that expand fragment spreads.
+func (c *complexityVisitor) registerFragmentVisitors(walker *astvisitor.Walker) {
+	walker.RegisterLeaveSelectionSetVisitor(c)
+	walker.RegisterEnterFragmentSpreadVisitor(c)
 }
 
 func (c *complexityVisitor) calculateMultiplied(i int) int {
@@ -276,9 +408,15 @@ func (c *complexityVisitor) LeaveField(ref int) {
 }
 
 func (c *complexityVisitor) EnterSelectionSet(ref int) {
+	parentKind := c.Ancestors[len(c.Ancestors)-1].Kind
+
+	if c.fragments != nil && opensSelectionScope(parentKind) {
+		c.fragments.scopeCount++
+		c.fragments.scopes = append(c.fragments.scopes, c.fragments.scopeCount)
+	}
 
 	// Operation and fragment selection sets do not represent returned nodes.
-	if c.Ancestors[len(c.Ancestors)-1].Kind != ast.NodeKindField {
+	if parentKind != ast.NodeKindField {
 		return
 	}
 
@@ -286,8 +424,108 @@ func (c *complexityVisitor) EnterSelectionSet(ref int) {
 	c.currentRootFieldStats.Stats.NodeCount = c.currentRootFieldStats.Stats.NodeCount + c.calculateMultiplied(1)
 }
 
+func (c *complexityVisitor) LeaveSelectionSet(ref int) {
+	if c.fragments != nil && opensSelectionScope(c.Ancestors[len(c.Ancestors)-1].Kind) {
+		c.fragments.scopes = c.fragments.scopes[:len(c.fragments.scopes)-1]
+	}
+}
+
+// opensSelectionScope reports whether a selection set with the given parent
+// starts a new scope for repeated fragment spreads. Inline fragment and
+// fragment definition selections belong to the enclosing scope.
+func opensSelectionScope(parentKind ast.NodeKind) bool {
+	return parentKind == ast.NodeKindField || parentKind == ast.NodeKindOperationDefinition
+}
+
+func (c *complexityVisitor) EnterFragmentSpread(ref int) {
+	f := c.fragments
+	if f == nil {
+		return
+	}
+
+	fragmentRef, exists := f.definitions[string(c.operation.FragmentSpreadNameBytes(ref))]
+	if !exists {
+		return
+	}
+
+	// Fragment cycles make the operation invalid; stop expanding at the cycle.
+	if f.expanding[fragmentRef] {
+		return
+	}
+
+	// Field collection merges repeated spreads of a fragment on the same type
+	// within one scope. Counting them once also keeps repeated spreads linear.
+	expanded := expandedFragment{
+		scope:         f.scopes[len(f.scopes)-1],
+		enclosingType: c.EnclosingTypeDefinition,
+		fragmentRef:   fragmentRef,
+	}
+	if _, exists := f.expanded[expanded]; exists {
+		return
+	}
+	f.expanded[expanded] = struct{}{}
+
+	if f.depth == maxFragmentDepth {
+		c.StopWithExternalErr(operationreport.ExternalError{
+			Message: fmt.Sprintf("fragment spread: %s exceeds the maximum fragment nesting depth of %d", c.operation.FragmentSpreadNameBytes(ref), maxFragmentDepth),
+		})
+		return
+	}
+
+	c.expandFragment(fragmentRef)
+}
+
+// expandFragment walks a fragment definition in place of its spread. Walkers
+// do not follow spreads, so each expansion level has its own fragment walker,
+// which the visitor uses while the fragment is walked. The visitor state
+// carries through, so the fragment counts like an inline fragment with the
+// same type condition and selections.
+//
+// The work is proportional to the expanded operation: distinct fields that each
+// spread the same chain of fragments expand it separately, which is
+// exponential in the chain length. Fragment spread inlining during
+// normalization has the same cost.
+func (c *complexityVisitor) expandFragment(fragmentRef int) {
+	f := c.fragments
+	if f.depth == len(f.walkers) {
+		walker := astvisitor.WalkerFromPool()
+		c.registerVisitors(walker)
+		c.registerFragmentVisitors(walker)
+		f.walkers = append(f.walkers, walker)
+	}
+
+	parent := c.Walker
+	report := parent.Report
+	errorCount := len(report.InternalErrors) + len(report.ExternalErrors)
+
+	// Enclosing fragment walks walk the same document, so their root node is
+	// restored afterwards.
+	rootNode := f.rootNodes[0]
+	f.rootNodes[0] = ast.Node{Kind: ast.NodeKindFragmentDefinition, Ref: fragmentRef}
+	f.expanding[fragmentRef] = true
+	c.Walker = f.walkers[f.depth]
+	f.depth++
+
+	c.Walker.Walk(&f.document, c.definition, report)
+
+	f.depth--
+	c.Walker = parent
+	f.expanding[fragmentRef] = false
+	f.rootNodes[0] = rootNode
+
+	// An aborted fragment walk aborts the enclosing walk, as an aborted inline
+	// fragment would.
+	if len(report.InternalErrors)+len(report.ExternalErrors) != errorCount {
+		parent.Stop()
+	}
+}
+
 func (c *complexityVisitor) EnterFragmentDefinition(ref int) {
-	c.SkipNode()
+	// Fragments are only counted through their spreads: the operation walker
+	// skips every definition, a fragment walker visits only the one it expands.
+	if c.fragments == nil || !c.fragments.expanding[ref] {
+		c.SkipNode()
+	}
 }
 
 func (c *complexityVisitor) resetCurrentRootFieldComplexity(typeName, fieldName, alias string) {

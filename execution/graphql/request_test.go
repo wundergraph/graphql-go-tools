@@ -169,6 +169,45 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 				},
 			}}, rootFields, "unexpected per root field results")
 	})
+
+	t.Run("should successfully calculate the complexity of request with fragments", func(t *testing.T) {
+		t.Parallel()
+		schema := StarwarsSchema(t)
+		request := StarwarsRequestForQuery(t, starwars.FileFragmentsQuery)
+
+		report := request.parseQueryOnce()
+		assert.False(t, report.HasErrors())
+
+		estimator := operation_complexity.NewOperationComplexityEstimator(false)
+		global, rootFields := estimator.Do(request.Document(), schema.Document(), &report)
+		assert.False(t, report.HasErrors())
+
+		assert.Equal(t, 4, global.FieldCount, "unexpected field count")
+		assert.Equal(t, 2, global.NodeCount, "unexpected node count")
+		assert.Equal(t, 2, global.Complexity, "unexpected complexity")
+		assert.Equal(t, 2, global.Depth, "unexpected depth")
+		assert.Equal(t, []operation_complexity.RootFieldStats{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Stats: operation_complexity.OperationStats{
+					FieldCount: 2,
+					NodeCount:  1,
+					Complexity: 1,
+					Depth:      1,
+				},
+			},
+			{
+				TypeName:  "Query",
+				FieldName: "droid",
+				Stats: operation_complexity.OperationStats{
+					FieldCount: 2,
+					NodeCount:  1,
+					Complexity: 1,
+					Depth:      1,
+				},
+			}}, rootFields, "unexpected per root field results")
+	})
 }
 
 func TestRequest_IsIntrospectionQuery(t *testing.T) {
