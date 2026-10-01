@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -27,78 +26,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 )
-
-func Benchmark_DataSource_Load(b *testing.B) {
-	conn, cleanup := setupTestGRPCServer(b)
-	b.Cleanup(cleanup)
-
-	schemaDoc := grpctest.MustGraphQLSchema(b)
-
-	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}`
-
-	// Parse the GraphQL query
-	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
-	if report.HasErrors() {
-		b.Fatalf("failed to parse query: %s", report.Error())
-	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(b), testMapping())
-	require.NoError(b, err)
-
-	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
-		Operation:    &queryDoc,
-		Definition:   &schemaDoc,
-		SubgraphName: "Products",
-		Compiler:     compiler,
-		Mapping:      testMapping(),
-	})
-	require.NoError(b, err)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
-		require.NoError(b, err)
-	}
-}
-
-func Benchmark_DataSource_Load_WithFieldArguments(b *testing.B) {
-	conn, cleanup := setupTestGRPCServer(b)
-	b.Cleanup(cleanup)
-
-	schemaDoc := grpctest.MustGraphQLSchema(b)
-
-	query := `query CategoriesWithNullableTypes($nullType: String, $valueType: String) { categories { nullMetrics: categoryMetrics(metricType: $nullType) { id metricType value } valueMetrics: categoryMetrics(metricType: $valueType) { id metricType value } } }`
-	variables := `{"variables":{"nullType":"unavailable","valueType":"popularity_score"}}`
-
-	// Parse the GraphQL query
-	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
-	if report.HasErrors() {
-		b.Fatalf("failed to parse query: %s", report.Error())
-	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(b), testMapping())
-	require.NoError(b, err)
-
-	const subgraphName = "Products"
-
-	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
-		Operation:    &queryDoc,
-		Definition:   &schemaDoc,
-		SubgraphName: subgraphName,
-		Compiler:     compiler,
-		Mapping:      testMapping(),
-	})
-	require.NoError(b, err)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
-		require.NoError(b, err)
-	}
-}
 
 // mockInterface provides a simple implementation of grpc.ClientConnInterface for testing
 type mockInterface struct {
@@ -174,154 +101,12 @@ func setupTestGRPCServer(t testing.TB) (conn *grpc.ClientConn, cleanup func()) {
 	return conn, cleanup
 }
 
-// Test_DataSource_Load tests the datasource.Load method with a mock gRPC interface
-func Test_DataSource_Load(t *testing.T) {
-	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}`
-
-	// Parse the GraphQL schema
-	schemaDoc := grpctest.MustGraphQLSchema(t)
-
-	// Parse the GraphQL query
-	queryDoc, queryReport := astparser.ParseGraphqlDocumentString(query)
-	if queryReport.HasErrors() {
-		t.Fatalf("failed to parse query: %s", queryReport.Error())
-	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
-	if err != nil {
-		t.Fatalf("failed to compile proto: %v", err)
-	}
-
-	mi := mockInterface{}
-	ds, err := NewDataSource(NewGRPCTransport(mi), DataSourceConfig{
-		Operation:    &queryDoc,
-		Definition:   &schemaDoc,
-		SubgraphName: "Products",
-		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-					},
-				},
-			},
-		},
-	})
-
-	require.NoError(t, err)
-
-	_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","variables":`+variables+`}`))
-	require.NoError(t, err)
-}
-
 func Test_DataSource_Load_NilTransport(t *testing.T) {
 	ds := &DataSource{pool: arena.NewArenaPool(), disabled: false}
 
 	out, err := ds.Load(context.Background(), nil, []byte(`{}`))
 	require.EqualError(t, err, "gRPC / connect configuration requires an rpc transport")
 	require.Nil(t, out)
-}
-
-// Test_DataSource_Load_WithMockService tests the datasource.Load method with an actual gRPC server
-// TODO update this test to not use mappings anc expect no response
-func Test_DataSource_Load_WithMockService(t *testing.T) {
-	conn, cleanup := setupTestGRPCServer(t)
-	t.Cleanup(cleanup)
-
-	// 1. Set up GraphQL query and schema
-	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"filter":{"name":"Test Product","filterField1":"filterField1","filterField2":"filterField2"}}}}`
-
-	// Parse the GraphQL schema
-	schemaDoc := grpctest.MustGraphQLSchema(t)
-
-	// Parse the GraphQL query
-	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
-	if report.HasErrors() {
-		t.Fatalf("failed to parse query: %s", report.Error())
-	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
-	if err != nil {
-		t.Fatalf("failed to compile proto: %v", err)
-	}
-
-	// 2. Create a datasource with the real gRPC client connection
-	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
-		Operation:    &queryDoc,
-		Definition:   &schemaDoc,
-		SubgraphName: "Products",
-		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-						ArgumentMappings: map[string]string{
-							"filter": "filter",
-						},
-					},
-				},
-				"FilterType": {
-					"name": {
-						TargetName: "name",
-					},
-					"filterField1": {
-						TargetName: "filter_field_1",
-					},
-					"filterField2": {
-						TargetName: "filter_field_2",
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// 3. Execute the query through our datasource
-	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
-	require.NoError(t, err)
-
-	// Print the response for debugging
-	// fmt.Println(string(output))
-
-	type response struct {
-		Data struct {
-			ComplexFilterType []struct {
-				Id   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"complexFilterType"`
-		} `json:"data"`
-	}
-
-	var resp response
-
-	bytes := output
-	fmt.Println(string(bytes))
-
-	err = json.Unmarshal(bytes, &resp)
-	require.NoError(t, err)
-
-	require.Equal(t, "test-id-123", resp.Data.ComplexFilterType[0].Id)
-	require.Equal(t, "Test Product", resp.Data.ComplexFilterType[0].Name)
 }
 
 // Test_DataSource_Load_WithRecursiveInputType sends a nested recursive ConditionsInput through the
@@ -376,7 +161,8 @@ func Test_DataSource_Load_WithRecursiveInputType(t *testing.T) {
 	require.Equal(t, 3, resp.Data.ConditionalSearch[0].MatchedConditions)
 }
 
-func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
+// Test_DataSource_Load_WithMockService tests the datasource.Load method with an actual gRPC server.
+func Test_DataSource_Load_WithMockService(t *testing.T) {
 	conn, cleanup := setupTestGRPCServer(t)
 	t.Cleanup(cleanup)
 
@@ -403,37 +189,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
-		Mapping: &GRPCMapping{
-			Service: "Products",
-			QueryRPCs: RPCConfigMap[RPCConfig]{
-				"complexFilterType": {
-					RPC:      "QueryComplexFilterType",
-					Request:  "QueryComplexFilterTypeRequest",
-					Response: "QueryComplexFilterTypeResponse",
-				},
-			},
-			Fields: map[string]FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-						ArgumentMappings: map[string]string{
-							"filter": "filter",
-						},
-					},
-				},
-				"FilterType": {
-					"name": {
-						TargetName: "name",
-					},
-					"filterField1": {
-						TargetName: "filter_field_1",
-					},
-					"filterField2": {
-						TargetName: "filter_field_2",
-					},
-				},
-			},
-		},
+		Mapping:      testMapping(),
 	})
 	require.NoError(t, err)
 
@@ -621,7 +377,7 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessageDesc := responseMsg.Desc
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
-	jsonBuilder := newJSONBuilder(nil, testMapping(), gjson.Result{})
+	jsonBuilder := newJSONBuilder(nil, testMapping())
 	responseJSON, err := jsonBuilder.marshalResponseJSON(&response, responseMessage)
 	require.NoError(t, err)
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
@@ -2686,7 +2442,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					collaborations
 				}
 			}`,
-			vars: `{"variables":{"input":{"name":"New Author","email":"author@example.com","skills":["Go","GraphQL","gRPC"],"languages":["English","Spanish"],"socialLinks":["twitter.com/author","github.com/author"],"teamsByProject":[["Alice","Bob"],["Charlie","David","Eve"]],"collaborations":[["Project1","Project2"],["Project3"]]}}}`,
+			vars: `{"variables":{"input":{"name":"New Author","email":"author@example.com","skills":["Go","GraphQL","gRPC"],"languages":["English","Spanish"],"socialLinks":["twitter.com/author","github.com/author"],"teamsByProject":[["Alice","Bob"],["Charlie","David","Eve"]],"collaborations":[["Project1","Project2"],["Project3"]],"favoriteCategories":[]}}}`,
 			validate: func(t *testing.T, data map[string]any) {
 				createAuthor, ok := data["createAuthor"].(map[string]any)
 				require.True(t, ok, "createAuthor should be an object")
@@ -3497,7 +3253,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					"viewCounts":[300,400,500],
 					"tagGroups":[["updated","tags"],["bulk","update"]],
 					"commentThreads":[["Updated comment"]],
-					"relatedTopics":[["updated","topics"]],
+					"relatedTopics":[["updated","topics"]]
 				}
 			]}}`,
 			validate: func(t *testing.T, data map[string]any) {

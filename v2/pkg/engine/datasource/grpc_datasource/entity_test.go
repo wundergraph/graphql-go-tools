@@ -4,14 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tidwall/gjson"
 
 	"github.com/wundergraph/astjson"
 )
 
 func TestNewEntityIndexMap(t *testing.T) {
 	t.Run("returns empty map when no representations match", func(t *testing.T) {
-		reps := getRepresentations(gjson.Parse(`{"representations":[
+		reps := getRepresentations(astjson.MustParse(`{"representations":[
 			{"__typename":"Storage","id":"1"}
 		]}`))
 		idx := newEntityIndexMap("Product", reps)
@@ -24,7 +23,7 @@ func TestNewEntityIndexMap(t *testing.T) {
 	})
 
 	t.Run("ordered representations [Product, Product, Storage, Storage]", func(t *testing.T) {
-		reps := getRepresentations(gjson.Parse(`{"representations":[
+		reps := getRepresentations(astjson.MustParse(`{"representations":[
 			{"__typename":"Product","id":"1"},
 			{"__typename":"Product","id":"2"},
 			{"__typename":"Storage","id":"3"},
@@ -39,7 +38,7 @@ func TestNewEntityIndexMap(t *testing.T) {
 	})
 
 	t.Run("unordered representations [Product, Storage, Product, Storage]", func(t *testing.T) {
-		reps := getRepresentations(gjson.Parse(`{"representations":[
+		reps := getRepresentations(astjson.MustParse(`{"representations":[
 			{"__typename":"Product","id":"1"},
 			{"__typename":"Storage","id":"2"},
 			{"__typename":"Product","id":"3"},
@@ -54,7 +53,7 @@ func TestNewEntityIndexMap(t *testing.T) {
 	})
 
 	t.Run("interleaved representations across three types", func(t *testing.T) {
-		reps := getRepresentations(gjson.Parse(`{"representations":[
+		reps := getRepresentations(astjson.MustParse(`{"representations":[
 			{"__typename":"Product","id":"1"},
 			{"__typename":"Storage","id":"2"},
 			{"__typename":"Warehouse","id":"3"},
@@ -69,7 +68,7 @@ func TestNewEntityIndexMap(t *testing.T) {
 	})
 
 	t.Run("single matching representation", func(t *testing.T) {
-		reps := getRepresentations(gjson.Parse(`{"representations":[
+		reps := getRepresentations(astjson.MustParse(`{"representations":[
 			{"__typename":"Storage","id":"1"},
 			{"__typename":"Product","id":"2"},
 			{"__typename":"Storage","id":"3"}
@@ -79,7 +78,7 @@ func TestNewEntityIndexMap(t *testing.T) {
 	})
 
 	t.Run("preserves original positions for fully matching list", func(t *testing.T) {
-		reps := getRepresentations(gjson.Parse(`{"representations":[
+		reps := getRepresentations(astjson.MustParse(`{"representations":[
 			{"__typename":"Product","id":"1"},
 			{"__typename":"Product","id":"2"},
 			{"__typename":"Product","id":"3"}
@@ -92,7 +91,7 @@ func TestNewEntityIndexMap(t *testing.T) {
 		// Interface-entity representations carry the interface name as __typename
 		// (e.g. "Resource"). The index map cares only about the typename string,
 		// not whether it refers to an interface or a concrete type.
-		reps := getRepresentations(gjson.Parse(`{"representations":[
+		reps := getRepresentations(astjson.MustParse(`{"representations":[
 			{"__typename":"Resource","id":"1"},
 			{"__typename":"Product","id":"2"},
 			{"__typename":"Resource","id":"3"},
@@ -109,27 +108,27 @@ func TestNewEntityIndexMap(t *testing.T) {
 
 func TestGetRepresentations(t *testing.T) {
 	t.Run("returns nil when representations key missing", func(t *testing.T) {
-		vars := gjson.Parse(`{"other":"value"}`)
+		vars := astjson.MustParse(`{"other":"value"}`)
 		assert.Nil(t, getRepresentations(vars))
 	})
 
 	t.Run("returns empty slice when representations is empty array", func(t *testing.T) {
-		vars := gjson.Parse(`{"representations":[]}`)
+		vars := astjson.MustParse(`{"representations":[]}`)
 		reps := getRepresentations(vars)
 		assert.NotNil(t, reps)
 		assert.Empty(t, reps)
 	})
 
 	t.Run("returns representations when present", func(t *testing.T) {
-		vars := gjson.Parse(`{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Storage","id":"2"}]}`)
+		vars := astjson.MustParse(`{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Storage","id":"2"}]}`)
 		reps := getRepresentations(vars)
 		assert.Len(t, reps, 2)
-		assert.Equal(t, "Product", reps[0].Get("__typename").String())
-		assert.Equal(t, "Storage", reps[1].Get("__typename").String())
+		assert.Equal(t, "Product", string(reps[0].Get("__typename").GetStringBytes()))
+		assert.Equal(t, "Storage", string(reps[1].Get("__typename").GetStringBytes()))
 	})
 }
 func TestValidateEntityResponse(t *testing.T) {
-	reps := getRepresentations(gjson.Parse(`{"representations":[
+	reps := getRepresentations(astjson.MustParse(`{"representations":[
 		{"__typename":"Product","id":"1"},
 		{"__typename":"Product","id":"2"}
 	]}`))
@@ -163,7 +162,7 @@ func TestValidateEntityResponse(t *testing.T) {
 	})
 
 	t.Run("counts only representations of the requested type", func(t *testing.T) {
-		mixedReps := getRepresentations(gjson.Parse(`{"representations":[
+		mixedReps := getRepresentations(astjson.MustParse(`{"representations":[
 			{"__typename":"Product","id":"1"},
 			{"__typename":"Storage","id":"2"},
 			{"__typename":"Product","id":"3"}
