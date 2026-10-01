@@ -158,6 +158,10 @@ func (f *wireField) setProtoField(msg protoref.Message, data *astjson.Value) err
 		return fmt.Errorf("field %s is required but has no value", f.jsonPath)
 	}
 
+	if f.optional && isNullJSONValue(fieldData) {
+		return nil
+	}
+
 	fd := f.runtime.desc
 
 	if f.repeated {

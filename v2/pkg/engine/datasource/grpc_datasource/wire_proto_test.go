@@ -127,6 +127,24 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("wrapper string value explicit null", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "WrapperScalarRequest",
+			Fields: RPCFields{
+				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name", Optional: true},
+			},
+		}, runtime.getMessageByName("WrapperScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		got, err := wm.createProtoMessage(astjson.MustParse(`{"name":null}`))
+		require.NoError(t, err)
+
+		expected := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			// explicit null means unset, no Set call.
+		})
+		assertProtoMessageEqual(t, expected, got)
+	})
+
 	t.Run("wrapper int32 and double values", func(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",

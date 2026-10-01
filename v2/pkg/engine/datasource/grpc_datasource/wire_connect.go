@@ -165,6 +165,10 @@ func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) erro
 		return fmt.Errorf("field %s is required but has no value", f.jsonPath)
 	}
 
+	if f.optional && isNullJSONValue(fieldData) {
+		return nil
+	}
+
 	if f.repeated {
 		for _, element := range fieldData.GetArray() {
 			err := f.appendFieldValue(buf, element)
