@@ -683,7 +683,7 @@ func sendChatMutation(t *testing.T, url string) {
 	reqBody, err := subscriptiontesting.GraphQLRequestForOperation(subscriptiontesting.MutationSendMessage)
 	require.NoError(t, err)
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewBuffer(reqBody))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 

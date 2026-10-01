@@ -34,7 +34,7 @@ func rawSocketFD(conn net.Conn) uint64 {
 }
 
 func BenchmarkSocketFdReflect(b *testing.B) {
-	var con, _ = net.Dial(`udp`, "8.8.8.8:53")
+	var con, _ = (&net.Dialer{}).DialContext(b.Context(), `udp`, "8.8.8.8:53")
 	fd := int64(0)
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -46,7 +46,7 @@ func BenchmarkSocketFdReflect(b *testing.B) {
 }
 
 func BenchmarkSocketFdRaw(b *testing.B) {
-	con, _ := net.Dial(`udp`, "8.8.8.8:53")
+	con, _ := (&net.Dialer{}).DialContext(b.Context(), `udp`, "8.8.8.8:53")
 	fd := uint64(0)
 	b.ResetTimer()
 	b.ReportAllocs()

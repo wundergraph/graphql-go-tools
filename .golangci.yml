@@ -17,6 +17,7 @@ linters:
     - makezero
     - nilerr
     - nilnesserr
+    - noctx
     - nolintlint
     - perfsprint
     - reassign

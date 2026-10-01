@@ -58,7 +58,7 @@ func findOrBuildPluginBinary(t *testing.T) (string, error) {
 
 	// Build the plugin
 	t.Logf("Building plugin binary at %s", pluginPath)
-	cmd := exec.Command("go", "build", "-o", pluginPath, "plugin_service.go")
+	cmd := exec.CommandContext(t.Context(), "go", "build", "-o", pluginPath, "plugin_service.go")
 	cmd.Dir = pluginDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -101,7 +101,7 @@ func setupGRPCTestGoPluginServer(t *testing.T) grpc.ClientConnInterface {
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig:  handshakeConfig,
 		Plugins:          map[string]plugin.Plugin{"grpc_datasource": &mockPlugin{}},
-		Cmd:              exec.Command(pluginPath),
+		Cmd:              exec.CommandContext(context.Background(), pluginPath),
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 	})
 	t.Cleanup(client.Kill)

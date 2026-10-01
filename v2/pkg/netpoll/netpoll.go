@@ -1,6 +1,7 @@
 package netpoll
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -55,7 +56,7 @@ func Supported() error {
 	}
 	defer poller.Close(true)
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		return fmt.Errorf("failed to create listener: %w", err)
 	}
@@ -93,7 +94,7 @@ func Supported() error {
 	var dialErrGroup errgroup.Group
 
 	dialErrGroup.Go(func() error {
-		conn, err := net.Dial("tcp", ln.Addr().String())
+		conn, err := (&net.Dialer{}).DialContext(context.Background(), "tcp", ln.Addr().String())
 		if err != nil {
 			return err
 		}

@@ -8506,7 +8506,8 @@ func TestSubscriptionSource_Start(t *testing.T) {
 	sendChatMessage := func(t *testing.T, username, message string) {
 		time.Sleep(200 * time.Millisecond)
 		httpClient := http.Client{}
-		req, err := http.NewRequest(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
 			http.MethodPost,
 			chatServer.URL,
 			bytes.NewBufferString(fmt.Sprintf(`{"variables": {}, "operationName": "SendMessage", "query": "mutation SendMessage { post(roomName: \"#test\", username: \"%s\", text: \"%s\") { id } }"}`, username, message)),
@@ -8632,7 +8633,8 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 	sendChatMessage := func(t *testing.T, username, message string) {
 		time.Sleep(200 * time.Millisecond)
 		httpClient := http.Client{}
-		req, err := http.NewRequest(
+		req, err := http.NewRequestWithContext(
+			context.Background(),
 			http.MethodPost,
 			chatServer.URL,
 			bytes.NewBufferString(fmt.Sprintf(`{"variables": {}, "operationName": "SendMessage", "query": "mutation SendMessage { post(roomName: \"#test\", username: \"%s\", text: \"%s\") { id } }"}`, username, message)),
