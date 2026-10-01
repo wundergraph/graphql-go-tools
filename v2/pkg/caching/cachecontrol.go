@@ -10,24 +10,25 @@ import (
 //go:generate go tool stringer -type=StoreDecision -linecomment -output=storedecision_string.go
 
 // StoreDecision is what became of a response on its way into the cache.
+// Order matters: lower wins when merged. Insert new values in check order.
 type StoreDecision uint8
 
 const (
 	// StoreDecisionNone is a response nothing was decided for: the fetch was
 	// answered from the cache, or is not cached at all.
-	StoreDecisionNone StoreDecision = iota
-	StoreDecisionStored
-	StoreDecisionFetchFailed
-	StoreDecisionResponseErrors
-	StoreDecisionInvalidResponse
-	StoreDecisionInvalidCacheControl
-	StoreDecisionNoStore
-	StoreDecisionNoCache
-	StoreDecisionNoDirective
-	StoreDecisionNoLifetime
-	StoreDecisionUnusableVary
-	StoreDecisionPrivateWithoutID
-	StoreDecisionNoEntity
+	StoreDecisionNone                StoreDecision = iota // none
+	StoreDecisionStored                                   // stored
+	StoreDecisionFetchFailed                              // fetch_failed
+	StoreDecisionResponseErrors                           // response_errors
+	StoreDecisionInvalidResponse                          // invalid_response
+	StoreDecisionInvalidCacheControl                      // invalid_cache_control
+	StoreDecisionNoStore                                  // no_store
+	StoreDecisionNoCache                                  // no_cache
+	StoreDecisionNoDirective                              // no_directive
+	StoreDecisionNoLifetime                               // no_lifetime
+	StoreDecisionUnusableVary                             // unusable_vary
+	StoreDecisionPrivateWithoutID                         // private_without_id
+	StoreDecisionNoEntity                                 // no_entity
 )
 
 // TTL is Lifetime for a caller that only needs to know whether to store.

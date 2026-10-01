@@ -711,13 +711,9 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		}
 	}
 
-	// Unless something is stored, the earliest check any entry failed.
+	// Unless something is stored, the lowest reason any entry was skipped for:
+	// the decisions are ordered so errors win, as on the single-fetch path.
 	storeDecision := caching.StoreDecisionNoEntity
-	skip := func(decision caching.StoreDecision) {
-		if multiEntitySkipRank(decision) < multiEntitySkipRank(storeDecision) {
-			storeDecision = decision
-		}
-	}
 
 	var items []caching.Item
 	var surrogateKeyLists [][]string
@@ -727,18 +723,18 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 			continue
 		}
 		if errs := entryErrors[i]; astjson.ValueIsNonNull(errs) && len(errs.GetArray()) > 0 {
-			skip(caching.StoreDecisionResponseErrors)
+			storeDecision = min(storeDecision, caching.StoreDecisionResponseErrors)
 			continue
 		}
 		if headerDecision != caching.StoreDecisionStored {
-			skip(headerDecision)
+			storeDecision = min(storeDecision, headerDecision)
 			continue
 		}
 		// A private body only ever lands under a per-user key.
 		writeKeys := entry.responseCacheKeys
 		if private {
 			if entry.responseCachePrivateKeys == nil {
-				skip(caching.StoreDecisionPrivateWithoutID)
+				storeDecision = min(storeDecision, caching.StoreDecisionPrivateWithoutID)
 				continue
 			}
 			writeKeys = entry.responseCachePrivateKeys
@@ -746,7 +742,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 
 		entities := response.Get("data", entry.entry.Alias)
 		if entities == nil || entities.Type() != astjson.TypeArray {
-			skip(caching.StoreDecisionInvalidResponse)
+			storeDecision = min(storeDecision, caching.StoreDecisionInvalidResponse)
 			continue
 		}
 		values := entities.GetArray()
@@ -754,7 +750,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		// answers them. A different count means the response does not line up
 		// with what was asked, which is not something to cache.
 		if len(values) != len(entry.responseCacheKeys) {
-			skip(caching.StoreDecisionInvalidResponse)
+			storeDecision = min(storeDecision, caching.StoreDecisionInvalidResponse)
 			continue
 		}
 
@@ -789,24 +785,6 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		storeDecision = caching.StoreDecisionStored
 	}
 	res.responseCache.StoreDecision = storeDecision
-}
-
-// multiEntitySkipOrder is the order the single-fetch path checks in.
-var multiEntitySkipOrder = []caching.StoreDecision{
-	caching.StoreDecisionResponseErrors,
-	caching.StoreDecisionInvalidCacheControl,
-	caching.StoreDecisionNoStore,
-	caching.StoreDecisionNoCache,
-	caching.StoreDecisionNoDirective,
-	caching.StoreDecisionNoLifetime,
-	caching.StoreDecisionUnusableVary,
-	caching.StoreDecisionPrivateWithoutID,
-	caching.StoreDecisionInvalidResponse,
-	caching.StoreDecisionNoEntity,
-}
-
-func multiEntitySkipRank(decision caching.StoreDecision) int {
-	return slices.Index(multiEntitySkipOrder, decision)
 }
 
 // sentCacheable reports whether the entry went to the origin with keys to store under.
