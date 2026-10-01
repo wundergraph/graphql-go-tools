@@ -15,28 +15,8 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
-
-// failingCache fails the calls it is told to.
-type failingCache struct {
-	*testCache
-
-	getErr, setErr error
-}
-
-func (c *failingCache) GetMany(ctx context.Context, keys []string) (map[string]caching.Item, error) {
-	if c.getErr != nil {
-		return nil, c.getErr
-	}
-	return c.testCache.GetMany(ctx, keys)
-}
-
-func (c *failingCache) SetMany(ctx context.Context, items []caching.Item) error {
-	if c.setErr != nil {
-		return c.setErr
-	}
-	return c.testCache.SetMany(ctx, items)
-}
 
 // TestResponseCacheInfo pins what the engine loader hooks are told the response
 // cache did for a fetch.
@@ -235,4 +215,200 @@ func TestResponseCacheInfo_MultiEntity(t *testing.T) {
 	})
 	require.Equal(t, ResponseCacheStatusPartialHit, partial.Status)
 	require.Equal(t, caching.StoreDecisionStored, partial.StoreDecision)
+}
+
+// TestResponseCacheInfo_SingleAndMergedAgree pins that a merged fetch reports
+// the same store decision as a single fetch for the same failure.
+func TestResponseCacheInfo_SingleAndMergedAgree(t *testing.T) {
+	tests := []struct {
+		name     string
+		single   DataSource
+		merged   DataSource
+		decision caching.StoreDecision
+	}{
+		{
+			name:     "transport error",
+			single:   fixedDataSource{err: errors.New("boom")},
+			merged:   &recordingDataSource{err: errors.New("boom")},
+			decision: caching.StoreDecisionFetchFailed,
+		},
+		{
+			name:     "unparsable body",
+			single:   fixedDataSource{body: []byte(`not json`), status: http.StatusOK},
+			merged:   &recordingDataSource{response: []byte(`not json`), responseHeaders: cacheableHeaders()},
+			decision: caching.StoreDecisionInvalidResponse,
+		},
+		{
+			name:   "error with no alias path",
+			single: fixedDataSource{body: []byte(`{"errors":[{"message":"x"}],"data":{"me":"a"}}`), status: http.StatusOK},
+			merged: &recordingDataSource{
+				response:        []byte(`{"errors":[{"message":"x"}],"data":{"f1":[{"products":["a"]},{"products":["b"]}],"f2":[{"notes":"n"}]}}`),
+				responseHeaders: cacheableHeaders(),
+			},
+			decision: caching.StoreDecisionResponseErrors,
+		},
+		{
+			name: "errors checked before cache control",
+			single: fixedDataSource{
+				body:         []byte(`{"errors":[{"message":"x","path":["me"]}],"data":{"me":null}}`),
+				status:       http.StatusOK,
+				cacheControl: "no-store",
+			},
+			merged: &recordingDataSource{
+				response:        []byte(`{"errors":[{"message":"x","path":["f2",0,"notes"]}],"data":{"f1":[{"products":["a"]},{"products":["b"]}],"f2":[{"notes":null}]}}`),
+				responseHeaders: http.Header{"Cache-Control": []string{"no-store"}},
+			},
+			decision: caching.StoreDecisionResponseErrors,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := singleFetchCacheInfo(t, tt.single, ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+			require.Equal(t, ResponseCacheStatusMiss, s.Status)
+			require.Equal(t, tt.decision, s.StoreDecision, "single: %s", s.StoreDecision)
+
+			m := mergedFetchCacheInfo(t, tt.merged)
+			require.Equal(t, ResponseCacheStatusMiss, m.Status)
+			require.Equal(t, tt.decision, m.StoreDecision, "merged: %s", m.StoreDecision)
+		})
+	}
+}
+
+// TestResponseCacheInfo_PrivateEntries pins reporting for per-user entries.
+func TestResponseCacheInfo_PrivateEntries(t *testing.T) {
+	t.Run("invalid body is reported under its own key", func(t *testing.T) {
+		store := newTestCache()
+		ds := privateDataSource{cacheControl: "private, max-age=60", calls: &atomic.Int32{}}
+		first := singleFetchCacheInfo(t, ds, ResponseCacheOptions{Store: store, DefaultTTL: time.Minute, PrivateID: "u1"})
+		require.Equal(t, caching.StoreDecisionStored, first.StoreDecision)
+
+		store.mu.Lock()
+		require.Len(t, store.items, 1)
+		var privateKey string
+		for key, item := range store.items {
+			privateKey = key
+			item.Value = []byte(`{bad`)
+			store.items[key] = item
+		}
+		store.mu.Unlock()
+
+		var reported []error
+		second := singleFetchCacheInfo(t, ds, ResponseCacheOptions{
+			Store: store, DefaultTTL: time.Minute, PrivateID: "u1",
+			OnError: func(err error) { reported = append(reported, err) },
+		})
+		require.Equal(t, ResponseCacheStatusMiss, second.Status)
+		require.NotEmpty(t, reported)
+		var rcErr *ResponseCacheError
+		require.ErrorAs(t, reported[0], &rcErr)
+		require.Equal(t, ResponseCacheOperationRead, rcErr.Operation)
+		require.Contains(t, reported[0].Error(), privateKey)
+	})
+
+	t.Run("keys count entities, not their per-user twins", func(t *testing.T) {
+		ds := privateDataSource{cacheControl: "public, max-age=60", calls: &atomic.Int32{}}
+		opts := ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute, PrivateID: "u1"}
+
+		miss := singleFetchCacheInfo(t, ds, opts)
+		require.Equal(t, 1, miss.KeysRequested)
+		require.Zero(t, miss.KeysFound)
+
+		hit := singleFetchCacheInfo(t, ds, opts)
+		require.Equal(t, ResponseCacheStatusHit, hit.Status)
+		require.Equal(t, 1, hit.KeysRequested)
+		require.Equal(t, 1, hit.KeysFound)
+	})
+}
+
+// failingCache fails the calls it is told to.
+type failingCache struct {
+	*testCache
+
+	getErr, setErr error
+}
+
+func (c *failingCache) GetMany(ctx context.Context, keys []string) (map[string]caching.Item, error) {
+	if c.getErr != nil {
+		return nil, c.getErr
+	}
+	return c.testCache.GetMany(ctx, keys)
+}
+
+func (c *failingCache) SetMany(ctx context.Context, items []caching.Item) error {
+	if c.setErr != nil {
+		return c.setErr
+	}
+	return c.testCache.SetMany(ctx, items)
+}
+
+// fixedDataSource answers with a fixed body, status and error.
+type fixedDataSource struct {
+	body         []byte
+	status       int
+	err          error
+	cacheControl string
+}
+
+func (d fixedDataSource) Load(ctx context.Context, _ http.Header, _ []byte) ([]byte, error) {
+	if rc := httpclient.GetResponseContext(ctx); rc != nil && d.status != 0 {
+		rc.StatusCode = d.status
+		header := cacheableHeaders()
+		if d.cacheControl != "" {
+			header.Set("Cache-Control", d.cacheControl)
+		}
+		rc.Response = &http.Response{StatusCode: d.status, Header: header}
+	}
+	return d.body, d.err
+}
+
+func (d fixedDataSource) LoadWithFiles(ctx context.Context, h http.Header, in []byte, _ []*httpclient.FileUpload) ([]byte, error) {
+	return d.Load(ctx, h, in)
+}
+
+// singleFetchCacheInfo resolves one root fetch and returns what the hook was told.
+func singleFetchCacheInfo(t *testing.T, ds DataSource, opts ResponseCacheOptions) ResponseCacheInfo {
+	t.Helper()
+	input := `{"method":"POST","url":"http://accounts","body":{"query":"{me}"}}`
+	response := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
+		Fetches: Single(&SingleFetch{
+			FetchConfiguration: FetchConfiguration{
+				DataSource: ds,
+				Input:      input,
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			InputTemplate:        InputTemplate{Segments: []TemplateSegment{{Data: []byte(input), SegmentType: StaticSegmentType}}},
+			DataSourceIdentifier: graphqlDataSourceIdentifier,
+			Info:                 &FetchInfo{OperationType: ast.OperationTypeQuery, DataSourceID: "accounts", DataSourceName: "accounts"},
+		}),
+		Data: &Object{Fields: []*Field{{Name: []byte("me"), Value: &String{Path: []string{"me"}, Nullable: true}}}},
+	}
+	ctx := NewContext(context.Background())
+	ctx.SetResponseCache(opts)
+	var infos []*ResponseInfo
+	ctx.LoaderHooks = &spyLoaderHooks{onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
+		infos = append(infos, info)
+	}}
+	_, _ = newTestResolver(t, baseResolverOpts()).ResolveGraphQLResponse(ctx, response, nil, &bytes.Buffer{})
+	require.Len(t, infos, 1)
+	return infos[0].ResponseCache
+}
+
+// mergedFetchCacheInfo resolves a merged entity fetch and returns what the hook was told about it.
+func mergedFetchCacheInfo(t *testing.T, multiDS DataSource) ResponseCacheInfo {
+	t.Helper()
+	ctx := multiEntityContext(t)
+	ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
+	var infos []*ResponseInfo
+	ctx.SetEngineLoaderHooks(&spyLoaderHooks{onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
+		infos = append(infos, info)
+	}})
+	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
+	response := multiEntityMergedTree(&recordingDataSource{response: []byte(multiEntityRootResponse)}, multiDS)
+	_ = loader.LoadGraphQLResponseData(ctx, response)
+	require.Len(t, infos, 2)
+	return infos[1].ResponseCache
 }

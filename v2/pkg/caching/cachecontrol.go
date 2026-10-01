@@ -7,6 +7,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/cache"
 )
 
+//go:generate go tool stringer -type=StoreDecision -linecomment -output=storedecision_string.go
+
 // StoreDecision is what became of a response on its way into the cache.
 type StoreDecision uint8
 
@@ -27,37 +29,6 @@ const (
 	StoreDecisionPrivateWithoutID
 	StoreDecisionNoEntity
 )
-
-func (d StoreDecision) String() string {
-	switch d {
-	case StoreDecisionStored:
-		return "stored"
-	case StoreDecisionFetchFailed:
-		return "fetch_failed"
-	case StoreDecisionResponseErrors:
-		return "response_errors"
-	case StoreDecisionInvalidResponse:
-		return "invalid_response"
-	case StoreDecisionInvalidCacheControl:
-		return "invalid_cache_control"
-	case StoreDecisionNoStore:
-		return "no_store"
-	case StoreDecisionNoCache:
-		return "no_cache"
-	case StoreDecisionNoDirective:
-		return "no_directive"
-	case StoreDecisionNoLifetime:
-		return "no_lifetime"
-	case StoreDecisionUnusableVary:
-		return "unusable_vary"
-	case StoreDecisionPrivateWithoutID:
-		return "private_without_id"
-	case StoreDecisionNoEntity:
-		return "no_entity"
-	default:
-		return ""
-	}
-}
 
 // TTL is Lifetime for a caller that only needs to know whether to store.
 func TTL(headers http.Header, defaultTTL time.Duration) (ttl time.Duration, private bool, ok bool) {

@@ -78,29 +78,18 @@ type ResponseInfo struct {
 	responseBody []byte
 }
 
+//go:generate go tool stringer -type=ResponseCacheStatus -linecomment -output=response_cache_status_string.go
+
 // ResponseCacheStatus is how much of a fetch the response cache answered.
 type ResponseCacheStatus uint8
 
 const (
 	// ResponseCacheStatusNotCacheable is a fetch the cache was never asked about.
-	ResponseCacheStatusNotCacheable ResponseCacheStatus = iota
-	ResponseCacheStatusMiss
-	ResponseCacheStatusPartialHit
-	ResponseCacheStatusHit
+	ResponseCacheStatusNotCacheable ResponseCacheStatus = iota // not_cacheable
+	ResponseCacheStatusMiss                                    // miss
+	ResponseCacheStatusPartialHit                              // partial_hit
+	ResponseCacheStatusHit                                     // hit
 )
-
-func (s ResponseCacheStatus) String() string {
-	switch s {
-	case ResponseCacheStatusMiss:
-		return "miss"
-	case ResponseCacheStatusPartialHit:
-		return "partial_hit"
-	case ResponseCacheStatusHit:
-		return "hit"
-	default:
-		return "not_cacheable"
-	}
-}
 
 // ResponseCacheInfo is what the response cache did for a fetch.
 type ResponseCacheInfo struct {
