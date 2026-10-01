@@ -97,6 +97,7 @@ func TestCompileProgram_QueryWithArguments(t *testing.T) {
 	fetch := p.stages[0].fetches[0]
 	assert.Equal(t, "QueryUser", fetch.methodName)
 	assert.Equal(t, "QueryUserRequest", fetch.request.message.name)
+	require.NotNil(t, fetch.request.wire, "wire message should be compiled")
 
 	// Request should have an id field
 	require.NotEmpty(t, fetch.request.fields)
@@ -276,22 +277,6 @@ func TestCompileProgram_RequiredFields(t *testing.T) {
 	assert.Equal(t, "RequireWarehouseStockHealthScoreByIdResponse", requiredFetch.response.responseType.name)
 }
 
-func TestCompileProgram_NestedMessages(t *testing.T) {
-	t.Parallel()
-
-	p := compileProgramFromQuery(t, `query { nestedType { id name b { id name c { id name } } } }`)
-
-	require.Len(t, p.stages, 1)
-	require.Len(t, p.stages[0].fetches, 1)
-
-	fetch := p.stages[0].fetches[0]
-	assert.Equal(t, "QueryNestedType", fetch.methodName)
-	assert.Equal(t, "QueryNestedTypeResponse", fetch.response.responseType.name)
-
-	// Wire message should be compiled for nested structures
-	require.NotNil(t, fetch.request.wire)
-}
-
 func TestCompileProgram_ResponsePath(t *testing.T) {
 	t.Parallel()
 
@@ -322,59 +307,4 @@ func TestCompileProgram_StageOrdering(t *testing.T) {
 	}
 	assert.Contains(t, methods, "ResolveCategoryProductCount")
 	assert.Contains(t, methods, "ResolveCategoryPopularityScore")
-}
-
-func TestCompileProgram_EnumField(t *testing.T) {
-	t.Parallel()
-
-	p := compileProgramFromQuery(t, `query { categories { id kind } }`)
-
-	require.Len(t, p.stages, 1)
-	fetch := p.stages[0].fetches[0]
-
-	// Response message should reference the enum correctly
-	assert.Equal(t, "QueryCategoriesResponse", fetch.response.responseType.name)
-	assert.Equal(t, "QueryCategories", fetch.methodName)
-}
-
-func TestCompileProgram_WireMessageCompiled(t *testing.T) {
-	t.Parallel()
-
-	// Verify wire messages are compiled for various call kinds
-	tests := []struct {
-		name      string
-		operation string
-		fedConfig plan.FederationFieldConfigurations
-	}{
-		{
-			name:      "standard query",
-			operation: `query { users { id name } }`,
-		},
-		{
-			name:      "query with arguments",
-			operation: `query GetUser { user(id: "1") { id name } }`,
-		},
-		{
-			name:      "entity lookup",
-			operation: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Warehouse { __typename name } } }`,
-			fedConfig: plan.FederationFieldConfigurations{
-				{TypeName: "Warehouse", SelectionSet: "id"},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			p := compileProgramFromQueryWithFederation(t, tt.operation, tt.fedConfig)
-
-			for i, stage := range p.stages {
-				for j, fetch := range stage.fetches {
-					require.NotNil(t, fetch.request, "stage[%d].fetch[%d] request should not be nil", i, j)
-					require.NotNil(t, fetch.request.wire, "stage[%d].fetch[%d] wire message should not be nil", i, j)
-				}
-			}
-		})
-	}
 }

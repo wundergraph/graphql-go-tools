@@ -21,9 +21,8 @@ import (
 // createProtoMessage (and the supporting wire_proto.go builders) produce
 // semantically equivalent requests to the wire-bytes path that ships today.
 //
-// Until the Connect transport lands, the existing in-process gRPC client
-// satisfies RPCTransport for both paths and is enough to exercise the proto
-// message builders end-to-end.
+// Both paths use the in-process gRPC client as RPCTransport. Thus the test
+// compares only the request builders, not the transports.
 func Test_DataSource_loadWithConnect_ParityWithGRPC(t *testing.T) {
 	conn, cleanup := setupTestGRPCServer(t)
 	t.Cleanup(cleanup)

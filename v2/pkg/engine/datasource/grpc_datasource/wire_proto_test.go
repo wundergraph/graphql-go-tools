@@ -91,6 +91,26 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("int32 and double fields with negative values", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ScalarRequest",
+			Fields: RPCFields{
+				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
+				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
+			},
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+		got, err := wm.createProtoMessage(astjson.MustParse(`{"age":-7,"score":-99.5}`))
+		require.NoError(t, err)
+
+		expected := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("age"), protoref.ValueOfInt32(-7))
+			msg.Set(desc.Fields().ByName("score"), protoref.ValueOfFloat64(-99.5))
+		})
+
+		assertProtoMessageEqual(t, expected, got)
+	})
+
 	t.Run("wrapper string value present", func(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",
@@ -358,6 +378,41 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("list wrapper with enums", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "EnumListRequest",
+			Fields: RPCFields{
+				{Name: "statuses", ProtoTypeName: DataTypeEnum, JSONPath: "statuses", IsListType: true, ListMetadata: &ListMetadata{NestingLevel: 1, LevelInfo: []LevelInfo{{Optional: false}}}, EnumName: "Status"},
+			},
+		}, runtime.getMessageByName("EnumListRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+		got, err := wm.createProtoMessage(astjson.MustParse(`{"statuses":["ACTIVE","INACTIVE"]}`))
+		require.NoError(t, err)
+
+		e := runtime.enumByName["Status"]
+		activeValue := e.valuesByName["ACTIVE"]
+		inactiveValue := e.valuesByName["INACTIVE"]
+
+		expected := buildExpectedProto(t, runtime, "EnumListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			statusesField := desc.Fields().ByName("statuses")
+			listOfStringDesc := statusesField.Message()
+
+			listField := listOfStringDesc.Fields().ByName("list")
+			listDesc := listField.Message()
+
+			innerList := dynamicpb.NewMessage(listDesc)
+			items := innerList.Mutable(listDesc.Fields().ByName("items")).List()
+			items.Append(protoref.ValueOfEnum(protoref.EnumNumber(activeValue.value)))
+			items.Append(protoref.ValueOfEnum(protoref.EnumNumber(inactiveValue.value)))
+
+			listOfString := dynamicpb.NewMessage(listOfStringDesc)
+			listOfString.Set(listField, protoref.ValueOfMessage(innerList))
+
+			msg.Set(statusesField, protoref.ValueOfMessage(listOfString))
+		})
+		assertProtoMessageEqual(t, expected, got)
+	})
+
 	t.Run("nested list wrapper two levels", func(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "NestedListRequest",
@@ -484,6 +539,110 @@ func TestCreateProtoMessage(t *testing.T) {
 
 			msg.Set(itemGroupsField, protoref.ValueOfMessage(lolosni))
 		})
+		assertProtoMessageEqual(t, expected, got)
+	})
+
+	t.Run("oneOf request with interface", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name:        "InterfaceOneOfRequest",
+			MemberTypes: []string{"InterfaceA", "InterfaceB"},
+			OneOfType:   OneOfTypeInterface,
+			FragmentFields: RPCFieldSelectionSet{
+				"InterfaceA": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+				"InterfaceB": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+			},
+		}, runtime.getMessageByName("InterfaceOneOfRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+		got, err := wm.createProtoMessage(astjson.MustParse(`{"__typename":"InterfaceA","name":"A"}`))
+		require.NoError(t, err)
+
+		expected := buildExpectedProto(t, runtime, "InterfaceOneOfRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			oneOfDesc := desc.Oneofs().ByName("instance")
+			require.NotNil(t, oneOfDesc)
+			ifa := oneOfDesc.Fields().ByName("interface_a")
+			require.NotNil(t, ifa)
+
+			ifaMsg := dynamicpb.NewMessage(ifa.Message())
+			ifaFieldDesc := ifa.Message().Fields()
+			require.NotNil(t, ifaFieldDesc)
+
+			ifaMsg.Set(ifaFieldDesc.ByName("name"), protoref.ValueOfString("A"))
+			msg.Set(ifa, protoref.ValueOfMessage(ifaMsg))
+		})
+		assertProtoMessageEqual(t, expected, got)
+
+		got, err = wm.createProtoMessage(astjson.MustParse(`{"__typename":"InterfaceB","name":"B"}`))
+		require.NoError(t, err)
+
+		expected = buildExpectedProto(t, runtime, "InterfaceOneOfRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			oneOfDesc := desc.Oneofs().ByName("instance")
+			require.NotNil(t, oneOfDesc)
+			ib := oneOfDesc.Fields().ByName("interface_b")
+			require.NotNil(t, ib)
+
+			ibMsg := dynamicpb.NewMessage(ib.Message())
+			ibFieldDesc := ib.Message().Fields()
+			require.NotNil(t, ibFieldDesc)
+			ibMsg.Set(ibFieldDesc.ByName("name"), protoref.ValueOfString("B"))
+			msg.Set(ib, protoref.ValueOfMessage(ibMsg))
+		})
+
+		assertProtoMessageEqual(t, expected, got)
+	})
+
+	t.Run("oneOf request with union", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name:        "UnionOneOfRequest",
+			MemberTypes: []string{"UnionA", "UnionB"},
+			OneOfType:   OneOfTypeUnion,
+			FragmentFields: RPCFieldSelectionSet{
+				"UnionA": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+				"UnionB": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+			},
+		}, runtime.getMessageByName("UnionOneOfRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+		got, err := wm.createProtoMessage(astjson.MustParse(`{"__typename":"UnionA","name":"A"}`))
+		require.NoError(t, err)
+
+		expected := buildExpectedProto(t, runtime, "UnionOneOfRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			oneOfDesc := desc.Oneofs().ByName("value")
+			require.NotNil(t, oneOfDesc)
+			ua := oneOfDesc.Fields().ByName("value_a")
+			require.NotNil(t, ua)
+
+			uaMsg := dynamicpb.NewMessage(ua.Message())
+			uaFieldDesc := ua.Message().Fields()
+			require.NotNil(t, uaFieldDesc)
+			uaMsg.Set(uaFieldDesc.ByName("name"), protoref.ValueOfString("A"))
+			msg.Set(ua, protoref.ValueOfMessage(uaMsg))
+		})
+
+		assertProtoMessageEqual(t, expected, got)
+
+		got, err = wm.createProtoMessage(astjson.MustParse(`{"__typename":"UnionB","name":"B"}`))
+		require.NoError(t, err)
+
+		expected = buildExpectedProto(t, runtime, "UnionOneOfRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			oneOfDesc := desc.Oneofs().ByName("value")
+			require.NotNil(t, oneOfDesc)
+			ub := oneOfDesc.Fields().ByName("value_b")
+			require.NotNil(t, ub)
+
+			ubMsg := dynamicpb.NewMessage(ub.Message())
+			ubFieldDesc := ub.Message().Fields()
+			require.NotNil(t, ubFieldDesc)
+			ubMsg.Set(ubFieldDesc.ByName("name"), protoref.ValueOfString("B"))
+			msg.Set(ub, protoref.ValueOfMessage(ubMsg))
+		})
+
 		assertProtoMessageEqual(t, expected, got)
 	})
 

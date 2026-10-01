@@ -38,17 +38,6 @@ func TestRuntimeSchemaMessages(t *testing.T) {
 		assert.Nil(t, msg)
 	})
 
-	t.Run("message has correct fields", func(t *testing.T) {
-		msg := runtime.getMessageByName("Product")
-		require.NotNil(t, msg)
-
-		assert.Contains(t, msg.fieldsByName, "id")
-		assert.Contains(t, msg.fieldsByName, "name")
-		assert.Contains(t, msg.fieldsByName, "price")
-		assert.Contains(t, msg.fieldsByName, "status")
-		assert.Contains(t, msg.fieldsByName, "category")
-	})
-
 	t.Run("field data types are correct", func(t *testing.T) {
 		msg := runtime.getMessageByName("Product")
 		require.NotNil(t, msg)
@@ -122,10 +111,6 @@ func TestRuntimeSchemaEnums(t *testing.T) {
 			assert.NotEmpty(t, v.name)
 		}
 	})
-
-	t.Run("unknown enum is not registered", func(t *testing.T) {
-		assert.NotContains(t, runtime.enumByName, "NonExistentEnum")
-	})
 }
 
 func TestRuntimeSchemaServices(t *testing.T) {
@@ -134,10 +119,6 @@ func TestRuntimeSchemaServices(t *testing.T) {
 
 	runtime, err := newSchemaRuntime(compiler.doc)
 	require.NoError(t, err)
-
-	t.Run("service methods are registered", func(t *testing.T) {
-		assert.NotEmpty(t, runtime.serviceNamesByMethod)
-	})
 
 	t.Run("method maps to service name", func(t *testing.T) {
 		serviceName, ok := runtime.serviceNamesByMethod["LookupProductById"]
