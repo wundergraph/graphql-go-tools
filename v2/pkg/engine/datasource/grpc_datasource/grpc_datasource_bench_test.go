@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,14 +23,19 @@ type loadBenchCase struct {
 }
 
 func entityRepresentations(n int) string {
-	out := `{"variables":{"representations":[`
+	var builder strings.Builder
+	builder.Grow(n * 40) // approximate size of the string
+	builder.WriteString(`{"variables":{"representations":[`)
+
 	for i := range n {
+
 		if i > 0 {
-			out += ","
+			builder.WriteString(",")
 		}
-		out += fmt.Sprintf(`{"__typename":"Product","id":"%d"}`, i+1)
+		fmt.Fprintf(&builder, `{"__typename":"Product","id":"%d"}`, i+1)
 	}
-	return out + `]}}`
+	builder.WriteString(`]}}`)
+	return builder.String()
 }
 
 var loadBenchCases = []loadBenchCase{
