@@ -90,6 +90,7 @@ func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) er
 			return fmt.Errorf("oneof descriptor not found for message %s", w.runtime.name)
 		}
 
+		found := false
 		fields := oneOfDescriptor.Fields()
 		for i := range fields.Len() {
 			field := fields.Get(i)
@@ -100,8 +101,13 @@ func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) er
 			if field.Message().Name() == protoref.Name(typeName) {
 				fieldNumber := field.Number()
 				buf.Write(protowire.AppendTag(buf.AvailableBuffer(), fieldNumber, protowire.BytesType))
+				found = true
 				break
 			}
+		}
+
+		if !found {
+			return fmt.Errorf("%s not found in oneof %s", typeName, oneOfDescriptor.Name())
 		}
 
 		oneOfFields := w.oneOfFields[typeName]

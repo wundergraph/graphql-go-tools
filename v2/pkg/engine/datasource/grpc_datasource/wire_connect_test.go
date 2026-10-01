@@ -136,6 +136,36 @@ message LookupProductByIdRequest {
   repeated LookupProductByIdRequestKey keys = 1;
 }
 
+message InterfaceA {
+	string name = 1;
+}
+
+message InterfaceB {
+	string name = 1;
+}
+
+message UnionA {
+	string name = 1;
+}
+
+message UnionB {
+	string name = 1;
+}
+
+message InterfaceOneOfRequest {
+	oneof instance {
+		InterfaceA interface_a = 1;
+		InterfaceB interface_b = 2;
+	}
+}
+
+message UnionOneOfRequest {
+	oneof value {
+		UnionA value_a = 1;
+		UnionB value_b = 2;
+	}
+}
+
 service TestService {
   rpc Empty(EmptyRequest) returns (EmptyRequest) {}
   rpc Scalar(ScalarRequest) returns (ScalarRequest) {}
@@ -906,6 +936,110 @@ func TestCreateProtoWire(t *testing.T) {
 		})
 
 		assertProtoEqual(t, runtime, "NestedListRequest", expected, got)
+	})
+
+	t.Run("oneOf request with interface", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name:        "InterfaceOneOfRequest",
+			MemberTypes: []string{"InterfaceA", "InterfaceB"},
+			OneOfType:   OneOfTypeInterface,
+			FragmentFields: RPCFieldSelectionSet{
+				"InterfaceA": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+				"InterfaceB": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+			},
+		}, runtime.getMessageByName("InterfaceOneOfRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+		got, err := wm.createProtoWire(astjson.MustParse(`{"__typename":"InterfaceA","name":"A"}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "InterfaceOneOfRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			oneOfDesc := desc.Oneofs().ByName("instance")
+			require.NotNil(t, oneOfDesc)
+			ifa := oneOfDesc.Fields().ByName("interface_a")
+			require.NotNil(t, ifa)
+
+			ifaMsg := dynamicpb.NewMessage(ifa.Message())
+			ifaFieldDesc := ifa.Message().Fields()
+			require.NotNil(t, ifaFieldDesc)
+
+			ifaMsg.Set(ifaFieldDesc.ByName("name"), protoref.ValueOfString("A"))
+			msg.Set(ifa, protoref.ValueOfMessage(ifaMsg))
+		})
+		assertProtoEqual(t, runtime, "InterfaceOneOfRequest", expected, got)
+
+		got, err = wm.createProtoWire(astjson.MustParse(`{"__typename":"InterfaceB","name":"B"}`))
+		require.NoError(t, err)
+
+		expected = marshalDynamic(t, runtime, "InterfaceOneOfRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			oneOfDesc := desc.Oneofs().ByName("instance")
+			require.NotNil(t, oneOfDesc)
+			ib := oneOfDesc.Fields().ByName("interface_b")
+			require.NotNil(t, ib)
+
+			ibMsg := dynamicpb.NewMessage(ib.Message())
+			ibFieldDesc := ib.Message().Fields()
+			require.NotNil(t, ibFieldDesc)
+			ibMsg.Set(ibFieldDesc.ByName("name"), protoref.ValueOfString("B"))
+			msg.Set(ib, protoref.ValueOfMessage(ibMsg))
+		})
+
+		assertProtoEqual(t, runtime, "InterfaceOneOfRequest", expected, got)
+	})
+
+	t.Run("oneOf request with union", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name:        "UnionOneOfRequest",
+			MemberTypes: []string{"UnionA", "UnionB"},
+			OneOfType:   OneOfTypeUnion,
+			FragmentFields: RPCFieldSelectionSet{
+				"UnionA": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+				"UnionB": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+			},
+		}, runtime.getMessageByName("UnionOneOfRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+		got, err := wm.createProtoWire(astjson.MustParse(`{"__typename":"UnionA","name":"A"}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "UnionOneOfRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			oneOfDesc := desc.Oneofs().ByName("value")
+			require.NotNil(t, oneOfDesc)
+			ua := oneOfDesc.Fields().ByName("value_a")
+			require.NotNil(t, ua)
+
+			uaMsg := dynamicpb.NewMessage(ua.Message())
+			uaFieldDesc := ua.Message().Fields()
+			require.NotNil(t, uaFieldDesc)
+			uaMsg.Set(uaFieldDesc.ByName("name"), protoref.ValueOfString("A"))
+			msg.Set(ua, protoref.ValueOfMessage(uaMsg))
+		})
+
+		assertProtoEqual(t, runtime, "UnionOneOfRequest", expected, got)
+
+		got, err = wm.createProtoWire(astjson.MustParse(`{"__typename":"UnionB","name":"B"}`))
+		require.NoError(t, err)
+
+		expected = marshalDynamic(t, runtime, "UnionOneOfRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			oneOfDesc := desc.Oneofs().ByName("value")
+			require.NotNil(t, oneOfDesc)
+			ub := oneOfDesc.Fields().ByName("value_b")
+			require.NotNil(t, ub)
+
+			ubMsg := dynamicpb.NewMessage(ub.Message())
+			ubFieldDesc := ub.Message().Fields()
+			require.NotNil(t, ubFieldDesc)
+			ubMsg.Set(ubFieldDesc.ByName("name"), protoref.ValueOfString("B"))
+			msg.Set(ub, protoref.ValueOfMessage(ubMsg))
+		})
+
+		assertProtoEqual(t, runtime, "UnionOneOfRequest", expected, got)
 	})
 
 	t.Run("mixed request with multiple field types", func(t *testing.T) {
