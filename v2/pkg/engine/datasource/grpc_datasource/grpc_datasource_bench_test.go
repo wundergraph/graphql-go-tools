@@ -23,7 +23,7 @@ type loadBenchCase struct {
 
 func entityRepresentations(n int) string {
 	out := `{"variables":{"representations":[`
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i > 0 {
 			out += ","
 		}
