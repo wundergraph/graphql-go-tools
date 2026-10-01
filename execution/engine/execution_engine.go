@@ -32,9 +32,9 @@ type internalExecutionContext struct {
 	postProcessor  *postprocess.Processor
 }
 
-func newInternalExecutionContext(postProcessorOptions ...postprocess.ProcessorOption) *internalExecutionContext {
+func newInternalExecutionContext(ctx context.Context, postProcessorOptions ...postprocess.ProcessorOption) *internalExecutionContext {
 	return &internalExecutionContext{
-		resolveContext: resolve.NewContext(context.Background()),
+		resolveContext: resolve.NewContext(ctx),
 		postProcessor:  postprocess.NewProcessor(postProcessorOptions...),
 	}
 }
@@ -243,8 +243,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 	}
 
-	execContext := newInternalExecutionContext(e.postProcessorOptions...)
-	execContext.setContext(ctx)
+	execContext := newInternalExecutionContext(ctx, e.postProcessorOptions...)
 	execContext.setVariables(operation.Variables)
 	execContext.setRequest(operation.InternalRequest())
 	execContext.resolveContext.RemapVariables = remapVariables
@@ -254,13 +253,13 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	if execContext.resolveContext.TracingOptions.Enable {
-		traceCtx := resolve.SetTraceStart(execContext.resolveContext.Context(), execContext.resolveContext.TracingOptions.EnablePredictableDebugTimings)
-		execContext.setContext(traceCtx)
+		ctx = resolve.SetTraceStart(ctx, execContext.resolveContext.TracingOptions.EnablePredictableDebugTimings)
+		execContext.setContext(ctx)
 	}
 
 	var tracePlanStart int64
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
-		tracePlanStart = resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context())
+		tracePlanStart = resolve.GetDurationNanoSinceTraceStart(ctx)
 	}
 
 	var report operationreport.Report
@@ -278,8 +277,8 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	operation.ComputeEstimatedCost(costCalculator, varsView)
 
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
-		planningTime := resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context()) - tracePlanStart
-		resolve.SetPlannerStats(execContext.resolveContext.Context(), resolve.PhaseStats{
+		planningTime := resolve.GetDurationNanoSinceTraceStart(ctx) - tracePlanStart
+		resolve.SetPlannerStats(ctx, resolve.PhaseStats{
 			DurationSinceStartNano:   tracePlanStart,
 			DurationSinceStartPretty: time.Duration(tracePlanStart).String(),
 			DurationNano:             planningTime,
@@ -301,7 +300,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, writer)
 		return err
 	case *plan.SubscriptionResponsePlan:
-		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
+		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer) //nolint:contextcheck
 	default:
 		return errors.New("execution impossible: unknown type of operation")
 	}

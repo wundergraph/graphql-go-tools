@@ -437,7 +437,7 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 	// Some entries are still cold, so a request goes out after all: rebuild the
 	// body with the warm ones switched off, so the origin is asked for no more
 	// than what is missing.
-	assembled, err := l.assembleMultiEntity(&assembleMultiEntityOptions{
+	assembled, err := l.assembleMultiEntity(&assembleMultiEntityOptions{ //nolint:contextcheck
 		fetch:               assembly.fetch,
 		result:              prepared.res,
 		included:            assembly.included,

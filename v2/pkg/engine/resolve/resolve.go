@@ -309,7 +309,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	}
 
 	go resolver.heartbeatLoop()
-	context.AfterFunc(resolver.ctx, func() {
+	context.AfterFunc(resolver.ctx, func() { //nolint:contextcheck
 		resolver.shutdownResolver()
 	})
 

@@ -505,7 +505,7 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	if item == nil {
 		return nil
 	}
-	prepared, err := l.preparePhase(item)
+	prepared, err := l.preparePhase(item) //nolint:contextcheck
 	if prepared != nil {
 		defer func() {
 			batchEntityToolPool.Put(prepared.res.tools)
@@ -2360,7 +2360,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 
 		// Prevent that the context is destroyed when the loader hook return an empty context
 		if res.loaderHookContext != nil {
-			res.err = l.loadByContext(res.loaderHookContext, source, fetchItem, input, res)
+			res.err = l.loadByContext(res.loaderHookContext, source, fetchItem, input, res) //nolint:contextcheck
 		} else {
 			res.err = l.loadByContext(ctx, source, fetchItem, input, res)
 			res.loaderHookContext = ctx // Set the context to the original context to ensure that OnFinished hook gets valid context
