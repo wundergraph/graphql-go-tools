@@ -68,19 +68,6 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		abstractlogger.String("method", string(opts.SSEMethod)),
 	)
 
-	switch opts.SSEMethod {
-	case common.SSEMethodPOST:
-		httpReq, err = buildPOSTRequest(ctx, req, opts)
-	case common.SSEMethodGET:
-		httpReq, err = buildGETRequest(ctx, req, opts)
-	default:
-		return nil, fmt.Errorf("unsupported SSE method: %s", opts.SSEMethod)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
 	// The request cancels with the subscription (ctx) and on transport shutdown (t.ctx).
 	requestCtx, requestCancel := context.WithCancel(ctx)
 	stopTransport := context.AfterFunc(t.ctx, requestCancel)
@@ -90,7 +77,19 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		requestCancel()
 	}
 
-	httpReq = httpReq.WithContext(requestCtx)
+	switch opts.SSEMethod {
+	case common.SSEMethodPOST:
+		httpReq, err = buildPOSTRequest(requestCtx, req, opts)
+	case common.SSEMethodGET:
+		httpReq, err = buildGETRequest(requestCtx, req, opts)
+	default:
+		err = fmt.Errorf("unsupported SSE method: %s", opts.SSEMethod)
+	}
+
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
 
 	// Execute request
 	resp, err := t.client.Do(httpReq)
