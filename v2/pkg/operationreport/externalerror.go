@@ -457,8 +457,7 @@ func ErrStreamDirectiveOnNonListField(directiveName, fieldName ast.ByteSlice, di
 }
 
 func ErrDeferStreamDirectiveLabelMustBeStatic(directiveName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
-	err.Message = fmt.Sprintf(`directive "@%s" label argument must be a static string value, not a variable`,
-		directiveName)
+	err.Message = fmt.Sprintf(`directive "@%s" label argument must be a static string value`, directiveName)
 	err.Locations = LocationsFromPosition(directivePosition)
 	return err
 }

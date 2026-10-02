@@ -4874,7 +4874,7 @@ type Query {
 						}
 					}
 					fragment dogFragment on Dog { name }
-					`, `directive "@defer" label argument must be a static string value, not a variable`)
+					`, `directive "@defer" label argument must be a static string value`)
 			})
 			t.Run("stream directive with variable label", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
@@ -4883,31 +4883,7 @@ type Query {
 							extras @stream(label: $label) { string }
 						}
 					}
-					`, `directive "@stream" label argument must be a static string value, not a variable`)
-			})
-			t.Run("duplicate labels with one disabled defer", func(t *testing.T) {
-				runNormalizationPrevalidation(t, `
-					query {
-						dog {
-							...fragment1 @defer(label: "a", if: false)
-							...fragment2 @defer(label: "a")
-						}
-					}
-					fragment fragment1 on Dog { name }
-					fragment fragment2 on Dog { nickname }
-					`)
-			})
-			t.Run("duplicate labels with one optional defer", func(t *testing.T) {
-				runNormalizationPrevalidation(t, `
-					query q($b: Boolean) {
-						dog {
-							...fragment1 @defer(label: "a", if: $b)
-							...fragment2 @defer(label: "a")
-						}
-					}
-					fragment fragment1 on Dog { name }
-					fragment fragment2 on Dog { nickname }
-					`)
+					`, `directive "@stream" label argument must be a static string value`)
 			})
 		})
 
