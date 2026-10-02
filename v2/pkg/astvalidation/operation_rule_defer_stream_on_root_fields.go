@@ -28,6 +28,7 @@ type deferStreamOnValidOpsVisitor struct {
 
 	operation, definition *ast.Document
 	currentOperationType  ast.OperationType
+	currentOperationRef   int
 }
 
 func (d *deferStreamOnValidOpsVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -35,10 +36,12 @@ func (d *deferStreamOnValidOpsVisitor) EnterDocument(operation, definition *ast.
 	d.definition = definition
 	// The walker reuses the visitor, and a fragment definition can come before the first operation.
 	d.currentOperationType = ast.OperationTypeUnknown
+	d.currentOperationRef = -1
 }
 
 func (d *deferStreamOnValidOpsVisitor) EnterOperationDefinition(ref int) {
 	d.currentOperationType = d.operation.OperationDefinitions[ref].OperationType
+	d.currentOperationRef = ref
 }
 
 func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
@@ -60,8 +63,8 @@ func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 	}
 
 	if d.isRootSelection(d.definition.Index.SubscriptionTypeName) ||
-		d.currentOperationType == ast.OperationTypeSubscription &&
-			d.isEnabled(ref) {
+		(d.currentOperationType == ast.OperationTypeSubscription &&
+			d.operation.CoerceIfArgument(ref, d.currentOperationRef) == ast.IfArgumentTrue) {
 		d.StopWithExternalErr(operationreport.ErrDeferStreamDirectiveNotAllowedOnSubs(
 			directiveName,
 			directivePosition,
@@ -98,14 +101,4 @@ func (d *deferStreamOnValidOpsVisitor) isRootSelection(rootTypeName ast.ByteSlic
 		return false
 	}
 	return bytes.Equal(d.definition.NodeNameBytes(parent), rootTypeName)
-}
-
-// isEnabled mirrors the if evaluation of the defer inline normalization.
-func (d *deferStreamOnValidOpsVisitor) isEnabled(ref int) bool {
-	ifValue, hasIf := d.operation.DirectiveArgumentValueByName(ref, literal.IF)
-	if !hasIf {
-		return true
-	}
-	enabled, ok := d.operation.GetBooleanValue(ifValue)
-	return ok && enabled
 }
