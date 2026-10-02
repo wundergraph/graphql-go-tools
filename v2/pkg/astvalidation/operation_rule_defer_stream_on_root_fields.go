@@ -9,12 +9,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-// DeferStreamOnValidOperations validates that defer/stream directives are used on valid operations:
-// - Query operations: @defer and @stream are allowed everywhere (root and nested fields)
-// - Mutation operations: @defer and @stream are NOT allowed on root fields, but allowed on nested fields
-// - Subscription operations: @defer and @stream are NOT allowed anywhere (root or nested fields)
-// Directives with if: false are allowed (disabled directives).
-// Directives with if: $variable are allowed (dynamic directives that can't be statically determined).
+// DeferStreamOnValidOperations rejects @defer and @stream on a selection whose parent type is the mutation or subscription root type, as graphql-js does.
+// In a subscription the rule also rejects a nested directive that the if argument enables.
+// Run the rule as a prevalidation rule, because normalization removes a disabled @defer before full validation.
 func DeferStreamOnValidOperations() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := deferStreamOnValidOpsVisitor{
@@ -36,6 +33,8 @@ type deferStreamOnValidOpsVisitor struct {
 func (d *deferStreamOnValidOpsVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation = operation
 	d.definition = definition
+	// The walker reuses the visitor, and a fragment definition can come before the first operation.
+	d.currentOperationType = ast.OperationTypeUnknown
 }
 
 func (d *deferStreamOnValidOpsVisitor) EnterOperationDefinition(ref int) {
@@ -44,70 +43,69 @@ func (d *deferStreamOnValidOpsVisitor) EnterOperationDefinition(ref int) {
 
 func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 	directiveName := d.operation.DirectiveNameBytes(ref)
-
-	// Only validate @defer and @stream directives
 	if !bytes.Equal(directiveName, literal.DEFER) && !bytes.Equal(directiveName, literal.STREAM) {
 		return
 	}
 
-	if ifValue, hasIf := d.operation.DirectiveArgumentValueByName(ref, literal.IF); hasIf {
-		// The directive is only enabled and checked when the value resolves to true.
-		// This mirrors how inlineDefer works.
-		if enabled, ok := d.operation.GetBooleanValue(ifValue); !ok || !enabled {
-			return
-		}
-	}
-
 	directivePosition := d.operation.Directives[ref].At
 
-	// For subscriptions, @defer and @stream are not allowed anywhere (root or nested)
-	if d.currentOperationType == ast.OperationTypeSubscription {
+	// The walker can visit a fragment definition before the operation, so the message does not read currentOperationType.
+	if d.isRootSelection(d.definition.Index.MutationTypeName) {
+		d.StopWithExternalErr(operationreport.ErrDeferStreamDirectiveNotAllowedOnRootField(
+			directiveName,
+			ast.OperationTypeMutation.Name(),
+			directivePosition,
+		))
+		return
+	}
+
+	if d.isRootSelection(d.definition.Index.SubscriptionTypeName) ||
+		d.currentOperationType == ast.OperationTypeSubscription &&
+			d.isEnabled(ref) {
 		d.StopWithExternalErr(operationreport.ErrDeferStreamDirectiveNotAllowedOnSubs(
 			directiveName,
 			directivePosition,
 		))
-		return
 	}
+}
 
-	// For queries, @defer and @stream are allowed everywhere
-	if d.currentOperationType == ast.OperationTypeQuery {
-		return
-	}
-
+// isRootSelection reports whether the parent type of the directive location is the root type.
+// The walker pushes the type of a field or of a typed inline fragment before it walks the directives of that node.
+// For these nodes the parent type is one entry lower in TypeDefinitions.
+func (d *deferStreamOnValidOpsVisitor) isRootSelection(rootTypeName ast.ByteSlice) bool {
 	if len(d.Ancestors) == 0 {
-		return
+		return false
 	}
 
-	// For mutations, @defer/@stream are only disallowed on root fields.
-	selectionSetCount := 0
-	for _, a := range d.Ancestors {
-		if a.Kind == ast.NodeKindSelectionSet {
-			selectionSetCount++
+	typeDefinitions := d.TypeDefinitions
+	switch location := d.Ancestors[len(d.Ancestors)-1]; location.Kind {
+	case ast.NodeKindField:
+		typeDefinitions = typeDefinitions[:len(typeDefinitions)-1]
+	case ast.NodeKindInlineFragment:
+		if d.operation.InlineFragmentHasTypeCondition(location.Ref) {
+			typeDefinitions = typeDefinitions[:len(typeDefinitions)-1]
 		}
 	}
-	// More than one selection set means the directive is nested below a field.
-	if selectionSetCount != 1 {
-		return
+	if len(typeDefinitions) == 0 {
+		return false
 	}
 
-	isRootLevel := false
-	switch root := d.Ancestors[0]; root.Kind {
-	case ast.NodeKindOperationDefinition:
-		// Directly inside the (mutation) operation's selection set.
-		isRootLevel = true
-	case ast.NodeKindFragmentDefinition:
-		// A fragment defined on the mutation root type contributes the
-		// operation's root fields when spread at the operation root.
-		typeName := d.operation.FragmentDefinitionTypeName(root.Ref)
-		isRootLevel = bytes.Equal(typeName, d.definition.Index.MutationTypeName)
+	parent := typeDefinitions[len(typeDefinitions)-1]
+	// An unknown field pushes an invalid node with an empty name.
+	// A schema without the root type has an empty root type name.
+	// Only an object type definition can be a root type, so an invalid parent does not match an empty root type name.
+	if parent.Kind != ast.NodeKindObjectTypeDefinition {
+		return false
 	}
+	return bytes.Equal(d.definition.NodeNameBytes(parent), rootTypeName)
+}
 
-	if isRootLevel {
-		operationTypeName := d.currentOperationType.Name()
-		d.StopWithExternalErr(operationreport.ErrDeferStreamDirectiveNotAllowedOnRootField(
-			directiveName,
-			operationTypeName,
-			directivePosition,
-		))
+// isEnabled mirrors the if evaluation of the defer inline normalization.
+func (d *deferStreamOnValidOpsVisitor) isEnabled(ref int) bool {
+	ifValue, hasIf := d.operation.DirectiveArgumentValueByName(ref, literal.IF)
+	if !hasIf {
+		return true
 	}
+	enabled, ok := d.operation.GetBooleanValue(ifValue)
+	return ok && enabled
 }

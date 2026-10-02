@@ -25,6 +25,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/staticdatasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 )
@@ -147,6 +148,14 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			require.Error(t, err)
 			if expectedErrorMessage != "" {
 				assert.Equal(t, expectedErrorMessage, err.Error())
+			}
+			if testCase.expectedErrorResponse != "" {
+				var requestErrors graphqlerrors.RequestErrors
+				require.ErrorAs(t, err, &requestErrors)
+				errorResponse := bytes.NewBuffer(nil)
+				_, writeErr := requestErrors.WriteResponse(errorResponse)
+				require.NoError(t, writeErr)
+				assert.Equal(t, testCase.expectedErrorResponse, errorResponse.String())
 			}
 		} else {
 			require.NoError(t, err)
@@ -372,6 +381,7 @@ type ExecutionEngineTestCase struct {
 	expectedResponse      string
 	expectedResponses     []string
 	expectedJSONResponse  string
+	expectedErrorResponse string
 	expectedFixture       string
 	expectedEstimatedCost *int
 	expectedActualCost    *int
