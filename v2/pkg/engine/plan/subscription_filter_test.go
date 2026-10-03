@@ -1056,3 +1056,19 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 	))
 }
+
+func TestBuildSubscriptionFilterConditionPropagatesBypassIfValuesNull(t *testing.T) {
+	visitor := &pathBuilderVisitor{}
+
+	filter := visitor.buildSubscriptionFilterCondition(SubscriptionFilterCondition{
+		In: &SubscriptionFieldCondition{
+			FieldPath:          []string{"id"},
+			Values:             []string{`"1"`},
+			BypassIfValuesNull: true,
+		},
+	})
+
+	require.NotNil(t, filter)
+	require.NotNil(t, filter.In)
+	assert.True(t, filter.In.BypassIfValuesNull)
+}
