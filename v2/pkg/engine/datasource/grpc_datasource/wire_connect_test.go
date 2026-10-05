@@ -8,8 +8,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 )
 
 // marshalDynamic builds a dynamicpb message using the runtime's descriptor and marshals it via proto.Marshal.
@@ -1070,5 +1072,17 @@ func TestCreateProtoWire(t *testing.T) {
 			msg.Set(tagGroupsField, protoref.ValueOfMessage(outer))
 		})
 		assertProtoEqual(t, runtime, "NestedListRequest", expected, got)
+	})
+}
+
+func TestConvertProtoRefValue(t *testing.T) {
+	t.Run("map value returns error", func(t *testing.T) {
+		// Protographic does not generate map fields. Thus a map value must give an error.
+		msg := (&structpb.Struct{Fields: map[string]*structpb.Value{"key": structpb.NewStringValue("value")}}).ProtoReflect()
+		mapValue := msg.Get(msg.Descriptor().Fields().ByName("fields"))
+
+		value, err := convertProtoRefValue(arena.NewMonotonicArena(), mapValue)
+		require.ErrorContains(t, err, "unsupported type")
+		require.Nil(t, value)
 	})
 }

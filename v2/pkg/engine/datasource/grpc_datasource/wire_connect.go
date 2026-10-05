@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -43,7 +42,11 @@ func (w *wireMessage) createProtoWireWithContext(a arena.Arena, data *astjson.Va
 	for _, contextValues := range contextValues {
 		contextVariable := astjson.ObjectValue(a)
 		for fieldName, contextValue := range contextValues {
-			contextVariable.Set(a, fieldName, convertProtoRefValue(a, contextValue))
+			value, err := convertProtoRefValue(a, contextValue)
+			if err != nil {
+				return nil, err
+			}
+			contextVariable.Set(a, fieldName, value)
 		}
 
 		contextVariables.SetArrayItem(a, arrayIndex, contextVariable)
@@ -633,49 +636,52 @@ func resolveUnderlyingListItems(value protoref.Value, nestingLevel int) []protor
 	return result
 }
 
-func convertProtoRefValue(a arena.Arena, value protoref.Value) *astjson.Value {
+func convertProtoRefValue(a arena.Arena, value protoref.Value) (*astjson.Value, error) {
 	switch t := value.Interface().(type) {
 	case nil:
-		return astjson.NullValue
+		return astjson.NullValue, nil
 	case bool:
 		if t {
-			return astjson.TrueValue(a)
+			return astjson.TrueValue(a), nil
 		}
-		return astjson.FalseValue(a)
+		return astjson.FalseValue(a), nil
 	case int32:
-		return astjson.IntValue(a, int(t))
+		return astjson.IntValue(a, int(t)), nil
 	case int64:
-		return astjson.NumberValue(a, strconv.FormatInt(t, 10))
+		return astjson.NumberValue(a, strconv.FormatInt(t, 10)), nil
 	case uint32:
-		return astjson.NumberValue(a, strconv.FormatUint(uint64(t), 10))
+		return astjson.NumberValue(a, strconv.FormatUint(uint64(t), 10)), nil
 	case uint64:
-		return astjson.NumberValue(a, strconv.FormatUint(t, 10))
+		return astjson.NumberValue(a, strconv.FormatUint(t, 10)), nil
 	case float32:
-		return astjson.FloatValue(a, float64(t))
+		return astjson.FloatValue(a, float64(t)), nil
 	case float64:
-		return astjson.FloatValue(a, t)
+		return astjson.FloatValue(a, t), nil
 	case string:
-		return astjson.StringValue(a, t)
+		return astjson.StringValue(a, t), nil
 	case []byte:
-		return astjson.StringValueBytes(a, t)
+		return astjson.StringValueBytes(a, t), nil
 	case protoref.EnumNumber:
-		return astjson.IntValue(a, int(t))
+		return astjson.IntValue(a, int(t)), nil
 	case protoref.List:
 		av := astjson.ArrayValue(a)
 		for i := range t.Len() {
 			item := t.Get(i)
-			av.SetArrayItem(a, i, convertProtoRefValue(a, item))
+			value, err := convertProtoRefValue(a, item)
+			if err != nil {
+				return nil, err
+			}
+			av.SetArrayItem(a, i, value)
 		}
-		return av
+		return av, nil
 	case protoref.Message:
 		bytes, err := proto.Marshal(t.Interface())
 		if err != nil {
-			return astjson.NullValue
+			return nil, err
 		}
 
-		return astjson.StringValueBytes(a, bytes)
+		return astjson.StringValueBytes(a, bytes), nil
 	default:
-		fmt.Println("unsupported type", reflect.TypeOf(t).Name())
-		return astjson.NullValue
+		return nil, fmt.Errorf("unsupported type %T", t)
 	}
 }
