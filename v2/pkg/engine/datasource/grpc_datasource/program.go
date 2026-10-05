@@ -459,9 +459,7 @@ func compileStageIndexes(plan *RPCExecutionPlan, positionsByID map[int]int) ([]i
 			// If the dependent call has already been visited, we are checking if the level of the dependent call is greater than the current level.
 			// If it is, we are updating the current level to the level of the dependent call.
 			if depLevel := stageIndexes[depCallIndex]; depLevel >= 0 {
-				if depLevel > currentLevel {
-					currentLevel = depLevel
-				}
+				currentLevel = max(currentLevel, depLevel)
 				continue
 			}
 
@@ -471,9 +469,7 @@ func compileStageIndexes(plan *RPCExecutionPlan, positionsByID map[int]int) ([]i
 			}
 
 			// If the level of the dependent call is greater than the current level, we are updating the current level to the level of the dependent call.
-			if l := stageIndexes[depCallIndex]; l > currentLevel {
-				currentLevel = l
-			}
+			currentLevel = max(currentLevel, stageIndexes[depCallIndex])
 		}
 
 		// After receiving the maximum level of the dependent calls, we increment the level by 1.
