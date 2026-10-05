@@ -951,4 +951,124 @@ func TestCreateProtoWire(t *testing.T) {
 
 		assertProtoEqual(t, runtime, "LookupProductByIdRequest", expected, got)
 	})
+
+	t.Run("float field uses fixed32", func(t *testing.T) {
+		// GraphQL Float maps to DataTypeDouble, but the proto field is a float.
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ScalarRequest",
+			Fields: RPCFields{
+				{Name: "ratio", ProtoTypeName: DataTypeDouble, JSONPath: "ratio"},
+				{Name: "ratios", ProtoTypeName: DataTypeDouble, JSONPath: "ratios", Repeated: true},
+			},
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		got, err := wm.createProtoWire(astjson.MustParse(`{"ratio":1.5,"ratios":[0.25,-2.5]}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("ratio"), protoref.ValueOfFloat32(1.5))
+			list := msg.Mutable(desc.Fields().ByName("ratios")).List()
+			list.Append(protoref.ValueOfFloat32(0.25))
+			list.Append(protoref.ValueOfFloat32(-2.5))
+		})
+
+		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
+	})
+
+	t.Run("numeric ID for string field", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "LookupProductByIdRequest",
+			Fields: RPCFields{
+				{
+					Name:          "keys",
+					ProtoTypeName: DataTypeMessage,
+					Repeated:      true,
+					JSONPath:      "representations",
+					Message: &RPCMessage{
+						Name:        "LookupProductByIdRequestKey",
+						MemberTypes: []string{"Product"},
+						Fields: RPCFields{
+							{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+						},
+					},
+				},
+			},
+		}, runtime.getMessageByName("LookupProductByIdRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		got, err := wm.createProtoWire(astjson.MustParse(`{"representations":[{"__typename":"Product","id":123},{"__typename":"Product","id":-5}]}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "LookupProductByIdRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			keysField := desc.Fields().ByName("keys")
+			keyDesc := keysField.Message()
+			list := msg.Mutable(keysField).List()
+
+			for _, id := range []string{"123", "-5"} {
+				key := dynamicpb.NewMessage(keyDesc)
+				key.Set(keyDesc.Fields().ByName("id"), protoref.ValueOfString(id))
+				list.Append(protoref.ValueOfMessage(key))
+			}
+		})
+
+		assertProtoEqual(t, runtime, "LookupProductByIdRequest", expected, got)
+	})
+
+	t.Run("negative enum value", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "EnumRequest",
+			Fields: RPCFields{
+				{Name: "status", ProtoTypeName: DataTypeEnum, JSONPath: "status", EnumName: "Status"},
+				{Name: "statuses", ProtoTypeName: DataTypeEnum, JSONPath: "statuses", EnumName: "Status", Repeated: true},
+			},
+		}, runtime.getMessageByName("EnumRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		got, err := wm.createProtoWire(astjson.MustParse(`{"status":"DELETED","statuses":["ACTIVE","DELETED"]}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("status"), protoref.ValueOfEnum(-1))
+			list := msg.Mutable(desc.Fields().ByName("statuses")).List()
+			list.Append(protoref.ValueOfEnum(1))
+			list.Append(protoref.ValueOfEnum(-1))
+		})
+
+		assertProtoEqual(t, runtime, "EnumRequest", expected, got)
+	})
+
+	t.Run("required list wrapper empty returns empty wrapper", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "NestedListRequest",
+			Fields: RPCFields{
+				{
+					Name:          "tag_groups",
+					ProtoTypeName: DataTypeString,
+					JSONPath:      "tagGroups",
+					IsListType:    true,
+					ListMetadata: &ListMetadata{
+						NestingLevel: 2,
+						LevelInfo:    []LevelInfo{{Optional: false}, {Optional: false}},
+					},
+				},
+			},
+		}, runtime.getMessageByName("NestedListRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		// A non-null list forbids null, not an empty list.
+		got, err := wm.createProtoWire(astjson.MustParse(`{"tagGroups":[]}`))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "NestedListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			tagGroupsField := desc.Fields().ByName("tag_groups")
+			outerDesc := tagGroupsField.Message()
+			outerListField := outerDesc.Fields().ByName("list")
+
+			outer := dynamicpb.NewMessage(outerDesc)
+			outer.Set(outerListField, protoref.ValueOfMessage(dynamicpb.NewMessage(outerListField.Message())))
+			msg.Set(tagGroupsField, protoref.ValueOfMessage(outer))
+		})
+		assertProtoEqual(t, runtime, "NestedListRequest", expected, got)
+	})
 }

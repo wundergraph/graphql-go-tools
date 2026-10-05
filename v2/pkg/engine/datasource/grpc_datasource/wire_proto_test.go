@@ -762,7 +762,7 @@ func TestCreateProtoMessage(t *testing.T) {
 		assert.Contains(t, err.Error(), "field name is required but has no value")
 	})
 
-	t.Run("required list wrapper empty returns error", func(t *testing.T) {
+	t.Run("required list wrapper empty returns empty wrapper", func(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "NestedListRequest",
 			Fields: RPCFields{
@@ -780,9 +780,195 @@ func TestCreateProtoMessage(t *testing.T) {
 		}, runtime.getMessageByName("NestedListRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
 
-		_, err := wm.createProtoMessage(astjson.MustParse(`{"tagGroups":[]}`))
+		// A non-null list forbids null, not an empty list.
+		got, err := wm.createProtoMessage(astjson.MustParse(`{"tagGroups":[]}`))
+		require.NoError(t, err)
+
+		expected := buildExpectedProto(t, runtime, "NestedListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			tagGroupsField := desc.Fields().ByName("tag_groups")
+			outerDesc := tagGroupsField.Message()
+			outerListField := outerDesc.Fields().ByName("list")
+
+			outer := dynamicpb.NewMessage(outerDesc)
+			outer.Set(outerListField, protoref.ValueOfMessage(dynamicpb.NewMessage(outerListField.Message())))
+			msg.Set(tagGroupsField, protoref.ValueOfMessage(outer))
+		})
+		assertProtoMessageEqual(t, expected, got)
+	})
+
+	t.Run("required list wrapper null returns error", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "NestedListRequest",
+			Fields: RPCFields{
+				{
+					Name:          "tag_groups",
+					ProtoTypeName: DataTypeString,
+					JSONPath:      "tagGroups",
+					IsListType:    true,
+					ListMetadata: &ListMetadata{
+						NestingLevel: 2,
+						LevelInfo:    []LevelInfo{{Optional: false}, {Optional: false}},
+					},
+				},
+			},
+		}, runtime.getMessageByName("NestedListRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		_, err := wm.createProtoMessage(astjson.MustParse(`{"tagGroups":[null]}`))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "list is required but has no elements")
+	})
+
+	t.Run("float field uses proto float kind", func(t *testing.T) {
+		// GraphQL Float maps to DataTypeDouble, but the proto field is a float.
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ScalarRequest",
+			Fields: RPCFields{
+				{Name: "ratio", ProtoTypeName: DataTypeDouble, JSONPath: "ratio"},
+				{Name: "ratios", ProtoTypeName: DataTypeDouble, JSONPath: "ratios", Repeated: true},
+			},
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		got, err := wm.createProtoMessage(astjson.MustParse(`{"ratio":1.5,"ratios":[0.25,-2.5]}`))
+		require.NoError(t, err)
+
+		expected := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("ratio"), protoref.ValueOfFloat32(1.5))
+			list := msg.Mutable(desc.Fields().ByName("ratios")).List()
+			list.Append(protoref.ValueOfFloat32(0.25))
+			list.Append(protoref.ValueOfFloat32(-2.5))
+		})
+		assertProtoMessageEqual(t, expected, got)
+	})
+
+	t.Run("numeric ID for string field", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "LookupProductByIdRequest",
+			Fields: RPCFields{
+				{
+					Name:          "keys",
+					ProtoTypeName: DataTypeMessage,
+					Repeated:      true,
+					JSONPath:      "representations",
+					Message: &RPCMessage{
+						Name:        "LookupProductByIdRequestKey",
+						MemberTypes: []string{"Product"},
+						Fields: RPCFields{
+							{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+						},
+					},
+				},
+			},
+		}, runtime.getMessageByName("LookupProductByIdRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		got, err := wm.createProtoMessage(astjson.MustParse(`{"representations":[{"__typename":"Product","id":123},{"__typename":"Product","id":-5}]}`))
+		require.NoError(t, err)
+
+		expected := buildExpectedProto(t, runtime, "LookupProductByIdRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			keysField := desc.Fields().ByName("keys")
+			keyDesc := keysField.Message()
+			list := msg.Mutable(keysField).List()
+
+			for _, id := range []string{"123", "-5"} {
+				key := dynamicpb.NewMessage(keyDesc)
+				key.Set(keyDesc.Fields().ByName("id"), protoref.ValueOfString(id))
+				list.Append(protoref.ValueOfMessage(key))
+			}
+		})
+		assertProtoMessageEqual(t, expected, got)
+	})
+
+	t.Run("negative enum value", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "EnumRequest",
+			Fields: RPCFields{
+				{Name: "status", ProtoTypeName: DataTypeEnum, JSONPath: "status", EnumName: "Status"},
+				{Name: "statuses", ProtoTypeName: DataTypeEnum, JSONPath: "statuses", EnumName: "Status", Repeated: true},
+			},
+		}, runtime.getMessageByName("EnumRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		got, err := wm.createProtoMessage(astjson.MustParse(`{"status":"DELETED","statuses":["ACTIVE","DELETED"]}`))
+		require.NoError(t, err)
+
+		expected := buildExpectedProto(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("status"), protoref.ValueOfEnum(-1))
+			list := msg.Mutable(desc.Fields().ByName("statuses")).List()
+			list.Append(protoref.ValueOfEnum(1))
+			list.Append(protoref.ValueOfEnum(-1))
+		})
+		assertProtoMessageEqual(t, expected, got)
+	})
+}
+
+func TestCreateProtoMessageWithContext(t *testing.T) {
+	runtime := newWireTestRuntime(t)
+
+	t.Run("context field with different proto and JSON names", func(t *testing.T) {
+		requestRT := runtime.getMessageByName("ResolveMetricRequest")
+		contextRT := runtime.getMessageByName("MetricContext")
+
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ResolveMetricRequest",
+			Fields: RPCFields{
+				{
+					Name:          "field_args",
+					ProtoTypeName: DataTypeMessage,
+					JSONPath:      "",
+					Message: &RPCMessage{
+						Name: "MetricArgs",
+						Fields: RPCFields{
+							{Name: "baseline", ProtoTypeName: DataTypeDouble, JSONPath: "baseline"},
+						},
+					},
+				},
+			},
+		}, requestRT)
+		wm := compileTestWireMessage(t, runtime, message)
+
+		// The JSON name metricType differs from the proto name metric_type.
+		requestContext := &fetchRequestContext{
+			message: contextRT,
+			fields: []fetchRequestContextField{
+				{runtime: contextRT.fieldsByName["id"], jsonName: "id", resolvePath: buildPath("metrics.id")},
+				{runtime: contextRT.fieldsByName["metric_type"], jsonName: "metricType", resolvePath: buildPath("metrics.metric_type")},
+			},
+		}
+
+		upstream := buildExpectedProto(t, runtime, "MetricsResponse", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			metricsField := desc.Fields().ByName("metrics")
+			metricDesc := metricsField.Message()
+			list := msg.Mutable(metricsField).List()
+			for _, id := range []string{"1", "2"} {
+				metric := dynamicpb.NewMessage(metricDesc)
+				metric.Set(metricDesc.Fields().ByName("id"), protoref.ValueOfString(id))
+				metric.Set(metricDesc.Fields().ByName("metric_type"), protoref.ValueOfString("popularity_score"))
+				list.Append(protoref.ValueOfMessage(metric))
+			}
+		})
+
+		got, err := wm.createProtoMessageWithContext(nil, astjson.MustParse(`{"baseline":100}`), requestContext, upstream)
+		require.NoError(t, err)
+
+		expected := buildExpectedProto(t, runtime, "ResolveMetricRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			contextField := desc.Fields().ByName("context")
+			contextDesc := contextField.Message()
+			list := msg.Mutable(contextField).List()
+			for _, id := range []string{"1", "2"} {
+				elem := dynamicpb.NewMessage(contextDesc)
+				elem.Set(contextDesc.Fields().ByName("id"), protoref.ValueOfString(id))
+				elem.Set(contextDesc.Fields().ByName("metric_type"), protoref.ValueOfString("popularity_score"))
+				list.Append(protoref.ValueOfMessage(elem))
+			}
+
+			argsField := desc.Fields().ByName("field_args")
+			args := dynamicpb.NewMessage(argsField.Message())
+			args.Set(argsField.Message().Fields().ByName("baseline"), protoref.ValueOfFloat64(100))
+			msg.Set(argsField, protoref.ValueOfMessage(args))
+		})
+		assertProtoMessageEqual(t, expected, got)
 	})
 }
 

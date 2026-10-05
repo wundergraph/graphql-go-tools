@@ -97,7 +97,12 @@ func (f *request) createProtoMessageWithContext(a arena.Arena, requestVariables 
 }
 
 func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, error) {
-	stageIndexes, err := compileStageIndexes(plan)
+	positionsByID := make(map[int]int, len(plan.Calls))
+	for i := range plan.Calls {
+		positionsByID[plan.Calls[i].ID] = i
+	}
+
+	stageIndexes, err := compileStageIndexes(plan, positionsByID)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +127,11 @@ func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, e
 		// Currently we only support one dependent call.
 		var dependentCall *RPCCall
 		if len(call.DependentCalls) > 0 {
-			dependentCall = &plan.Calls[call.DependentCalls[0]]
+			position, found := positionsByID[call.DependentCalls[0]]
+			if !found {
+				return nil, fmt.Errorf("unable to find dependent call %d in execution plan", call.DependentCalls[0])
+			}
+			dependentCall = &plan.Calls[position]
 		}
 
 		fetch, err := compileFetch(call, runtime, dependentCall)
@@ -130,7 +139,7 @@ func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, e
 			return nil, err
 		}
 
-		stageMap[stageIndexes[call.ID]] = append(stageMap[stageIndexes[call.ID]], fetch)
+		stageMap[stageIndexes[i]] = append(stageMap[stageIndexes[i]], fetch)
 	}
 
 	for i := 0; i < stageCount; i++ {
@@ -143,7 +152,7 @@ func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, e
 }
 
 func compileFetch(call *RPCCall, runtime *runtimeSchema, dependentCall *RPCCall) (fetchProgram, error) {
-	serviceName, ok := runtime.serviceNamesByMethod[call.MethodName]
+	serviceName, ok := runtime.resolveServiceName(call.ServiceName, call.MethodName)
 	if !ok {
 		return fetchProgram{}, fmt.Errorf("service name not found for method %s", call.MethodName)
 	}
@@ -416,7 +425,9 @@ func compileFetchRequestContext(message, contextMessage *runtimeMessage, rpcMess
 	return fetchRequestContext, nil
 }
 
-func compileStageIndexes(plan *RPCExecutionPlan) ([]int, error) {
+// compileStageIndexes returns the stage index for each call position in the plan.
+// Dependent calls are call IDs. The positionsByID map converts them to positions.
+func compileStageIndexes(plan *RPCExecutionPlan, positionsByID map[int]int) ([]int, error) {
 	// We are using a slice to store the batch index for each noded ordered.
 	stageIndexes := initializeSlice(len(plan.Calls), -1)
 	cycleChecks := make([]bool, len(plan.Calls))
@@ -439,9 +450,10 @@ func compileStageIndexes(plan *RPCExecutionPlan) ([]int, error) {
 
 		currentLevel := 0
 		// We are iterating over the dependent calls of the current call.
-		for _, depCallIndex := range call.DependentCalls {
-			if depCallIndex < 0 || depCallIndex >= len(plan.Calls) {
-				return fmt.Errorf("unable to find dependent call %d in execution plan", depCallIndex)
+		for _, depCallID := range call.DependentCalls {
+			depCallIndex, found := positionsByID[depCallID]
+			if !found {
+				return fmt.Errorf("unable to find dependent call %d in execution plan", depCallID)
 			}
 
 			// If the dependent call has already been visited, we are checking if the level of the dependent call is greater than the current level.

@@ -1222,6 +1222,66 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 	}
 }
 
+// Test_DataSource_Load_WithFieldResolverAndSecondRootField tests a field resolver next to a second root field.
+// The call IDs are then not equal to the call positions in the plan.
+func Test_DataSource_Load_WithFieldResolverAndSecondRootField(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	query := `query CategoriesAndUsers { categories { id productCount } users { id } }`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	input := fmt.Sprintf(`{"query":%q,"body":{}}`, query)
+	output, err := ds.Load(context.Background(), nil, []byte(input))
+	require.NoError(t, err)
+
+	var resp struct {
+		Data struct {
+			Categories []struct {
+				ID           string `json:"id"`
+				ProductCount int    `json:"productCount"`
+			} `json:"categories"`
+			Users []struct {
+				ID string `json:"id"`
+			} `json:"users"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors,omitempty"`
+	}
+
+	err = json.Unmarshal(output, &resp)
+	require.NoError(t, err, "Failed to unmarshal response")
+	require.Empty(t, resp.Errors, "Response should not contain errors")
+
+	require.NotEmpty(t, resp.Data.Categories, "Categories array should not be empty")
+	require.NotEmpty(t, resp.Data.Users, "Users array should not be empty")
+	for _, category := range resp.Data.Categories {
+		require.NotEmpty(t, category.ID, "Category ID should not be empty")
+	}
+	for _, user := range resp.Data.Users {
+		require.NotEmpty(t, user.ID, "User ID should not be empty")
+	}
+}
+
 // Test_DataSource_Load_WithAliases tests various GraphQL alias scenarios
 // with the actual gRPC service using bufconn
 func Test_DataSource_Load_WithAliases(t *testing.T) {

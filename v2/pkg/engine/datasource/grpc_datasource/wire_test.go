@@ -20,6 +20,7 @@ enum Status {
   STATUS_UNSPECIFIED = 0;
   STATUS_ACTIVE = 1;
   STATUS_INACTIVE = 2;
+  STATUS_DELETED = -1;
 }
 
 message EmptyRequest {}
@@ -29,6 +30,8 @@ message ScalarRequest {
   int32 age = 2;
   double score = 3;
   bool active = 4;
+  float ratio = 5;
+  repeated float ratios = 6;
 }
 
 message WrapperScalarRequest {
@@ -164,6 +167,29 @@ message UnionOneOfRequest {
 	}
 }
 
+message MetricContext {
+  string id = 1;
+  string metric_type = 2;
+}
+
+message MetricArgs {
+  double baseline = 1;
+}
+
+message ResolveMetricRequest {
+  repeated MetricContext context = 1;
+  MetricArgs field_args = 2;
+}
+
+message Metric {
+  string id = 1;
+  string metric_type = 2;
+}
+
+message MetricsResponse {
+  repeated Metric metrics = 1;
+}
+
 service TestService {
   rpc Empty(EmptyRequest) returns (EmptyRequest) {}
   rpc Scalar(ScalarRequest) returns (ScalarRequest) {}
@@ -186,6 +212,7 @@ func testWireMapping() *GRPCMapping {
 				{Value: "UNSPECIFIED", TargetValue: "STATUS_UNSPECIFIED"},
 				{Value: "ACTIVE", TargetValue: "STATUS_ACTIVE"},
 				{Value: "INACTIVE", TargetValue: "STATUS_INACTIVE"},
+				{Value: "DELETED", TargetValue: "STATUS_DELETED"},
 			},
 		},
 	}

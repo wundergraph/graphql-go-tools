@@ -109,6 +109,21 @@ func Test_DataSource_loadWithConnect_ParityWithGRPC(t *testing.T) {
 				{TypeName: "Storage", FieldName: "tagSummary", SelectionSet: "tags"},
 			},
 		},
+		{
+			name:  "field resolver with context field name different from JSON name",
+			query: `query CategoriesWithNestedResolvers($metricType: String, $baseline: Float!) { categories { categoryMetrics(metricType: $metricType) { id normalizedScore(baseline: $baseline) metricType value } } }`,
+			vars:  `{"variables":{"metricType":"popularity_score","baseline":100}}`,
+		},
+		{
+			name:  "mutation with empty non-null nested list",
+			query: `mutation($input: AuthorInput!) { createAuthor(input: $input) { name teamsByProject } }`,
+			vars:  `{"variables":{"input":{"name":"A","skills":[],"languages":[],"teamsByProject":[],"favoriteCategories":[]}}}`,
+		},
+		{
+			name:  "mutation with empty non-null inner list",
+			query: `mutation($input: AuthorInput!) { createAuthor(input: $input) { name teamsByProject } }`,
+			vars:  `{"variables":{"input":{"name":"A","skills":[],"languages":[],"teamsByProject":[[]],"favoriteCategories":[]}}}`,
+		},
 	}
 
 	schemaDoc := grpctest.MustGraphQLSchema(t)

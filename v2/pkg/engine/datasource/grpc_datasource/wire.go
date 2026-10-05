@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protowire"
+
+	"github.com/wundergraph/astjson"
 )
 
 var errShouldSkip = errors.New("skip")
@@ -40,7 +42,7 @@ type wireField struct {
 	tag          []byte
 	runtime      *runtimeField
 	number       protowire.Number
-	dataType     DataType
+	dataType     DataType // GraphQL data type. Use runtime.dataType to encode scalar values.
 	wireType     protowire.Type
 	runtimeEnum  *runtimeEnum
 	staticValue  string
@@ -163,4 +165,14 @@ func compileMessageFields(schema *runtimeSchema, messageFields []programField, c
 	}
 
 	return fields, nil
+}
+
+// jsonStringBytes returns the bytes of a JSON string value.
+// For a JSON number, it returns the raw number text, for example a numeric GraphQL ID.
+func jsonStringBytes(data *astjson.Value) []byte {
+	if data.Type() == astjson.TypeNumber {
+		return data.MarshalTo(nil)
+	}
+
+	return data.GetStringBytes()
 }

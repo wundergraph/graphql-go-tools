@@ -308,3 +308,102 @@ func TestCompileProgram_StageOrdering(t *testing.T) {
 	assert.Contains(t, methods, "ResolveCategoryProductCount")
 	assert.Contains(t, methods, "ResolveCategoryPopularityScore")
 }
+
+func TestCompileProgram_DependentCallIDsNotInPlanOrder(t *testing.T) {
+	t.Parallel()
+
+	// The planner adds the field resolver call after the second root call.
+	// The call IDs are then not equal to the call positions in the plan.
+	p := compileProgramFromQuery(t, `query { categories { id productCount } users { id } }`)
+
+	require.Len(t, p.stages, 2, "expected 2 stages")
+	require.Len(t, p.stages[0].fetches, 2, "stage 0 should have 2 fetches (QueryCategories, QueryUsers)")
+	require.Len(t, p.stages[1].fetches, 1, "stage 1 should have 1 fetch (ResolveCategoryProductCount)")
+
+	resolver := p.stages[1].fetches[0]
+	assert.Equal(t, "ResolveCategoryProductCount", resolver.methodName)
+	require.NotNil(t, resolver.dependentCall)
+	assert.Equal(t, "QueryCategories", resolver.dependentCall.MethodName)
+
+	stageZeroIDs := []int{p.stages[0].fetches[0].id, p.stages[0].fetches[1].id}
+	assert.Contains(t, stageZeroIDs, resolver.dependentCall.ID)
+}
+
+const sharedMethodProtoSchema = `syntax = "proto3";
+package svc.v1;
+
+service First {
+  rpc Shared(Req) returns (Resp) {}
+  rpc OnlyFirst(Req) returns (Resp) {}
+}
+
+service Second {
+  rpc Shared(Req) returns (Resp) {}
+}
+
+message Req { string id = 1; }
+message Resp { string id = 1; }
+`
+
+func TestCompileFetch_ServiceName(t *testing.T) {
+	t.Parallel()
+
+	compiler, err := NewProtoCompiler(sharedMethodProtoSchema, nil)
+	require.NoError(t, err)
+
+	runtime, err := newSchemaRuntime(compiler.doc)
+	require.NoError(t, err)
+
+	newCall := func(serviceName, methodName string) *RPCCall {
+		return &RPCCall{
+			ServiceName: serviceName,
+			MethodName:  methodName,
+			Request:     RPCMessage{Name: "Req"},
+			Response:    RPCMessage{Name: "Resp"},
+		}
+	}
+
+	t.Run("short service name selects the named service", func(t *testing.T) {
+		t.Parallel()
+
+		f, err := compileFetch(newCall("First", "Shared"), runtime, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "svc.v1.First", f.serviceName)
+		assert.Equal(t, "/svc.v1.First/Shared", f.methodFullName)
+
+		f, err = compileFetch(newCall("Second", "Shared"), runtime, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "/svc.v1.Second/Shared", f.methodFullName)
+	})
+
+	t.Run("full service name selects the named service", func(t *testing.T) {
+		t.Parallel()
+
+		f, err := compileFetch(newCall("svc.v1.First", "Shared"), runtime, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "/svc.v1.First/Shared", f.methodFullName)
+	})
+
+	t.Run("unknown service name falls back to the method name", func(t *testing.T) {
+		t.Parallel()
+
+		f, err := compileFetch(newCall("Products", "OnlyFirst"), runtime, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "/svc.v1.First/OnlyFirst", f.methodFullName)
+	})
+
+	t.Run("service without the method falls back to the method name", func(t *testing.T) {
+		t.Parallel()
+
+		f, err := compileFetch(newCall("Second", "OnlyFirst"), runtime, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "/svc.v1.First/OnlyFirst", f.methodFullName)
+	})
+
+	t.Run("unknown method returns an error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := compileFetch(newCall("First", "Missing"), runtime, nil)
+		require.Error(t, err)
+	})
+}

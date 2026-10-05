@@ -14,6 +14,13 @@ type runtimeSchema struct {
 	messageByFullname    map[string]*runtimeMessage
 	enumByName           map[string]*runtimeEnum
 	serviceNamesByMethod map[string]string
+	servicesByName       map[string]*runtimeService
+}
+
+// runtimeService holds the full name and the method names of a service.
+type runtimeService struct {
+	fullName string
+	methods  map[string]struct{}
 }
 
 type runtimeMessage struct {
@@ -49,6 +56,7 @@ func newSchemaRuntime(doc *Document) (*runtimeSchema, error) {
 		messageByName:        make(map[string]*runtimeMessage, len(doc.Messages)),
 		messageByFullname:    make(map[string]*runtimeMessage, len(doc.Messages)),
 		serviceNamesByMethod: make(map[string]string, len(doc.Methods)),
+		servicesByName:       make(map[string]*runtimeService, len(doc.Services)*2),
 		enumByName:           make(map[string]*runtimeEnum, len(doc.Enums)),
 	}
 
@@ -73,9 +81,19 @@ func newSchemaRuntime(doc *Document) (*runtimeSchema, error) {
 	}
 
 	for _, service := range doc.Services {
+		rtService := &runtimeService{
+			fullName: service.FullName,
+			methods:  make(map[string]struct{}, len(service.MethodsRefs)),
+		}
+
 		for _, ref := range service.MethodsRefs {
 			runtime.serviceNamesByMethod[doc.Methods[ref].Name] = service.FullName
+			rtService.methods[doc.Methods[ref].Name] = struct{}{}
 		}
+
+		// Register the service by its short name and by its full name.
+		runtime.servicesByName[service.Name] = rtService
+		runtime.servicesByName[service.FullName] = rtService
 	}
 
 	for _, enum := range doc.Enums {
@@ -149,4 +167,17 @@ func (r *runtimeSchema) getMessageByFullName(fullname string) *runtimeMessage {
 
 func (m *runtimeMessage) newEmptyMessage() protoref.Message {
 	return m.dynamicType.New()
+}
+
+// resolveServiceName returns the full service name for a call.
+// It prefers the service named by the call and falls back to the method name.
+func (r *runtimeSchema) resolveServiceName(serviceName, methodName string) (string, bool) {
+	if service, ok := r.servicesByName[serviceName]; ok {
+		if _, ok := service.methods[methodName]; ok {
+			return service.fullName, true
+		}
+	}
+
+	fullName, ok := r.serviceNamesByMethod[methodName]
+	return fullName, ok
 }
