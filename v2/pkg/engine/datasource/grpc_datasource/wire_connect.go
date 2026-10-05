@@ -122,7 +122,6 @@ func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) er
 		}
 
 		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), fieldsBuffer.Bytes()))
-		fieldsBuffer.Reset()
 		return nil
 	}
 
@@ -331,7 +330,6 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 		}
 		buf.Write(f.tag)
 		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), childBuf.Bytes()))
-		childBuf.Reset()
 		return nil
 	}
 

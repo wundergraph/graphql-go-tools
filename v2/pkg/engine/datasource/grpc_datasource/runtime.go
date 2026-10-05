@@ -60,9 +60,7 @@ func newSchemaRuntime(doc *Document) (*runtimeSchema, error) {
 		enumByName:           make(map[string]*runtimeEnum, len(doc.Enums)),
 	}
 
-	for i := range doc.Messages {
-		message := &doc.Messages[i]
-
+	for _, message := range doc.Messages {
 		rtMessage := &runtimeMessage{
 			name:         message.Name,
 			desc:         message.Desc,
@@ -116,8 +114,9 @@ func newSchemaRuntime(doc *Document) (*runtimeSchema, error) {
 }
 
 func appendMessageFields(runtime *runtimeSchema, message *runtimeMessage) error {
-	for i := 0; i < message.desc.Fields().Len(); i++ {
-		fieldDesc := message.desc.Fields().Get(i)
+	fields := message.desc.Fields()
+	for i := range fields.Len() {
+		fieldDesc := fields.Get(i)
 
 		field := &runtimeField{
 			owner:    message,
