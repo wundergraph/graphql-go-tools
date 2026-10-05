@@ -28,30 +28,14 @@ func newEntityIndexMap(requestedEntityType string, representations []*astjson.Va
 	return indexMap
 }
 
-// getRepresentationsAST gets the representations from the variables.
-// If no representations are found, it returns an empty slice.
+// getRepresentations returns the representations from the variables, or nil if there are none.
 func getRepresentations(variables *astjson.Value) []*astjson.Value {
-	r := variables.Get("representations")
-	if !r.Exists() {
-		return nil
-	}
-
-	arr := r.GetArray()
-	if len(arr) == 0 {
-		return make([]*astjson.Value, 0)
-	}
-
-	return arr
+	return variables.GetArray("representations")
 }
 
 // filterRepresentations filters the representations to only include the ones of the requested entity type.
 func filterRepresentations(arena arena.Arena, variables *astjson.Value, requestedEntityType string) *astjson.Value {
-	r := variables.Get("representations")
-	if !r.Exists() {
-		return nil
-	}
-
-	representations := r.GetArray()
+	representations := getRepresentations(variables)
 	if len(representations) == 0 {
 		return nil
 	}

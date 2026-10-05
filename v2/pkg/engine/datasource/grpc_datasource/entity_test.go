@@ -112,11 +112,9 @@ func TestGetRepresentations(t *testing.T) {
 		assert.Nil(t, getRepresentations(vars))
 	})
 
-	t.Run("returns empty slice when representations is empty array", func(t *testing.T) {
+	t.Run("returns no representations when representations is empty array", func(t *testing.T) {
 		vars := astjson.MustParse(`{"representations":[]}`)
-		reps := getRepresentations(vars)
-		assert.NotNil(t, reps)
-		assert.Empty(t, reps)
+		assert.Empty(t, getRepresentations(vars))
 	})
 
 	t.Run("returns representations when present", func(t *testing.T) {
