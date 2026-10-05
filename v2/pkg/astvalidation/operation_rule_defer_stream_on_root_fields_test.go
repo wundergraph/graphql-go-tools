@@ -56,11 +56,12 @@ func normalizeWithDeferPrevalidation(t *testing.T, definitionInput, operationInp
 
 func TestDeferStreamOnValidOperations(t *testing.T) {
 	testCases := []struct {
-		name       string
-		definition string
-		operation  string
-		variables  string
-		expected   operationreport.Report
+		name          string
+		definition    string
+		operation     string
+		variables     string
+		operationName string
+		expected      operationreport.Report
 	}{
 		{
 			name: "[M1] mutation root inline defer with if false",
@@ -374,11 +375,85 @@ subscription { ...F }`,
 }`,
 			expected: operationreport.Report{},
 		},
+		{
+			name: "[F1] nested defer in a fragment before the subscription",
+			operation: `fragment F on Dog { ... @defer { name } }
+subscription { subscribeDog { ...F } }`,
+			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
+				Message:   `directive "@defer" is not allowed on subscription operations`,
+				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
+				Locations: []operationreport.Location{{Line: 1, Column: 25}},
+			}}},
+		},
+		{
+			name: "[F2] nested defer with if false in a fragment before the subscription is valid",
+			operation: `fragment F on Dog { ... @defer(if: false) { name } }
+subscription { subscribeDog { ...F } }`,
+			expected: operationreport.Report{},
+		},
+		{
+			name: "[F3] nested defer with an absent nullable if variable in a fragment before the subscription",
+			operation: `fragment F on Dog { ... @defer(if: $d) { name } }
+subscription S($d: Boolean) { subscribeDog { ...F } }`,
+			variables: `{}`,
+			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
+				Message:   `directive "@defer" is not allowed on subscription operations`,
+				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
+				Locations: []operationreport.Location{{Line: 1, Column: 25}},
+			}}},
+		},
+		{
+			name: "[F4] nested defer in a fragment after the subscription",
+			operation: `subscription { subscribeDog { ...F } }
+fragment F on Dog { ... @defer { name } }`,
+			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
+				Message:   `directive "@defer" is not allowed on subscription operations`,
+				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
+				Locations: []operationreport.Location{{Line: 2, Column: 25}},
+			}}},
+		},
+		{
+			name: "[F5] nested defer in a fragment that the subscription reaches through another fragment",
+			operation: `fragment A on Dog { ...B }
+fragment B on Dog { ... @defer { name } }
+subscription { subscribeDog { ...A } }`,
+			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
+				Message:   `directive "@defer" is not allowed on subscription operations`,
+				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
+				Locations: []operationreport.Location{{Line: 2, Column: 25}},
+			}}},
+		},
+		{
+			name: "[F6] nested defer in a fragment before a query is valid",
+			operation: `fragment F on Dog { ... @defer { name } }
+query { dog { ...F } }`,
+			expected: operationreport.Report{},
+		},
+		{
+			name: "[F7] nested defer in a fragment before two operations when the request selects the subscription",
+			operation: `fragment F on Dog { ... @defer { name } }
+query Q { dog { ...F } }
+subscription S { subscribeDog { ...F } }`,
+			operationName: "S",
+			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
+				Message:   `directive "@defer" is not allowed on subscription operations`,
+				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
+				Locations: []operationreport.Location{{Line: 1, Column: 25}},
+			}}},
+		},
+		{
+			name: "[F8] nested defer in a fragment after two operations when the request selects the query is valid",
+			operation: `subscription S { subscribeDog { ...F } }
+query Q { dog { ...F } }
+fragment F on Dog { ... @defer { name } }`,
+			operationName: "Q",
+			expected:      operationreport.Report{},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, normalizeWithDeferPrevalidation(t, cmp.Or(tc.definition, testDefinition), tc.operation, tc.variables, ""))
+			assert.Equal(t, tc.expected, normalizeWithDeferPrevalidation(t, cmp.Or(tc.definition, testDefinition), tc.operation, tc.variables, tc.operationName))
 		})
 	}
 }

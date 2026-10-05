@@ -34,9 +34,22 @@ type deferStreamOnValidOpsVisitor struct {
 func (d *deferStreamOnValidOpsVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation = operation
 	d.definition = definition
-	// The walker reuses the visitor, and a fragment definition can come before the first operation.
+	// The walker reuses the visitor, so each document starts without an operation.
 	d.currentOperationType = ast.OperationTypeUnknown
 	d.currentOperationRef = -1
+
+	// The engine and the router remove the operations that the request did not select before this rule runs (WithRemoveNotMatchingOperationDefinitions).
+	// The only operation then also applies to a fragment definition before it.
+	// In a document with several operations, a fragment definition gets the type of the operation that the walker visited before it.
+	if operation.NumOfOperationDefinitions() != 1 {
+		return
+	}
+	for _, node := range operation.RootNodes {
+		if node.Kind == ast.NodeKindOperationDefinition {
+			d.EnterOperationDefinition(node.Ref)
+			return
+		}
+	}
 }
 
 func (d *deferStreamOnValidOpsVisitor) EnterOperationDefinition(ref int) {
