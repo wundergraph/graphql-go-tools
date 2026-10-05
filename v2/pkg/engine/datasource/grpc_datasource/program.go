@@ -140,7 +140,7 @@ func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, e
 		stageMap[stageIndexes[i]] = append(stageMap[stageIndexes[i]], fetch)
 	}
 
-	for i := 0; i < stageCount; i++ {
+	for i := range stageCount {
 		program.stages[i] = stage{
 			fetches: stageMap[i],
 		}
