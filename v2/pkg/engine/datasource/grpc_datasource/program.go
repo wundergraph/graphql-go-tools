@@ -80,20 +80,20 @@ type response struct {
 	rpcMessage   RPCMessage
 }
 
-func (f *request) createProtoWire(requestVariables *astjson.Value) ([]byte, error) {
-	return f.wire.createProtoWire(requestVariables)
+func (r *request) createProtoWire(requestVariables *astjson.Value) ([]byte, error) {
+	return r.wire.createProtoWire(requestVariables)
 }
 
-func (f *request) createProtoWireWithContext(a arena.Arena, requestVariables *astjson.Value, contextMessage protoref.Message) ([]byte, error) {
-	return f.wire.createProtoWireWithContext(a, requestVariables, f.context, contextMessage)
+func (r *request) createProtoWireWithContext(a arena.Arena, requestVariables *astjson.Value, contextMessage protoref.Message) ([]byte, error) {
+	return r.wire.createProtoWireWithContext(a, requestVariables, r.context, contextMessage)
 }
 
-func (f *request) createProtoMessage(requestVariables *astjson.Value) (protoref.Message, error) {
-	return f.wire.createProtoMessage(requestVariables)
+func (r *request) createProtoMessage(requestVariables *astjson.Value) (protoref.Message, error) {
+	return r.wire.createProtoMessage(requestVariables)
 }
 
-func (f *request) createProtoMessageWithContext(a arena.Arena, requestVariables *astjson.Value, contextMessage protoref.Message) (protoref.Message, error) {
-	return f.wire.createProtoMessageWithContext(a, requestVariables, f.context, contextMessage)
+func (r *request) createProtoMessageWithContext(a arena.Arena, requestVariables *astjson.Value, contextMessage protoref.Message) (protoref.Message, error) {
+	return r.wire.createProtoMessageWithContext(a, requestVariables, r.context, contextMessage)
 }
 
 func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, error) {
@@ -110,9 +110,7 @@ func compileProgram(plan *RPCExecutionPlan, runtime *runtimeSchema) (*program, e
 	// We are calculating the number of stages by finding the maximum stage index and adding 1.
 	stageCount := 0
 	for _, stageIndex := range stageIndexes {
-		if stageIndex+1 > stageCount {
-			stageCount = stageIndex + 1
-		}
+		stageCount = max(stageCount, stageIndex+1)
 	}
 
 	program := &program{
