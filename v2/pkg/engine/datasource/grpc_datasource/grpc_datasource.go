@@ -51,19 +51,29 @@ type DataSource struct {
 	federationConfigs plan.FederationFieldConfigurations
 	definition        *ast.Document
 	disabled          bool
+	useProtoReflect   bool
 
 	pool    *arena.Pool
 	program *program
 }
 
 type DataSourceConfig struct {
-	Operation         *ast.Document
-	Definition        *ast.Document
-	Compiler          *RPCCompiler
-	SubgraphName      string
-	Mapping           *GRPCMapping
+	// Operation is the GraphQL operation to plan.
+	Operation *ast.Document
+	// Definition is the GraphQL schema of the subgraph.
+	Definition *ast.Document
+	// Compiler holds the compiled protobuf schema.
+	Compiler *RPCCompiler
+	// SubgraphName is the name of the subgraph.
+	SubgraphName string
+	// Mapping maps GraphQL types and fields to gRPC messages and RPCs.
+	Mapping *GRPCMapping
+	// FederationConfigs holds the federation field configurations.
 	FederationConfigs plan.FederationFieldConfigurations
-	Disabled          bool
+	// Disabled returns an error instead of executing the operation.
+	Disabled bool
+	// UseProtoReflect builds gRPC requests with protoreflect instead of wire encoding.
+	UseProtoReflect bool
 }
 
 // NewDataSource creates a new datasource with the given RPCTransport.
@@ -88,6 +98,7 @@ func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource
 		definition:        config.Definition,
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
+		useProtoReflect:   config.UseProtoReflect,
 		pool:              arena.NewArenaPool(),
 		program:           program,
 	}, nil
@@ -135,7 +146,12 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 }
 
 func (d *DataSource) loadWithGRPC(ctx context.Context, input []byte) (data []byte, err error) {
-	return d.execute(ctx, input, wireRequestBuilder)
+	builder := wireRequestBuilder
+	if d.useProtoReflect {
+		builder = messageRequestBuilder
+	}
+
+	return d.execute(ctx, input, builder)
 }
 
 // loadWithConnect is the Connect-style load path. It walks the precompiled

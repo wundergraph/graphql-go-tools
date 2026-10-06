@@ -53,9 +53,10 @@ type EnumValueMapping struct {
 
 // GRPCConfiguration defines the configuration for a gRPC datasource
 type GRPCConfiguration struct {
-	Disabled bool         // Whether the RPC is disabled
-	Mapping  *GRPCMapping // The mapping between GraphQL types and gRPC messages
-	Compiler *RPCCompiler // The compiler for the RPC
+	Disabled        bool         // Whether the RPC is disabled
+	Mapping         *GRPCMapping // The mapping between GraphQL types and gRPC messages
+	Compiler        *RPCCompiler // The compiler for the RPC
+	UseProtoReflect bool         // Whether to use protoreflect instead of wire encoding for gRPC requests
 }
 
 // RPCConfig defines the configuration for a specific RPC operation

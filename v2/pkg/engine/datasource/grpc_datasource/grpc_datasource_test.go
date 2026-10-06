@@ -231,6 +231,39 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	require.Equal(t, "HARDCODED_NAME_TEST", resp.Data.ComplexFilterType[0].Name)
 }
 
+// Test_DataSource_Load_WithProtoReflect tests the gRPC transport with protoreflect request messages.
+func Test_DataSource_Load_WithProtoReflect(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
+	variables := `{"variables":{"filter":{"filter":{"name":"HARDCODED_NAME_TEST","filterField1":"value1","filterField2":"value2"}}}}`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+		Operation:       &queryDoc,
+		Definition:      &schemaDoc,
+		SubgraphName:    "Products",
+		Compiler:        compiler,
+		Mapping:         testMapping(),
+		UseProtoReflect: true,
+	})
+	require.NoError(t, err)
+
+	inputJSON := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
+
+	output, err := ds.Load(context.Background(), nil, []byte(inputJSON))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"data":{"complexFilterType":[{"id":"test-id-123","name":"HARDCODED_NAME_TEST"}]}}`, string(output))
+}
+
 // Test_DataSource_Load_WithGrpcError tests how the datasource handles gRPC errors
 // and formats them as GraphQL errors in the response
 func Test_DataSource_Load_WithGrpcError(t *testing.T) {
