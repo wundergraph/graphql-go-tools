@@ -27,53 +27,19 @@ func TestMergeFields_ParentTypeConditions(t *testing.T) {
 	schema, err := os.ReadFile("testdata/merge_fields_parent_types/schema.graphql")
 	require.NoError(t, err)
 
-	cases := []struct {
-		name  string
-		input string
-		want  map[string]string
-	}{
-		{
-			name:  "objects",
-			input: `{"product":{"__typename":"%s","category":{"id":"category-id","owner":{"name":"owner-name","aOnly":"a","bOnly":"b"}}}}`,
-			want: map[string]string{
-				"shared":   `{"data":{"product":{"category":{"id":"category-id","owner":{"name":"owner-name"}}}}}`,
-				"ProductA": `{"data":{"product":{"category":{"id":"category-id","owner":{"name":"owner-name","aOnly":"a"}}}}}`,
-				"ProductB": `{"data":{"product":{"category":{"id":"category-id","owner":{"name":"owner-name","bOnly":"b"}}}}}`,
-				"ProductC": `{"data":{"product":{"category":{"id":"category-id"}}}}`,
-			},
-		},
-		{
-			name:  "category_list",
-			input: `{"product":{"__typename":"%s","categories":[{"id":"category-id","owner":{"name":"owner-name","aOnly":"a","bOnly":"b"}}]}}`,
-			want: map[string]string{
-				"shared":   `{"data":{"product":{"categories":[{"id":"category-id","owner":{"name":"owner-name"}}]}}}`,
-				"ProductA": `{"data":{"product":{"categories":[{"id":"category-id","owner":{"name":"owner-name","aOnly":"a"}}]}}}`,
-				"ProductB": `{"data":{"product":{"categories":[{"id":"category-id","owner":{"name":"owner-name","bOnly":"b"}}]}}}`,
-				"ProductC": `{"data":{"product":{"categories":[{"id":"category-id"}]}}}`,
-			},
-		},
-		{
-			name:  "owner_list",
-			input: `{"product":{"__typename":"%s","category":{"id":"category-id","owners":[{"name":"owner-name","aOnly":"a","bOnly":"b"}]}}}`,
-			want: map[string]string{
-				"shared":   `{"data":{"product":{"category":{"id":"category-id","owners":[{"name":"owner-name"}]}}}}`,
-				"ProductA": `{"data":{"product":{"category":{"id":"category-id","owners":[{"name":"owner-name","aOnly":"a"}]}}}}`,
-				"ProductB": `{"data":{"product":{"category":{"id":"category-id","owners":[{"name":"owner-name","bOnly":"b"}]}}}}`,
-				"ProductC": `{"data":{"product":{"category":{"id":"category-id"}}}}`,
-			},
-		},
-		{
-			name:  "deep_objects",
-			input: `{"product":{"__typename":"%s","category":{"id":"category-id","owner":{"profile":{"name":"owner-name","aOnly":"a","bOnly":"b"}}}}}`,
-			want: map[string]string{
-				"shared":   `{"data":{"product":{"category":{"id":"category-id","owner":{"profile":{"name":"owner-name"}}}}}}`,
-				"ProductA": `{"data":{"product":{"category":{"id":"category-id","owner":{"profile":{"name":"owner-name","aOnly":"a"}}}}}}`,
-				"ProductB": `{"data":{"product":{"category":{"id":"category-id","owner":{"profile":{"name":"owner-name","bOnly":"b"}}}}}}`,
-				"ProductC": `{"data":{"product":{"category":{"id":"category-id"}}}}`,
-			},
-		},
+	queryTemplate, err := os.ReadFile("testdata/merge_fields_parent_types/query.graphql.tmpl")
+	require.NoError(t, err)
+
+	// Every response contains all leaves, so the assertions catch both missing
+	// requested fields and fields that leak from the other type's fragment.
+	const input = `{"product":{"__typename":"%s","category":{"id":"category-id","owner":{"name":"owner-name","aOnly":"a","bOnly":"b","profile":{"name":"owner-name","aOnly":"a","bOnly":"b"}},"owners":[{"name":"owner-name","aOnly":"a","bOnly":"b"}]},"categories":[{"id":"category-id","owner":{"name":"owner-name","aOnly":"a","bOnly":"b"}}]}}`
+	want := map[string]string{
+		"shared":   `{"data":{"product":{"category":{"id":"category-id","owner":{"name":"owner-name","profile":{"name":"owner-name"}},"owners":[{"name":"owner-name"}]},"categories":[{"id":"category-id","owner":{"name":"owner-name"}}]}}}`,
+		"ProductA": `{"data":{"product":{"category":{"id":"category-id","owner":{"name":"owner-name","aOnly":"a","profile":{"name":"owner-name","aOnly":"a"}},"owners":[{"name":"owner-name","aOnly":"a"}]},"categories":[{"id":"category-id","owner":{"name":"owner-name","aOnly":"a"}}]}}}`,
+		"ProductB": `{"data":{"product":{"category":{"id":"category-id","owner":{"name":"owner-name","bOnly":"b","profile":{"name":"owner-name","bOnly":"b"}},"owners":[{"name":"owner-name","bOnly":"b"}]},"categories":[{"id":"category-id","owner":{"name":"owner-name","bOnly":"b"}}]}}}`,
+		"ProductC": `{"data":{"product":{"category":{"id":"category-id"},"categories":[{"id":"category-id"}]}}}`,
 	}
-	selections := []struct {
+	cases := []struct {
 		name     string
 		productA string
 		productB string
@@ -91,34 +57,30 @@ func TestMergeFields_ParentTypeConditions(t *testing.T) {
 	runtimeTypes := []string{"ProductA", "ProductB", "ProductC"}
 
 	for _, tc := range cases {
-		queryTemplate, err := os.ReadFile("testdata/merge_fields_parent_types/" + tc.name + ".graphql.tmpl")
-		require.NoError(t, err)
-		for _, selection := range selections {
-			for _, order := range orders {
-				for _, runtimeType := range runtimeTypes {
-					name := fmt.Sprintf("%s/%s/%s/%s", tc.name, selection.name, order.name, runtimeType)
-					t.Run(name, func(t *testing.T) {
-						t.Parallel()
+		for _, order := range orders {
+			for _, runtimeType := range runtimeTypes {
+				name := fmt.Sprintf("%s/%s/%s", tc.name, order.name, runtimeType)
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
 
-						fields := map[string]string{"ProductA": selection.productA, "ProductB": selection.productB}
-						query := fmt.Sprintf(string(queryTemplate), order.types[0], fields[order.types[0]], order.types[1], fields[order.types[1]])
-						response := parentTypeResponsePlan(t, string(schema), query)
-						(&mergeFields{}).Process(response)
+					fields := map[string]string{"ProductA": tc.productA, "ProductB": tc.productB}
+					query := fmt.Sprintf(string(queryTemplate), order.types[0], fields[order.types[0]], order.types[1], fields[order.types[1]])
+					response := parentTypeResponsePlan(t, string(schema), query)
+					(&mergeFields{}).Process(response)
 
-						// ProductC never selects owner. A and B must include only
-						// the leaves requested by their own fragment.
-						expected := runtimeType
-						if selection.name == "shared_fields" && runtimeType != "ProductC" {
-							expected = "shared"
-						}
-						resolvable := resolve.NewResolvable(nil, resolve.ResolvableOptions{})
-						input := fmt.Sprintf(tc.input, runtimeType)
-						require.NoError(t, resolvable.Init(&resolve.Context{}, []byte(input), ast.OperationTypeQuery))
-						var out bytes.Buffer
-						require.NoError(t, resolvable.Resolve(context.Background(), response, nil, &out))
-						require.JSONEq(t, tc.want[expected], out.String())
-					})
-				}
+					// ProductC never selects owner. A and B must include only
+					// the leaves requested by their own fragment.
+					expected := runtimeType
+					if tc.name == "shared_fields" && runtimeType != "ProductC" {
+						expected = "shared"
+					}
+					resolvable := resolve.NewResolvable(nil, resolve.ResolvableOptions{})
+					data := fmt.Sprintf(input, runtimeType)
+					require.NoError(t, resolvable.Init(&resolve.Context{}, []byte(data), ast.OperationTypeQuery))
+					var out bytes.Buffer
+					require.NoError(t, resolvable.Resolve(context.Background(), response, nil, &out))
+					require.JSONEq(t, want[expected], out.String())
+				})
 			}
 		}
 	}

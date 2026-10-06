@@ -1,0 +1,34 @@
+query {
+  product {
+    category { id }
+    categories { id }
+    ... on Base { ...ProductDetail }
+  }
+}
+
+fragment ProductDetail on Base {
+  ... on %[1]s {
+    category {
+      owner {
+        %[2]s
+        profile { %[2]s }
+      }
+      owners { %[2]s }
+    }
+    categories {
+      owner { %[2]s }
+    }
+  }
+  ... on %[3]s {
+    category {
+      owner {
+        %[4]s
+        profile { %[4]s }
+      }
+      owners { %[4]s }
+    }
+    categories {
+      owner { %[4]s }
+    }
+  }
+}
