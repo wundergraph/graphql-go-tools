@@ -102,6 +102,11 @@ func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+	// If the datasource is disabled we will return an error message instead of executing the query.
+	if d.disabled {
+		return newJSONBuilder(nil, d.mapping).writeErrorBytes(fmt.Errorf("gRPC / connect datasource needs to be enabled to be used")), nil
+	}
+
 	// If the transport is nil we will return the following error message instead
 	if d.transport == nil {
 		return nil, fmt.Errorf("gRPC / connect configuration requires an rpc transport")
@@ -168,10 +173,6 @@ func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest req
 	}
 
 	builder := newJSONBuilder(item.Arena, d.mapping)
-
-	if d.disabled {
-		return builder.writeErrorBytes(fmt.Errorf("gRPC / connect datasource needs to be enabled to be used")), nil
-	}
 
 	root := astjson.ObjectValue(nil)
 	callMap := make(map[int]fetchResult)
