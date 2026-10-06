@@ -106,7 +106,7 @@ func (m *mergeFields) traverseNode(node resolve.Node) {
 						if !m.canMergeScalars(n.Fields[i], n.Fields[j]) {
 							continue
 						}
-						m.mergeScalars(n.Fields[i], n.Fields[j])
+						m.mergeTypeConditions(n.Fields[i], n.Fields[j])
 						n.Fields = append(n.Fields[:j], n.Fields[j+1:]...)
 						if i > j {
 							i--
@@ -133,7 +133,7 @@ func (m *mergeFields) canMergeScalars(left, right *resolve.Field) bool {
 	return true
 }
 
-func (m *mergeFields) mergeScalars(left, right *resolve.Field) {
+func (m *mergeFields) mergeTypeConditions(left, right *resolve.Field) {
 	// when left has no type conditions, it will overwrite right
 	if left.OnTypeNames == nil && left.ParentOnTypeNames == nil {
 		return
@@ -238,6 +238,9 @@ func (m *mergeFields) sameParentOnTypeNames(left, right *resolve.Field) bool {
 }
 
 func (m *mergeFields) mergeValues(left, right *resolve.Field) {
+	// A merged object or array must remain reachable for either field's parent
+	// types. Its children retain their own conditions to filter nested selections.
+	m.mergeTypeConditions(left, right)
 	switch l := left.Value.(type) {
 	case *resolve.Object:
 		r := right.Value.(*resolve.Object)
