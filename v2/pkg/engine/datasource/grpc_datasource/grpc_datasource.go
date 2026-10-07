@@ -124,7 +124,6 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 	}
 
 	// convert headers to grpc metadata and attach to ctx
-	// TODO: ConnectRPC will have to handle headers differently when using a http client.
 	if len(headers) > 0 {
 		// assume that each header has exactly one value for default pairs size
 		pairs := make([]string, 0, len(headers)*2)
