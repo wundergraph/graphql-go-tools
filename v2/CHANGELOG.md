@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.27.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.26.0...v2.27.0) (2026-10-07)
+
+
+### Features
+
+* wire proto messages with custom codec ([#1704](https://github.com/wundergraph/graphql-go-tools/issues/1704)) ([ba580a6](https://github.com/wundergraph/graphql-go-tools/commit/ba580a636e67851354a667f6c803b03338159216))
+
+
+### Bug Fixes
+
+* read remapped variables in subscription filter type check ([#1672](https://github.com/wundergraph/graphql-go-tools/issues/1672)) ([c8ae2e3](https://github.com/wundergraph/graphql-go-tools/commit/c8ae2e3bbd1e72be90ba6e4d007bd52190b180f1))
+
 ## [2.26.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.25.0...v2.26.0) (2026-09-28)
 
 
