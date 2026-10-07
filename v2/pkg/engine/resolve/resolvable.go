@@ -1644,10 +1644,22 @@ func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjs
 }
 
 func (r *Resolvable) shouldSkipFieldByTypeCondition(field *Field) bool {
-	if field.ParentOnTypeNames != nil && r.skipFieldOnParentTypeNames(field) {
+	if field.ParentOnTypeNames != nil && r.skipFieldOnParentTypeNames(field.ParentOnTypeNames) {
 		return true
 	}
 
+	if len(field.ParentOnTypeNamesAlternatives) != 0 {
+		matches := false
+		for _, alternative := range field.ParentOnTypeNamesAlternatives {
+			if !r.skipFieldOnParentTypeNames(alternative) {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			return true
+		}
+	}
 	if field.OnTypeNames != nil && r.skipFieldOnTypeNames(field) {
 		return true
 	}
@@ -1798,19 +1810,18 @@ func firstString(values []string) string {
 	return values[0]
 }
 
-func (r *Resolvable) skipFieldOnParentTypeNames(field *Field) bool {
+func (r *Resolvable) skipFieldOnParentTypeNames(conditions []ParentOnTypeNames) bool {
 WithNext:
-	for i := range field.ParentOnTypeNames {
-		typeName := r.typeNames[len(r.typeNames)-1-field.ParentOnTypeNames[i].Depth]
+	for i := range conditions {
+		typeName := r.typeNames[len(r.typeNames)-1-conditions[i].Depth]
 		if typeName == nil {
 			// The field has a condition but the JSON response object does not have a __typename field
 			// We skip this field
 			return true
 		}
-		for j := range field.ParentOnTypeNames[i].Names {
-			if bytes.Equal(typeName, field.ParentOnTypeNames[i].Names[j]) {
+		for j := range conditions[i].Names {
+			if bytes.Equal(typeName, conditions[i].Names[j]) {
 				// on each layer of depth, we only need to match one of the names
-				// merge_fields.go ensures that we only have on ParentOnTypeNames per depth layer
 				// If we have a match, we continue WithNext condition until all layers have been checked
 				continue WithNext
 			}

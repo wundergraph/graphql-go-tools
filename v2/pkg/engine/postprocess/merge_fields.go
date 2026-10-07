@@ -2,6 +2,7 @@ package postprocess
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -38,13 +39,8 @@ func (m *mergeFields) traverseNode(node resolve.Node) {
 				copy(additionalTypeNames, n.Fields[i].OnTypeNames[1:])
 				n.Fields[i].OnTypeNames = [][]byte{n.Fields[i].OnTypeNames[0]}
 				for j := range additionalTypeNames {
-					additionalField := &resolve.Field{
-						Name:        n.Fields[i].Name,
-						Value:       n.Fields[i].Value.Copy(),
-						Position:    n.Fields[i].Position,
-						OnTypeNames: [][]byte{additionalTypeNames[j]},
-						Info:        n.Fields[i].Info,
-					}
+					additionalField := n.Fields[i].Copy()
+					additionalField.OnTypeNames = [][]byte{additionalTypeNames[j]}
 					n.Fields = append(n.Fields[:i+1], append([]*resolve.Field{additionalField}, n.Fields[i+1:]...)...)
 				}
 			}
@@ -133,40 +129,94 @@ func (m *mergeFields) canMergeScalars(left, right *resolve.Field) bool {
 	return true
 }
 
+// mergeTypeConditions ORs the two fields' conditions. Different depths within
+// one selection are ANDed, so unrelated selections must remain alternatives.
 func (m *mergeFields) mergeTypeConditions(left, right *resolve.Field) {
-	// when left has no type conditions, it will overwrite right
-	if left.OnTypeNames == nil && left.ParentOnTypeNames == nil {
+	// Most fields are unconditional; avoid allocating condition groups for them.
+	if left.OnTypeNames == nil && left.ParentOnTypeNames == nil && len(left.ParentOnTypeNamesAlternatives) == 0 {
 		return
 	}
-	// when right has no type conditions, it will overwrite left
-	if right.OnTypeNames == nil && right.ParentOnTypeNames == nil {
+	if right.OnTypeNames == nil && right.ParentOnTypeNames == nil && len(right.ParentOnTypeNamesAlternatives) == 0 {
+		left.OnTypeNames, left.ParentOnTypeNames, left.ParentOnTypeNamesAlternatives = nil, nil, nil
+		return
+	}
+	sameOwnTypes := m.sameOnTypeNames(left.OnTypeNames, right.OnTypeNames)
+	groups := append(m.parentTypeConditions(left, !sameOwnTypes), m.parentTypeConditions(right, !sameOwnTypes)...)
+	if !sameOwnTypes {
 		left.OnTypeNames = nil
-		left.ParentOnTypeNames = nil
-		return
 	}
-	left.OnTypeNames = m.deduplicateOnTypeNames(append(left.OnTypeNames, right.OnTypeNames...))
-	if left.ParentOnTypeNames == nil {
-		left.ParentOnTypeNames = right.ParentOnTypeNames
-		return
-	}
-	if right.ParentOnTypeNames == nil {
-		return
-	}
-WithNext:
-	for i := range right.ParentOnTypeNames {
-		for j := range left.ParentOnTypeNames {
-			if right.ParentOnTypeNames[i].Depth == left.ParentOnTypeNames[j].Depth {
-				// merge all parent type conditions at the same depth
-				// this is important because resolvable.go ensures that at each depth layer,
-				// we have at least one matching type condition
-				// otherwise we skip resolving the field
-				left.ParentOnTypeNames[j].Names = m.deduplicateOnTypeNames(append(left.ParentOnTypeNames[j].Names, right.ParentOnTypeNames[i].Names...))
-				continue WithNext
+	left.ParentOnTypeNames = nil
+	left.ParentOnTypeNamesAlternatives = nil
+	var alternatives [][]resolve.ParentOnTypeNames
+	for _, group := range groups {
+		// An unrestricted selection makes all other alternatives redundant.
+		if len(group) == 0 {
+			return
+		}
+		merged := false
+		for i := range alternatives {
+			if combined, ok := m.combineParentTypeConditions(alternatives[i], group); ok {
+				alternatives[i] = combined
+				merged = true
+				break
 			}
 		}
-		// if we reach this point, we have a new depth layer and just append it
-		left.ParentOnTypeNames = append(left.ParentOnTypeNames, right.ParentOnTypeNames[i])
+		if !merged {
+			alternatives = append(alternatives, group)
+		}
 	}
+	if len(alternatives) == 1 {
+		left.ParentOnTypeNames = alternatives[0]
+	} else {
+		left.ParentOnTypeNamesAlternatives = alternatives
+	}
+}
+
+func (m *mergeFields) parentTypeConditions(field *resolve.Field, includeOwnTypes bool) [][]resolve.ParentOnTypeNames {
+	base := slices.Clone(field.ParentOnTypeNames)
+	if includeOwnTypes && field.OnTypeNames != nil {
+		base = append(base, resolve.ParentOnTypeNames{Depth: 0, Names: field.OnTypeNames})
+	}
+	if len(field.ParentOnTypeNamesAlternatives) == 0 {
+		return [][]resolve.ParentOnTypeNames{base}
+	}
+	groups := make([][]resolve.ParentOnTypeNames, len(field.ParentOnTypeNamesAlternatives))
+	for i, alternative := range field.ParentOnTypeNamesAlternatives {
+		groups[i] = append(slices.Clone(base), alternative...)
+	}
+	return groups
+}
+
+// Factoring out identical conditions is safe only when at most one depth differs:
+// (A AND B) OR (A AND C) = A AND (B OR C).
+func (m *mergeFields) combineParentTypeConditions(left, right []resolve.ParentOnTypeNames) ([]resolve.ParentOnTypeNames, bool) {
+	if len(left) != len(right) {
+		return nil, false
+	}
+	differing := -1
+	var names [][]byte
+	for i, condition := range left {
+		// Repeated depths are separate AND clauses and cannot be factored this way.
+		if slices.ContainsFunc(left[:i], func(previous resolve.ParentOnTypeNames) bool { return previous.Depth == condition.Depth }) {
+			return nil, false
+		}
+		j := slices.IndexFunc(right, func(other resolve.ParentOnTypeNames) bool { return condition.Depth == other.Depth })
+		if j == -1 {
+			return nil, false
+		}
+		if m.sameOnTypeNames(condition.Names, right[j].Names) {
+			continue
+		}
+		if differing != -1 {
+			return nil, false
+		}
+		differing, names = i, right[j].Names
+	}
+	combined := slices.Clone(left)
+	if differing != -1 {
+		combined[differing].Names = m.deduplicateOnTypeNames(append(slices.Clone(combined[differing].Names), names...))
+	}
+	return combined, true
 }
 
 func (m *mergeFields) fieldsCanMerge(left *resolve.Field, right *resolve.Field) bool {

@@ -92,9 +92,9 @@ func TestMergeFields_ParentTypeConditionAlternatives(t *testing.T) {
 			want: [4]string{`{"left":"L"}`, ``, ``, `{"right":"R"}`}},
 	}
 	shapes := []struct {
-		name  string
-		array bool
-	}{{name: "object"}, {name: "array", array: true}}
+		name          string
+		array, scalar bool
+	}{{name: "object"}, {name: "array", array: true}, {name: "scalar", scalar: true}}
 	orders := []struct {
 		name    string
 		reverse bool
@@ -102,8 +102,10 @@ func TestMergeFields_ParentTypeConditionAlternatives(t *testing.T) {
 	runtimeTypes := []struct{ outer, product string }{{"OuterA", "ProductA"}, {"OuterA", "ProductB"}, {"OuterB", "ProductA"}, {"OuterB", "ProductB"}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			for _, shape := range shapes {
 				t.Run(shape.name, func(t *testing.T) {
+					t.Parallel()
 					for _, order := range orders {
 						t.Run(order.name, func(t *testing.T) {
 							t.Parallel()
@@ -123,6 +125,9 @@ func TestMergeFields_ParentTypeConditionAlternatives(t *testing.T) {
 											owner.Path = nil
 											field.Value = &resolve.Array{Path: []string{"owner"}, Item: owner}
 										}
+										if shape.scalar {
+											field.Value = &resolve.String{Path: []string{"owner"}}
+										}
 										category.Fields = append(category.Fields, field)
 									}
 									if order.reverse {
@@ -138,8 +143,16 @@ func TestMergeFields_ParentTypeConditionAlternatives(t *testing.T) {
 									response := wrap("outer", outer)
 									(&mergeFields{}).Process(response)
 									require.Len(t, category.Fields, 1)
+									// Copies must preserve the merged alternatives and child restrictions.
+									response = response.Copy().(*resolve.Object)
 
 									inputOwner, wantOwner := `{"left":"L","right":"R"}`, tc.want[i]
+									if shape.scalar {
+										inputOwner = `"name"`
+										if wantOwner != "" {
+											wantOwner = inputOwner
+										}
+									}
 									if shape.array {
 										inputOwner = "[" + inputOwner + "]"
 										if wantOwner != "" {

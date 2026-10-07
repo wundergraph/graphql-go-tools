@@ -123,9 +123,14 @@ type Field struct {
 	OnTypeNames       [][]byte
 	ParentOnTypeNames []ParentOnTypeNames
 	Info              *FieldInfo
+
+	// When set, at least one alternative must match, in addition to OnTypeNames
+	// and ParentOnTypeNames. Conditions within each alternative are ANDed.
+	ParentOnTypeNamesAlternatives [][]ParentOnTypeNames `json:",omitempty"`
 }
 
 type ParentOnTypeNames struct {
+	// Depth is relative to the field's containing object; zero checks that object.
 	Depth int
 	Names [][]byte
 }
@@ -136,14 +141,20 @@ func (f *Field) Copy() *Field {
 		cp := *f.Defer
 		deferField = &cp
 	}
+	alternatives := slices.Clone(f.ParentOnTypeNamesAlternatives)
+	for i := range alternatives {
+		alternatives[i] = slices.Clone(f.ParentOnTypeNamesAlternatives[i])
+	}
 	return &Field{
-		Name:        f.Name,
-		Value:       f.Value.Copy(),
-		Position:    f.Position,
-		Defer:       deferField,
-		Stream:      f.Stream,
-		OnTypeNames: f.OnTypeNames,
-		Info:        f.Info,
+		Name:                          f.Name,
+		Value:                         f.Value.Copy(),
+		Position:                      f.Position,
+		Defer:                         deferField,
+		Stream:                        f.Stream,
+		OnTypeNames:                   f.OnTypeNames,
+		ParentOnTypeNames:             slices.Clone(f.ParentOnTypeNames),
+		ParentOnTypeNamesAlternatives: alternatives,
+		Info:                          f.Info,
 	}
 }
 
