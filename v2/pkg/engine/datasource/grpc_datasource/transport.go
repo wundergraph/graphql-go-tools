@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"google.golang.org/grpc"
-	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // RPCTransport abstracts the transport protocol for RPC calls.
@@ -16,10 +15,12 @@ type RPCTransport interface {
 	//     (leading slash required). The gRPC transport passes it directly to
 	//     grpc.ClientConnInterface.Invoke; the Connect transport appends it to
 	//     the configured base URL.
-	//   - input must be a *dynamicpb.Message populated by the caller.
+	//   - input is a *PreWiredInputMessage (pre-encoded wire bytes) for the gRPC
+	//     transport, or a *dynamicpb.Message populated by the caller for the
+	//     Connect transport.
 	//   - output must be a *dynamicpb.Message bound to the expected response
 	//     descriptor; Invoke populates it on success.
-	Invoke(ctx context.Context, methodFullName string, input, output protoref.Message) error
+	Invoke(ctx context.Context, methodFullName string, input, output any) error
 }
 
 // grpcTransport wraps grpc.ClientConnInterface to implement RPCTransport.
@@ -32,7 +33,7 @@ func NewGRPCTransport(cc grpc.ClientConnInterface) RPCTransport {
 	return &grpcTransport{cc: cc}
 }
 
-func (t *grpcTransport) Invoke(ctx context.Context, method string, input, output protoref.Message) error {
+func (t *grpcTransport) Invoke(ctx context.Context, method string, input, output any) error {
 	if t.cc == nil {
 		return errors.New("grpc transport: nil client connection")
 	}
@@ -40,5 +41,5 @@ func (t *grpcTransport) Invoke(ctx context.Context, method string, input, output
 	// protoref.Message satisfies the any constraint; variadic opts can be omitted.
 	// This wrapper intentionally does not forward grpc.CallOption, as RPCTransport
 	// is protocol-agnostic. The existing grpc_datasource code does not use any CallOption at the Invoke site.
-	return t.cc.Invoke(ctx, method, input, output)
+	return t.cc.Invoke(ctx, method, input, output, grpc.ForceCodecV2(&connectCodec{}))
 }
