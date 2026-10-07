@@ -672,7 +672,7 @@ func (l *Loader) responseCacheMergeSurrogateKeys(res *result) {
 // alias carries errors is skipped on its own so the others are still stored —
 // the unmerged fetches this replaces are independent that way.
 func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, response *astjson.Value, entryErrors []*astjson.Value, unmatchedErrors bool) {
-	if !l.responseCacheEnabled() || prepared.skipLoad || !sentCacheableEntry(prepared) {
+	if !l.responseCacheEnabled() || prepared.skipLoad || !prepared.hasSentCacheableEntry() {
 		return
 	}
 
@@ -792,9 +792,14 @@ func (e *preparedMultiEntry) sentCacheable() bool {
 	return len(e.responseCacheKeys) > 0 && !e.cacheHit() && !e.res.fetchSkipped
 }
 
-// sentCacheableEntry reports whether any entry went to the origin with keys to store under.
-func sentCacheableEntry(prepared *preparedFetch) bool {
-	return slices.ContainsFunc(prepared.multiEntries, func(e preparedMultiEntry) bool { return e.sentCacheable() })
+// hasSentCacheableEntry reports whether any entry went to the origin with keys to store under.
+func (p *preparedFetch) hasSentCacheableEntry() bool {
+	for i := range p.multiEntries {
+		if p.multiEntries[i].sentCacheable() {
+			return true
+		}
+	}
+	return false
 }
 
 // multiEntityCacheLookup asks the cache, in one round trip, for the entities of
