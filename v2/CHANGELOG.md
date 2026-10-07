@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.28.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.27.0...v2.28.0) (2026-10-07)
+
+
+### Features
+
+* report what the response cache did for a fetch to the loader hooks ([#1692](https://github.com/wundergraph/graphql-go-tools/issues/1692)) ([40af042](https://github.com/wundergraph/graphql-go-tools/commit/40af0423c8939228e41ab2a129002a5c22fddffd))
+
 ## [2.27.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.26.0...v2.27.0) (2026-10-07)
 
 
