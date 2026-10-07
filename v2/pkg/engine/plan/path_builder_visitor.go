@@ -674,11 +674,21 @@ func (c *pathBuilderVisitor) handlePlanningField(field *currentFieldInfo) {
 
 	if planned {
 		c.recordFieldPlannedOn(field.fieldRef, plannerIdx)
+		c.bindPlannerToInterfaceObject(field, plannerIdx)
 		c.addFieldDependencies(field, plannerIdx)
 		c.addRootField(field.fieldRef, plannerIdx)
 	}
 
 	c.handleMissingPath(planned, field)
+}
+
+func (c *pathBuilderVisitor) bindPlannerToInterfaceObject(field *currentFieldInfo, plannerIdx int) {
+	interfaceObjectName, ok := field.ds.UnambiguousInterfaceObjectNameForTypeField(field.typeName, field.fieldName)
+	if !ok {
+		return
+	}
+
+	c.planners[plannerIdx].bindInterfaceObject(field.typeName, interfaceObjectName)
 }
 
 func (c *pathBuilderVisitor) couldPlanField(fieldRef int, dsHash DSHash) (ok bool) {
@@ -833,6 +843,11 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (
 		currentPlannerDSHash := dsConfiguration.Hash()
 
 		if field.suggestion.DataSourceHash != currentPlannerDSHash {
+			continue
+		}
+
+		if interfaceObjectName, ok := field.ds.UnambiguousInterfaceObjectNameForTypeField(field.typeName, field.fieldName); ok &&
+			plannerConfig.isBoundToOtherInterfaceObject(field.typeName, interfaceObjectName) {
 			continue
 		}
 
