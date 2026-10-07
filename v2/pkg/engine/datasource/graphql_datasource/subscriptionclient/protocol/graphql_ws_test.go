@@ -327,7 +327,7 @@ func newGWSTestServer(t *testing.T, handler func(ctx context.Context, conn *webs
 		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
 
-		handler(ctx, conn)
+		handler(ctx, conn) //nolint:contextcheck
 	}))
 
 	t.Cleanup(server.Close)
