@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -1644,10 +1645,9 @@ func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjs
 }
 
 func (r *Resolvable) shouldSkipFieldByTypeCondition(field *Field) bool {
-	if field.ParentOnTypeNames != nil && r.skipFieldOnParentTypeNames(field) {
+	if len(field.ParentOnTypeNames) != 0 && !slices.ContainsFunc(field.ParentOnTypeNames, r.parentTypeNamesMatch) {
 		return true
 	}
-
 	if field.OnTypeNames != nil && r.skipFieldOnTypeNames(field) {
 		return true
 	}
@@ -1798,29 +1798,23 @@ func firstString(values []string) string {
 	return values[0]
 }
 
-func (r *Resolvable) skipFieldOnParentTypeNames(field *Field) bool {
+// parentTypeNamesMatch reports whether every depth of one group matches the runtime parent types.
+// A depth without a runtime __typename never matches.
+func (r *Resolvable) parentTypeNamesMatch(group []ParentOnTypeNames) bool {
 WithNext:
-	for i := range field.ParentOnTypeNames {
-		typeName := r.typeNames[len(r.typeNames)-1-field.ParentOnTypeNames[i].Depth]
+	for i := range group {
+		typeName := r.typeNames[len(r.typeNames)-1-group[i].Depth]
 		if typeName == nil {
-			// The field has a condition but the JSON response object does not have a __typename field
-			// We skip this field
-			return true
+			return false
 		}
-		for j := range field.ParentOnTypeNames[i].Names {
-			if bytes.Equal(typeName, field.ParentOnTypeNames[i].Names[j]) {
-				// on each layer of depth, we only need to match one of the names
-				// merge_fields.go ensures that we only have on ParentOnTypeNames per depth layer
-				// If we have a match, we continue WithNext condition until all layers have been checked
+		for j := range group[i].Names {
+			if bytes.Equal(typeName, group[i].Names[j]) {
 				continue WithNext
 			}
 		}
-		// No match at this depth layer, we skip this field
-		return true
+		return false
 	}
-	// all layers have at least one matching typeName
-	// we don't skip this field (we return false)
-	return false
+	return true
 }
 
 func (r *Resolvable) skipFieldOnTypeNames(field *Field) bool {

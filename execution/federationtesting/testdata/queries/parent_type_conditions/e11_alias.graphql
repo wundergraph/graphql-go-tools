@@ -1,0 +1,23 @@
+# e01 with an alias: fields merge by response name.
+query Alias {
+    someNestedInterfaces {
+        __typename
+        otherInterfaces {
+            __typename
+        }
+        ... on SomeNestedType2 {
+            otherInterfaces {
+                obj: someObject {
+                    a
+                }
+            }
+        }
+        ... on SomeNestedType1 {
+            otherInterfaces {
+                obj: someObject {
+                    a
+                }
+            }
+        }
+    }
+}

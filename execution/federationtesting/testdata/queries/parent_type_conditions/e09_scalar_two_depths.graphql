@@ -1,0 +1,21 @@
+# The scalar a is selected under SomeNestedType1 for any item and under SomeType2 for any nested interface.
+query ScalarTwoDepths {
+    someNestedInterfaces {
+        __typename
+        otherInterfaces {
+            __typename
+            ... on SomeType2 {
+                someObject {
+                    a
+                }
+            }
+        }
+        ... on SomeNestedType1 {
+            otherInterfaces {
+                someObject {
+                    a
+                }
+            }
+        }
+    }
+}

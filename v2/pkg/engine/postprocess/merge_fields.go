@@ -2,6 +2,7 @@ package postprocess
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -38,29 +39,18 @@ func (m *mergeFields) traverseNode(node resolve.Node) {
 				copy(additionalTypeNames, n.Fields[i].OnTypeNames[1:])
 				n.Fields[i].OnTypeNames = [][]byte{n.Fields[i].OnTypeNames[0]}
 				for j := range additionalTypeNames {
-					additionalField := &resolve.Field{
-						Name:        n.Fields[i].Name,
-						Value:       n.Fields[i].Value.Copy(),
-						Position:    n.Fields[i].Position,
-						OnTypeNames: [][]byte{additionalTypeNames[j]},
-						Info:        n.Fields[i].Info,
-					}
+					additionalField := n.Fields[i].Copy()
+					additionalField.OnTypeNames = [][]byte{additionalTypeNames[j]}
 					n.Fields = append(n.Fields[:i+1], append([]*resolve.Field{additionalField}, n.Fields[i+1:]...)...)
 				}
 			}
-			// 2.
-			// Propagate onTypeNames to all children
-			// In a later stage, we merge all nested scalar fields with the same name
-			// However, scalar fields can originate from different parent types, which is why we need to propagate them here
+			// 2. propagate onTypeNames to all descendants as parent type conditions
+			// The descendants merge in a later pass, and the conditions keep the fragment path they came from.
 			m.propagateParentTypeNames(n.Fields[i])
 		}
 		// 3. merge fields without onTypeNames "over" fields with onTypeNames
-		// This is possible because if a field exists without onTypeNames, it will always be resolved
-		// There are 2 variants of this:
-		// 3.1. if the source and target fields are scalars, the target (with onTypeNames) will be removed
-		// This means that scalars with no onTypeNames will overwrite scalars with onTypeNames
-		// 3.2. if the source and target fields are objects, all fields from the source will be merged into the target
-		// This means that objects with no onTypeNames will be merged into objects with onTypeNames
+		// A field without onTypeNames always resolves, so the merged field keeps no type condition.
+		// For objects, the children of the conditional field move into the unconditional one.
 		for i := 0; i < len(n.Fields); i++ {
 			if n.Fields[i].OnTypeNames != nil {
 				continue
@@ -73,6 +63,7 @@ func (m *mergeFields) traverseNode(node resolve.Node) {
 					continue
 				}
 				if bytes.Equal(n.Fields[i].Name, n.Fields[j].Name) {
+					m.mergeTypeConditions(n.Fields[i], n.Fields[j])
 					m.mergeValues(n.Fields[i], n.Fields[j])
 					n.Fields = append(n.Fields[:j], n.Fields[j+1:]...)
 					if i > j {
@@ -82,37 +73,15 @@ func (m *mergeFields) traverseNode(node resolve.Node) {
 				}
 			}
 		}
-		// 4. merge sibling object fields
+		// 4. merge sibling fields with the same name and the same onTypeNames
+		// Fields with different onTypeNames stay separate to preserve the order of the fields.
 		for i := 0; i < len(n.Fields); i++ {
 			for j := i + 1; j < len(n.Fields); j++ {
 				if m.fieldsCanMerge(n.Fields[i], n.Fields[j]) {
+					m.mergeTypeConditions(n.Fields[i], n.Fields[j])
 					m.mergeValues(n.Fields[i], n.Fields[j])
 					n.Fields = append(n.Fields[:j], n.Fields[j+1:]...)
 					j--
-				}
-			}
-		}
-		// 5. merge sibling scalar fields
-		// Once all objects have been merged, we need to merge (deduplicate) all scalar fields that are left
-		for i := 0; i < len(n.Fields); i++ {
-			// skip objects
-			if m.nodeIsScalar(n.Fields[i].Value) {
-				for j := 0; j < len(n.Fields); j++ {
-					if i == j {
-						continue
-					}
-					if bytes.Equal(n.Fields[i].Name, n.Fields[j].Name) {
-						// we don't merge scalars with different onTypeNames to preserve the order of the fields
-						if !m.canMergeScalars(n.Fields[i], n.Fields[j]) {
-							continue
-						}
-						m.mergeScalars(n.Fields[i], n.Fields[j])
-						n.Fields = append(n.Fields[:j], n.Fields[j+1:]...)
-						if i > j {
-							i--
-						}
-						j--
-					}
 				}
 			}
 		}
@@ -124,49 +93,95 @@ func (m *mergeFields) traverseNode(node resolve.Node) {
 	}
 }
 
-func (m *mergeFields) canMergeScalars(left, right *resolve.Field) bool {
-	if left.OnTypeNames != nil && right.OnTypeNames != nil {
-		if !m.sameOnTypeNames(left.OnTypeNames, right.OnTypeNames) {
-			return false
-		}
-	}
-	return true
-}
-
-func (m *mergeFields) mergeScalars(left, right *resolve.Field) {
-	// when left has no type conditions, it will overwrite right
-	if left.OnTypeNames == nil && left.ParentOnTypeNames == nil {
+// mergeTypeConditions ORs the type conditions of right into left.
+// A field without any condition always renders, so it clears the merged conditions.
+// Groups that differ at one depth only fold into one group, which keeps the common case at one group.
+func (m *mergeFields) mergeTypeConditions(left, right *resolve.Field) {
+	if m.unconditional(left) {
 		return
 	}
-	// when right has no type conditions, it will overwrite left
-	if right.OnTypeNames == nil && right.ParentOnTypeNames == nil {
+	if m.unconditional(right) {
 		left.OnTypeNames = nil
 		left.ParentOnTypeNames = nil
 		return
 	}
-	left.OnTypeNames = m.deduplicateOnTypeNames(append(left.OnTypeNames, right.OnTypeNames...))
-	if left.ParentOnTypeNames == nil {
-		left.ParentOnTypeNames = right.ParentOnTypeNames
-		return
+	// Different onTypeNames cannot stay on the merged field, so they move into the groups as depth 0.
+	foldOwnTypes := !m.sameOnTypeNames(left.OnTypeNames, right.OnTypeNames)
+	groups := append(m.conditionGroups(left, foldOwnTypes), m.conditionGroups(right, foldOwnTypes)...)
+	if foldOwnTypes {
+		left.OnTypeNames = nil
 	}
-	if right.ParentOnTypeNames == nil {
-		return
-	}
-WithNext:
-	for i := range right.ParentOnTypeNames {
-		for j := range left.ParentOnTypeNames {
-			if right.ParentOnTypeNames[i].Depth == left.ParentOnTypeNames[j].Depth {
-				// merge all parent type conditions at the same depth
-				// this is important because resolvable.go ensures that at each depth layer,
-				// we have at least one matching type condition
-				// otherwise we skip resolving the field
-				left.ParentOnTypeNames[j].Names = m.deduplicateOnTypeNames(append(left.ParentOnTypeNames[j].Names, right.ParentOnTypeNames[i].Names...))
-				continue WithNext
-			}
+	left.ParentOnTypeNames = nil
+	for _, group := range groups {
+		if len(group) == 0 {
+			// One path has no parent condition, so the merged field has none.
+			left.ParentOnTypeNames = nil
+			return
 		}
-		// if we reach this point, we have a new depth layer and just append it
-		left.ParentOnTypeNames = append(left.ParentOnTypeNames, right.ParentOnTypeNames[i])
+		left.ParentOnTypeNames = m.addConditionGroup(left.ParentOnTypeNames, group)
 	}
+}
+
+func (m *mergeFields) unconditional(field *resolve.Field) bool {
+	return field.OnTypeNames == nil && len(field.ParentOnTypeNames) == 0
+}
+
+// conditionGroups returns the parent type condition groups of a field.
+// A field without groups has one empty group.
+// With foldOwnTypes, the field's own onTypeNames join every group at depth 0.
+func (m *mergeFields) conditionGroups(field *resolve.Field, foldOwnTypes bool) [][]resolve.ParentOnTypeNames {
+	groups := field.ParentOnTypeNames
+	if len(groups) == 0 {
+		groups = [][]resolve.ParentOnTypeNames{nil}
+	}
+	if !foldOwnTypes || field.OnTypeNames == nil {
+		return groups
+	}
+	folded := make([][]resolve.ParentOnTypeNames, len(groups))
+	for i, group := range groups {
+		folded[i] = append(slices.Clone(group), resolve.ParentOnTypeNames{Depth: 0, Names: field.OnTypeNames})
+	}
+	return folded
+}
+
+// addConditionGroup adds group to groups, folded into an existing group when possible.
+func (m *mergeFields) addConditionGroup(groups [][]resolve.ParentOnTypeNames, group []resolve.ParentOnTypeNames) [][]resolve.ParentOnTypeNames {
+	for i := range groups {
+		if combined, ok := m.combineConditionGroups(groups[i], group); ok {
+			groups[i] = combined
+			return groups
+		}
+	}
+	return append(groups, group)
+}
+
+// combineConditionGroups folds two groups into one when they differ at one depth at most.
+// (A AND B) OR (A AND C) = A AND (B OR C).
+// Propagation emits one entry per ancestor depth, so a depth occurs once in a group.
+func (m *mergeFields) combineConditionGroups(left, right []resolve.ParentOnTypeNames) ([]resolve.ParentOnTypeNames, bool) {
+	if len(left) != len(right) {
+		return nil, false
+	}
+	differing := -1
+	var names [][]byte
+	for i, condition := range left {
+		j := slices.IndexFunc(right, func(other resolve.ParentOnTypeNames) bool { return condition.Depth == other.Depth })
+		if j == -1 {
+			return nil, false
+		}
+		if m.sameOnTypeNames(condition.Names, right[j].Names) {
+			continue
+		}
+		if differing != -1 {
+			return nil, false
+		}
+		differing, names = i, right[j].Names
+	}
+	combined := slices.Clone(left)
+	if differing != -1 {
+		combined[differing].Names = m.deduplicateOnTypeNames(append(slices.Clone(combined[differing].Names), names...))
+	}
+	return combined, true
 }
 
 func (m *mergeFields) fieldsCanMerge(left *resolve.Field, right *resolve.Field) bool {
@@ -176,15 +191,7 @@ func (m *mergeFields) fieldsCanMerge(left *resolve.Field, right *resolve.Field) 
 	if left.Value.NodeKind() != right.Value.NodeKind() {
 		return false
 	}
-	if !m.sameOnTypeNames(left.OnTypeNames, right.OnTypeNames) {
-		return false
-	}
-	// scalars with different parent type conditions can't be merged at this point
-	// we're handling this case later when we merge scalar fields
-	if m.nodeIsScalar(left.Value) && !m.sameParentOnTypeNames(left, right) {
-		return false
-	}
-	return true
+	return m.sameOnTypeNames(left.OnTypeNames, right.OnTypeNames)
 }
 
 func (m *mergeFields) deduplicateOnTypeNames(onTypeNames [][]byte) [][]byte {
@@ -218,25 +225,8 @@ WithNext:
 	return true
 }
 
-func (m *mergeFields) sameParentOnTypeNames(left, right *resolve.Field) bool {
-	if len(left.ParentOnTypeNames) != len(right.ParentOnTypeNames) {
-		return false
-	}
-	for i := range left.ParentOnTypeNames {
-		for j := range right.ParentOnTypeNames {
-			if left.ParentOnTypeNames[i].Depth != right.ParentOnTypeNames[j].Depth {
-				continue
-			}
-			if !m.sameOnTypeNames(left.ParentOnTypeNames[i].Names, right.ParentOnTypeNames[j].Names) {
-				continue
-			}
-			break
-		}
-		return false
-	}
-	return true
-}
-
+// mergeValues moves the children of right into left.
+// The children keep their own conditions, which filter the nested selections.
 func (m *mergeFields) mergeValues(left, right *resolve.Field) {
 	switch l := left.Value.(type) {
 	case *resolve.Object:
@@ -252,14 +242,6 @@ func (m *mergeFields) mergeValues(left, right *resolve.Field) {
 	}
 }
 
-func (m *mergeFields) nodeIsScalar(node resolve.Node) bool {
-	switch node.(type) {
-	case *resolve.Object, *resolve.Array:
-		return false
-	}
-	return true
-}
-
 func (m *mergeFields) propagateParentTypeNames(field *resolve.Field) {
 	if field.OnTypeNames == nil {
 		return
@@ -267,30 +249,33 @@ func (m *mergeFields) propagateParentTypeNames(field *resolve.Field) {
 	m.setParentTypeNames(field, field.OnTypeNames, 1)
 }
 
-// setParentTypeNames recursively sets the parent type names for all children of a field
-// increasing the depth by 1 for each level
+// setParentTypeNames adds a condition for typeNames to every descendant of field.
+// The depth grows by one per object level, and an array adds no depth.
 func (m *mergeFields) setParentTypeNames(field *resolve.Field, typeNames [][]byte, depth int) {
-	switch field.Value.NodeKind() {
-	case resolve.NodeKindObject:
-		object := field.Value.(*resolve.Object)
-		for i := range object.Fields {
-			object.Fields[i].ParentOnTypeNames = append(object.Fields[i].ParentOnTypeNames, resolve.ParentOnTypeNames{
-				Depth: depth,
-				Names: typeNames,
-			})
-			m.setParentTypeNames(object.Fields[i], typeNames, depth+1)
-		}
-	case resolve.NodeKindArray:
-		array := field.Value.(*resolve.Array)
-		if array.Item.NodeKind() == resolve.NodeKindObject {
-			object := array.Item.(*resolve.Object)
-			for i := range object.Fields {
-				object.Fields[i].ParentOnTypeNames = append(object.Fields[i].ParentOnTypeNames, resolve.ParentOnTypeNames{
-					Depth: depth,
-					Names: typeNames,
-				})
-				m.setParentTypeNames(object.Fields[i], typeNames, depth+1)
-			}
-		}
+	var object *resolve.Object
+	switch value := field.Value.(type) {
+	case *resolve.Object:
+		object = value
+	case *resolve.Array:
+		object, _ = value.Item.(*resolve.Object)
+	}
+	if object == nil {
+		return
+	}
+	condition := resolve.ParentOnTypeNames{Depth: depth, Names: typeNames}
+	for _, child := range object.Fields {
+		m.appendConditionToGroups(child, condition)
+		m.setParentTypeNames(child, typeNames, depth+1)
+	}
+}
+
+// appendConditionToGroups ANDs condition into every group of the field.
+func (m *mergeFields) appendConditionToGroups(field *resolve.Field, condition resolve.ParentOnTypeNames) {
+	if len(field.ParentOnTypeNames) == 0 {
+		field.ParentOnTypeNames = [][]resolve.ParentOnTypeNames{{condition}}
+		return
+	}
+	for i := range field.ParentOnTypeNames {
+		field.ParentOnTypeNames[i] = append(field.ParentOnTypeNames[i], condition)
 	}
 }
