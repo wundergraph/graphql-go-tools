@@ -507,6 +507,19 @@ func TestFederationIntegrationTest(t *testing.T) {
 		expected := `{"data":{"cat":{"name":"Pepper"},"me":{"id":"1234","username":"Me","realName":"User Usington","reviews":[{"body":"A highly effective form of birth control."},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits."}],"history":[{},{"rating":5},{}]}}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
+
+	// Regression test for https://github.com/wundergraph/cosmo/issues/2346
+	// Deeply nested fields go missing when a named fragment on an interface
+	// contains inline fragments for multiple concrete types and the non-matching
+	// type's fragment is defined first.
+	t.Run("merge concrete type in root field and interface fragment", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/merge_concrete_type_in_root_field_and_interface_fragment.graphql"), nil, t)
+		expected := `{"data":{"productA":{"category":{"id":"c111","displayOwner":{"name":"owner"}}}}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
 }
 
 func compact(input string) string {
