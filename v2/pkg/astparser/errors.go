@@ -2,6 +2,7 @@ package astparser
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/identkeyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/keyword"
@@ -25,12 +26,12 @@ type ErrUnexpectedToken struct {
 
 func (e ErrUnexpectedToken) Error() string {
 
-	origins := ""
+	var origins strings.Builder
 	for _, origin := range e.origins {
-		origins = origins + fmt.Sprintf("\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
+		fmt.Fprintf(&origins, "\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
 	}
 
-	return fmt.Sprintf("unexpected token - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
+	return fmt.Sprintf("unexpected token - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins.String())
 }
 
 // ErrUnexpectedIdentKey is a custom error object to properly render an unexpected ident key error
@@ -44,12 +45,12 @@ type ErrUnexpectedIdentKey struct {
 
 func (e ErrUnexpectedIdentKey) Error() string {
 
-	origins := ""
+	var origins strings.Builder
 	for _, origin := range e.origins {
-		origins = origins + fmt.Sprintf("\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
+		fmt.Fprintf(&origins, "\n\t\t%s:%d\n\t\t%s", origin.file, origin.line, origin.funcName)
 	}
 
-	return fmt.Sprintf("unexpected ident - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
+	return fmt.Sprintf("unexpected ident - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins.String())
 }
 
 // ErrDepthLimitExceeded is returned when the parser encounters nesting depth

@@ -53,8 +53,7 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 	gqlClient := NewGraphqlClient(http.DefaultClient)
 
 	normalizeResponse := func(resp string) string {
-		rex, err := regexp.Compile(`http://127.0.0.1:\d+`)
-		require.NoError(t, err)
+		rex := regexp.MustCompile(`http://127.0.0.1:\d+`)
 		resp = rex.ReplaceAllString(resp, "http://localhost/graphql")
 		return resp
 	}

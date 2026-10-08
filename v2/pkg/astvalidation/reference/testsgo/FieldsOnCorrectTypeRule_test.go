@@ -246,9 +246,7 @@ func TestFieldsOnCorrectTypeRule(t *testing.T) {
 		})
 
 		t.Run("Fields on correct type error message", func(t *testing.T) {
-			ExpectErrorMessage := func(t *testing.T, schema string, queryStr string) MessageCompare {
-				return ExpectValidationErrorMessage(t, schema, queryStr)
-			}
+			ExpectErrorMessage := ExpectValidationErrorMessage
 			t.Run("Works with no suggestions", func(t *testing.T) {
 				schema := BuildSchema(`
         type T {
