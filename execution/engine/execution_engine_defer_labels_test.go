@@ -11,7 +11,16 @@ import (
 )
 
 func TestExecutionEngine_Execute_DeferLabels(t *testing.T) {
-	definition := `type Query { user: User! } type User { id: ID! name: String! title: String! }`
+	definition := `
+		type Query {
+			user: User!
+		}
+		type User {
+			id: ID!
+			name: String!
+			title: String!
+		}
+	`
 
 	schema, err := graphql.NewSchemaFromString(definition)
 	require.NoError(t, err)
@@ -41,16 +50,34 @@ func TestExecutionEngine_Execute_DeferLabels(t *testing.T) {
 			return graphql.Request{
 				OperationName: "Q",
 				Variables:     []byte(`{"enabled":true}`),
-				Query: `query Q($enabled: Boolean!) {
-  user {
-    ... @defer(label: "details", if: $enabled) { name }
-    ... @defer(label: "details") { title }
-  }
-}`,
+				Query: `
+					query Q($enabled: Boolean!) {
+						user {
+							... @defer(label: "details", if: $enabled) { name }
+							... @defer(label: "details") { title }
+						}
+					}`,
 			}
 		},
-		dataSources:           dataSources,
-		expectedErrorResponse: `{"errors":[{"message":"directive \"@defer\" label \"details\" must be unique, but was already used on \"@defer\" directive","locations":[{"line":3,"column":9},{"line":4,"column":9}],"path":["query","user"]}]}`,
+		dataSources: dataSources,
+		expectedErrorResponse: `{
+			"errors": [
+				{
+					"message": "directive \"@defer\" label \"details\" must be unique, but was already used on \"@defer\" directive",
+					"locations": [
+						{
+							"line": 4,
+							"column": 12
+						},
+						{
+							"line": 5,
+							"column": 12
+						}
+					],
+					"path": ["query", "user"]
+				}
+			]
+		}`,
 	}, ""))
 
 	t.Run("[E2] label in a fragment defined before the operation", runWithAndCompareError(ExecutionEngineTestCase{
@@ -58,18 +85,36 @@ func TestExecutionEngine_Execute_DeferLabels(t *testing.T) {
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
 				OperationName: "Q",
-				Query: `fragment UserDetails on User {
-  ... @defer(label: "details") { name }
-}
-query Q {
-  user {
-    ...UserDetails
-    ... @defer(label: "details") { title }
-  }
-}`,
+				Query: `
+					fragment UserDetails on User {
+						... @defer(label: "details") { name }
+					}
+					query Q {
+						user {
+							...UserDetails
+							... @defer(label: "details") { title }
+						}
+					}`,
 			}
 		},
-		dataSources:           dataSources,
-		expectedErrorResponse: `{"errors":[{"message":"directive \"@defer\" label \"details\" must be unique, but was already used on \"@defer\" directive","locations":[{"line":2,"column":7},{"line":7,"column":9}],"path":["query","user"]}]}`,
+		dataSources: dataSources,
+		expectedErrorResponse: `{
+			"errors": [
+				{
+					"message": "directive \"@defer\" label \"details\" must be unique, but was already used on \"@defer\" directive",
+					"locations": [
+						{
+							"line": 3,
+							"column": 11
+						},
+						{
+							"line": 8,
+							"column": 12
+						}
+					],
+					"path": ["query", "user"]
+				}
+			]
+		}`,
 	}, ""))
 }

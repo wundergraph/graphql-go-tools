@@ -155,7 +155,9 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 				errorResponse := bytes.NewBuffer(nil)
 				_, writeErr := requestErrors.WriteResponse(errorResponse)
 				require.NoError(t, writeErr)
-				assert.Equal(t, testCase.expectedErrorResponse, errorResponse.String())
+				expectedErrorResponse := bytes.NewBuffer(nil)
+				require.NoError(t, json.Compact(expectedErrorResponse, []byte(testCase.expectedErrorResponse)))
+				assert.Equal(t, expectedErrorResponse.String(), errorResponse.String())
 			}
 		} else {
 			require.NoError(t, err)

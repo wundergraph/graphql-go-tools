@@ -12,8 +12,13 @@ import (
 
 func TestExecutionEngine_Execute_VariablesValidation(t *testing.T) {
 	definition := `
-		type Query { product: Product! }
-		type Product { id: ID! name: String! }
+		type Query {
+			product: Product!
+		}
+		type Product {
+			id: ID!
+			name: String!
+		}
 	`
 	schema, err := graphql.NewSchemaFromString(definition)
 	require.NoError(t, err)
@@ -40,7 +45,16 @@ func TestExecutionEngine_Execute_VariablesValidation(t *testing.T) {
 	t.Run("[E1] request without variables misses a required variable", runWithAndCompareError(ExecutionEngineTestCase{
 		schema: schema,
 		operation: func(t *testing.T) graphql.Request {
-			return graphql.Request{OperationName: "Q", Query: `query Q($d: Boolean!) { product { id @skip(if: $d) name } }`}
+			return graphql.Request{
+				OperationName: "Q",
+				Query: `
+					query Q($d: Boolean!) {
+						product {
+							id @skip(if: $d)
+							name
+						}
+					}`,
+			}
 		},
 		dataSources: dataSources,
 	}, `Variable "$d" of required type "Boolean!" was not provided.`))
@@ -48,7 +62,17 @@ func TestExecutionEngine_Execute_VariablesValidation(t *testing.T) {
 	t.Run("[E2] request with null variables misses a required variable", runWithAndCompareError(ExecutionEngineTestCase{
 		schema: schema,
 		operation: func(t *testing.T) graphql.Request {
-			return graphql.Request{OperationName: "Q", Query: `query Q($d: Boolean!) { product { id @skip(if: $d) name } }`, Variables: []byte("null")}
+			return graphql.Request{
+				OperationName: "Q",
+				Variables:     []byte("null"),
+				Query: `
+					query Q($d: Boolean!) {
+						product {
+							id @skip(if: $d)
+							name
+						}
+					}`,
+			}
 		},
 		dataSources: dataSources,
 	}, `Variable "$d" of required type "Boolean!" was not provided.`))

@@ -12,10 +12,18 @@ import (
 
 func TestExecutionEngine_Execute_DeferRootValidation(t *testing.T) {
 	const definition = `
-		type Query { a: A }
-		type Mutation { createA: A }
-		type Subscription { a: A }
-		type A { id: ID! }
+		type Query {
+			a: A
+		}
+		type Mutation {
+			createA: A
+		}
+		type Subscription {
+			a: A
+		}
+		type A {
+			id: ID!
+		}
 	`
 	schema, err := graphql.NewSchemaFromString(definition)
 	require.NoError(t, err)
@@ -47,11 +55,29 @@ func TestExecutionEngine_Execute_DeferRootValidation(t *testing.T) {
 		schema: schema,
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
-				Query: "mutation {\n  ... @defer(if: false) {\n    createA { id }\n  }\n}",
+				Query: `
+					mutation {
+						... @defer(if: false) {
+							createA { id }
+						}
+					}`,
 			}
 		},
-		dataSources:           dataSources,
-		expectedErrorResponse: `{"errors":[{"message":"directive \"@defer\" is not allowed on root fields of mutation operations","locations":[{"line":2,"column":7}],"path":["mutation"]}]}`,
+		dataSources: dataSources,
+		expectedErrorResponse: `{
+			"errors": [
+				{
+					"message": "directive \"@defer\" is not allowed on root fields of mutation operations",
+					"locations": [
+						{
+							"line": 3,
+							"column": 11
+						}
+					],
+					"path": ["mutation"]
+				}
+			]
+		}`,
 	}, ""))
 
 	t.Run("[E2] mutation root defer with if variable false", runWithAndCompareError(ExecutionEngineTestCase{
@@ -60,21 +86,58 @@ func TestExecutionEngine_Execute_DeferRootValidation(t *testing.T) {
 			return graphql.Request{
 				OperationName: "M",
 				Variables:     []byte(`{"d":false}`),
-				Query:         "mutation M($d: Boolean!) {\n  ... @defer(if: $d) {\n    createA { id }\n  }\n}",
+				Query: `
+					mutation M($d: Boolean!) {
+						... @defer(if: $d) {
+							createA { id }
+						}
+					}`,
 			}
 		},
-		dataSources:           dataSources,
-		expectedErrorResponse: `{"errors":[{"message":"directive \"@defer\" is not allowed on root fields of mutation operations","locations":[{"line":2,"column":7}],"path":["mutation"]}]}`,
+		dataSources: dataSources,
+		expectedErrorResponse: `{
+			"errors": [
+				{
+					"message": "directive \"@defer\" is not allowed on root fields of mutation operations",
+					"locations": [
+						{
+							"line": 3,
+							"column": 11
+						}
+					],
+					"path": ["mutation"]
+				}
+			]
+		}`,
 	}, ""))
 
 	t.Run("[E3] nested subscription defer in a fragment before the subscription", runWithAndCompareError(ExecutionEngineTestCase{
 		schema: schema,
 		operation: func(t *testing.T) graphql.Request {
 			return graphql.Request{
-				Query: "fragment F on A {\n  ... @defer { id }\n}\nsubscription { a { ...F } }",
+				Query: `
+					fragment F on A {
+						... @defer { id }
+					}
+					subscription {
+						a { ...F }
+					}`,
 			}
 		},
-		dataSources:           dataSources,
-		expectedErrorResponse: `{"errors":[{"message":"directive \"@defer\" is not allowed on subscription operations","locations":[{"line":2,"column":7}],"path":["A"]}]}`,
+		dataSources: dataSources,
+		expectedErrorResponse: `{
+			"errors": [
+				{
+					"message": "directive \"@defer\" is not allowed on subscription operations",
+					"locations": [
+						{
+							"line": 3,
+							"column": 11
+						}
+					],
+					"path": ["A"]
+				}
+			]
+		}`,
 	}, ""))
 }

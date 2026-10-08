@@ -65,387 +65,701 @@ func TestDeferStreamOnValidOperations(t *testing.T) {
 	}{
 		{
 			name: "[M1] mutation root inline defer with if false",
-			operation: `mutation {
-  ... @defer(if: false) { mutateDog { name } }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("mutation")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 7}},
-			}}},
+			operation: `
+				mutation {
+					... @defer(if: false) { mutateDog { name } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("mutation"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[M2] mutation root stream with if false",
-			operation: `mutation {
-  mutateDogs @stream(if: false) { name }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message: `directive "@stream" is not allowed on root fields of mutation operations`,
-				Path: ast.Path{
-					{Kind: ast.FieldName, FieldName: []byte("mutation")},
-					{Kind: ast.FieldName, FieldName: []byte("mutateDogs")},
-				},
-				Locations: []operationreport.Location{{Line: 2, Column: 14}},
-			}}},
+			operation: `
+				mutation {
+					mutateDogs @stream(if: false) { name }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@stream" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("mutation"),
+						},
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("mutateDogs"),
+						},
+					},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 17,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[M3] mutation root inline defer with if variable false",
-			operation: `mutation M($d: Boolean!) {
-  ... @defer(if: $d) { mutateDog { name } }
-}`,
+			operation: `
+				mutation M($d: Boolean!) {
+					... @defer(if: $d) { mutateDog { name } }
+				}`,
 			variables: `{"d":false}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("mutation")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 7}},
-			}}},
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("mutation"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[M4] mutation root inline defer with absent if variable",
-			operation: `mutation M($d: Boolean) {
-  ... @defer(if: $d) { mutateDog { name } }
-}`,
+			operation: `
+				mutation M($d: Boolean) {
+					... @defer(if: $d) { mutateDog { name } }
+				}`,
 			variables: `{}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("mutation")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 7}},
-			}}},
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("mutation"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[M5] mutation root fragment spread defer with if false",
-			operation: `mutation {
-  ...rootFragment @defer(if: false)
-}
-fragment rootFragment on Mutation { mutateDog { name } }`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("mutation")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 19}},
-			}}},
+			operation: `
+				mutation {
+					...rootFragment @defer(if: false)
+				}
+				fragment rootFragment on Mutation {
+					mutateDog { name }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("mutation"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 22,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[M6] defer with if false at the top of a fragment on the mutation root type",
-			operation: `mutation {
-  ...rootFragment
-}
-fragment rootFragment on Mutation { ... @defer(if: false) { mutateDog { name } } }`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Mutation")}},
-				Locations: []operationreport.Location{{Line: 4, Column: 41}},
-			}}},
+			operation: `
+				mutation {
+					...rootFragment
+				}
+				fragment rootFragment on Mutation {
+					... @defer(if: false) { mutateDog { name } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Mutation"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   6,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[M7] mutation root inline fragment on the mutation root type with defer if false",
-			operation: `mutation {
-  ... on Mutation @defer(if: false) { mutateDog { name } }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message: `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path: ast.Path{
-					{Kind: ast.FieldName, FieldName: []byte("mutation")},
-					{Kind: ast.InlineFragmentName, FieldName: []byte("Mutation")},
-				},
-				Locations: []operationreport.Location{{Line: 2, Column: 19}},
-			}}},
+			operation: `
+				mutation {
+					... on Mutation @defer(if: false) { mutateDog { name } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("mutation"),
+						},
+						{
+							Kind:      ast.InlineFragmentName,
+							FieldName: []byte("Mutation"),
+						},
+					},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 22,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[M8] fragment before mutation with enabled defer on the mutation root type",
-			operation: `fragment F on Mutation {
-  ... @defer { mutateDog { name } }
-}
-mutation { ...F }`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Mutation")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 7}},
-			}}},
+			operation: `
+				fragment F on Mutation {
+					... @defer { mutateDog { name } }
+				}
+				mutation { ...F }`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Mutation"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[M9] fragment before mutation with disabled defer on the mutation root type",
-			operation: `fragment F on Mutation {
-  ... @defer(if: false) { mutateDog { name } }
-}
-mutation { ...F }`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Mutation")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 7}},
-			}}},
+			operation: `
+				fragment F on Mutation {
+					... @defer(if: false) { mutateDog { name } }
+				}
+				mutation { ...F }`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Mutation"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[S1] subscription root inline defer with if false",
-			operation: `subscription {
-  ... @defer(if: false) { subscribeDog { name } }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on subscription operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("subscription")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 7}},
-			}}},
+			operation: `
+				subscription {
+					... @defer(if: false) { subscribeDog { name } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("subscription"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[S2] subscription root stream with if false",
-			operation: `subscription {
-  subscribeDogs @stream(if: false) { name }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message: `directive "@stream" is not allowed on subscription operations`,
-				Path: ast.Path{
-					{Kind: ast.FieldName, FieldName: []byte("subscription")},
-					{Kind: ast.FieldName, FieldName: []byte("subscribeDogs")},
-				},
-				Locations: []operationreport.Location{{Line: 2, Column: 17}},
-			}}},
+			operation: `
+				subscription {
+					subscribeDogs @stream(if: false) { name }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@stream" is not allowed on subscription operations`,
+					Path: ast.Path{
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("subscription"),
+						},
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("subscribeDogs"),
+						},
+					},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 20,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[S3] subscription root inline defer with if variable false",
-			operation: `subscription S($d: Boolean!) {
-  ... @defer(if: $d) { subscribeDog { name } }
-}`,
+			operation: `
+				subscription S($d: Boolean!) {
+					... @defer(if: $d) { subscribeDog { name } }
+				}`,
 			variables: `{"d":false}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on subscription operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("subscription")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 7}},
-			}}},
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("subscription"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[S4] defer with if false at the top of a fragment on the subscription root type",
-			operation: `subscription {
-  ...rootFragment
-}
-fragment rootFragment on Subscription { ... @defer(if: false) { subscribeDog { name } } }`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on subscription operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Subscription")}},
-				Locations: []operationreport.Location{{Line: 4, Column: 45}},
-			}}},
+			operation: `
+				subscription {
+					...rootFragment
+				}
+				fragment rootFragment on Subscription {
+					... @defer(if: false) { subscribeDog { name } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Subscription"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   6,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[S5] fragment before subscription with disabled defer on the subscription root type",
-			operation: `fragment F on Subscription {
-  ... @defer(if: false) { subscribeDog { name } }
-}
-subscription { ...F }`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on subscription operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Subscription")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 7}},
-			}}},
+			operation: `
+				fragment F on Subscription {
+					... @defer(if: false) { subscribeDog { name } }
+				}
+				subscription { ...F }`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Subscription"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name:       "[P1] defer in a nested inline fragment on the mutation root type",
 			definition: parentTypeDefinition,
-			operation: `mutation {
-  ... on Mutation { ... @defer { mutateDog { name } } }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message: `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path: ast.Path{
-					{Kind: ast.FieldName, FieldName: []byte("mutation")},
-					{Kind: ast.InlineFragmentName, FieldName: []byte("Mutation"), FragmentRef: 1},
-				},
-				Locations: []operationreport.Location{{Line: 2, Column: 25}},
-			}}},
+			operation: `
+				mutation {
+					... on Mutation { ... @defer { mutateDog { name } } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("mutation"),
+						},
+						{
+							Kind:        ast.InlineFragmentName,
+							FieldName:   []byte("Mutation"),
+							FragmentRef: 1,
+						},
+					},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 28,
+					}},
+				}},
+			},
 		},
 		{
 			name:       "[P2] defer with if false in a nested inline fragment on the mutation root type",
 			definition: parentTypeDefinition,
-			operation: `mutation {
-  ... on Mutation { ... @defer(if: false) { mutateDog { name } } }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message: `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path: ast.Path{
-					{Kind: ast.FieldName, FieldName: []byte("mutation")},
-					{Kind: ast.InlineFragmentName, FieldName: []byte("Mutation"), FragmentRef: 1},
-				},
-				Locations: []operationreport.Location{{Line: 2, Column: 25}},
-			}}},
+			operation: `
+				mutation {
+					... on Mutation { ... @defer(if: false) { mutateDog { name } } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("mutation"),
+						},
+						{
+							Kind:        ast.InlineFragmentName,
+							FieldName:   []byte("Mutation"),
+							FragmentRef: 1,
+						},
+					},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 28,
+					}},
+				}},
+			},
 		},
 		{
 			name:       "[P3] defer below a field that returns the mutation root type",
 			definition: parentTypeDefinition,
-			operation: `mutation {
-  nestedMutation { ... @defer { mutateDog { name } } }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message: `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path: ast.Path{
-					{Kind: ast.FieldName, FieldName: []byte("mutation")},
-					{Kind: ast.FieldName, FieldName: []byte("nestedMutation")},
-				},
-				Locations: []operationreport.Location{{Line: 2, Column: 24}},
-			}}},
+			operation: `
+				mutation {
+					nestedMutation { ... @defer { mutateDog { name } } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("mutation"),
+						},
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("nestedMutation"),
+						},
+					},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 27,
+					}},
+				}},
+			},
 		},
 		{
 			name:       "[P4] stream below a field that returns the mutation root type",
 			definition: parentTypeDefinition,
-			operation: `mutation {
-  nestedMutation { mutateDogs @stream { name } }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message: `directive "@stream" is not allowed on root fields of mutation operations`,
-				Path: ast.Path{
-					{Kind: ast.FieldName, FieldName: []byte("mutation")},
-					{Kind: ast.FieldName, FieldName: []byte("nestedMutation")},
-					{Kind: ast.FieldName, FieldName: []byte("mutateDogs")},
-				},
-				Locations: []operationreport.Location{{Line: 2, Column: 31}},
-			}}},
+			operation: `
+				mutation {
+					nestedMutation { mutateDogs @stream { name } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@stream" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("mutation"),
+						},
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("nestedMutation"),
+						},
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("mutateDogs"),
+						},
+					},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 34,
+					}},
+				}},
+			},
 		},
 		{
 			name:       "[P5] defer with if false in a nested inline fragment on the subscription root type",
 			definition: parentTypeDefinition,
-			operation: `subscription {
-  ... on Subscription { ... @defer(if: false) { subscribeDog { name } } }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message: `directive "@defer" is not allowed on subscription operations`,
-				Path: ast.Path{
-					{Kind: ast.FieldName, FieldName: []byte("subscription")},
-					{Kind: ast.InlineFragmentName, FieldName: []byte("Subscription"), FragmentRef: 1},
-				},
-				Locations: []operationreport.Location{{Line: 2, Column: 29}},
-			}}},
+			operation: `
+				subscription {
+					... on Subscription { ... @defer(if: false) { subscribeDog { name } } }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("subscription"),
+						},
+						{
+							Kind:        ast.InlineFragmentName,
+							FieldName:   []byte("Subscription"),
+							FragmentRef: 1,
+						},
+					},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 32,
+					}},
+				}},
+			},
 		},
 		{
 			name:       "[P6] defer on an interface inline fragment at the mutation root is rejected",
 			definition: parentTypeDefinition,
-			operation: `mutation {
-  ... on Node @defer { id }
-}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message: `directive "@defer" is not allowed on root fields of mutation operations`,
-				Path: ast.Path{
-					{Kind: ast.FieldName, FieldName: []byte("mutation")},
-					{Kind: ast.InlineFragmentName, FieldName: []byte("Node")},
-				},
-				Locations: []operationreport.Location{{Line: 2, Column: 15}},
-			}}},
+			operation: `
+				mutation {
+					... on Node @defer { id }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{
+						{
+							Kind:      ast.FieldName,
+							FieldName: []byte("mutation"),
+						},
+						{
+							Kind:      ast.InlineFragmentName,
+							FieldName: []byte("Node"),
+						},
+					},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 18,
+					}},
+				}},
+			},
 		},
 		{
 			name:       "[P7] defer inside an interface inline fragment at the mutation root is valid",
 			definition: parentTypeDefinition,
-			operation: `mutation {
-  ... on Node { ... @defer { id } }
-}`,
+			operation: `
+				mutation {
+					... on Node { ... @defer { id } }
+				}`,
 			expected: operationreport.Report{},
 		},
 		{
 			name:       "[P8] defer below a nested field of a non-root type is valid",
 			definition: parentTypeDefinition,
-			operation: `mutation {
-  nestedMutation { mutateDog { ... @defer { name } } }
-}`,
+			operation: `
+				mutation {
+					nestedMutation { mutateDog { ... @defer { name } } }
+				}`,
 			expected: operationreport.Report{},
 		},
 		{
 			name:       "[U1] nested defer below an unknown field in a schema without a mutation type is valid",
 			definition: unknownFieldDefinition,
-			operation:  `query { missing { ... @defer { ok } } }`,
-			expected:   operationreport.Report{},
+			operation: `
+				query {
+					missing { ... @defer { ok } }
+				}`,
+			expected: operationreport.Report{},
 		},
 		{
 			name:       "[U2] stream below an unknown field in a schema without a mutation type is valid",
 			definition: unknownFieldDefinition,
-			operation:  `query { missing { other @stream } }`,
-			expected:   operationreport.Report{},
+			operation: `
+				query {
+					missing { other @stream }
+				}`,
+			expected: operationreport.Report{},
 		},
 		{
 			name: "[G1] nested mutation defer with if false is valid",
-			operation: `mutation {
-  mutateDog { ... @defer(if: false) { name } }
-}`,
+			operation: `
+				mutation {
+					mutateDog { ... @defer(if: false) { name } }
+				}`,
 			expected: operationreport.Report{},
 		},
 		{
 			name: "[G2] nested subscription defer with if false is valid",
-			operation: `subscription {
-  newMessage { ... @defer(if: false) { body } }
-}`,
+			operation: `
+				subscription {
+					newMessage { ... @defer(if: false) { body } }
+				}`,
 			expected: operationreport.Report{},
 		},
 		{
 			name: "[G3] query root defer with if false is valid",
-			operation: `query {
-  ... @defer(if: false) { dog { name } }
-}`,
+			operation: `
+				query {
+					... @defer(if: false) { dog { name } }
+				}`,
 			expected: operationreport.Report{},
 		},
 		{
 			name: "[F1] nested defer in a fragment before the subscription",
-			operation: `fragment F on Dog { ... @defer { name } }
-subscription { subscribeDog { ...F } }`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on subscription operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
-				Locations: []operationreport.Location{{Line: 1, Column: 25}},
-			}}},
+			operation: `
+				fragment F on Dog {
+					... @defer { name }
+				}
+				subscription {
+					subscribeDog { ...F }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Dog"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[F2] nested defer with if false in a fragment before the subscription is valid",
-			operation: `fragment F on Dog { ... @defer(if: false) { name } }
-subscription { subscribeDog { ...F } }`,
+			operation: `
+				fragment F on Dog {
+					... @defer(if: false) { name }
+				}
+				subscription {
+					subscribeDog { ...F }
+				}`,
 			expected: operationreport.Report{},
 		},
 		{
 			name: "[F3] nested defer with an absent nullable if variable in a fragment before the subscription",
-			operation: `fragment F on Dog { ... @defer(if: $d) { name } }
-subscription S($d: Boolean) { subscribeDog { ...F } }`,
+			operation: `
+				fragment F on Dog {
+					... @defer(if: $d) { name }
+				}
+				subscription S($d: Boolean) {
+					subscribeDog { ...F }
+				}`,
 			variables: `{}`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on subscription operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
-				Locations: []operationreport.Location{{Line: 1, Column: 25}},
-			}}},
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Dog"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[F4] nested defer in a fragment after the subscription",
-			operation: `subscription { subscribeDog { ...F } }
-fragment F on Dog { ... @defer { name } }`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on subscription operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 25}},
-			}}},
+			operation: `
+				subscription {
+					subscribeDog { ...F }
+				}
+				fragment F on Dog {
+					... @defer { name }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Dog"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   6,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[F5] nested defer in a fragment that the subscription reaches through another fragment",
-			operation: `fragment A on Dog { ...B }
-fragment B on Dog { ... @defer { name } }
-subscription { subscribeDog { ...A } }`,
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on subscription operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
-				Locations: []operationreport.Location{{Line: 2, Column: 25}},
-			}}},
+			operation: `
+				fragment A on Dog { ...B }
+				fragment B on Dog {
+					... @defer { name }
+				}
+				subscription {
+					subscribeDog { ...A }
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Dog"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   4,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[F6] nested defer in a fragment before a query is valid",
-			operation: `fragment F on Dog { ... @defer { name } }
-query { dog { ...F } }`,
+			operation: `
+				fragment F on Dog {
+					... @defer { name }
+				}
+				query {
+					dog { ...F }
+				}`,
 			expected: operationreport.Report{},
 		},
 		{
 			name: "[F7] nested defer in a fragment before two operations when the request selects the subscription",
-			operation: `fragment F on Dog { ... @defer { name } }
-query Q { dog { ...F } }
-subscription S { subscribeDog { ...F } }`,
+			operation: `
+				fragment F on Dog {
+					... @defer { name }
+				}
+				query Q {
+					dog { ...F }
+				}
+				subscription S {
+					subscribeDog { ...F }
+				}`,
 			operationName: "S",
-			expected: operationreport.Report{ExternalErrors: []operationreport.ExternalError{{
-				Message:   `directive "@defer" is not allowed on subscription operations`,
-				Path:      ast.Path{{Kind: ast.FieldName, FieldName: []byte("Dog")}},
-				Locations: []operationreport.Location{{Line: 1, Column: 25}},
-			}}},
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on subscription operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("Dog"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   3,
+						Column: 10,
+					}},
+				}},
+			},
 		},
 		{
 			name: "[F8] nested defer in a fragment after two operations when the request selects the query is valid",
-			operation: `subscription S { subscribeDog { ...F } }
-query Q { dog { ...F } }
-fragment F on Dog { ... @defer { name } }`,
+			operation: `
+				subscription S {
+					subscribeDog { ...F }
+				}
+				query Q {
+					dog { ...F }
+				}
+				fragment F on Dog {
+					... @defer { name }
+				}`,
 			operationName: "Q",
 			expected:      operationreport.Report{},
 		},
