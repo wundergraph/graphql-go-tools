@@ -4706,7 +4706,8 @@ type Query {
 					mutation($s: Boolean!) {
 						mutateDogs @stream(if: $s) { name }
 					}`,
-					`{"s":false}`)
+					`{"s":false}`,
+					`directive "@stream" is not allowed on root fields of mutation operations`)
 			})
 			t.Run("defer inline fragment on root mutation field with if variable true", func(t *testing.T) {
 				runNormalizationPrevalidationWithVariables(t, `
@@ -4751,7 +4752,8 @@ type Query {
 					mutation($s: Boolean) {
 						mutateDogs @stream(if: $s) { name }
 					}`,
-					`{}`)
+					`{}`,
+					`directive "@stream" is not allowed on root fields of mutation operations`)
 			})
 			t.Run("stream on root mutation field via fragment with if variable true", func(t *testing.T) {
 				runNormalizationPrevalidationWithVariables(t, `
@@ -4762,25 +4764,25 @@ type Query {
 					`{"s":true}`,
 					`directive "@stream" is not allowed on root fields of mutation operations`)
 			})
-			t.Run("stream on root mutation field with literal if null is allowed", func(t *testing.T) {
-				// if: null leaves the directive disabled (matches inlineDefer), so it is allowed
+			t.Run("stream on root mutation field with literal if null is rejected", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						mutateDogs @stream(if: null) { name }
-					}`)
+					}`, `directive "@stream" is not allowed on root fields of mutation operations`)
 			})
-			t.Run("defer inline fragment on root mutation field with literal if null is allowed", func(t *testing.T) {
+			t.Run("defer inline fragment on root mutation field with literal if null is rejected", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						... @defer(if: null) { mutateDog { name } }
-					}`)
+					}`, `directive "@defer" is not allowed on root fields of mutation operations`)
 			})
-			t.Run("stream on root mutation field with if variable resolving to null is allowed", func(t *testing.T) {
+			t.Run("stream on root mutation field with if variable resolving to null is rejected", func(t *testing.T) {
 				runNormalizationPrevalidationWithVariables(t, `
 					mutation($s: Boolean) {
 						mutateDogs @stream(if: $s) { name }
 					}`,
-					`{"s":null}`)
+					`{"s":null}`,
+					`directive "@stream" is not allowed on root fields of mutation operations`)
 			})
 		})
 
@@ -4870,7 +4872,7 @@ type Query {
 						}
 					}
 					fragment dogFragment on Dog { name }
-					`, `directive "@defer" label argument must be a static string value, not a variable`)
+					`, `directive "@defer" label argument must be a static string value`)
 			})
 			t.Run("stream directive with variable label", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
@@ -4879,31 +4881,7 @@ type Query {
 							extras @stream(label: $label) { string }
 						}
 					}
-					`, `directive "@stream" label argument must be a static string value, not a variable`)
-			})
-			t.Run("duplicate labels with one disabled defer", func(t *testing.T) {
-				runNormalizationPrevalidation(t, `
-					query {
-						dog {
-							...fragment1 @defer(label: "a", if: false)
-							...fragment2 @defer(label: "a")
-						}
-					}
-					fragment fragment1 on Dog { name }
-					fragment fragment2 on Dog { nickname }
-					`)
-			})
-			t.Run("duplicate labels with one optional defer", func(t *testing.T) {
-				runNormalizationPrevalidation(t, `
-					query q($b: Boolean) {
-						dog {
-							...fragment1 @defer(label: "a", if: $b)
-							...fragment2 @defer(label: "a")
-						}
-					}
-					fragment fragment1 on Dog { name }
-					fragment fragment2 on Dog { nickname }
-					`)
+					`, `directive "@stream" label argument must be a static string value`)
 			})
 		})
 
@@ -4982,13 +4960,13 @@ type Query {
 						extras { string }
 					}`, `directive "@defer" is not allowed on root fields of mutation operations`)
 			})
-			t.Run("valid disabled defer inline fragment spread on root mutation field", func(t *testing.T) {
+			t.Run("invalid disabled defer inline fragment spread on root mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						... @defer (if: false) {
 							mutateDog { name }
 						}
-					}`)
+					}`, `directive "@defer" is not allowed on root fields of mutation operations`)
 			})
 			t.Run("invalid stream field on root mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
@@ -4996,11 +4974,11 @@ type Query {
 						mutateDogs @stream { name }
 					}`, `directive "@stream" is not allowed on root fields of mutation operations`)
 			})
-			t.Run("valid disabled stream on root mutation field", func(t *testing.T) {
+			t.Run("invalid disabled stream on root mutation field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					mutation {
 						mutateDogs @stream (if: false) { name }
-					}`)
+					}`, `directive "@stream" is not allowed on root fields of mutation operations`)
 			})
 
 			// extra cases with fragments
@@ -5109,13 +5087,13 @@ type Query {
 						... @defer { body }
 					}`, `directive "@defer" is not allowed on subscription operations`)
 			})
-			t.Run("non-defer inline fragment spread on root subscription field", func(t *testing.T) {
+			t.Run("disabled defer inline fragment spread on root subscription field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
 					subscription {
 						... @defer (if: false) {
 							subscribeDog { name }
 						}
-					}`)
+					}`, `directive "@defer" is not allowed on subscription operations`)
 			})
 			t.Run("stream field on root subscription field", func(t *testing.T) {
 				runNormalizationPrevalidation(t, `
@@ -5135,7 +5113,7 @@ type Query {
 				runNormalizationPrevalidation(t, `
 					subscription {
 						subscribeDog @stream (if: false) { name }
-					}`, `directive "@stream" can only be used on list fields, but field "subscribeDog" is not a list`)
+					}`, `directive "@stream" is not allowed on subscription operations`)
 			})
 
 			t.Run("defer with variable if argument on query", func(t *testing.T) {
@@ -5152,7 +5130,7 @@ type Query {
 						... @defer(if: $shouldDefer) {
 							dog { name }
 						}
-					}`)
+					}`, `directive "@defer" is not allowed on subscription operations`)
 			})
 		})
 
