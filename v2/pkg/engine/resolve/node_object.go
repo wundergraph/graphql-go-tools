@@ -115,18 +115,17 @@ func (*EmptyObject) Copy() Node {
 }
 
 type Field struct {
-	Name              []byte
-	Value             Node
-	Position          Position
-	Defer             *DeferField
-	Stream            *StreamField
-	OnTypeNames       [][]byte
-	ParentOnTypeNames []ParentOnTypeNames
+	Name        []byte
+	Value       Node
+	Position    Position
+	Defer       *DeferField
+	Stream      *StreamField
+	OnTypeNames [][]byte
+	// ParentOnTypeNames holds one group per fragment path that selected this field.
+	// The field renders when at least one group matches the runtime parent types.
+	// Inside a group every depth must match.
+	ParentOnTypeNames [][]ParentOnTypeNames
 	Info              *FieldInfo
-
-	// When set, at least one alternative must match, in addition to OnTypeNames
-	// and ParentOnTypeNames. Conditions within each alternative are ANDed.
-	ParentOnTypeNamesAlternatives [][]ParentOnTypeNames `json:",omitempty"`
 }
 
 type ParentOnTypeNames struct {
@@ -141,20 +140,24 @@ func (f *Field) Copy() *Field {
 		cp := *f.Defer
 		deferField = &cp
 	}
-	alternatives := slices.Clone(f.ParentOnTypeNamesAlternatives)
-	for i := range alternatives {
-		alternatives[i] = slices.Clone(f.ParentOnTypeNamesAlternatives[i])
+	// The postprocessor duplicates a field after its ancestors propagated their
+	// conditions into it, so the copy must keep them.
+	var parentOnTypeNames [][]ParentOnTypeNames
+	if f.ParentOnTypeNames != nil {
+		parentOnTypeNames = make([][]ParentOnTypeNames, len(f.ParentOnTypeNames))
+		for i := range f.ParentOnTypeNames {
+			parentOnTypeNames[i] = slices.Clone(f.ParentOnTypeNames[i])
+		}
 	}
 	return &Field{
-		Name:                          f.Name,
-		Value:                         f.Value.Copy(),
-		Position:                      f.Position,
-		Defer:                         deferField,
-		Stream:                        f.Stream,
-		OnTypeNames:                   f.OnTypeNames,
-		ParentOnTypeNames:             slices.Clone(f.ParentOnTypeNames),
-		ParentOnTypeNamesAlternatives: alternatives,
-		Info:                          f.Info,
+		Name:              f.Name,
+		Value:             f.Value.Copy(),
+		Position:          f.Position,
+		Defer:             deferField,
+		Stream:            f.Stream,
+		OnTypeNames:       f.OnTypeNames,
+		ParentOnTypeNames: parentOnTypeNames,
+		Info:              f.Info,
 	}
 }
 

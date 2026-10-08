@@ -280,8 +280,6 @@ const multiHopCompoundKeyExpectedPlan = `
            ParentOnTypeNames: [
            ],
            Info: nil,
-           ParentOnTypeNamesAlternatives: [
-           ],
           },
          ],
          Unresolvable: false,
@@ -301,8 +299,6 @@ const multiHopCompoundKeyExpectedPlan = `
         ParentOnTypeNames: [
         ],
         Info: nil,
-        ParentOnTypeNamesAlternatives: [
-        ],
        },
        {
         Name: "selected",
@@ -332,8 +328,6 @@ const multiHopCompoundKeyExpectedPlan = `
            ParentOnTypeNames: [
            ],
            Info: nil,
-           ParentOnTypeNamesAlternatives: [
-           ],
           },
          ],
          Unresolvable: false,
@@ -353,8 +347,6 @@ const multiHopCompoundKeyExpectedPlan = `
         ParentOnTypeNames: [
         ],
         Info: nil,
-        ParentOnTypeNamesAlternatives: [
-        ],
        },
       ],
       Unresolvable: false,
@@ -374,8 +366,6 @@ const multiHopCompoundKeyExpectedPlan = `
      ParentOnTypeNames: [
      ],
      Info: nil,
-     ParentOnTypeNamesAlternatives: [
-     ],
     },
    ],
    Unresolvable: false,

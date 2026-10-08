@@ -90,22 +90,22 @@ func TestMergeFields_Process(t *testing.T) {
 									InaccessibleValues: []string{},
 									TypeName:           `Enum`,
 								},
-								ParentOnTypeNames: []resolve.ParentOnTypeNames{
+								ParentOnTypeNames: [][]resolve.ParentOnTypeNames{{
 									{
 										Depth: 1,
 										Names: [][]byte{[]byte(`A`)},
 									},
-								},
+								}},
 							},
 							{
 								Name:  []byte(`stringField`),
 								Value: &resolve.String{},
-								ParentOnTypeNames: []resolve.ParentOnTypeNames{
+								ParentOnTypeNames: [][]resolve.ParentOnTypeNames{{
 									{
 										Depth: 1,
 										Names: [][]byte{[]byte(`A`)},
 									},
-								},
+								}},
 							},
 						},
 					},
@@ -122,22 +122,22 @@ func TestMergeFields_Process(t *testing.T) {
 									InaccessibleValues: []string{},
 									TypeName:           `Enum`,
 								},
-								ParentOnTypeNames: []resolve.ParentOnTypeNames{
+								ParentOnTypeNames: [][]resolve.ParentOnTypeNames{{
 									{
 										Depth: 1,
 										Names: [][]byte{[]byte(`B`)},
 									},
-								},
+								}},
 							},
 							{
 								Name:  []byte(`stringField`),
 								Value: &resolve.String{},
-								ParentOnTypeNames: []resolve.ParentOnTypeNames{
+								ParentOnTypeNames: [][]resolve.ParentOnTypeNames{{
 									{
 										Depth: 1,
 										Names: [][]byte{[]byte(`B`)},
 									},
-								},
+								}},
 							},
 						},
 					},
