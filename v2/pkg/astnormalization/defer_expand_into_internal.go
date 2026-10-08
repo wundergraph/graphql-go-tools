@@ -74,6 +74,7 @@ func (f *deferExpandIntoInternalVisitor) EnterInlineFragment(ref int) {
 	coercion := f.operation.CoerceIfArgument(directiveRef, f.Ancestors[0].Ref)
 	switch coercion {
 	case ast.IfArgumentNull:
+		// CoerceIfArgument returns IfArgumentNull only for a present argument, so the lookup cannot fail.
 		ifValue, _ := f.operation.DirectiveArgumentValueByName(directiveRef, literal.IF)
 		err := operationreport.ErrNonNullArgumentIsNull(literal.IF, deferIfArgumentType, ifValue.Position)
 		// Fragment inlining copies an argument without its position.
