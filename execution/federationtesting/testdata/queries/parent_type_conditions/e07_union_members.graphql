@@ -1,0 +1,18 @@
+# Nested objects under two union member fragments stay separate fields.
+query UnionMembers {
+    histories {
+        __typename
+        ... on Purchase {
+            product {
+                upc
+            }
+            quantity
+        }
+        ... on Sale {
+            product {
+                upc
+            }
+            rating
+        }
+    }
+}
