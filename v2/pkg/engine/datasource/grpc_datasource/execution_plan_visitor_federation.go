@@ -33,6 +33,7 @@ type rpcPlanVisitorFederation struct {
 	callIndex int // global counter for all calls.
 	// contains the indices of the resolver fields in the resolverFields slice
 	fieldResolverAncestors stack[int]
+	requiredField          int
 	resolverFields         []resolverField
 
 	// plannedRequiredFields accumulates one entry per required-field instance observed
@@ -66,6 +67,7 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		keyFieldMessages:       make(map[string]*RPCMessage),
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
+		requiredField:          ast.InvalidRef,
 		fieldPath:              ast.Path{}.WithFieldNameItem([]byte("result")),
 	}
 
@@ -326,7 +328,7 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 	// If the field is a required field, we don't want to add it to the current response message.
 	if r.planCtx.isRequiredField(fieldDefRef) {
 		r.enterRequiredField(ref, fieldDefRef, r.walker.EnclosingTypeDefinition)
-		r.walker.SkipNode()
+		r.walker.SkipNode() // When we skip here we cannot find field resolvers for required fields.
 		return
 	}
 

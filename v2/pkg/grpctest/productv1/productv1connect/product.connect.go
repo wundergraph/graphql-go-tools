@@ -258,6 +258,9 @@ const (
 	// ProductServiceRequireStorageStockHealthScoreByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageStockHealthScoreById RPC.
 	ProductServiceRequireStorageStockHealthScoreByIdProcedure = "/productv1.ProductService/RequireStorageStockHealthScoreById"
+	// ProductServiceRequireStorageStorageAuditByIdProcedure is the fully-qualified name of the
+	// ProductService's RequireStorageStorageAuditById RPC.
+	ProductServiceRequireStorageStorageAuditByIdProcedure = "/productv1.ProductService/RequireStorageStorageAuditById"
 	// ProductServiceRequireStorageTagSummaryByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireStorageTagSummaryById RPC.
 	ProductServiceRequireStorageTagSummaryByIdProcedure = "/productv1.ProductService/RequireStorageTagSummaryById"
@@ -267,6 +270,12 @@ const (
 	// ProductServiceRequireWarehouseStockHealthScoreByIdProcedure is the fully-qualified name of the
 	// ProductService's RequireWarehouseStockHealthScoreById RPC.
 	ProductServiceRequireWarehouseStockHealthScoreByIdProcedure = "/productv1.ProductService/RequireWarehouseStockHealthScoreById"
+	// ProductServiceResolveAuditFindingRemediationProcedure is the fully-qualified name of the
+	// ProductService's ResolveAuditFindingRemediation RPC.
+	ProductServiceResolveAuditFindingRemediationProcedure = "/productv1.ProductService/ResolveAuditFindingRemediation"
+	// ProductServiceResolveAuditRemediationEstimatedHoursProcedure is the fully-qualified name of the
+	// ProductService's ResolveAuditRemediationEstimatedHours RPC.
+	ProductServiceResolveAuditRemediationEstimatedHoursProcedure = "/productv1.ProductService/ResolveAuditRemediationEstimatedHours"
 	// ProductServiceResolveCategoryActiveSubcategoriesProcedure is the fully-qualified name of the
 	// ProductService's ResolveCategoryActiveSubcategories RPC.
 	ProductServiceResolveCategoryActiveSubcategoriesProcedure = "/productv1.ProductService/ResolveCategoryActiveSubcategories"
@@ -321,6 +330,9 @@ const (
 	// ProductServiceResolveProductStockStatusProcedure is the fully-qualified name of the
 	// ProductService's ResolveProductStockStatus RPC.
 	ProductServiceResolveProductStockStatusProcedure = "/productv1.ProductService/ResolveProductStockStatus"
+	// ProductServiceResolveStorageAuditRiskScoreProcedure is the fully-qualified name of the
+	// ProductService's ResolveStorageAuditRiskScore RPC.
+	ProductServiceResolveStorageAuditRiskScoreProcedure = "/productv1.ProductService/ResolveStorageAuditRiskScore"
 	// ProductServiceResolveStorageLinkedStoragesProcedure is the fully-qualified name of the
 	// ProductService's ResolveStorageLinkedStorages RPC.
 	ProductServiceResolveStorageLinkedStoragesProcedure = "/productv1.ProductService/ResolveStorageLinkedStorages"
@@ -424,9 +436,12 @@ type ProductServiceClient interface {
 	RequireStorageRecommendedItemsById(context.Context, *connect.Request[productv1.RequireStorageRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemsByIdResponse], error)
 	RequireStorageSecuritySummaryById(context.Context, *connect.Request[productv1.RequireStorageSecuritySummaryByIdRequest]) (*connect.Response[productv1.RequireStorageSecuritySummaryByIdResponse], error)
 	RequireStorageStockHealthScoreById(context.Context, *connect.Request[productv1.RequireStorageStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireStorageStockHealthScoreByIdResponse], error)
+	RequireStorageStorageAuditById(context.Context, *connect.Request[productv1.RequireStorageStorageAuditByIdRequest]) (*connect.Response[productv1.RequireStorageStorageAuditByIdResponse], error)
 	RequireStorageTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error)
 	RequireStorageTagsByLengthsById(context.Context, *connect.Request[productv1.RequireStorageTagsByLengthsByIdRequest]) (*connect.Response[productv1.RequireStorageTagsByLengthsByIdResponse], error)
 	RequireWarehouseStockHealthScoreById(context.Context, *connect.Request[productv1.RequireWarehouseStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireWarehouseStockHealthScoreByIdResponse], error)
+	ResolveAuditFindingRemediation(context.Context, *connect.Request[productv1.ResolveAuditFindingRemediationRequest]) (*connect.Response[productv1.ResolveAuditFindingRemediationResponse], error)
+	ResolveAuditRemediationEstimatedHours(context.Context, *connect.Request[productv1.ResolveAuditRemediationEstimatedHoursRequest]) (*connect.Response[productv1.ResolveAuditRemediationEstimatedHoursResponse], error)
 	ResolveCategoryActiveSubcategories(context.Context, *connect.Request[productv1.ResolveCategoryActiveSubcategoriesRequest]) (*connect.Response[productv1.ResolveCategoryActiveSubcategoriesResponse], error)
 	ResolveCategoryCategoryMetrics(context.Context, *connect.Request[productv1.ResolveCategoryCategoryMetricsRequest]) (*connect.Response[productv1.ResolveCategoryCategoryMetricsResponse], error)
 	ResolveCategoryCategoryStatus(context.Context, *connect.Request[productv1.ResolveCategoryCategoryStatusRequest]) (*connect.Response[productv1.ResolveCategoryCategoryStatusResponse], error)
@@ -445,6 +460,7 @@ type ProductServiceClient interface {
 	ResolveProductRecommendedCategory(context.Context, *connect.Request[productv1.ResolveProductRecommendedCategoryRequest]) (*connect.Response[productv1.ResolveProductRecommendedCategoryResponse], error)
 	ResolveProductShippingEstimate(context.Context, *connect.Request[productv1.ResolveProductShippingEstimateRequest]) (*connect.Response[productv1.ResolveProductShippingEstimateResponse], error)
 	ResolveProductStockStatus(context.Context, *connect.Request[productv1.ResolveProductStockStatusRequest]) (*connect.Response[productv1.ResolveProductStockStatusResponse], error)
+	ResolveStorageAuditRiskScore(context.Context, *connect.Request[productv1.ResolveStorageAuditRiskScoreRequest]) (*connect.Response[productv1.ResolveStorageAuditRiskScoreResponse], error)
 	ResolveStorageLinkedStorages(context.Context, *connect.Request[productv1.ResolveStorageLinkedStoragesRequest]) (*connect.Response[productv1.ResolveStorageLinkedStoragesResponse], error)
 	ResolveStorageNearbyStorages(context.Context, *connect.Request[productv1.ResolveStorageNearbyStoragesRequest]) (*connect.Response[productv1.ResolveStorageNearbyStoragesResponse], error)
 	ResolveStorageStorageStatus(context.Context, *connect.Request[productv1.ResolveStorageStorageStatusRequest]) (*connect.Response[productv1.ResolveStorageStorageStatusResponse], error)
@@ -915,6 +931,12 @@ func NewProductServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(productServiceMethods.ByName("RequireStorageStockHealthScoreById")),
 			connect.WithClientOptions(opts...),
 		),
+		requireStorageStorageAuditById: connect.NewClient[productv1.RequireStorageStorageAuditByIdRequest, productv1.RequireStorageStorageAuditByIdResponse](
+			httpClient,
+			baseURL+ProductServiceRequireStorageStorageAuditByIdProcedure,
+			connect.WithSchema(productServiceMethods.ByName("RequireStorageStorageAuditById")),
+			connect.WithClientOptions(opts...),
+		),
 		requireStorageTagSummaryById: connect.NewClient[productv1.RequireStorageTagSummaryByIdRequest, productv1.RequireStorageTagSummaryByIdResponse](
 			httpClient,
 			baseURL+ProductServiceRequireStorageTagSummaryByIdProcedure,
@@ -931,6 +953,18 @@ func NewProductServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+ProductServiceRequireWarehouseStockHealthScoreByIdProcedure,
 			connect.WithSchema(productServiceMethods.ByName("RequireWarehouseStockHealthScoreById")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveAuditFindingRemediation: connect.NewClient[productv1.ResolveAuditFindingRemediationRequest, productv1.ResolveAuditFindingRemediationResponse](
+			httpClient,
+			baseURL+ProductServiceResolveAuditFindingRemediationProcedure,
+			connect.WithSchema(productServiceMethods.ByName("ResolveAuditFindingRemediation")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveAuditRemediationEstimatedHours: connect.NewClient[productv1.ResolveAuditRemediationEstimatedHoursRequest, productv1.ResolveAuditRemediationEstimatedHoursResponse](
+			httpClient,
+			baseURL+ProductServiceResolveAuditRemediationEstimatedHoursProcedure,
+			connect.WithSchema(productServiceMethods.ByName("ResolveAuditRemediationEstimatedHours")),
 			connect.WithClientOptions(opts...),
 		),
 		resolveCategoryActiveSubcategories: connect.NewClient[productv1.ResolveCategoryActiveSubcategoriesRequest, productv1.ResolveCategoryActiveSubcategoriesResponse](
@@ -1039,6 +1073,12 @@ func NewProductServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+ProductServiceResolveProductStockStatusProcedure,
 			connect.WithSchema(productServiceMethods.ByName("ResolveProductStockStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveStorageAuditRiskScore: connect.NewClient[productv1.ResolveStorageAuditRiskScoreRequest, productv1.ResolveStorageAuditRiskScoreResponse](
+			httpClient,
+			baseURL+ProductServiceResolveStorageAuditRiskScoreProcedure,
+			connect.WithSchema(productServiceMethods.ByName("ResolveStorageAuditRiskScore")),
 			connect.WithClientOptions(opts...),
 		),
 		resolveStorageLinkedStorages: connect.NewClient[productv1.ResolveStorageLinkedStoragesRequest, productv1.ResolveStorageLinkedStoragesResponse](
@@ -1163,9 +1203,12 @@ type productServiceClient struct {
 	requireStorageRecommendedItemsById                 *connect.Client[productv1.RequireStorageRecommendedItemsByIdRequest, productv1.RequireStorageRecommendedItemsByIdResponse]
 	requireStorageSecuritySummaryById                  *connect.Client[productv1.RequireStorageSecuritySummaryByIdRequest, productv1.RequireStorageSecuritySummaryByIdResponse]
 	requireStorageStockHealthScoreById                 *connect.Client[productv1.RequireStorageStockHealthScoreByIdRequest, productv1.RequireStorageStockHealthScoreByIdResponse]
+	requireStorageStorageAuditById                     *connect.Client[productv1.RequireStorageStorageAuditByIdRequest, productv1.RequireStorageStorageAuditByIdResponse]
 	requireStorageTagSummaryById                       *connect.Client[productv1.RequireStorageTagSummaryByIdRequest, productv1.RequireStorageTagSummaryByIdResponse]
 	requireStorageTagsByLengthsById                    *connect.Client[productv1.RequireStorageTagsByLengthsByIdRequest, productv1.RequireStorageTagsByLengthsByIdResponse]
 	requireWarehouseStockHealthScoreById               *connect.Client[productv1.RequireWarehouseStockHealthScoreByIdRequest, productv1.RequireWarehouseStockHealthScoreByIdResponse]
+	resolveAuditFindingRemediation                     *connect.Client[productv1.ResolveAuditFindingRemediationRequest, productv1.ResolveAuditFindingRemediationResponse]
+	resolveAuditRemediationEstimatedHours              *connect.Client[productv1.ResolveAuditRemediationEstimatedHoursRequest, productv1.ResolveAuditRemediationEstimatedHoursResponse]
 	resolveCategoryActiveSubcategories                 *connect.Client[productv1.ResolveCategoryActiveSubcategoriesRequest, productv1.ResolveCategoryActiveSubcategoriesResponse]
 	resolveCategoryCategoryMetrics                     *connect.Client[productv1.ResolveCategoryCategoryMetricsRequest, productv1.ResolveCategoryCategoryMetricsResponse]
 	resolveCategoryCategoryStatus                      *connect.Client[productv1.ResolveCategoryCategoryStatusRequest, productv1.ResolveCategoryCategoryStatusResponse]
@@ -1184,6 +1227,7 @@ type productServiceClient struct {
 	resolveProductRecommendedCategory                  *connect.Client[productv1.ResolveProductRecommendedCategoryRequest, productv1.ResolveProductRecommendedCategoryResponse]
 	resolveProductShippingEstimate                     *connect.Client[productv1.ResolveProductShippingEstimateRequest, productv1.ResolveProductShippingEstimateResponse]
 	resolveProductStockStatus                          *connect.Client[productv1.ResolveProductStockStatusRequest, productv1.ResolveProductStockStatusResponse]
+	resolveStorageAuditRiskScore                       *connect.Client[productv1.ResolveStorageAuditRiskScoreRequest, productv1.ResolveStorageAuditRiskScoreResponse]
 	resolveStorageLinkedStorages                       *connect.Client[productv1.ResolveStorageLinkedStoragesRequest, productv1.ResolveStorageLinkedStoragesResponse]
 	resolveStorageNearbyStorages                       *connect.Client[productv1.ResolveStorageNearbyStoragesRequest, productv1.ResolveStorageNearbyStoragesResponse]
 	resolveStorageStorageStatus                        *connect.Client[productv1.ResolveStorageStorageStatusRequest, productv1.ResolveStorageStorageStatusResponse]
@@ -1590,6 +1634,11 @@ func (c *productServiceClient) RequireStorageStockHealthScoreById(ctx context.Co
 	return c.requireStorageStockHealthScoreById.CallUnary(ctx, req)
 }
 
+// RequireStorageStorageAuditById calls productv1.ProductService.RequireStorageStorageAuditById.
+func (c *productServiceClient) RequireStorageStorageAuditById(ctx context.Context, req *connect.Request[productv1.RequireStorageStorageAuditByIdRequest]) (*connect.Response[productv1.RequireStorageStorageAuditByIdResponse], error) {
+	return c.requireStorageStorageAuditById.CallUnary(ctx, req)
+}
+
 // RequireStorageTagSummaryById calls productv1.ProductService.RequireStorageTagSummaryById.
 func (c *productServiceClient) RequireStorageTagSummaryById(ctx context.Context, req *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error) {
 	return c.requireStorageTagSummaryById.CallUnary(ctx, req)
@@ -1604,6 +1653,17 @@ func (c *productServiceClient) RequireStorageTagsByLengthsById(ctx context.Conte
 // productv1.ProductService.RequireWarehouseStockHealthScoreById.
 func (c *productServiceClient) RequireWarehouseStockHealthScoreById(ctx context.Context, req *connect.Request[productv1.RequireWarehouseStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireWarehouseStockHealthScoreByIdResponse], error) {
 	return c.requireWarehouseStockHealthScoreById.CallUnary(ctx, req)
+}
+
+// ResolveAuditFindingRemediation calls productv1.ProductService.ResolveAuditFindingRemediation.
+func (c *productServiceClient) ResolveAuditFindingRemediation(ctx context.Context, req *connect.Request[productv1.ResolveAuditFindingRemediationRequest]) (*connect.Response[productv1.ResolveAuditFindingRemediationResponse], error) {
+	return c.resolveAuditFindingRemediation.CallUnary(ctx, req)
+}
+
+// ResolveAuditRemediationEstimatedHours calls
+// productv1.ProductService.ResolveAuditRemediationEstimatedHours.
+func (c *productServiceClient) ResolveAuditRemediationEstimatedHours(ctx context.Context, req *connect.Request[productv1.ResolveAuditRemediationEstimatedHoursRequest]) (*connect.Response[productv1.ResolveAuditRemediationEstimatedHoursResponse], error) {
+	return c.resolveAuditRemediationEstimatedHours.CallUnary(ctx, req)
 }
 
 // ResolveCategoryActiveSubcategories calls
@@ -1701,6 +1761,11 @@ func (c *productServiceClient) ResolveProductShippingEstimate(ctx context.Contex
 // ResolveProductStockStatus calls productv1.ProductService.ResolveProductStockStatus.
 func (c *productServiceClient) ResolveProductStockStatus(ctx context.Context, req *connect.Request[productv1.ResolveProductStockStatusRequest]) (*connect.Response[productv1.ResolveProductStockStatusResponse], error) {
 	return c.resolveProductStockStatus.CallUnary(ctx, req)
+}
+
+// ResolveStorageAuditRiskScore calls productv1.ProductService.ResolveStorageAuditRiskScore.
+func (c *productServiceClient) ResolveStorageAuditRiskScore(ctx context.Context, req *connect.Request[productv1.ResolveStorageAuditRiskScoreRequest]) (*connect.Response[productv1.ResolveStorageAuditRiskScoreResponse], error) {
+	return c.resolveStorageAuditRiskScore.CallUnary(ctx, req)
 }
 
 // ResolveStorageLinkedStorages calls productv1.ProductService.ResolveStorageLinkedStorages.
@@ -1819,9 +1884,12 @@ type ProductServiceHandler interface {
 	RequireStorageRecommendedItemsById(context.Context, *connect.Request[productv1.RequireStorageRecommendedItemsByIdRequest]) (*connect.Response[productv1.RequireStorageRecommendedItemsByIdResponse], error)
 	RequireStorageSecuritySummaryById(context.Context, *connect.Request[productv1.RequireStorageSecuritySummaryByIdRequest]) (*connect.Response[productv1.RequireStorageSecuritySummaryByIdResponse], error)
 	RequireStorageStockHealthScoreById(context.Context, *connect.Request[productv1.RequireStorageStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireStorageStockHealthScoreByIdResponse], error)
+	RequireStorageStorageAuditById(context.Context, *connect.Request[productv1.RequireStorageStorageAuditByIdRequest]) (*connect.Response[productv1.RequireStorageStorageAuditByIdResponse], error)
 	RequireStorageTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error)
 	RequireStorageTagsByLengthsById(context.Context, *connect.Request[productv1.RequireStorageTagsByLengthsByIdRequest]) (*connect.Response[productv1.RequireStorageTagsByLengthsByIdResponse], error)
 	RequireWarehouseStockHealthScoreById(context.Context, *connect.Request[productv1.RequireWarehouseStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireWarehouseStockHealthScoreByIdResponse], error)
+	ResolveAuditFindingRemediation(context.Context, *connect.Request[productv1.ResolveAuditFindingRemediationRequest]) (*connect.Response[productv1.ResolveAuditFindingRemediationResponse], error)
+	ResolveAuditRemediationEstimatedHours(context.Context, *connect.Request[productv1.ResolveAuditRemediationEstimatedHoursRequest]) (*connect.Response[productv1.ResolveAuditRemediationEstimatedHoursResponse], error)
 	ResolveCategoryActiveSubcategories(context.Context, *connect.Request[productv1.ResolveCategoryActiveSubcategoriesRequest]) (*connect.Response[productv1.ResolveCategoryActiveSubcategoriesResponse], error)
 	ResolveCategoryCategoryMetrics(context.Context, *connect.Request[productv1.ResolveCategoryCategoryMetricsRequest]) (*connect.Response[productv1.ResolveCategoryCategoryMetricsResponse], error)
 	ResolveCategoryCategoryStatus(context.Context, *connect.Request[productv1.ResolveCategoryCategoryStatusRequest]) (*connect.Response[productv1.ResolveCategoryCategoryStatusResponse], error)
@@ -1840,6 +1908,7 @@ type ProductServiceHandler interface {
 	ResolveProductRecommendedCategory(context.Context, *connect.Request[productv1.ResolveProductRecommendedCategoryRequest]) (*connect.Response[productv1.ResolveProductRecommendedCategoryResponse], error)
 	ResolveProductShippingEstimate(context.Context, *connect.Request[productv1.ResolveProductShippingEstimateRequest]) (*connect.Response[productv1.ResolveProductShippingEstimateResponse], error)
 	ResolveProductStockStatus(context.Context, *connect.Request[productv1.ResolveProductStockStatusRequest]) (*connect.Response[productv1.ResolveProductStockStatusResponse], error)
+	ResolveStorageAuditRiskScore(context.Context, *connect.Request[productv1.ResolveStorageAuditRiskScoreRequest]) (*connect.Response[productv1.ResolveStorageAuditRiskScoreResponse], error)
 	ResolveStorageLinkedStorages(context.Context, *connect.Request[productv1.ResolveStorageLinkedStoragesRequest]) (*connect.Response[productv1.ResolveStorageLinkedStoragesResponse], error)
 	ResolveStorageNearbyStorages(context.Context, *connect.Request[productv1.ResolveStorageNearbyStoragesRequest]) (*connect.Response[productv1.ResolveStorageNearbyStoragesResponse], error)
 	ResolveStorageStorageStatus(context.Context, *connect.Request[productv1.ResolveStorageStorageStatusRequest]) (*connect.Response[productv1.ResolveStorageStorageStatusResponse], error)
@@ -2306,6 +2375,12 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 		connect.WithSchema(productServiceMethods.ByName("RequireStorageStockHealthScoreById")),
 		connect.WithHandlerOptions(opts...),
 	)
+	productServiceRequireStorageStorageAuditByIdHandler := connect.NewUnaryHandler(
+		ProductServiceRequireStorageStorageAuditByIdProcedure,
+		svc.RequireStorageStorageAuditById,
+		connect.WithSchema(productServiceMethods.ByName("RequireStorageStorageAuditById")),
+		connect.WithHandlerOptions(opts...),
+	)
 	productServiceRequireStorageTagSummaryByIdHandler := connect.NewUnaryHandler(
 		ProductServiceRequireStorageTagSummaryByIdProcedure,
 		svc.RequireStorageTagSummaryById,
@@ -2322,6 +2397,18 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 		ProductServiceRequireWarehouseStockHealthScoreByIdProcedure,
 		svc.RequireWarehouseStockHealthScoreById,
 		connect.WithSchema(productServiceMethods.ByName("RequireWarehouseStockHealthScoreById")),
+		connect.WithHandlerOptions(opts...),
+	)
+	productServiceResolveAuditFindingRemediationHandler := connect.NewUnaryHandler(
+		ProductServiceResolveAuditFindingRemediationProcedure,
+		svc.ResolveAuditFindingRemediation,
+		connect.WithSchema(productServiceMethods.ByName("ResolveAuditFindingRemediation")),
+		connect.WithHandlerOptions(opts...),
+	)
+	productServiceResolveAuditRemediationEstimatedHoursHandler := connect.NewUnaryHandler(
+		ProductServiceResolveAuditRemediationEstimatedHoursProcedure,
+		svc.ResolveAuditRemediationEstimatedHours,
+		connect.WithSchema(productServiceMethods.ByName("ResolveAuditRemediationEstimatedHours")),
 		connect.WithHandlerOptions(opts...),
 	)
 	productServiceResolveCategoryActiveSubcategoriesHandler := connect.NewUnaryHandler(
@@ -2430,6 +2517,12 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 		ProductServiceResolveProductStockStatusProcedure,
 		svc.ResolveProductStockStatus,
 		connect.WithSchema(productServiceMethods.ByName("ResolveProductStockStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	productServiceResolveStorageAuditRiskScoreHandler := connect.NewUnaryHandler(
+		ProductServiceResolveStorageAuditRiskScoreProcedure,
+		svc.ResolveStorageAuditRiskScore,
+		connect.WithSchema(productServiceMethods.ByName("ResolveStorageAuditRiskScore")),
 		connect.WithHandlerOptions(opts...),
 	)
 	productServiceResolveStorageLinkedStoragesHandler := connect.NewUnaryHandler(
@@ -2626,12 +2719,18 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 			productServiceRequireStorageSecuritySummaryByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageStockHealthScoreByIdProcedure:
 			productServiceRequireStorageStockHealthScoreByIdHandler.ServeHTTP(w, r)
+		case ProductServiceRequireStorageStorageAuditByIdProcedure:
+			productServiceRequireStorageStorageAuditByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageTagSummaryByIdProcedure:
 			productServiceRequireStorageTagSummaryByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireStorageTagsByLengthsByIdProcedure:
 			productServiceRequireStorageTagsByLengthsByIdHandler.ServeHTTP(w, r)
 		case ProductServiceRequireWarehouseStockHealthScoreByIdProcedure:
 			productServiceRequireWarehouseStockHealthScoreByIdHandler.ServeHTTP(w, r)
+		case ProductServiceResolveAuditFindingRemediationProcedure:
+			productServiceResolveAuditFindingRemediationHandler.ServeHTTP(w, r)
+		case ProductServiceResolveAuditRemediationEstimatedHoursProcedure:
+			productServiceResolveAuditRemediationEstimatedHoursHandler.ServeHTTP(w, r)
 		case ProductServiceResolveCategoryActiveSubcategoriesProcedure:
 			productServiceResolveCategoryActiveSubcategoriesHandler.ServeHTTP(w, r)
 		case ProductServiceResolveCategoryCategoryMetricsProcedure:
@@ -2668,6 +2767,8 @@ func NewProductServiceHandler(svc ProductServiceHandler, opts ...connect.Handler
 			productServiceResolveProductShippingEstimateHandler.ServeHTTP(w, r)
 		case ProductServiceResolveProductStockStatusProcedure:
 			productServiceResolveProductStockStatusHandler.ServeHTTP(w, r)
+		case ProductServiceResolveStorageAuditRiskScoreProcedure:
+			productServiceResolveStorageAuditRiskScoreHandler.ServeHTTP(w, r)
 		case ProductServiceResolveStorageLinkedStoragesProcedure:
 			productServiceResolveStorageLinkedStoragesHandler.ServeHTTP(w, r)
 		case ProductServiceResolveStorageNearbyStoragesProcedure:
@@ -2991,6 +3092,10 @@ func (UnimplementedProductServiceHandler) RequireStorageStockHealthScoreById(con
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageStockHealthScoreById is not implemented"))
 }
 
+func (UnimplementedProductServiceHandler) RequireStorageStorageAuditById(context.Context, *connect.Request[productv1.RequireStorageStorageAuditByIdRequest]) (*connect.Response[productv1.RequireStorageStorageAuditByIdResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageStorageAuditById is not implemented"))
+}
+
 func (UnimplementedProductServiceHandler) RequireStorageTagSummaryById(context.Context, *connect.Request[productv1.RequireStorageTagSummaryByIdRequest]) (*connect.Response[productv1.RequireStorageTagSummaryByIdResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireStorageTagSummaryById is not implemented"))
 }
@@ -3001,6 +3106,14 @@ func (UnimplementedProductServiceHandler) RequireStorageTagsByLengthsById(contex
 
 func (UnimplementedProductServiceHandler) RequireWarehouseStockHealthScoreById(context.Context, *connect.Request[productv1.RequireWarehouseStockHealthScoreByIdRequest]) (*connect.Response[productv1.RequireWarehouseStockHealthScoreByIdResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.RequireWarehouseStockHealthScoreById is not implemented"))
+}
+
+func (UnimplementedProductServiceHandler) ResolveAuditFindingRemediation(context.Context, *connect.Request[productv1.ResolveAuditFindingRemediationRequest]) (*connect.Response[productv1.ResolveAuditFindingRemediationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.ResolveAuditFindingRemediation is not implemented"))
+}
+
+func (UnimplementedProductServiceHandler) ResolveAuditRemediationEstimatedHours(context.Context, *connect.Request[productv1.ResolveAuditRemediationEstimatedHoursRequest]) (*connect.Response[productv1.ResolveAuditRemediationEstimatedHoursResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.ResolveAuditRemediationEstimatedHours is not implemented"))
 }
 
 func (UnimplementedProductServiceHandler) ResolveCategoryActiveSubcategories(context.Context, *connect.Request[productv1.ResolveCategoryActiveSubcategoriesRequest]) (*connect.Response[productv1.ResolveCategoryActiveSubcategoriesResponse], error) {
@@ -3073,6 +3186,10 @@ func (UnimplementedProductServiceHandler) ResolveProductShippingEstimate(context
 
 func (UnimplementedProductServiceHandler) ResolveProductStockStatus(context.Context, *connect.Request[productv1.ResolveProductStockStatusRequest]) (*connect.Response[productv1.ResolveProductStockStatusResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.ResolveProductStockStatus is not implemented"))
+}
+
+func (UnimplementedProductServiceHandler) ResolveStorageAuditRiskScore(context.Context, *connect.Request[productv1.ResolveStorageAuditRiskScoreRequest]) (*connect.Response[productv1.ResolveStorageAuditRiskScoreResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("productv1.ProductService.ResolveStorageAuditRiskScore is not implemented"))
 }
 
 func (UnimplementedProductServiceHandler) ResolveStorageLinkedStorages(context.Context, *connect.Request[productv1.ResolveStorageLinkedStoragesRequest]) (*connect.Response[productv1.ResolveStorageLinkedStoragesResponse], error) {

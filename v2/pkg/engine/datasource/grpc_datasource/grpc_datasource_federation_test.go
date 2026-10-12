@@ -1898,6 +1898,93 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_And_FieldResolvers(t *te
 				require.Empty(t, errorData)
 			},
 		},
+		{
+			name:  "Query Storage with storageAudit (complex return requires) with nested field resolvers",
+			query: `query($representations: [_Any!]!, $weight: Float!, $detailed: Boolean!) { _entities(representations: $representations) { ...on Storage { __typename id storageAudit { zone riskScore(weight: $weight) report { generatedAt findings { code severity remediation(detailed: $detailed) { description estimatedHours } } } } } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Storage","id":"1","metadata":{"capacity":100,"zone":"a"}},
+				{"__typename":"Storage","id":"2","metadata":{"capacity":30,"zone":"north"}}
+			],"weight":2,"detailed":true}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "storageAudit",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				// Storage 1: zone="A", capacity=100 -> 2 findings
+				storage1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "storage1 should be an object")
+				require.Equal(t, "Storage", storage1["__typename"])
+				require.Equal(t, "1", storage1["id"])
+				audit1, ok := storage1["storageAudit"].(map[string]any)
+				require.True(t, ok, "storageAudit should be an object")
+				require.Equal(t, "A", audit1["zone"])
+				// riskScore = len(zone) * weight = 1 * 2
+				require.Equal(t, float64(2), audit1["riskScore"])
+				report1, ok := audit1["report"].(map[string]any)
+				require.True(t, ok, "report should be an object")
+				require.Equal(t, "2024-01-01T00:00:00Z", report1["generatedAt"])
+				findings1, ok := report1["findings"].([]any)
+				require.True(t, ok, "findings should be an array")
+				require.Len(t, findings1, 2, "Should return 2 findings")
+
+				finding11, ok := findings1[0].(map[string]any)
+				require.True(t, ok, "finding should be an object")
+				require.Equal(t, "A-F1", finding11["code"])
+				require.Equal(t, float64(1), finding11["severity"])
+				remediation11, ok := finding11["remediation"].(map[string]any)
+				require.True(t, ok, "remediation should be an object")
+				require.Equal(t, "Fix A-F1 (severity 1)", remediation11["description"])
+				// estimatedHours = len(description) * 0.5 = 21 * 0.5
+				require.Equal(t, 10.5, remediation11["estimatedHours"])
+
+				finding12, ok := findings1[1].(map[string]any)
+				require.True(t, ok, "finding should be an object")
+				require.Equal(t, "A-F2", finding12["code"])
+				require.Equal(t, float64(2), finding12["severity"])
+				remediation12, ok := finding12["remediation"].(map[string]any)
+				require.True(t, ok, "remediation should be an object")
+				require.Equal(t, "Fix A-F2 (severity 2)", remediation12["description"])
+				require.Equal(t, 10.5, remediation12["estimatedHours"])
+
+				// Storage 2: zone="NORTH", capacity=30 -> 1 finding
+				storage2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "2", storage2["id"])
+				audit2, ok := storage2["storageAudit"].(map[string]any)
+				require.True(t, ok, "storageAudit should be an object")
+				require.Equal(t, "NORTH", audit2["zone"])
+				// riskScore = len(zone) * weight = 5 * 2
+				require.Equal(t, float64(10), audit2["riskScore"])
+				report2, ok := audit2["report"].(map[string]any)
+				require.True(t, ok, "report should be an object")
+				findings2, ok := report2["findings"].([]any)
+				require.True(t, ok, "findings should be an array")
+				require.Len(t, findings2, 1, "Should return 1 finding")
+
+				finding21, ok := findings2[0].(map[string]any)
+				require.True(t, ok, "finding should be an object")
+				require.Equal(t, "NORTH-F1", finding21["code"])
+				remediation21, ok := finding21["remediation"].(map[string]any)
+				require.True(t, ok, "remediation should be an object")
+				require.Equal(t, "Fix NORTH-F1 (severity 1)", remediation21["description"])
+				// estimatedHours = len(description) * 0.5 = 25 * 0.5
+				require.Equal(t, 12.5, remediation21["estimatedHours"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
