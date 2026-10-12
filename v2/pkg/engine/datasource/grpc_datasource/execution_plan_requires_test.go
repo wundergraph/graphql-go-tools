@@ -5746,7 +5746,204 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
+						ID:             1,
+						ServiceName:    "Products",
+						Kind:           CallKindResolve,
+						MethodName:     "ResolveStorageAuditRiskScore",
+						DependentCalls: []int{4},
+						ResponsePath:   buildPath("_entities.storageAudit.riskScore"),
+						Request: RPCMessage{
+							Name: "ResolveStorageAuditRiskScoreRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveStorageAuditRiskScoreContext",
+										Fields: []RPCField{
+											{
+												Name:          "zone",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "zone",
+												ResolvePath:   buildPath("result.storage_audit.zone"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveStorageAuditRiskScoreArgs",
+										Fields: []RPCField{
+											{
+												Name:          "weight",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "weight",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveStorageAuditRiskScoreResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveStorageAuditRiskScoreResult",
+										Fields: []RPCField{
+											{
+												Name:          "risk_score",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "riskScore",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						ServiceName:    "Products",
+						Kind:           CallKindResolve,
+						MethodName:     "ResolveAuditFindingRemediation",
+						DependentCalls: []int{4},
+						ResponsePath:   buildPath("_entities.storageAudit.report.findings.remediation"),
+						Request: RPCMessage{
+							Name: "ResolveAuditFindingRemediationRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveAuditFindingRemediationContext",
+										Fields: []RPCField{
+											{
+												Name:          "code",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "code",
+												ResolvePath:   buildPath("result.storage_audit.report.findings.code"),
+											},
+											{
+												Name:          "severity",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "severity",
+												ResolvePath:   buildPath("result.storage_audit.report.findings.severity"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveAuditFindingRemediationArgs",
+										Fields: []RPCField{
+											{
+												Name:          "detailed",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "detailed",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveAuditFindingRemediationResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveAuditFindingRemediationResult",
+										Fields: []RPCField{
+											{
+												Name:          "remediation",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "remediation",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "AuditRemediation",
+													Fields: []RPCField{
+														{
+															Name:          "description",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "description",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             3,
+						ServiceName:    "Products",
+						Kind:           CallKindResolve,
+						MethodName:     "ResolveAuditRemediationEstimatedHours",
+						DependentCalls: []int{2},
+						ResponsePath:   buildPath("_entities.storageAudit.report.findings.remediation.estimatedHours"),
+						Request: RPCMessage{
+							Name: "ResolveAuditRemediationEstimatedHoursRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveAuditRemediationEstimatedHoursContext",
+										Fields: []RPCField{
+											{
+												Name:          "description",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "description",
+												ResolvePath:   buildPath("result.remediation.description"),
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveAuditRemediationEstimatedHoursResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveAuditRemediationEstimatedHoursResult",
+										Fields: []RPCField{
+											{
+												Name:          "estimated_hours",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "estimatedHours",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:           4,
 						ServiceName:  "Products",
 						Kind:         CallKindRequired,
 						MethodName:   "RequireStorageStorageAuditById",
@@ -5872,203 +6069,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 														},
 													},
 												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					{
-						ID:             2,
-						ServiceName:    "Products",
-						Kind:           CallKindResolve,
-						MethodName:     "ResolveStorageAuditRiskScore",
-						DependentCalls: []int{1},
-						ResponsePath:   buildPath("_entities.storageAudit.riskScore"),
-						Request: RPCMessage{
-							Name: "ResolveStorageAuditRiskScoreRequest",
-							Fields: []RPCField{
-								{
-									Name:          "context",
-									ProtoTypeName: DataTypeMessage,
-									Repeated:      true,
-									Message: &RPCMessage{
-										Name: "ResolveStorageAuditRiskScoreContext",
-										Fields: []RPCField{
-											{
-												Name:          "zone",
-												ProtoTypeName: DataTypeString,
-												JSONPath:      "zone",
-												ResolvePath:   buildPath("result.storage_audit.zone"),
-											},
-										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
-									Message: &RPCMessage{
-										Name: "ResolveStorageAuditRiskScoreArgs",
-										Fields: []RPCField{
-											{
-												Name:          "weight",
-												ProtoTypeName: DataTypeDouble,
-												JSONPath:      "weight",
-											},
-										},
-									},
-								},
-							},
-						},
-						Response: RPCMessage{
-							Name: "ResolveStorageAuditRiskScoreResponse",
-							Fields: []RPCField{
-								{
-									Name:          "result",
-									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "result",
-									Repeated:      true,
-									Message: &RPCMessage{
-										Name: "ResolveStorageAuditRiskScoreResult",
-										Fields: []RPCField{
-											{
-												Name:          "risk_score",
-												ProtoTypeName: DataTypeDouble,
-												JSONPath:      "riskScore",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					{
-						ID:             3,
-						ServiceName:    "Products",
-						Kind:           CallKindResolve,
-						MethodName:     "ResolveAuditFindingRemediation",
-						DependentCalls: []int{1},
-						ResponsePath:   buildPath("_entities.storageAudit.report.findings.remediation"),
-						Request: RPCMessage{
-							Name: "ResolveAuditFindingRemediationRequest",
-							Fields: []RPCField{
-								{
-									Name:          "context",
-									ProtoTypeName: DataTypeMessage,
-									Repeated:      true,
-									Message: &RPCMessage{
-										Name: "ResolveAuditFindingRemediationContext",
-										Fields: []RPCField{
-											{
-												Name:          "code",
-												ProtoTypeName: DataTypeString,
-												JSONPath:      "code",
-												ResolvePath:   buildPath("result.storage_audit.report.@findings.code"),
-											},
-											{
-												Name:          "severity",
-												ProtoTypeName: DataTypeInt32,
-												JSONPath:      "severity",
-												ResolvePath:   buildPath("result.storage_audit.report.@findings.severity"),
-											},
-										},
-									},
-								},
-								{
-									Name:          "field_args",
-									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
-									Message: &RPCMessage{
-										Name: "ResolveAuditFindingRemediationArgs",
-										Fields: []RPCField{
-											{
-												Name:          "detailed",
-												ProtoTypeName: DataTypeBool,
-												JSONPath:      "detailed",
-											},
-										},
-									},
-								},
-							},
-						},
-						Response: RPCMessage{
-							Name: "ResolveAuditFindingRemediationResponse",
-							Fields: []RPCField{
-								{
-									Name:          "result",
-									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "result",
-									Repeated:      true,
-									Message: &RPCMessage{
-										Name: "ResolveAuditFindingRemediationResult",
-										Fields: []RPCField{
-											{
-												Name:          "remediation",
-												ProtoTypeName: DataTypeMessage,
-												JSONPath:      "remediation",
-												Optional:      true,
-												Message: &RPCMessage{
-													Name: "AuditRemediation",
-													Fields: []RPCField{
-														{
-															Name:          "description",
-															ProtoTypeName: DataTypeString,
-															JSONPath:      "description",
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					{
-						ID:             4,
-						ServiceName:    "Products",
-						Kind:           CallKindResolve,
-						MethodName:     "ResolveAuditRemediationEstimatedHours",
-						DependentCalls: []int{3},
-						ResponsePath:   buildPath("_entities.storageAudit.report.findings.remediation.estimatedHours"),
-						Request: RPCMessage{
-							Name: "ResolveAuditRemediationEstimatedHoursRequest",
-							Fields: []RPCField{
-								{
-									Name:          "context",
-									ProtoTypeName: DataTypeMessage,
-									Repeated:      true,
-									Message: &RPCMessage{
-										Name: "ResolveAuditRemediationEstimatedHoursContext",
-										Fields: []RPCField{
-											{
-												Name:          "description",
-												ProtoTypeName: DataTypeString,
-												JSONPath:      "description",
-												ResolvePath:   buildPath("result.remediation.description"),
-											},
-										},
-									},
-								},
-							},
-						},
-						Response: RPCMessage{
-							Name: "ResolveAuditRemediationEstimatedHoursResponse",
-							Fields: []RPCField{
-								{
-									Name:          "result",
-									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "result",
-									Repeated:      true,
-									Message: &RPCMessage{
-										Name: "ResolveAuditRemediationEstimatedHoursResult",
-										Fields: []RPCField{
-											{
-												Name:          "estimated_hours",
-												ProtoTypeName: DataTypeDouble,
-												JSONPath:      "estimatedHours",
 											},
 										},
 									},
