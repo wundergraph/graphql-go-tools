@@ -45,7 +45,7 @@ type fieldRequirement struct {
 	path                    ast.Path
 	responseName            ast.ByteSlice
 	fieldRef                int
-	fieldTypeRef            int
+	fieldTypeRef            int // InvalidRef denotes the implicit String! type of __typename.
 	fieldTypeDefinitionNode ast.Node
 	enclosingTypeDefinition ast.Node
 	parent                  int
@@ -70,21 +70,26 @@ func (f *fieldSelectionMergingVisitor) EnterOperationDefinition(_ int) {
 
 func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	fieldName := f.operation.FieldNameBytes(ref)
-	if bytes.Equal(fieldName, literal.TYPENAME) {
-		return
-	}
-	definition, ok := f.definition.NodeFieldDefinitionByName(f.EnclosingTypeDefinition, fieldName)
-	if !ok {
-		enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
-		f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, enclosingTypeName))
-		return
+	// __typename is an implicit String! field even without the base schema.
+	// See https://spec.graphql.org/September2025/#sec-Type-Name-Introspection
+	fieldType := ast.InvalidRef
+	fieldTypeNode := ast.Node{Kind: ast.NodeKindScalarTypeDefinition, Ref: ast.InvalidRef}
+	if !bytes.Equal(fieldName, literal.TYPENAME) {
+		definition, ok := f.definition.NodeFieldDefinitionByName(f.EnclosingTypeDefinition, fieldName)
+		if !ok {
+			enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
+			f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, enclosingTypeName))
+			return
+		}
+		fieldType = f.definition.FieldDefinitionType(definition)
+		fieldTypeNode = f.definition.FieldDefinitionTypeNode(definition)
 	}
 	current := fieldRequirement{
 		path:                    f.Path.WithoutInlineFragmentNames(),
 		responseName:            f.operation.FieldAliasOrNameBytes(ref),
 		fieldRef:                ref,
-		fieldTypeRef:            f.definition.FieldDefinitionType(definition),
-		fieldTypeDefinitionNode: f.definition.FieldDefinitionTypeNode(definition),
+		fieldTypeRef:            fieldType,
+		fieldTypeDefinitionNode: fieldTypeNode,
 		enclosingTypeDefinition: f.EnclosingTypeDefinition,
 		parent:                  f.parentRequirement(),
 	}
@@ -116,13 +121,13 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		// relaxation applies only when the immediate enclosing types cannot overlap.
 		// See https://spec.graphql.org/September2025/#SameResponseShape()
 		ignoreNullability := f.relaxNullabilityCheck && !f.potentiallySameObject(previous.enclosingTypeDefinition, current.enclosingTypeDefinition)
-		if !f.definition.TypesHaveCompatibleResponseShape(previous.fieldTypeRef, current.fieldTypeRef, previous.fieldTypeDefinitionNode, current.fieldTypeDefinitionNode, ignoreNullability) {
-			left, err := f.definition.PrintTypeBytes(previous.fieldTypeRef, nil)
+		if !f.responseShapesAreCompatible(previous, current, ignoreNullability) {
+			left, err := f.fieldTypeBytes(previous.fieldTypeRef)
 			if err != nil {
 				f.StopWithInternalErr(err)
 				return
 			}
-			right, err := f.definition.PrintTypeBytes(current.fieldTypeRef, nil)
+			right, err := f.fieldTypeBytes(current.fieldTypeRef)
 			if err != nil {
 				f.StopWithInternalErr(err)
 				return
@@ -142,6 +147,32 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	// FieldsInSetCanMerge step 2 checks every pair. Retain every selection;
 	// compatibility with one field does not establish compatibility with others.
 	f.requirements = append(f.requirements, current)
+}
+
+func (f *fieldSelectionMergingVisitor) responseShapesAreCompatible(left, right fieldRequirement, ignoreNullability bool) bool {
+	if left.fieldTypeRef != ast.InvalidRef && right.fieldTypeRef != ast.InvalidRef {
+		return f.definition.TypesHaveCompatibleResponseShape(left.fieldTypeRef, right.fieldTypeRef, left.fieldTypeDefinitionNode, right.fieldTypeDefinitionNode, ignoreNullability)
+	}
+	if left.fieldTypeRef == right.fieldTypeRef {
+		return true // Both fields are __typename.
+	}
+	other := left.fieldTypeRef
+	if other == ast.InvalidRef {
+		other = right.fieldTypeRef
+	}
+	if f.definition.Types[other].TypeKind == ast.TypeKindNonNull {
+		other = f.definition.Types[other].OfType
+	} else if !ignoreNullability {
+		return false
+	}
+	return f.definition.Types[other].TypeKind == ast.TypeKindNamed && bytes.Equal(f.definition.TypeNameBytes(other), literal.STRING)
+}
+
+func (f *fieldSelectionMergingVisitor) fieldTypeBytes(ref int) ([]byte, error) {
+	if ref == ast.InvalidRef {
+		return []byte("String!"), nil
+	}
+	return f.definition.PrintTypeBytes(ref, nil)
 }
 
 // parentRequirement uses the walker's ancestry because SkipNode can suppress
