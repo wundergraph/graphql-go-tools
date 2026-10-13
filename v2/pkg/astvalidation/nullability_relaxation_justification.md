@@ -1,151 +1,80 @@
-# Justification: Relaxed Nullability Validation on Non-Overlapping Concrete Types
+# Optional nullability relaxation for field merging
 
-## Problem Statement
+The default validator enforces matching nullability for fields with the same
+response name, including fields in mutually exclusive branches. Calling
+`WithRelaxFieldSelectionMergingNullability()` deliberately relaxes that rule for
+fields whose immediate enclosing types cannot overlap.
 
-The Router rejects valid-in-practice queries where inline fragments on different
-concrete union/interface member types select the same field with different
-nullability:
+For example, given an `Entity` union of `User` and `Organization`, where
+`User.email` is `String!` and `Organization.email` is `String`, this query fails
+strict validation and passes with the option enabled:
 
 ```graphql
-# Schema:
-union Entity = User | Organization
-type User { email: String! }
-type Organization { email: String }
-
-# Query (rejected):
 {
   entity {
     ... on User { email }
     ... on Organization { email }
   }
 }
-# Error: "fields 'email' conflict because they return conflicting types 'String!' and 'String'"
 ```
 
-## What the Spec Says
+Each entity resolves to one concrete type, so only one of these branches applies
+to any response object. Clients using the option must allow a nullable email.
+This execution property motivates the option; it does not make the query valid
+under strict GraphQL validation.
 
-The GraphQL spec ([sec 5.3.2 "Field Selection Merging"](https://spec.graphql.org/October2021/#sec-Field-Selection-Merging))
-defines two algorithms:
+## Specification and deliberate deviation
 
-1. **FieldsInSetCanMerge**: For each pair of fields with the same response name,
-   calls `SameResponseShape`. If parent types are the same (or either is not an
-   Object Type), also checks that field names and arguments match.
+[FieldsInSetCanMerge](https://spec.graphql.org/September2025/#FieldsInSetCanMerge())
+requires compatible response shapes for every pair of selections sharing a
+response name. Field names and arguments must also match when the enclosing
+types are the same or either type is not an object. Distinct concrete object
+branches permit different field identities, including in their descendants.
 
-2. **SameResponseShape**: Checks structural type compatibility. Step 2 states:
-   "If typeA or typeB is Non-Null: if the other is nullable, return false."
-   This check runs **unconditionally** — it has no concept of parent type
-   mutual exclusivity.
+[SameResponseShape](https://spec.graphql.org/September2025/#SameResponseShape())
+requires matching non-null wrappers, list structure, and named leaf types.
+Composite type names may differ, provided their selected subfields have
+compatible response shapes. These shape requirements apply even to mutually
+exclusive branches.
 
-The `FieldsInSetCanMerge` algorithm *does* have a concept of mutual exclusivity
-(step 3: "if parentType1 is not equal to parentType2, and both are Object Types"),
-but this flag **only** relaxes the field-name and argument-equality checks — not
-the `SameResponseShape` check.
+The option skips only the non-null wrapper requirement for eligible pairs.
+List nesting must still match, scalar and enum names must still match, and
+composite subfields are still checked. It does not relax field-name or argument
+checks. In particular, an interface and an object that does not implement it
+still require matching field identities unless an ancestor establishes mutually
+exclusive concrete branches.
 
-**Per the literal spec text, our query is invalid.**
+## Implementation
 
-## What the Reference Implementation Does
+`fieldSelectionMergingVisitor` derives `ignoreNullability` from the option and
+`potentiallySameObject` for the two immediate enclosing types:
 
-The [graphql-js reference implementation](https://github.com/graphql/graphql-js/blob/main/src/validation/rules/OverlappingFieldsCanBeMergedRule.ts)
-mirrors the spec exactly. The `doTypesConflict` function runs **outside** the
-`!areMutuallyExclusive` guard:
+| Enclosing types | Potential overlap | Nullability with the option |
+| --- | --- | --- |
+| Same object type | Yes | Strict |
+| Different object types | No | Relaxed |
+| Two interfaces | Assumed possible | Strict |
+| Interface and implementing object | Yes | Strict |
+| Interface and non-implementing object | No | Relaxed |
+| Other combinations | No, by the helper's existing policy | Relaxed |
 
-```typescript
-// In findConflict():
-if (!areMutuallyExclusive) {
-  // Only check field name + argument equality when types could overlap
-}
+`Document.TypesHaveCompatibleResponseShape` shares the AST type-wrapper
+comparison and uses the already resolved named-type definitions. It compares
+leaf names exactly and permits differing composite names. The visitor checks
+selected subfields separately. `__typename` participates as an implicit
+`String!` field, even without the base schema.
 
-// TYPE CHECK — ALWAYS RUNS, regardless of areMutuallyExclusive
-if (type1 && type2 && doTypesConflict(type1, type2)) {
-  return [/* conflict */];
-}
-```
+The validator does not use `TypesAreCompatibleDeep` or
+`TypesAreCompatibleIgnoringNullability`: their object/interface and object/union
+compatibility rules are not response-shape validation. Inherited concrete-branch
+exclusivity controls identity checks separately from the immediate-parent policy
+for nullability relaxation.
 
-**graphql-js also rejects the query.**
+## Subgraph compatibility
 
-## Known Issues About This Behavior
-
-This has been reported multiple times across the ecosystem:
-
-| Issue | Status |
-|-------|--------|
-| [graphql-js #1361](https://github.com/graphql/graphql-js/issues/1361): "Fragment safe divergence does not consider field nullability" | Closed as "working as designed". Maintainer suggested filing a spec change proposal. |
-| [graphql-js #1065](https://github.com/graphql/graphql-js/issues/1065): "GraphQL union and conflicting types" | Closed with same explanation |
-| [Netflix DGS #1583](https://github.com/Netflix/dgs-framework/issues/1583) | Closed as "working as designed per spec" |
-
-No spec change proposal has been filed or merged.
-
-## Why the Relaxation Is Safe
-
-Despite deviating from the spec, our relaxation is safe for the following reasons:
-
-### 1. Non-overlapping types can never co-resolve
-
-`User` and `Organization` are distinct concrete object types. At runtime, the
-`entity` field resolves to exactly one of them. The `... on User` branch and
-the `... on Organization` branch can **never** both apply to the same response
-object. Therefore, a client will only ever see one nullability variant per object.
-
-### 2. The base types are still required to match
-
-Our relaxation **only** strips `NonNull` wrappers. It still requires:
-- Same list structure (`[String]` vs `String` is still rejected)
-- Same base named type (`String` vs `Int` is still rejected)
-- Same abstract/concrete compatibility
-
-A nullable `String` is always a valid superset of a non-null `String!`. There is
-no type safety issue.
-
-### 3. Conservative for interfaces
-
-When either enclosing type is an **interface**, we conservatively enforce the
-strict check. This is because a concrete type could implement both interfaces,
-making overlap possible. The relaxation only applies when both enclosing types
-are **different concrete Object types**.
-
-### 4. The original spec rationale doesn't apply here
-
-The [original commit](https://github.com/graphql/graphql-js/commit/c034de91acce10d5c06d03bd332c6ebd45e2213c)
-that introduced strict type checking for mutually exclusive types gave this
-motivating example:
-
-```graphql
-... on Person { foo: birthday { bar: year } }   # bar: Int
-... on Business { foo: location { bar: street } } # bar: String
-```
-
-Here `data.foo.bar` could be `Int` or `String` — genuinely ambiguous. But that
-is a **different base type** conflict (`Int` vs `String`), which our fix still
-rejects. Nullability differences (`String!` vs `String`) do not create this kind
-of ambiguity — a client can always use the nullable type (`String`) as the field
-type.
-
-## What We Changed
-
-In `operation_rule_field_selection_merging.go`, when `TypesAreCompatibleDeep`
-fails (e.g. `String!` vs `String`), we now check:
-
-1. **Can the enclosing types overlap?** (`potentiallySameObject`)
-   - Interface + anything: YES (conservative, strict check)
-   - Same object type: YES (strict check)
-   - Different object types: NO (relaxed check)
-
-2. **If they can't overlap**: use `TypesAreCompatibleIgnoringNullability` which
-   strips `NonNull` wrappers at every nesting level but still requires the same
-   list structure and base named type.
-
-Existing test cases are unaffected:
-
-| Existing Test | Types Involved | Result |
-|---------------|---------------|--------|
-| `NonNullStringBox1` (interface) + `StringBox` (object) | Interface overlap possible | **Still Invalid** |
-| `IntBox.scalar: Int` + `StringBox.scalar: String` | Different base types | **Still Invalid** |
-| All "112" tests with `String` vs `Int` on Dog/Cat | Different base types | **Still Invalid** |
-
-## Conclusion
-
-This is a **deliberate, targeted deviation** from the GraphQL specification. It
-addresses a real-world pain point that has been independently reported across
-multiple GraphQL implementations. The relaxation is narrowly scoped (only
-different concrete object types, only nullability differences) and preserves all
-existing rejection behavior for genuinely conflicting types.
+Accepting a query at the router does not ensure a strict subgraph will accept it.
+The abstract-selection planner adds internal aliases to conflicting fields on
+concrete branches, preserving the client's response names. This includes
+composite fields such as `[[X!]!]!` and `[[Y]]` when their selected subfields are
+compatible. Planner regression tests validate the generated operation using the
+strict validator and check that the response plan retains the client field names.
