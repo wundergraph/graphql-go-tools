@@ -8,23 +8,29 @@ func namedValueSetsAreEqual(d *Document, left, right []int, name func(int) ByteS
 	}
 	for i, leftRef := range left {
 		rightRef := right[i]
-		if !bytes.Equal(name(leftRef), name(rightRef)) {
-			rightRef = InvalidRef
-			for _, candidate := range right {
-				if bytes.Equal(name(leftRef), name(candidate)) {
-					rightRef = candidate
-					break
-				}
-			}
-			if rightRef == InvalidRef {
+		if bytes.Equal(name(leftRef), name(rightRef)) {
+			if !d.ArgumentValuesAreEqual(value(leftRef), value(rightRef)) {
 				return false
 			}
+			continue
 		}
-		if !d.ArgumentValuesAreEqual(value(leftRef), value(rightRef)) {
+		// Check both directions so repeated names cannot hide a different
+		// argument or input-object field during normalization.
+		if !namedValueHasMatch(d, leftRef, right, name, value) || !namedValueHasMatch(d, rightRef, left, name, value) {
 			return false
 		}
 	}
 	return true
+}
+
+func namedValueHasMatch(d *Document, ref int, refs []int, name func(int) ByteSlice, value func(int) Value) bool {
+	refName := name(ref)
+	for _, candidate := range refs {
+		if bytes.Equal(refName, name(candidate)) {
+			return d.ArgumentValuesAreEqual(value(ref), value(candidate))
+		}
+	}
+	return false
 }
 
 // ArgumentValuesAreEqual reports whether two argument values are equal, ignoring

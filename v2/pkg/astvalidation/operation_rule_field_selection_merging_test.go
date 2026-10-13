@@ -191,6 +191,7 @@ func TestFieldSelectionMergingExtractedInputObjects(t *testing.T) {
 		{"ReorderedFields", `{a: 1, b: 2}`, `{b: 2, a: 1}`, "", Valid, 1},
 		{"UnmergedFields", `{a: 1, b: 2}`, `{b: 2, a: 1}`, "@tag", Valid, 1},
 		{"NestedObjects", `{children: [{a: 1, b: 2}]}`, `{children: [{b: 2, a: 1}]}`, "", Valid, 1},
+		{"DuplicateFields", `{a: 1, a: 1}`, `{a: 1, b: 2}`, "", Invalid, 2},
 		{"DifferentValues", `{a: 1, b: 2}`, `{b: 3, a: 1}`, "", Invalid, 2},
 		{"DifferentListOrder", `{children: [{a: 1}, {a: 2}]}`, `{children: [{a: 2}, {a: 1}]}`, "", Invalid, 2},
 	}
