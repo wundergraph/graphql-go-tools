@@ -10855,7 +10855,7 @@ const petSchema = `
 // planSubgraphOperationTest normalizes, validates and plans an operation
 // without postprocessing, returning the synchronous response plan so its
 // RawFetches can be inspected for SubgraphOperation artifacts.
-func planSubgraphOperationTest(t *testing.T, definition, operation, operationName string, config plan.Configuration) *plan.SynchronousResponsePlan {
+func planSubgraphOperationTest(t *testing.T, definition, operation, operationName string, config plan.Configuration, validationOptions ...astvalidation.Option) *plan.SynchronousResponsePlan {
 	t.Helper()
 
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
@@ -10873,7 +10873,7 @@ func planSubgraphOperationTest(t *testing.T, definition, operation, operationNam
 	norm.NormalizeOperation(&op, &def, &report)
 	require.False(t, report.HasErrors(), report.Error())
 
-	astvalidation.DefaultOperationValidator().Validate(&op, &def, &report)
+	astvalidation.DefaultOperationValidator(validationOptions...).Validate(&op, &def, &report)
 	require.False(t, report.HasErrors(), report.Error())
 
 	p, err := plan.NewPlanner(config)

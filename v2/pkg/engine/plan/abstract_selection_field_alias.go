@@ -172,10 +172,20 @@ func fieldTypesDifferOnlyInNullability(schema *ast.Document, typeRefs []int) boo
 			if schema.TypesAreEqualDeep(typeRefs[i], typeRefs[j]) {
 				continue
 			}
-			if !schema.TypesAreCompatibleIgnoringNullability(typeRefs[i], typeRefs[j]) {
+			if schema.TypesAreCompatibleIgnoringNullability(typeRefs[i], typeRefs[j]) {
+				differs = true
+				continue
+			}
+			left, leftExists := schema.Index.FirstNodeByNameBytes(schema.ResolveTypeNameBytes(typeRefs[i]))
+			right, rightExists := schema.Index.FirstNodeByNameBytes(schema.ResolveTypeNameBytes(typeRefs[j]))
+			if !leftExists || !rightExists || !schema.TypesHaveCompatibleResponseShape(typeRefs[i], typeRefs[j], left, right, true) {
 				return false
 			}
-			differs = true
+			// Different composite names are allowed by SameResponseShape, but
+			// their wrappers must still match in a strict subgraph operation.
+			if !schema.TypesHaveCompatibleResponseShape(typeRefs[i], typeRefs[j], left, right, false) {
+				differs = true
+			}
 		}
 	}
 
