@@ -3,6 +3,7 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -123,6 +124,38 @@ func TestResponseCacheTrace(t *testing.T) {
 		require.Equal(t, time.Minute.Nanoseconds(), trace.Entries[0].WriteTTLNano, "what was attempted")
 	})
 
+	t.Run("a corrupt cached body is a miss and does not fail the trace", func(t *testing.T) {
+		store := newTestCache()
+		opts := ResponseCacheOptions{Store: store, DefaultTTL: time.Minute}
+		key := resolve(t, cacheable("public, max-age=60"), opts, enabled).Entries[0].WrittenKey
+		require.NoError(t, store.SetMany(context.Background(), []caching.Item{{Key: key, Value: []byte(`{bad`), TTL: time.Minute}}))
+
+		trace := resolve(t, cacheable("no-store"), opts, enabled)
+		require.Equal(t, "miss", trace.Status)
+		require.False(t, trace.Entries[0].Found)
+		require.Nil(t, trace.Entries[0].Value)
+		_, err := json.Marshal(trace)
+		require.NoError(t, err)
+	})
+
+	t.Run("a failed write still reports the keys it stored", func(t *testing.T) {
+		key := resolve(t, cacheable("public, max-age=60"), ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute}, enabled).Entries[0].WrittenKey
+		opts := ResponseCacheOptions{
+			Store:      &failingCache{testCache: newTestCache(), setErr: &caching.SetManyError{Err: errors.New("timeout"), KnownStoredKeys: []string{key}}},
+			DefaultTTL: time.Minute,
+		}
+		trace := resolve(t, cacheable("public, max-age=60"), opts, enabled)
+		require.Contains(t, trace.WriteError, "timeout")
+		require.True(t, trace.Entries[0].Written)
+	})
+
+	t.Run("a full miss still reports its key counts", func(t *testing.T) {
+		trace := resolve(t, cacheable("public, max-age=60"), ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute}, enabled)
+		out, err := json.Marshal(trace)
+		require.NoError(t, err)
+		require.Contains(t, string(out), `"keys_requested":1,"keys_found":0`)
+	})
+
 	t.Run("excluded output leaves the value out", func(t *testing.T) {
 		tracing := enabled
 		tracing.ExcludeOutput = true
@@ -196,4 +229,22 @@ func TestResponseCacheTrace_MultiEntity(t *testing.T) {
 		require.True(t, entry.Served)
 		require.NotEmpty(t, entry.Value)
 	}
+}
+
+func TestWrittenBodies(t *testing.T) {
+	t.Parallel()
+
+	lang := [][]string{{"accept-language"}}
+	variant := caching.VariantKey("pub-2", caching.DigestString("de"))
+	bodies := writtenBodies([]caching.Item{
+		{Key: "pub-1", Value: []byte(`{"id":1}`)},
+		{Key: "pub-2", Vary: lang},
+		{Key: variant, Value: []byte(`{"id":2}`)},
+		{Key: "pub-3", Value: []byte(`{"id":3}`)},
+	})
+
+	require.Len(t, bodies, 3)
+	require.Equal(t, "pub-1", bodies["pub-1"].Key)
+	require.Equal(t, variant, bodies["pub-2"].Key, "a variant body belongs to the record before it")
+	require.Equal(t, "pub-3", bodies["pub-3"].Key, "the record applies to one body only")
 }

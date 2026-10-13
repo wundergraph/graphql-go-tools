@@ -2,7 +2,7 @@ package resolve
 
 import (
 	"encoding/json"
-	"strings"
+	"errors"
 
 	"github.com/wundergraph/astjson"
 
@@ -32,8 +32,8 @@ func (c *Context) responseCacheRequestTrace() *ResponseCacheRequestTrace {
 type ResponseCacheTrace struct {
 	Status        string `json:"status"`
 	StoreDecision string `json:"store_decision,omitempty"`
-	KeysRequested int    `json:"keys_requested,omitempty"`
-	KeysFound     int    `json:"keys_found,omitempty"`
+	KeysRequested int    `json:"keys_requested"`
+	KeysFound     int    `json:"keys_found"`
 	// PrivateID reports the request carried a user id for this subgraph.
 	PrivateID            bool   `json:"private_id,omitempty"`
 	LookupDurationNano   int64  `json:"lookup_duration_nanoseconds,omitempty"`
@@ -56,9 +56,10 @@ type ResponseCacheTraceEntry struct {
 	// Found is the lookup found an entry, Served the entity came from it.
 	Found  bool `json:"found"`
 	Served bool `json:"served"`
-	// Private is the entry found or written under the per-user key.
+	// Private is the entry found under the per-user key, WrittenPrivate written under it.
 	// Written is false on a failed write; its TTL and tags are what was attempted.
 	Private            bool            `json:"private,omitempty"`
+	WrittenPrivate     bool            `json:"written_private,omitempty"`
 	RemainingTTLNano   int64           `json:"remaining_ttl_nanoseconds,omitempty"`
 	RemainingTTLPretty string          `json:"remaining_ttl_pretty,omitempty"`
 	Vary               [][]string      `json:"vary,omitempty"`
@@ -116,13 +117,8 @@ func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []cachin
 		return
 	}
 
-	bodies := make(map[string]caching.Item, len(written))
-	for _, item := range written {
-		if len(item.Vary) == 0 {
-			bodies[responseCacheBaseKey(item.Key)] = item
-		}
-	}
-
+	bodies := writtenBodies(written)
+	stored := knownStoredKeys(writeErr)
 	subgraph := res.ds.Name
 	for _, group := range groups {
 		trace.PrivateID = trace.PrivateID || group.privateKeys != nil
@@ -135,8 +131,8 @@ func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []cachin
 			if written := l.traceWrite(bodies, &entry); written != nil {
 				value = written
 			}
-			l.traceValue(&entry, value)
-			entry.Written = entry.Written && writeErr == nil
+			l.traceValue(&entry, value, prepared.isRootFetchCache)
+			entry.Written = entry.Written && (writeErr == nil || stored[entry.WrittenKey])
 			entry.DeclaredTags = declaredSurrogateKeys(entry.SurrogateKeys, subgraph, entry.TypeName)
 			trace.Entries = append(trace.Entries, entry)
 		}
@@ -184,19 +180,22 @@ func (l *Loader) traceLookup(prepared *preparedFetch, entry *ResponseCacheTraceE
 	if !ok {
 		return nil
 	}
-	entry.Found = true
-	entry.Private = private
-	entry.RemainingTTLNano = item.TTL.Nanoseconds()
-	entry.RemainingTTLPretty = item.TTL.String()
-
 	if len(item.Vary) > 0 {
+		// Found means a body: a record whose variant was not served is a miss.
 		entry.Vary = item.Vary
 		body, served := prepared.responseCacheVariantServed[item.Key]
 		if !served {
 			return nil
 		}
 		item = body
+	} else if astjson.ValidateBytes(item.Value) != nil {
+		// The lookup treats it as a miss, and it would fail the trace's marshal.
+		return nil
 	}
+	entry.Found = true
+	entry.Private = private
+	entry.RemainingTTLNano = item.TTL.Nanoseconds()
+	entry.RemainingTTLPretty = item.TTL.String()
 	entry.SurrogateKeys = item.SurrogateKeys
 	return item.Value
 }
@@ -213,7 +212,7 @@ func (l *Loader) traceWrite(bodies map[string]caching.Item, entry *ResponseCache
 		return nil
 	}
 	entry.Written = true
-	entry.Private = base == entry.PrivateKey
+	entry.WrittenPrivate = base == entry.PrivateKey
 	entry.WrittenKey = item.Key
 	entry.WriteTTLNano = item.TTL.Nanoseconds()
 	entry.WriteTTLPretty = item.TTL.String()
@@ -222,11 +221,12 @@ func (l *Loader) traceWrite(bodies map[string]caching.Item, entry *ResponseCache
 	return item.Value
 }
 
-func (l *Loader) traceValue(entry *ResponseCacheTraceEntry, value []byte) {
+// traceValue sets the entry's value and type. A root fetch's data has no type the cache keys on.
+func (l *Loader) traceValue(entry *ResponseCacheTraceEntry, value []byte, rootFetch bool) {
 	if len(value) == 0 {
 		return
 	}
-	if parsed, err := astjson.ParseBytes(value); err == nil {
+	if parsed, err := astjson.ParseBytes(value); err == nil && !rootFetch {
 		entry.TypeName = string(parsed.GetStringBytes("__typename"))
 	}
 	if !l.ctx.TracingOptions.ExcludeOutput {
@@ -234,10 +234,37 @@ func (l *Loader) traceValue(entry *ResponseCacheTraceEntry, value []byte) {
 	}
 }
 
-// responseCacheBaseKey strips the variant from a key.
-func responseCacheBaseKey(key string) string {
-	base, _, _ := strings.Cut(key, "+")
-	return base
+// knownStoredKeys are the keys a failed write still stored.
+func knownStoredKeys(writeErr error) map[string]bool {
+	var setErr *caching.SetManyError
+	if !errors.As(writeErr, &setErr) {
+		return nil
+	}
+	stored := make(map[string]bool, len(setErr.KnownStoredKeys))
+	for _, key := range setErr.KnownStoredKeys {
+		stored[key] = true
+	}
+	return stored
+}
+
+// writtenBodies maps each written body to its entry's key. responseVary.append
+// writes a variant body right after its record, which holds that key.
+func writtenBodies(written []caching.Item) map[string]caching.Item {
+	bodies := make(map[string]caching.Item, len(written))
+	record := ""
+	for _, item := range written {
+		if len(item.Vary) > 0 {
+			record = item.Key
+			continue
+		}
+		key := item.Key
+		if record != "" {
+			key = record
+		}
+		bodies[key] = item
+		record = ""
+	}
+	return bodies
 }
 
 // declaredSurrogateKeys is what the subgraph declared: the surrogate keys minus the derived tiers.
