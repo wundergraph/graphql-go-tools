@@ -93,7 +93,8 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		enclosingTypeDefinition: f.EnclosingTypeDefinition,
 		parent:                  f.parentRequirement(),
 	}
-	for _, previous := range f.requirements {
+	for i := range f.requirements {
+		previous := &f.requirements[i]
 		if !previous.path.Equals(current.path) || !previous.responseName.Equals(current.responseName) {
 			continue
 		}
@@ -102,14 +103,18 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		// the selections are mutually exclusive; SameResponseShape still applies.
 		// See https://spec.graphql.org/September2025/#FieldsInSetCanMerge()
 		identityConflict := false
-		if !f.fieldsAreMutuallyExclusive(previous, current) {
+		if !f.fieldsAreMutuallyExclusive(previous, &current) {
 			compatibleStream := f.operation.DirectiveSetsHasCompatibleStreamDirective(f.operation.FieldDirectives(previous.fieldRef), f.operation.FieldDirectives(ref))
-			if bothComposite && !compatibleStream {
-				f.StopWithExternalErr(operationreport.ErrConflictingStreamDirectivesOnField(current.responseName))
+			if !compatibleStream {
+				if bothComposite {
+					f.StopWithExternalErr(operationreport.ErrConflictingStreamDirectivesOnField(current.responseName))
+				} else {
+					f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(current.responseName))
+				}
 				return
 			}
 			identityConflict = !bytes.Equal(f.operation.FieldNameBytes(previous.fieldRef), fieldName) ||
-				!f.operation.ArgumentSetsAreEqualUnordered(f.operation.FieldArguments(previous.fieldRef), f.operation.FieldArguments(ref)) || !compatibleStream
+				!f.operation.ArgumentSetsAreEqualUnordered(f.operation.FieldArguments(previous.fieldRef), f.operation.FieldArguments(ref))
 			// Preserve the existing leaf-field diagnostic when both identity and type differ.
 			if identityConflict && !bothComposite {
 				f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(current.responseName))
@@ -121,7 +126,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		// relaxation applies only when the immediate enclosing types cannot overlap.
 		// See https://spec.graphql.org/September2025/#SameResponseShape()
 		ignoreNullability := f.relaxNullabilityCheck && !f.potentiallySameObject(previous.enclosingTypeDefinition, current.enclosingTypeDefinition)
-		if !f.responseShapesAreCompatible(previous, current, ignoreNullability) {
+		if !f.responseShapesAreCompatible(previous, &current, ignoreNullability) {
 			left, err := f.fieldTypeBytes(previous.fieldTypeRef)
 			if err != nil {
 				f.StopWithInternalErr(err)
@@ -149,7 +154,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	f.requirements = append(f.requirements, current)
 }
 
-func (f *fieldSelectionMergingVisitor) responseShapesAreCompatible(left, right fieldRequirement, ignoreNullability bool) bool {
+func (f *fieldSelectionMergingVisitor) responseShapesAreCompatible(left, right *fieldRequirement, ignoreNullability bool) bool {
 	if left.fieldTypeRef != ast.InvalidRef && right.fieldTypeRef != ast.InvalidRef {
 		return f.definition.TypesHaveCompatibleResponseShape(left.fieldTypeRef, right.fieldTypeRef, left.fieldTypeDefinitionNode, right.fieldTypeDefinitionNode, ignoreNullability)
 	}
@@ -182,8 +187,8 @@ func (f *fieldSelectionMergingVisitor) parentRequirement() int {
 		if ancestor.Kind != ast.NodeKindField {
 			continue
 		}
-		for j, requirement := range slices.Backward(f.requirements) {
-			if requirement.fieldRef == ancestor.Ref {
+		for j := range slices.Backward(f.requirements) {
+			if f.requirements[j].fieldRef == ancestor.Ref {
 				return j
 			}
 		}
@@ -195,7 +200,7 @@ func (f *fieldSelectionMergingVisitor) parentRequirement() int {
 // fieldsAreMutuallyExclusive includes ancestors because FieldsInSetCanMerge
 // step 2.2 skips recursive identity checks across distinct object branches.
 // SameResponseShape still checks their descendants' response shapes.
-func (f *fieldSelectionMergingVisitor) fieldsAreMutuallyExclusive(left, right fieldRequirement) bool {
+func (f *fieldSelectionMergingVisitor) fieldsAreMutuallyExclusive(left, right *fieldRequirement) bool {
 	for {
 		if left.enclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition &&
 			right.enclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition &&
@@ -205,7 +210,7 @@ func (f *fieldSelectionMergingVisitor) fieldsAreMutuallyExclusive(left, right fi
 		if left.parent == -1 || right.parent == -1 {
 			return false
 		}
-		left, right = f.requirements[left.parent], f.requirements[right.parent]
+		left, right = &f.requirements[left.parent], &f.requirements[right.parent]
 	}
 }
 
