@@ -421,21 +421,29 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 	})
 }
 
-func TestMergeInlineFragmentFieldSelectionsArguments(t *testing.T) {
+func TestMergeInlineFragmentSelectionsArguments(t *testing.T) {
+	t.Parallel()
+
 	const definition = `schema { query: Query } scalar ID scalar String
   type Query { item(id: ID, other: ID): Item } type Item { name: String }`
-	for _, operation := range []string{
-		`{ item(id: "1") { name } item(id: "2") { name } }`,
-		`{ item(id: "1") { name } item { name } }`,
-		`query($a: ID, $b: ID) { item(id: $a) { name } item(id: $b) { name } }`,
-	} {
-		t.Run(operation, func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, definition, operation, operation)
+	cases := []struct {
+		name, operation, want string
+	}{
+		{"DifferentValues", `{ item(id: "1") { name } item(id: "2") { name } }`, ""},
+		{"MissingArgument", `{ item(id: "1") { name } item { name } }`, ""},
+		{"DifferentVariables", `query($a: ID, $b: ID) { item(id: $a) { name } item(id: $b) { name } }`, ""},
+		{"ReorderedArguments", `{ item(id: "1", other: "2") { name } item(other: "2", id: "1") { name } }`,
+			`{ item(id: "1", other: "2") { name name } }`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			want := tc.want
+			if want == "" {
+				want = tc.operation
+			}
+			run(t, mergeInlineFragmentSelections, definition, tc.operation, want)
 		})
 	}
-	t.Run("equal arguments in different order", func(t *testing.T) {
-		run(t, mergeInlineFragmentSelections, definition,
-			`{ item(id: "1", other: "2") { name } item(other: "2", id: "1") { name } }`,
-			`{ item(id: "1", other: "2") { name name } }`)
-	})
 }

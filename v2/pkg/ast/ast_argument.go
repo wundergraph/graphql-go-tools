@@ -147,12 +147,8 @@ func (d *Document) ArgumentSetsAreEquals(left, right []int) bool {
 	return true
 }
 
-// ArgumentSetsAreEqualUnordered compares arguments and nested input objects
-// independently of their field order. Matching names at the same position take
-// the linear fast path; only mismatched positions require a name lookup.
-// List order remains significant. This does not mutate or cache the document.
-// Argument and input-object field names are expected to be unique; their
-// respective validation rules reject duplicates.
+// ArgumentSetsAreEqualUnordered reports whether two argument sets have equal names
+// and values, ignoring argument and input-object field order. List order matters.
 func (d *Document) ArgumentSetsAreEqualUnordered(left, right []int) bool {
 	// Keep the common empty case in a small wrapper that can inline at callers.
 	if len(left) == 0 {
