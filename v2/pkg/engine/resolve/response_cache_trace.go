@@ -201,15 +201,20 @@ func (l *Loader) traceLookup(prepared *preparedFetch, entry *ResponseCacheTraceE
 }
 
 // traceWrite fills in what was written for the entry and returns its body.
-func (l *Loader) traceWrite(bodies map[string]caching.Item, entry *ResponseCacheTraceEntry) []byte {
+func (l *Loader) traceWrite(bodies map[string]writtenBody, entry *ResponseCacheTraceEntry) []byte {
 	base := entry.Key
-	item, ok := bodies[base]
+	body, ok := bodies[base]
 	if !ok && entry.PrivateKey != "" {
 		base = entry.PrivateKey
-		item, ok = bodies[base]
+		body, ok = bodies[base]
 	}
 	if !ok {
 		return nil
+	}
+	item := body.item
+	if len(body.vary) > 0 {
+		// The written record's sets include any the lookup saw.
+		entry.Vary = body.vary
 	}
 	entry.Written = true
 	entry.WrittenPrivate = base == entry.PrivateKey
@@ -247,22 +252,29 @@ func knownStoredKeys(writeErr error) map[string]bool {
 	return stored
 }
 
+// writtenBody is a written body and, when the answer varied, its record's sets.
+type writtenBody struct {
+	item caching.Item
+	vary [][]string
+}
+
 // writtenBodies maps each written body to its entry's key. responseVary.append
 // writes a variant body right after its record, which holds that key.
-func writtenBodies(written []caching.Item) map[string]caching.Item {
-	bodies := make(map[string]caching.Item, len(written))
-	record := ""
-	for _, item := range written {
+func writtenBodies(written []caching.Item) map[string]writtenBody {
+	bodies := make(map[string]writtenBody, len(written))
+	var record *caching.Item
+	for i := range written {
+		item := written[i]
 		if len(item.Vary) > 0 {
-			record = item.Key
+			record = &written[i]
 			continue
 		}
-		key := item.Key
-		if record != "" {
-			key = record
+		if record != nil {
+			bodies[record.Key] = writtenBody{item: item, vary: record.Vary}
+		} else {
+			bodies[item.Key] = writtenBody{item: item}
 		}
-		bodies[key] = item
-		record = ""
+		record = nil
 	}
 	return bodies
 }

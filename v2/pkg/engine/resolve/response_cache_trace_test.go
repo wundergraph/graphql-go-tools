@@ -244,7 +244,19 @@ func TestWrittenBodies(t *testing.T) {
 	})
 
 	require.Len(t, bodies, 3)
-	require.Equal(t, "pub-1", bodies["pub-1"].Key)
-	require.Equal(t, variant, bodies["pub-2"].Key, "a variant body belongs to the record before it")
-	require.Equal(t, "pub-3", bodies["pub-3"].Key, "the record applies to one body only")
+	require.Equal(t, "pub-1", bodies["pub-1"].item.Key)
+	require.Nil(t, bodies["pub-1"].vary)
+	require.Equal(t, variant, bodies["pub-2"].item.Key, "a variant body belongs to the record before it")
+	require.Equal(t, lang, bodies["pub-2"].vary, "with the record's sets")
+	require.Equal(t, "pub-3", bodies["pub-3"].item.Key, "the record applies to one body only")
+	require.Nil(t, bodies["pub-3"].vary)
+
+	t.Run("a varied write after a cold miss reports its sets", func(t *testing.T) {
+		t.Parallel()
+		entry := ResponseCacheTraceEntry{Key: "pub-2"}
+		require.JSONEq(t, `{"id":2}`, string((&Loader{}).traceWrite(bodies, &entry)))
+		require.True(t, entry.Written)
+		require.Equal(t, variant, entry.WrittenKey)
+		require.Equal(t, lang, entry.Vary)
+	})
 }
