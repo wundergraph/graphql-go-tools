@@ -163,6 +163,9 @@ func (f *fieldSelectionMergingVisitor) fieldsAreMutuallyExclusive(left, right fi
 	}
 }
 
+// typesHaveCompatibleResponseShape checks wrappers and named leaf types only.
+// Composite names need not match: EnterField compares their selected subfields
+// at each response path, including pairs with different return type kinds.
 func (f *fieldSelectionMergingVisitor) typesHaveCompatibleResponseShape(left, right int, ignoreNullability bool) bool {
 	for {
 		if left == -1 || right == -1 {
@@ -206,6 +209,16 @@ func (f *fieldSelectionMergingVisitor) nodeIsCompositeType(node ast.Node) bool {
 	}
 }
 
+// potentiallySameObject reports whether two enclosing type definitions could apply
+// to the same runtime object. This determines whether field merging must enforce
+// matching nullability or may apply the optional nullability relaxation.
+//
+//   - If one type is an interface and the other is an object, returns true only
+//     when the object type implements the interface (otherwise they cannot overlap).
+//   - If both types are interfaces, returns true (conservative: some concrete
+//     type might implement both).
+//   - Two object types overlap only when they share the same name.
+//   - All other combinations return false.
 func (f *fieldSelectionMergingVisitor) potentiallySameObject(left, right ast.Node) bool {
 	switch {
 	case left.Kind == ast.NodeKindInterfaceTypeDefinition && right.Kind == ast.NodeKindInterfaceTypeDefinition:
