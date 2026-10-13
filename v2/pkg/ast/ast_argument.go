@@ -159,19 +159,19 @@ func (d *Document) ArgumentSetsAreEqualUnordered(left, right []int) bool {
 	if len(left) == 0 {
 		return len(right) == 0
 	}
-	return d.argumentSetsAreEqualUnordered(left, right)
+	return namedValueSetsAreEqual(d, left, right, d.ArgumentNameBytes, d.ArgumentValue)
 }
 
-func (d *Document) argumentSetsAreEqualUnordered(left, right []int) bool {
+func namedValueSetsAreEqual(d *Document, left, right []int, name func(int) ByteSlice, value func(int) Value) bool {
 	if len(left) != len(right) {
 		return false
 	}
 	for i, leftRef := range left {
 		rightRef := right[i]
-		if !bytes.Equal(d.ArgumentNameBytes(leftRef), d.ArgumentNameBytes(rightRef)) {
+		if !bytes.Equal(name(leftRef), name(rightRef)) {
 			rightRef = InvalidRef
 			for _, candidate := range right {
-				if bytes.Equal(d.ArgumentNameBytes(leftRef), d.ArgumentNameBytes(candidate)) {
+				if bytes.Equal(name(leftRef), name(candidate)) {
 					rightRef = candidate
 					break
 				}
@@ -180,7 +180,7 @@ func (d *Document) argumentSetsAreEqualUnordered(left, right []int) bool {
 				return false
 			}
 		}
-		if !d.argumentValuesAreEqual(d.ArgumentValue(leftRef), d.ArgumentValue(rightRef)) {
+		if !d.argumentValuesAreEqual(value(leftRef), value(rightRef)) {
 			return false
 		}
 	}
@@ -193,29 +193,7 @@ func (d *Document) argumentValuesAreEqual(left, right Value) bool {
 	}
 	switch left.Kind {
 	case ValueKindObject:
-		leftFields, rightFields := d.ObjectValues[left.Ref].Refs, d.ObjectValues[right.Ref].Refs
-		if len(leftFields) != len(rightFields) {
-			return false
-		}
-		for i, leftRef := range leftFields {
-			rightRef := rightFields[i]
-			if !bytes.Equal(d.ObjectFieldNameBytes(leftRef), d.ObjectFieldNameBytes(rightRef)) {
-				rightRef = InvalidRef
-				for _, candidate := range rightFields {
-					if bytes.Equal(d.ObjectFieldNameBytes(leftRef), d.ObjectFieldNameBytes(candidate)) {
-						rightRef = candidate
-						break
-					}
-				}
-				if rightRef == InvalidRef {
-					return false
-				}
-			}
-			if !d.argumentValuesAreEqual(d.ObjectFieldValue(leftRef), d.ObjectFieldValue(rightRef)) {
-				return false
-			}
-		}
-		return true
+		return namedValueSetsAreEqual(d, d.ObjectValues[left.Ref].Refs, d.ObjectValues[right.Ref].Refs, d.ObjectFieldNameBytes, d.ObjectFieldValue)
 	case ValueKindList:
 		leftValues, rightValues := d.ListValues[left.Ref].Refs, d.ListValues[right.Ref].Refs
 		if len(leftValues) != len(rightValues) {
