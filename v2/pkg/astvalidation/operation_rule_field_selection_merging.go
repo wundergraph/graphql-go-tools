@@ -116,7 +116,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		// relaxation applies only when the immediate enclosing types cannot overlap.
 		// See https://spec.graphql.org/September2025/#SameResponseShape()
 		ignoreNullability := f.relaxNullabilityCheck && !f.potentiallySameObject(previous.enclosingTypeDefinition, current.enclosingTypeDefinition)
-		if !f.typesHaveCompatibleResponseShape(previous.fieldTypeRef, current.fieldTypeRef, ignoreNullability) {
+		if !f.definition.TypesHaveCompatibleResponseShape(previous.fieldTypeRef, current.fieldTypeRef, previous.fieldTypeDefinitionNode, current.fieldTypeDefinitionNode, ignoreNullability) {
 			left, err := f.definition.PrintTypeBytes(previous.fieldTypeRef, nil)
 			if err != nil {
 				f.StopWithInternalErr(err)
@@ -175,45 +175,6 @@ func (f *fieldSelectionMergingVisitor) fieldsAreMutuallyExclusive(left, right fi
 			return false
 		}
 		left, right = f.requirements[left.parent], f.requirements[right.parent]
-	}
-}
-
-// typesHaveCompatibleResponseShape checks wrappers and named leaf types only.
-// Composite names need not match: EnterField compares their selected subfields
-// at each response path, including pairs with different return type kinds.
-// This follows SameResponseShape steps 3-10, except for opt-in nullability relaxation.
-// See https://spec.graphql.org/September2025/#SameResponseShape()
-func (f *fieldSelectionMergingVisitor) typesHaveCompatibleResponseShape(left, right int, ignoreNullability bool) bool {
-	for {
-		if left == -1 || right == -1 {
-			return false
-		}
-		if ignoreNullability {
-			if f.definition.Types[left].TypeKind == ast.TypeKindNonNull {
-				left = f.definition.Types[left].OfType
-			}
-			if f.definition.Types[right].TypeKind == ast.TypeKindNonNull {
-				right = f.definition.Types[right].OfType
-			}
-		}
-		if f.definition.Types[left].TypeKind != f.definition.Types[right].TypeKind {
-			return false
-		}
-		if f.definition.Types[left].TypeKind == ast.TypeKindNamed {
-			leftName := f.definition.TypeNameBytes(left)
-			rightName := f.definition.TypeNameBytes(right)
-			if bytes.Equal(leftName, rightName) {
-				return true
-			}
-			leftNode, leftExists := f.definition.Index.FirstNodeByNameBytes(leftName)
-			rightNode, rightExists := f.definition.Index.FirstNodeByNameBytes(rightName)
-			if !leftExists || !rightExists {
-				return false
-			}
-			return f.nodeIsCompositeType(leftNode) && f.nodeIsCompositeType(rightNode)
-		}
-		left = f.definition.Types[left].OfType
-		right = f.definition.Types[right].OfType
 	}
 }
 

@@ -168,3 +168,33 @@ func TestDocument_TypesAreCompatibleIgnoringNullability(t *testing.T) {
 		})
 	}
 }
+
+func TestTypesHaveCompatibleResponseShape(t *testing.T) {
+	t.Parallel()
+	doc := NewSmallDocument()
+	x, y := doc.AddNamedType([]byte("X")), doc.AddNamedType([]byte("Y"))
+	wrappedX := doc.AddNonNullType(doc.AddListType(doc.AddNonNullType(doc.AddListType(doc.AddNonNullType(x)))))
+	wrappedY := doc.AddListType(doc.AddListType(y))
+	cases := []struct {
+		name                string
+		left, right         int
+		leftKind, rightKind NodeKind
+		strict, relaxed     bool
+	}{
+		{"Objects", x, y, NodeKindObjectTypeDefinition, NodeKindObjectTypeDefinition, true, true},
+		{"Interfaces", x, y, NodeKindInterfaceTypeDefinition, NodeKindInterfaceTypeDefinition, true, true},
+		{"ObjectAndUnion", x, y, NodeKindObjectTypeDefinition, NodeKindUnionTypeDefinition, true, true},
+		{"DifferentLeaves", x, y, NodeKindScalarTypeDefinition, NodeKindScalarTypeDefinition, false, false},
+		{"LeafAndComposite", x, y, NodeKindEnumTypeDefinition, NodeKindObjectTypeDefinition, false, false},
+		{"NestedNullability", wrappedX, wrappedY, NodeKindObjectTypeDefinition, NodeKindObjectTypeDefinition, false, true},
+		{"ListDepth", wrappedX, doc.AddListType(y), NodeKindObjectTypeDefinition, NodeKindObjectTypeDefinition, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			left, right := Node{Kind: tc.leftKind}, Node{Kind: tc.rightKind}
+			assert.Equal(t, tc.strict, doc.TypesHaveCompatibleResponseShape(tc.left, tc.right, left, right, false))
+			assert.Equal(t, tc.relaxed, doc.TypesHaveCompatibleResponseShape(tc.left, tc.right, left, right, true))
+		})
+	}
+}

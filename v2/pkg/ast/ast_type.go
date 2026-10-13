@@ -220,7 +220,20 @@ func (d *Document) TypesAreCompatibleIgnoringNullability(left int, right int) bo
 	return d.typesAreCompatible(left, right, true)
 }
 
-func (d *Document) typesAreCompatible(left int, right int, ignoreNullability bool) bool {
+// TypesHaveCompatibleResponseShape compares type wrappers and named leaf types.
+// The supplied definitions must describe the named types underlying left and right.
+// Composite names may differ; callers must also compare their selected subfields.
+// ignoreNullability deliberately relaxes the spec's wrapper requirements.
+//
+// See https://spec.graphql.org/September2025/#SameResponseShape()
+func (d *Document) TypesHaveCompatibleResponseShape(left, right int, leftDefinition, rightDefinition Node, ignoreNullability bool) bool {
+	composite := func(node Node) bool {
+		return node.Kind == NodeKindObjectTypeDefinition || node.Kind == NodeKindInterfaceTypeDefinition || node.Kind == NodeKindUnionTypeDefinition
+	}
+	return d.typesAreCompatible(left, right, ignoreNullability, composite(leftDefinition) && composite(rightDefinition))
+}
+
+func (d *Document) typesAreCompatible(left int, right int, ignoreNullability bool, compositeNamesCompatible ...bool) bool {
 	for {
 		if left == -1 || right == -1 {
 			return false
@@ -241,6 +254,9 @@ func (d *Document) typesAreCompatible(left int, right int, ignoreNullability boo
 			rightName := d.TypeNameBytes(right)
 			if bytes.Equal(leftName, rightName) {
 				return true
+			}
+			if len(compositeNamesCompatible) != 0 {
+				return compositeNamesCompatible[0]
 			}
 			leftNode, _ := d.Index.FirstNodeByNameBytes(leftName)
 			rightNode, _ := d.Index.FirstNodeByNameBytes(rightName)
