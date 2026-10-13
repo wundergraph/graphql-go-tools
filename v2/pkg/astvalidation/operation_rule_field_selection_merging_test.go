@@ -175,3 +175,38 @@ func assertFieldMerging(t *testing.T, schema, query string, want ValidationState
 	validator := NewOperationValidator([]Rule{FieldSelectionMerging(relax...)})
 	assert.Equal(t, want, validator.Validate(&operation, &definition, &report), report.Error())
 }
+
+func TestFieldSelectionMergingExtractedInputObjects(t *testing.T) {
+	t.Parallel()
+
+	const schema = `directive @tag on FIELD
+  schema { query: Query } scalar String scalar Int
+  input Filter { a: Int b: Int children: [Filter] }
+  type Query { item(f: Filter): Item } type Item { name: String id: Int }`
+	cases := []struct {
+		name, left, right, directive string
+		want                         ValidationState
+		variables                    int
+	}{
+		{"ReorderedFields", `{a: 1, b: 2}`, `{b: 2, a: 1}`, "", Valid, 1},
+		{"UnmergedFields", `{a: 1, b: 2}`, `{b: 2, a: 1}`, "@tag", Valid, 1},
+		{"NestedObjects", `{children: [{a: 1, b: 2}]}`, `{children: [{b: 2, a: 1}]}`, "", Valid, 1},
+		{"DifferentValues", `{a: 1, b: 2}`, `{b: 3, a: 1}`, "", Invalid, 2},
+		{"DifferentListOrder", `{children: [{a: 1}, {a: 2}]}`, `{children: [{a: 2}, {a: 1}]}`, "", Invalid, 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			definition, report := astparser.ParseGraphqlDocumentString(schema)
+			require.False(t, report.HasErrors(), report.Error())
+			operation, report := astparser.ParseGraphqlDocumentString(fmt.Sprintf(`{ item(f: %s) %s { name } item(f: %s) { id } }`, tc.left, tc.directive, tc.right))
+			require.False(t, report.HasErrors(), report.Error())
+			astnormalization.NewNormalizer(false, true).NormalizeOperation(&operation, &definition, &report)
+			require.False(t, report.HasErrors(), report.Error())
+
+			assert.Len(t, operation.OperationDefinitions[0].VariableDefinitions.Refs, tc.variables)
+			assert.Equal(t, tc.want, DefaultOperationValidator().Validate(&operation, &definition, &report), report.Error())
+		})
+	}
+}

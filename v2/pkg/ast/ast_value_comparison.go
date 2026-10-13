@@ -20,14 +20,18 @@ func namedValueSetsAreEqual(d *Document, left, right []int, name func(int) ByteS
 				return false
 			}
 		}
-		if !d.argumentValuesAreEqual(value(leftRef), value(rightRef)) {
+		if !d.ArgumentValuesAreEqual(value(leftRef), value(rightRef)) {
 			return false
 		}
 	}
 	return true
 }
 
-func (d *Document) argumentValuesAreEqual(left, right Value) bool {
+// ArgumentValuesAreEqual reports whether two argument values are equal, ignoring
+// input-object field order. List order and variable names remain significant.
+//
+// See https://spec.graphql.org/September2025/#sec-Input-Object-Values
+func (d *Document) ArgumentValuesAreEqual(left, right Value) bool {
 	if left.Kind != right.Kind {
 		return false
 	}
@@ -40,7 +44,7 @@ func (d *Document) argumentValuesAreEqual(left, right Value) bool {
 			return false
 		}
 		for i := range leftValues {
-			if !d.argumentValuesAreEqual(d.Value(leftValues[i]), d.Value(rightValues[i])) {
+			if !d.ArgumentValuesAreEqual(d.Value(leftValues[i]), d.Value(rightValues[i])) {
 				return false
 			}
 		}
