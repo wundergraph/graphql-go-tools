@@ -147,6 +147,90 @@ func (d *Document) ArgumentSetsAreEquals(left, right []int) bool {
 	return true
 }
 
+// ArgumentSetsAreEqualUnordered compares arguments and nested input objects
+// independently of their field order. Matching names at the same position take
+// the linear fast path; only mismatched positions require a name lookup.
+// List order remains significant. This does not mutate or cache the document.
+// Argument and input-object field names are expected to be unique; their
+// respective validation rules reject duplicates.
+func (d *Document) ArgumentSetsAreEqualUnordered(left, right []int) bool {
+	// Keep the common empty case in a small wrapper that can inline at callers.
+	if len(left) == 0 {
+		return len(right) == 0
+	}
+	return d.argumentSetsAreEqualUnordered(left, right)
+}
+
+func (d *Document) argumentSetsAreEqualUnordered(left, right []int) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i, leftRef := range left {
+		rightRef := right[i]
+		if !bytes.Equal(d.ArgumentNameBytes(leftRef), d.ArgumentNameBytes(rightRef)) {
+			rightRef = InvalidRef
+			for _, candidate := range right {
+				if bytes.Equal(d.ArgumentNameBytes(leftRef), d.ArgumentNameBytes(candidate)) {
+					rightRef = candidate
+					break
+				}
+			}
+			if rightRef == InvalidRef {
+				return false
+			}
+		}
+		if !d.argumentValuesAreEqual(d.ArgumentValue(leftRef), d.ArgumentValue(rightRef)) {
+			return false
+		}
+	}
+	return true
+}
+
+func (d *Document) argumentValuesAreEqual(left, right Value) bool {
+	if left.Kind != right.Kind {
+		return false
+	}
+	switch left.Kind {
+	case ValueKindObject:
+		leftFields, rightFields := d.ObjectValues[left.Ref].Refs, d.ObjectValues[right.Ref].Refs
+		if len(leftFields) != len(rightFields) {
+			return false
+		}
+		for i, leftRef := range leftFields {
+			rightRef := rightFields[i]
+			if !bytes.Equal(d.ObjectFieldNameBytes(leftRef), d.ObjectFieldNameBytes(rightRef)) {
+				rightRef = InvalidRef
+				for _, candidate := range rightFields {
+					if bytes.Equal(d.ObjectFieldNameBytes(leftRef), d.ObjectFieldNameBytes(candidate)) {
+						rightRef = candidate
+						break
+					}
+				}
+				if rightRef == InvalidRef {
+					return false
+				}
+			}
+			if !d.argumentValuesAreEqual(d.ObjectFieldValue(leftRef), d.ObjectFieldValue(rightRef)) {
+				return false
+			}
+		}
+		return true
+	case ValueKindList:
+		leftValues, rightValues := d.ListValues[left.Ref].Refs, d.ListValues[right.Ref].Refs
+		if len(leftValues) != len(rightValues) {
+			return false
+		}
+		for i := range leftValues {
+			if !d.argumentValuesAreEqual(d.Value(leftValues[i]), d.Value(rightValues[i])) {
+				return false
+			}
+		}
+		return true
+	default:
+		return d.ValuesAreEqual(left, right)
+	}
+}
+
 func (d *Document) ArgumentsBefore(ancestor Node, argument int) []int {
 	switch ancestor.Kind {
 	case NodeKindField:

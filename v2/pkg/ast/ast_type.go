@@ -207,15 +207,13 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 	return d.typesAreCompatible(left, right, false)
 }
 
-// TypesAreCompatibleIgnoringNullability is a relaxed variant of TypesAreCompatibleDeep
-// that strips NonNull wrappers at every nesting level but still requires the same list
-// structure and the same base named type.
+// TypesAreCompatibleIgnoringNullability strips NonNull wrappers at every nesting
+// level while preserving the list structure and named-type compatibility rules of
+// TypesAreCompatibleDeep, including object/interface and object/union compatibility.
 //
-// Use this only when the two fields' enclosing types cannot overlap at runtime
-// (i.e. potentiallySameObject returns false), for example two distinct concrete
-// object types inside inline fragments on the same union/interface field. In that
-// case the spec's SameResponseShape algorithm permits differing nullability because
-// only one branch can ever execute for a given runtime object.
+// This is not the spec's SameResponseShape check: that requires matching
+// nullability and compares selected subfields of composite types. Callers opting
+// into nullability relaxation must enforce their own applicability conditions.
 //
 // See https://spec.graphql.org/October2021/#SameResponseShape()
 func (d *Document) TypesAreCompatibleIgnoringNullability(left int, right int) bool {

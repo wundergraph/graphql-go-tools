@@ -67,6 +67,12 @@ func (f *inlineFragmentSelectionMergeVisitor) fieldsCanMerge(left, right int) bo
 		return false
 	}
 
+	// Normalization can run before validation. Preserve differing arguments so
+	// field-selection merging can report their conflict instead of losing it.
+	if !f.operation.ArgumentSetsAreEqualUnordered(f.operation.FieldArguments(left), f.operation.FieldArguments(right)) {
+		return false
+	}
+
 	leftDirectives := f.operation.FieldDirectives(left)
 	rightDirectives := f.operation.FieldDirectives(right)
 
