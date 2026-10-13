@@ -210,3 +210,37 @@ func TestFieldSelectionMergingExtractedInputObjects(t *testing.T) {
 		})
 	}
 }
+
+func TestFieldSelectionMergingSkippedFields(t *testing.T) {
+	t.Parallel()
+
+	const schema = `schema { query: Query } scalar String
+  interface Node { id: String other: String }
+  type A implements Node { id: String other: String f: B }
+  type B { id: String }
+  type Query { node: Node }`
+	cases := []struct {
+		name, query string
+		want        ValidationState
+	}{
+		{"ConflictingSibling", `{ node { x: id ... on A { f { __typename } } x: other } }`, Invalid},
+		{"RepeatedSkippedFields", `{ node { x: id ... on A { f { __typename __typename } } x: other } }`, Invalid},
+		{"MatchingSibling", `{ node { x: id ... on A { f { __typename } } x: id } }`, Valid},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Without the base schema, KnownArguments skips __typename. Other
+			// visitors receive EnterField but not LeaveField for that selection.
+			definition, report := astparser.ParseGraphqlDocumentString(schema)
+			require.False(t, report.HasErrors(), report.Error())
+			operation, report := astparser.ParseGraphqlDocumentString(tc.query)
+			require.False(t, report.HasErrors(), report.Error())
+			assert.Equal(t, tc.want, DefaultOperationValidator().Validate(&operation, &definition, &report), report.Error())
+			if tc.want == Invalid {
+				assert.Contains(t, report.Error(), "differing fields for objectName 'x'")
+			}
+		})
+	}
+}

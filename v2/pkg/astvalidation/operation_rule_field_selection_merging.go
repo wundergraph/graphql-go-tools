@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -27,7 +28,6 @@ func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
 		visitor := fieldSelectionMergingVisitor{Walker: walker, relaxNullabilityCheck: relax}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterFieldVisitor(&visitor)
-		walker.RegisterLeaveFieldVisitor(&visitor)
 		walker.RegisterEnterOperationVisitor(&visitor)
 		walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
 	}
@@ -38,7 +38,6 @@ type fieldSelectionMergingVisitor struct {
 
 	definition, operation *ast.Document
 	requirements          []fieldRequirement
-	fieldStack            []int
 	relaxNullabilityCheck bool
 }
 
@@ -54,7 +53,6 @@ type fieldRequirement struct {
 
 func (f *fieldSelectionMergingVisitor) resetRequirements() {
 	f.requirements = f.requirements[:0]
-	f.fieldStack = f.fieldStack[:0]
 }
 
 func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -71,11 +69,6 @@ func (f *fieldSelectionMergingVisitor) EnterOperationDefinition(_ int) {
 }
 
 func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
-	parent := -1
-	if len(f.fieldStack) > 0 {
-		parent = f.fieldStack[len(f.fieldStack)-1]
-	}
-	f.fieldStack = append(f.fieldStack, -1)
 	fieldName := f.operation.FieldNameBytes(ref)
 	if bytes.Equal(fieldName, literal.TYPENAME) {
 		return
@@ -93,7 +86,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		fieldTypeRef:            f.definition.FieldDefinitionType(definition),
 		fieldTypeDefinitionNode: f.definition.FieldDefinitionTypeNode(definition),
 		enclosingTypeDefinition: f.EnclosingTypeDefinition,
-		parent:                  parent,
+		parent:                  f.parentRequirement(),
 	}
 	for _, previous := range f.requirements {
 		if !previous.path.Equals(current.path) || !previous.responseName.Equals(current.responseName) {
@@ -148,12 +141,24 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	}
 	// FieldsInSetCanMerge step 2 checks every pair. Retain every selection;
 	// compatibility with one field does not establish compatibility with others.
-	f.fieldStack[len(f.fieldStack)-1] = len(f.requirements)
 	f.requirements = append(f.requirements, current)
 }
 
-func (f *fieldSelectionMergingVisitor) LeaveField(_ int) {
-	f.fieldStack = f.fieldStack[:len(f.fieldStack)-1]
+// parentRequirement uses the walker's ancestry because SkipNode can suppress
+// LeaveField callbacks in other visitors.
+func (f *fieldSelectionMergingVisitor) parentRequirement() int {
+	for _, ancestor := range slices.Backward(f.Ancestors) {
+		if ancestor.Kind != ast.NodeKindField {
+			continue
+		}
+		for j, requirement := range slices.Backward(f.requirements) {
+			if requirement.fieldRef == ancestor.Ref {
+				return j
+			}
+		}
+		break
+	}
+	return -1
 }
 
 // fieldsAreMutuallyExclusive includes ancestors because FieldsInSetCanMerge
