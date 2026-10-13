@@ -5036,3 +5036,70 @@ func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
 	require.Equal(t, "User header-user-456 (existing: existing-value)", user["name"],
 		"user name should include both header-derived ID and existing context metadata")
 }
+
+func Test_DataSource_Load_WithResolverBelowPlainFieldInResolver(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	t.Run("Should resolve a field resolver below a plain field inside a field resolver", func(t *testing.T) {
+		query := `query ChildCategoriesSubcategoriesItemCount($filter: SubcategoryItemFilter) { categories { childCategories { id subcategories { id itemCount(filters: $filter) } } } }`
+		vars := `{"variables":{"filter":{"isActive":true}}}`
+
+		schemaDoc := grpctest.MustGraphQLSchema(t)
+		queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+		if report.HasErrors() {
+			t.Fatalf("failed to parse query: %s", report.Error())
+		}
+
+		compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+		require.NoError(t, err)
+
+		ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+			Operation:    &queryDoc,
+			Definition:   &schemaDoc,
+			SubgraphName: "Products",
+			Mapping:      testMapping(),
+			Compiler:     compiler,
+		})
+		require.NoError(t, err)
+
+		output, err := ds.Load(context.Background(), nil, []byte(fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)))
+		require.NoError(t, err)
+
+		var resp struct {
+			Data struct {
+				Categories []struct {
+					ChildCategories []struct {
+						ID            string `json:"id"`
+						Subcategories []struct {
+							ID        string `json:"id"`
+							ItemCount *int   `json:"itemCount"`
+						} `json:"subcategories"`
+					} `json:"childCategories"`
+				} `json:"categories"`
+			} `json:"data"`
+			Errors []struct {
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+		require.NoError(t, json.Unmarshal(output, &resp), "failed to unmarshal response: %s", string(output))
+		require.Empty(t, resp.Errors)
+
+		// The mock returns 4 categories with 2 child categories each and 2 subcategories per child category.
+		// ResolveSubcategoryItemCount returns the index of the context element times 10.
+		require.Len(t, resp.Data.Categories, 4)
+		index := 0
+		for _, category := range resp.Data.Categories {
+			require.Len(t, category.ChildCategories, 2)
+			for _, childCategory := range category.ChildCategories {
+				require.Len(t, childCategory.Subcategories, 2)
+				for j, subcategory := range childCategory.Subcategories {
+					require.Equal(t, fmt.Sprintf("%s-subcategory-%d", childCategory.ID, j+1), subcategory.ID)
+					require.NotNil(t, subcategory.ItemCount, "itemCount of %s is not resolved", subcategory.ID)
+					require.Equal(t, index*10, *subcategory.ItemCount)
+					index++
+				}
+			}
+		}
+	})
+}

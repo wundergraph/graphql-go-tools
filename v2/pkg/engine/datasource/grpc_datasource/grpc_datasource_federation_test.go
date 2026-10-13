@@ -3081,3 +3081,75 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires_NullableLists(t *testing
 		})
 	}
 }
+
+func Test_DataSource_Load_WithEntity_ResolverBelowPlainFieldInResolver(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	t.Run("Should resolve a field resolver below a plain field inside a field resolver of an entity", func(t *testing.T) {
+		query := `query EntityRecommendedCategorySubcategoriesItemCount($representations: [_Any!]!, $maxPrice: Int!, $filter: SubcategoryItemFilter) { _entities(representations: $representations) { ... on Product { __typename id recommendedCategory(maxPrice: $maxPrice) { id subcategories { id itemCount(filters: $filter) } } } } }`
+		vars := `{"variables":{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"2"}],"maxPrice":1000,"filter":{"isActive":true}}}`
+
+		schemaDoc := grpctest.MustGraphQLSchema(t)
+		queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+		if report.HasErrors() {
+			t.Fatalf("failed to parse query: %s", report.Error())
+		}
+
+		compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+		require.NoError(t, err)
+
+		ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+			Operation:    &queryDoc,
+			Definition:   &schemaDoc,
+			SubgraphName: "Products",
+			Mapping:      testMapping(),
+			Compiler:     compiler,
+			FederationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		output, err := ds.Load(context.Background(), nil, []byte(fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)))
+		require.NoError(t, err)
+
+		var resp struct {
+			Data struct {
+				Entities []struct {
+					ID                  string `json:"id"`
+					RecommendedCategory *struct {
+						ID            string `json:"id"`
+						Subcategories []struct {
+							ID        string `json:"id"`
+							ItemCount *int   `json:"itemCount"`
+						} `json:"subcategories"`
+					} `json:"recommendedCategory"`
+				} `json:"_entities"`
+			} `json:"data"`
+			Errors []struct {
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+		require.NoError(t, json.Unmarshal(output, &resp), "failed to unmarshal response: %s", string(output))
+		require.Empty(t, resp.Errors)
+
+		// The mock returns a recommended category with 2 subcategories for each product.
+		// ResolveSubcategoryItemCount returns the index of the context element times 10.
+		require.Len(t, resp.Data.Entities, 2)
+		index := 0
+		for _, entity := range resp.Data.Entities {
+			require.NotNil(t, entity.RecommendedCategory, "recommendedCategory of product %s is nil", entity.ID)
+			require.Len(t, entity.RecommendedCategory.Subcategories, 2)
+			for j, subcategory := range entity.RecommendedCategory.Subcategories {
+				require.Equal(t, fmt.Sprintf("%s-subcategory-%d", entity.RecommendedCategory.ID, j+1), subcategory.ID)
+				require.NotNil(t, subcategory.ItemCount, "itemCount of %s is not resolved", subcategory.ID)
+				require.Equal(t, index*10, *subcategory.ItemCount)
+				index++
+			}
+		}
+	})
+}

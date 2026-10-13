@@ -923,6 +923,7 @@ type resolverField struct {
 	fieldsSelectionSetRef  int
 	responsePath           ast.Path
 	contextPath            ast.Path
+	nestedPath             ast.Path
 
 	contextFields      []contextField
 	fieldArguments     []fieldArgument
@@ -930,6 +931,11 @@ type resolverField struct {
 	fragmentType       OneOfType
 	listNestingLevel   int
 	memberTypes        []string
+}
+
+// nestedContextPath returns the context path for a field resolver inside of this resolver.
+func (f *resolverField) nestedContextPath() ast.Path {
+	return append(slices.Clone(f.contextPath), f.nestedPath...)
 }
 
 type fragmentSelection struct {
@@ -1060,6 +1066,39 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 	if r.typeIsNullableOrNestedList(fieldDefType) {
 		resolvedField.listNestingLevel = r.definition.TypeNumberOfListWraps(fieldDefType)
 	}
+
+	return r.setResolverSelectionSet(fieldDefRef, resolvedField)
+}
+
+// setResolverSelectionSet stores the selection set of the resolver field.
+// buildMessageForField uses it to build the response message of the resolver call.
+// The selection sets of plain fields inside of the resolver are nested in it. Thus we do not store them.
+func (r *rpcPlanningContext) setResolverSelectionSet(fieldDefRef int, resolvedField *resolverField) error {
+	resolvedField.fieldsSelectionSetRef = ast.InvalidRef
+
+	// A resolver field that returns a scalar or an enum has no selection set.
+	selectionSetRef, ok := r.operation.FieldSelectionSet(resolvedField.fieldRef)
+	if !ok {
+		return nil
+	}
+
+	typeNode := r.definition.FieldDefinitionTypeNode(fieldDefRef)
+	compositeType := r.getCompositeType(typeNode)
+	if compositeType == OneOfTypeNone {
+		resolvedField.fieldsSelectionSetRef = selectionSetRef
+		return nil
+	}
+
+	memberTypes, err := r.getMemberTypes(typeNode)
+	if err != nil {
+		return err
+	}
+
+	config := r.buildCompositeTypeConfig(compositeType, selectionSetRef)
+	resolvedField.memberTypes = memberTypes
+	resolvedField.fieldsSelectionSetRef = config.fieldsSelectionSetRef
+	resolvedField.fragmentType = config.oneOfType
+	resolvedField.fragmentSelections = config.fragmentSelections
 
 	return nil
 }
