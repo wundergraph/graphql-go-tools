@@ -289,3 +289,34 @@ func TestFieldSelectionMergingTypename(t *testing.T) {
 		})
 	}
 }
+
+func TestFieldSelectionMergingUnrelatedInterfaceAndObject(t *testing.T) {
+	t.Parallel()
+	const schema = `schema { query: Query } scalar ID scalar Int
+  interface Node { id(format: Int): ID! }
+  type User implements Node { id(format: Int): ID! }
+  type Photo { id(format: Int): ID! url: ID! }
+  union SearchResult = User | Photo
+  type Query { search: SearchResult }`
+	cases := []struct {
+		name, query string
+		want        ValidationState
+	}{
+		{"DifferentNames", `{ search { ... on Node { x: id } ... on Photo { x: url } } }`, Invalid},
+		{"DifferentArguments", `{ search { ... on Node { x: id(format: 1) } ... on Photo { x: id(format: 2) } } }`, Invalid},
+		{"DistinctAliases", `{ search { ... on Node { nodeId: id } ... on Photo { photoUrl: url } } }`, Valid},
+		{"MatchingIdentity", `{ search { ... on Node { x: id(format: 1) } ... on Photo { x: id(format: 1) } } }`, Valid},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			definition, report := astparser.ParseGraphqlDocumentString(schema)
+			require.False(t, report.HasErrors(), report.Error())
+			operation, report := astparser.ParseGraphqlDocumentString(tc.query)
+			require.False(t, report.HasErrors(), report.Error())
+			assert.Equal(t, tc.want, DefaultOperationValidator().Validate(&operation, &definition, &report), report.Error())
+			report.Reset()
+			assert.Equal(t, tc.want, DefaultOperationValidator(WithRelaxFieldSelectionMergingNullability()).Validate(&operation, &definition, &report), report.Error())
+		})
+	}
+}
