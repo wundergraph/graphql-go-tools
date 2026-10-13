@@ -159,32 +159,43 @@ func (d *Document) ArgumentSetsAreEqualUnordered(left, right []int) bool {
 	if len(left) == 0 {
 		return len(right) == 0
 	}
-	return d.argumentSetsAreEqualUnordered(left, right)
+	return d.namedValueSetsAreEqual(left, right, false)
 }
 
-func (d *Document) argumentSetsAreEqualUnordered(left, right []int) bool {
+func (d *Document) namedValueSetsAreEqual(left, right []int, objectFields bool) bool {
 	if len(left) != len(right) {
 		return false
 	}
 	for i, leftRef := range left {
-		rightRef := right[i]
-		if !bytes.Equal(d.ArgumentNameBytes(leftRef), d.ArgumentNameBytes(rightRef)) {
-			rightRef = InvalidRef
+		leftName, leftValue := d.namedValue(leftRef, objectFields)
+		rightName, rightValue := d.namedValue(right[i], objectFields)
+		if !bytes.Equal(leftName, rightName) {
+			rightValue = nil
 			for _, candidate := range right {
-				if bytes.Equal(d.ArgumentNameBytes(leftRef), d.ArgumentNameBytes(candidate)) {
-					rightRef = candidate
+				candidateName, candidateValue := d.namedValue(candidate, objectFields)
+				if bytes.Equal(leftName, candidateName) {
+					rightValue = candidateValue
 					break
 				}
 			}
-			if rightRef == InvalidRef {
+			if rightValue == nil {
 				return false
 			}
 		}
-		if !d.argumentValuesAreEqual(d.ArgumentValue(leftRef), d.ArgumentValue(rightRef)) {
+		if !d.argumentValuesAreEqual(*leftValue, *rightValue) {
 			return false
 		}
 	}
 	return true
+}
+
+func (d *Document) namedValue(ref int, objectField bool) (ByteSlice, *Value) {
+	if objectField {
+		field := &d.ObjectFields[ref]
+		return d.Input.ByteSlice(field.Name), &field.Value
+	}
+	argument := &d.Arguments[ref]
+	return d.Input.ByteSlice(argument.Name), &argument.Value
 }
 
 func (d *Document) argumentValuesAreEqual(left, right Value) bool {
@@ -193,29 +204,7 @@ func (d *Document) argumentValuesAreEqual(left, right Value) bool {
 	}
 	switch left.Kind {
 	case ValueKindObject:
-		leftFields, rightFields := d.ObjectValues[left.Ref].Refs, d.ObjectValues[right.Ref].Refs
-		if len(leftFields) != len(rightFields) {
-			return false
-		}
-		for i, leftRef := range leftFields {
-			rightRef := rightFields[i]
-			if !bytes.Equal(d.ObjectFieldNameBytes(leftRef), d.ObjectFieldNameBytes(rightRef)) {
-				rightRef = InvalidRef
-				for _, candidate := range rightFields {
-					if bytes.Equal(d.ObjectFieldNameBytes(leftRef), d.ObjectFieldNameBytes(candidate)) {
-						rightRef = candidate
-						break
-					}
-				}
-				if rightRef == InvalidRef {
-					return false
-				}
-			}
-			if !d.argumentValuesAreEqual(d.ObjectFieldValue(leftRef), d.ObjectFieldValue(rightRef)) {
-				return false
-			}
-		}
-		return true
+		return d.namedValueSetsAreEqual(d.ObjectValues[left.Ref].Refs, d.ObjectValues[right.Ref].Refs, true)
 	case ValueKindList:
 		leftValues, rightValues := d.ListValues[left.Ref].Refs, d.ListValues[right.Ref].Refs
 		if len(leftValues) != len(rightValues) {
