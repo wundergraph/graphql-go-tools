@@ -17,6 +17,10 @@ import (
 // into a single field in the response.
 //
 // The rule is applied to each operation and fragment definition in the document.
+// Setting relaxNullabilityCheck permits nullability differences between fields
+// with non-overlapping enclosing types, deliberately relaxing the spec.
+//
+// See https://spec.graphql.org/September2025/#sec-Field-Selection-Merging
 func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
 	relax := len(relaxNullabilityCheck) > 0 && relaxNullabilityCheck[0]
 	return func(walker *astvisitor.Walker) {
@@ -96,8 +100,9 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			continue
 		}
 		bothComposite := f.nodeIsCompositeType(previous.fieldTypeDefinitionNode) && f.nodeIsCompositeType(current.fieldTypeDefinitionNode)
-		// Field identity depends on the enclosing objects, not on the return types.
-		// Exclusivity is inherited by subfields of mutually exclusive selections.
+		// FieldsInSetCanMerge step 2.2 requires matching names and arguments unless
+		// the selections are mutually exclusive; SameResponseShape still applies.
+		// See https://spec.graphql.org/September2025/#FieldsInSetCanMerge()
 		identityConflict := false
 		if !f.fieldsAreMutuallyExclusive(previous, current) {
 			compatibleStream := f.operation.DirectiveSetsHasCompatibleStreamDirective(f.operation.FieldDirectives(previous.fieldRef), f.operation.FieldDirectives(ref))
@@ -113,8 +118,10 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 				return
 			}
 		}
-		// Nullability relaxation is an explicit extension of SameResponseShape.
-		// Preserve its existing scope: the immediate enclosing types cannot overlap.
+		// Intentional deviation: SameResponseShape step 3 requires matching
+		// nullability even across mutually exclusive branches. The existing opt-in
+		// relaxation applies only when the immediate enclosing types cannot overlap.
+		// See https://spec.graphql.org/September2025/#SameResponseShape()
 		ignoreNullability := f.relaxNullabilityCheck && !f.potentiallySameObject(previous.enclosingTypeDefinition, current.enclosingTypeDefinition)
 		if !f.typesHaveCompatibleResponseShape(previous.fieldTypeRef, current.fieldTypeRef, ignoreNullability) {
 			left, err := f.definition.PrintTypeBytes(previous.fieldTypeRef, nil)
@@ -139,8 +146,8 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			return
 		}
 	}
-	// Retain every selection: compatibility with one field does not imply
-	// compatibility with the other fields at this response path.
+	// FieldsInSetCanMerge step 2 checks every pair. Retain every selection;
+	// compatibility with one field does not establish compatibility with others.
 	f.fieldStack[len(f.fieldStack)-1] = len(f.requirements)
 	f.requirements = append(f.requirements, current)
 }
@@ -149,6 +156,9 @@ func (f *fieldSelectionMergingVisitor) LeaveField(_ int) {
 	f.fieldStack = f.fieldStack[:len(f.fieldStack)-1]
 }
 
+// fieldsAreMutuallyExclusive includes ancestors because FieldsInSetCanMerge
+// step 2.2 skips recursive identity checks across distinct object branches.
+// SameResponseShape still checks their descendants' response shapes.
 func (f *fieldSelectionMergingVisitor) fieldsAreMutuallyExclusive(left, right fieldRequirement) bool {
 	for {
 		if left.enclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition &&
@@ -166,6 +176,8 @@ func (f *fieldSelectionMergingVisitor) fieldsAreMutuallyExclusive(left, right fi
 // typesHaveCompatibleResponseShape checks wrappers and named leaf types only.
 // Composite names need not match: EnterField compares their selected subfields
 // at each response path, including pairs with different return type kinds.
+// This follows SameResponseShape steps 3-10, except for opt-in nullability relaxation.
+// See https://spec.graphql.org/September2025/#SameResponseShape()
 func (f *fieldSelectionMergingVisitor) typesHaveCompatibleResponseShape(left, right int, ignoreNullability bool) bool {
 	for {
 		if left == -1 || right == -1 {

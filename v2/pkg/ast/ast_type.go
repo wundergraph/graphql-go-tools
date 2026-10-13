@@ -215,7 +215,7 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 // nullability and compares selected subfields of composite types. Callers opting
 // into nullability relaxation must enforce their own applicability conditions.
 //
-// See https://spec.graphql.org/October2021/#SameResponseShape()
+// See https://spec.graphql.org/September2025/#SameResponseShape()
 func (d *Document) TypesAreCompatibleIgnoringNullability(left int, right int) bool {
 	return d.typesAreCompatible(left, right, true)
 }

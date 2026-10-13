@@ -67,8 +67,9 @@ func (f *inlineFragmentSelectionMergeVisitor) fieldsCanMerge(left, right int) bo
 		return false
 	}
 
-	// Normalization can run before validation. Preserve differing arguments so
-	// field-selection merging can report their conflict instead of losing it.
+	// FieldsInSetCanMerge requires matching arguments for fields on the same
+	// parent type. Normalization precedes validation, so preserve conflicts.
+	// See https://spec.graphql.org/September2025/#FieldsInSetCanMerge()
 	if !f.operation.ArgumentSetsAreEqualUnordered(f.operation.FieldArguments(left), f.operation.FieldArguments(right)) {
 		return false
 	}
