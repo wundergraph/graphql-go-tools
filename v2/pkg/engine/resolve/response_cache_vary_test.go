@@ -357,6 +357,24 @@ func TestResponseCacheVary(t *testing.T) {
 			}, store.lookups[1])
 		})
 
+		t.Run("the trace names the variant that was served", func(t *testing.T) {
+			t.Parallel()
+			store := newTestCache()
+			seed(t, store, record, variant([]string{"accept-language"}, deEU, `{"set":"lang"}`), variant(langRegion, deEU, `{"set":"lang-region"}`))
+
+			// Both variants are cached; a map scan would pick either.
+			for range 20 {
+				loader, res := varyLoader(t, store, "", "", "", "", deEU)
+				loader.ctx.TracingOptions.Enable = true
+				prepared := &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+				require.True(t, loader.responseCacheLookup(prepared))
+
+				entry := ResponseCacheTraceEntry{Key: "pub-1"}
+				require.JSONEq(t, `{"set":"lang"}`, string(loader.traceLookup(prepared, &entry)))
+				require.Equal(t, record.Vary, entry.Vary)
+			}
+		})
+
 		t.Run("a header the request does not send counts as empty", func(t *testing.T) {
 			t.Parallel()
 			store := newTestCache()
