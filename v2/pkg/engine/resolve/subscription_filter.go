@@ -117,7 +117,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte) (bool, er
 
 				switch f.Values[i].Segments[0].SegmentType {
 				case VariableSegmentType:
-					value := ctx.Variables.Get(f.Values[i].Segments[0].VariableSourcePath...)
+					value := ctx.VariablesView().Get(f.Values[i].Segments[0].VariableSourcePath...)
 					if value == nil {
 						return true, nil
 					}

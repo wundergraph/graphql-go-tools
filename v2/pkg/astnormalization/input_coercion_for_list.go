@@ -43,7 +43,7 @@ func (i *ListInputCoercion) CoerceInput(operation, definition *ast.Document, var
 	report := operationreport.Report{}
 	i.w.Walk(operation, definition, &report)
 	if report.HasErrors() {
-		return nil, report
+		return nil, &report
 	}
 	return i.v.customVariables, nil
 }
