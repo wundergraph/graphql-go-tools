@@ -5085,13 +5085,19 @@ func Test_DataSource_Load_WithResolverBelowPlainFieldInResolver(t *testing.T) {
 		require.NoError(t, json.Unmarshal(output, &resp), "failed to unmarshal response: %s", string(output))
 		require.Empty(t, resp.Errors)
 
-		// The mock returns 4 categories with 2 child categories each and 2 subcategories per child category.
-		// ResolveSubcategoryItemCount returns the index of the context element times 10.
+		// The mock returns 4 categories with 2 child categories each. The first child category has
+		// 2 subcategories, the second one has null subcategories.
+		// ResolveSubcategoryItemCount returns the index of the context element times 10. Null parents
+		// get no context element, so the index only counts the non-null subcategories.
 		require.Len(t, resp.Data.Categories, 4)
 		index := 0
 		for _, category := range resp.Data.Categories {
 			require.Len(t, category.ChildCategories, 2)
+			require.Nil(t, category.ChildCategories[1].Subcategories, "subcategories of %s should be null", category.ChildCategories[1].ID)
 			for _, childCategory := range category.ChildCategories {
+				if childCategory.Subcategories == nil {
+					continue
+				}
 				require.Len(t, childCategory.Subcategories, 2)
 				for j, subcategory := range childCategory.Subcategories {
 					require.Equal(t, fmt.Sprintf("%s-subcategory-%d", childCategory.ID, j+1), subcategory.ID)

@@ -633,11 +633,11 @@ func (s *MockService) ResolveCategoryChildCategories(_ context.Context, req *pro
 					Kind:          productv1.CategoryKind_CATEGORY_KIND_OTHER,
 					Subcategories: createSubcategories(fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i), productv1.CategoryKind_CATEGORY_KIND_OTHER, 2),
 				},
+				// Subcategories is left null so nested resolvers see a mix of null and non-null parents.
 				{
-					Id:            fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i+1),
-					Name:          fmt.Sprintf("Child Category %s %d", ctx.GetName(), i+1),
-					Kind:          productv1.CategoryKind_CATEGORY_KIND_OTHER,
-					Subcategories: createSubcategories(fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i+1), productv1.CategoryKind_CATEGORY_KIND_OTHER, 2),
+					Id:   fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i+1),
+					Name: fmt.Sprintf("Child Category %s %d", ctx.GetName(), i+1),
+					Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
 				},
 			},
 		}
