@@ -1128,7 +1128,7 @@ func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscripti
 	hookCtx := StartupHookContext{
 		Context: add.ctx.Context(),
 		Updater: func(data []byte) {
-			updater.UpdateSubscription(add.id, data, "")
+			updater.UpdateSubscription(add.id, data)
 		},
 	}
 	err := hook.SubscriptionOnStart(hookCtx, add.input)
@@ -1922,7 +1922,11 @@ type subscriptionUpdater struct {
 	subsFn    func() map[context.Context]SubscriptionIdentifier
 }
 
-func (s *subscriptionUpdater) Update(data []byte, cursor string) {
+func (s *subscriptionUpdater) Update(data []byte) {
+	s.UpdateWithCursor(data, "")
+}
+
+func (s *subscriptionUpdater) UpdateWithCursor(data []byte, cursor string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
@@ -1943,7 +1947,11 @@ func (s *subscriptionUpdater) Heartbeat() {
 	s.resolver.heartbeatTriggerSubscriptions(s.triggerID)
 }
 
-func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte, cursor string) {
+func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
+	s.UpdateSubscriptionWithCursor(id, data, "")
+}
+
+func (s *subscriptionUpdater) UpdateSubscriptionWithCursor(id SubscriptionIdentifier, data []byte, cursor string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
@@ -2031,11 +2039,15 @@ type addSubscription struct {
 
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
+	Update(data []byte)
+	// UpdateWithCursor sends an update to the client, carrying a cursor. It is not guaranteed that the update is sent immediately.
 	// An empty cursor means no cursor is present.
-	Update(data []byte, cursor string)
+	UpdateWithCursor(data []byte, cursor string)
 	// UpdateSubscription sends an update to a single subscription. It is not guaranteed that the update is sent immediately.
+	UpdateSubscription(id SubscriptionIdentifier, data []byte)
+	// UpdateSubscriptionWithCursor sends an update to a single subscription, carrying a cursor. It is not guaranteed that the update is sent immediately.
 	// An empty cursor means no cursor is present.
-	UpdateSubscription(id SubscriptionIdentifier, data []byte, cursor string)
+	UpdateSubscriptionWithCursor(id SubscriptionIdentifier, data []byte, cursor string)
 	// Complete delivers a "subscription done" signal to all subscriptions on the trigger.
 	// Does not perform cleanup — call Done() after Complete().
 	Complete()

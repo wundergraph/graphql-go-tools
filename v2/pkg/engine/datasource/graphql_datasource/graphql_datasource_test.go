@@ -8462,7 +8462,11 @@ func (t *testSubscriptionUpdater) Heartbeat() {
 	t.updates = append(t.updates, "{}")
 }
 
-func (t *testSubscriptionUpdater) Update(data []byte, _ string) {
+func (t *testSubscriptionUpdater) Update(data []byte) {
+	t.UpdateWithCursor(data, "")
+}
+
+func (t *testSubscriptionUpdater) UpdateWithCursor(data []byte, _ string) {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	t.updates = append(t.updates, string(data))
@@ -8496,7 +8500,11 @@ func (t *testSubscriptionUpdater) Subscriptions() map[context.Context]resolve.Su
 }
 
 // empty method to satisfy the interface, not used in this tests
-func (t *testSubscriptionUpdater) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte, cursor string) {
+func (t *testSubscriptionUpdater) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdater) UpdateSubscriptionWithCursor(id resolve.SubscriptionIdentifier, data []byte, cursor string) {
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
