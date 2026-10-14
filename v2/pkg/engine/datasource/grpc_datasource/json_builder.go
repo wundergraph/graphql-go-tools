@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/tidwall/gjson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
@@ -32,17 +31,15 @@ const (
 // - Error response formatting
 type jsonBuilder struct {
 	mapping   *GRPCMapping // Mapping configuration for GraphQL to gRPC translation
-	variables gjson.Result // GraphQL variables containing entity representations
 	jsonArena arena.Arena
 }
 
 // newJSONBuilder creates a new JSON builder instance with the provided mapping
 // and variables. The builder automatically creates an index map for proper
 // federation entity ordering if representations are present in the variables.
-func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) *jsonBuilder {
+func newJSONBuilder(a arena.Arena, mapping *GRPCMapping) *jsonBuilder {
 	return &jsonBuilder{
 		mapping:   mapping,
-		variables: variables,
 		jsonArena: a,
 	}
 }
@@ -50,7 +47,7 @@ func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result)
 // mergeValues combines two JSON values while preserving proper federation entity ordering.
 // This is a critical function for GraphQL federation where multiple subgraphs may
 // return entities that need to be merged in the correct order.
-func (j *jsonBuilder) mergeValues(left *astjson.Value, right resultData) (*astjson.Value, error) {
+func (j *jsonBuilder) mergeValues(left *astjson.Value, right fetchResult) (*astjson.Value, error) {
 	if right.kind != CallKindEntity {
 		// No federation index map available - use simple merge
 		// This path is taken for non-federated queries
@@ -76,7 +73,7 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right resultData) (*astjs
 // _entities array. On subsequent calls, left is the result of a previous
 // mergeEntities call and already holds the _entities array, so we mutate it
 // in place rather than copying every accumulated entity into a new array.
-func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult resultData) (*astjson.Value, error) {
+func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult fetchResult) (*astjson.Value, error) {
 	right := rightResult.response
 	rightEntities := right.Get(entityPath).GetArray()
 
@@ -147,6 +144,10 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 // flattenObject flattens a JSON object into a list of values.
 // This is needed because we want to get the values from the object by its path to merge them with the response values.
 func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*astjson.Value, error) {
+	if value.Type() == astjson.TypeNull {
+		return nil, nil
+	}
+
 	if path.Len() == 0 {
 		return []*astjson.Value{value}, nil
 	}
@@ -159,6 +160,8 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 
 	result := make([]*astjson.Value, 0)
 	switch current.Type() {
+	case astjson.TypeNull:
+		return result, nil
 	case astjson.TypeObject:
 		values, err := j.flattenObject(current, path[1:])
 		if err != nil {
@@ -181,11 +184,7 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 // flattenList flattens a list of JSON values into a list of values.
 // This is needed because we want to get the values from the list by its path to merge them with the response values.
 func (j *jsonBuilder) flattenList(items []*astjson.Value, path ast.Path) ([]*astjson.Value, error) {
-	if path.Len() == 0 {
-		return items, nil
-	}
-
-	result := make([]*astjson.Value, 0)
+	result := make([]*astjson.Value, 0, len(items))
 	for _, item := range items {
 		values, err := j.flattenObject(item, path)
 		if err != nil {

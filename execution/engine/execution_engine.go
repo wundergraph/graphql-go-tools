@@ -227,7 +227,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			operation.Document(), e.config.schema.Document(), &remapReport,
 		)
 		if remapReport.HasErrors() {
-			return remapReport
+			return &remapReport
 		}
 	}
 
@@ -266,13 +266,13 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	var report operationreport.Report
 	cachedPlan, costCalculator := e.getCachedPlan(execContext, operation.Document(), e.config.schema.Document(), operation.OperationName, &report)
 	if report.HasErrors() {
-		return report
+		return &report
 	}
 	varsView := execContext.resolveContext.VariablesView()
 	if costCalculator != nil {
 		costCalculator.ValidateSliceArguments(varsView, &report)
 		if report.HasErrors() {
-			return report
+			return &report
 		}
 	}
 	operation.ComputeEstimatedCost(costCalculator, varsView)

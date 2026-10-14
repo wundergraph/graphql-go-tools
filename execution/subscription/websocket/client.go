@@ -170,8 +170,7 @@ func (c *Client) writeCompiledFrame(compiledFrame []byte) error {
 func (c *Client) isClosedConnectionError(err error) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	var closedErr wsutil.ClosedError
-	if errors.As(err, &closedErr) {
+	if _, ok := errors.AsType[wsutil.ClosedError](err); ok {
 		c.isClosedConnection = true
 	}
 	return c.isClosedConnection

@@ -101,3 +101,43 @@ func TestTTL(t *testing.T) {
 		})
 	}
 }
+
+func TestLifetime(t *testing.T) {
+	t.Parallel()
+
+	const defaultTTL = 5 * time.Minute
+
+	for _, tc := range []struct {
+		name         string
+		cacheControl string
+		defaultTTL   time.Duration
+		want         StoreDecision
+	}{
+		{name: "max-age", cacheControl: "max-age=60", defaultTTL: defaultTTL, want: StoreDecisionStored},
+		{name: "a directive falls back to the default", cacheControl: "public", defaultTTL: defaultTTL, want: StoreDecisionStored},
+		{name: "no-store", cacheControl: "no-store, max-age=60", defaultTTL: defaultTTL, want: StoreDecisionNoStore},
+		{name: "no-cache", cacheControl: "no-cache, max-age=60", defaultTTL: defaultTTL, want: StoreDecisionNoCache},
+		{name: "max-age of zero", cacheControl: "max-age=0", defaultTTL: defaultTTL, want: StoreDecisionNoLifetime},
+		{name: "s-maxage of zero", cacheControl: "s-maxage=0, max-age=60", defaultTTL: defaultTTL, want: StoreDecisionNoLifetime},
+		{name: "a directive without a default", cacheControl: "public", want: StoreDecisionNoLifetime},
+		{name: "no header", defaultTTL: defaultTTL, want: StoreDecisionNoDirective},
+		{name: "an unparsable header", cacheControl: "max-age=soon", defaultTTL: defaultTTL, want: StoreDecisionInvalidCacheControl},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			headers := http.Header{}
+			if tc.cacheControl != "" {
+				headers.Set("Cache-Control", tc.cacheControl)
+			}
+
+			ttl, _, decision := Lifetime(headers, tc.defaultTTL)
+			assert.Equal(t, tc.want, decision)
+			assert.NotEmpty(t, decision.String())
+
+			_, _, ok := TTL(headers, tc.defaultTTL)
+			assert.Equal(t, tc.want == StoreDecisionStored, ok)
+			assert.Equal(t, ok, ttl > 0)
+		})
+	}
+}

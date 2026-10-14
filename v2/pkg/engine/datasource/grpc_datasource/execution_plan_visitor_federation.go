@@ -633,18 +633,6 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 	r.planInfo.currentResponseMessage = entityMessage
 }
 
-func (r *rpcPlanVisitorFederation) IsEntityInlineFragment(node ast.Node) bool {
-	if node.Kind != ast.NodeKindInlineFragment {
-		return false
-	}
-
-	if r.entityInfo.entityInlineFragmentRef == ast.InvalidRef {
-		return false
-	}
-
-	return r.entityInfo.entityInlineFragmentRef == node.Ref
-}
-
 // entityInfo contains the information about the entity that is being looked up.
 type entityInfo struct {
 	typeName                string
