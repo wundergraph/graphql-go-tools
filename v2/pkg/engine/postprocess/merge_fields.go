@@ -18,13 +18,6 @@ func (m *mergeFields) Process(node resolve.Node) {
 	m.traverseNode(node)
 }
 
-func (m *mergeFields) ProcessSubscription(node resolve.Node) {
-	if m.disable {
-		return
-	}
-	m.traverseNode(node)
-}
-
 func (m *mergeFields) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
