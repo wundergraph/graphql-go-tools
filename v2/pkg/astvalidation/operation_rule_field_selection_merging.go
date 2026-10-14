@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -17,6 +18,10 @@ import (
 // into a single field in the response.
 //
 // The rule is applied to each operation and fragment definition in the document.
+// The implicit __typename field participates as String!, even without the base schema.
+//
+// See https://spec.graphql.org/September2025/#sec-Type-Name-Introspection
+// and https://spec.graphql.org/September2025/#sec-Field-Selection-Merging
 func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
 	relax := len(relaxNullabilityCheck) > 0 && relaxNullabilityCheck[0]
 	return func(walker *astvisitor.Walker) {
@@ -34,6 +39,9 @@ type fieldSelectionMergingVisitor struct {
 	definition, operation *ast.Document
 	scalarRequirements    scalarRequirements
 	nonScalarRequirements nonScalarRequirements
+	typenameRequirements  []typenameRequirement
+	enclosingTypes        []ast.Node
+	hasTypenameSelections bool
 	refs                  []int
 	relaxNullabilityCheck bool
 }
@@ -44,6 +52,7 @@ type nonScalarRequirement struct {
 	fieldTypeRef            int
 	fieldTypeDefinitionNode ast.Node
 	enclosingTypeDefinition ast.Node
+	enclosingTypes          []ast.Node
 }
 
 type nonScalarRequirements []nonScalarRequirement
@@ -65,9 +74,16 @@ type scalarRequirement struct {
 	fieldType               int
 	enclosingTypeDefinition ast.Node
 	fieldTypeDefinitionNode ast.Node
+	enclosingTypes          []ast.Node
 }
 
 type scalarRequirements []scalarRequirement
+
+type typenameRequirement struct {
+	path           ast.Path
+	responseName   ast.ByteSlice
+	enclosingTypes []ast.Node
+}
 
 func (f *fieldSelectionMergingVisitor) ScalarRequirementsByPathField(path ast.Path, objectName ast.ByteSlice) []int {
 	f.refs = f.refs[:0]
@@ -82,11 +98,16 @@ func (f *fieldSelectionMergingVisitor) ScalarRequirementsByPathField(path ast.Pa
 func (f *fieldSelectionMergingVisitor) resetRequirements() {
 	f.scalarRequirements = f.scalarRequirements[:0]
 	f.nonScalarRequirements = f.nonScalarRequirements[:0]
+	f.typenameRequirements = f.typenameRequirements[:0]
+	f.enclosingTypes = f.enclosingTypes[:0]
 }
 
 func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.Document) {
 	f.operation = operation
 	f.definition = definition
+	f.hasTypenameSelections = slices.ContainsFunc(operation.Fields, func(field ast.Field) bool {
+		return bytes.Equal(operation.Input.ByteSlice(field.Name), literal.TYPENAME)
+	})
 }
 
 func (f *fieldSelectionMergingVisitor) EnterFragmentDefinition(_ int) {
@@ -100,9 +121,27 @@ func (f *fieldSelectionMergingVisitor) EnterOperationDefinition(_ int) {
 func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 
 	path := f.Path.WithoutInlineFragmentNames()
+	enclosingTypes := f.fieldEnclosingTypes()
 
 	fieldName := f.operation.FieldNameBytes(ref)
 	if bytes.Equal(fieldName, literal.TYPENAME) {
+		current := typenameRequirement{
+			path: path, responseName: f.operation.FieldAliasOrNameBytes(ref),
+			enclosingTypes: enclosingTypes,
+		}
+		for i := range f.scalarRequirements {
+			previous := &f.scalarRequirements[i]
+			if f.typenameConflictsWithField(&current, previous.path, previous.objectName, previous.enclosingTypes, previous.fieldType) {
+				return
+			}
+		}
+		for i := range f.nonScalarRequirements {
+			previous := &f.nonScalarRequirements[i]
+			if f.typenameConflictsWithField(&current, previous.path, previous.objectName, previous.enclosingTypes, previous.fieldTypeRef) {
+				return
+			}
+		}
+		f.typenameRequirements = append(f.typenameRequirements, current)
 		return
 	}
 	objectName := f.operation.FieldAliasOrNameBytes(ref)
@@ -114,6 +153,11 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	}
 
 	fieldType := f.definition.FieldDefinitionType(definition)
+	for i := range f.typenameRequirements {
+		if f.typenameConflictsWithField(&f.typenameRequirements[i], path, objectName, enclosingTypes, fieldType) {
+			return
+		}
+	}
 	fieldDefinitionTypeNode := f.definition.FieldDefinitionTypeNode(definition)
 	if fieldDefinitionTypeNode.Kind != ast.NodeKindScalarTypeDefinition {
 
@@ -180,6 +224,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			fieldTypeRef:            fieldType,
 			fieldTypeDefinitionNode: fieldDefinitionTypeNode,
 			enclosingTypeDefinition: f.EnclosingTypeDefinition,
+			enclosingTypes:          enclosingTypes,
 		})
 		return
 	}
@@ -234,7 +279,73 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		fieldType:               fieldType,
 		enclosingTypeDefinition: f.EnclosingTypeDefinition,
 		fieldTypeDefinitionNode: fieldDefinitionTypeNode,
+		enclosingTypes:          enclosingTypes,
 	})
+}
+
+// fieldEnclosingTypes records one enclosing type per response-path depth.
+// Inline fragments refine the type at that depth without adding a field.
+func (f *fieldSelectionMergingVisitor) fieldEnclosingTypes() []ast.Node {
+	if !f.hasTypenameSelections {
+		return nil
+	}
+	start := len(f.enclosingTypes)
+	for i, item := range f.Path {
+		if item.Kind == ast.InlineFragmentName {
+			f.enclosingTypes[len(f.enclosingTypes)-1] = f.TypeDefinitions[i]
+		} else {
+			f.enclosingTypes = append(f.enclosingTypes, f.TypeDefinitions[i])
+		}
+	}
+	return f.enclosingTypes[start:]
+}
+
+func (f *fieldSelectionMergingVisitor) typenameParentsAreMutuallyExclusive(left, right []ast.Node) bool {
+	for i := range left {
+		switch {
+		case left[i].Kind == ast.NodeKindObjectTypeDefinition && right[i].Kind == ast.NodeKindObjectTypeDefinition:
+			if left[i] != right[i] {
+				return true
+			}
+		case left[i].Kind == ast.NodeKindInterfaceTypeDefinition && right[i].Kind == ast.NodeKindObjectTypeDefinition,
+			left[i].Kind == ast.NodeKindObjectTypeDefinition && right[i].Kind == ast.NodeKindInterfaceTypeDefinition:
+			// Preserve the existing interface/non-implementing-object exception.
+			if !f.potentiallySameObject(left[i], right[i]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (f *fieldSelectionMergingVisitor) typenameConflictsWithField(typename *typenameRequirement, path ast.Path, responseName ast.ByteSlice, enclosingTypes []ast.Node, fieldType int) bool {
+	if !typename.path.Equals(path) || !typename.responseName.Equals(responseName) {
+		return false
+	}
+	if !f.typenameParentsAreMutuallyExclusive(typename.enclosingTypes, enclosingTypes) {
+		f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(responseName))
+		return true
+	}
+
+	// Mutually exclusive fields still need a compatible response shape.
+	// Preserve the existing opt-in nullability relaxation for disjoint parents.
+	other := fieldType
+	nonNull := f.definition.Types[other].TypeKind == ast.TypeKindNonNull
+	if nonNull {
+		other = f.definition.Types[other].OfType
+	}
+	ignoreNullability := f.relaxNullabilityCheck && !f.potentiallySameObject(typename.enclosingTypes[len(typename.enclosingTypes)-1], enclosingTypes[len(enclosingTypes)-1])
+	if (nonNull || ignoreNullability) && f.definition.Types[other].TypeKind == ast.TypeKindNamed &&
+		bytes.Equal(f.definition.TypeNameBytes(other), literal.STRING) {
+		return false
+	}
+	right, err := f.definition.PrintTypeBytes(fieldType, nil)
+	if err != nil {
+		f.StopWithInternalErr(err)
+	} else {
+		f.StopWithExternalErr(operationreport.ErrFieldsConflict(responseName, []byte("String!"), right))
+	}
+	return true
 }
 
 // potentiallySameObject reports whether two enclosing type definitions could apply
