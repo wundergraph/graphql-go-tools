@@ -951,7 +951,9 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 			r.printBytes(comma)
 		}
 		writeComma = true
-		r.printCursorExtension()
+		if err := r.printCursorExtension(); err != nil {
+			return err
+		}
 	}
 
 	if len(r.allowedExtensions) > 0 {
@@ -995,14 +997,21 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
 }
 
-func (r *Resolvable) printCursorExtension() {
+func (r *Resolvable) printCursorExtension() error {
 	r.printBytes(quote)
 	r.printBytes(literalCursor)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.printBytes(quote)
-	r.printBytes([]byte(r.cursor))
-	r.printBytes(quote)
+
+	if len(r.cursor) > 0 {
+		content, err := json.Marshal(r.cursor)
+		if err != nil {
+			return err
+		}
+		r.printBytes(content)
+	}
+
+	return nil
 }
 
 func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTreeNode) error {
