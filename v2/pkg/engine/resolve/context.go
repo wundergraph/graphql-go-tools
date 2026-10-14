@@ -256,23 +256,69 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 	c.rateLimiter = limiter
 }
 
-type responseCache struct {
-	store        caching.Cache
-	defaultTTL   time.Duration
-	onError      func(error)
-	invalidation ResponseCacheTagIndexOptions
+// responseCacheSubgraph is what the cache does for one subgraph.
+type responseCacheSubgraph struct {
+	ttl          time.Duration
 	privateID    caching.Digest
 	hasPrivateID bool
+}
+
+type responseCache struct {
+	store        caching.Cache
+	onError      func(error)
+	invalidation ResponseCacheTagIndexOptions
+	// def serves every subgraph without an entry of its own, unless defaultDisabled.
+	def             responseCacheSubgraph
+	defaultDisabled bool
+	// subgraphs is the caller's map, read only after SetResponseCache.
+	subgraphs map[string]ResponseCacheSubgraphOptions
+	// privateIDs holds each entry's own id, digested once.
+	privateIDs map[string]caching.Digest
+	// singleFlightID tells requests acting for different users apart. It covers
+	// every id in play, the default and each entry's.
+	singleFlightID    caching.Digest
+	hasSingleFlightID bool
 	// surrogateKeys is the union over every fetch of the request, merged under
 	// the loader's data lock as each fetch is merged.
 	surrogateKeys []string
 }
 
-func (c *Context) responseCachePrivateID() (caching.Digest, bool) {
-	if c.responseCache == nil || !c.responseCache.hasPrivateID {
+// responseCacheFor is the cache's settings for a subgraph, or false when nothing
+// of that subgraph is cached. No entry means the default. An entry replaces the
+// default whole: its private id is its own or none.
+func (c *Context) responseCacheFor(subgraph string) (responseCacheSubgraph, bool) {
+	if c.responseCache == nil {
+		return responseCacheSubgraph{}, false
+	}
+	opts, ok := c.responseCache.subgraphs[subgraph]
+	// When no specific subgraph path is available
+	if !ok {
+		if c.responseCache.defaultDisabled {
+			return responseCacheSubgraph{}, false
+		}
+		return c.responseCache.def, true
+	}
+	if opts.Disabled {
+		return responseCacheSubgraph{}, false
+	}
+	sub := responseCacheSubgraph{ttl: opts.DefaultTTL}
+	if sub.ttl <= 0 {
+		sub.ttl = c.responseCache.def.ttl
+	}
+	if opts.PrivateID != "" {
+		sub.privateID = c.responseCache.privateIDs[subgraph]
+		sub.hasPrivateID = true
+	}
+	return sub, true
+}
+
+// responseCacheSingleFlightID is what keeps two users' resolutions apart in the
+// inbound single flight. Absent when no private id is configured anywhere.
+func (c *Context) responseCacheSingleFlightID() (caching.Digest, bool) {
+	if c.responseCache == nil || !c.responseCache.hasSingleFlightID {
 		return caching.Digest{}, false
 	}
-	return c.responseCache.privateID, true
+	return c.responseCache.singleFlightID, true
 }
 
 // ResponseCacheSurrogateKeys are the cache tags of every cached fetch in the
@@ -323,22 +369,72 @@ type ResponseCacheOptions struct {
 	Invalidation ResponseCacheTagIndexOptions
 	// PrivateID is the id of the user this request acts for.
 	PrivateID string
+	// DefaultDisabled caches nothing of a subgraph without an entry in Subgraphs,
+	// so only the entries that are not Disabled are cached at all.
+	DefaultDisabled bool
+	// Subgraphs overrides the above per subgraph, keyed by FetchInfo.DataSourceName.
+	// An entry replaces DefaultTTL and PrivateID whole for that subgraph. The map
+	// is kept, not copied, and must not change after SetResponseCache.
+	Subgraphs map[string]ResponseCacheSubgraphOptions
+}
+
+// ResponseCacheSubgraphOptions is the cache's settings for one subgraph.
+type ResponseCacheSubgraphOptions struct {
+	// Disabled caches nothing of this subgraph.
+	Disabled bool
+	// DefaultTTL of zero takes ResponseCacheOptions.DefaultTTL.
+	DefaultTTL time.Duration
+	// PrivateID empty means private responses of this subgraph are not cached,
+	// whatever ResponseCacheOptions.PrivateID says.
+	PrivateID string
 }
 
 func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 	if opts.Store == nil {
 		return
 	}
-	c.responseCache = &responseCache{
-		store:        opts.Store,
-		defaultTTL:   opts.DefaultTTL,
-		onError:      opts.OnError,
-		invalidation: opts.Invalidation,
+	rc := &responseCache{
+		store:           opts.Store,
+		onError:         opts.OnError,
+		invalidation:    opts.Invalidation,
+		def:             responseCacheSubgraph{ttl: opts.DefaultTTL},
+		defaultDisabled: opts.DefaultDisabled,
+		subgraphs:       opts.Subgraphs,
+	}
+	if opts.DefaultDisabled {
+		// Nothing is keyed by it, so it must not keep users apart either.
+		opts.PrivateID = ""
 	}
 	if opts.PrivateID != "" {
-		c.responseCache.privateID = caching.DigestString(opts.PrivateID)
-		c.responseCache.hasPrivateID = true
+		rc.def.privateID = caching.DigestString(opts.PrivateID)
+		rc.def.hasPrivateID = true
+		rc.singleFlightID = rc.def.privateID
+		rc.hasSingleFlightID = true
 	}
+
+	var named []string
+	for name, sub := range opts.Subgraphs {
+		if sub.Disabled || sub.PrivateID == "" {
+			continue
+		}
+		if rc.privateIDs == nil {
+			rc.privateIDs = make(map[string]caching.Digest)
+		}
+		rc.privateIDs[name] = caching.DigestString(sub.PrivateID)
+		named = append(named, name)
+	}
+	if len(named) > 0 {
+		// Sorted so the same ids always digest the same way.
+		sort.Strings(named)
+		parts := make([][]byte, 0, 1+2*len(named))
+		parts = append(parts, []byte(opts.PrivateID))
+		for _, name := range named {
+			parts = append(parts, []byte(name), []byte(opts.Subgraphs[name].PrivateID))
+		}
+		rc.singleFlightID = caching.DigestParts(parts...)
+		rc.hasSingleFlightID = true
+	}
+	c.responseCache = rc
 }
 
 func (c *Context) SubgraphErrors() error {

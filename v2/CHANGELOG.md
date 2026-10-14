@@ -1,5 +1,45 @@
 # Changelog
 
+## [2.28.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.27.0...v2.28.0) (2026-10-07)
+
+
+### Features
+
+* report what the response cache did for a fetch to the loader hooks ([#1692](https://github.com/wundergraph/graphql-go-tools/issues/1692)) ([40af042](https://github.com/wundergraph/graphql-go-tools/commit/40af0423c8939228e41ab2a129002a5c22fddffd))
+
+## [2.27.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.26.0...v2.27.0) (2026-10-07)
+
+
+### Features
+
+* wire proto messages with custom codec ([#1704](https://github.com/wundergraph/graphql-go-tools/issues/1704)) ([ba580a6](https://github.com/wundergraph/graphql-go-tools/commit/ba580a636e67851354a667f6c803b03338159216))
+
+
+### Bug Fixes
+
+* read remapped variables in subscription filter type check ([#1672](https://github.com/wundergraph/graphql-go-tools/issues/1672)) ([c8ae2e3](https://github.com/wundergraph/graphql-go-tools/commit/c8ae2e3bbd1e72be90ba6e4d007bd52190b180f1))
+
+## [2.26.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.25.0...v2.26.0) (2026-09-28)
+
+
+### Features
+
+* per-subgraph response cache options ([#1682](https://github.com/wundergraph/graphql-go-tools/issues/1682)) ([b060e9b](https://github.com/wundergraph/graphql-go-tools/commit/b060e9be16f1082c17db8d64b0c7ce98a62e599b))
+
+## [2.25.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.24.0...v2.25.0) (2026-09-24)
+
+
+### Features
+
+* bump Go version ([#1687](https://github.com/wundergraph/graphql-go-tools/issues/1687)) ([b692c2d](https://github.com/wundergraph/graphql-go-tools/commit/b692c2d1dcd07fea814b9d57dcc12395a3151e0b))
+
+## [2.24.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.23.0...v2.24.0) (2026-09-23)
+
+
+### Features
+
+* response cache Vary support ([#1675](https://github.com/wundergraph/graphql-go-tools/issues/1675)) ([b717953](https://github.com/wundergraph/graphql-go-tools/commit/b7179539ddfa4808a0ccefa12305ff86da0f9f49))
+
 ## [2.23.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.22.1...v2.23.0) (2026-09-23)
 
 

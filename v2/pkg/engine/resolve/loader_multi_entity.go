@@ -83,6 +83,9 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 	// arena behind it (res.tools.a) survives until assembly.
 	itemInput := arena.NewArenaBuffer(res.tools.a)
 
+	// One subgraph answers the whole merged fetch, so one check covers every entry.
+	cacheItems := l.responseCacheEnabledFor(res.ds.Name)
+
 	for k := range fetch.Input.Entries {
 		entry := &fetch.Input.Entries[k]
 		entryRes := &result{}
@@ -98,7 +101,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 			continue
 		}
 
-		result, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools)
+		result, err := l.renderEntryRepresentations(entry, entryRes, items, itemInput, res.tools, cacheItems)
 		if err != nil {
 			return err
 		}
@@ -135,7 +138,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 
 	// Derived here, under the data lock, because the keys are what the lookup in
 	// the load phase asks for. The lookup itself stays out of the lock.
-	l.setResponseCacheKeys(entries, assembled)
+	l.setResponseCacheKeys(res.ds.Name, entries, assembled)
 
 	allowed, err := l.rateLimitFetch(assembled.inputBuffer, fetch.Info, res)
 	if err != nil {
@@ -198,6 +201,7 @@ func (l *Loader) renderEntryRepresentations(
 	items []*astjson.Value,
 	itemInput *arena.Buffer,
 	tools *batchEntityTools,
+	cacheItems bool,
 ) (*renderEntryRepresentationsResult, error) {
 	repsBuf := arena.NewArenaBuffer(tools.a)
 	batchStats := arena.AllocateSlice[[]*astjson.Value](tools.a, 0, len(items))
@@ -234,7 +238,7 @@ func (l *Loader) renderEntryRepresentations(
 			_ = repsBuf.WriteByte(',')
 		}
 		// Digested before WriteTo drains the buffer.
-		if l.responseCacheEnabled() {
+		if cacheItems {
 			responseCacheItems = append(responseCacheItems, caching.DigestBytes(itemInput.Bytes()))
 		}
 		start := repsBuf.Len()
@@ -357,9 +361,11 @@ func (l *Loader) assembleMultiEntity(opts *assembleMultiEntityOptions) (*assembl
 	}, nil
 }
 
-// setResponseCacheKeys derives and sets a key per unique representation of every entry.
-func (l *Loader) setResponseCacheKeys(entries []preparedMultiEntry, assembled *assembleMultiEntityResult) {
-	if !l.responseCacheEnabled() {
+// setResponseCacheKeys derives and sets a key per unique representation of every
+// entry. Nothing is set for a subgraph the cache is off for.
+func (l *Loader) setResponseCacheKeys(subgraph string, entries []preparedMultiEntry, assembled *assembleMultiEntityResult) {
+	sub, ok := l.responseCacheSubgraph(subgraph)
+	if !ok {
 		return
 	}
 
@@ -377,7 +383,7 @@ func (l *Loader) setResponseCacheKeys(entries []preparedMultiEntry, assembled *a
 			assembled.entryVariables[i],
 			assembled.footer,
 		)
-		multiEntry.responseCacheKeys, multiEntry.responseCachePrivateKeys = l.responseCacheKeys(selection, multiEntry.representations)
+		multiEntry.responseCacheKeys, multiEntry.responseCachePrivateKeys = l.responseCacheKeys(sub, selection, multiEntry.representations)
 	}
 }
 
@@ -409,6 +415,7 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 	// and the hook needs it for Cache-Control.
 	prepared.res.responseCacheTTL = shortestCachedEntryTTL(prepared.multiEntries)
 	prepared.res.responseCachePrivate = anyPrivateCachedEntry(prepared)
+	prepared.res.responseCache.Status = ResponseCacheStatusPartialHit
 
 	if !slices.Contains(assembly.included, true) {
 		// Every entry hit, so no request goes out and the body prepare assembled
@@ -421,6 +428,7 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 		}
 		prepared.res.statusCode = http.StatusOK
 		prepared.res.responseCacheHit = true
+		prepared.res.responseCache.Status = ResponseCacheStatusHit
 		prepared.responseCacheHit = true
 		if prepared.trace != nil {
 			prepared.trace.LoadSkipped = true
@@ -521,6 +529,7 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 		// built from what it held, which is also the path an entirely warm
 		// fetch takes, no request having been sent for it.
 		l.applyTransportStateToEntries(prepared)
+		l.responseCacheCollectMultiEntity(prepared, nil, nil, false)
 
 		cached, err := l.serveCachedEntriesWithoutResponse(prepared)
 		if err != nil {
@@ -616,12 +625,9 @@ func (l *Loader) applyParsedResponseToEntries(prepared *preparedFetch, response 
 		return err
 	}
 
-	// If we have any errors that couldn't be matched to an alias, we can't cache the response.
-	if !unmatchedErrors {
-		// Collected off the response as the subgraph sent it, before the cached
-		// entities are written in.
-		l.responseCacheCollectMultiEntity(prepared, response, entryErrors)
-	}
+	// Collected off the response as the subgraph sent it, before the cached
+	// entities are written in. Errors no alias claims leave nothing to store.
+	l.responseCacheCollectMultiEntity(prepared, response, entryErrors, unmatchedErrors)
 
 	if err := l.applyCachedEntriesToResponse(prepared, response); err != nil {
 		return err
