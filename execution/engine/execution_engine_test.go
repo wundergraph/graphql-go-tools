@@ -183,8 +183,6 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 	}
 }
 
-func intPtr(v int) *int { return &v }
-
 func runWithAndCompareError(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 	return runExecutionTest(testCase, true, expectedErrorMessage, options...)
 }
@@ -5076,11 +5074,11 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				dataSources:      makeDataSource(t, makeDataSourceOpts{includeCostConfig: true}),
 				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
 				// 3 * (5 + max(7, 3))
-				expectedEstimatedCost: intPtr(36),
+				expectedEstimatedCost: new(36),
 				// total __ 2 Users ________ 1 Admin
 				// 3 * (5 + 0.67*(3 + 4*1) + 0.33*3)
 				// 3 * (5 + 4.69 + 1)
-				expectedActualCost: intPtr(32),
+				expectedActualCost: new(32),
 			},
 			computeCosts(),
 		))
@@ -6605,7 +6603,6 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 	return
 }
 
-//nolint
 func federationSchema() (*graphql.Schema, error) {
 	rawSchema := `
 type Query {

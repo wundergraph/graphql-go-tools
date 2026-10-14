@@ -431,6 +431,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		if ctx.SetDeduplicationData != nil && inflight.SharedData != nil {
 			ctx.SetDeduplicationData(ctx.ctx, inflight.SharedData)
 		}
+		ctx.setResponseCacheSurrogateKeys(inflight.SurrogateKeys)
 		responseWriteStart := time.Now()
 		_, err = writer.Write(inflight.Data)
 		resp.ResponseWriteStartTime = responseWriteStart
@@ -515,8 +516,16 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// subgraph response headers have been accumulated on the leader's context.
 	// SharedData MUST be set BEFORE FinishOk, which closes the Done channel and
 	// unblocks followers. Otherwise followers could read SharedData before it is set.
-	if inflight != nil && ctx.GetDeduplicationData != nil {
-		inflight.SharedData = ctx.GetDeduplicationData(ctx.ctx)
+	if inflight != nil {
+		if ctx.GetDeduplicationData != nil {
+			inflight.SharedData = ctx.GetDeduplicationData(ctx.ctx)
+		}
+		// Not on an errored body: the leader's writer marks it no-store and
+		// withholds the tag header, and a follower has no errors of its own to
+		// decide that by.
+		if ctx.SubgraphErrors() == nil {
+			inflight.SurrogateKeys = ctx.ResponseCacheSurrogateKeys()
+		}
 	}
 	r.inboundRequestSingleFlight.FinishOk(inflight, buf.Bytes())
 	// all data is written to the client

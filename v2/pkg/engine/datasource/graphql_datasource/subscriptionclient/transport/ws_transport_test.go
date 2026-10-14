@@ -21,6 +21,27 @@ import (
 func TestWSTransport_Subscribe(t *testing.T) {
 	t.Parallel()
 
+	t.Run("returns a connection failure when the server returns 401", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		defer server.Close()
+
+		tr := newTestWSTransport(t, WSTransportOptions{})
+		cancel, err := tr.Subscribe(t.Context(), &common.Request{
+			Query: "subscription { test }",
+		}, common.Options{Endpoint: server.URL}, func(_ *common.Message) {})
+
+		var connectionErr ErrFailedSubscriptionConnection
+		require.ErrorAs(t, err, &connectionErr)
+		assert.Equal(t, server.URL, connectionErr.URL)
+		assert.Equal(t, http.StatusUnauthorized, connectionErr.StatusCode)
+		assert.EqualError(t, err, "failed to establish subscription connection to "+server.URL+", status code: 401")
+		assert.Nil(t, cancel)
+	})
+
 	t.Run("dials and returns message channel", func(t *testing.T) {
 		t.Parallel()
 

@@ -3,8 +3,6 @@ package grpcdatasource
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
@@ -79,7 +77,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryProductCountContext",
@@ -211,7 +208,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryProductCountContext",
@@ -314,7 +310,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryProductCountContext",
@@ -491,7 +486,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveSubcategoryItemCountContext",
@@ -623,7 +617,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryCategoryMetricsContext",
@@ -747,7 +740,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryCategoryMetricsContext",
@@ -874,7 +866,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryPopularityScoreContext",
@@ -942,7 +933,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryCategoryMetricsContext",
@@ -4364,7 +4354,6 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductShippingEstimateContext",
@@ -4608,7 +4597,6 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductShippingEstimateContext",
@@ -4715,10 +4703,7 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -4817,7 +4802,6 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductMascotRecommendationContext",
@@ -4996,7 +4980,6 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductStockStatusContext",
@@ -5185,7 +5168,6 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductProductDetailsContext",
@@ -5364,10 +5346,7 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -5642,7 +5621,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryTotalProductsContext",
@@ -5734,7 +5712,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryTopSubcategoryContext",
@@ -5843,7 +5820,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryActiveSubcategoriesContext",
@@ -5946,7 +5922,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryCategoryMetricsContext",
@@ -6029,7 +6004,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryMetricsAverageScoreContext",
@@ -6122,7 +6096,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryTotalProductsContext",
@@ -6173,7 +6146,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryProductCountContext",

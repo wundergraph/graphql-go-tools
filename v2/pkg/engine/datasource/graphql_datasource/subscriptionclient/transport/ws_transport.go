@@ -27,15 +27,6 @@ var ErrDialFailed = errors.New("websocket dial failed")
 // underlying cause (e.g. protocol.ErrAckTimeout) is available via errors.Unwrap.
 var ErrInitFailed = errors.New("protocol init failed")
 
-type ErrFailedUpgrade struct {
-	URL        string
-	StatusCode int
-}
-
-func (e ErrFailedUpgrade) Error() string {
-	return fmt.Sprintf("failed to upgrade connection to %s, status code: %d", e.URL, e.StatusCode)
-}
-
 type ErrInvalidSubprotocol string
 
 func (e ErrInvalidSubprotocol) Error() string {
@@ -256,9 +247,8 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 			abstractlogger.Error(err),
 		)
 
-		// backwards compatibility with error handling in the router
 		if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
-			return nil, ErrFailedUpgrade{URL: opts.Endpoint, StatusCode: resp.StatusCode}
+			return nil, ErrFailedSubscriptionConnection{URL: opts.Endpoint, StatusCode: resp.StatusCode}
 		}
 
 		return nil, fmt.Errorf("%w: %w", ErrDialFailed, err)

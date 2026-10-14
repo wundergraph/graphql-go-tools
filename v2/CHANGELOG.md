@@ -1,5 +1,74 @@
 # Changelog
 
+## [2.28.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.27.0...v2.28.0) (2026-10-07)
+
+
+### Features
+
+* report what the response cache did for a fetch to the loader hooks ([#1692](https://github.com/wundergraph/graphql-go-tools/issues/1692)) ([40af042](https://github.com/wundergraph/graphql-go-tools/commit/40af0423c8939228e41ab2a129002a5c22fddffd))
+
+## [2.27.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.26.0...v2.27.0) (2026-10-07)
+
+
+### Features
+
+* wire proto messages with custom codec ([#1704](https://github.com/wundergraph/graphql-go-tools/issues/1704)) ([ba580a6](https://github.com/wundergraph/graphql-go-tools/commit/ba580a636e67851354a667f6c803b03338159216))
+
+
+### Bug Fixes
+
+* read remapped variables in subscription filter type check ([#1672](https://github.com/wundergraph/graphql-go-tools/issues/1672)) ([c8ae2e3](https://github.com/wundergraph/graphql-go-tools/commit/c8ae2e3bbd1e72be90ba6e4d007bd52190b180f1))
+
+## [2.26.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.25.0...v2.26.0) (2026-09-28)
+
+
+### Features
+
+* per-subgraph response cache options ([#1682](https://github.com/wundergraph/graphql-go-tools/issues/1682)) ([b060e9b](https://github.com/wundergraph/graphql-go-tools/commit/b060e9be16f1082c17db8d64b0c7ce98a62e599b))
+
+## [2.25.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.24.0...v2.25.0) (2026-09-24)
+
+
+### Features
+
+* bump Go version ([#1687](https://github.com/wundergraph/graphql-go-tools/issues/1687)) ([b692c2d](https://github.com/wundergraph/graphql-go-tools/commit/b692c2d1dcd07fea814b9d57dcc12395a3151e0b))
+
+## [2.24.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.23.0...v2.24.0) (2026-09-23)
+
+
+### Features
+
+* response cache Vary support ([#1675](https://github.com/wundergraph/graphql-go-tools/issues/1675)) ([b717953](https://github.com/wundergraph/graphql-go-tools/commit/b7179539ddfa4808a0ccefa12305ff86da0f9f49))
+
+## [2.23.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.22.1...v2.23.0) (2026-09-23)
+
+
+### Features
+
+* add selected field count to operation complexity estimates ([#1673](https://github.com/wundergraph/graphql-go-tools/issues/1673)) ([a163341](https://github.com/wundergraph/graphql-go-tools/commit/a1633415df276ad442babbbcbea22977bf4b7edf))
+
+## [2.22.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.22.0...v2.22.1) (2026-09-21)
+
+
+### Bug Fixes
+
+* **sse_transport:** unregister context callbacks on subscription cleanup ([#1680](https://github.com/wundergraph/graphql-go-tools/issues/1680)) ([58aa6ad](https://github.com/wundergraph/graphql-go-tools/commit/58aa6ad9af02d019e77733e87bdab16cae5647fb))
+
+## [2.22.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.21.1...v2.22.0) (2026-09-20)
+
+
+### Features
+
+* private key support for response caching ([#1670](https://github.com/wundergraph/graphql-go-tools/issues/1670)) ([e953c61](https://github.com/wundergraph/graphql-go-tools/commit/e953c612c48250bfa102353d6ef4245abe113272))
+* router cache tag based invalidation for cdns ([#1662](https://github.com/wundergraph/graphql-go-tools/issues/1662)) ([19e37ab](https://github.com/wundergraph/graphql-go-tools/commit/19e37ab3c5468d809fb7c8ffe6b819faa16b3baf))
+
+## [2.21.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.21.0...v2.21.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **subscriptionclient:** preserve SSE connection failure status ([#1676](https://github.com/wundergraph/graphql-go-tools/issues/1676)) ([09cfe13](https://github.com/wundergraph/graphql-go-tools/commit/09cfe131257e53d27e08ec02af100cc9342b5b38))
+
 ## [2.21.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.20.3...v2.21.0) (2026-09-16)
 
 

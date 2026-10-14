@@ -28,13 +28,21 @@ from complexity calculations by default.
 package operation_complexity
 
 import (
+	"bytes"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 // OperationStats contains estimates for an operation or root field.
 type OperationStats struct {
+	// FieldCount is the number of field selections in the normalized operation,
+	// including leaf fields and __typename. Each selection contributes one,
+	// regardless of list-size multipliers.
+	// Fields excluded by @nodeCountSkip or skipIntrospection are not counted.
+	FieldCount int
 	// NodeCount is the maximum number of returned nodes.
 	NodeCount int
 	// Complexity is the maximum number of field requests.
@@ -56,11 +64,6 @@ type RootFieldStats struct {
 var (
 	nodeCountMultiply = []byte("nodeCountMultiply")
 	nodeCountSkip     = []byte("nodeCountSkip")
-)
-
-const (
-	__schemaLiteral = "__schema"
-	__typeLiteral   = "__type"
 )
 
 // OperationComplexityEstimator estimates stats for normalized operations.
@@ -95,6 +98,7 @@ func NewOperationComplexityEstimator(skipIntrospection bool) *OperationComplexit
 
 // Do returns global and per-root-field estimates for the operation.
 func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, report *operationreport.Report) (OperationStats, []RootFieldStats) {
+	n.visitor.fieldCount = 0
 	n.visitor.count = 0
 	n.visitor.complexity = 0
 	n.visitor.maxOperationDepth = 0
@@ -118,6 +122,7 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	n.walker.Walk(operation, definition, report)
 
 	globalResult := OperationStats{
+		FieldCount: n.visitor.fieldCount,
 		NodeCount:  n.visitor.count,
 		Complexity: n.visitor.complexity,
 		Depth:      n.visitor.maxOperationDepth,
@@ -136,6 +141,7 @@ type complexityVisitor struct {
 	*astvisitor.Walker
 
 	operation, definition *ast.Document
+	fieldCount            int
 	count                 int
 	complexity            int
 
@@ -213,6 +219,10 @@ func (c *complexityVisitor) EnterArgument(ref int) {
 func (c *complexityVisitor) EnterField(ref int) {
 	definition, exists := c.FieldDefinition(ref)
 	if !exists {
+		// __typename is an implicit field and need not have a schema definition.
+		if bytes.Equal(c.operation.FieldNameBytes(ref), literal.TYPENAME) {
+			c.countField(ref, c.operation.FieldNameString(ref))
+		}
 		return
 	}
 
@@ -221,14 +231,16 @@ func (c *complexityVisitor) EnterField(ref int) {
 		return
 	}
 
-	typeName, fieldName, alias := c.extractFieldRelatedNames(ref, definition)
-	if c.skipIntrospection && (fieldName == __schemaLiteral || fieldName == __typeLiteral) {
-		c.SkipNode()
-		return
+	if c.skipIntrospection {
+		fieldName := c.definition.FieldDefinitionNameBytes(definition)
+		if bytes.Equal(fieldName, literal.UNDERSCORESCHEMA) ||
+			bytes.Equal(fieldName, literal.UNDERSCORETYPE) {
+			c.SkipNode()
+			return
+		}
 	}
-	if c.isRootType(typeName) {
-		c.resetCurrentRootFieldComplexity(typeName, fieldName, alias)
-	}
+
+	c.countField(ref, c.definition.FieldDefinitionNameString(definition))
 
 	if !c.operation.FieldHasSelections(ref) {
 		return
@@ -298,14 +310,18 @@ func (c *complexityVisitor) endRootFieldComplexityCalculation() {
 	c.maxRootFieldDepth = 0
 }
 
-func (c *complexityVisitor) extractFieldRelatedNames(ref, definitionRef int) (typeName, fieldName, alias string) {
-	fieldName = c.definition.FieldDefinitionNameString(definitionRef)
-	alias = c.operation.FieldAliasOrNameString(ref)
-	if fieldName == alias {
-		alias = ""
+func (c *complexityVisitor) countField(ref int, fieldName string) {
+	if c.isRootTypeField() {
+		typeName := c.EnclosingTypeDefinition.NameString(c.definition)
+		alias := c.operation.FieldAliasOrNameString(ref)
+		if fieldName == alias {
+			alias = ""
+		}
+		c.resetCurrentRootFieldComplexity(typeName, fieldName, alias)
 	}
 
-	return c.EnclosingTypeDefinition.NameString(c.definition), fieldName, alias
+	c.fieldCount++
+	c.currentRootFieldStats.Stats.FieldCount++
 }
 
 func (c *complexityVisitor) isRootType(name string) bool {
@@ -314,6 +330,10 @@ func (c *complexityVisitor) isRootType(name string) bool {
 }
 
 func (c *complexityVisitor) isRootTypeField() bool {
+	// Root types can also appear beneath other fields in the operation.
+	if c.fieldDepth != 0 {
+		return false
+	}
 	enclosingTypeName := c.EnclosingTypeDefinition.NameString(c.definition)
 	return c.isRootType(enclosingTypeName)
 }

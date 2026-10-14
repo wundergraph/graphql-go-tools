@@ -44,8 +44,8 @@ const (
 // Re-export error types.
 
 type (
-	ErrFailedUpgrade      = transport.ErrFailedUpgrade
-	ErrInvalidSubprotocol = transport.ErrInvalidSubprotocol
+	ErrFailedSubscriptionConnection = transport.ErrFailedSubscriptionConnection
+	ErrInvalidSubprotocol           = transport.ErrInvalidSubprotocol
 )
 
 // Re-export sentinel errors.

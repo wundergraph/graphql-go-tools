@@ -287,6 +287,7 @@ func (r *Resolvable) initCostControl() {
 
 func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.OperationType) (err error) {
 	r.ctx = ctx
+	ctx.setResponseCacheSurrogateKeys(nil)
 	if r.authorization == nil {
 		r.authorization = NewFieldAuthorization(ctx)
 	}
@@ -311,6 +312,8 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 
 func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProcessing PostProcessingConfiguration) (err error) {
 	r.ctx = ctx
+	// Once per event; one Context serves them all.
+	ctx.setResponseCacheSurrogateKeys(nil)
 	if r.authorization == nil {
 		r.authorization = NewFieldAuthorization(ctx)
 	}
@@ -1144,20 +1147,19 @@ func (r *Resolvable) filterAllowedSubgraphExtensions(writtenExtensions map[strin
 	// filter only allowed extensions. If the allowed extensions are empty, all extensions are allowed
 	for _, extension := range r.subgraphExtensions {
 		extension.Visit(func(key []byte, v *astjson.Value) {
-			keyString := string(key)
 			if len(r.options.AllowedSubgraphExtensions) > 0 {
-				if _, ok := r.options.AllowedSubgraphExtensions[keyString]; !ok {
+				if _, ok := r.options.AllowedSubgraphExtensions[string(key)]; !ok {
 					return
 				}
 			}
 
 			// don't print the same extension twice
-			if _, exists := writtenExtensions[keyString]; exists {
+			if _, exists := writtenExtensions[string(key)]; exists {
 				return
 			}
 
 			// We either add the extension to the valid extension map or we override it when we're in last write mode
-			if _, exists := r.allowedExtensions[keyString]; !exists || (exists && override) {
+			if _, exists := r.allowedExtensions[string(key)]; !exists || (exists && override) {
 				r.allowedExtensions[string(key)] = v
 			}
 		})

@@ -123,7 +123,7 @@ func (p *ProxyEngineConfigFactory) EngineConfiguration() (Configuration, error) 
 
 	rawDoc, report := astparser.ParseGraphqlDocumentBytes(p.schema.Input())
 	if report.HasErrors() {
-		return Configuration{}, report
+		return Configuration{}, &report
 	}
 
 	dataSource, err := newGraphQLDataSourceGenerator(p.engineCtx, &rawDoc).Generate(

@@ -1183,7 +1183,6 @@ type buildFieldMessageConfig struct {
 	memberTypes           []string
 	fragmentSelections    []fragmentSelection
 	fieldsSelectionSetRef int
-	fieldRefs             []int
 }
 
 // buildMessageForField builds the message for a given field resolver type.
@@ -1243,7 +1242,7 @@ func (r *rpcPlanningContext) buildMessageForField(config buildFieldMessageConfig
 			continue
 		}
 
-		if message.Fields.Exists(r.operation.FieldNameString(fieldRef), "") {
+		if message.Fields.Exists(r.operation.FieldNameString(fieldRef), r.operation.FieldAliasString(fieldRef)) {
 			continue
 		}
 

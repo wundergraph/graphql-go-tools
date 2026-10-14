@@ -108,8 +108,6 @@ func (b *dsBuilder) DS() DataSource {
 	return b.ds
 }
 
-func strptr(s string) *string { return &s }
-
 func newNodeSuggestions(nodes []NodeSuggestion) *NodeSuggestions {
 	items := make([]*NodeSuggestion, 0, len(nodes))
 	for i := range nodes {
