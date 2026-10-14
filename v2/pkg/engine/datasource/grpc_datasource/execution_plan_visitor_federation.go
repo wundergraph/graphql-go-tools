@@ -160,6 +160,10 @@ func (r *rpcPlanVisitorFederation) EnterOperationDefinition(ref int) {
 
 // EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
+	if !r.isRootEntityInlineFragment() {
+		return
+	}
+
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
 	entityConfigData, ok := r.entityConfig.getEntity(fragmentName)
 	if !ok {
@@ -186,6 +190,17 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 	}
 
 	r.scaffoldEntityLookup(fragmentName, entityConfigData)
+}
+
+// isRootEntityInlineFragment reports whether the current inline fragment is a
+// direct child of the _entities field. Only these start an entity lookup.
+func (r *rpcPlanVisitorFederation) isRootEntityInlineFragment() bool {
+	if len(r.walker.Ancestors) < 2 {
+		return false
+	}
+
+	parent := r.walker.Ancestors[len(r.walker.Ancestors)-2]
+	return parent.Kind == ast.NodeKindField && parent.Ref == r.entityInfo.entityRootFieldRef
 }
 
 // LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
