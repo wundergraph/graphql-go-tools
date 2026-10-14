@@ -4665,6 +4665,56 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			name:  "Query with an aliased copy of a field inside a list field resolver",
+			query: "query ChildCategoriesWithAlias { categories { childCategories { name x: name } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]any) {
+				categories, ok := data["categories"].([]any)
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4)
+
+				for _, category := range categories {
+					childCategories, ok := category.(map[string]any)["childCategories"].([]any)
+					require.True(t, ok, "childCategories should be an array")
+					require.Len(t, childCategories, 2)
+
+					for _, childCategory := range childCategories {
+						childCategory := childCategory.(map[string]any)
+						require.NotEmpty(t, childCategory["name"])
+						require.Equal(t, childCategory["name"], childCategory["x"], "aliased field x should be resolved")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with an aliased copy of a field inside an object field resolver",
+			query: "query TopSubcategoryWithAlias { categories { topSubcategory { name x: name } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]any) {
+				categories, ok := data["categories"].([]any)
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4)
+
+				resolved := 0
+				for _, category := range categories {
+					topSubcategory, ok := category.(map[string]any)["topSubcategory"].(map[string]any)
+					if !ok {
+						continue // the mock returns null for every second category
+					}
+					require.NotEmpty(t, topSubcategory["name"])
+					require.Equal(t, topSubcategory["name"], topSubcategory["x"], "aliased field x should be resolved")
+					resolved++
+				}
+				require.Equal(t, 2, resolved)
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
