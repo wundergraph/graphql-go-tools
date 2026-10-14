@@ -60,6 +60,7 @@ func TestResponseCacheVary(t *testing.T) {
 			t.Parallel()
 			loader, res := varyLoader(t, newTestCache(), "max-age=60", "Accept-Language, *", body, "", de)
 			require.Empty(t, collect(t, loader, res, public, nil))
+			require.Equal(t, caching.StoreDecisionUnusableVary, res.responseCache.StoreDecision)
 
 			names := make([]string, caching.MaxVaryHeaders+1)
 			for i := range names {
@@ -67,9 +68,11 @@ func TestResponseCacheVary(t *testing.T) {
 			}
 			loader, res = varyLoader(t, newTestCache(), "max-age=60", strings.Join(names, ", "), body, "", de)
 			require.Empty(t, collect(t, loader, res, public, nil))
+			require.Equal(t, caching.StoreDecisionUnusableVary, res.responseCache.StoreDecision)
 
 			loader, res = varyLoader(t, newTestCache(), "max-age=60", strings.Join(names[1:], ", "), body, "", de)
 			require.Len(t, collect(t, loader, res, public, nil), 4, "the cap itself is fine")
+			require.Equal(t, caching.StoreDecisionStored, res.responseCache.StoreDecision)
 		})
 
 		t.Run("a private response varies under the user's key", func(t *testing.T) {

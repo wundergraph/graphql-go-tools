@@ -3,8 +3,6 @@ package grpcdatasource
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
@@ -2649,10 +2647,7 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -3161,7 +3156,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "handler",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageItemHandlerInfoByIdFields.StorageItem.ItemHandler",
+																				Name: "RequireStorageItemHandlerInfoByIdFields.PalletItem.ItemHandler",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3178,7 +3173,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "handler",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageItemHandlerInfoByIdFields.StorageItem.ItemHandler",
+																				Name: "RequireStorageItemHandlerInfoByIdFields.ContainerItem.ItemHandler",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3286,7 +3281,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "specs",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.PalletSpecs",
+																				Name: "RequireStorageItemSpecsInfoByIdFields.PalletItem.PalletSpecs",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3298,7 +3293,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																						ProtoTypeName: DataTypeMessage,
 																						JSONPath:      "dimensions",
 																						Message: &RPCMessage{
-																							Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.PalletSpecs.Dimensions",
+																							Name: "RequireStorageItemSpecsInfoByIdFields.PalletItem.PalletSpecs.Dimensions",
 																							Fields: []RPCField{
 																								{
 																									Name:          "length",
@@ -3323,7 +3318,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "specs",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.ContainerSpecs",
+																				Name: "RequireStorageItemSpecsInfoByIdFields.ContainerItem.ContainerSpecs",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3335,7 +3330,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																						ProtoTypeName: DataTypeMessage,
 																						JSONPath:      "dimensions",
 																						Message: &RPCMessage{
-																							Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.ContainerSpecs.Dimensions",
+																							Name: "RequireStorageItemSpecsInfoByIdFields.ContainerItem.ContainerSpecs.Dimensions",
 																							Fields: []RPCField{
 																								{
 																									Name:          "length",
@@ -3451,14 +3446,14 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "handler",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageDeepItemInfoByIdFields.StorageItem.ItemHandler",
+																				Name: "RequireStorageDeepItemInfoByIdFields.PalletItem.ItemHandler",
 																				Fields: []RPCField{
 																					{
 																						Name:          "assigned_item",
 																						ProtoTypeName: DataTypeMessage,
 																						JSONPath:      "assignedItem",
 																						Message: &RPCMessage{
-																							Name:        "RequireStorageDeepItemInfoByIdFields.StorageItem.ItemHandler.StorageItem",
+																							Name:        "RequireStorageDeepItemInfoByIdFields.PalletItem.ItemHandler.StorageItem",
 																							OneOfType:   OneOfTypeInterface,
 																							MemberTypes: []string{"PalletItem", "ContainerItem"},
 																							FragmentFields: RPCFieldSelectionSet{
@@ -3499,7 +3494,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "handler",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageDeepItemInfoByIdFields.StorageItem.ItemHandler",
+																				Name: "RequireStorageDeepItemInfoByIdFields.ContainerItem.ItemHandler",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3569,10 +3564,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -4320,10 +4312,7 @@ func TestExecutionPlan_FederationRequires_AbstractReturnTypes(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -4423,7 +4412,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageStorageStatusContext",
@@ -4658,7 +4646,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageLinkedStoragesContext",
@@ -4915,7 +4902,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageNearbyStoragesContext",
@@ -5169,7 +5155,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageStorageStatusContext",
@@ -5492,7 +5477,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageLinkedStoragesContext",
@@ -5712,10 +5696,7 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -6307,10 +6288,7 @@ func TestExecutionPlan_FederationRequires_NullableLists(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
