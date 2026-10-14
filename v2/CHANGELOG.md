@@ -1,18 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Breaking changes
-
-* Field merging now requires matching field names and arguments when either
-  enclosing type is an interface, including an interface and an object that does
-  not implement it. Previously accepted queries such as
-  `{ search { ... on Node { x: id } ... on Photo { x: url } } }` now fail validation.
-  This follows [FieldsInSetCanMerge](https://spec.graphql.org/September2025/#FieldsInSetCanMerge()).
-  Use distinct response aliases (for example, `nodeId: id` and `photoUrl: url`),
-  or select the same field with the same arguments. Nullability relaxation does
-  not disable this check. (ROUTER-819, #1710)
-
 ## [2.28.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.27.0...v2.28.0) (2026-10-07)
 
 

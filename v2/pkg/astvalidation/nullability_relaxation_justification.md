@@ -23,7 +23,7 @@ to any response object. Clients using the option must allow a nullable email.
 This execution property motivates the option; it does not make the query valid
 under strict GraphQL validation.
 
-## Specification and deliberate deviation
+## Specification and deliberate deviations
 
 [FieldsInSetCanMerge](https://spec.graphql.org/September2025/#FieldsInSetCanMerge())
 requires compatible response shapes for every pair of selections sharing a
@@ -40,9 +40,17 @@ exclusive branches.
 The option skips only the non-null wrapper requirement for eligible pairs.
 List nesting must still match, scalar and enum names must still match, and
 composite subfields are still checked. It does not relax field-name or argument
-checks. In particular, an interface and an object that does not implement it
-still require matching field identities unless an ancestor establishes mutually
-exclusive concrete branches.
+checks.
+
+Separately, the validator preserves an existing compatibility exception: an
+interface and an object that does not implement it may select different names
+or arguments under the same response name. These branches cannot apply to the
+same runtime object. Their descendants inherit that exclusivity, but response
+shapes are still checked. For example, when `Photo` does not implement `Node`,
+`{ search { ... on Node { x: id } ... on Photo { x: url } } }` remains accepted
+if the selected fields have compatible response shapes. This deliberately
+deviates from FieldsInSetCanMerge even when nullability relaxation is disabled.
+An interface and an implementing object still require matching field identities.
 
 ## Implementation
 
@@ -66,8 +74,9 @@ selected subfields separately. `__typename` participates as an implicit
 
 The validator does not use `TypesAreCompatibleDeep` or
 `TypesAreCompatibleIgnoringNullability`: their object/interface and object/union
-compatibility rules are not response-shape validation. Inherited concrete-branch
-exclusivity controls identity checks separately from the immediate-parent policy
+compatibility rules are not response-shape validation. Inherited branch
+exclusivity, including the compatibility exception above, controls identity checks
+separately from the immediate-parent policy
 for nullability relaxation.
 
 ## Subgraph compatibility

@@ -18,6 +18,9 @@ import (
 // into a single field in the response.
 //
 // The rule is applied to each operation and fragment definition in the document.
+// For compatibility, an interface and an object that does not implement it may
+// select different field names or arguments under the same response name. This
+// deliberately relaxes FieldsInSetCanMerge; response shapes are still checked.
 // Setting relaxNullabilityCheck permits nullability differences between fields
 // with non-overlapping enclosing types, deliberately relaxing the spec.
 //
@@ -99,8 +102,9 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			continue
 		}
 		bothComposite := f.nodeIsCompositeType(previous.fieldTypeDefinitionNode) && f.nodeIsCompositeType(current.fieldTypeDefinitionNode)
-		// FieldsInSetCanMerge step 2.2 requires matching names and arguments unless
-		// the selections are mutually exclusive; SameResponseShape still applies.
+		// FieldsInSetCanMerge step 2.2 requires matching names and arguments outside
+		// mutually exclusive branches. The compatibility exception documented on
+		// FieldSelectionMerging also applies; SameResponseShape is always checked.
 		// See https://spec.graphql.org/September2025/#FieldsInSetCanMerge()
 		identityConflict := false
 		if !f.fieldsAreMutuallyExclusive(previous, &current) {
@@ -199,13 +203,21 @@ func (f *fieldSelectionMergingVisitor) parentRequirement() int {
 
 // fieldsAreMutuallyExclusive includes ancestors because FieldsInSetCanMerge
 // step 2.2 skips recursive identity checks across distinct object branches.
+// It also preserves the interface/object exception documented on FieldSelectionMerging.
 // SameResponseShape still checks their descendants' response shapes.
 func (f *fieldSelectionMergingVisitor) fieldsAreMutuallyExclusive(left, right *fieldRequirement) bool {
 	for {
-		if left.enclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition &&
-			right.enclosingTypeDefinition.Kind == ast.NodeKindObjectTypeDefinition &&
-			left.enclosingTypeDefinition != right.enclosingTypeDefinition {
-			return true
+		leftType, rightType := left.enclosingTypeDefinition, right.enclosingTypeDefinition
+		switch {
+		case leftType.Kind == ast.NodeKindObjectTypeDefinition && rightType.Kind == ast.NodeKindObjectTypeDefinition:
+			if leftType != rightType {
+				return true
+			}
+		case leftType.Kind == ast.NodeKindInterfaceTypeDefinition && rightType.Kind == ast.NodeKindObjectTypeDefinition,
+			leftType.Kind == ast.NodeKindObjectTypeDefinition && rightType.Kind == ast.NodeKindInterfaceTypeDefinition:
+			if !f.potentiallySameObject(leftType, rightType) {
+				return true
+			}
 		}
 		if left.parent == -1 || right.parent == -1 {
 			return false

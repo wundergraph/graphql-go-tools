@@ -290,20 +290,28 @@ func TestFieldSelectionMergingTypename(t *testing.T) {
 	}
 }
 
-func TestFieldSelectionMergingUnrelatedInterfaceAndObject(t *testing.T) {
+func TestFieldSelectionMergingInterfaceAndObject(t *testing.T) {
 	t.Parallel()
 	const schema = `schema { query: Query } scalar ID scalar Int
-  interface Node { id(format: Int): ID! }
-  type User implements Node { id(format: Int): ID! }
-  type Photo { id(format: Int): ID! url: ID! }
+  interface Node { id(format: Int): ID! detail: Detail }
+  type User implements Node { id(format: Int): ID! url: ID! detail: Detail }
+  type Photo { id(format: Int): ID! url: ID! number: Int! ids: [ID!]! detail: Detail }
+  type Detail { id: ID! other: ID! number: Int! }
   union SearchResult = User | Photo
   type Query { search: SearchResult }`
 	cases := []struct {
 		name, query string
 		want        ValidationState
 	}{
-		{"DifferentNames", `{ search { ... on Node { x: id } ... on Photo { x: url } } }`, Invalid},
-		{"DifferentArguments", `{ search { ... on Node { x: id(format: 1) } ... on Photo { x: id(format: 2) } } }`, Invalid},
+		{"DisjointNames", `{ search { ... on Node { x: id } ... on Photo { x: url } } }`, Valid},
+		{"ReverseDisjointNames", `{ search { ... on Photo { x: url } ... on Node { x: id } } }`, Valid},
+		{"DisjointArguments", `{ search { ... on Node { x: id(format: 1) } ... on Photo { x: id(format: 2) } } }`, Valid},
+		{"OverlappingNames", `{ search { ... on Node { x: id } ... on User { x: url } } }`, Invalid},
+		{"OverlappingArguments", `{ search { ... on Node { x: id(format: 1) } ... on User { x: id(format: 2) } } }`, Invalid},
+		{"ConflictingLeafTypes", `{ search { ... on Node { x: id } ... on Photo { x: number } } }`, Invalid},
+		{"ConflictingListWrappers", `{ search { ... on Node { x: id } ... on Photo { x: ids } } }`, Invalid},
+		{"InheritedExclusivity", `{ search { ... on Node { detail { x: id } } ... on Photo { detail { x: other } } } }`, Valid},
+		{"ConflictingSubfields", `{ search { ... on Node { detail { x: id } } ... on Photo { detail { x: number } } } }`, Invalid},
 		{"DistinctAliases", `{ search { ... on Node { nodeId: id } ... on Photo { photoUrl: url } } }`, Valid},
 		{"MatchingIdentity", `{ search { ... on Node { x: id(format: 1) } ... on Photo { x: id(format: 1) } } }`, Valid},
 	}
