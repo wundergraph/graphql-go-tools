@@ -1,9 +1,7 @@
 package resolve
 
 import (
-	"fmt"
 	"io"
-	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -79,27 +77,13 @@ type DeferDescriptor struct {
 }
 
 func (r *GraphQLDeferResponse) QueryPlanString() string {
-	indent := func(s string) string {
-		return strings.ReplaceAll(s, "\n", "\n    ")
-	}
-
-	primary := indent(r.Response.Fetches.QueryPlan().PrettyPrint())
-	var secondary []string
-
-	for _, g := range r.Defers {
-		secondary = append(secondary, strings.ReplaceAll(g.Fetches.QueryPlan().PrettyPrint(), "\n", "\n    "))
-	}
-
-	return fmt.Sprintf(`
-QueryPlan {
-  Primary {
-	%s
-  }
-  Deferred [
-    %s
-  ]
+	return r.QueryPlan().PrettyPrint()
 }
-`, primary, strings.Join(secondary, "\n"))
+
+// QueryPlan returns the structured query plan for the canonical composite
+// primary-and-deferred execution tree.
+func (r *GraphQLDeferResponse) QueryPlan() *FetchTreeQueryPlanNode {
+	return r.PlannedExecutionTree().QueryPlan()
 }
 
 type DeferFetchGroup struct {
