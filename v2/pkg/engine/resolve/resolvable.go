@@ -175,7 +175,7 @@ type Resolvable struct {
 	deferItemDataNull bool
 
 	// cursor is an opaque resume cursor for the subscription event currently being
-	// rendered, emitted into extensions.cursor when non-empty. Set per update by
+	// rendered, emitted into extensions.cosmo.cursor when non-empty. Set per update by
 	// executeSubscriptionUpdate; empty for non-subscription resolves.
 	cursor string
 }
@@ -999,17 +999,23 @@ func (r *Resolvable) printRateLimitingExtension() error {
 
 func (r *Resolvable) printCursorExtension() error {
 	r.printBytes(quote)
+	r.printBytes(literalCosmo)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(lBrace)
+
+	r.printBytes(quote)
 	r.printBytes(literalCursor)
 	r.printBytes(quote)
 	r.printBytes(colon)
 
-	if len(r.cursor) > 0 {
-		content, err := json.Marshal(r.cursor)
-		if err != nil {
-			return err
-		}
-		r.printBytes(content)
+	content, err := json.Marshal(r.cursor)
+	if err != nil {
+		return err
 	}
+	r.printBytes(content)
+
+	r.printBytes(rBrace)
 
 	return nil
 }
@@ -1058,7 +1064,7 @@ func getDefaultReservedExtensions() map[string]struct{} {
 		string(literalQueryPlan):       {},
 		string(literalTrace):           {},
 		string(literalValueCompletion): {},
-		string(literalCursor):          {},
+		string(literalCosmo):           {},
 	}
 }
 
