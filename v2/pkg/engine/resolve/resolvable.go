@@ -427,12 +427,19 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 
 	if r.deferMode {
-		// Announce only the top-level defers whose anchor survived. Nested defers
-		// are announced lazily when their parent is released. A recoverable error
-		// that null-propagated onto a defer's own anchor cancels just that defer.
+		if hasErrors {
+			// The walk does not null the root object in r.data.
+			// Store the null data so that no defer anchor reads as alive and no deferred fetch runs.
+			r.data = astjson.NullValue
+		}
+		// Announce only the top-level defers whose anchor survived. The release of a parent announces its nested defers.
+		// Without a surviving defer, the frame is an ordinary execution result,
+		// because an initial incremental response needs a non-empty pending list next to hasNext.
 		live := r.liveChildDescriptors(0)
-		r.printPendingEntries(live)
-		r.printHasNext(len(live) > 0)
+		if len(live) > 0 {
+			r.printPendingEntries(live)
+			r.printHasNext(true)
+		}
 	}
 
 	r.printBytes(rBrace)
@@ -618,10 +625,9 @@ func (r *Resolvable) renderPath() {
 	r.printBytes(rBrack)
 }
 
-// deferAnchorAlive reports whether the object a @defer fragment is mounted on
-// survived the initial render. The initial validation walk sets nullable objects
-// to null in r.data when a non-null child null-propagated, so a dead anchor reads
-// back as null/absent here. An empty path refers to the root data object.
+// deferAnchorAlive reports whether the object for a @defer fragment survived null propagation.
+// The walk and Resolve store every nulled value in r.data, so a dead anchor reads as null or absent.
+// An empty path refers to the root data object.
 func (r *Resolvable) deferAnchorAlive(path []string) bool {
 	if r.data == nil {
 		return false
