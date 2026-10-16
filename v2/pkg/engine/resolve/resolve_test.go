@@ -5841,11 +5841,11 @@ func (f *_fakeStream) Start(ctx *Context, headers http.Header, input []byte, upd
 				return
 			default:
 				message, done := f.messageFunc(counter)
+				var md *SubscriptionUpdateMetadata
 				if f.withCursor != "" {
-					updater.UpdateWithCursor([]byte(message), f.withCursor)
-				} else {
-					updater.Update([]byte(message))
+					md = &SubscriptionUpdateMetadata{Cursor: f.withCursor}
 				}
+				updater.Update([]byte(message), md)
 				if done {
 					time.Sleep(f.delay)
 					updater.Complete()

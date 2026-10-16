@@ -19,18 +19,11 @@ type testBridgeUpdater struct {
 	done      bool
 }
 
-func (t *testBridgeUpdater) Update(data []byte) {
+func (t *testBridgeUpdater) Update(data []byte, _ *resolve.SubscriptionUpdateMetadata) {
 	t.updates = append(t.updates, data)
 }
 
-func (t *testBridgeUpdater) UpdateWithCursor(data []byte, _ string) {
-	t.updates = append(t.updates, data)
-}
-
-func (t *testBridgeUpdater) UpdateSubscription(_ resolve.SubscriptionIdentifier, _ []byte) {
-}
-
-func (t *testBridgeUpdater) UpdateSubscriptionWithCursor(_ resolve.SubscriptionIdentifier, _ []byte, _ string) {
+func (t *testBridgeUpdater) UpdateSubscription(_ resolve.SubscriptionIdentifier, _ []byte, _ *resolve.SubscriptionUpdateMetadata) {
 }
 
 func (t *testBridgeUpdater) Complete() {
