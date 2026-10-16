@@ -68,19 +68,6 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		abstractlogger.String("method", string(opts.SSEMethod)),
 	)
 
-	switch opts.SSEMethod {
-	case common.SSEMethodPOST:
-		httpReq, err = buildPOSTRequest(req, opts)
-	case common.SSEMethodGET:
-		httpReq, err = buildGETRequest(req, opts)
-	default:
-		return nil, fmt.Errorf("unsupported SSE method: %s", opts.SSEMethod)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
 	// The request cancels with the subscription (ctx) and on transport shutdown (t.ctx).
 	requestCtx, requestCancel := context.WithCancel(ctx)
 	stopTransport := context.AfterFunc(t.ctx, requestCancel)
@@ -90,7 +77,19 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 		requestCancel()
 	}
 
-	httpReq = httpReq.WithContext(requestCtx)
+	switch opts.SSEMethod {
+	case common.SSEMethodPOST:
+		httpReq, err = buildPOSTRequest(requestCtx, req, opts)
+	case common.SSEMethodGET:
+		httpReq, err = buildGETRequest(requestCtx, req, opts)
+	default:
+		err = fmt.Errorf("unsupported SSE method: %s", opts.SSEMethod)
+	}
+
+	if err != nil {
+		cleanup()
+		return nil, err
+	}
 
 	// Execute request
 	resp, err := t.client.Do(httpReq)
@@ -157,13 +156,13 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 }
 
 // buildPOSTRequest creates a POST request with JSON body (graphql-sse spec).
-func buildPOSTRequest(req *common.Request, opts common.Options) (*http.Request, error) {
+func buildPOSTRequest(ctx context.Context, req *common.Request, opts common.Options) (*http.Request, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest(http.MethodPost, opts.Endpoint, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, opts.Endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -179,7 +178,7 @@ func buildPOSTRequest(req *common.Request, opts common.Options) (*http.Request, 
 }
 
 // buildGETRequest creates a GET request with query parameters (traditional SSE).
-func buildGETRequest(req *common.Request, opts common.Options) (*http.Request, error) {
+func buildGETRequest(ctx context.Context, req *common.Request, opts common.Options) (*http.Request, error) {
 	// Parse the endpoint URL
 	u, err := url.Parse(opts.Endpoint)
 	if err != nil {
@@ -214,7 +213,7 @@ func buildGETRequest(req *common.Request, opts common.Options) (*http.Request, e
 
 	u.RawQuery = q.Encode()
 
-	httpReq, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
