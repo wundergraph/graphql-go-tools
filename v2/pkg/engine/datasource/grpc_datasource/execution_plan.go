@@ -397,6 +397,21 @@ func formatRPCMessageVisited(sb *strings.Builder, message RPCMessage, indent int
 	}
 }
 
+type planningInfo struct {
+	operationType      ast.OperationType
+	operationFieldName string
+
+	currentRequestMessage *RPCMessage
+
+	responseMessageAncestors []*RPCMessage
+	currentResponseMessage   *RPCMessage
+}
+
+type contextField struct {
+	fieldRef    int
+	resolvePath ast.Path
+}
+
 type rpcPlanningContext struct {
 	operation         *ast.Document
 	definition        *ast.Document
@@ -901,6 +916,7 @@ func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
 type resolverField struct {
 	id                     int
 	callerRef              int
+	requiredFieldIdx       int
 	parentTypeNode         ast.Node
 	fieldRef               int
 	fieldDefinitionTypeRef int

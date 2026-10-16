@@ -15,21 +15,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-type planningInfo struct {
-	operationType      ast.OperationType
-	operationFieldName string
-
-	currentRequestMessage *RPCMessage
-
-	responseMessageAncestors []*RPCMessage
-	currentResponseMessage   *RPCMessage
-}
-
-type contextField struct {
-	fieldRef    int
-	resolvePath ast.Path
-}
-
 type fieldArgument struct {
 	parentTypeNode        ast.Node
 	jsonPath              string
@@ -465,6 +450,7 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 	resolvedField := resolverField{
 		id:                     r.callIndex,
 		callerRef:              parentID,
+		requiredFieldIdx:       ast.InvalidRef,
 		parentTypeNode:         r.walker.EnclosingTypeDefinition,
 		fieldRef:               ref,
 		responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
