@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.28.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.28.0...v2.28.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* correctly plan nested field resolvers ([#1708](https://github.com/wundergraph/graphql-go-tools/issues/1708)) ([f9d4b65](https://github.com/wundergraph/graphql-go-tools/commit/f9d4b65aa88186fd34921334f17666102b8138bf))
+* handle null parents and aliases in field resolver responses ([#1714](https://github.com/wundergraph/graphql-go-tools/issues/1714)) ([9ef6e24](https://github.com/wundergraph/graphql-go-tools/commit/9ef6e244d2bf3dcf0c8ac155f403da3602a62e49))
+* plan field resolvers inside of required fields ([#1707](https://github.com/wundergraph/graphql-go-tools/issues/1707)) ([8cfa56b](https://github.com/wundergraph/graphql-go-tools/commit/8cfa56bf8049b88c53938a765e6a37a7db6627b7))
+* **resolve:** return an ordinary result when every defer is cancelled ([#1700](https://github.com/wundergraph/graphql-go-tools/issues/1700)) ([fa75a21](https://github.com/wundergraph/graphql-go-tools/commit/fa75a2199dce3e0924998f5ab29d09fd0d1b0b6b))
+
 ## [2.28.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.27.0...v2.28.0) (2026-10-07)
 
 
