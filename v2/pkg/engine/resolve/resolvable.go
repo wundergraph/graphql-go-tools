@@ -993,6 +993,9 @@ func (r *Resolvable) printRateLimitingExtension() error {
 
 func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTreeNode) error {
 	trace := GetTrace(ctx, fetchTree)
+	if !r.ctx.TracingOptions.ExcludeResponseCache {
+		trace.ResponseCache = r.ctx.responseCacheRequestTrace()
+	}
 	content, err := json.Marshal(trace)
 	if err != nil {
 		return err
