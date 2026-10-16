@@ -184,7 +184,7 @@ func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) erro
 
 	if f.listMetadata != nil {
 		// TODO: build a wireMessage for the list wrapper and just create the proto wire for it
-		//wm := &wireMessage{fields: make([]wireField, 0, 1)}
+		// wm := &wireMessage{fields: make([]wireField, 0, 1)}
 		return f.appendListFieldValue(buf, fieldData, 0)
 	}
 

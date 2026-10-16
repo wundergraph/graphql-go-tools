@@ -11,6 +11,7 @@ linters:
     - errorlint
     - fatcontext
     - gocheckcompilerdirectives
+    - gocritic
     - govet
     - ineffassign
     - loggercheck
@@ -46,6 +47,15 @@ linters:
         linters:
           - staticcheck
   settings:
+    gocritic:
+      # Opt in to selected correctness checks; retain the default checks.
+      enabled-checks:
+        - badLock
+        - badSorting
+        - badSyncOnceFunc
+        - rangeAppendAll
+        - returnAfterHttpError
+        - truncateCmp
     embeddedstructfieldcheck:
       # Checks that sync.Mutex and sync.RWMutex are not used as embedded fields.
       forbid-mutex: true

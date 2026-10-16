@@ -38,10 +38,10 @@ func (d *createConcreteSingleFetchTypes) traverseFetch(fetch resolve.Fetch) reso
 	if fetch == nil {
 		return nil
 	}
-	switch f := fetch.(type) {
-	case *resolve.SingleFetch:
+	if f, ok := fetch.(*resolve.SingleFetch); ok {
 		return d.traverseSingleFetch(f)
 	}
+
 	return fetch
 }
 
