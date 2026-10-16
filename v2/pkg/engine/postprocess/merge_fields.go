@@ -87,6 +87,7 @@ func (m *mergeFields) traverseNode(node resolve.Node) {
 			for j := i + 1; j < len(n.Fields); j++ {
 				if m.fieldsCanMerge(n.Fields[i], n.Fields[j]) {
 					m.mergeValues(n.Fields[i], n.Fields[j])
+					m.mergeParentOnTypeNames(n.Fields[i], n.Fields[j])
 					n.Fields = append(n.Fields[:j], n.Fields[j+1:]...)
 					j--
 				}
@@ -145,6 +146,14 @@ func (m *mergeFields) mergeScalars(left, right *resolve.Field) {
 		return
 	}
 	left.OnTypeNames = m.deduplicateOnTypeNames(append(left.OnTypeNames, right.OnTypeNames...))
+	m.mergeParentOnTypeNames(left, right)
+}
+
+// mergeParentOnTypeNames merges the ParentOnTypeNames from right into left.
+// At each depth layer, the type names are combined and deduplicated.
+// This is important because resolvable.go ensures that at each depth layer,
+// we have at least one matching type condition, otherwise we skip resolving the field.
+func (m *mergeFields) mergeParentOnTypeNames(left, right *resolve.Field) {
 	if left.ParentOnTypeNames == nil {
 		left.ParentOnTypeNames = right.ParentOnTypeNames
 		return
@@ -156,15 +165,10 @@ WithNext:
 	for i := range right.ParentOnTypeNames {
 		for j := range left.ParentOnTypeNames {
 			if right.ParentOnTypeNames[i].Depth == left.ParentOnTypeNames[j].Depth {
-				// merge all parent type conditions at the same depth
-				// this is important because resolvable.go ensures that at each depth layer,
-				// we have at least one matching type condition
-				// otherwise we skip resolving the field
 				left.ParentOnTypeNames[j].Names = m.deduplicateOnTypeNames(append(left.ParentOnTypeNames[j].Names, right.ParentOnTypeNames[i].Names...))
 				continue WithNext
 			}
 		}
-		// if we reach this point, we have a new depth layer and just append it
 		left.ParentOnTypeNames = append(left.ParentOnTypeNames, right.ParentOnTypeNames[i])
 	}
 }
