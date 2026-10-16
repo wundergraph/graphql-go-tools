@@ -1,0 +1,11 @@
+# A fragment on the interface itself: normalization flattens it.
+query FragmentOnInterfaceItself {
+    otherInterfaces {
+        __typename
+        ... on SomeInterface {
+            someObject {
+                a
+            }
+        }
+    }
+}
