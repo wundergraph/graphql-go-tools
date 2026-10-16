@@ -36,6 +36,7 @@ type rpcPlanVisitorFederation struct {
 	resolverFields         []resolverField
 
 	// requiredFieldRef is the operation field ref of the required field we are inside of.
+	// ast.InvalidRed means we are currently not walking a required field.
 	requiredFieldRef int
 	// requiredFieldIdx is the index of that field in plannedRequiredFields.
 	requiredFieldIdx int
@@ -53,11 +54,6 @@ type rpcPlanVisitorFederation struct {
 	keyFieldMessages map[string]*RPCMessage
 
 	fieldPath ast.Path
-}
-
-type requiredFieldInfo struct {
-	ref int
-	idx int
 }
 
 func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFederation {
