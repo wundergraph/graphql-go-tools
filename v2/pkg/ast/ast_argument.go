@@ -147,6 +147,21 @@ func (d *Document) ArgumentSetsAreEquals(left, right []int) bool {
 	return true
 }
 
+// ArgumentSetsAreEqualUnordered reports whether two argument sets have equal names
+// and values, ignoring argument and input-object field order. List order matters.
+//
+// See the GraphQL specification sections on arguments and input values:
+// https://spec.graphql.org/September2025/#sec-Arguments
+// https://spec.graphql.org/September2025/#sec-Input-Object-Values
+// https://spec.graphql.org/September2025/#sec-List-Value
+func (d *Document) ArgumentSetsAreEqualUnordered(left, right []int) bool {
+	// Keep the common empty case in a small wrapper that can inline at callers.
+	if len(left) == 0 {
+		return len(right) == 0
+	}
+	return namedValueSetsAreEqual(d, left, right, d.ArgumentNameBytes, d.ArgumentValue)
+}
+
 func (d *Document) ArgumentsBefore(ancestor Node, argument int) []int {
 	switch ancestor.Kind {
 	case NodeKindField:
