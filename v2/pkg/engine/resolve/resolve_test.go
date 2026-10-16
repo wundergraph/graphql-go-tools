@@ -3,6 +3,7 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -5797,6 +5798,7 @@ type _fakeStream struct {
 	delay                 time.Duration
 	isDone                atomic.Bool
 	subscriptionOnStartFn func(ctx StartupHookContext, input []byte) (err error)
+	withCursor            string
 }
 
 func (f *_fakeStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
@@ -5839,7 +5841,11 @@ func (f *_fakeStream) Start(ctx *Context, headers http.Header, input []byte, upd
 				return
 			default:
 				message, done := f.messageFunc(counter)
-				updater.Update([]byte(message))
+				var md *SubscriptionUpdateMetadata
+				if f.withCursor != "" {
+					md = &SubscriptionUpdateMetadata{Cursor: f.withCursor}
+				}
+				updater.Update([]byte(message), md)
 				if done {
 					time.Sleep(f.delay)
 					updater.Complete()
@@ -6249,6 +6255,38 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.Contains(t, messages, `{"data":{"counter":0}}`)
 		assert.Contains(t, messages, `{"data":{"counter":1}}`)
 		assert.Contains(t, messages, `{"data":{"counter":2}}`)
+	})
+
+	t.Run("should include cursor extension when update carries a cursor", func(t *testing.T) {
+		c := t.Context()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), true
+		}, 0, nil, nil)
+		fakeStream.withCursor = `curs"or\with` // provoke json escaping problems
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+		recorder.AwaitComplete(t, defaultTimeout)
+
+		messages := recorder.Messages()
+		assert.Len(t, messages, 1)
+
+		var decoded struct {
+			Extensions struct {
+				Cosmo struct {
+					Cursor string `json:"cursor"`
+				} `json:"cosmo"`
+			} `json:"extensions"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(messages[0]), &decoded))
+		assert.Equal(t, fakeStream.withCursor, decoded.Extensions.Cosmo.Cursor)
 	})
 
 	t.Run("should stop stream on unsubscribe subscription", func(t *testing.T) {
