@@ -69,7 +69,7 @@ func TestHandler_Handle(t *testing.T) {
 			t.Run("should send connection error message when error on read occurs", func(t *testing.T) {
 				client.prepareConnectionInitMessage().withError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 
 				cancelFunc()
 				require.Eventually(t, handlerRoutine(ctx), 1*time.Second, 5*time.Millisecond)
@@ -86,7 +86,7 @@ func TestHandler_Handle(t *testing.T) {
 			t.Run("should successfully init connection and respond with ack", func(t *testing.T) {
 				client.reconnect().and().prepareConnectionInitMessage().withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 
 				cancelFunc()
 				require.Eventually(t, handlerRoutine(ctx), 1*time.Second, 5*time.Millisecond)
@@ -105,7 +105,7 @@ func TestHandler_Handle(t *testing.T) {
 
 				client.reconnect().and().prepareConnectionInitMessageWithPayload([]byte(`{"Authorization": "111"}`)).withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 
 				cancelFunc()
 				require.Eventually(t, handlerRoutine(ctx), 1*time.Second, 5*time.Millisecond)
@@ -125,7 +125,7 @@ func TestHandler_Handle(t *testing.T) {
 
 				client.reconnect().and().prepareConnectionInitMessageWithPayload([]byte(`{"Authorization": "123"}`)).withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 
 				cancelFunc()
 				require.Eventually(t, handlerRoutine(ctx), 1*time.Second, 5*time.Millisecond)
@@ -150,7 +150,7 @@ func TestHandler_Handle(t *testing.T) {
 				subscriptionHandler.ChangeKeepAliveInterval(keepAliveInterval)
 
 				client.prepareConnectionInitMessage().withoutError().and().send()
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
@@ -177,7 +177,7 @@ func TestHandler_Handle(t *testing.T) {
 		t.Run("erroneous operation(s)", func(t *testing.T) {
 			executorPool, _ := setupEngineV2(t, ctx, chatServer.URL)
 			_, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
-			ctx, cancelFunc := context.WithCancel(context.Background())
+			ctx, cancelFunc := context.WithCancel(ctx)
 			handlerRoutineFunc := handlerRoutine(ctx)
 			go handlerRoutineFunc()
 
@@ -213,7 +213,7 @@ func TestHandler_Handle(t *testing.T) {
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 				cancelFunc()
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
@@ -251,7 +251,8 @@ func TestHandler_Handle(t *testing.T) {
 
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
-				ctx := t.Context()
+				ctx, cancelFunc := context.WithCancel(ctx)
+				defer cancelFunc()
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
 
@@ -295,7 +296,7 @@ func TestHandler_Handle(t *testing.T) {
 
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 				cancelFunc()
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
@@ -333,7 +334,7 @@ func TestHandler_Handle(t *testing.T) {
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
 
@@ -364,7 +365,7 @@ func TestHandler_Handle(t *testing.T) {
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
 
@@ -410,7 +411,7 @@ func TestHandler_Handle(t *testing.T) {
 				require.NoError(t, err)
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
 
@@ -435,7 +436,7 @@ func TestHandler_Handle(t *testing.T) {
 				subscriptionHandler, client, handlerRoutine := setupSubscriptionHandlerTest(t, executorPool)
 				client.reconnect().prepareStopMessage("1").withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
 
@@ -474,7 +475,7 @@ func TestHandler_Handle(t *testing.T) {
 
 				client.prepareStartMessage("1", payload).withoutError().and().send()
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 				handlerRoutineFunc := handlerRoutine(ctx)
 				go handlerRoutineFunc()
 
@@ -512,7 +513,7 @@ func TestHandler_Handle(t *testing.T) {
 				client.prepareConnectionTerminateMessage().withoutError().and().send()
 				require.True(t, client.connected)
 
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 
 				cancelFunc()
 				require.Eventually(t, handlerRoutine(ctx), 1*time.Second, 5*time.Millisecond)
@@ -531,7 +532,7 @@ func TestHandler_Handle(t *testing.T) {
 				require.False(t, client.connected)
 
 				client.prepareConnectionInitMessage().withoutError()
-				ctx, cancelFunc := context.WithCancel(context.Background())
+				ctx, cancelFunc := context.WithCancel(ctx)
 
 				cancelFunc()
 				require.Eventually(t, handlerRoutine(ctx), 1*time.Second, 5*time.Millisecond)
@@ -626,23 +627,16 @@ func setupEngineV2(t *testing.T, ctx context.Context, chatServerURL string) (*Ex
 	})
 
 	hookHolder := &websocketHook{
-		reqCtx: context.Background(),
+		reqCtx: ctx,
 	}
 	engineConf.SetWebsocketBeforeStartHook(hookHolder)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost:8080", nil)
-	require.NoError(t, err)
-
-	req.Header.Set("X-Other-Key", "x-other-value")
-
-	initCtx := NewInitialHttpRequestContext(req)
-
-	eng, err := engine.NewExecutionEngine(initCtx, abstractlogger.NoopLogger, engineConf, resolve.ResolverOptions{
+	eng, err := engine.NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConf, resolve.ResolverOptions{
 		MaxConcurrency: 1024,
 	})
 	require.NoError(t, err)
 
-	executorPool := NewExecutorV2Pool(eng, hookHolder.reqCtx)
+	executorPool := NewExecutorV2Pool(eng, ctx)
 
 	return executorPool, hookHolder
 }
