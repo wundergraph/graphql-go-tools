@@ -31,7 +31,6 @@ var (
 	literalValueCompletion    = []byte("valueCompletion")
 	literalRateLimit          = []byte("rateLimit")
 	literalCosmo              = []byte("cosmo")
-	literalCursor             = []byte("cursor")
 	literalInlineArguments    = []byte("inlineArguments")
 	literalCount              = []byte("count")
 	literalArguments          = []byte("arguments")

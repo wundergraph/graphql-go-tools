@@ -949,12 +949,13 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
-	if r.cursor != "" {
+	if cosmoExt := r.cosmoExtension(); !cosmoExt.isEmpty() {
 		if writeComma {
 			r.printBytes(comma)
 		}
 		writeComma = true
-		if err := r.printCursorExtension(); err != nil {
+		err := r.printCosmoExtension(cosmoExt)
+		if err != nil {
 			return err
 		}
 	}
@@ -1000,25 +1001,35 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
 }
 
-func (r *Resolvable) printCursorExtension() error {
+// cosmoExtension is rendered as extensions.cosmo. Each field is a subkey.
+type cosmoExtension struct {
+	Cursor string `json:"cursor,omitempty"`
+}
+
+func (e cosmoExtension) isEmpty() bool {
+	return e == cosmoExtension{}
+}
+
+// cosmoExtension collects the values to render into extensions.cosmo for the current response.
+func (r *Resolvable) cosmoExtension() cosmoExtension {
+	return cosmoExtension{
+		Cursor: r.cursor,
+	}
+}
+
+// printCosmoExtension prints the "cosmo" extension key. The extension is
+// marshaled before anything is written so a failure leaves r.out untouched.
+func (r *Resolvable) printCosmoExtension(ext cosmoExtension) error {
+	content, err := json.Marshal(ext)
+	if err != nil {
+		return err
+	}
+
 	r.printBytes(quote)
 	r.printBytes(literalCosmo)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.printBytes(lBrace)
-
-	r.printBytes(quote)
-	r.printBytes(literalCursor)
-	r.printBytes(quote)
-	r.printBytes(colon)
-
-	content, err := json.Marshal(r.cursor)
-	if err != nil {
-		return err
-	}
 	r.printBytes(content)
-
-	r.printBytes(rBrace)
 
 	return nil
 }
@@ -1106,7 +1117,7 @@ func (r *Resolvable) hasExtensions() bool {
 	if r.filterAllowedSubgraphExtensions(getDefaultReservedExtensions()) {
 		return true
 	}
-	if r.cursor != "" {
+	if !r.cosmoExtension().isEmpty() {
 		return true
 	}
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
