@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.20.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.19.0...execution/v1.20.0) (2026-10-16)
+
+
+### Features
+
+* bump Go version ([#1687](https://github.com/wundergraph/graphql-go-tools/issues/1687)) ([b692c2d](https://github.com/wundergraph/graphql-go-tools/commit/b692c2d1dcd07fea814b9d57dcc12395a3151e0b))
+
+
+### Bug Fixes
+
+* **resolve:** return an ordinary result when every defer is cancelled ([#1700](https://github.com/wundergraph/graphql-go-tools/issues/1700)) ([fa75a21](https://github.com/wundergraph/graphql-go-tools/commit/fa75a2199dce3e0924998f5ab29d09fd0d1b0b6b))
+
 ## [1.19.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.18.0...execution/v1.19.0) (2026-09-23)
 
 
