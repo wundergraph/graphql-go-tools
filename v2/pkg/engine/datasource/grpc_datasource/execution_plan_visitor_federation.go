@@ -36,6 +36,7 @@ type rpcPlanVisitorFederation struct {
 	resolverFields         []resolverField
 
 	// requiredFieldRef is the operation field ref of the required field we are inside of.
+	// ast.InvalidRed means we are currently not walking a required field.
 	requiredFieldRef int
 	// requiredFieldIdx is the index of that field in plannedRequiredFields.
 	requiredFieldIdx int
@@ -53,11 +54,6 @@ type rpcPlanVisitorFederation struct {
 	keyFieldMessages map[string]*RPCMessage
 
 	fieldPath ast.Path
-}
-
-type requiredFieldInfo struct {
-	ref int
-	idx int
 }
 
 func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFederation {
@@ -160,6 +156,10 @@ func (r *rpcPlanVisitorFederation) EnterOperationDefinition(ref int) {
 
 // EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
+	if !r.isRootEntityInlineFragment() {
+		return
+	}
+
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
 	entityConfigData, ok := r.entityConfig.getEntity(fragmentName)
 	if !ok {
@@ -188,6 +188,17 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 	r.scaffoldEntityLookup(fragmentName, entityConfigData)
 }
 
+// isRootEntityInlineFragment reports whether the current inline fragment is a
+// direct child of the _entities field. Only these start an entity lookup.
+func (r *rpcPlanVisitorFederation) isRootEntityInlineFragment() bool {
+	if len(r.walker.Ancestors) < 2 {
+		return false
+	}
+
+	parent := r.walker.Ancestors[len(r.walker.Ancestors)-2]
+	return parent.Kind == ast.NodeKindField && parent.Ref == r.entityInfo.entityRootFieldRef
+}
+
 // LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 	if r.entityInfo.entityInlineFragmentRef != ref {
@@ -214,32 +225,9 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		return
 	}
 
-	// Inside of a field resolver, EnterField skips the plain fields. Thus we only store the selection set of the field resolver.
-	// buildMessageForField uses it in LeaveDocument to build the response message of the resolver call.
+	// setResolvedField stores the selection set of a field resolver.
+	// The response message of the resolver call is built from it later.
 	if r.fieldResolverAncestors.len() > 0 {
-		if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
-			return
-		}
-
-		resolvedFieldAncestor := r.fieldResolverAncestors.peek()
-		if compositType := r.planCtx.getCompositeType(r.walker.EnclosingTypeDefinition); compositType != OneOfTypeNone {
-			memberTypes, err := r.planCtx.getMemberTypes(r.walker.EnclosingTypeDefinition)
-			if err != nil {
-				r.walker.StopWithInternalErr(err)
-				return
-			}
-			resolvedField := &r.resolverFields[resolvedFieldAncestor]
-			resolvedField.memberTypes = memberTypes
-
-			config := r.planCtx.buildCompositeTypeConfig(compositType, ref)
-			resolvedField.fieldsSelectionSetRef = config.fieldsSelectionSetRef
-			resolvedField.fragmentType = config.oneOfType
-			resolvedField.fragmentSelections = config.fragmentSelections
-
-			return
-		}
-
-		r.resolverFields[resolvedFieldAncestor].fieldsSelectionSetRef = ref
 		return
 	}
 
@@ -384,16 +372,9 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 		return
 	}
 
-	// Check if the field is inside of a resolver call.
-	if r.fieldResolverAncestors.len() > 0 {
-		// We don't want to call LeaveField here because we ignore the field entirely.
-		r.walker.SkipNode()
-		return
-	}
-
-	// Inside of a required field we only track the path for nested field resolvers.
-	if r.requiredFieldRef != ast.InvalidRef {
-		r.enterFieldInRequiredField(ref, fieldDefRef, fieldName)
+	// Inside of a field resolver or a required field we only track the path for nested field resolvers.
+	if r.fieldResolverAncestors.len() > 0 || r.requiredFieldRef != ast.InvalidRef {
+		r.enterPathField(ref, fieldDefRef, fieldName)
 		return
 	}
 
@@ -460,6 +441,13 @@ func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
 	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
 		// Pop the field resolver ancestor only when leaving a field resolver field.
 		r.fieldResolverAncestors.pop()
+		return
+	}
+
+	// Remove the plain field from the nested path of the field resolver.
+	if r.fieldResolverAncestors.len() > 0 {
+		resolverField := &r.resolverFields[r.fieldResolverAncestors.peek()]
+		resolverField.nestedPath = resolverField.nestedPath.RemoveLastItem()
 	}
 }
 
@@ -544,9 +532,10 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 	return nil
 }
 
-// enterFieldInRequiredField adds a field inside of a required field to the field path.
+// enterPathField adds a field to the field path.
+// LeaveField removes it again.
 // The field is already part of the required field message, so we do not add it to a message.
-func (r *rpcPlanVisitorFederation) enterFieldInRequiredField(ref, fieldDefRef int, fieldName string) {
+func (r *rpcPlanVisitorFederation) enterPathField(ref, fieldDefRef int, fieldName string) {
 	field, err := r.planCtx.buildField(
 		r.walker.EnclosingTypeDefinition.NameString(r.definition),
 		fieldDefRef,
@@ -558,7 +547,14 @@ func (r *rpcPlanVisitorFederation) enterFieldInRequiredField(ref, fieldDefRef in
 		return
 	}
 
-	r.fieldPath = r.fieldPath.WithFieldNameItem([]byte(listPrefix(field) + field.Name))
+	pathItem := []byte(listPrefix(field) + field.Name)
+	r.fieldPath = r.fieldPath.WithFieldNameItem(pathItem)
+
+	// Track the plain fields inside of a field resolver for nested field resolvers.
+	if r.fieldResolverAncestors.len() > 0 {
+		resolverField := &r.resolverFields[r.fieldResolverAncestors.peek()]
+		resolverField.nestedPath = resolverField.nestedPath.WithFieldNameItem(pathItem)
+	}
 }
 
 // listPrefix returns one @ for each nesting level of a nested or nullable list field.
@@ -586,8 +582,9 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 	fieldPath := r.fieldPath
 	switch {
 	case r.fieldResolverAncestors.len() > 0:
-		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath
-		parentID = r.resolverFields[r.fieldResolverAncestors.peek()].id
+		parentResolverField := &r.resolverFields[r.fieldResolverAncestors.peek()]
+		fieldPath = parentResolverField.nestedContextPath()
+		parentID = parentResolverField.id
 	case r.requiredFieldRef != ast.InvalidRef:
 		// The required call ID is set in LeaveDocument.
 		parentID = ast.InvalidRef
