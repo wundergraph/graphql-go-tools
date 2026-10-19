@@ -66,6 +66,12 @@ type fieldScope struct {
 	enclosing ast.Node // walker's current enclosing type
 }
 
+// selectedField is an operation field and the type it is selected on.
+type selectedField struct {
+	ref       int
+	enclosing ast.Node
+}
+
 func (f *fieldSelectionMergingVisitor) NonScalarRequirementsByPathField(path ast.Path, objectName ast.ByteSlice) []int {
 	f.refs = f.refs[:0]
 	for i := range f.nonScalarRequirements {
@@ -128,6 +134,10 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	fieldType := f.definition.FieldDefinitionType(definition)
 	fieldDefinitionTypeNode := f.definition.FieldDefinitionTypeNode(definition)
 
+	// TODO: compare names and arguments of non-scalar fields too, unless they are mutually exclusive.
+	// Otherwise different fields with equal subfields pass,
+	// e.g. `s: left { __typename } s: right { __typename }`,
+	// and so do different enum fields, e.g. `v: a v: b`.
 	if fieldDefinitionTypeNode.Kind != ast.NodeKindScalarTypeDefinition {
 		current := nonScalarRequirement{
 			path:                    path,
@@ -252,14 +262,16 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	})
 }
 
-// mergesByResponseShape reports whether two fields with differently named composite types merge.
-// FieldsInSetCanMerge only requires SameResponseShape for mutually exclusive fields,
-// and for fields with equal names and arguments.
-// Any other combination still requires equal type names.
+// mergesByResponseShape reports whether two fields with different type names can merge.
+// They can, when they return the same JSON,
+// and either never apply to the same object, or are the same field with the same arguments.
 // See https://spec.graphql.org/September2025/#FieldsInSetCanMerge()
 func (f *fieldSelectionMergingVisitor) mergesByResponseShape(a, b nonScalarRequirement) bool {
 	exclusive, identical := f.fieldsRelation(a.fieldRef, b.fieldRef)
-	return (exclusive || identical) && f.haveSameResponseShape(a, b)
+	return (exclusive || identical) && f.haveSameResponseShape(
+		selectedField{ref: a.fieldRef, enclosing: a.enclosingTypeDefinition},
+		selectedField{ref: b.fieldRef, enclosing: b.enclosingTypeDefinition},
+	)
 }
 
 func (f *fieldSelectionMergingVisitor) mutuallyExclusive(a, b int) bool {
@@ -291,7 +303,7 @@ func (f *fieldSelectionMergingVisitor) fieldsRelation(a, b int) (exclusive, iden
 // Leaf types must be equal, composite types must have equal wrappers and same-shaped subfields.
 // It reports false for unknown fields, unknown types and fragment spreads, so they still require equal type names.
 // See https://spec.graphql.org/September2025/#SameResponseShape()
-func (f *fieldSelectionMergingVisitor) haveSameResponseShape(a, b nonScalarRequirement) bool {
+func (f *fieldSelectionMergingVisitor) haveSameResponseShape(a, b selectedField) bool {
 	aType, aNode, ok := f.selectedFieldType(a)
 	if !ok {
 		return false
@@ -304,8 +316,8 @@ func (f *fieldSelectionMergingVisitor) haveSameResponseShape(a, b nonScalarRequi
 	if !aComposite || !bComposite {
 		return !aComposite && !bComposite && f.leafTypesAreEqual(aType, bType)
 	}
-	aSet, aHasSet := f.operation.FieldSelectionSet(a.fieldRef)
-	bSet, bHasSet := f.operation.FieldSelectionSet(b.fieldRef)
+	aSet, aHasSet := f.operation.FieldSelectionSet(a.ref)
+	bSet, bHasSet := f.operation.FieldSelectionSet(b.ref)
 	if !aHasSet || !bHasSet || !f.typeWrappersAreEqual(aType, bType) {
 		return false
 	}
@@ -319,7 +331,7 @@ func (f *fieldSelectionMergingVisitor) haveSameResponseShape(a, b nonScalarRequi
 	}
 	for _, aField := range aFields {
 		for _, bField := range bFields {
-			if bytes.Equal(f.operation.FieldAliasOrNameBytes(aField.fieldRef), f.operation.FieldAliasOrNameBytes(bField.fieldRef)) &&
+			if bytes.Equal(f.operation.FieldAliasOrNameBytes(aField.ref), f.operation.FieldAliasOrNameBytes(bField.ref)) &&
 				!f.haveSameResponseShape(aField, bField) {
 				return false
 			}
@@ -330,12 +342,12 @@ func (f *fieldSelectionMergingVisitor) haveSameResponseShape(a, b nonScalarRequi
 
 // selectedFieldType returns the type of the selected field.
 // __typename might not have field definition, its type is ast.InvalidRef.
-func (f *fieldSelectionMergingVisitor) selectedFieldType(field nonScalarRequirement) (typeRef int, typeNode ast.Node, ok bool) {
-	name := f.operation.FieldNameBytes(field.fieldRef)
+func (f *fieldSelectionMergingVisitor) selectedFieldType(field selectedField) (typeRef int, typeNode ast.Node, ok bool) {
+	name := f.operation.FieldNameBytes(field.ref)
 	if bytes.Equal(name, literal.TYPENAME) {
 		return ast.InvalidRef, ast.InvalidNode, true
 	}
-	definition, ok := f.definition.NodeFieldDefinitionByName(field.enclosingTypeDefinition, name)
+	definition, ok := f.definition.NodeFieldDefinitionByName(field.enclosing, name)
 	if !ok {
 		return ast.InvalidRef, ast.InvalidNode, false
 	}
@@ -344,12 +356,12 @@ func (f *fieldSelectionMergingVisitor) selectedFieldType(field nonScalarRequirem
 
 // collectSelectedFields appends the fields of a selection set, flattening inline fragments.
 // It reports false for fragment spreads and unknown type conditions.
-func (f *fieldSelectionMergingVisitor) collectSelectedFields(set int, enclosing ast.Node, fields []nonScalarRequirement) ([]nonScalarRequirement, bool) {
+func (f *fieldSelectionMergingVisitor) collectSelectedFields(set int, enclosing ast.Node, fields []selectedField) ([]selectedField, bool) {
 	for _, selection := range f.operation.SelectionSets[set].SelectionRefs {
 		ref := f.operation.Selections[selection].Ref
 		switch f.operation.Selections[selection].Kind {
 		case ast.SelectionKindField:
-			fields = append(fields, nonScalarRequirement{fieldRef: ref, enclosingTypeDefinition: enclosing})
+			fields = append(fields, selectedField{ref: ref, enclosing: enclosing})
 		case ast.SelectionKindInlineFragment:
 			fragmentType := enclosing
 			if f.operation.InlineFragmentHasTypeCondition(ref) {
