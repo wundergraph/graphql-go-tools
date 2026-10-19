@@ -288,6 +288,9 @@ type Loader struct {
 	// dataBuffer holds the shared response tree and its concurrency guard.
 	dataBuffer *DataBuffer
 
+	// responsePlan is what the response cache validates a response against.
+	responsePlan *Object
+
 	// authorization is set for the loader serving the primary response when pre-fetch field
 	// authorization is enabled. It holds the up-front batch decisions that isFetchAuthorizedFromCache
 	// reads to skip fetches serving only denied fields. It is nil for defer-group loaders, whose
@@ -376,6 +379,7 @@ func (l *Loader) Free() {
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse) (err error) {
 	l.Init(ctx, response.Info)
+	l.responsePlan = response.Data
 	defer l.appendSubgraphErrorsToContext()
 
 	return l.ResolveFetchNode(response.Fetches)

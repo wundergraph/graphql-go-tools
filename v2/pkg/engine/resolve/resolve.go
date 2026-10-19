@@ -580,6 +580,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		}
 
 		loader.Init(ctx, response.Response.Info)
+		loader.responsePlan = response.Response.Data
 
 		// fetch initial response
 		if err := loader.ResolveFetchNode(response.Response.Fetches); err != nil {
@@ -686,6 +687,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	// lock therefore serialises every arena allocation across all groups.
 	groupLoader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, dc.arena, dc.db, nil)
 	groupLoader.Init(ctx, dc.info) // fresh taintedObjs; errors=nil
+	groupLoader.responsePlan = dc.response.Response.Data
 
 	if fetchErr := groupLoader.ResolveFetchNode(group.Fetches); fetchErr != nil {
 		// A hard fetch-phase error (e.g. pre-fetch authorizer/rate-limiter error) is

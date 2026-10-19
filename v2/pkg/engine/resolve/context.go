@@ -272,6 +272,8 @@ type responseCache struct {
 	defaultDisabled bool
 	// subgraphs is the caller's map, read only after SetResponseCache.
 	subgraphs map[string]ResponseCacheSubgraphOptions
+	// validateResponses checks a response's shape before storing it.
+	validateResponses bool
 	// privateIDs holds each entry's own id, digested once.
 	privateIDs map[string]caching.Digest
 	// singleFlightID tells requests acting for different users apart. It covers
@@ -376,6 +378,9 @@ type ResponseCacheOptions struct {
 	// An entry replaces DefaultTTL and PrivateID whole for that subgraph. The map
 	// is kept, not copied, and must not change after SetResponseCache.
 	Subgraphs map[string]ResponseCacheSubgraphOptions
+	// ValidateResponses stores a response only if the fields its subgraph
+	// provides have the types the plan expects.
+	ValidateResponses bool
 }
 
 // ResponseCacheSubgraphOptions is the cache's settings for one subgraph.
@@ -400,6 +405,8 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		def:             responseCacheSubgraph{ttl: opts.DefaultTTL},
 		defaultDisabled: opts.DefaultDisabled,
 		subgraphs:       opts.Subgraphs,
+
+		validateResponses: opts.ValidateResponses,
 	}
 	if opts.DefaultDisabled {
 		// Nothing is keyed by it, so it must not keep users apart either.

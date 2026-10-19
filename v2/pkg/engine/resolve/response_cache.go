@@ -477,6 +477,10 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		res.responseCache.StoreDecision = caching.StoreDecisionInvalidResponse
 		return err
 	}
+	if l.ctx.responseCache.validateResponses && !l.responseCacheShapesValid(prepared.item, res.ds.ID, values) {
+		res.responseCache.StoreDecision = caching.StoreDecisionInvalidResponse
+		return nil
+	}
 
 	subgraph := prepared.res.ds.Name
 	invalidation := l.ctx.responseCache.invalidation
@@ -780,6 +784,10 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 			storeDecision = min(storeDecision, caching.StoreDecisionInvalidResponse)
 			continue
 		}
+		if l.ctx.responseCache.validateResponses && !l.responseCacheShapesValid(entry.entry.Item, entry.res.ds.ID, values) {
+			storeDecision = min(storeDecision, caching.StoreDecisionInvalidResponse)
+			continue
+		}
 
 		for j, value := range values {
 			if value.Type() != astjson.TypeObject {
@@ -955,6 +963,29 @@ func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
 		}
 	}
 	return h
+}
+
+// responseCacheShapesValid reports whether every object value, merged at
+// item's path, has the types the plan expects of the fields dataSourceID
+// provides. It mirrors Resolvable's checks, so a value it rejects would fail
+// resolution from the cache too. Absent fields, other sources' fields and null
+// entities pass.
+func (l *Loader) responseCacheShapesValid(item *FetchItem, dataSourceID string, values []*astjson.Value) bool {
+	if l.responsePlan == nil {
+		return true
+	}
+	objects := planObjectsAt(l.responsePlan, item.ResponsePathElements)
+	for _, value := range values {
+		if value.Type() != astjson.TypeObject {
+			continue
+		}
+		for _, obj := range objects {
+			if !shapeObjectValid(obj, value, dataSourceID) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // responseCacheFlush writes what responseCacheCollect gathered. It is called with
