@@ -83,22 +83,27 @@ func TestInboundSingleFlight_LeaderPanicReleasesFlight(t *testing.T) {
 
 	select {
 	case err := <-followerErr:
-		require.ErrorContains(t, err, "deduplicated request failed: hook failed")
+		require.ErrorIs(t, err, errDeduplicatedLeaderPanicked)
+		require.NotContains(t, err.Error(), "hook failed", "the panic value stays out of followers' errors")
 	case <-time.After(3 * time.Second):
 		t.Fatal("follower still waiting on the panicked leader")
 	}
 
 	// The flight is gone: the same request leads again and resolves.
-	done := make(chan string, 1)
+	type result struct {
+		out string
+		err error
+	}
+	done := make(chan result, 1)
 	go func() {
 		buf := &bytes.Buffer{}
 		_, err := r.ArenaResolveGraphQLResponse(newCtx(nil), response, buf)
-		require.NoError(t, err)
-		done <- buf.String()
+		done <- result{out: buf.String(), err: err}
 	}()
 	select {
-	case out := <-done:
-		require.Equal(t, `{"data":{"name":"Jens"}}`, out)
+	case res := <-done:
+		require.NoError(t, res.err)
+		require.Equal(t, `{"data":{"name":"Jens"}}`, res.out)
 	case <-time.After(3 * time.Second):
 		t.Fatal("request after the panic is wedged on the stale flight")
 	}
