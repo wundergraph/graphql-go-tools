@@ -439,6 +439,17 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		return resp, err
 	}
 
+	if inflight != nil {
+		// A panicking leader would leave its flight registered, and every
+		// later identical request would wait on it forever.
+		defer func() {
+			if p := recover(); p != nil {
+				r.inboundRequestSingleFlight.FinishErr(inflight, fmt.Errorf("deduplicated request failed: %v", p))
+				panic(p)
+			}
+		}()
+	}
+
 	start := time.Now()
 	<-r.maxConcurrency
 	resp.ResolveAcquireWaitTime = time.Since(start)
