@@ -1036,8 +1036,8 @@ func (l *Loader) responseCacheHold(prepared *preparedFetch) {
 }
 
 // responseCacheCommit writes the held entries, or drops them when resolution
-// rejected the response: a value of the wrong type, or a null where the
-// schema has none.
+// found a value of the wrong type. Nulls don't count: federation reports a
+// missing entity that way, and a cached null resolves like a fetched one.
 func (l *Loader) responseCacheCommit(resolved bool) {
 	l.responseCacheHeldMu.Lock()
 	held := l.responseCacheHeld

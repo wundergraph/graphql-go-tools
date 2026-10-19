@@ -57,7 +57,8 @@ func TestResponseCacheStoresOnlyResolvedResponses(t *testing.T) {
 	}{
 		{name: "a resolved response is stored", body: `{"data":{"me":"ok"}}`, stored: true},
 		{name: "a value of the wrong type is not stored", body: `{"data":{"me":5}}`},
-		{name: "a null for a non-null field is not stored", body: `{"data":{"me":null}}`},
+		{name: "a null for a non-null field is stored", body: `{"data":{"me":null}}`, stored: true},
+		{name: "an object for a string is not stored", body: `{"data":{"me":{"a":1}}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, arena := range []bool{false, true} {

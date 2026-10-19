@@ -46,8 +46,10 @@ type Resolvable struct {
 	// response already carries errors but no data (set per render in Resolve).
 	skipAddingNullErrors bool
 
-	// walkFailed is set when the last walk added an error.
+	// walkFailed is set when the last walk found a value of the wrong type.
 	walkFailed bool
+	// nullErrors counts non-null violations, which walkFailed leaves out.
+	nullErrors int
 
 	// astjsonArena is the arena to handle json, supplied by Resolver
 	// not thread safe, but Resolvable is single threaded anyways
@@ -245,6 +247,8 @@ func (r *Resolvable) Reset() {
 	r.data = nil
 	r.errors = nil
 	r.valueCompletion = nil
+	r.walkFailed = false
+	r.nullErrors = 0
 	r.depth = 0
 	r.enableRender = false
 	r.out = nil
@@ -405,9 +409,9 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 		r.unreachedAuthWalk = true
 	}
 
-	errorsBefore := r.errorCount()
+	errorsBefore, nullsBefore := r.errorCount(), r.nullErrors
 	hasErrors := r.walkObject(rootData, r.data)
-	r.walkFailed = r.errorCount() > errorsBefore
+	r.walkFailed = r.errorCount()-errorsBefore > r.nullErrors-nullsBefore
 	r.unreachedAuthWalk = false
 	if r.authorizationError != nil {
 		return r.authorizationError
@@ -472,9 +476,9 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 	r.deferIncrementalItemWritten = false
 	r.deferItemDataNull = false
 
-	errorsBefore := r.errorCount()
+	errorsBefore, nullsBefore := r.errorCount(), r.nullErrors
 	_ = r.walkObject(rootData, r.data)
-	r.walkFailed = r.errorCount() > errorsBefore
+	r.walkFailed = r.errorCount()-errorsBefore > r.nullErrors-nullsBefore
 	if r.authorizationError != nil {
 		// Scope the authorizer error to this defer: record it as the fragment's
 		// error and route it to the completed-with-errors form, completing the
@@ -2341,6 +2345,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 			}
 		}
 	}
+	r.nullErrors++
 	r.pushNodePathElement(fieldPath)
 	if r.options.ApolloCompatibilityValueCompletionInExtensions {
 		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
