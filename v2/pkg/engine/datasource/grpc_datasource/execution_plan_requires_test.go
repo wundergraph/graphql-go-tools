@@ -3,8 +3,6 @@ package grpcdatasource
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
@@ -2649,10 +2647,7 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -3161,7 +3156,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "handler",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageItemHandlerInfoByIdFields.StorageItem.ItemHandler",
+																				Name: "RequireStorageItemHandlerInfoByIdFields.PalletItem.ItemHandler",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3178,7 +3173,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "handler",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageItemHandlerInfoByIdFields.StorageItem.ItemHandler",
+																				Name: "RequireStorageItemHandlerInfoByIdFields.ContainerItem.ItemHandler",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3286,7 +3281,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "specs",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.PalletSpecs",
+																				Name: "RequireStorageItemSpecsInfoByIdFields.PalletItem.PalletSpecs",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3298,7 +3293,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																						ProtoTypeName: DataTypeMessage,
 																						JSONPath:      "dimensions",
 																						Message: &RPCMessage{
-																							Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.PalletSpecs.Dimensions",
+																							Name: "RequireStorageItemSpecsInfoByIdFields.PalletItem.PalletSpecs.Dimensions",
 																							Fields: []RPCField{
 																								{
 																									Name:          "length",
@@ -3323,7 +3318,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "specs",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.ContainerSpecs",
+																				Name: "RequireStorageItemSpecsInfoByIdFields.ContainerItem.ContainerSpecs",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3335,7 +3330,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																						ProtoTypeName: DataTypeMessage,
 																						JSONPath:      "dimensions",
 																						Message: &RPCMessage{
-																							Name: "RequireStorageItemSpecsInfoByIdFields.StorageItem.ContainerSpecs.Dimensions",
+																							Name: "RequireStorageItemSpecsInfoByIdFields.ContainerItem.ContainerSpecs.Dimensions",
 																							Fields: []RPCField{
 																								{
 																									Name:          "length",
@@ -3451,14 +3446,14 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "handler",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageDeepItemInfoByIdFields.StorageItem.ItemHandler",
+																				Name: "RequireStorageDeepItemInfoByIdFields.PalletItem.ItemHandler",
 																				Fields: []RPCField{
 																					{
 																						Name:          "assigned_item",
 																						ProtoTypeName: DataTypeMessage,
 																						JSONPath:      "assignedItem",
 																						Message: &RPCMessage{
-																							Name:        "RequireStorageDeepItemInfoByIdFields.StorageItem.ItemHandler.StorageItem",
+																							Name:        "RequireStorageDeepItemInfoByIdFields.PalletItem.ItemHandler.StorageItem",
 																							OneOfType:   OneOfTypeInterface,
 																							MemberTypes: []string{"PalletItem", "ContainerItem"},
 																							FragmentFields: RPCFieldSelectionSet{
@@ -3499,7 +3494,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 																			ProtoTypeName: DataTypeMessage,
 																			JSONPath:      "handler",
 																			Message: &RPCMessage{
-																				Name: "RequireStorageDeepItemInfoByIdFields.StorageItem.ItemHandler",
+																				Name: "RequireStorageDeepItemInfoByIdFields.ContainerItem.ItemHandler",
 																				Fields: []RPCField{
 																					{
 																						Name:          "name",
@@ -3569,10 +3564,7 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -4320,10 +4312,7 @@ func TestExecutionPlan_FederationRequires_AbstractReturnTypes(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -4423,7 +4412,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageStorageStatusContext",
@@ -4658,7 +4646,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageLinkedStoragesContext",
@@ -4915,7 +4902,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageNearbyStoragesContext",
@@ -5169,7 +5155,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageStorageStatusContext",
@@ -5492,7 +5477,6 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveStorageLinkedStoragesContext",
@@ -5689,6 +5673,412 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "Should create execution plan for storageAudit (complex return requires) with nested field resolvers",
+			query:   `query EntityLookup($representations: [_Any!]!, $weight: Float!, $detailed: Boolean!) { _entities(representations: $representations) { ... on Storage { __typename id storageAudit { zone riskScore(weight: $weight) report { generatedAt findings { code severity remediation(detailed: $detailed) { description estimatedHours } } } } } } }`,
+			mapping: testMapping(),
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "storageAudit",
+					SelectionSet: "metadata { capacity zone }",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName:         "Products",
+						MethodName:          "LookupStorageById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Storage",
+						Request: RPCMessage{
+							Name: "LookupStorageByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "keys",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name:        "LookupStorageByIdRequestKey",
+										MemberTypes: []string{"Storage"},
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupStorageByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Storage",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Storage",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						ServiceName:    "Products",
+						Kind:           CallKindResolve,
+						MethodName:     "ResolveStorageAuditRiskScore",
+						DependentCalls: []int{4},
+						ResponsePath:   buildPath("_entities.storageAudit.riskScore"),
+						Request: RPCMessage{
+							Name: "ResolveStorageAuditRiskScoreRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveStorageAuditRiskScoreContext",
+										Fields: []RPCField{
+											{
+												Name:          "zone",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "zone",
+												ResolvePath:   buildPath("result.storage_audit.zone"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveStorageAuditRiskScoreArgs",
+										Fields: []RPCField{
+											{
+												Name:          "weight",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "weight",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveStorageAuditRiskScoreResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveStorageAuditRiskScoreResult",
+										Fields: []RPCField{
+											{
+												Name:          "risk_score",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "riskScore",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						ServiceName:    "Products",
+						Kind:           CallKindResolve,
+						MethodName:     "ResolveAuditFindingRemediation",
+						DependentCalls: []int{4},
+						ResponsePath:   buildPath("_entities.storageAudit.report.findings.remediation"),
+						Request: RPCMessage{
+							Name: "ResolveAuditFindingRemediationRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveAuditFindingRemediationContext",
+										Fields: []RPCField{
+											{
+												Name:          "code",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "code",
+												ResolvePath:   buildPath("result.storage_audit.report.findings.code"),
+											},
+											{
+												Name:          "severity",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "severity",
+												ResolvePath:   buildPath("result.storage_audit.report.findings.severity"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveAuditFindingRemediationArgs",
+										Fields: []RPCField{
+											{
+												Name:          "detailed",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "detailed",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveAuditFindingRemediationResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveAuditFindingRemediationResult",
+										Fields: []RPCField{
+											{
+												Name:          "remediation",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "remediation",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "AuditRemediation",
+													Fields: []RPCField{
+														{
+															Name:          "description",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "description",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             3,
+						ServiceName:    "Products",
+						Kind:           CallKindResolve,
+						MethodName:     "ResolveAuditRemediationEstimatedHours",
+						DependentCalls: []int{2},
+						ResponsePath:   buildPath("_entities.storageAudit.report.findings.remediation.estimatedHours"),
+						Request: RPCMessage{
+							Name: "ResolveAuditRemediationEstimatedHoursRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveAuditRemediationEstimatedHoursContext",
+										Fields: []RPCField{
+											{
+												Name:          "description",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "description",
+												ResolvePath:   buildPath("result.remediation.description"),
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveAuditRemediationEstimatedHoursResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveAuditRemediationEstimatedHoursResult",
+										Fields: []RPCField{
+											{
+												Name:          "estimated_hours",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "estimatedHours",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:           4,
+						ServiceName:  "Products",
+						Kind:         CallKindRequired,
+						MethodName:   "RequireStorageStorageAuditById",
+						ResponsePath: buildPath("_entities.storageAudit"),
+						Request: RPCMessage{
+							Name: "RequireStorageStorageAuditByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "representations",
+									Message: &RPCMessage{
+										Name: "RequireStorageStorageAuditByIdContext",
+										Fields: []RPCField{
+											{
+												Name:          "key",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name:        "LookupStorageByIdRequestKey",
+													MemberTypes: []string{"Storage"},
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+													},
+												},
+											},
+											{
+												Name:          "fields",
+												ProtoTypeName: DataTypeMessage,
+												Message: &RPCMessage{
+													Name: "RequireStorageStorageAuditByIdFields",
+													Fields: []RPCField{
+														{
+															Name:          "metadata",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "metadata",
+															Message: &RPCMessage{
+																Name: "RequireStorageStorageAuditByIdFields.StorageMetadata",
+																Fields: []RPCField{
+																	{
+																		Name:          "capacity",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "capacity",
+																	},
+																	{
+																		Name:          "zone",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "zone",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "RequireStorageStorageAuditByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "result",
+									Message: &RPCMessage{
+										Name: "RequireStorageStorageAuditByIdResult",
+										Fields: RPCFields{
+											{
+												Name:          "storage_audit",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "storageAudit",
+												Message: &RPCMessage{
+													Name: "StorageAudit",
+													Fields: []RPCField{
+														{
+															Name:          "zone",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "zone",
+														},
+														{
+															Name:          "report",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "report",
+															Message: &RPCMessage{
+																Name: "AuditReport",
+																Fields: []RPCField{
+																	{
+																		Name:          "generated_at",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "generatedAt",
+																	},
+																	{
+																		Name:          "findings",
+																		ProtoTypeName: DataTypeMessage,
+																		JSONPath:      "findings",
+																		Repeated:      true,
+																		Message: &RPCMessage{
+																			Name: "AuditFinding",
+																			Fields: []RPCField{
+																				{
+																					Name:          "code",
+																					ProtoTypeName: DataTypeString,
+																					JSONPath:      "code",
+																				},
+																				{
+																					Name:          "severity",
+																					ProtoTypeName: DataTypeInt32,
+																					JSONPath:      "severity",
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -5712,10 +6102,7 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -6307,10 +6694,7 @@ func TestExecutionPlan_FederationRequires_NullableLists(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }

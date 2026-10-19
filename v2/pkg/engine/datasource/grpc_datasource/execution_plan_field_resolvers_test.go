@@ -3,7 +3,7 @@ package grpcdatasource
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -79,7 +79,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryProductCountContext",
@@ -211,7 +210,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryProductCountContext",
@@ -314,7 +312,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryProductCountContext",
@@ -491,7 +488,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveSubcategoryItemCountContext",
@@ -623,7 +619,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryCategoryMetricsContext",
@@ -747,7 +742,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryCategoryMetricsContext",
@@ -874,7 +868,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryPopularityScoreContext",
@@ -942,7 +935,6 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryCategoryMetricsContext",
@@ -4364,7 +4356,6 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductShippingEstimateContext",
@@ -4608,7 +4599,6 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductShippingEstimateContext",
@@ -4715,10 +4705,7 @@ func TestExecutionPlan_FederationFieldResolvers(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -4817,7 +4804,6 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductMascotRecommendationContext",
@@ -4996,7 +4982,6 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductStockStatusContext",
@@ -5185,7 +5170,6 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveProductProductDetailsContext",
@@ -5364,10 +5348,7 @@ func TestExecutionPlan_FederationFieldResolvers_WithCompositeTypes(t *testing.T)
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
 	}
 }
@@ -5642,7 +5623,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryTotalProductsContext",
@@ -5734,7 +5714,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryTopSubcategoryContext",
@@ -5843,7 +5822,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryActiveSubcategoriesContext",
@@ -5946,7 +5924,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryCategoryMetricsContext",
@@ -6029,7 +6006,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryMetricsAverageScoreContext",
@@ -6122,7 +6098,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryTotalProductsContext",
@@ -6173,7 +6148,6 @@ func TestExecutionPlanFieldResolvers_ArgumentLess(t *testing.T) {
 								{
 									Name:          "context",
 									ProtoTypeName: DataTypeMessage,
-									JSONPath:      "",
 									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "ResolveCategoryProductCountContext",
@@ -6357,4 +6331,513 @@ func mappingWithNestedResolverAndCompositeType(_ *testing.T) *GRPCMapping {
 			},
 		},
 	}
+}
+
+func TestExecutionPlanFieldResolvers_ResolverBelowPlainFieldInResolver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should plan a field resolver below a plain field inside a field resolver", func(t *testing.T) {
+		t.Parallel()
+		runTest(t, testCase{
+			query: "query ChildCategoriesSubcategoriesItemCount($filter: SubcategoryItemFilter) { categories { childCategories { subcategories { id itemCount(filters: $filter) } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryChildCategories",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryChildCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryChildCategoriesResult",
+										Fields: []RPCField{
+											{
+												Name:          "child_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "childCategories",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Category",
+													Fields: []RPCField{
+														{
+															Name:          "subcategories",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "subcategories",
+															Repeated:      false,
+															IsListType:    true,
+															Optional:      true,
+															ListMetadata: &ListMetadata{
+																NestingLevel: 1,
+																LevelInfo:    []LevelInfo{{Optional: true}},
+															},
+															Message: &RPCMessage{
+																Name: "Subcategory",
+																Fields: []RPCField{
+																	{
+																		Name:          "id",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "id",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             2,
+						DependentCalls: []int{1},
+						ServiceName:    "Products",
+						MethodName:     "ResolveSubcategoryItemCount",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.childCategories.subcategories.itemCount"),
+						Request: RPCMessage{
+							Name: "ResolveSubcategoryItemCountRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveSubcategoryItemCountContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.child_categories.@subcategories.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "",
+									Message: &RPCMessage{
+										Name: "ResolveSubcategoryItemCountArgs",
+										Fields: []RPCField{
+											{
+												Name:          "filters",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "filter",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "SubcategoryItemFilter",
+													Fields: []RPCField{
+														{
+															Name:          "min_price",
+															ProtoTypeName: DataTypeDouble,
+															JSONPath:      "minPrice",
+															Optional:      true,
+														},
+														{
+															Name:          "max_price",
+															ProtoTypeName: DataTypeDouble,
+															JSONPath:      "maxPrice",
+															Optional:      true,
+														},
+														{
+															Name:          "in_stock",
+															ProtoTypeName: DataTypeBool,
+															JSONPath:      "inStock",
+															Optional:      true,
+														},
+														{
+															Name:          "is_active",
+															ProtoTypeName: DataTypeBool,
+															JSONPath:      "isActive",
+															Optional:      true,
+														},
+														{
+															Name:          "search_term",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "searchTerm",
+															Optional:      true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveSubcategoryItemCountResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveSubcategoryItemCountResult",
+										Fields: []RPCField{
+											{
+												Name:          "item_count",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "itemCount",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	})
+
+	t.Run("Should plan a field resolver below a plain field inside a field resolver of an entity", func(t *testing.T) {
+		t.Parallel()
+
+		schemaDoc := grpctest.MustGraphQLSchema(t)
+		queryDoc, report := astparser.ParseGraphqlDocumentString(`query EntityRecommendedCategorySubcategoriesItemCount($representations: [_Any!]!, $maxPrice: Int!, $filter: SubcategoryItemFilter) { _entities(representations: $representations) { ... on Product { __typename id recommendedCategory(maxPrice: $maxPrice) { subcategories { id itemCount(filters: $filter) } } } } }`)
+		if report.HasErrors() {
+			t.Fatalf("failed to parse query: %s", report.Error())
+		}
+
+		planner, err := NewPlanner("Products", testMapping(), plan.FederationFieldConfigurations{
+			{
+				TypeName:     "Product",
+				SelectionSet: "id",
+			},
+		})
+		require.NoError(t, err)
+
+		actualPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+		require.NoError(t, err)
+
+		assertExecutionPlanEqual(t, &RPCExecutionPlan{
+			Calls: []RPCCall{
+				{
+					ServiceName:         "Products",
+					MethodName:          "LookupProductById",
+					Kind:                CallKindEntity,
+					RequestedEntityType: "Product",
+					Request: RPCMessage{
+						Name: "LookupProductByIdRequest",
+						Fields: []RPCField{
+							{
+								Name:          "keys",
+								ProtoTypeName: DataTypeMessage,
+								Repeated:      true,
+								JSONPath:      "representations",
+								Message: &RPCMessage{
+									Name:        "LookupProductByIdRequestKey",
+									MemberTypes: []string{"Product"},
+									Fields: []RPCField{
+										{
+											Name:          "id",
+											ProtoTypeName: DataTypeString,
+											JSONPath:      "id",
+										},
+									},
+								},
+							},
+						},
+					},
+					Response: RPCMessage{
+						Name: "LookupProductByIdResponse",
+						Fields: []RPCField{
+							{
+								Name:          "result",
+								ProtoTypeName: DataTypeMessage,
+								Repeated:      true,
+								JSONPath:      "_entities",
+								Message: &RPCMessage{
+									Name: "Product",
+									Fields: []RPCField{
+										{
+											Name:          "__typename",
+											ProtoTypeName: DataTypeString,
+											JSONPath:      "__typename",
+											StaticValue:   "Product",
+										},
+										{
+											Name:          "id",
+											ProtoTypeName: DataTypeString,
+											JSONPath:      "id",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID:             1,
+					ServiceName:    "Products",
+					MethodName:     "ResolveProductRecommendedCategory",
+					Kind:           CallKindResolve,
+					DependentCalls: []int{0},
+					ResponsePath:   buildPath("_entities.recommendedCategory"),
+					Request: RPCMessage{
+						Name: "ResolveProductRecommendedCategoryRequest",
+						Fields: []RPCField{
+							{
+								Name:          "context",
+								ProtoTypeName: DataTypeMessage,
+								Repeated:      true,
+								Message: &RPCMessage{
+									Name: "ResolveProductRecommendedCategoryContext",
+									Fields: []RPCField{
+										{
+											Name:          "id",
+											ProtoTypeName: DataTypeString,
+											JSONPath:      "id",
+											ResolvePath:   buildPath("result.id"),
+										},
+										{
+											Name:          "name",
+											ProtoTypeName: DataTypeString,
+											JSONPath:      "name",
+											ResolvePath:   buildPath("result.name"),
+										},
+										{
+											Name:          "price",
+											ProtoTypeName: DataTypeDouble,
+											JSONPath:      "price",
+											ResolvePath:   buildPath("result.price"),
+										},
+									},
+								},
+							},
+							{
+								Name:          "field_args",
+								ProtoTypeName: DataTypeMessage,
+								JSONPath:      "",
+								Message: &RPCMessage{
+									Name: "ResolveProductRecommendedCategoryArgs",
+									Fields: []RPCField{
+										{
+											Name:          "max_price",
+											ProtoTypeName: DataTypeInt32,
+											JSONPath:      "maxPrice",
+										},
+									},
+								},
+							},
+						},
+					},
+					Response: RPCMessage{
+						Name: "ResolveProductRecommendedCategoryResponse",
+						Fields: []RPCField{
+							{
+								Name:          "result",
+								ProtoTypeName: DataTypeMessage,
+								JSONPath:      "result",
+								Repeated:      true,
+								Message: &RPCMessage{
+									Name: "ResolveProductRecommendedCategoryResult",
+									Fields: []RPCField{
+										{
+											Name:          "recommended_category",
+											ProtoTypeName: DataTypeMessage,
+											JSONPath:      "recommendedCategory",
+											Optional:      true,
+											Message: &RPCMessage{
+												Name: "Category",
+												Fields: []RPCField{
+													{
+														Name:          "subcategories",
+														ProtoTypeName: DataTypeMessage,
+														JSONPath:      "subcategories",
+														Repeated:      false,
+														IsListType:    true,
+														Optional:      true,
+														ListMetadata: &ListMetadata{
+															NestingLevel: 1,
+															LevelInfo:    []LevelInfo{{Optional: true}},
+														},
+														Message: &RPCMessage{
+															Name: "Subcategory",
+															Fields: []RPCField{
+																{
+																	Name:          "id",
+																	ProtoTypeName: DataTypeString,
+																	JSONPath:      "id",
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ID:             2,
+					ServiceName:    "Products",
+					MethodName:     "ResolveSubcategoryItemCount",
+					Kind:           CallKindResolve,
+					DependentCalls: []int{1},
+					ResponsePath:   buildPath("_entities.recommendedCategory.subcategories.itemCount"),
+					Request: RPCMessage{
+						Name: "ResolveSubcategoryItemCountRequest",
+						Fields: []RPCField{
+							{
+								Name:          "context",
+								ProtoTypeName: DataTypeMessage,
+								Repeated:      true,
+								Message: &RPCMessage{
+									Name: "ResolveSubcategoryItemCountContext",
+									Fields: []RPCField{
+										{
+											Name:          "id",
+											ProtoTypeName: DataTypeString,
+											JSONPath:      "id",
+											ResolvePath:   buildPath("result.recommended_category.@subcategories.id"),
+										},
+									},
+								},
+							},
+							{
+								Name:          "field_args",
+								ProtoTypeName: DataTypeMessage,
+								JSONPath:      "",
+								Message: &RPCMessage{
+									Name: "ResolveSubcategoryItemCountArgs",
+									Fields: []RPCField{
+										{
+											Name:          "filters",
+											ProtoTypeName: DataTypeMessage,
+											JSONPath:      "filter",
+											Optional:      true,
+											Message: &RPCMessage{
+												Name: "SubcategoryItemFilter",
+												Fields: []RPCField{
+													{
+														Name:          "min_price",
+														ProtoTypeName: DataTypeDouble,
+														JSONPath:      "minPrice",
+														Optional:      true,
+													},
+													{
+														Name:          "max_price",
+														ProtoTypeName: DataTypeDouble,
+														JSONPath:      "maxPrice",
+														Optional:      true,
+													},
+													{
+														Name:          "in_stock",
+														ProtoTypeName: DataTypeBool,
+														JSONPath:      "inStock",
+														Optional:      true,
+													},
+													{
+														Name:          "is_active",
+														ProtoTypeName: DataTypeBool,
+														JSONPath:      "isActive",
+														Optional:      true,
+													},
+													{
+														Name:          "search_term",
+														ProtoTypeName: DataTypeString,
+														JSONPath:      "searchTerm",
+														Optional:      true,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Response: RPCMessage{
+						Name: "ResolveSubcategoryItemCountResponse",
+						Fields: []RPCField{
+							{
+								Name:          "result",
+								ProtoTypeName: DataTypeMessage,
+								JSONPath:      "result",
+								Repeated:      true,
+								Message: &RPCMessage{
+									Name: "ResolveSubcategoryItemCountResult",
+									Fields: []RPCField{
+										{
+											Name:          "item_count",
+											ProtoTypeName: DataTypeInt32,
+											JSONPath:      "itemCount",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, actualPlan)
+	})
 }

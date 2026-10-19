@@ -2,6 +2,7 @@ package caching
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 )
 
@@ -38,15 +39,14 @@ func DigestString(s string) Digest {
 	return sha256.Sum256([]byte(s))
 }
 
-// DigestParts digests the parts in order with a zero byte between them, so a
-// byte moving from the end of one part to the start of the next cannot go
-// unnoticed.
+// DigestParts digests the parts in order, each led by its length, so no byte
+// can move between parts unnoticed, whatever the parts contain.
 func DigestParts(parts ...[]byte) Digest {
 	h := sha256.New()
-	for i, part := range parts {
-		if i > 0 {
-			_, _ = h.Write([]byte{0})
-		}
+	var n [8]byte
+	for _, part := range parts {
+		binary.BigEndian.PutUint64(n[:], uint64(len(part)))
+		_, _ = h.Write(n[:])
 		_, _ = h.Write(part)
 	}
 	var d Digest
