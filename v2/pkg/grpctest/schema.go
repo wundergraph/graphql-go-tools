@@ -674,6 +674,26 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 			},
 		},
 		{
+			TypeName:  "StorageAudit",
+			FieldName: "riskScore",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "weight",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "AuditFinding",
+			FieldName: "remediation",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "detailed",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
 			TypeName:  "TestContainer",
 			FieldName: "details",
 			Arguments: []plan.ArgumentConfiguration{
@@ -748,6 +768,11 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					TypeName:     "Storage",
 					FieldName:    "processedMetadataHistory",
 					SelectionSet: "metadataHistory { capacity zone }",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "storageAudit",
+					SelectionSet: "metadata { capacity zone }",
 				},
 				{
 					TypeName:     "Storage",
@@ -958,6 +983,7 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"optionalRecommendedItems",
 					"optionalOperationHistory",
 					"tagsByLengths",
+					"storageAudit",
 				},
 				ExternalFieldNames: []string{
 					"itemCount",
@@ -1047,6 +1073,7 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"optionalRecommendedItems",
 					"optionalOperationHistory",
 					"tagsByLengths",
+					"storageAudit",
 				},
 				ExternalFieldNames: []string{
 					"itemCount",
@@ -1087,6 +1114,36 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"capacity",
 					"zone",
 					"priority",
+				},
+			},
+			{
+				TypeName: "StorageAudit",
+				FieldNames: []string{
+					"zone",
+					"report",
+					"riskScore",
+				},
+			},
+			{
+				TypeName: "AuditReport",
+				FieldNames: []string{
+					"generatedAt",
+					"findings",
+				},
+			},
+			{
+				TypeName: "AuditFinding",
+				FieldNames: []string{
+					"code",
+					"severity",
+					"remediation",
+				},
+			},
+			{
+				TypeName: "AuditRemediation",
+				FieldNames: []string{
+					"description",
+					"estimatedHours",
 				},
 			},
 			{

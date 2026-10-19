@@ -4665,6 +4665,56 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			name:  "Query with an aliased copy of a field inside a list field resolver",
+			query: "query ChildCategoriesWithAlias { categories { childCategories { name x: name } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]any) {
+				categories, ok := data["categories"].([]any)
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4)
+
+				for _, category := range categories {
+					childCategories, ok := category.(map[string]any)["childCategories"].([]any)
+					require.True(t, ok, "childCategories should be an array")
+					require.Len(t, childCategories, 2)
+
+					for _, childCategory := range childCategories {
+						childCategory := childCategory.(map[string]any)
+						require.NotEmpty(t, childCategory["name"])
+						require.Equal(t, childCategory["name"], childCategory["x"], "aliased field x should be resolved")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with an aliased copy of a field inside an object field resolver",
+			query: "query TopSubcategoryWithAlias { categories { topSubcategory { name x: name } } }",
+			vars:  `{"variables":{}}`,
+			validate: func(t *testing.T, data map[string]any) {
+				categories, ok := data["categories"].([]any)
+				require.True(t, ok, "categories should be an array")
+				require.Len(t, categories, 4)
+
+				resolved := 0
+				for _, category := range categories {
+					topSubcategory, ok := category.(map[string]any)["topSubcategory"].(map[string]any)
+					if !ok {
+						continue // the mock returns null for every second category
+					}
+					require.NotEmpty(t, topSubcategory["name"])
+					require.Equal(t, topSubcategory["name"], topSubcategory["x"], "aliased field x should be resolved")
+					resolved++
+				}
+				require.Equal(t, 2, resolved)
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -4985,4 +5035,77 @@ func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
 	require.Equal(t, "header-user-456", user["id"], "user ID should come from HTTP header")
 	require.Equal(t, "User header-user-456 (existing: existing-value)", user["name"],
 		"user name should include both header-derived ID and existing context metadata")
+}
+
+func Test_DataSource_Load_WithResolverBelowPlainFieldInResolver(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	t.Run("Should resolve a field resolver below a plain field inside a field resolver", func(t *testing.T) {
+		query := `query ChildCategoriesSubcategoriesItemCount($filter: SubcategoryItemFilter) { categories { childCategories { id subcategories { id itemCount(filters: $filter) } } } }`
+		vars := `{"variables":{"filter":{"isActive":true}}}`
+
+		schemaDoc := grpctest.MustGraphQLSchema(t)
+		queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+		if report.HasErrors() {
+			t.Fatalf("failed to parse query: %s", report.Error())
+		}
+
+		compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+		require.NoError(t, err)
+
+		ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+			Operation:    &queryDoc,
+			Definition:   &schemaDoc,
+			SubgraphName: "Products",
+			Mapping:      testMapping(),
+			Compiler:     compiler,
+		})
+		require.NoError(t, err)
+
+		output, err := ds.Load(context.Background(), nil, []byte(fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)))
+		require.NoError(t, err)
+
+		var resp struct {
+			Data struct {
+				Categories []struct {
+					ChildCategories []struct {
+						ID            string `json:"id"`
+						Subcategories []struct {
+							ID        string `json:"id"`
+							ItemCount *int   `json:"itemCount"`
+						} `json:"subcategories"`
+					} `json:"childCategories"`
+				} `json:"categories"`
+			} `json:"data"`
+			Errors []struct {
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+		require.NoError(t, json.Unmarshal(output, &resp), "failed to unmarshal response: %s", string(output))
+		require.Empty(t, resp.Errors)
+
+		// The mock returns 4 categories with 2 child categories each. The first child category has
+		// 2 subcategories, the second one has null subcategories.
+		// ResolveSubcategoryItemCount returns the index of the context element times 10. Null parents
+		// get no context element, so the index only counts the non-null subcategories.
+		require.Len(t, resp.Data.Categories, 4)
+		index := 0
+		for _, category := range resp.Data.Categories {
+			require.Len(t, category.ChildCategories, 2)
+			require.Nil(t, category.ChildCategories[1].Subcategories, "subcategories of %s should be null", category.ChildCategories[1].ID)
+			for _, childCategory := range category.ChildCategories {
+				if childCategory.Subcategories == nil {
+					continue
+				}
+				require.Len(t, childCategory.Subcategories, 2)
+				for j, subcategory := range childCategory.Subcategories {
+					require.Equal(t, fmt.Sprintf("%s-subcategory-%d", childCategory.ID, j+1), subcategory.ID)
+					require.NotNil(t, subcategory.ItemCount, "itemCount of %s is not resolved", subcategory.ID)
+					require.Equal(t, index*10, *subcategory.ItemCount)
+					index++
+				}
+			}
+		}
+	})
 }

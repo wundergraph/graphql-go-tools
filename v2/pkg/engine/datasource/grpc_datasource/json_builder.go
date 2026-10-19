@@ -144,6 +144,10 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 // flattenObject flattens a JSON object into a list of values.
 // This is needed because we want to get the values from the object by its path to merge them with the response values.
 func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*astjson.Value, error) {
+	if value.Type() == astjson.TypeNull {
+		return nil, nil
+	}
+
 	if path.Len() == 0 {
 		return []*astjson.Value{value}, nil
 	}
@@ -156,6 +160,8 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 
 	result := make([]*astjson.Value, 0)
 	switch current.Type() {
+	case astjson.TypeNull:
+		return result, nil
 	case astjson.TypeObject:
 		values, err := j.flattenObject(current, path[1:])
 		if err != nil {
@@ -178,11 +184,7 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 // flattenList flattens a list of JSON values into a list of values.
 // This is needed because we want to get the values from the list by its path to merge them with the response values.
 func (j *jsonBuilder) flattenList(items []*astjson.Value, path ast.Path) ([]*astjson.Value, error) {
-	if path.Len() == 0 {
-		return items, nil
-	}
-
-	result := make([]*astjson.Value, 0)
+	result := make([]*astjson.Value, 0, len(items))
 	for _, item := range items {
 		values, err := j.flattenObject(item, path)
 		if err != nil {
