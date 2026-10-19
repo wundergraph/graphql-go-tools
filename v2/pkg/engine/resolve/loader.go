@@ -1846,7 +1846,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 	// the offsets above still point at what they were taken from.
 	if l.responseCacheEnabledFor(res.ds.Name) {
 		rendered := preparedInput.Bytes()
-		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		selection := responseCacheSelection(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:], undefinedVariables)
 		l.responseCacheSetKeys(prepared, selection, []caching.Digest{caching.DigestBytes(renderedItem)})
 	}
 
@@ -2044,7 +2044,7 @@ WithNextItem:
 
 	if len(responseCacheItems) > 0 {
 		rendered := preparedInput.Bytes()
-		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		selection := responseCacheSelection(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:], undefinedVariables)
 		l.responseCacheSetKeys(prepared, selection, responseCacheItems)
 	}
 
