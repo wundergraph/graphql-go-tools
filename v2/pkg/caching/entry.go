@@ -13,6 +13,8 @@ import (
 // under, newest first.
 // kind      1 byte, entryFormatBody or entryFormatRecord
 // body:
+// flags     1 byte, bit 0 public, bit 1 shared only
+// shortfall uvarint, ClientShortfall in ms
 // count     uvarint, number of surrogate keys
 // keys      count times: uvarint byte length, then the key, that many bytes
 // value     everything after the last key, the cached body itself, no length prefix
@@ -20,22 +22,19 @@ import (
 // sets      uvarint, number of name sets, at least one
 // names     sets times: uvarint count, then count names, each length prefixed like a key
 //
-// Example: Value {"id":42} with keys "users" and "user-42"
-// 01               kind: body
+// Example: public Value {"id":42} with keys "users" and "user-42"
+// 03               kind: body
+// 01               flags: public
+// 00               shortfall: none
 // 02               count: 2 keys
 // 05 users         length 5, then the bytes
 // 07 user-42       length 7, then the bytes
 // {"id":42}        value, afterwards
 //
-// body with client directives (format 3): kind, then
-// flags     1 byte, bit 0 public, bit 1 shared only
-// shortfall uvarint, ClientShortfall in ms
-// and then the body's keys and value as above. Format 1 reads as public with
-// no shortfall, as it was served before format 3.
+// Kind 1, a body without flags, is retired and refused.
 const (
-	entryFormatBody       byte = 1
-	entryFormatRecord     byte = 2
-	entryFormatBodyClient byte = 3
+	entryFormatRecord byte = 2
+	entryFormatBody   byte = 3
 )
 
 const (
@@ -52,12 +51,12 @@ func EncodeItem(item Item) []byte {
 	if sets := nonEmptySets(item.Vary); len(sets) > 0 {
 		return encodeVaryRecord(sets)
 	}
-	return encodeClientEntry(item)
+	return encodeBody(item)
 }
 
-func encodeClientEntry(item Item) []byte {
+func encodeBody(item Item) []byte {
 	out := make([]byte, 0, 2+binary.MaxVarintLen64+listSize(item.SurrogateKeys)+len(item.Value))
-	out = append(out, entryFormatBodyClient)
+	out = append(out, entryFormatBody)
 	var flags byte
 	if item.Public {
 		flags |= entryFlagPublic
@@ -122,8 +121,7 @@ func appendList(out []byte, list []string) []byte {
 }
 
 // DecodeItem decodes an entry. A body decodes to Value and SurrogateKeys, a
-// record to Vary; the value is a subslice of b. Format 1 bodies read as public
-// with no shortfall, as they were served before format 3.
+// record to Vary; the value is a subslice of b.
 func DecodeItem(b []byte) (Item, error) {
 	if len(b) == 0 {
 		return Item{}, ErrEntryFormat
@@ -132,13 +130,6 @@ func DecodeItem(b []byte) (Item, error) {
 
 	switch kind {
 	case entryFormatBody:
-		list, value, ok := readList(rest)
-		if !ok {
-			return Item{}, ErrEntryFormat
-		}
-		return Item{Value: value, SurrogateKeys: list, Public: true}, nil
-
-	case entryFormatBodyClient:
 		if len(rest) < 1 {
 			return Item{}, ErrEntryFormat
 		}

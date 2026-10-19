@@ -111,10 +111,12 @@ func FreshnessOf(headers, sent http.Header, defaultTTL time.Duration) Freshness 
 	return f
 }
 
-// age is the Age header, zero when absent or invalid. ParseUint takes digits
-// only, as delta-seconds is; overflow is older than anything storable.
+// age is the Age header, zero when absent or invalid. A list uses its first
+// member (RFC 9111 §5.1). ParseUint takes digits only, as delta-seconds is;
+// overflow is older than anything storable.
 func age(headers http.Header) time.Duration {
-	seconds, err := strconv.ParseUint(strings.TrimSpace(headers.Get("Age")), 10, 64)
+	first, _, _ := strings.Cut(headers.Get("Age"), ",")
+	seconds, err := strconv.ParseUint(strings.TrimSpace(first), 10, 64)
 	if errors.Is(err, strconv.ErrRange) || seconds > math.MaxInt64/uint64(time.Second) {
 		return math.MaxInt64
 	}

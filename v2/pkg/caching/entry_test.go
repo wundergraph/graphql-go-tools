@@ -44,10 +44,13 @@ func TestEntryDecodeRefuses(t *testing.T) {
 		{name: "nil", input: nil},
 		{name: "raw value", input: []byte(`{"id":42}`)},
 		{name: "unknown version", input: unknownVersion},
-		{name: "surrogate key count larger than the input", input: []byte{entryFormatBody, 0xff, 0xff, 0x7f}},
-		{name: "cut inside the count", input: encoded[:1]},
-		{name: "cut inside a surrogate key length", input: encoded[:2]},
-		{name: "cut inside a surrogate key", input: encoded[:5]},
+		{name: "retired body format", input: append([]byte{1}, encoded[3:]...)},
+		{name: "surrogate key count larger than the input", input: []byte{entryFormatBody, 0, 0, 0xff, 0xff, 0x7f}},
+		{name: "cut before the flags", input: encoded[:1]},
+		{name: "cut before the shortfall", input: encoded[:2]},
+		{name: "cut before the count", input: encoded[:3]},
+		{name: "cut inside a surrogate key length", input: encoded[:4]},
+		{name: "cut inside a surrogate key", input: encoded[:7]},
 		{name: "cut before the last surrogate key", input: encoded[:len(encoded)-len("value")-len("another")-1]},
 	}
 
@@ -87,7 +90,7 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 	}
 
 	require.Equal(t, encodeVaryRecord(sets), EncodeItem(Item{Vary: sets, Value: []byte("ignored")}), "a record has no body")
-	require.Equal(t, encodeClientEntry(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}), EncodeItem(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}))
+	require.Equal(t, encodeBody(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}), EncodeItem(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}))
 
 	t.Run("empty sets are dropped so every record decodes", func(t *testing.T) {
 		withEmpty := EncodeItem(Item{Vary: [][]string{{"accept-language"}, {}, {"accept"}}})
@@ -97,7 +100,7 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 		require.Equal(t, [][]string{{"accept-language"}, {"accept"}}, vary)
 
 		onlyEmpty := EncodeItem(Item{Vary: [][]string{{}}, Value: []byte("v"), SurrogateKeys: []string{"a"}})
-		require.Equal(t, encodeClientEntry(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}), onlyEmpty, "no set left means a body")
+		require.Equal(t, encodeBody(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}), onlyEmpty, "no set left means a body")
 		value, surrogateKeys, vary, err := DecodeEntry(onlyEmpty)
 		require.NoError(t, err)
 		require.Equal(t, []byte("v"), value)
@@ -151,21 +154,10 @@ func TestClientEntryRoundTrip(t *testing.T) {
 	require.True(t, shared.SharedOnly)
 	require.False(t, shared.Public)
 
-	// Format 1, written before client directives, reads as public.
-	legacy, err := DecodeItem(encodeEntry([]byte("v"), []string{"a"}))
-	require.NoError(t, err)
-	require.True(t, legacy.Public)
-	require.False(t, legacy.SharedOnly)
-	require.Equal(t, []byte("v"), legacy.Value)
-
-	_, err = DecodeItem([]byte{entryFormatBodyClient})
+	_, err = DecodeItem([]byte{entryFormatBody})
 	require.ErrorIs(t, err, ErrEntryFormat)
 }
 
-// encodeEntry writes format 1, which entries before format 3 were stored in.
 func encodeEntry(value []byte, surrogateKeys []string) []byte {
-	out := make([]byte, 0, 1+listSize(surrogateKeys)+len(value))
-	out = append(out, entryFormatBody)
-	out = appendList(out, surrogateKeys)
-	return append(out, value...)
+	return EncodeItem(Item{Value: value, SurrogateKeys: surrogateKeys})
 }

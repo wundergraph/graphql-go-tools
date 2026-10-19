@@ -126,6 +126,7 @@ func TestTTLAge(t *testing.T) {
 		{name: "age equal to max-age", cacheControl: "max-age=10", age: "10"},
 		{name: "zero age", cacheControl: "max-age=10", age: "0", wantTTL: 10 * time.Second},
 		{name: "age with whitespace", cacheControl: "max-age=10", age: " 3 ", wantTTL: 7 * time.Second},
+		{name: "age list uses the first member", cacheControl: "max-age=60", age: "40, 42", wantTTL: 20 * time.Second},
 		{name: "invalid age is ignored", cacheControl: "max-age=10", age: "soon", wantTTL: 10 * time.Second},
 		{name: "negative age is ignored", cacheControl: "max-age=10", age: "-5", wantTTL: 10 * time.Second},
 		{name: "overflowing age", cacheControl: "max-age=10", age: "99999999999999999999"},
