@@ -151,21 +151,25 @@ func responseCacheLookupKeys(keys, privateKeys []string) []string {
 	return append(lookup, privateKeys...)
 }
 
-// responseCacheFoundItem picks one position's entry, the user's own over the
-// shared: a body, or a record pointing at one. An invalid body is a miss.
-func (l *Loader) responseCacheFoundItem(subgraph string, found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
+// responseCachePick picks one position's entry, the user's own over the
+// shared: a body, or a record pointing at one. An empty entry is a miss.
+func responseCachePick(found map[string]caching.Item, key, privateKey string) (item caching.Item, pickedKey string, private, ok bool) {
 	if privateKey != "" {
-		item, ok = found[privateKey]
-		ok = ok && (len(item.Value) > 0 || len(item.Vary) > 0)
-		private = ok
-	}
-	if private {
-		key = privateKey
-	} else {
-		item, ok = found[key]
-		if !ok || (len(item.Value) == 0 && len(item.Vary) == 0) {
-			return caching.Item{}, false, false
+		if item, ok = found[privateKey]; ok && (len(item.Value) > 0 || len(item.Vary) > 0) {
+			return item, privateKey, true, true
 		}
+	}
+	if item, ok = found[key]; ok && (len(item.Value) > 0 || len(item.Vary) > 0) {
+		return item, key, false, true
+	}
+	return caching.Item{}, "", false, false
+}
+
+// responseCacheFoundItem is responseCachePick, with an invalid body a miss.
+func (l *Loader) responseCacheFoundItem(subgraph string, found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
+	item, key, private, ok = responseCachePick(found, key, privateKey)
+	if !ok {
+		return caching.Item{}, false, false
 	}
 	if len(item.Vary) > 0 {
 		// A record has no body; the variant it points at is read next.
@@ -242,7 +246,7 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 			l.reportResponseCacheError(ResponseCacheOperationLookup, subgraph, fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
 			return false
 		}
-		if !l.responseCacheFillVariants(subgraph, items, candidates, found) {
+		if !l.responseCacheFillVariants(prepared, items, candidates, found) {
 			return false
 		}
 	}
@@ -304,7 +308,8 @@ func (l *Loader) responseCacheVariantKeys(prepared *preparedFetch, items []cachi
 
 // responseCacheFillVariants replaces each record with the first valid body
 // among its candidates, the newest set's. False when a record has none.
-func (l *Loader) responseCacheFillVariants(subgraph string, items []caching.Item, candidates [][]string, found map[string]caching.Item) bool {
+func (l *Loader) responseCacheFillVariants(prepared *preparedFetch, items []caching.Item, candidates [][]string, found map[string]caching.Item) bool {
+	subgraph := prepared.res.ds.Name
 	for i := range candidates {
 		if len(candidates[i]) == 0 {
 			continue
@@ -313,6 +318,12 @@ func (l *Loader) responseCacheFillVariants(subgraph string, items []caching.Item
 		for _, key := range candidates[i] {
 			body, ok := found[key]
 			if ok && l.responseCacheValidBody(subgraph, key, body) {
+				if l.ctx.TracingOptions.Enable {
+					if prepared.responseCacheVariantServed == nil {
+						prepared.responseCacheVariantServed = make(map[string]caching.Item)
+					}
+					prepared.responseCacheVariantServed[items[i].Key] = body
+				}
 				items[i] = body
 				filled = true
 				break
@@ -895,7 +906,7 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 			continue
 		}
 		// A record whose variant is gone leaves the entry to the origin, whole.
-		if !l.responseCacheFillVariants(subgraph, lookup.items, lookup.candidates, found) {
+		if !l.responseCacheFillVariants(prepared, lookup.items, lookup.candidates, found) {
 			continue
 		}
 
@@ -935,21 +946,24 @@ func shortestCachedEntryTTL(entries []preparedMultiEntry) time.Duration {
 
 // responseCacheFlush writes what responseCacheCollect gathered. It is called with
 // the data lock released so a slow cache never blocks the fetches queued behind it.
-func (l *Loader) responseCacheFlush(prepared *preparedFetch) {
+// Returns what it wrote, for the trace.
+func (l *Loader) responseCacheFlush(prepared *preparedFetch) ([]caching.Item, error) {
 	if !l.responseCacheEnabled() {
-		return
+		return nil, nil
 	}
 
 	if len(prepared.responseCacheItems) == 0 {
-		return
+		return nil, nil
 	}
 
 	items := prepared.responseCacheItems
 	prepared.responseCacheItems = nil
 
-	if err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items); err != nil {
+	err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
+	if err != nil {
 		l.reportResponseCacheError(ResponseCacheOperationWrite, prepared.res.ds.Name, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
 	}
+	return items, err
 }
 
 func responseCacheHeaders(res *result) http.Header {

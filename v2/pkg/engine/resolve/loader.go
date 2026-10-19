@@ -560,7 +560,8 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	// After mergePhase released the data lock: the cache round trip must not
 	// hold up the fetches waiting on it. Runs regardless of the merge outcome,
 	// matching the store that used to sit in the load phase.
-	l.responseCacheFlush(prepared)
+	written, writeErr := l.responseCacheFlush(prepared)
+	l.setResponseCacheTrace(prepared, written, writeErr)
 	return err
 }
 
@@ -581,6 +582,10 @@ type preparedFetch struct {
 	// responseCacheFound is round one of the lookup, so a write after a miss
 	// keeps the sets its records held.
 	responseCacheFound map[string]caching.Item
+
+	// responseCacheVariantServed is the variant body each record was served
+	// from, by record key; kept for the trace only.
+	responseCacheVariantServed map[string]caching.Item
 
 	isRootFetchCache bool
 
