@@ -1,7 +1,11 @@
 package caching
 
 import (
+	"errors"
+	"math"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/cache"
@@ -31,53 +35,91 @@ const (
 	StoreDecisionNoEntity                                 // no_entity
 )
 
-// TTL is Lifetime for a caller that only needs to know whether to store.
-func TTL(headers http.Header, defaultTTL time.Duration) (ttl time.Duration, private bool, ok bool) {
-	ttl, private, decision := Lifetime(headers, defaultTTL)
-	return ttl, private, decision == StoreDecisionStored
+// Freshness is what a response allows a cache to do with it.
+type Freshness struct {
+	TTL      time.Duration
+	Private  bool
+	Decision StoreDecision
+	// Public is the response's own public directive.
+	Public bool
+	// SharedOnly is a shareable response with no max-age: s-maxage, or public
+	// on the fallback. Its lifetime is for shared caches only. Without public a
+	// fallback lifetime stays a max-age, as s-maxage would grant sharing.
+	SharedOnly bool
+	// ClientShortfall is how much less than TTL a client may keep it: the
+	// response's max-age, net of Age, under the s-maxage TTL was taken from.
+	ClientShortfall time.Duration
 }
 
-// Lifetime reads how long a response may be stored for. The decision is
-// StoreDecisionStored, or the reason the response is not to be stored.
-func Lifetime(headers http.Header, defaultTTL time.Duration) (ttl time.Duration, private bool, decision StoreDecision) {
+// FreshnessOf reads how long a response may be stored for, and what a client
+// may be told of it. The decision is StoreDecisionStored, or the reason the
+// response is not to be stored. sent is the request
+// the subgraph answered: one carrying Authorization is only shared when the
+// response allows it (RFC 9111 §3.5), and is otherwise private.
+func FreshnessOf(headers, sent http.Header, defaultTTL time.Duration) Freshness {
 	cc, err := cache.ParseCacheControlResponse(headers)
 	if err != nil {
-		return 0, false, StoreDecisionInvalidCacheControl
+		return Freshness{Decision: StoreDecisionInvalidCacheControl}
 	}
 
 	if cc.NoStore {
-		return 0, false, StoreDecisionNoStore
+		return Freshness{Decision: StoreDecisionNoStore}
 	}
 
-	// no-cache is not reusable by this cache in any form.
-	if cc.NoCache != nil {
-		return 0, false, StoreDecisionNoCache
+	// Unqualified no-cache is not reusable in any form. no-cache="field" only
+	// bars the named headers, and entries store no headers.
+	if cc.NoCache != nil && !cc.NoCache.Qualified() {
+		return Freshness{Decision: StoreDecisionNoCache}
 	}
 
-	private = cc.Private != nil
+	private := cc.Private != nil
+	if sent.Get("Authorization") != "" && !cc.Public && cc.SMaxAge == nil && !cc.MustRevalidate {
+		private = true
+	}
 
 	// Explicit freshness takes precedence over the configured fallback.
+	var lifetime time.Duration
 	switch {
 	case cc.SMaxAge != nil:
-		if *cc.SMaxAge <= 0 {
-			return 0, false, StoreDecisionNoLifetime
-		}
-		return cc.SMaxAge.AsDuration(), private, StoreDecisionStored
-
+		lifetime = cc.SMaxAge.AsDuration()
 	case cc.MaxAge != nil:
-		if *cc.MaxAge <= 0 {
-			return 0, false, StoreDecisionNoLifetime
+		lifetime = cc.MaxAge.AsDuration()
+	case !cc.HasCachingDirectives():
+		// Only recognized cache directives opt into the configured fallback.
+		return Freshness{Decision: StoreDecisionNoDirective}
+	default:
+		lifetime = defaultTTL
+	}
+
+	if lifetime <= 0 {
+		return Freshness{Decision: StoreDecisionNoLifetime}
+	}
+	// Time already spent in upstream caches is gone (RFC 9111 §4.2.3).
+	spent := age(headers)
+	ttl := lifetime - spent
+	if ttl <= 0 {
+		return Freshness{Decision: StoreDecisionNoLifetime}
+	}
+
+	f := Freshness{TTL: ttl, Private: private, Decision: StoreDecisionStored, Public: cc.Public}
+	f.SharedOnly = !private && cc.MaxAge == nil && (cc.SMaxAge != nil || cc.Public)
+	if cc.MaxAge != nil {
+		if client := max(cc.MaxAge.AsDuration()-spent, 0); client < ttl {
+			f.ClientShortfall = ttl - client
 		}
-		return cc.MaxAge.AsDuration(), private, StoreDecisionStored
 	}
+	return f
+}
 
-	// Only recognized cache directives opt into the configured fallback.
-	if !cc.HasCachingDirectives() {
-		return 0, false, StoreDecisionNoDirective
+// age is the Age header, zero when absent or invalid. ParseUint takes digits
+// only, as delta-seconds is; overflow is older than anything storable.
+func age(headers http.Header) time.Duration {
+	seconds, err := strconv.ParseUint(strings.TrimSpace(headers.Get("Age")), 10, 64)
+	if errors.Is(err, strconv.ErrRange) || seconds > math.MaxInt64/uint64(time.Second) {
+		return math.MaxInt64
 	}
-
-	if defaultTTL <= 0 {
-		return 0, false, StoreDecisionNoLifetime
+	if err != nil {
+		return 0
 	}
-	return defaultTTL, private, StoreDecisionStored
+	return time.Duration(seconds) * time.Second
 }

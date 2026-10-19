@@ -97,6 +97,15 @@ type ResponseCacheInfo struct {
 	// StoreDecision is what was decided for the response of a fetch that was sent.
 	// The write itself happens after OnFinished, its failure is reported to OnError.
 	StoreDecision caching.StoreDecision
+	// StoredTTL is the lifetime the response is stored with, set when
+	// StoreDecision is StoreDecisionStored.
+	StoredTTL time.Duration
+	// ClientTTL, Public and SharedOnly are what a client may be told of a hit:
+	// the subgraph's max-age net of time cached, whether every entry said
+	// public, and whether none gave a client lifetime (caching.Item.SharedOnly).
+	ClientTTL  time.Duration
+	Public     bool
+	SharedOnly bool
 	// KeysRequested and KeysFound count what the cache was asked for and answered.
 	KeysRequested  int
 	KeysFound      int
