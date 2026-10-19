@@ -64,6 +64,10 @@ func (l *Loader) reportResponseCacheError(operation ResponseCacheOperation, subg
 // responseCacheGetMany is GetMany, timed for the hooks.
 func (l *Loader) responseCacheGetMany(res *result, keys []string) (map[string]caching.Item, error) {
 	start := time.Now()
+	// The first lookup is as early as this fetch is known to have started.
+	if res.responseCacheFetchedAt.IsZero() {
+		res.responseCacheFetchedAt = start
+	}
 	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, keys)
 	res.responseCache.LookupDuration += time.Since(start)
 	return found, err
@@ -500,6 +504,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			Public:          freshness.Public,
 			SharedOnly:      freshness.SharedOnly,
 			ClientShortfall: freshness.ClientShortfall,
+			FetchedAt:       res.responseCacheFetchedAt,
 		}
 		// Indexed by i like the key: a null entity is skipped above without
 		// consuming a tag list, so the two stay aligned.
@@ -512,6 +517,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			value:       value,
 			subgraph:    subgraph,
 			isRootFetch: prepared.isRootFetchCache,
+			rootType:    responseCacheRootType(res.rootFields),
 			opts:        invalidation,
 		}
 		item.Tags, item.SurrogateKeys = responseCacheIdentities(input)
@@ -640,7 +646,17 @@ type responseCacheTagInput struct {
 	value       *astjson.Value
 	subgraph    string
 	isRootFetch bool
-	opts        ResponseCacheTagIndexOptions
+	// rootType names a root fetch's value, which has no __typename.
+	rootType string
+	opts     ResponseCacheTagIndexOptions
+}
+
+// responseCacheRootType is the operation type a root fetch resolves fields of.
+func responseCacheRootType(rootFields []GraphCoordinate) string {
+	if len(rootFields) == 0 {
+		return ""
+	}
+	return rootFields[0].TypeName
 }
 
 // responseCacheIdentities: tags follow the index options, surrogate keys carry
@@ -653,7 +669,7 @@ func responseCacheIdentities(input responseCacheTagInput) (tags, surrogateKeys [
 	surrogateKeys = make([]string, 0, len(input.declared)+2)
 	surrogateKeys = append(surrogateKeys, caching.SubgraphSurrogateKey(input.subgraph))
 
-	var typeName string
+	typeName := input.rootType
 	if !input.isRootFetch {
 		typeName = string(input.value.GetStringBytes("__typename"))
 	}
@@ -799,6 +815,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 				Public:          freshness.Public,
 				SharedOnly:      freshness.SharedOnly,
 				ClientShortfall: freshness.ClientShortfall,
+				FetchedAt:       prepared.res.responseCacheFetchedAt,
 			}
 
 			// Declared tags are left out: apolloEntityCacheTags is one flat
