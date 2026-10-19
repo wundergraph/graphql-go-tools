@@ -310,7 +310,7 @@ func TestResponseCacheSubgraphMultiEntity(t *testing.T) {
 		response := multiEntityMergedTree(&recordingDataSource{response: []byte(multiEntityRootResponse)}, multiDS)
 		response.Fetches.ChildNodes[1].Item.Fetch.(*MultiEntityFetch).Info.DataSourceName = "products"
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		require.NoError(t, loadAndCommit(loader, ctx, response))
 		assertMergedErrors(t, loader, "")
 		require.JSONEq(t, multiEntityExpectedData, string(loader.dataBuffer.Get().MarshalTo(nil)))
 	}

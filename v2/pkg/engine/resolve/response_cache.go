@@ -1017,22 +1017,39 @@ func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
 	return h
 }
 
-// responseCacheFlush writes what responseCacheCollect gathered. It is called with
-// the data lock released so a slow cache never blocks the fetches queued behind it.
-func (l *Loader) responseCacheFlush(prepared *preparedFetch) {
-	if !l.responseCacheEnabled() {
+// responseCacheWrite is one fetch's entries, held until the response resolves.
+type responseCacheWrite struct {
+	subgraph string
+	items    []caching.Item
+}
+
+// responseCacheHold keeps what responseCacheCollect gathered for
+// responseCacheCommit.
+func (l *Loader) responseCacheHold(prepared *preparedFetch) {
+	if !l.responseCacheEnabled() || len(prepared.responseCacheItems) == 0 {
 		return
 	}
-
-	if len(prepared.responseCacheItems) == 0 {
-		return
-	}
-
-	items := prepared.responseCacheItems
+	l.responseCacheHeldMu.Lock()
+	l.responseCacheHeld = append(l.responseCacheHeld, responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems})
+	l.responseCacheHeldMu.Unlock()
 	prepared.responseCacheItems = nil
+}
 
-	if err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items); err != nil {
-		l.reportResponseCacheError(ResponseCacheOperationWrite, prepared.res.ds.Name, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
+// responseCacheCommit writes the held entries, or drops them when resolution
+// rejected the response: a value of the wrong type, or a null where the
+// schema has none.
+func (l *Loader) responseCacheCommit(resolved bool) {
+	l.responseCacheHeldMu.Lock()
+	held := l.responseCacheHeld
+	l.responseCacheHeld = nil
+	l.responseCacheHeldMu.Unlock()
+	if !resolved || !l.responseCacheEnabled() {
+		return
+	}
+	for _, write := range held {
+		if err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, write.items); err != nil {
+			l.reportResponseCacheError(ResponseCacheOperationWrite, write.subgraph, fmt.Errorf("response cache write of %d entities: %w", len(write.items), err))
+		}
 	}
 }
 

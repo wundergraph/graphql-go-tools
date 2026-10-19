@@ -46,6 +46,9 @@ type Resolvable struct {
 	// response already carries errors but no data (set per render in Resolve).
 	skipAddingNullErrors bool
 
+	// walkFailed is set when the last walk added an error.
+	walkFailed bool
+
 	// astjsonArena is the arena to handle json, supplied by Resolver
 	// not thread safe, but Resolvable is single threaded anyways
 	astjsonArena arena.Arena
@@ -402,7 +405,9 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 		r.unreachedAuthWalk = true
 	}
 
+	errorsBefore := r.errorCount()
 	hasErrors := r.walkObject(rootData, r.data)
+	r.walkFailed = r.errorCount() > errorsBefore
 	r.unreachedAuthWalk = false
 	if r.authorizationError != nil {
 		return r.authorizationError
@@ -467,7 +472,9 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 	r.deferIncrementalItemWritten = false
 	r.deferItemDataNull = false
 
+	errorsBefore := r.errorCount()
 	_ = r.walkObject(rootData, r.data)
+	r.walkFailed = r.errorCount() > errorsBefore
 	if r.authorizationError != nil {
 		// Scope the authorizer error to this defer: record it as the fragment's
 		// error and route it to the completed-with-errors form, completing the
@@ -1134,6 +1141,18 @@ func (r *Resolvable) filterAllowedSubgraphExtensions(writtenExtensions map[strin
 
 func (r *Resolvable) WroteErrorsWithoutData() bool {
 	return r.wroteErrors && !r.wroteData
+}
+
+// errorCount is how many errors and value completions r holds.
+func (r *Resolvable) errorCount() int {
+	n := 0
+	if r.errors != nil {
+		n += len(r.errors.GetArray())
+	}
+	if r.valueCompletion != nil {
+		n += len(r.valueCompletion.GetArray())
+	}
+	return n
 }
 
 func (r *Resolvable) hasErrors() bool {

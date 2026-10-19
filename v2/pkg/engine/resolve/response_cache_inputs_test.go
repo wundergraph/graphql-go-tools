@@ -50,7 +50,7 @@ func TestResponseCacheUndefinedVariableKey(t *testing.T) {
 		ctx.Variables = astjson.MustParse(variables)
 		ctx.SetResponseCache(ResponseCacheOptions{Store: cache, DefaultTTL: time.Minute})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, tree()))
+		require.NoError(t, loadAndCommit(loader, ctx, tree()))
 		return string(entityDS.lastInput)
 	}
 
@@ -97,7 +97,7 @@ func TestResponseCacheInputsBesideTheKey(t *testing.T) {
 			ctx.SetResponseCache(ResponseCacheOptions{Store: cache, DefaultTTL: time.Minute})
 			vary(ctx, i == 1)
 			loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-			require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: Single(fetch)}))
+			require.NoError(t, loadAndCommit(loader, ctx, &GraphQLResponse{Fetches: Single(fetch)}))
 		}
 		return ds.calls
 	}

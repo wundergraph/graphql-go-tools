@@ -199,7 +199,7 @@ func TestResponseCacheVary(t *testing.T) {
 			multi.Info.DataSourceName = "products"
 
 			loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-			require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: Sequence(
+			require.NoError(t, loadAndCommit(loader, ctx, &GraphQLResponse{Fetches: Sequence(
 				Single(multiEntityRootFetch(&recordingDataSource{response: []byte(multiEntityRootResponse)})),
 				Single(multi),
 			)}))
