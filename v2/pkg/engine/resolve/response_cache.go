@@ -367,8 +367,8 @@ func (v responseVary) append(items []caching.Item, base string, body caching.Ite
 }
 
 // foundSurrogateKeys unions what the hit entries were stored with.
-func foundSurrogateKeys(items []caching.Item) []string {
-	lists := make([][]string, 0, len(items))
+func foundSurrogateKeys(items []caching.Item) []caching.SurrogateKey {
+	lists := make([][]caching.SurrogateKey, 0, len(items))
 	for _, item := range items {
 		lists = append(lists, item.SurrogateKeys)
 	}
@@ -476,7 +476,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
 	items := make([]caching.Item, 0, 2*len(prepared.responseCacheKeys))
-	surrogateKeyLists := make([][]string, 0, len(prepared.responseCacheKeys))
+	surrogateKeyLists := make([][]caching.SurrogateKey, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
@@ -626,12 +626,12 @@ type responseCacheTagInput struct {
 
 // responseCacheIdentities: tags follow the index options, surrogate keys carry
 // every tier.
-func responseCacheIdentities(input responseCacheTagInput) (tags, surrogateKeys []string) {
+func responseCacheIdentities(input responseCacheTagInput) (tags []string, surrogateKeys []caching.SurrogateKey) {
 	if input.subgraph == "" {
 		return nil, nil
 	}
 
-	surrogateKeys = make([]string, 0, len(input.declared)+2)
+	surrogateKeys = make([]caching.SurrogateKey, 0, len(input.declared)+2)
 	surrogateKeys = append(surrogateKeys, caching.SubgraphSurrogateKey(input.subgraph))
 
 	var typeName string
@@ -642,7 +642,9 @@ func responseCacheIdentities(input responseCacheTagInput) (tags, surrogateKeys [
 	if typeName != "" {
 		surrogateKeys = append(surrogateKeys, caching.TypeSurrogateKey(input.subgraph, typeName))
 	}
-	surrogateKeys = append(surrogateKeys, input.declared...)
+	for _, tag := range input.declared {
+		surrogateKeys = append(surrogateKeys, caching.DeclaredSurrogateKey(tag))
+	}
 
 	if !input.opts.any() {
 		return nil, surrogateKeys
@@ -727,7 +729,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	storeDecision := caching.StoreDecisionNoEntity
 
 	var items []caching.Item
-	var surrogateKeyLists [][]string
+	var surrogateKeyLists [][]caching.SurrogateKey
 	for i := range prepared.multiEntries {
 		entry := &prepared.multiEntries[i]
 		if !entry.sentCacheable() {

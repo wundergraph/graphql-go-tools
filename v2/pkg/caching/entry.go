@@ -9,24 +9,28 @@ import (
 // surrogate keys ahead of the value so a hit reads them without touching the
 // value, a vary record carries the header name sets its variants are stored
 // under, newest first.
-// kind      1 byte, entryFormatBody or entryFormatRecord
-// body:
+// kind      1 byte, entryFormatTieredBody or entryFormatRecord
+// tiered body:
 // count     uvarint, number of surrogate keys
-// keys      count times: uvarint byte length, then the key, that many bytes
+// keys      count times: 1 byte tier, uvarint byte length, then the key, that many bytes
 // value     everything after the last key, the cached body itself, no length prefix
 // record:
 // sets      uvarint, number of name sets, at least one
-// names     sets times: uvarint count, then count names, each length prefixed like a key
+// names     sets times: uvarint count, then count names, each uvarint length prefixed
 //
-// Example: Value {"id":42} with keys "users" and "user-42"
-// 01               kind: body
-// 02               count: 2 keys
-// 05 users         length 5, then the bytes
-// 07 user-42       length 7, then the bytes
-// {"id":42}        value, afterwards
+// Example: Value {"id":42} with keys "subgraph-users" and declared "user-42"
+// 03                   kind: tiered body
+// 02                   count: 2 keys
+// 00 0e subgraph-users tier subgraph, length 14, then the bytes
+// 02 07 user-42        tier declared, length 7, then the bytes
+// {"id":42}            value, afterwards
+//
+// entryFormatBody is the untiered body that came before: keys are only length
+// prefixed and read back with a tier guessed from their prefix. Never written.
 const (
-	entryFormatBody   byte = 1
-	entryFormatRecord byte = 2
+	entryFormatBody       byte = 1
+	entryFormatRecord     byte = 2
+	entryFormatTieredBody byte = 3
 )
 
 var ErrEntryFormat = errors.New("cache entry is not in a known format")
@@ -60,10 +64,19 @@ func nonEmptySets(sets [][]string) [][]string {
 	return sets
 }
 
-func encodeEntry(value []byte, surrogateKeys []string) []byte {
-	out := make([]byte, 0, 1+listSize(surrogateKeys)+len(value))
-	out = append(out, entryFormatBody)
-	out = appendList(out, surrogateKeys)
+func encodeEntry(value []byte, surrogateKeys []SurrogateKey) []byte {
+	size := 1 + binary.MaxVarintLen64 + len(value)
+	for _, surrogateKey := range surrogateKeys {
+		size += 1 + binary.MaxVarintLen64 + len(surrogateKey.Value)
+	}
+	out := make([]byte, 0, size)
+	out = append(out, entryFormatTieredBody)
+	out = binary.AppendUvarint(out, uint64(len(surrogateKeys)))
+	for _, surrogateKey := range surrogateKeys {
+		out = append(out, byte(surrogateKey.Tier))
+		out = binary.AppendUvarint(out, uint64(len(surrogateKey.Value)))
+		out = append(out, surrogateKey.Value...)
+	}
 	return append(out, value...)
 }
 
@@ -101,19 +114,29 @@ func appendList(out []byte, list []string) []byte {
 // DecodeEntry returns the value as a subslice of b. Exactly one of value and
 // vary is set, by the kind byte: a body decodes to value and surrogateKeys, a
 // record to vary.
-func DecodeEntry(b []byte) (value []byte, surrogateKeys []string, vary [][]string, err error) {
+func DecodeEntry(b []byte) (value []byte, surrogateKeys []SurrogateKey, vary [][]string, err error) {
 	if len(b) == 0 {
 		return nil, nil, nil, ErrEntryFormat
 	}
 	kind, rest := b[0], b[1:]
 
 	switch kind {
+	case entryFormatTieredBody:
+		surrogateKeys, rest, ok := readTieredList(rest)
+		if !ok {
+			return nil, nil, nil, ErrEntryFormat
+		}
+		return rest, surrogateKeys, nil, nil
+
 	case entryFormatBody:
 		list, rest, ok := readList(rest)
 		if !ok {
 			return nil, nil, nil, ErrEntryFormat
 		}
-		return rest, list, nil, nil
+		for _, s := range list {
+			surrogateKeys = append(surrogateKeys, SurrogateKey{Value: s, Tier: legacySurrogateKeyTier(s)})
+		}
+		return rest, surrogateKeys, nil, nil
 
 	case entryFormatRecord:
 		sets, n := binary.Uvarint(rest)
@@ -160,6 +183,34 @@ func readList(b []byte) (list []string, rest []byte, ok bool) {
 		}
 		rest = rest[n:]
 		list = append(list, string(rest[:size]))
+		rest = rest[size:]
+	}
+	return list, rest, true
+}
+
+// readTieredList reads a tiered body's keys off b and returns what follows them.
+func readTieredList(b []byte) (list []SurrogateKey, rest []byte, ok bool) {
+	count, n := binary.Uvarint(b)
+	if n <= 0 || count > uint64(len(b)) {
+		return nil, nil, false
+	}
+	rest = b[n:]
+
+	for range count {
+		if len(rest) == 0 {
+			return nil, nil, false
+		}
+		tier := SurrogateKeyTier(rest[0])
+		if !tier.valid() {
+			return nil, nil, false
+		}
+		rest = rest[1:]
+		size, n := binary.Uvarint(rest)
+		if n <= 0 || size > uint64(len(rest)-n) {
+			return nil, nil, false
+		}
+		rest = rest[n:]
+		list = append(list, SurrogateKey{Value: string(rest[:size]), Tier: tier})
 		rest = rest[size:]
 	}
 	return list, rest, true
