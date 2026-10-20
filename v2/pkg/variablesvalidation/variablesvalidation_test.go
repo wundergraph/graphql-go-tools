@@ -602,6 +602,18 @@ func TestVariablesValidation(t *testing.T) {
 		assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non-integer value`, err.Error())
 	})
 
+	t.Run("wrong Int value for Int variable (overflows int32)", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query{ count(arg: Int!): Int! } type Echo { raw: String! }`,
+			operation: `query Count($count: Int!) { count(arg: $count) { raw} }`,
+			variables: `{"count":1586759375663856238}`,
+		}
+
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non 32-bit signed integer value`, err.Error())
+	})
+
 	t.Run("required field on present input object not provided - with variable content", func(t *testing.T) {
 		tc := testCase{
 			schema:    `input Foo { bar: String! } type Query { hello(arg: Foo!): String }`,
