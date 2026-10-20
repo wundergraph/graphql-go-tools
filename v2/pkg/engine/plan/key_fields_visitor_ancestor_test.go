@@ -10,11 +10,13 @@ import (
 )
 
 func TestCollectKeysForPathExternalSibling(t *testing.T) {
+	t.Parallel()
+
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`
 		type User { id: ID! info: Info! }
 		type Info { name: String! }
 	`)
-	for _, tc := range []struct {
+	cases := []struct {
 		selection string
 		paths     []KeyInfoFieldPath
 	}{
@@ -34,8 +36,12 @@ func TestCollectKeysForPathExternalSibling(t *testing.T) {
 				{Path: "query.me.id"},
 			},
 		},
-	} {
+	}
+
+	for _, tc := range cases {
 		t.Run(tc.selection, func(t *testing.T) {
+			t.Parallel()
+
 			dataSource := dsb().Hash(22).
 				RootNode("User", "id").
 				AddRootNodeExternalFieldNames("User", "info").
