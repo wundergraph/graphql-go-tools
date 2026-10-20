@@ -6280,13 +6280,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		var decoded struct {
 			Extensions struct {
-				Cosmo struct {
-					Cursor string `json:"cursor"`
-				} `json:"cosmo"`
+				CosmoCursor string `json:"cosmoCursor"`
 			} `json:"extensions"`
 		}
 		require.NoError(t, json.Unmarshal([]byte(messages[0]), &decoded))
-		assert.Equal(t, fakeStream.withCursor, decoded.Extensions.Cosmo.Cursor)
+		assert.Equal(t, fakeStream.withCursor, decoded.Extensions.CosmoCursor)
 	})
 
 	t.Run("should stop stream on unsubscribe subscription", func(t *testing.T) {

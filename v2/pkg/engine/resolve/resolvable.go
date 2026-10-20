@@ -175,7 +175,7 @@ type Resolvable struct {
 	deferItemDataNull bool
 
 	// cursor is an opaque resume cursor for the subscription event currently being
-	// rendered, emitted into extensions.cosmo.cursor when non-empty. Set per update by
+	// rendered, emitted into extensions.cosmoCursor when non-empty. Set per update by
 	// executeSubscriptionUpdate; empty for non-subscription resolves.
 	cursor string
 }
@@ -949,12 +949,12 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
-	if cosmoExt := r.cosmoExtension(); !cosmoExt.isEmpty() {
+	if r.cursor != "" {
 		if writeComma {
 			r.printBytes(comma)
 		}
 		writeComma = true
-		err := r.printCosmoExtension(cosmoExt)
+		err := r.printCosmoCursorExtension()
 		if err != nil {
 			return err
 		}
@@ -1001,32 +1001,16 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
 }
 
-// cosmoExtension is rendered as extensions.cosmo. Each field is a subkey.
-type cosmoExtension struct {
-	Cursor string `json:"cursor,omitempty"`
-}
-
-func (e cosmoExtension) isEmpty() bool {
-	return e == cosmoExtension{}
-}
-
-// cosmoExtension collects the values to render into extensions.cosmo for the current response.
-func (r *Resolvable) cosmoExtension() cosmoExtension {
-	return cosmoExtension{
-		Cursor: r.cursor,
-	}
-}
-
-// printCosmoExtension prints the "cosmo" extension key. The extension is
+// printCosmoCursorExtension prints the "cosmoCursor" extension key. The value is
 // marshaled before anything is written so a failure leaves r.out untouched.
-func (r *Resolvable) printCosmoExtension(ext cosmoExtension) error {
-	content, err := json.Marshal(ext)
+func (r *Resolvable) printCosmoCursorExtension() error {
+	content, err := json.Marshal(r.cursor)
 	if err != nil {
 		return err
 	}
 
 	r.printBytes(quote)
-	r.printBytes(literalCosmo)
+	r.printBytes(literalCosmoCursor)
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(content)
@@ -1078,7 +1062,7 @@ func getDefaultReservedExtensions() map[string]struct{} {
 		string(literalQueryPlan):       {},
 		string(literalTrace):           {},
 		string(literalValueCompletion): {},
-		string(literalCosmo):           {},
+		string(literalCosmoCursor):     {},
 	}
 }
 
@@ -1117,7 +1101,7 @@ func (r *Resolvable) hasExtensions() bool {
 	if r.filterAllowedSubgraphExtensions(getDefaultReservedExtensions()) {
 		return true
 	}
-	if !r.cosmoExtension().isEmpty() {
+	if r.cursor != "" {
 		return true
 	}
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
