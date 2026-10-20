@@ -564,6 +564,31 @@ func TestDeferStreamOnValidOperations(t *testing.T) {
 			expected: operationreport.Report{},
 		},
 		{
+			name:       "[P9] defer in a nested untyped inline fragment at the mutation root",
+			definition: parentTypeDefinition,
+			operation: `
+				mutation {
+					... {
+						... @defer {
+							mutateDog { name }
+						}
+					}
+				}`,
+			expected: operationreport.Report{
+				ExternalErrors: []operationreport.ExternalError{{
+					Message: `directive "@defer" is not allowed on root fields of mutation operations`,
+					Path: ast.Path{{
+						Kind:      ast.FieldName,
+						FieldName: []byte("mutation"),
+					}},
+					Locations: []operationreport.Location{{
+						Line:   4,
+						Column: 11,
+					}},
+				}},
+			},
+		},
+		{
 			name:       "[U1] nested defer below an unknown field in a schema without a mutation type is valid",
 			definition: unknownFieldDefinition,
 			operation: `
