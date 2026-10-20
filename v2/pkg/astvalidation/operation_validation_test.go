@@ -1526,6 +1526,14 @@ func TestExecutionValidation(t *testing.T) {
 								}`, FieldSelectionMerging(), Invalid,
 								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface!]!' for objectName 'list'`))
 						})
+						t.Run("fragments on different object types below equal parent fields", func(t *testing.T) {
+							// The directive keeps normalization from merging both parent fields.
+							runWithDefinition(t, definition, `
+								query Q($show: Boolean!) {
+									p: parent @include(if: $show) { ... on Left  { items: list      { name } } }
+									p: parent                     { ... on Other { items: otherList { name } } }
+								}`, FieldSelectionMerging(), Valid)
+						})
 						t.Run("__typename on either side", func(t *testing.T) {
 							runWithDefinition(t, definition, `
 								{

@@ -279,24 +279,44 @@ func (f *fieldSelectionMergingVisitor) mutuallyExclusive(a, b int) bool {
 	return exclusive
 }
 
-// fieldsRelation walks two fields with equal paths up to their lowest common field.
-// They are mutually exclusive, when their ancestors right below that field are on two different object types.
-// They are identical, when every pair on the way has equal names and arguments.
-// Every pair is compared, because EnterField compares names and arguments of scalar fields only.
+// fieldsRelation compares two fields (passed by ref) with equal paths,
+// then their parents, pair by pair, up to the lowest common field.
+//
+// They are identical, when every pair has equal names and arguments.
+//
+// They are mutually exclusive, when they never end up in the same response object.
+// Fields in fragments on two different object types are exclusive,
+// but only while their parents are the same field and return the same object:
+//
+//	p: parent { ... on Left { list } }  p: parent { ... on Right { list } }  # exclusive
+//	b: left { list }                    b: right { list }                    # not exclusive
+//
+// In the second line both b fields are resolved for the same object,
+// so both list fields end up in one b.
 func (f *fieldSelectionMergingVisitor) fieldsRelation(a, b int) (exclusive, identical bool) {
 	identical = true
 	for {
-		identical = identical &&
-			bytes.Equal(f.operation.FieldNameBytes(a), f.operation.FieldNameBytes(b)) &&
+		same := bytes.Equal(f.operation.FieldNameBytes(a), f.operation.FieldNameBytes(b)) &&
 			f.operation.ArgumentSetsAreEquals(f.operation.FieldArguments(a), f.operation.FieldArguments(b))
+		if !same {
+			// Different fields return different objects, so exclusivity found below is lost.
+			exclusive = false
+		}
+		if f.onDifferentObjectTypes(a, b) {
+			exclusive = true
+		}
+		identical = identical && same
 		if f.scopes[a].parent == f.scopes[b].parent {
-			break
+			return exclusive, identical
 		}
 		a, b = f.scopes[a].parent, f.scopes[b].parent
 	}
+}
+
+// onDifferentObjectTypes reports whether two fields are selected on two different object types.
+func (f *fieldSelectionMergingVisitor) onDifferentObjectTypes(a, b int) bool {
 	left, right := f.scopes[a].enclosing, f.scopes[b].enclosing
-	exclusive = left.Kind == ast.NodeKindObjectTypeDefinition && left.Kind == right.Kind && !f.potentiallySameObject(left, right)
-	return exclusive, identical
+	return left.Kind == ast.NodeKindObjectTypeDefinition && left.Kind == right.Kind && !f.potentiallySameObject(left, right)
 }
 
 // haveSameResponseShape implements SameResponseShape for fields that never share a response object.
