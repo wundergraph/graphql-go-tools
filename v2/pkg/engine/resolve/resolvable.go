@@ -175,7 +175,7 @@ type Resolvable struct {
 	deferItemDataNull bool
 
 	// cursor is an opaque resume cursor for the subscription event currently being
-	// rendered, emitted into extensions.cosmoCursor when non-empty. Set per update by
+	// rendered, emitted into extensions.streamsCursor when non-empty. Set per update by
 	// executeSubscriptionUpdate; empty for non-subscription resolves.
 	cursor string
 }
@@ -954,7 +954,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 			r.printBytes(comma)
 		}
 		writeComma = true
-		err := r.printCosmoCursorExtension()
+		err := r.printStreamsCursorExtension()
 		if err != nil {
 			return err
 		}
@@ -1001,16 +1001,16 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
 }
 
-// printCosmoCursorExtension prints the "cosmoCursor" extension key. The value is
+// printStreamsCursorExtension prints the "streamsCursor" extension key. The value is
 // marshaled before anything is written so a failure leaves r.out untouched.
-func (r *Resolvable) printCosmoCursorExtension() error {
+func (r *Resolvable) printStreamsCursorExtension() error {
 	content, err := json.Marshal(r.cursor)
 	if err != nil {
 		return err
 	}
 
 	r.printBytes(quote)
-	r.printBytes(literalCosmoCursor)
+	r.printBytes(literalStreamsCursor)
 	r.printBytes(quote)
 	r.printBytes(colon)
 	r.printBytes(content)
@@ -1062,7 +1062,7 @@ func getDefaultReservedExtensions() map[string]struct{} {
 		string(literalQueryPlan):       {},
 		string(literalTrace):           {},
 		string(literalValueCompletion): {},
-		string(literalCosmoCursor):     {},
+		string(literalStreamsCursor):   {},
 	}
 }
 

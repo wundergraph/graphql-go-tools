@@ -30,7 +30,7 @@ var (
 	literalQueryPlan          = []byte("queryPlan")
 	literalValueCompletion    = []byte("valueCompletion")
 	literalRateLimit          = []byte("rateLimit")
-	literalCosmoCursor        = []byte("cosmoCursor")
+	literalStreamsCursor      = []byte("streamsCursor")
 	literalInlineArguments    = []byte("inlineArguments")
 	literalCount              = []byte("count")
 	literalArguments          = []byte("arguments")
