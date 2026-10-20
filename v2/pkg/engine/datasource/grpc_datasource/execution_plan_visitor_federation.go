@@ -35,6 +35,11 @@ type rpcPlanVisitorFederation struct {
 	fieldResolverAncestors stack[int]
 	resolverFields         []resolverField
 
+	// requiredFieldRef is the operation field ref of the required field we are inside of.
+	// ast.InvalidRed means we are currently not walking a required field.
+	requiredFieldRef int
+	// requiredFieldIdx is the index of that field in plannedRequiredFields.
+	requiredFieldIdx int
 	// plannedRequiredFields accumulates one entry per required-field instance observed
 	// during the walk.
 	plannedRequiredFields []plannedRequiredField
@@ -66,6 +71,8 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		keyFieldMessages:       make(map[string]*RPCMessage),
 		resolverFields:         make([]resolverField, 0),
 		fieldResolverAncestors: newStack[int](0),
+		requiredFieldRef:       ast.InvalidRef,
+		requiredFieldIdx:       ast.InvalidRef,
 		fieldPath:              ast.Path{}.WithFieldNameItem([]byte("result")),
 	}
 
@@ -98,6 +105,19 @@ func (r *rpcPlanVisitorFederation) EnterDocument(operation *ast.Document, defini
 
 // LeaveDocument implements astvisitor.DocumentVisitor.
 func (r *rpcPlanVisitorFederation) LeaveDocument(_, _ *ast.Document) {
+	// The required calls get their IDs after all resolver calls.
+	// Set the IDs first, so that resolver calls inside of a required field can depend on them.
+	for i := range r.plannedRequiredFields {
+		r.plannedRequiredFields[i].id = r.callIndex
+		r.callIndex++
+	}
+
+	for i := range r.resolverFields {
+		if idx := r.resolverFields[i].requiredFieldIdx; idx != ast.InvalidRef {
+			r.resolverFields[i].callerRef = r.plannedRequiredFields[idx].id
+		}
+	}
+
 	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolverFields)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
@@ -111,7 +131,7 @@ func (r *rpcPlanVisitorFederation) LeaveDocument(_, _ *ast.Document) {
 
 	for _, prf := range r.plannedRequiredFields {
 		call, err := r.planCtx.createRequiredFieldsRPCCall(
-			r.callIndex, r.subgraphName, prf,
+			prf.id, r.subgraphName, prf,
 			r.entityConfig[prf.typeName].keyFields,
 			r.keyFieldMessages[prf.typeName],
 		)
@@ -120,7 +140,6 @@ func (r *rpcPlanVisitorFederation) LeaveDocument(_, _ *ast.Document) {
 			return
 		}
 
-		r.callIndex++
 		r.plan.Calls = append(r.plan.Calls, call)
 	}
 }
@@ -137,6 +156,10 @@ func (r *rpcPlanVisitorFederation) EnterOperationDefinition(ref int) {
 
 // EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
+	if !r.isRootEntityInlineFragment() {
+		return
+	}
+
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
 	entityConfigData, ok := r.entityConfig.getEntity(fragmentName)
 	if !ok {
@@ -165,6 +188,17 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 	r.scaffoldEntityLookup(fragmentName, entityConfigData)
 }
 
+// isRootEntityInlineFragment reports whether the current inline fragment is a
+// direct child of the _entities field. Only these start an entity lookup.
+func (r *rpcPlanVisitorFederation) isRootEntityInlineFragment() bool {
+	if len(r.walker.Ancestors) < 2 {
+		return false
+	}
+
+	parent := r.walker.Ancestors[len(r.walker.Ancestors)-2]
+	return parent.Kind == ast.NodeKindField && parent.Ref == r.entityInfo.entityRootFieldRef
+}
+
 // LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 	if r.entityInfo.entityInlineFragmentRef != ref {
@@ -191,31 +225,15 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		return
 	}
 
-	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
+	// setResolvedField stores the selection set of a field resolver.
+	// The response message of the resolver call is built from it later.
 	if r.fieldResolverAncestors.len() > 0 {
-		if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
-			return
-		}
+		return
+	}
 
-		resolvedFieldAncestor := r.fieldResolverAncestors.peek()
-		if compositType := r.planCtx.getCompositeType(r.walker.EnclosingTypeDefinition); compositType != OneOfTypeNone {
-			memberTypes, err := r.planCtx.getMemberTypes(r.walker.EnclosingTypeDefinition)
-			if err != nil {
-				r.walker.StopWithInternalErr(err)
-				return
-			}
-			resolvedField := &r.resolverFields[resolvedFieldAncestor]
-			resolvedField.memberTypes = memberTypes
-
-			config := r.planCtx.buildCompositeTypeConfig(compositType, ref)
-			resolvedField.fieldsSelectionSetRef = config.fieldsSelectionSetRef
-			resolvedField.fragmentType = config.oneOfType
-			resolvedField.fragmentSelections = config.fragmentSelections
-
-			return
-		}
-
-		r.resolverFields[resolvedFieldAncestor].fieldsSelectionSetRef = ref
+	// The message of a required field is built in enterRequiredField.
+	// We only walk its selections to find nested field resolvers.
+	if r.requiredFieldRef != ast.InvalidRef {
 		return
 	}
 
@@ -289,6 +307,9 @@ func (r *rpcPlanVisitorFederation) LeaveSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
 		return
 	}
+	if r.requiredFieldRef != ast.InvalidRef {
+		return
+	}
 
 	r.planCtx.leaveNestedField(&r.planInfo)
 }
@@ -325,8 +346,22 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 
 	// If the field is a required field, we don't want to add it to the current response message.
 	if r.planCtx.isRequiredField(fieldDefRef) {
-		r.enterRequiredField(ref, fieldDefRef, r.walker.EnclosingTypeDefinition)
-		r.walker.SkipNode()
+		// The router does not send required fields inside of a field resolver.
+		if r.fieldResolverAncestors.len() > 0 {
+			r.walker.SkipNode()
+			return
+		}
+
+		if err := r.enterRequiredField(ref, fieldDefRef, r.walker.EnclosingTypeDefinition); err != nil {
+			r.walker.StopWithInternalErr(err)
+			return
+		}
+
+		// Walk into the required field to find nested field resolvers.
+		resultField := r.plannedRequiredFields[len(r.plannedRequiredFields)-1].resultField
+		r.requiredFieldRef = ref
+		r.requiredFieldIdx = len(r.plannedRequiredFields) - 1
+		r.fieldPath = r.fieldPath.WithFieldNameItem([]byte(listPrefix(resultField) + resultField.Name))
 		return
 	}
 
@@ -337,10 +372,9 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 		return
 	}
 
-	// Check if the field is inside of a resolver call.
-	if r.fieldResolverAncestors.len() > 0 {
-		// We don't want to call LeaveField here because we ignore the field entirely.
-		r.walker.SkipNode()
+	// Inside of a field resolver or a required field we only track the path for nested field resolvers.
+	if r.fieldResolverAncestors.len() > 0 || r.requiredFieldRef != ast.InvalidRef {
+		r.enterPathField(ref, fieldDefRef, fieldName)
 		return
 	}
 
@@ -364,12 +398,7 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 	}
 
 	// If we have a nested or nullable list, we add a @ prefix to indicate the nesting level.
-	prefix := ""
-	if field.ListMetadata != nil {
-		prefix = strings.Repeat("@", field.ListMetadata.NestingLevel)
-	}
-
-	r.fieldPath = r.fieldPath.WithFieldNameItem([]byte(prefix + field.Name))
+	r.fieldPath = r.fieldPath.WithFieldNameItem([]byte(listPrefix(field) + field.Name))
 
 	// check if we are inside of an inline fragment and not the entity inline fragment
 	if ref := r.walker.ResolveInlineFragment(); ref != ast.InvalidRef && r.entityInfo.entityInlineFragmentRef != ref {
@@ -389,6 +418,13 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
 	r.fieldPath = r.fieldPath.RemoveLastItem()
 
+	if ref == r.requiredFieldRef {
+		// A required field can have arguments. Return here, so that it is not handled as a field resolver.
+		r.requiredFieldRef = ast.InvalidRef
+		r.requiredFieldIdx = ast.InvalidRef
+		return
+	}
+
 	inRootField := r.walker.InRootField()
 	if inRootField {
 		return
@@ -405,12 +441,19 @@ func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
 	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
 		// Pop the field resolver ancestor only when leaving a field resolver field.
 		r.fieldResolverAncestors.pop()
+		return
+	}
+
+	// Remove the plain field from the nested path of the field resolver.
+	if r.fieldResolverAncestors.len() > 0 {
+		resolverField := &r.resolverFields[r.fieldResolverAncestors.peek()]
+		resolverField.nestedPath = resolverField.nestedPath.RemoveLastItem()
 	}
 }
 
 // enterRequiredField handles the creation of the required field.
-// TODO: Handle support for nested field resolvers.
-func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, parentTypeNode ast.Node) {
+// It returns an error if the field could not be created.
+func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, parentTypeNode ast.Node) error {
 	// build a field and add it to the entity config.
 	// If the field has selections, we need to recursively enter the subsequent selections and apply the logic in EnterField.
 	fieldName := r.operation.FieldNameString(ref)
@@ -423,8 +466,7 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 	)
 
 	if err != nil {
-		r.walker.StopWithInternalErr(err)
-		return
+		return err
 	}
 
 	if field.ProtoTypeName == DataTypeMessage {
@@ -433,8 +475,7 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 
 		node, found := r.definition.NodeByNameStr(typeName)
 		if !found {
-			r.walker.StopWithInternalErr(fmt.Errorf("definition node not found for type %s", typeName))
-			return
+			return fmt.Errorf("definition node not found for type %s", typeName)
 		}
 
 		bfmc := buildFieldMessageConfig{
@@ -445,8 +486,7 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 		if fragmentType := r.planCtx.getCompositeType(node); fragmentType != OneOfTypeNone {
 			memberTypes, err := r.planCtx.getMemberTypes(node)
 			if err != nil {
-				r.walker.StopWithInternalErr(err)
-				return
+				return err
 			}
 
 			bfmc.fragmentType = fragmentType
@@ -459,8 +499,7 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 
 		message, err := r.planCtx.buildMessageForField(bfmc)
 		if err != nil {
-			r.walker.StopWithInternalErr(err)
-			return
+			return err
 		}
 
 		field.Message = message
@@ -470,8 +509,7 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 	// multiple response keys (e.g. a field and an alias of it) naturally gets one entry per key.
 	selectionSet, ok := r.entityConfig.requiredFieldSelectionSet(r.entityInfo.typeName, fieldName)
 	if !ok {
-		r.walker.StopWithInternalErr(fmt.Errorf("required field not found for type %s and field %s", r.entityInfo.typeName, fieldName))
-		return
+		return fmt.Errorf("required field not found for type %s and field %s", r.entityInfo.typeName, fieldName)
 	}
 
 	planned := plannedRequiredField{
@@ -485,13 +523,47 @@ func (r *rpcPlanVisitorFederation) enterRequiredField(ref, fieldDefRef int, pare
 	if len(fieldArgs) > 0 {
 		fieldArguments, err := r.planCtx.parseFieldArguments(r.walker, fieldDefRef, fieldArgs)
 		if err != nil {
-			r.walker.StopWithInternalErr(err)
-			return
+			return err
 		}
 		planned.fieldArguments = fieldArguments
 	}
 
 	r.plannedRequiredFields = append(r.plannedRequiredFields, planned)
+	return nil
+}
+
+// enterPathField adds a field to the field path.
+// LeaveField removes it again.
+// The field is already part of the required field message, so we do not add it to a message.
+func (r *rpcPlanVisitorFederation) enterPathField(ref, fieldDefRef int, fieldName string) {
+	field, err := r.planCtx.buildField(
+		r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		fieldDefRef,
+		fieldName,
+		r.operation.FieldAliasString(ref),
+	)
+	if err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
+	}
+
+	pathItem := []byte(listPrefix(field) + field.Name)
+	r.fieldPath = r.fieldPath.WithFieldNameItem(pathItem)
+
+	// Track the plain fields inside of a field resolver for nested field resolvers.
+	if r.fieldResolverAncestors.len() > 0 {
+		resolverField := &r.resolverFields[r.fieldResolverAncestors.peek()]
+		resolverField.nestedPath = resolverField.nestedPath.WithFieldNameItem(pathItem)
+	}
+}
+
+// listPrefix returns one @ for each nesting level of a nested or nullable list field.
+func listPrefix(field RPCField) string {
+	if field.ListMetadata == nil {
+		return ""
+	}
+
+	return strings.Repeat("@", field.ListMetadata.NestingLevel)
 }
 
 // enterFieldResolver enters a field resolver.
@@ -506,15 +578,23 @@ func (r *rpcPlanVisitorFederation) enterFieldResolver(ref int, fieldDefRef int) 
 	// We don't want to add fields from the selection set to the actual call
 
 	parentID := r.currentCall.ID
+	requiredFieldIdx := ast.InvalidRef
 	fieldPath := r.fieldPath
-	if r.fieldResolverAncestors.len() > 0 {
-		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath
-		parentID = r.resolverFields[r.fieldResolverAncestors.peek()].id
+	switch {
+	case r.fieldResolverAncestors.len() > 0:
+		parentResolverField := &r.resolverFields[r.fieldResolverAncestors.peek()]
+		fieldPath = parentResolverField.nestedContextPath()
+		parentID = parentResolverField.id
+	case r.requiredFieldRef != ast.InvalidRef:
+		// The required call ID is set in LeaveDocument.
+		parentID = ast.InvalidRef
+		requiredFieldIdx = r.requiredFieldIdx
 	}
 
 	resolvedField := resolverField{
 		id:                     r.callIndex,
 		callerRef:              parentID,
+		requiredFieldIdx:       requiredFieldIdx,
 		parentTypeNode:         r.walker.EnclosingTypeDefinition,
 		fieldRef:               ref,
 		responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
@@ -651,6 +731,7 @@ type entityConfigData struct {
 // plannedRequiredField is one observed instance of a required field in the operation. One entry
 // is appended per operation field instance, so distinct response keys each get their own entry.
 type plannedRequiredField struct {
+	id             int // call ID, set in LeaveDocument
 	typeName       string
 	fieldName      string
 	selectionSet   string // @requires selection set, copied from the federation config
