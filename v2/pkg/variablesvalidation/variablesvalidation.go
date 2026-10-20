@@ -3,6 +3,7 @@ package variablesvalidation
 import (
 	"bytes"
 	"fmt"
+	"math"
 
 	"github.com/wundergraph/astjson"
 
@@ -488,6 +489,13 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
+
+			n, err := jsonValue.Int64()
+			if err != nil || n < math.MinInt32 || n > math.MaxInt32 {
+				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
+				return
+			}
+
 		case "Float":
 			if jsonValue.Type() != astjson.TypeNumber {
 				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
