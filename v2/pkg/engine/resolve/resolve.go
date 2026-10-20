@@ -1753,6 +1753,10 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return writeFlushComplete(writer, body)
 	}
 
+	if err := subscription.Trigger.Source.ValidateTriggerInput(ctx, input); err != nil {
+		return writeFlushComplete(writer, []byte(`{"errors":[{"message":"invalid subscription input"}]}`))
+	}
+
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {
 		input, err = hook.SubscriptionOnCreate(ctx.Context(), input)
 		if err != nil {
@@ -1865,6 +1869,10 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return authErr
 	} else if denied {
 		return writeFlushComplete(writer, body)
+	}
+
+	if err := subscription.Trigger.Source.ValidateTriggerInput(ctx, input); err != nil {
+		return writeFlushComplete(writer, []byte(`{"errors":[{"message":"invalid subscription input"}]}`))
 	}
 
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {

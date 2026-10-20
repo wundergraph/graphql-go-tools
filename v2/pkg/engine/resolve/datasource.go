@@ -21,6 +21,8 @@ type SubscriptionDataSource interface {
 	// HashTriggerInput writes identity-relevant fields of the subscription into xxh.
 	// The resolver appends the subgraph headers hash afterward to produce the final trigger ID.
 	HashTriggerInput(input []byte, xxh *xxhash.Digest) error
+	// ValidateTriggerInput lets a subscription data source reject a client before start.
+	ValidateTriggerInput(ctx *Context, input []byte) error
 }
 
 // HookableSubscriptionDataSource is a hookable interface for subscription data sources.

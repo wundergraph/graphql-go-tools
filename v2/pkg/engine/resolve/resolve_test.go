@@ -1936,67 +1936,67 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	}, nil))
 	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
-			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`)},
-			}),
-			Data: &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("user"),
-						Value: &Object{
-							Fields: []*Field{
-								{
-									Name: []byte("id"),
-									Value: &Integer{
-										Path:     []string{"id"},
-										Nullable: false,
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`)},
+				}),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("user"),
+							Value: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path:     []string{"id"},
+											Nullable: false,
+										},
 									},
-								},
-								{
-									Name: []byte("name"),
-									Value: &String{
-										Path:     []string{"name"},
-										Nullable: false,
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
 									},
-								},
-								{
-									Name: []byte("__typename"),
-									Value: &String{
-										Path:       []string{"__typename"},
-										Nullable:   false,
-										IsTypeName: true,
+									{
+										Name: []byte("__typename"),
+										Value: &String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
 									},
-								},
-								{
-									Name: []byte("aliased"),
-									Value: &String{
-										Path:       []string{"__typename"},
-										Nullable:   false,
-										IsTypeName: true,
+									{
+										Name: []byte("aliased"),
+										Value: &String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
 									},
-								},
-								{
-									Name: []byte("rewritten"),
-									Value: &String{
-										Path:       []string{"rewritten"},
-										Nullable:   false,
-										IsTypeName: true,
+									{
+										Name: []byte("rewritten"),
+										Value: &String{
+											Path:       []string{"rewritten"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
 									},
 								},
 							},
 						},
 					},
 				},
-			},
-		}, Context{
-			ctx: context.Background(),
-			RenameTypeNames: []RenameTypeName{
-				{
-					From: []byte("User"),
-					To:   []byte("namespaced_User"),
+			}, Context{
+				ctx: context.Background(),
+				RenameTypeNames: []RenameTypeName{
+					{
+						From: []byte("User"),
+						To:   []byte("namespaced_User"),
+					},
 				},
-			},
-		}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
+			}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
 	}))
 	t.Run("empty graphql response for non-nullable object query field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -5827,6 +5827,10 @@ func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
 	}
 }
 
+func (f *_fakeStream) ValidateTriggerInput(_ *Context, _ []byte) error {
+	return nil
+}
+
 func (f *_fakeStream) Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error {
 	if f.onStart != nil {
 		f.onStart(input)
@@ -5872,6 +5876,16 @@ func (f *_fakePubsubStream) SubscriptionOnCreate(ctx context.Context, input []by
 		return input, nil
 	}
 	return f.subscriptionOnCreateFn(ctx, input)
+}
+
+type _fakeValidatingPubsubStream struct {
+	*_fakePubsubStream
+
+	validateErr error
+}
+
+func (f *_fakeValidatingPubsubStream) ValidateTriggerInput(_ *Context, _ []byte) error {
+	return f.validateErr
 }
 
 func createFakePubsubStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), subscriptionOnCreateFn func(ctx context.Context, input []byte) (newInput []byte, err error)) *_fakePubsubStream {
@@ -7014,6 +7028,45 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		require.Greater(t, len(messages), 0)
 		assert.Contains(t, messages[0], "errors")
 		assert.Contains(t, messages[0], "failed to prepare subscription trigger")
+	})
+
+	t.Run("should reject invalid subscription input", func(t *testing.T) {
+		for _, async := range []bool{true, false} {
+			t.Run(fmt.Sprintf("async=%t", async), func(t *testing.T) {
+				c := t.Context()
+
+				var createCalled, startCalled atomic.Bool
+				fakeStream := &_fakeValidatingPubsubStream{
+					_fakePubsubStream: createFakePubsubStream(func(counter int) (message string, done bool) {
+						return `{"data":{"counter":0}}`, true
+					}, 1*time.Millisecond, func(input []byte) {
+						startCalled.Store(true)
+					}, func(ctx context.Context, input []byte) (newInput []byte, err error) {
+						createCalled.Store(true)
+						return input, nil
+					}),
+					validateErr: errors.New("input rejected"),
+				}
+
+				resolver, plan, recorder, id := setup(c, fakeStream)
+				ctx := NewContext(context.Background())
+
+				var err error
+				if async {
+					err = resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+				} else {
+					err = resolver.ResolveGraphQLSubscription(ctx, plan, recorder)
+				}
+				assert.NoError(t, err)
+
+				recorder.AwaitAnyMessageCount(t, defaultTimeout)
+				messages := recorder.Messages()
+				require.Len(t, messages, 1)
+				assert.Contains(t, messages[0], "invalid subscription input")
+				assert.False(t, createCalled.Load(), "SubscriptionOnCreate must not be called")
+				assert.False(t, startCalled.Load(), "Start must not be called")
+			})
+		}
 	})
 
 	t.Run("should call SubscriptionOnCreate hook on pubsub datasource (syncronous resolve)", func(t *testing.T) {
@@ -8197,6 +8250,10 @@ func (s *startFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) err
 	return err
 }
 
+func (s *startFailStream) ValidateTriggerInput(_ *Context, _ []byte) error {
+	return nil
+}
+
 func (s *startFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
 	<-s.subBReady
 	return errors.New("connection refused")
@@ -8284,6 +8341,10 @@ type hookFailStream struct {
 func (s *hookFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	_, err := xxh.Write(input)
 	return err
+}
+
+func (s *hookFailStream) ValidateTriggerInput(_ *Context, _ []byte) error {
+	return nil
 }
 
 func (s *hookFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {

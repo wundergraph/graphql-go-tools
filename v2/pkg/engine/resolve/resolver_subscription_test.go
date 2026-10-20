@@ -72,6 +72,10 @@ func (f *FakeSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	return err
 }
 
+func (f *FakeSource) ValidateTriggerInput(_ *Context, _ []byte) error {
+	return nil
+}
+
 func (f *FakeSource) Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error {
 	go func() {
 		for i, u := range f.updates {

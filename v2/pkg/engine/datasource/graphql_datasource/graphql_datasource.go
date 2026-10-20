@@ -2153,6 +2153,11 @@ func (s *SubscriptionSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) 
 	return err
 }
 
+// ValidateTriggerInput accepts every input; plain GraphQL subscriptions have nothing to validate.
+func (s *SubscriptionSource) ValidateTriggerInput(_ *resolve.Context, _ []byte) error {
+	return nil
+}
+
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
 func (s *SubscriptionSource) Start(ctx *resolve.Context, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
