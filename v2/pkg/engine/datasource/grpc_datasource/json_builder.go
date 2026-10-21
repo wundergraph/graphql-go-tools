@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"google.golang.org/grpc/codes"
@@ -226,7 +227,9 @@ func (j *jsonBuilder) marshalResponseJSON(message *RPCMessage, data protoref.Mes
 	}
 
 	// Determine which fields to include in the response
-	validFields := message.Fields
+	// Clip trick: create a new slice header with capacity equal to its length.
+	// This does not allocate, and any append creates a new backing array.
+	validFields := slices.Clip(message.Fields)
 	if message.IsOneOf() {
 		// For oneOf types, add type-specific fields based on the actual concrete type
 		validFields = append(validFields, message.FragmentFields.SelectFieldsForTypes(message.SelectValidTypes(string(data.Type().Descriptor().Name())))...)
