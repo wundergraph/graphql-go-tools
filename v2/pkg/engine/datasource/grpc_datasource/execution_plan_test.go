@@ -2601,7 +2601,7 @@ func assertCallEqual(t *testing.T, expected, got RPCCall, path string) {
 	assert.Equal(t, expected.ServiceName, got.ServiceName, "%s.ServiceName", path)
 	assert.Equal(t, expected.MethodName, got.MethodName, "%s.MethodName", path)
 	assert.Equal(t, expected.RequestedEntityType, got.RequestedEntityType, "%s.RequestedEntityType", path)
-	assert.Equal(t, expected.ResponsePath, got.ResponsePath, "%s.ResponsePath", path)
+	assert.Equal(t, expected.ResponsePath.DotDelimitedString(), got.ResponsePath.DotDelimitedString(), "%s.ResponsePath", path)
 
 	expectedDeps := slices.Clone(expected.DependentCalls)
 	gotDeps := slices.Clone(got.DependentCalls)
@@ -2651,7 +2651,7 @@ func assertFieldsEqual(t *testing.T, expected, got RPCFields, path string) {
 		assert.Equal(t, ef.Repeated, gf.Repeated, "%s.Repeated", fp)
 		assert.Equal(t, ef.Optional, gf.Optional, "%s.Optional", fp)
 		assert.Equal(t, ef.IsListType, gf.IsListType, "%s.IsListType", fp)
-		assert.Equal(t, ef.ResolvePath, gf.ResolvePath, "%s.ResolvePath", fp)
+		assert.Equal(t, ef.ResolvePath.DotDelimitedString(), gf.ResolvePath.DotDelimitedString(), "%s.ResolvePath", fp)
 		assert.Equal(t, ef.ListMetadata, gf.ListMetadata, "%s.ListMetadata", fp)
 
 		switch {

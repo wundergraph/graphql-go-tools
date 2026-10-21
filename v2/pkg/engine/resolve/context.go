@@ -281,6 +281,7 @@ type responseCache struct {
 	// surrogateKeys is the union over every fetch of the request, merged under
 	// the loader's data lock as each fetch is merged.
 	surrogateKeys []string
+	traceDetails  func(surrogateKeys []string) any
 }
 
 // responseCacheFor is the cache's settings for a subgraph, or false when nothing
@@ -376,6 +377,8 @@ type ResponseCacheOptions struct {
 	// An entry replaces DefaultTTL and PrivateID whole for that subgraph. The map
 	// is kept, not copied, and must not change after SetResponseCache.
 	Subgraphs map[string]ResponseCacheSubgraphOptions
+	// TraceDetails adds the caller's view of the request's surrogate keys to ART.
+	TraceDetails func(surrogateKeys []string) any
 }
 
 // ResponseCacheSubgraphOptions is the cache's settings for one subgraph.
@@ -400,6 +403,7 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		def:             responseCacheSubgraph{ttl: opts.DefaultTTL},
 		defaultDisabled: opts.DefaultDisabled,
 		subgraphs:       opts.Subgraphs,
+		traceDetails:    opts.TraceDetails,
 	}
 	if opts.DefaultDisabled {
 		// Nothing is keyed by it, so it must not keep users apart either.
