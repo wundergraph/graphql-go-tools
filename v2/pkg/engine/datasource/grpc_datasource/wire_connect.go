@@ -348,7 +348,7 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 			// Sign-extend the enum number.
 			value = uint64(int64(num))
 		} else {
-			value = getUint64Value(data)
+			value = f.getUint64Value(data)
 		}
 
 		buf.Write(f.tag)
@@ -370,10 +370,15 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 	return nil
 }
 
-func getUint64Value(data *astjson.Value) uint64 {
+func (f *wireField) getUint64Value(data *astjson.Value) uint64 {
 	switch data.Type() {
 	case astjson.TypeNumber:
-		return uint64(data.GetInt())
+		switch f.dataType {
+		case DataTypeUint32, DataTypeUint64:
+			return data.GetUint64()
+		default:
+			return uint64(data.GetInt())
+		}
 	case astjson.TypeTrue:
 		return 1
 	default:

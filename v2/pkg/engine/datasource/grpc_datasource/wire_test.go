@@ -32,6 +32,16 @@ message ScalarRequest {
   bool active = 4;
   float ratio = 5;
   repeated float ratios = 6;
+
+  // The GraphQL spec has no types for these. We support them, but they
+  // need a custom scalar mapping.
+  uint32 uint_32 = 7;
+  uint64 uint_64 = 8;
+  int64 int_64 = 9;
+
+  // We do not support zigzag-encoded (sint) integers. Keep these for future reference.
+  // sint32 sint_32 = 10;
+  // sint64 sint_64 = 11;
 }
 
 message WrapperScalarRequest {

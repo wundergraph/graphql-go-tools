@@ -1,6 +1,8 @@
 package grpcdatasource
 
 import (
+	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -280,6 +282,82 @@ func TestCreateProtoWire(t *testing.T) {
 		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
 			msg.Set(desc.Fields().ByName("age"), protoref.ValueOfInt32(-7))
 			msg.Set(desc.Fields().ByName("score"), protoref.ValueOfFloat64(-99.5))
+		})
+
+		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
+	})
+
+	t.Run("scalar fields with max values", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ScalarRequest",
+			Fields: RPCFields{
+				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
+				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
+				{Name: "uint_32", ProtoTypeName: DataTypeUint32, JSONPath: "uint_32"},
+				{Name: "uint_64", ProtoTypeName: DataTypeUint64, JSONPath: "uint_64"},
+				{Name: "int_64", ProtoTypeName: DataTypeInt64, JSONPath: "int_64"},
+			},
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		// The uint_64 value is larger than math.MaxInt64.
+		// A signed parse of this value returns 0.
+		input, err := json.Marshal(map[string]any{
+			"age":     int32(math.MaxInt32),
+			"score":   float64(math.MaxFloat64),
+			"uint_32": uint32(math.MaxUint32),
+			"uint_64": uint64(math.MaxUint64),
+			"int_64":  int64(math.MaxInt64),
+		})
+		require.NoError(t, err)
+
+		got, err := wm.createProtoWire(astjson.MustParseBytes(input))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("age"), protoref.ValueOfInt32(math.MaxInt32))
+			msg.Set(desc.Fields().ByName("score"), protoref.ValueOfFloat64(math.MaxFloat64))
+			msg.Set(desc.Fields().ByName("uint_32"), protoref.ValueOfUint32(math.MaxUint32))
+			msg.Set(desc.Fields().ByName("uint_64"), protoref.ValueOfUint64(math.MaxUint64))
+			msg.Set(desc.Fields().ByName("int_64"), protoref.ValueOfInt64(math.MaxInt64))
+		})
+
+		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
+	})
+
+	t.Run("scalar fields with min values", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ScalarRequest",
+			Fields: RPCFields{
+				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
+				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
+				{Name: "uint_32", ProtoTypeName: DataTypeUint32, JSONPath: "uint_32"},
+				{Name: "uint_64", ProtoTypeName: DataTypeUint64, JSONPath: "uint_64"},
+				{Name: "int_64", ProtoTypeName: DataTypeInt64, JSONPath: "int_64"},
+			},
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		// Negative signed values must use the 10-byte two's complement varint.
+		// An unsigned parse of these values returns 0.
+		input, err := json.Marshal(map[string]any{
+			"age":     int32(math.MinInt32),
+			"score":   float64(-math.MaxFloat64),
+			"uint_32": uint32(0),
+			"uint_64": uint64(0),
+			"int_64":  int64(math.MinInt64),
+		})
+		require.NoError(t, err)
+
+		got, err := wm.createProtoWire(astjson.MustParseBytes(input))
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("age"), protoref.ValueOfInt32(math.MinInt32))
+			msg.Set(desc.Fields().ByName("score"), protoref.ValueOfFloat64(-math.MaxFloat64))
+			msg.Set(desc.Fields().ByName("uint_32"), protoref.ValueOfUint32(0))
+			msg.Set(desc.Fields().ByName("uint_64"), protoref.ValueOfUint64(0))
+			msg.Set(desc.Fields().ByName("int_64"), protoref.ValueOfInt64(math.MinInt64))
 		})
 
 		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
