@@ -512,6 +512,11 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 		return nil
 	}
 
+	if l.responseCacheRefuse(prepared.res) {
+		l.recordErroredFetchID(prepared.item)
+		return nil
+	}
+
 	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
 	if prepared.res.err != nil {
 		// TODO: for a MultiEntityFetch this marks all entries as failed,
@@ -794,7 +799,11 @@ func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
 
 func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
 	if res.err != nil {
-		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
+		reason := failedToFetchNoReason
+		if goerrors.Is(res.err, ErrResponseCacheOnlyIfCached) {
+			reason = ErrResponseCacheOnlyIfCached.Error()
+		}
+		return l.renderErrorsFailedToFetch(fetchItem, res, reason)
 	}
 	if res.authorizationRejected {
 		err := l.renderAuthorizationRejectedErrors(fetchItem, res)

@@ -378,8 +378,21 @@ func (d fixedDataSource) LoadWithFiles(ctx context.Context, h http.Header, in []
 // singleFetchCacheInfo resolves one root fetch and returns what the hook was told.
 func singleFetchCacheInfo(t *testing.T, ds DataSource, opts ResponseCacheOptions) ResponseCacheInfo {
 	t.Helper()
+	ctx := NewContext(context.Background())
+	ctx.SetResponseCache(opts)
+	var infos []*ResponseInfo
+	ctx.LoaderHooks = &spyLoaderHooks{onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
+		infos = append(infos, info)
+	}}
+	_, _ = newTestResolver(t, baseResolverOpts()).ResolveGraphQLResponse(ctx, singleFetchResponse(ds), nil, &bytes.Buffer{})
+	require.Len(t, infos, 1)
+	return infos[0].ResponseCache
+}
+
+// singleFetchResponse is one root fetch of {me} from ds.
+func singleFetchResponse(ds DataSource) *GraphQLResponse {
 	input := `{"method":"POST","url":"http://accounts","body":{"query":"{me}"}}`
-	response := &GraphQLResponse{
+	return &GraphQLResponse{
 		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
 		Fetches: Single(&SingleFetch{
 			FetchConfiguration: FetchConfiguration{
@@ -396,15 +409,6 @@ func singleFetchCacheInfo(t *testing.T, ds DataSource, opts ResponseCacheOptions
 		}),
 		Data: &Object{Fields: []*Field{{Name: []byte("me"), Value: &String{Path: []string{"me"}, Nullable: true}}}},
 	}
-	ctx := NewContext(context.Background())
-	ctx.SetResponseCache(opts)
-	var infos []*ResponseInfo
-	ctx.LoaderHooks = &spyLoaderHooks{onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
-		infos = append(infos, info)
-	}}
-	_, _ = newTestResolver(t, baseResolverOpts()).ResolveGraphQLResponse(ctx, response, nil, &bytes.Buffer{})
-	require.Len(t, infos, 1)
-	return infos[0].ResponseCache
 }
 
 // mergedFetchCacheInfo resolves a merged entity fetch and returns what the hook was told about it.

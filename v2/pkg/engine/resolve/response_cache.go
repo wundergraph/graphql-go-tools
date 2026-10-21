@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -17,6 +18,20 @@ import (
 // a particular fetch is cached is responseCacheSubgraph's call.
 func (l *Loader) responseCacheEnabled() bool {
 	return l.ctx != nil && l.ctx.responseCache != nil
+}
+
+// ErrResponseCacheOnlyIfCached fails a fetch an only-if-cached request found no entry for.
+var ErrResponseCacheOnlyIfCached = errors.New("not in the response cache (only-if-cached)")
+
+// responseCacheRefuse fails a fetch the cache could not answer, when the
+// request allows nothing else. Introspection is local and always answered.
+func (l *Loader) responseCacheRefuse(res *result) bool {
+	if !l.responseCacheEnabled() || !l.ctx.responseCache.onlyIfCached || IsIntrospectionDataSource(res.ds.ID) {
+		return false
+	}
+	res.err = ErrResponseCacheOnlyIfCached
+	l.ctx.responseCache.unsatisfied.Store(true)
+	return true
 }
 
 // responseCacheSubgraph is the cache's settings for the subgraph a fetch goes
