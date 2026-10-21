@@ -237,6 +237,12 @@ func TestResponseCacheInfo_SingleAndMergedAgree(t *testing.T) {
 			decision: caching.StoreDecisionFetchFailed,
 		},
 		{
+			name:     "partial content",
+			single:   fixedDataSource{body: []byte(`{"data":{"me":"a"}}`), status: http.StatusPartialContent},
+			merged:   &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":["a"]},{"products":["b"]}],"f2":[{"notes":"n"}]}}`), responseHeaders: cacheableHeaders(), status: http.StatusPartialContent},
+			decision: caching.StoreDecisionUncacheableStatus,
+		},
+		{
 			name:     "unparsable body",
 			single:   fixedDataSource{body: []byte(`not json`), status: http.StatusOK},
 			merged:   &recordingDataSource{response: []byte(`not json`), responseHeaders: cacheableHeaders()},

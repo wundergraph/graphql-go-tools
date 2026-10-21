@@ -427,6 +427,10 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		res.responseCache.StoreDecision = caching.StoreDecisionFetchFailed
 		return nil //nolint:nilerr
 	}
+	if !caching.CacheableStatus(res.statusCode) {
+		res.responseCache.StoreDecision = caching.StoreDecisionUncacheableStatus
+		return nil
+	}
 
 	response, err := res.parsedResponse(l)
 	if err != nil {
@@ -705,6 +709,10 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	res := prepared.res
 	if res.err != nil || len(res.out) == 0 || res.statusCode >= 400 {
 		res.responseCache.StoreDecision = caching.StoreDecisionFetchFailed
+		return
+	}
+	if !caching.CacheableStatus(res.statusCode) {
+		res.responseCache.StoreDecision = caching.StoreDecisionUncacheableStatus
 		return
 	}
 	if response == nil {

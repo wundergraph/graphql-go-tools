@@ -238,3 +238,59 @@ func TestFreshnessOf(t *testing.T) {
 		})
 	}
 }
+
+func TestFreshnessOfExpires(t *testing.T) {
+	t.Parallel()
+
+	const defaultTTL = 30 * time.Second
+	date := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	at := func(d time.Duration) string { return date.Add(d).Format(http.TimeFormat) }
+
+	for _, tc := range []struct {
+		name         string
+		cacheControl string
+		expires      []string
+		noDate       bool
+		want         StoreDecision
+		wantTTL      time.Duration
+		wantShared   bool
+	}{
+		{name: "expires alone is a lifetime", expires: []string{at(time.Minute)}, want: StoreDecisionStored, wantTTL: time.Minute},
+		{name: "expires outranks the fallback", cacheControl: "public", expires: []string{at(10 * time.Second)}, want: StoreDecisionStored, wantTTL: 10 * time.Second},
+		{name: "max-age outranks expires", cacheControl: "max-age=60", expires: []string{at(-time.Hour)}, want: StoreDecisionStored, wantTTL: time.Minute},
+		{name: "s-maxage outranks expires", cacheControl: "s-maxage=60", expires: []string{at(-time.Hour)}, want: StoreDecisionStored, wantTTL: time.Minute, wantShared: true},
+		{name: "past expires", cacheControl: "public", expires: []string{at(-time.Hour)}, want: StoreDecisionNoLifetime},
+		{name: "expires equal to date", expires: []string{at(0)}, want: StoreDecisionNoLifetime},
+		{name: "expires 0 is expired", cacheControl: "public", expires: []string{"0"}, want: StoreDecisionNoLifetime},
+		{name: "empty expires is expired", cacheControl: "public", expires: []string{""}, want: StoreDecisionNoLifetime},
+		{name: "non-GMT zone is expired", cacheControl: "public", expires: []string{"Wed, 21 Oct 2026 13:00:00 PST"}, want: StoreDecisionNoLifetime},
+		{name: "without date, now is the base", expires: []string{time.Now().Add(time.Hour).UTC().Format(http.TimeFormat)}, noDate: true, want: StoreDecisionStored},
+		{name: "no-store outranks expires", cacheControl: "no-store", expires: []string{at(time.Minute)}, want: StoreDecisionNoStore},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			headers := http.Header{"Expires": tc.expires}
+			if tc.cacheControl != "" {
+				headers.Set("Cache-Control", tc.cacheControl)
+			}
+			if !tc.noDate {
+				headers.Set("Date", at(0))
+			}
+			f := FreshnessOf(headers, nil, defaultTTL)
+			assert.Equal(t, tc.want, f.Decision)
+			if tc.noDate {
+				assert.InDelta(t, time.Hour, f.TTL, float64(2*time.Second))
+				return
+			}
+			assert.Equal(t, tc.wantTTL, f.TTL)
+			assert.Equal(t, tc.wantShared, f.SharedOnly)
+		})
+	}
+}
+
+func TestCacheableStatus(t *testing.T) {
+	t.Parallel()
+	for code, want := range map[int]bool{0: true, 200: true, 203: true, 204: false, 206: false, 304: false, 404: false} {
+		assert.Equal(t, want, CacheableStatus(code), "status %d", code)
+	}
+}

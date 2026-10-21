@@ -23,6 +23,7 @@ const (
 	StoreDecisionNone                StoreDecision = iota // none
 	StoreDecisionStored                                   // stored
 	StoreDecisionFetchFailed                              // fetch_failed
+	StoreDecisionUncacheableStatus                        // uncacheable_status
 	StoreDecisionResponseErrors                           // response_errors
 	StoreDecisionInvalidResponse                          // invalid_response
 	StoreDecisionInvalidCacheControl                      // invalid_cache_control
@@ -34,6 +35,13 @@ const (
 	StoreDecisionPrivateWithoutID                         // private_without_id
 	StoreDecisionNoEntity                                 // no_entity
 )
+
+// CacheableStatus reports whether a response with this status may be stored:
+// 200 or 203, or 0 from a data source without HTTP. A cache without Range or
+// validation must not store 206 or 304 (RFC 9111 §3).
+func CacheableStatus(code int) bool {
+	return code == 0 || code == http.StatusOK || code == http.StatusNonAuthoritativeInfo
+}
 
 // Freshness is what a response allows a cache to do with it.
 type Freshness struct {
@@ -79,11 +87,14 @@ func FreshnessOf(headers, sent http.Header, defaultTTL time.Duration) Freshness 
 
 	// Explicit freshness takes precedence over the configured fallback.
 	var lifetime time.Duration
+	var fromExpires bool
 	switch {
 	case cc.SMaxAge != nil:
 		lifetime = cc.SMaxAge.AsDuration()
 	case cc.MaxAge != nil:
 		lifetime = cc.MaxAge.AsDuration()
+	case len(headers.Values("Expires")) > 0:
+		lifetime, fromExpires = expiresLifetime(headers), true
 	case !cc.HasCachingDirectives():
 		// Only recognized cache directives opt into the configured fallback.
 		return Freshness{Decision: StoreDecisionNoDirective}
@@ -102,13 +113,28 @@ func FreshnessOf(headers, sent http.Header, defaultTTL time.Duration) Freshness 
 	}
 
 	f := Freshness{TTL: ttl, Private: private, Decision: StoreDecisionStored, Public: cc.Public}
-	f.SharedOnly = !private && cc.MaxAge == nil && (cc.SMaxAge != nil || cc.Public)
+	// An Expires lifetime is the client's too.
+	f.SharedOnly = !private && cc.MaxAge == nil && !fromExpires && (cc.SMaxAge != nil || cc.Public)
 	if cc.MaxAge != nil {
 		if client := max(cc.MaxAge.AsDuration()-spent, 0); client < ttl {
 			f.ClientShortfall = ttl - client
 		}
 	}
 	return f
+}
+
+// expiresLifetime is Expires less Date, or less now without a Date. An invalid
+// Expires, "0" included, is already expired (RFC 9111 §5.3).
+func expiresLifetime(headers http.Header) time.Duration {
+	expires, err := http.ParseTime(headers.Get("Expires"))
+	if err != nil {
+		return 0
+	}
+	date, err := http.ParseTime(headers.Get("Date"))
+	if err != nil {
+		date = time.Now()
+	}
+	return expires.Sub(date)
 }
 
 // age is the Age header, zero when absent or invalid. A list uses its first
