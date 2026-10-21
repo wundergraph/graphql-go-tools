@@ -78,6 +78,16 @@ type DataSourceConfig struct {
 
 // NewDataSource creates a new datasource with the given RPCTransport.
 func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource, error) {
+	// A disabled datasource only returns an error on Load.
+	// It does not need a plan or a compiled program.
+	if config.Disabled {
+		return &DataSource{disabled: true}, nil
+	}
+
+	if config.Compiler == nil {
+		return nil, fmt.Errorf("compiler is required")
+	}
+
 	planner, err := NewPlanner(config.SubgraphName, config.Mapping, config.FederationConfigs)
 	if err != nil {
 		return nil, err

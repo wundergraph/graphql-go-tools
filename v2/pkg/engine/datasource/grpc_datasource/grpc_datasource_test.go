@@ -109,6 +109,21 @@ func Test_DataSource_Load_NilTransport(t *testing.T) {
 	require.Nil(t, out)
 }
 
+func Test_NewDataSource_NilCompiler(t *testing.T) {
+	ds, err := NewDataSource(nil, DataSourceConfig{Mapping: testMapping()})
+	require.EqualError(t, err, "compiler is required")
+	require.Nil(t, ds)
+}
+
+func Test_NewDataSource_Disabled(t *testing.T) {
+	ds, err := NewDataSource(nil, DataSourceConfig{Disabled: true})
+	require.NoError(t, err)
+
+	out, err := ds.Load(context.Background(), nil, []byte(`{}`))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"errors":[{"message":"gRPC / connect datasource needs to be enabled to be used","extensions":{"code":"Internal"}}]}`, string(out))
+}
+
 // Test_DataSource_Load_WithoutVariables makes sure that an operation without arguments
 // does not need variables. The upstream input omits the variables key in that case.
 func Test_DataSource_Load_WithoutVariables(t *testing.T) {
