@@ -103,9 +103,6 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 	}
 
 	resolvedValues := resolved.GetArray(resolveResponsePath)
-	if len(resolvedValues) == 0 {
-		return nil
-	}
 
 	searchPath := path[:len(path)-1]
 	elementName := path[len(path)-1].FieldName.String()
@@ -132,7 +129,7 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 	}
 
 	if len(resolvedValues) != len(responseValues) {
-		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(resolvedValues), len(responseValues))
+		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(responseValues), len(resolvedValues))
 	}
 
 	for i := range responseValues {

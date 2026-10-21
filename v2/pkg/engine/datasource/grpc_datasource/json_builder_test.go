@@ -64,3 +64,29 @@ func TestJSONBuilder_MergeWithPath_NullParents(t *testing.T) {
 		})
 	}
 }
+
+// TestJSONBuilder_MergeWithPath_LengthMismatch tests that a resolver result must have
+// one value for each parent.
+func TestJSONBuilder_MergeWithPath_LengthMismatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty resolver result returns an error", func(t *testing.T) {
+		t.Parallel()
+
+		base := astjson.MustParse(`{"parents":[{"id":"a"},{"id":"b"}]}`)
+		resolved := astjson.MustParse(`{"result":[]}`)
+
+		err := newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"))
+		require.EqualError(t, err, "length of values doesn't match the length of the result array, expected 2, got 0")
+	})
+
+	t.Run("short resolver result returns an error", func(t *testing.T) {
+		t.Parallel()
+
+		base := astjson.MustParse(`{"parents":[{"id":"a"},{"id":"b"}]}`)
+		resolved := astjson.MustParse(`{"result":[{"value":1}]}`)
+
+		err := newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"))
+		require.EqualError(t, err, "length of values doesn't match the length of the result array, expected 2, got 1")
+	})
+}
