@@ -77,6 +77,7 @@ func TestResponseCacheInfo(t *testing.T) {
 		miss := resolveWith(t, response, opts)
 		require.Equal(t, ResponseCacheStatusMiss, miss.ResponseCache.Status)
 		require.Equal(t, caching.StoreDecisionStored, miss.ResponseCache.StoreDecision)
+		require.Equal(t, time.Minute, miss.ResponseCache.StoredTTL)
 		require.Equal(t, 1, miss.ResponseCache.KeysRequested)
 		require.Zero(t, miss.ResponseCache.KeysFound)
 		require.Equal(t, rootFields, miss.RootFields)
@@ -84,6 +85,7 @@ func TestResponseCacheInfo(t *testing.T) {
 		hit := resolveWith(t, response, opts)
 		require.Equal(t, ResponseCacheStatusHit, hit.ResponseCache.Status)
 		require.Equal(t, caching.StoreDecisionNone, hit.ResponseCache.StoreDecision, "nothing is decided for a hit")
+		require.Zero(t, hit.ResponseCache.StoredTTL)
 		require.Equal(t, 1, hit.ResponseCache.KeysRequested)
 		require.Equal(t, 1, hit.ResponseCache.KeysFound)
 		require.Equal(t, rootFields, hit.RootFields)
@@ -188,6 +190,7 @@ func TestResponseCacheInfo_MultiEntity(t *testing.T) {
 	})
 	require.Equal(t, ResponseCacheStatusMiss, cold.Status)
 	require.Equal(t, caching.StoreDecisionStored, cold.StoreDecision)
+	require.Equal(t, time.Minute, cold.StoredTTL)
 	require.Positive(t, cold.KeysRequested)
 	require.Zero(t, cold.KeysFound)
 
@@ -215,6 +218,7 @@ func TestResponseCacheInfo_MultiEntity(t *testing.T) {
 	})
 	require.Equal(t, ResponseCacheStatusPartialHit, partial.Status)
 	require.Equal(t, caching.StoreDecisionStored, partial.StoreDecision)
+	require.Equal(t, 2*time.Minute, partial.StoredTTL)
 }
 
 // TestResponseCacheInfo_SingleAndMergedAgree pins that a merged fetch reports
@@ -231,6 +235,12 @@ func TestResponseCacheInfo_SingleAndMergedAgree(t *testing.T) {
 			single:   fixedDataSource{err: errors.New("boom")},
 			merged:   &recordingDataSource{err: errors.New("boom")},
 			decision: caching.StoreDecisionFetchFailed,
+		},
+		{
+			name:     "partial content",
+			single:   fixedDataSource{body: []byte(`{"data":{"me":"a"}}`), status: http.StatusPartialContent},
+			merged:   &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":["a"]},{"products":["b"]}],"f2":[{"notes":"n"}]}}`), responseHeaders: cacheableHeaders(), status: http.StatusPartialContent},
+			decision: caching.StoreDecisionUncacheableStatus,
 		},
 		{
 			name:     "unparsable body",

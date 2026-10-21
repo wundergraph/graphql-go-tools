@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -39,8 +38,8 @@ type preparedMultiEntry struct {
 	// responseCachePrivate records that cachedValues came, in whole or part,
 	// from entries scoped to the requesting user.
 	responseCachePrivate bool
-	// responseCacheTTL is the life left on the least fresh of cachedValues.
-	responseCacheTTL time.Duration
+	// lifetimes is what cachedValues report.
+	lifetimes hitLifetimes
 	// responseCacheSurrogateKeys is what cachedValues were stored with.
 	responseCacheSurrogateKeys []string
 }
@@ -413,7 +412,7 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 
 	// A partial hit still contains data with this much life left,
 	// and the hook needs it for Cache-Control.
-	prepared.res.responseCacheTTL = shortestCachedEntryTTL(prepared.multiEntries)
+	cachedEntryLifetimes(prepared.multiEntries).report(prepared.res)
 	prepared.res.responseCachePrivate = anyPrivateCachedEntry(prepared)
 	prepared.res.responseCache.Status = ResponseCacheStatusPartialHit
 
