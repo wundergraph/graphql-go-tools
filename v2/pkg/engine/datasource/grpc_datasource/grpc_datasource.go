@@ -183,15 +183,10 @@ func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest req
 	}
 
 	astJsonVariables := value.Get("variables")
-	if !value.Exists() {
-		return nil, fmt.Errorf("variables are required")
-	}
-
 	builder := newJSONBuilder(item.Arena, d.mapping)
 
 	root := astjson.ObjectValue(nil)
 	callMap := make(map[int]fetchResult)
-	representations := getRepresentations(astJsonVariables)
 
 	for _, stage := range d.program.stages {
 		results := make([]fetchResult, len(stage.fetches))
@@ -213,7 +208,6 @@ func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest req
 					fetchBuilder,
 					callMap,
 					astJsonVariables,
-					representations,
 					buildRequest,
 				)
 				if err != nil {
@@ -261,7 +255,6 @@ func (d *DataSource) runFetch(
 	fetchBuilder *jsonBuilder,
 	callMap map[int]fetchResult,
 	astJsonVariables *astjson.Value,
-	representations []*astjson.Value,
 	buildRequest requestBuilder,
 ) (fetchResult, error) {
 	request, skip, err := buildRequest(a, fetch, callMap, astJsonVariables)
@@ -299,6 +292,7 @@ func (d *DataSource) runFetch(
 	// On success we build the index map used by mergeEntities to place each response
 	// entity at the correct position in the final _entities array.
 	if fetch.kind == CallKindEntity {
+		representations := getRepresentations(astJsonVariables)
 		if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
 			return fetchResult{}, err
 		}

@@ -109,6 +109,45 @@ func Test_DataSource_Load_NilTransport(t *testing.T) {
 	require.Nil(t, out)
 }
 
+// Test_DataSource_Load_WithoutVariables makes sure that an operation without arguments
+// does not need variables. The upstream input omits the variables key in that case.
+func Test_DataSource_Load_WithoutVariables(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	query := `query CategoriesQuery { categories { id } }`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	expected := `{"data":{"categories":[{"id":"category-1"},{"id":"category-2"},{"id":"category-3"},{"id":"category-4"}]}}`
+
+	t.Run("variables is null", func(t *testing.T) {
+		out, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":{"variables":null}}`))
+		require.NoError(t, err)
+		require.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("variables is an empty string", func(t *testing.T) {
+		out, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":{"variables":""}}`))
+		require.NoError(t, err)
+		require.JSONEq(t, expected, string(out))
+	})
+}
+
 // Test_DataSource_Load_WithRecursiveInputType sends a nested recursive ConditionsInput through the
 // full execution pipeline to verify that no stack overflow occurs during plan building, input
 // serialization, and gRPC invocation.
