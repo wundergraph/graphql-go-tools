@@ -303,11 +303,11 @@ func TestCreateProtoWire(t *testing.T) {
 		// The uint_64 value is larger than math.MaxInt64.
 		// A signed parse of this value returns 0.
 		input, err := json.Marshal(map[string]any{
-			"int_32":     int32(math.MaxInt32),
-			"double_value":   float64(math.MaxFloat64),
-			"uint_32": uint32(math.MaxUint32),
-			"uint_64": uint64(math.MaxUint64),
-			"int_64":  int64(math.MaxInt64),
+			"int_32":       int32(math.MaxInt32),
+			"double_value": float64(math.MaxFloat64),
+			"uint_32":      uint32(math.MaxUint32),
+			"uint_64":      uint64(math.MaxUint64),
+			"int_64":       int64(math.MaxInt64),
 		})
 		require.NoError(t, err)
 
@@ -341,11 +341,11 @@ func TestCreateProtoWire(t *testing.T) {
 		// Negative signed values must use the 10-byte two's complement varint.
 		// An unsigned parse of these values returns 0.
 		input, err := json.Marshal(map[string]any{
-			"int_32":     int32(math.MinInt32),
-			"double_value":   float64(-math.MaxFloat64),
-			"uint_32": uint32(0),
-			"uint_64": uint64(0),
-			"int_64":  int64(math.MinInt64),
+			"int_32":       int32(math.MinInt32),
+			"double_value": float64(-math.MaxFloat64),
+			"uint_32":      uint32(0),
+			"uint_64":      uint64(0),
+			"int_64":       int64(math.MinInt64),
 		})
 		require.NoError(t, err)
 
