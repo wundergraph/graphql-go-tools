@@ -64,10 +64,10 @@ func TestCompileWireMessage(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
-				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
-				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
-				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
-				{Name: "active", ProtoTypeName: DataTypeBool, JSONPath: "active"},
+				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value"},
+				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32"},
+				{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value"},
+				{Name: "bool_value", ProtoTypeName: DataTypeBool, JSONPath: "bool_value"},
 			},
 		}, runtime.getMessageByName("ScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
@@ -82,10 +82,10 @@ func TestCompileWireMessage(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",
 			Fields: RPCFields{
-				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name", Optional: true},
-				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age", Optional: true},
-				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score", Optional: true},
-				{Name: "active", ProtoTypeName: DataTypeBool, JSONPath: "active", Optional: true},
+				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true},
+				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true},
+				{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value", Optional: true},
+				{Name: "bool_value", ProtoTypeName: DataTypeBool, JSONPath: "bool_value", Optional: true},
 			},
 		}, runtime.getMessageByName("WrapperScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
@@ -100,8 +100,8 @@ func TestCompileWireMessage(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "RepeatedScalarRequest",
 			Fields: RPCFields{
-				{Name: "tags", ProtoTypeName: DataTypeString, JSONPath: "tags", Repeated: true},
-				{Name: "scores", ProtoTypeName: DataTypeInt32, JSONPath: "scores", Repeated: true},
+				{Name: "string_values", ProtoTypeName: DataTypeString, JSONPath: "string_values", Repeated: true},
+				{Name: "int_32_values", ProtoTypeName: DataTypeInt32, JSONPath: "int_32_values", Repeated: true},
 			},
 		}, runtime.getMessageByName("RepeatedScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
@@ -229,16 +229,16 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
-				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value"},
 			},
 		}, runtime.getMessageByName("ScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
 
-		got, err := wm.createProtoWire(astjson.MustParse(`{"name":"hello"}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"string_value":"hello"}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			msg.Set(desc.Fields().ByName("name"), protoref.ValueOfString("hello"))
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString("hello"))
 		})
 
 		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
@@ -248,20 +248,20 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
-				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
-				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
-				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
+				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value"},
+				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32"},
+				{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value"},
 			},
 		}, runtime.getMessageByName("ScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
 
-		got, err := wm.createProtoWire(astjson.MustParse(`{"name":"alice","age":30,"score":99.5}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"string_value":"alice","int_32":30,"double_value":99.5}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			msg.Set(desc.Fields().ByName("name"), protoref.ValueOfString("alice"))
-			msg.Set(desc.Fields().ByName("age"), protoref.ValueOfInt32(30))
-			msg.Set(desc.Fields().ByName("score"), protoref.ValueOfFloat64(99.5))
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString("alice"))
+			msg.Set(desc.Fields().ByName("int_32"), protoref.ValueOfInt32(30))
+			msg.Set(desc.Fields().ByName("double_value"), protoref.ValueOfFloat64(99.5))
 		})
 
 		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
@@ -271,17 +271,17 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
-				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
-				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
+				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32"},
+				{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value"},
 			},
 		}, runtime.getMessageByName("ScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
-		got, err := wm.createProtoWire(astjson.MustParse(`{"age":-7,"score":-99.5}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"int_32":-7,"double_value":-99.5}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			msg.Set(desc.Fields().ByName("age"), protoref.ValueOfInt32(-7))
-			msg.Set(desc.Fields().ByName("score"), protoref.ValueOfFloat64(-99.5))
+			msg.Set(desc.Fields().ByName("int_32"), protoref.ValueOfInt32(-7))
+			msg.Set(desc.Fields().ByName("double_value"), protoref.ValueOfFloat64(-99.5))
 		})
 
 		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
@@ -291,8 +291,8 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
-				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
-				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
+				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32"},
+				{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value"},
 				{Name: "uint_32", ProtoTypeName: DataTypeUint32, JSONPath: "uint_32"},
 				{Name: "uint_64", ProtoTypeName: DataTypeUint64, JSONPath: "uint_64"},
 				{Name: "int_64", ProtoTypeName: DataTypeInt64, JSONPath: "int_64"},
@@ -303,8 +303,8 @@ func TestCreateProtoWire(t *testing.T) {
 		// The uint_64 value is larger than math.MaxInt64.
 		// A signed parse of this value returns 0.
 		input, err := json.Marshal(map[string]any{
-			"age":     int32(math.MaxInt32),
-			"score":   float64(math.MaxFloat64),
+			"int_32":     int32(math.MaxInt32),
+			"double_value":   float64(math.MaxFloat64),
 			"uint_32": uint32(math.MaxUint32),
 			"uint_64": uint64(math.MaxUint64),
 			"int_64":  int64(math.MaxInt64),
@@ -315,8 +315,8 @@ func TestCreateProtoWire(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			msg.Set(desc.Fields().ByName("age"), protoref.ValueOfInt32(math.MaxInt32))
-			msg.Set(desc.Fields().ByName("score"), protoref.ValueOfFloat64(math.MaxFloat64))
+			msg.Set(desc.Fields().ByName("int_32"), protoref.ValueOfInt32(math.MaxInt32))
+			msg.Set(desc.Fields().ByName("double_value"), protoref.ValueOfFloat64(math.MaxFloat64))
 			msg.Set(desc.Fields().ByName("uint_32"), protoref.ValueOfUint32(math.MaxUint32))
 			msg.Set(desc.Fields().ByName("uint_64"), protoref.ValueOfUint64(math.MaxUint64))
 			msg.Set(desc.Fields().ByName("int_64"), protoref.ValueOfInt64(math.MaxInt64))
@@ -329,8 +329,8 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
-				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age"},
-				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score"},
+				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32"},
+				{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value"},
 				{Name: "uint_32", ProtoTypeName: DataTypeUint32, JSONPath: "uint_32"},
 				{Name: "uint_64", ProtoTypeName: DataTypeUint64, JSONPath: "uint_64"},
 				{Name: "int_64", ProtoTypeName: DataTypeInt64, JSONPath: "int_64"},
@@ -341,8 +341,8 @@ func TestCreateProtoWire(t *testing.T) {
 		// Negative signed values must use the 10-byte two's complement varint.
 		// An unsigned parse of these values returns 0.
 		input, err := json.Marshal(map[string]any{
-			"age":     int32(math.MinInt32),
-			"score":   float64(-math.MaxFloat64),
+			"int_32":     int32(math.MinInt32),
+			"double_value":   float64(-math.MaxFloat64),
 			"uint_32": uint32(0),
 			"uint_64": uint64(0),
 			"int_64":  int64(math.MinInt64),
@@ -353,8 +353,8 @@ func TestCreateProtoWire(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			msg.Set(desc.Fields().ByName("age"), protoref.ValueOfInt32(math.MinInt32))
-			msg.Set(desc.Fields().ByName("score"), protoref.ValueOfFloat64(-math.MaxFloat64))
+			msg.Set(desc.Fields().ByName("int_32"), protoref.ValueOfInt32(math.MinInt32))
+			msg.Set(desc.Fields().ByName("double_value"), protoref.ValueOfFloat64(-math.MaxFloat64))
 			msg.Set(desc.Fields().ByName("uint_32"), protoref.ValueOfUint32(0))
 			msg.Set(desc.Fields().ByName("uint_64"), protoref.ValueOfUint64(0))
 			msg.Set(desc.Fields().ByName("int_64"), protoref.ValueOfInt64(math.MinInt64))
@@ -368,17 +368,17 @@ func TestCreateProtoWire(t *testing.T) {
 			Name: "WrapperScalarRequest",
 			Fields: RPCFields{
 				{
-					Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name", Optional: true,
+					Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true,
 				},
 			},
 		}, runtime.getMessageByName("WrapperScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
 
-		got, err := wm.createProtoWire(astjson.MustParse(`{"name":"hello"}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"string_value":"hello"}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			setWrapperValue(msg, "name", protoref.ValueOfString("hello"))
+			setWrapperValue(msg, "string_value", protoref.ValueOfString("hello"))
 		})
 
 		assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
@@ -388,7 +388,7 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",
 			Fields: RPCFields{
-				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name", Optional: true},
+				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true},
 			},
 		}, runtime.getMessageByName("WrapperScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
@@ -407,12 +407,12 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",
 			Fields: RPCFields{
-				{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name", Optional: true},
+				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true},
 			},
 		}, runtime.getMessageByName("WrapperScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
 
-		got, err := wm.createProtoWire(astjson.MustParse(`{"name":null}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"string_value":null}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
@@ -426,18 +426,18 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "WrapperScalarRequest",
 			Fields: RPCFields{
-				{Name: "age", ProtoTypeName: DataTypeInt32, JSONPath: "age", Optional: true},
-				{Name: "score", ProtoTypeName: DataTypeDouble, JSONPath: "score", Optional: true},
+				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true},
+				{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value", Optional: true},
 			},
 		}, runtime.getMessageByName("WrapperScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
 
-		got, err := wm.createProtoWire(astjson.MustParse(`{"age":25,"score":3.14}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"int_32":25,"double_value":3.14}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			setWrapperValue(msg, "age", protoref.ValueOfInt32(25))
-			setWrapperValue(msg, "score", protoref.ValueOfFloat64(3.14))
+			setWrapperValue(msg, "int_32", protoref.ValueOfInt32(25))
+			setWrapperValue(msg, "double_value", protoref.ValueOfFloat64(3.14))
 		})
 
 		assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
@@ -447,16 +447,16 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "RepeatedScalarRequest",
 			Fields: RPCFields{
-				{Name: "tags", ProtoTypeName: DataTypeString, JSONPath: "tags", Repeated: true},
+				{Name: "string_values", ProtoTypeName: DataTypeString, JSONPath: "string_values", Repeated: true},
 			},
 		}, runtime.getMessageByName("RepeatedScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
 
-		got, err := wm.createProtoWire(astjson.MustParse(`{"tags":["foo","bar","baz"]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"string_values":["foo","bar","baz"]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "RepeatedScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			list := msg.Mutable(desc.Fields().ByName("tags")).List()
+			list := msg.Mutable(desc.Fields().ByName("string_values")).List()
 			list.Append(protoref.ValueOfString("foo"))
 			list.Append(protoref.ValueOfString("bar"))
 			list.Append(protoref.ValueOfString("baz"))
@@ -469,16 +469,16 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "RepeatedScalarRequest",
 			Fields: RPCFields{
-				{Name: "scores", ProtoTypeName: DataTypeInt32, JSONPath: "scores", Repeated: true},
+				{Name: "int_32_values", ProtoTypeName: DataTypeInt32, JSONPath: "int_32_values", Repeated: true},
 			},
 		}, runtime.getMessageByName("RepeatedScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
 
-		got, err := wm.createProtoWire(astjson.MustParse(`{"scores":[1,2,3]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"int_32_values":[1,2,3]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "RepeatedScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			list := msg.Mutable(desc.Fields().ByName("scores")).List()
+			list := msg.Mutable(desc.Fields().ByName("int_32_values")).List()
 			list.Append(protoref.ValueOfInt32(1))
 			list.Append(protoref.ValueOfInt32(2))
 			list.Append(protoref.ValueOfInt32(3))
@@ -1057,18 +1057,18 @@ func TestCreateProtoWire(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "ScalarRequest",
 			Fields: RPCFields{
-				{Name: "ratio", ProtoTypeName: DataTypeDouble, JSONPath: "ratio"},
-				{Name: "ratios", ProtoTypeName: DataTypeDouble, JSONPath: "ratios", Repeated: true},
+				{Name: "float_value", ProtoTypeName: DataTypeDouble, JSONPath: "float_value"},
+				{Name: "float_values", ProtoTypeName: DataTypeDouble, JSONPath: "float_values", Repeated: true},
 			},
 		}, runtime.getMessageByName("ScalarRequest"))
 		wm := compileTestWireMessage(t, runtime, message)
 
-		got, err := wm.createProtoWire(astjson.MustParse(`{"ratio":1.5,"ratios":[0.25,-2.5]}`))
+		got, err := wm.createProtoWire(astjson.MustParse(`{"float_value":1.5,"float_values":[0.25,-2.5]}`))
 		require.NoError(t, err)
 
 		expected := marshalDynamic(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			msg.Set(desc.Fields().ByName("ratio"), protoref.ValueOfFloat32(1.5))
-			list := msg.Mutable(desc.Fields().ByName("ratios")).List()
+			msg.Set(desc.Fields().ByName("float_value"), protoref.ValueOfFloat32(1.5))
+			list := msg.Mutable(desc.Fields().ByName("float_values")).List()
 			list.Append(protoref.ValueOfFloat32(0.25))
 			list.Append(protoref.ValueOfFloat32(-2.5))
 		})
