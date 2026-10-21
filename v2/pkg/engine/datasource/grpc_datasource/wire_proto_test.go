@@ -646,6 +646,26 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("oneOf request with unknown __typename returns an error", func(t *testing.T) {
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name:        "InterfaceOneOfRequest",
+			MemberTypes: []string{"InterfaceA", "InterfaceB"},
+			OneOfType:   OneOfTypeInterface,
+			FragmentFields: RPCFieldSelectionSet{
+				"InterfaceA": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+				"InterfaceB": {
+					{Name: "name", ProtoTypeName: DataTypeString, JSONPath: "name"},
+				},
+			},
+		}, runtime.getMessageByName("InterfaceOneOfRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		_, err := wm.createProtoMessage(astjson.MustParse(`{"__typename":"InterfaceC","name":"C"}`))
+		require.EqualError(t, err, "InterfaceC not found in oneof instance")
+	})
+
 	t.Run("mixed request with multiple field types", func(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "MixedRequest",

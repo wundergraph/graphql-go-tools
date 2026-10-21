@@ -82,47 +82,7 @@ func (w *wireMessage) createProtoWire(data *astjson.Value) ([]byte, error) {
 // appendProtoWire encodes the message fields into the given buffer.
 func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) error {
 	if w.oneOfType != OneOfTypeNone {
-		if !data.Exists("__typename") {
-			return fmt.Errorf("__typename is required for oneof fields")
-		}
-
-		typeName := string(data.Get("__typename").GetStringBytes())
-
-		oneOfDescriptor := w.oneOfTypeDecriptor()
-		if oneOfDescriptor == nil {
-			return fmt.Errorf("oneof descriptor not found for message %s", w.runtime.name)
-		}
-
-		found := false
-		fields := oneOfDescriptor.Fields()
-		for i := range fields.Len() {
-			field := fields.Get(i)
-			if field.Kind() != protoref.MessageKind {
-				continue
-			}
-
-			if field.Message().Name() == protoref.Name(typeName) {
-				fieldNumber := field.Number()
-				buf.Write(protowire.AppendTag(buf.AvailableBuffer(), fieldNumber, protowire.BytesType))
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return fmt.Errorf("%s not found in oneof %s", typeName, oneOfDescriptor.Name())
-		}
-
-		oneOfFields := w.oneOfFields[typeName]
-		fieldsBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
-		for _, field := range oneOfFields {
-			if err := field.appendFieldWire(fieldsBuffer, data); err != nil {
-				return err
-			}
-		}
-
-		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), fieldsBuffer.Bytes()))
-		return nil
+		return w.appendOneOfProtoWire(buf, data)
 	}
 
 	for _, field := range w.fields {
@@ -130,6 +90,52 @@ func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) er
 			return err
 		}
 	}
+	return nil
+}
+
+// appendOneOfProtoWire encodes the oneof fields into the given buffer.
+// If the expected type name is not found in the oneof, an error is returned.
+func (w *wireMessage) appendOneOfProtoWire(buf *bytes.Buffer, data *astjson.Value) error {
+	if !data.Exists("__typename") {
+		return fmt.Errorf("__typename is required for oneof fields")
+	}
+
+	typeName := string(data.Get("__typename").GetStringBytes())
+
+	oneOfDescriptor := w.oneOfTypeDecriptor()
+	if oneOfDescriptor == nil {
+		return fmt.Errorf("oneof descriptor not found for message %s", w.runtime.name)
+	}
+
+	found := false
+	fields := oneOfDescriptor.Fields()
+	for i := range fields.Len() {
+		field := fields.Get(i)
+		if field.Kind() != protoref.MessageKind {
+			continue
+		}
+
+		if field.Message().Name() == protoref.Name(typeName) {
+			fieldNumber := field.Number()
+			buf.Write(protowire.AppendTag(buf.AvailableBuffer(), fieldNumber, protowire.BytesType))
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("%s not found in oneof %s", typeName, oneOfDescriptor.Name())
+	}
+
+	oneOfFields := w.oneOfFields[typeName]
+	fieldsBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
+	for _, field := range oneOfFields {
+		if err := field.appendFieldWire(fieldsBuffer, data); err != nil {
+			return err
+		}
+	}
+
+	buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), fieldsBuffer.Bytes()))
 	return nil
 }
 
