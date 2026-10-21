@@ -124,6 +124,38 @@ func Test_NewDataSource_Disabled(t *testing.T) {
 	require.JSONEq(t, `{"errors":[{"message":"gRPC / connect datasource needs to be enabled to be used","extensions":{"code":"Internal"}}]}`, string(out))
 }
 
+type panicTransport struct{}
+
+func (panicTransport) Invoke(context.Context, string, any, any) error {
+	panic("transport failure")
+}
+
+// Test_DataSource_Load_TransportPanic makes sure that a panic inside a fetch goroutine
+// becomes a GraphQL error and does not stop the process.
+func Test_DataSource_Load_TransportPanic(t *testing.T) {
+	query := `query CategoriesQuery { categories { id } }`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(panicTransport{}, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	out, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":{}}`))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"errors":[{"message":"panic during gRPC call /productv1.ProductService/QueryCategories: transport failure","extensions":{"code":"Internal"}}]}`, string(out))
+}
+
 // Test_DataSource_Load_WithoutVariables makes sure that an operation without arguments
 // does not need variables. The upstream input omits the variables key in that case.
 func Test_DataSource_Load_WithoutVariables(t *testing.T) {

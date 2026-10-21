@@ -266,7 +266,13 @@ func (d *DataSource) runFetch(
 	callMap map[int]fetchResult,
 	astJsonVariables *astjson.Value,
 	buildRequest requestBuilder,
-) (fetchResult, error) {
+) (_ fetchResult, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic during gRPC call %s: %v", fetch.methodFullName, r)
+		}
+	}()
+
 	request, skip, err := buildRequest(a, fetch, callMap, astJsonVariables)
 	if err != nil {
 		return fetchResult{}, err
