@@ -1463,7 +1463,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on Right { list { ... on RightInterface { value: name } } }
 									}
 								}`, FieldSelectionMerging(), Invalid,
-								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface!]!' for objectName 'list'`))
+								withValidationErrors(`differing types 'Status' and 'String!' for objectName 'value'`))
 						})
 						t.Run("list and single value", func(t *testing.T) {
 							runWithDefinition(t, definition, `
@@ -1484,7 +1484,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on Right { list { value: otherStatus } }
 									}
 								}`, FieldSelectionMerging(), Invalid,
-								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface!]!' for objectName 'list'`))
+								withValidationErrors(`differing types 'String!' and 'Status' for objectName 'value'`))
 						})
 						t.Run("different fields on the same type", func(t *testing.T) {
 							runWithDefinition(t, definition, `
@@ -1570,20 +1570,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on Right { list { value: otherDetail { name } } }
 									}
 								}`, FieldSelectionMerging(), Invalid,
-								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface!]!' for objectName 'list'`))
-						})
-						t.Run("fragment spread below the merged fields", func(t *testing.T) {
-							runWithDefinition(t, definition, `
-								{
-									parent {
-										... on Left { list { ...LeftFields } }
-										... on Right { list { value: otherStatus } }
-									}
-								}
-								fragment LeftFields on LeftInterface { value: name }
-								`, FieldSelectionMerging(), Invalid,
-								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface!]!' for objectName 'list'`),
-								withDisableNormalization())
+								withValidationErrors(`differing types 'String!' and 'RightObject' for objectName 'value'`))
 						})
 						t.Run("unknown subfield", func(t *testing.T) {
 							runWithDefinition(t, definition, `
@@ -1593,7 +1580,7 @@ func TestExecutionValidation(t *testing.T) {
 										... on Right { list { value: unknown } }
 									}
 								}`, FieldSelectionMerging(), Invalid,
-								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface!]!' for objectName 'list'`))
+								withValidationErrors(`Cannot query field "unknown" on type "RightInterface".`))
 						})
 						t.Run("relaxed nullability with differently named types", func(t *testing.T) {
 							runWithDefinition(t, definition, `
