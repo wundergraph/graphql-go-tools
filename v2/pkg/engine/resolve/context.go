@@ -63,6 +63,11 @@ type Context struct {
 	// Used to compute the actual cost.
 	TypeNameStats map[string]TypeNameStats
 
+	// deliveryGuarantee is the negotiated delivery guarantee in case the context is for
+	// EDFS / Cosmo Streams subscriptions. It's empty for plain GraphQL subscriptions or other
+	// non-subscription operations.
+	deliveryGuarantee string
+
 	// GetDeduplicationData is called after the leader of an inbound singleflight request
 	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
 	// response headers) that should be shared with all follower requests.
@@ -537,6 +542,11 @@ func (c *Context) Free() {
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
 	c.responseCache = nil
+	c.deliveryGuarantee = ""
+}
+
+func (c *Context) DeliveryGuarantee() string {
+	return c.deliveryGuarantee
 }
 
 func (c *Context) VariablesView() VariablesView {
