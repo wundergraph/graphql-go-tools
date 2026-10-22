@@ -1613,6 +1613,25 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}`, FieldSelectionMerging(true), Valid)
 						})
+						t.Run("different nullability below exclusive fields", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: name } }
+										... on Right { list { value: label } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types 'String!' and 'String' for objectName 'value'`))
+						})
+						t.Run("relaxed nullability below exclusive fields", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: name } }
+										... on Right { list { value: label } }
+									}
+								}`, FieldSelectionMerging(true), Valid)
+						})
 						// These are valid, because exclusivity is inherited from parent fields.
 						t.Run("exclusivity inherited from a parent field", func(t *testing.T) {
 							t.Run("fragments on a grandparent field", func(t *testing.T) {
@@ -1669,16 +1688,6 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}`, FieldSelectionMerging(), Valid)
 							})
-							t.Run("fields at the root of a fragment definition", func(t *testing.T) {
-								runWithDefinition(t, definition, `
-									{
-										parent { ...Both } 
-									}
-									fragment Both on Parent {
-										... on Left { list { name } }
-										... on Right { list { name } }
-									}`, FieldSelectionMerging(), Valid, withDisableNormalization())
-							})
 						})
 						// These are valid, because the field names, arguments and response shapes match.
 						t.Run("same field on overlapping parent types", func(t *testing.T) {
@@ -1699,6 +1708,70 @@ func TestExecutionValidation(t *testing.T) {
 											... on Narrowed { list { name } }
 										}
 									}`, FieldSelectionMerging(), Valid)
+							})
+						})
+						// These are invalid, because one object can implement both interfaces,
+						// and then one response key holds two different fields.
+						t.Run("different fields on overlapping parent types", func(t *testing.T) {
+							t.Run("leaf fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { value: name } }
+											... on HasRightList { list { value: otherName } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
+							})
+							t.Run("enum fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { value: status } }
+											... on HasRightList { list { value: otherStatus } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
+							})
+							t.Run("__typename and a String! leaf", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { value: __typename } }
+											... on HasRightList { list { value: name } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
+							})
+							t.Run("differently named objects with the same shape", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { item: detail { name } } }
+											... on HasRightList { list { item: otherDetail { name } } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'item' on (potentially) same type`))
+							})
+							t.Run("enum fields below the same field", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { nested { value: status } } }
+											... on HasRightList { list { nested { value: otherStatus } } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
+							})
+							t.Run("leaf field in a fragment on an object", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { ... on LeftImpl { value: name } } }
+											... on HasRightList { list { value: otherName } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
 							})
 						})
 					})
