@@ -104,7 +104,7 @@ func setupTestGRPCServer(t testing.TB) (conn *grpc.ClientConn, cleanup func()) {
 func Test_DataSource_Load_NilTransport(t *testing.T) {
 	ds := &DataSource{pool: arena.NewArenaPool(), disabled: false}
 
-	out, err := ds.Load(context.Background(), nil, []byte(`{}`))
+	out, err := ds.Load(t.Context(), nil, []byte(`{}`))
 	require.EqualError(t, err, "gRPC / connect configuration requires an rpc transport")
 	require.Nil(t, out)
 }
@@ -119,7 +119,7 @@ func Test_NewDataSource_Disabled(t *testing.T) {
 	ds, err := NewDataSource(nil, DataSourceConfig{Disabled: true})
 	require.NoError(t, err)
 
-	out, err := ds.Load(context.Background(), nil, []byte(`{}`))
+	out, err := ds.Load(t.Context(), nil, []byte(`{}`))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"errors":[{"message":"gRPC / connect datasource needs to be enabled to be used","extensions":{"code":"Internal"}}]}`, string(out))
 }
@@ -151,7 +151,7 @@ func Test_DataSource_Load_TransportPanic(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	out, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":{}}`))
+	out, err := ds.Load(t.Context(), nil, []byte(`{"query":"`+query+`","body":{}}`))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"errors":[{"message":"panic during gRPC call /productv1.ProductService/QueryCategories: transport failure","extensions":{"code":"Internal"}}]}`, string(out))
 }
@@ -183,13 +183,13 @@ func Test_DataSource_Load_WithoutVariables(t *testing.T) {
 	expected := `{"data":{"categories":[{"id":"category-1"},{"id":"category-2"},{"id":"category-3"},{"id":"category-4"}]}}`
 
 	t.Run("variables is null", func(t *testing.T) {
-		out, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":{"variables":null}}`))
+		out, err := ds.Load(t.Context(), nil, []byte(`{"query":"`+query+`","body":{"variables":null}}`))
 		require.NoError(t, err)
 		require.JSONEq(t, expected, string(out))
 	})
 
 	t.Run("variables is an empty string", func(t *testing.T) {
-		out, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":{"variables":""}}`))
+		out, err := ds.Load(t.Context(), nil, []byte(`{"query":"`+query+`","body":{"variables":""}}`))
 		require.NoError(t, err)
 		require.JSONEq(t, expected, string(out))
 	})
@@ -227,7 +227,7 @@ func Test_DataSource_Load_WithRecursiveInputType(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	output, err := ds.Load(context.Background(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
 	require.NoError(t, err)
 
 	type response struct {
@@ -281,9 +281,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 
 	// 3. Execute the query through our datasource
 	// Format the input with query and variables
-	inputJSON := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
-
-	output, err := ds.Load(context.Background(), nil, []byte(inputJSON))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
 	require.NoError(t, err)
 
 	// Set up the correct response structure based on your GraphQL schema
@@ -343,9 +341,7 @@ func Test_DataSource_Load_WithProtoReflect(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	inputJSON := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
-
-	output, err := ds.Load(context.Background(), nil, []byte(inputJSON))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"data":{"complexFilterType":[{"id":"test-id-123","name":"HARDCODED_NAME_TEST"}]}}`, string(output))
 }
@@ -408,7 +404,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	require.NoError(t, err)
 
 	// 4. Execute the query
-	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
+	output, err := ds.Load(t.Context(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 	require.NoError(t, err, "Load should not return an error even when the gRPC call fails")
 
 	responseJson := string(output)
@@ -732,8 +728,7 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1002,8 +997,7 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1138,8 +1132,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1218,8 +1211,7 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute the query through our datasource
-	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
-	output, err := ds.Load(context.Background(), nil, []byte(input))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -1308,8 +1300,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute the query through our datasource
-	input := fmt.Sprintf(`{"query":%q,"body":{}}`, query)
-	output, err := ds.Load(context.Background(), nil, []byte(input))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":{}}`, query))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -1368,8 +1359,7 @@ func Test_DataSource_Load_WithFieldResolverAndSecondRootField(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	input := fmt.Sprintf(`{"query":%q,"body":{}}`, query)
-	output, err := ds.Load(context.Background(), nil, []byte(input))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":{}}`, query))
 	require.NoError(t, err)
 
 	var resp struct {
@@ -1837,8 +1827,7 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -2215,8 +2204,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -3516,8 +3504,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -4831,10 +4818,9 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
 			var output []byte
 			require.NotPanics(t, func() {
-				output, err = ds.Load(context.Background(), nil, []byte(input))
+				output, err = ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			})
 			require.NoError(t, err)
 
@@ -5042,8 +5028,7 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query with headers
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), tc.headers, []byte(input))
+			output, err := ds.Load(t.Context(), tc.headers, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -5094,7 +5079,7 @@ func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
 
 	// Create a context with existing metadata
 	ctx := metadata.NewOutgoingContext(
-		context.Background(),
+		t.Context(),
 		metadata.Pairs("x-existing-key", "existing-value"),
 	)
 
@@ -5103,8 +5088,7 @@ func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
 	headers.Set("X-User-ID", "header-user-456")
 
 	// Execute the query with both existing context metadata and new HTTP headers
-	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
-	output, err := ds.Load(ctx, headers, []byte(input))
+	output, err := ds.Load(ctx, headers, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, vars))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -5149,7 +5133,7 @@ func Test_DataSource_Load_WithResolverBelowPlainFieldInResolver(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		output, err := ds.Load(context.Background(), nil, []byte(fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)))
+		output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, vars))
 		require.NoError(t, err)
 
 		var resp struct {
