@@ -156,6 +156,50 @@ func Test_DataSource_Load_TransportPanic(t *testing.T) {
 	require.JSONEq(t, `{"errors":[{"message":"panic during gRPC call /productv1.ProductService/QueryCategories: transport failure","extensions":{"code":"Internal"}}]}`, string(out))
 }
 
+// Test_DataSource_Load_MergePanic makes sure that a panic while merging fetch results
+// becomes a GraphQL error. The merge runs outside the fetch goroutines.
+func Test_DataSource_Load_MergePanic(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	query := `query CategoriesWithFieldResolver { categories { id productCount } }`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	// Point the resolver merge at a root field that is not in the response.
+	found := false
+	for i := range ds.program.stages {
+		for j := range ds.program.stages[i].fetches {
+			if ds.program.stages[i].fetches[j].kind == CallKindResolve {
+				ds.program.stages[i].fetches[j].responsePath = buildPath("missing.productCount")
+				found = true
+			}
+		}
+	}
+	require.True(t, found, "expected a resolve fetch in the program")
+
+	var out []byte
+	require.NotPanics(t, func() {
+		out, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":{}}`))
+	})
+	require.NoError(t, err)
+	require.Contains(t, string(out), `"errors"`)
+}
+
 // Test_DataSource_Load_WithoutVariables makes sure that an operation without arguments
 // does not need variables. The upstream input omits the variables key in that case.
 func Test_DataSource_Load_WithoutVariables(t *testing.T) {

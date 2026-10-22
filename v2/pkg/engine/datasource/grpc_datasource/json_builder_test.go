@@ -90,3 +90,18 @@ func TestJSONBuilder_MergeWithPath_LengthMismatch(t *testing.T) {
 		require.EqualError(t, err, "length of values doesn't match the length of the result array, expected 2, got 1")
 	})
 }
+
+// TestJSONBuilder_MergeWithPath_MissingRootField tests that a missing root field
+// returns an error instead of a panic.
+func TestJSONBuilder_MergeWithPath_MissingRootField(t *testing.T) {
+	t.Parallel()
+
+	base := astjson.MustParse(`{"other":[{"id":"a"}]}`)
+	resolved := astjson.MustParse(`{"result":[]}`)
+
+	var err error
+	require.NotPanics(t, func() {
+		err = newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"))
+	})
+	require.Error(t, err)
+}
