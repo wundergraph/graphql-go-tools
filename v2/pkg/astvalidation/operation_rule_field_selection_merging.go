@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"bytes"
+	"hash/maphash"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -20,7 +21,13 @@ import (
 func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
 	relax := len(relaxNullabilityCheck) > 0 && relaxNullabilityCheck[0]
 	return func(walker *astvisitor.Walker) {
-		visitor := fieldSelectionMergingVisitor{Walker: walker, relaxNullabilityCheck: relax, inherited: map[[2]int]fieldPair{}}
+		visitor := fieldSelectionMergingVisitor{
+			Walker:                walker,
+			relaxNullabilityCheck: relax,
+			visitedGroups:         map[visitedKey]int{},
+			seed:                  maphash.MakeSeed(),
+			inherited:             map[[2]int]fieldPair{},
+		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterFieldVisitor(&visitor)
 		walker.RegisterEnterOperationVisitor(&visitor)
@@ -34,9 +41,18 @@ type fieldSelectionMergingVisitor struct {
 	definition, operation *ast.Document
 	relaxNullabilityCheck bool
 
-	visited   []int                // refs of the fields entered in the current operation or fragment
-	fields    []mergingField       // lookup table indexed by field refs
-	inherited map[[2]int]fieldPair // fieldPair inherited from two parent fields, keyed by their refs
+	visited       [][]int              // refs of the entered fields in the operation or fragment, grouped by visitedKey
+	visitedGroups map[visitedKey]int   // index of a group in visited
+	seed          maphash.Seed         // for hashes of response keys in visitedKey
+	fields        []mergingField       // lookup table indexed by field refs
+	inherited     map[[2]int]fieldPair // fieldPair inherited from two parent fields, keyed by their refs
+}
+
+// visitedKey is what fields with the same response path share: the depth and the response key.
+// It holds a hash of the response key, because a string key would allocate for every new group.
+type visitedKey struct {
+	depth int
+	hash  uint64
 }
 
 // mergingField is an entered field.
@@ -75,11 +91,16 @@ func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.
 }
 
 func (f *fieldSelectionMergingVisitor) EnterFragmentDefinition(_ int) {
-	f.visited = f.visited[:0]
+	f.resetVisited()
 }
 
 func (f *fieldSelectionMergingVisitor) EnterOperationDefinition(_ int) {
+	f.resetVisited()
+}
+
+func (f *fieldSelectionMergingVisitor) resetVisited() {
 	f.visited = f.visited[:0]
+	clear(f.visitedGroups)
 }
 
 func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
@@ -106,12 +127,32 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	}
 	f.fields[ref] = field
 
-	for _, other := range f.visited {
+	group := f.visitedGroup(field)
+	for _, other := range f.visited[group] {
 		if f.sameResponsePath(other, ref) && !f.canMerge(other, ref) {
 			return
 		}
 	}
-	f.visited = append(f.visited, ref)
+	f.visited[group] = append(f.visited[group], ref)
+}
+
+// visitedGroup returns the index of the group in visited with the depth and response key of the field.
+// It adds an empty group when there is none.
+func (f *fieldSelectionMergingVisitor) visitedGroup(field mergingField) int {
+	key := visitedKey{depth: field.depth, hash: maphash.Bytes(f.seed, field.key)}
+	if group, ok := f.visitedGroups[key]; ok {
+		return group
+	}
+	group := len(f.visited)
+	f.visitedGroups[key] = group
+	if group < cap(f.visited) {
+		// Reuse the slice of a group from an earlier operation or fragment.
+		f.visited = f.visited[:group+1]
+		f.visited[group] = f.visited[group][:0]
+	} else {
+		f.visited = append(f.visited, nil)
+	}
+	return group
 }
 
 // sameResponsePath reports whether two fields have equal response keys at every level.
