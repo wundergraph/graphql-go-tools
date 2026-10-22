@@ -269,7 +269,8 @@ func (d *DataSource) runFetch(
 ) (_ fetchResult, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic during gRPC call %s: %v", fetch.methodFullName, r)
+			// The error is sent to the client. Do not include the panic value.
+			err = errors.New("internal error during gRPC call")
 		}
 	}()
 

@@ -104,24 +104,27 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 
 	resolvedValues := resolved.GetArray(resolveResponsePath)
 
-	searchPath := path[:len(path)-1]
+	searchPath := path.RemoveLastItem()
 	elementName := path[len(path)-1].FieldName.String()
 
 	responseValues := make([]*astjson.Value, 0, len(resolvedValues))
 
 	// We retrieve a flat list of all the values that we need to merge with the resolved values.
-	current := base
-	current = current.Get(searchPath[0].FieldName.String())
-	switch current.Type() {
+	next := base.Get(searchPath[0].FieldName.String())
+	if next == nil {
+		return fmt.Errorf("field %s not found in object", searchPath[0].FieldName.String())
+	}
+
+	switch next.Type() {
 	case astjson.TypeArray:
-		arr := current.GetArray()
+		arr := next.GetArray()
 		values, err := j.flattenList(arr, searchPath[1:])
 		if err != nil {
 			return err
 		}
 		responseValues = append(responseValues, values...)
 	default:
-		values, err := j.flattenObject(current, searchPath[1:])
+		values, err := j.flattenObject(next, searchPath[1:])
 		if err != nil {
 			return err
 		}

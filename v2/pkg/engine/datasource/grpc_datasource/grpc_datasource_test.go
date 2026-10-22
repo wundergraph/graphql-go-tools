@@ -153,7 +153,7 @@ func Test_DataSource_Load_TransportPanic(t *testing.T) {
 
 	out, err := ds.Load(t.Context(), nil, []byte(`{"query":"`+query+`","body":{}}`))
 	require.NoError(t, err)
-	require.JSONEq(t, `{"errors":[{"message":"panic during gRPC call /productv1.ProductService/QueryCategories: transport failure","extensions":{"code":"Internal"}}]}`, string(out))
+	require.JSONEq(t, `{"errors":[{"message":"internal error during gRPC call","extensions":{"code":"Internal"}}]}`, string(out))
 }
 
 // Test_DataSource_Load_WithoutVariables makes sure that an operation without arguments
