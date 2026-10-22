@@ -1684,7 +1684,7 @@ func (r *Resolver) UnsubscribeClient(connectionID ConnectionID) error {
 // prepareTrigger safely gets the headers for the trigger Subgraph and computes the hash across headers and input
 // the generated hash is the unique triggerID
 // the headers must be forwarded to the DataSource to create the trigger
-func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, source SubscriptionDataSource) (
+func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, negotiatedGuarantee string, source SubscriptionDataSource) (
 	headers http.Header, triggerID uint64, err error) {
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
@@ -1701,6 +1701,10 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte,
 			binary.LittleEndian.PutUint64(b[:], headersHash)
 			_, _ = keyGen.Write(b[:])
 		}
+	}
+
+	if err = source.HashTriggerDeliveryGuarantee(negotiatedGuarantee, keyGen); err != nil {
+		return nil, 0, err
 	}
 
 	triggerID = keyGen.Sum64()
@@ -1753,7 +1757,8 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return writeFlushComplete(writer, body)
 	}
 
-	if err := subscription.Trigger.Source.ValidateTriggerInput(ctx, input); err != nil {
+	negotiatedGuarantee, err := subscription.Trigger.Source.ValidateDeliveryGuarantee(ctx, input)
+	if err != nil {
 		return writeFlushComplete(writer, []byte(`{"errors":[{"message":"invalid subscription input"}]}`))
 	}
 
@@ -1765,11 +1770,18 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		}
 	}
 
-	headers, triggerID, err := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input, subscription.Trigger.Source)
+	headers, triggerID, err := r.prepareTrigger(
+		ctx,
+		subscription.Trigger.SourceName,
+		input,
+		negotiatedGuarantee,
+		subscription.Trigger.Source,
+	)
 	if err != nil {
 		msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
 		return writeFlushComplete(writer, msg)
 	}
+
 	id := SubscriptionIdentifier{
 		ConnectionID:   NewConnectionID(),
 		SubscriptionID: 0,
@@ -1871,7 +1883,8 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return writeFlushComplete(writer, body)
 	}
 
-	if err := subscription.Trigger.Source.ValidateTriggerInput(ctx, input); err != nil {
+	negotiatedGuarantee, err := subscription.Trigger.Source.ValidateDeliveryGuarantee(ctx, input)
+	if err != nil {
 		return writeFlushComplete(writer, []byte(`{"errors":[{"message":"invalid subscription input"}]}`))
 	}
 
@@ -1881,9 +1894,16 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 			msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
 			return writeFlushComplete(writer, msg)
 		}
+
 	}
 
-	headers, triggerID, err := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input, subscription.Trigger.Source)
+	headers, triggerID, err := r.prepareTrigger(
+		ctx,
+		subscription.Trigger.SourceName,
+		input,
+		negotiatedGuarantee,
+		subscription.Trigger.Source,
+	)
 	if err != nil {
 		msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
 		return writeFlushComplete(writer, msg)

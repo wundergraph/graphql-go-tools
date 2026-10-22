@@ -5827,8 +5827,12 @@ func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
 	}
 }
 
-func (f *_fakeStream) ValidateTriggerInput(_ *Context, _ []byte) error {
+func (f *_fakeStream) HashTriggerDeliveryGuarantee(_ string, _ *xxhash.Digest) error {
 	return nil
+}
+
+func (f *_fakeStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (string, error) {
+	return "", nil
 }
 
 func (f *_fakeStream) Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error {
@@ -5884,8 +5888,8 @@ type _fakeValidatingPubsubStream struct {
 	validateErr error
 }
 
-func (f *_fakeValidatingPubsubStream) ValidateTriggerInput(_ *Context, _ []byte) error {
-	return f.validateErr
+func (f *_fakeValidatingPubsubStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (string, error) {
+	return "", f.validateErr
 }
 
 func createFakePubsubStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), subscriptionOnCreateFn func(ctx context.Context, input []byte) (newInput []byte, err error)) *_fakePubsubStream {
@@ -8250,8 +8254,12 @@ func (s *startFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) err
 	return err
 }
 
-func (s *startFailStream) ValidateTriggerInput(_ *Context, _ []byte) error {
+func (s *startFailStream) HashTriggerDeliveryGuarantee(_ string, _ *xxhash.Digest) error {
 	return nil
+}
+
+func (s *startFailStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (string, error) {
+	return "", nil
 }
 
 func (s *startFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
@@ -8343,8 +8351,12 @@ func (s *hookFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) erro
 	return err
 }
 
-func (s *hookFailStream) ValidateTriggerInput(_ *Context, _ []byte) error {
+func (s *hookFailStream) HashTriggerDeliveryGuarantee(_ string, _ *xxhash.Digest) error {
 	return nil
+}
+
+func (s *hookFailStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (string, error) {
+	return "", nil
 }
 
 func (s *hookFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {

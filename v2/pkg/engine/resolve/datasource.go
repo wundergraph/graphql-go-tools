@@ -19,10 +19,14 @@ type SubscriptionDataSource interface {
 	// The updater is used to send updates to the client. Deduplication of the request must be done before calling this method.
 	Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error
 	// HashTriggerInput writes identity-relevant fields of the subscription into xxh.
-	// The resolver appends the subgraph headers hash afterward to produce the final trigger ID.
 	HashTriggerInput(input []byte, xxh *xxhash.Digest) error
-	// ValidateTriggerInput lets a subscription data source reject a client before start.
-	ValidateTriggerInput(ctx *Context, input []byte) error
+	// HashTriggerDeliveryGuarantee writes the negotiated delivery guarantee into xxh,
+	// so clients with different guarantees never share a trigger.
+	// negotiated is the value returned by ValidateDeliveryGuarantee.
+	HashTriggerDeliveryGuarantee(negotiated string, xxh *xxhash.Digest) error
+	// ValidateDeliveryGuarantee lets a subscription data source reject a client before start.
+	// It returns the delivery guarantee negotiated with the client, empty if the source has none.
+	ValidateDeliveryGuarantee(ctx *Context, input []byte) (negotiated string, err error)
 }
 
 // HookableSubscriptionDataSource is a hookable interface for subscription data sources.

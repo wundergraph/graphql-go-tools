@@ -72,8 +72,12 @@ func (f *FakeSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	return err
 }
 
-func (f *FakeSource) ValidateTriggerInput(_ *Context, _ []byte) error {
+func (f *FakeSource) HashTriggerDeliveryGuarantee(_ string, _ *xxhash.Digest) error {
 	return nil
+}
+
+func (f *FakeSource) ValidateDeliveryGuarantee(_ *Context, _ []byte) (string, error) {
+	return "", nil
 }
 
 func (f *FakeSource) Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error {
