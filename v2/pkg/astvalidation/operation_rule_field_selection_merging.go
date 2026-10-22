@@ -20,7 +20,7 @@ import (
 func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
 	relax := len(relaxNullabilityCheck) > 0 && relaxNullabilityCheck[0]
 	return func(walker *astvisitor.Walker) {
-		visitor := fieldSelectionMergingVisitor{Walker: walker, relaxNullabilityCheck: relax}
+		visitor := fieldSelectionMergingVisitor{Walker: walker, relaxNullabilityCheck: relax, inherited: map[[2]int]fieldPair{}}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterFieldVisitor(&visitor)
 		walker.RegisterEnterOperationVisitor(&visitor)
@@ -33,8 +33,10 @@ type fieldSelectionMergingVisitor struct {
 
 	definition, operation *ast.Document
 	relaxNullabilityCheck bool
-	visited               []int          // refs of the fields entered in the current operation or fragment
-	fields                []mergingField // lookup table indexed by field refs
+
+	visited   []int                // refs of the fields entered in the current operation or fragment
+	fields    []mergingField       // lookup table indexed by field refs
+	inherited map[[2]int]fieldPair // fieldPair inherited from two parent fields, keyed by their refs
 }
 
 // mergingField is an entered field.
@@ -69,6 +71,7 @@ func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.
 		f.fields = make([]mergingField, len(operation.Fields))
 	}
 	f.fields = f.fields[:len(operation.Fields)]
+	clear(f.inherited)
 }
 
 func (f *fieldSelectionMergingVisitor) EnterFragmentDefinition(_ int) {
@@ -131,11 +134,18 @@ func (f *fieldSelectionMergingVisitor) pairOf(a, b int) fieldPair {
 	aParent, bParent := f.fields[a].parent, f.fields[b].parent
 	pair := fieldPair{relation: sameField}
 	if aParent != bParent {
-		parents := f.pairOf(aParent, bParent)
-		pair = fieldPair{
-			relation: parents.relation,
-			strict:   parents.strict || f.mergesByResponseShape(parents, aParent, bParent),
+		// Every pair of children asks for the parent pair, and mergesByResponseShape can be slow.
+		key := [2]int{aParent, bParent}
+		inherited, found := f.inherited[key]
+		if !found {
+			parents := f.pairOf(aParent, bParent)
+			inherited = fieldPair{
+				relation: parents.relation,
+				strict:   parents.strict || f.mergesByResponseShape(parents, aParent, bParent),
+			}
+			f.inherited[key] = inherited
 		}
+		pair = inherited
 	}
 	if pair.relation != sameField {
 		return pair
