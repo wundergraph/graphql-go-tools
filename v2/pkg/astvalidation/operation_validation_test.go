@@ -1516,6 +1516,18 @@ func TestExecutionValidation(t *testing.T) {
 								}`, FieldSelectionMerging(), Invalid,
 								withValidationErrors(`differing types '[RightInterface!]!' and '[LeftInterface!]!' for objectName 'items'`))
 						})
+						t.Run("object field before conflicting interface lists", func(t *testing.T) {
+							// A field of another kind must not hide a conflict between later fields.
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { items: shared { __typename } }
+										... on Right { items: nullableList { name } }
+										... on Narrowed { items: list { name } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types '[RightInterface]' and '[SubLeft!]!' for objectName 'items'`))
+						})
 						t.Run("different parent fields", func(t *testing.T) {
 							runWithDefinition(t, definition, `
 								{
