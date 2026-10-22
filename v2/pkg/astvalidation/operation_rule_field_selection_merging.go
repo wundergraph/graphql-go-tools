@@ -129,7 +129,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 
 	group := f.visitedGroup(field)
 	for _, other := range f.visited[group] {
-		if f.sameResponsePath(other, ref) && !f.canMerge(other, ref) {
+		if f.sameResponsePath(other, ref) && !f.canMergeFields(other, ref) {
 			return
 		}
 	}
@@ -201,8 +201,8 @@ func (f *fieldSelectionMergingVisitor) pairOf(a, b int) fieldPair {
 	return pair
 }
 
-// canMerge reports whether two field refs with the same response path can merge into one response field.
-func (f *fieldSelectionMergingVisitor) canMerge(a, b int) bool {
+// canMergeFields reports whether two field refs with the same response path can merge into one response field.
+func (f *fieldSelectionMergingVisitor) canMergeFields(a, b int) bool {
 	pair := f.pairOf(a, b)
 	if pair.strict && !f.sameResponseShape(a, b) {
 		f.stopWithTypesConflict(operationreport.ErrTypesForFieldMismatch, a, b)
@@ -214,16 +214,17 @@ func (f *fieldSelectionMergingVisitor) canMerge(a, b int) bool {
 	bIsScalar := f2.typeNode.Kind == ast.NodeKindScalarTypeDefinition
 	switch {
 	case f1.typeRef == ast.InvalidRef || f2.typeRef == ast.InvalidRef || aIsScalar != bIsScalar:
-		// Outside strict pairs, __typename is not checked and scalars are compared with scalars only.
+		// A pair with __typename, or with a scalar and a non-scalar,
+		// is checked only by sameResponseShape for strict pairs.
 		return true
 	case aIsScalar:
-		return f.scalarsCanMerge(pair, a, b)
+		return f.canMergeScalars(pair, a, b)
 	default:
-		return f.nonScalarsCanMerge(pair, a, b)
+		return f.canMergeNonScalars(pair, a, b)
 	}
 }
 
-func (f *fieldSelectionMergingVisitor) scalarsCanMerge(pair fieldPair, a, b int) bool {
+func (f *fieldSelectionMergingVisitor) canMergeScalars(pair fieldPair, a, b int) bool {
 	if pair.relation != exclusive && f.potentiallySameObject(f.fields[a].enclosing, f.fields[b].enclosing) &&
 		!f.operation.FieldsAreEqualFlat(a, b, false) {
 		f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(f.operation.FieldAliasOrNameBytes(b)))
@@ -236,7 +237,7 @@ func (f *fieldSelectionMergingVisitor) scalarsCanMerge(pair fieldPair, a, b int)
 	return false
 }
 
-func (f *fieldSelectionMergingVisitor) nonScalarsCanMerge(pair fieldPair, a, b int) bool {
+func (f *fieldSelectionMergingVisitor) canMergeNonScalars(pair fieldPair, a, b int) bool {
 	// TODO: compare names and arguments of non-scalar fields too, unless they are mutually exclusive.
 	// Otherwise different fields with equal subfields pass,
 	// e.g. `s: left { __typename } s: right { __typename }`,
