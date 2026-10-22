@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/kylelemons/godebug/pretty"
@@ -9119,6 +9120,37 @@ func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
 		err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "test error")
+	})
+}
+
+func TestSubscriptionSource_DeliveryGuarantee(t *testing.T) {
+	input := []byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`)
+
+	t.Run("ValidateDeliveryGuarantee accepts input without negotiating a guarantee", func(t *testing.T) {
+		// Plain GraphQL subscriptions must never be rejected and have no delivery guarantee to negotiate.
+		subscriptionSource := SubscriptionSource{}
+		ctx := resolve.NewContext(t.Context())
+
+		negotiated, err := subscriptionSource.ValidateDeliveryGuarantee(ctx, input)
+		require.NoError(t, err)
+		assert.Empty(t, negotiated)
+	})
+
+	t.Run("HashTriggerDeliveryGuarantee does not change the trigger hash", func(t *testing.T) {
+		// The guarantee must not affect the trigger ID, so plain GraphQL subscriptions
+		// with the same input keep sharing one trigger, whatever guarantee value is passed in.
+		subscriptionSource := SubscriptionSource{}
+
+		without := xxhash.New()
+		require.NoError(t, subscriptionSource.HashTriggerInput(input, without))
+
+		for _, negotiated := range []string{"", "at-least-once"} {
+			with := xxhash.New()
+			require.NoError(t, subscriptionSource.HashTriggerInput(input, with))
+			require.NoError(t, subscriptionSource.HashTriggerDeliveryGuarantee(negotiated, with))
+
+			assert.Equal(t, without.Sum64(), with.Sum64(), "negotiated=%q", negotiated)
+		}
 	})
 }
 
