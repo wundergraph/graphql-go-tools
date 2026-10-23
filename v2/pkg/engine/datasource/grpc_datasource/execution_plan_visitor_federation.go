@@ -674,7 +674,7 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 			Name:          "keys",
 			ProtoTypeName: DataTypeMessage,
 			Repeated:      true, // The inputs are always a list of objects
-			JSONPath:      "representations",
+			JSONPath:      representationsKey,
 			Message:       keyFieldMessage,
 		},
 	}
@@ -685,9 +685,9 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 		Name: typeName,
 		Fields: []RPCField{
 			{
-				Name:          "__typename",
+				Name:          typenameFieldName,
 				ProtoTypeName: DataTypeString,
-				JSONPath:      "__typename",
+				JSONPath:      typenameFieldName,
 				StaticValue:   typeName,
 			},
 		},

@@ -242,7 +242,7 @@ func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest req
 
 			switch result.kind {
 			case CallKindResolve, CallKindRequired:
-				err = builder.mergeWithPath(root, result.response, result.responsePath)
+				err = builder.mergeWithPath(root, result.response, result.responsePath, result.entityIndexMap)
 			default:
 				root, err = builder.mergeValues(root, result)
 			}
@@ -304,16 +304,27 @@ func (d *DataSource) runFetch(
 		responsePath:    fetch.responsePath,
 	}
 
-	// In case of a federated response, we need to ensure that the response is valid.
-	// The number of entities per type must match the number of lookup keys in the variables.
-	// On success we build the index map used by mergeEntities to place each response
-	// entity at the correct position in the final _entities array.
-	if fetch.kind == CallKindEntity {
+	// A resolver below _entities only gets the entities of one type as context.
+	// It uses the index map of the call it depends on to find these entities in the response.
+	if fetch.kind == CallKindResolve {
+		result.entityIndexMap = callMap[fetch.dependentCall.ID].entityIndexMap
+	}
+
+	// Entity and required calls only get the representations of one entity type.
+	// The index map gives the position of each result in the _entities array.
+	switch fetch.kind {
+	case CallKindEntity:
+		// The number of entities must match the number of representations of the type.
+		// mergeEntities uses the index map to place each entity.
 		representations := getRepresentations(astJsonVariables)
 		if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
 			return fetchResult{}, err
 		}
 		result.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, representations)
+	case CallKindRequired:
+		// A required call only gets the representations of its own entity type.
+		// mergeWithPath checks that the number of results matches.
+		result.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, getRepresentations(astJsonVariables))
 	}
 
 	return result, nil
