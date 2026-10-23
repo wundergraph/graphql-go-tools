@@ -26,24 +26,34 @@ enum Status {
 message EmptyRequest {}
 
 message ScalarRequest {
-  string name = 1;
-  int32 age = 2;
-  double score = 3;
-  bool active = 4;
-  float ratio = 5;
-  repeated float ratios = 6;
+  string string_value = 1;
+  int32 int_32 = 2;
+  double double_value = 3;
+  bool bool_value = 4;
+  float float_value = 5;
+  repeated float float_values = 6;
+
+  // The GraphQL spec has no types for these. We support them, but they
+  // need a custom scalar mapping.
+  uint32 uint_32 = 7;
+  uint64 uint_64 = 8;
+  int64 int_64 = 9;
+
+  // We do not support zigzag-encoded (sint) integers. Keep these for future reference.
+  // sint32 sint_32 = 10;
+  // sint64 sint_64 = 11;
 }
 
 message WrapperScalarRequest {
-  google.protobuf.StringValue name = 1;
-  google.protobuf.Int32Value age = 2;
-  google.protobuf.DoubleValue score = 3;
-  google.protobuf.BoolValue active = 4;
+  google.protobuf.StringValue string_value = 1;
+  google.protobuf.Int32Value int_32 = 2;
+  google.protobuf.DoubleValue double_value = 3;
+  google.protobuf.BoolValue bool_value = 4;
 }
 
 message RepeatedScalarRequest {
-  repeated string tags = 1;
-  repeated int32 scores = 2;
+  repeated string string_values = 1;
+  repeated int32 int_32_values = 2;
 }
 
 message NestedItem {

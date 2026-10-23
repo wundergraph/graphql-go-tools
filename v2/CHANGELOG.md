@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.30.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.29.0...v2.30.0) (2026-10-21)
+
+
+### Features
+
+* add cursor support to engine ([#1716](https://github.com/wundergraph/graphql-go-tools/issues/1716)) ([2e677a0](https://github.com/wundergraph/graphql-go-tools/commit/2e677a0c9d44320cd31d3ea2ec76ddb16773c0ab))
+
 ## [2.29.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.28.0...v2.29.0) (2026-10-19)
 
 
