@@ -13,10 +13,9 @@ import (
 
 // FieldSelectionMerging returns a validation rule that ensures field selections can be merged.
 //
-// This rule implements the validation described in the GraphQL specification section 5.3.2:
-// "Field Selection Merging". It ensures that when multiple fields with the same response key
-// (name or alias) are selected in overlapping selection sets, they can be unambiguously merged
-// into a single field in the response.
+// FieldSelectionMerging returns the spec's "Field Selection Merging" rule (5.3.2):
+// fields with the same response key must merge into one response field.
+// relaxNullabilityCheck lets fields that never share a response object differ in nullability.
 //
 // The rule is applied to each operation and fragment definition in the document.
 func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
@@ -65,13 +64,14 @@ type fieldRelation uint8
 const (
 	sameField       fieldRelation = iota // equal names and arguments at every level below their common parent
 	exclusive                            // never in the same response object
-	differentFields                      // different fields in the same response object
+	differentFields                      // different fields that may share a response object
 )
 
-// fieldPair is what two fields with the same response path inherit from their parent fields.
+// fieldPair describes how two fields with the same response path relate.
 type fieldPair struct {
-	relation fieldRelation
-	strict   bool // below a pair merged by response shape, so canMergeStrict checks the pair
+	relation           fieldRelation
+	strict             bool // below a pair merged by response shape, so canMergeStrict checks the pair
+	shapeMismatchAbove bool // an ancestor pair is never compared and differs in response shape
 }
 
 func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -127,7 +127,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 
 	group := f.visitedGroup(field.pathHash)
 	for _, other := range f.visited[group] {
-		// sameResponsePath is false only when two paths have the same hash.
+		// Fields in a group share a path hash; sameResponsePath rules out hash collisions.
 		if f.sameResponsePath(other, ref) && !f.canMergeFields(other, ref) {
 			return
 		}
@@ -174,9 +174,9 @@ func (f *fieldSelectionMergingVisitor) sameResponsePath(a, b int) bool {
 	return true
 }
 
-// pairOf returns the fieldPair of two field refs with the same response path.
-// Counting down from the common parent, the first level that is not the same field decides the relation.
-// The pair is strict when a pair of their ancestor fields merged by response shape. E.g., in
+// pairOf returns the fieldPair of two fields with the same response path.
+// The first level below their common parent that is not the same field decides the relation.
+// Ancestor pairs pass down strict and shapeMismatchAbove. E.g., in
 //
 //	search {
 //		... on Book { credits { name } }
@@ -197,8 +197,9 @@ func (f *fieldSelectionMergingVisitor) pairOf(a, b int) fieldPair {
 		if !found {
 			parents := f.pairOf(aParent, bParent)
 			inherited = fieldPair{
-				relation: parents.relation,
-				strict:   parents.strict || f.mergesByResponseShape(parents, aParent, bParent),
+				relation:           parents.relation,
+				strict:             parents.strict || f.mergesByResponseShape(parents, aParent, bParent),
+				shapeMismatchAbove: parents.shapeMismatchAbove || f.neverComparedWithDifferentShapes(aParent, bParent),
 			}
 			f.inherited[key] = inherited
 		}
@@ -228,9 +229,17 @@ func (f *fieldSelectionMergingVisitor) canMergeFields(a, b int) bool {
 	aIsScalar := f1.typeNode.Kind == ast.NodeKindScalarTypeDefinition
 	bIsScalar := f2.typeNode.Kind == ast.NodeKindScalarTypeDefinition
 	switch {
-	case f1.typeRef == ast.InvalidRef || f2.typeRef == ast.InvalidRef || aIsScalar != bIsScalar:
-		// Outside strict pairs, __typename is not checked and scalars are compared with scalars only.
+	case f1.typeRef == ast.InvalidRef || f2.typeRef == ast.InvalidRef:
+		// Outside strict pairs, __typename is not checked.
 		return true
+	case aIsScalar != bIsScalar:
+		// A scalar against a non-scalar named type.
+		if pair.relation == differentFields {
+			f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(f.operation.FieldAliasOrNameBytes(b)))
+			return false
+		}
+		f.stopWithTypesConflict(operationreport.ErrTypesForFieldMismatch, a, b)
+		return false
 	case aIsScalar:
 		return f.canMergeScalars(pair, a, b)
 	default:
@@ -238,8 +247,7 @@ func (f *fieldSelectionMergingVisitor) canMergeFields(a, b int) bool {
 	}
 }
 
-// canMergeStrict checks a pair below a pair merged by response shape,
-// according to the spec's FieldsInSetCanMerge.
+// canMergeStrict checks a strict pair per the spec's FieldsInSetCanMerge.
 func (f *fieldSelectionMergingVisitor) canMergeStrict(pair fieldPair, a, b int) bool {
 	if pair.relation == differentFields {
 		f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(f.operation.FieldAliasOrNameBytes(b)))
@@ -271,15 +279,15 @@ func (f *fieldSelectionMergingVisitor) canMergeScalars(pair fieldPair, a, b int)
 }
 
 func (f *fieldSelectionMergingVisitor) canMergeNonScalars(pair fieldPair, a, b int) bool {
-	// TODO: compare names and arguments of non-scalar fields too, unless they are mutually exclusive.
-	// Otherwise different fields with equal subfields pass,
-	// e.g. `s: left { __typename } s: right { __typename }`,
-	// and so do different enum fields, e.g. `v: a v: b`.
+	// TODO(ROUTER-873): compare names and arguments of non-exclusive fields too.
+	// Now different fields pass, e.g. `s: left { __typename } s: right { __typename }` or enum fields `v: a v: b`.
 	if !f.potentiallySameObject(f.fields[a].typeNode, f.fields[b].typeNode) {
-		// Enums, unions and two different object types are not compared.
+		// Enums, unions and types that can never be one object are not compared.
 		return true
 	}
-	if !f.operation.DirectiveSetsHasCompatibleStreamDirective(f.operation.FieldDirectives(a), f.operation.FieldDirectives(b)) {
+	// Exclusive fields never share a response object, so they may stream differently.
+	if pair.relation != exclusive &&
+		!f.operation.DirectiveSetsHasCompatibleStreamDirective(f.operation.FieldDirectives(a), f.operation.FieldDirectives(b)) {
 		f.StopWithExternalErr(operationreport.ErrConflictingStreamDirectivesOnField(f.operation.FieldAliasOrNameBytes(b)))
 		return false
 	}
@@ -291,21 +299,17 @@ func (f *fieldSelectionMergingVisitor) canMergeNonScalars(pair fieldPair, a, b i
 	return false
 }
 
-// mergesByResponseShape reports whether two fields merge only because their responses have the same shape:
-// their types are differently named interfaces or objects with the same list and non-null wrappers,
-// and either the fields never share a response object, or they are the same field.
-// Then canMergeStrict checks all fields below them.
-// See https://spec.graphql.org/September2025/#FieldsInSetCanMerge()
+// mergesByResponseShape reports whether two fields with differently named types merge by response shape.
+// Fields below such a pair are checked by canMergeStrict.
 func (f *fieldSelectionMergingVisitor) mergesByResponseShape(pair fieldPair, a, b int) bool {
 	return pair.relation != differentFields &&
+		!pair.shapeMismatchAbove &&
 		f.potentiallySameObject(f.fields[a].typeNode, f.fields[b].typeNode) &&
 		!f.definition.TypesAreCompatibleDeep(f.fields[a].typeRef, f.fields[b].typeRef) &&
 		f.sameResponseShape(a, b)
 }
 
-// sameResponseShape compares two fields on one level, per SameResponseShape.
-// Leaf types must be equal, composite types must have equal list and non-null wrappers.
-// Subfields are compared when the walker enters them.
+// sameResponseShape is SameResponseShape for one level; the walker checks subfields when it enters them.
 // See https://spec.graphql.org/September2025/#SameResponseShape()
 func (f *fieldSelectionMergingVisitor) sameResponseShape(a, b int) bool {
 	aField, bField := f.fields[a], f.fields[b]
@@ -318,9 +322,7 @@ func (f *fieldSelectionMergingVisitor) sameResponseShape(a, b int) bool {
 }
 
 // relaxedNullability reports whether relaxNullabilityCheck lets two fields differ in nullability.
-// Deliberate deviation from SameResponseShape: when the fields never share a response object,
-// only one of them contributes to the response.
-// Exclusivity inherited from parent fields counts only below a pair merged by response shape.
+// They must never share a response object; exclusivity inherited from parents counts only in strict pairs.
 func (f *fieldSelectionMergingVisitor) relaxedNullability(inheritedExclusive bool, a, b int) bool {
 	return f.relaxNullabilityCheck &&
 		(inheritedExclusive || !f.potentiallySameObject(f.fields[a].enclosing, f.fields[b].enclosing)) &&
@@ -391,11 +393,9 @@ func (f *fieldSelectionMergingVisitor) typeWrappersAreEqual(a, b int) bool {
 	}
 }
 
-// potentiallySameObject reports whether one runtime object can have both types.
-// Two interfaces always can, because some object might implement both.
-// An object and an interface can, when the object implements the interface.
-// Two objects can, when they have the same name.
-// Unions and leaf types report false.
+// potentiallySameObject reports whether one runtime object can have both types:
+// two interfaces, an object and an interface it implements, or one object type.
+// Unions and leaves cannot.
 func (f *fieldSelectionMergingVisitor) potentiallySameObject(a, b ast.Node) bool {
 	switch {
 	case a.Kind == ast.NodeKindInterfaceTypeDefinition && b.Kind == ast.NodeKindInterfaceTypeDefinition:
@@ -408,4 +408,14 @@ func (f *fieldSelectionMergingVisitor) potentiallySameObject(a, b ast.Node) bool
 		return a.Kind == ast.NodeKindObjectTypeDefinition && b.Kind == ast.NodeKindObjectTypeDefinition &&
 			bytes.Equal(f.definition.ObjectTypeDefinitionNameBytes(a.Ref), f.definition.ObjectTypeDefinitionNameBytes(b.Ref))
 	}
+}
+
+// neverComparedWithDifferentShapes reports whether two composite fields,
+// that canMergeNonScalars never compares, have different response shapes.
+func (f *fieldSelectionMergingVisitor) neverComparedWithDifferentShapes(a, b int) bool {
+	aNode, bNode := f.fields[a].typeNode, f.fields[b].typeNode
+	return aNode.Kind.IsCompositeType() &&
+		bNode.Kind.IsCompositeType() &&
+		!f.potentiallySameObject(aNode, bNode) &&
+		!f.sameResponseShape(a, b)
 }
