@@ -166,7 +166,7 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
 	entityConfigData, ok := r.entityConfig.getEntity(fragmentName)
-	if !ok {
+	if !ok || entityConfigData.keyFields == "" {
 		r.walker.StopWithInternalErr(fmt.Errorf("no entity configuration found for type %s", fragmentName))
 		return
 	}
