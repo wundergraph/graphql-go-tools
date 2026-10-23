@@ -242,7 +242,7 @@ func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest req
 
 			switch result.kind {
 			case CallKindResolve, CallKindRequired:
-				err = builder.mergeWithPath(root, result.response, result.responsePath)
+				err = builder.mergeWithPath(root, result.response, result.responsePath, result.entityIndexMap)
 			default:
 				root, err = builder.mergeValues(root, result)
 			}
@@ -302,6 +302,12 @@ func (d *DataSource) runFetch(
 		response:        responseJson,
 		responseMessage: responseMessage,
 		responsePath:    fetch.responsePath,
+	}
+
+	// A resolver below _entities only gets the entities of one type as context.
+	// It uses the index map of the call it depends on to find these entities in the response.
+	if fetch.kind == CallKindResolve {
+		result.entityIndexMap = callMap[fetch.dependentCall.ID].entityIndexMap
 	}
 
 	// In case of a federated response, we need to ensure that the response is valid.

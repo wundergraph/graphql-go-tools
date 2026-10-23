@@ -97,7 +97,8 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult fetchResult
 }
 
 // mergeWithPath merges a JSON value with a resolved value by its path.
-func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path) error {
+// If indexMap is set, only the items of the root array at these indexes are merged.
+func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path, indexMap entityIndexMap) error {
 	if len(path) == 0 {
 		return errors.New("path is empty")
 	}
@@ -118,6 +119,19 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 	switch next.Type() {
 	case astjson.TypeArray:
 		arr := next.GetArray()
+		if len(indexMap) > 0 {
+			indexedValues := make([]*astjson.Value, 0, len(indexMap))
+			for _, index := range indexMap {
+				if index < 0 || index >= len(arr) {
+					return fmt.Errorf("index %d is out of bounds for array of length %d", index, len(arr))
+				}
+
+				indexedValues = append(indexedValues, arr[index])
+			}
+
+			arr = indexedValues
+		}
+
 		values, err := j.flattenList(arr, searchPath[1:])
 		if err != nil {
 			return err
