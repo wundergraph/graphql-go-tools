@@ -420,3 +420,33 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 
 	})
 }
+
+func TestMergeInlineFragmentSelectionsArguments(t *testing.T) {
+	t.Parallel()
+
+	const definition = `schema { query: Query } scalar ID scalar String
+  input Filter { a: ID b: ID }
+  type Query { item(id: ID, other: ID, f: Filter): Item } type Item { name: String }`
+	cases := []struct {
+		name, operation, want string
+	}{
+		{"DifferentValues", `{ item(id: "1") { name } item(id: "2") { name } }`, ""},
+		{"MissingArgument", `{ item(id: "1") { name } item { name } }`, ""},
+		{"DuplicateArguments", `{ item(id: "1", id: "1") { name } item(id: "1", other: "2") { name } }`, ""},
+		{"DuplicateObjectFields", `{ item(f: {a: "1", a: "1"}) { name } item(f: {a: "1", b: "2"}) { name } }`, ""},
+		{"DifferentVariables", `query($a: ID, $b: ID) { item(id: $a) { name } item(id: $b) { name } }`, ""},
+		{"ReorderedArguments", `{ item(id: "1", other: "2") { name } item(other: "2", id: "1") { name } }`,
+			`{ item(id: "1", other: "2") { name name } }`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			want := tc.want
+			if want == "" {
+				want = tc.operation
+			}
+			run(t, mergeInlineFragmentSelections, definition, tc.operation, want)
+		})
+	}
+}

@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -17,6 +18,13 @@ import (
 // into a single field in the response.
 //
 // The rule is applied to each operation and fragment definition in the document.
+// For compatibility, an interface and an object that does not implement it may
+// select different field names or arguments under the same response name. This
+// deliberately relaxes FieldsInSetCanMerge; response shapes are still checked.
+// Setting relaxNullabilityCheck permits nullability differences between fields
+// with non-overlapping enclosing types, deliberately relaxing the spec.
+//
+// See https://spec.graphql.org/September2025/#sec-Field-Selection-Merging
 func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
 	relax := len(relaxNullabilityCheck) > 0 && relaxNullabilityCheck[0]
 	return func(walker *astvisitor.Walker) {
@@ -32,56 +40,22 @@ type fieldSelectionMergingVisitor struct {
 	*astvisitor.Walker
 
 	definition, operation *ast.Document
-	scalarRequirements    scalarRequirements
-	nonScalarRequirements nonScalarRequirements
-	refs                  []int
+	requirements          []fieldRequirement
 	relaxNullabilityCheck bool
 }
-type nonScalarRequirement struct {
+
+type fieldRequirement struct {
 	path                    ast.Path
-	objectName              ast.ByteSlice
+	responseName            ast.ByteSlice
 	fieldRef                int
-	fieldTypeRef            int
+	fieldTypeRef            int // InvalidRef denotes the implicit String! type of __typename.
 	fieldTypeDefinitionNode ast.Node
 	enclosingTypeDefinition ast.Node
-}
-
-type nonScalarRequirements []nonScalarRequirement
-
-func (f *fieldSelectionMergingVisitor) NonScalarRequirementsByPathField(path ast.Path, objectName ast.ByteSlice) []int {
-	f.refs = f.refs[:0]
-	for i := range f.nonScalarRequirements {
-		if f.nonScalarRequirements[i].path.Equals(path) && f.nonScalarRequirements[i].objectName.Equals(objectName) {
-			f.refs = append(f.refs, i)
-		}
-	}
-	return f.refs
-}
-
-type scalarRequirement struct {
-	path                    ast.Path
-	objectName              ast.ByteSlice
-	fieldRef                int
-	fieldType               int
-	enclosingTypeDefinition ast.Node
-	fieldTypeDefinitionNode ast.Node
-}
-
-type scalarRequirements []scalarRequirement
-
-func (f *fieldSelectionMergingVisitor) ScalarRequirementsByPathField(path ast.Path, objectName ast.ByteSlice) []int {
-	f.refs = f.refs[:0]
-	for i := range f.scalarRequirements {
-		if f.scalarRequirements[i].path.Equals(path) && f.scalarRequirements[i].objectName.Equals(objectName) {
-			f.refs = append(f.refs, i)
-		}
-	}
-	return f.refs
+	parent                  int
 }
 
 func (f *fieldSelectionMergingVisitor) resetRequirements() {
-	f.scalarRequirements = f.scalarRequirements[:0]
-	f.nonScalarRequirements = f.nonScalarRequirements[:0]
+	f.requirements = f.requirements[:0]
 }
 
 func (f *fieldSelectionMergingVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -98,148 +72,172 @@ func (f *fieldSelectionMergingVisitor) EnterOperationDefinition(_ int) {
 }
 
 func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
-
-	path := f.Path.WithoutInlineFragmentNames()
-
 	fieldName := f.operation.FieldNameBytes(ref)
-	if bytes.Equal(fieldName, literal.TYPENAME) {
-		return
-	}
-	objectName := f.operation.FieldAliasOrNameBytes(ref)
-	definition, ok := f.definition.NodeFieldDefinitionByName(f.EnclosingTypeDefinition, fieldName)
-	if !ok {
-		enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
-		f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, enclosingTypeName))
-		return
-	}
-
-	fieldType := f.definition.FieldDefinitionType(definition)
-	fieldDefinitionTypeNode := f.definition.FieldDefinitionTypeNode(definition)
-	if fieldDefinitionTypeNode.Kind != ast.NodeKindScalarTypeDefinition {
-
-		matchedRequirements := f.NonScalarRequirementsByPathField(path, objectName)
-		hasDifferentKindInRequirements := false
-		for _, i := range matchedRequirements {
-
-			if !f.potentiallySameObject(fieldDefinitionTypeNode, f.nonScalarRequirements[i].fieldTypeDefinitionNode) {
-				// This condition below can never be true because if objects aren't potentially the same,
-				// and we know objectNames are equal (from the filter), they cannot be not equal at the same time.
-				// Perhaps this should be remove altogether?
-				if !objectName.Equals(f.nonScalarRequirements[i].objectName) {
-					f.StopWithExternalErr(operationreport.ErrResponseOfDifferingTypesMustBeOfSameShape(objectName, f.nonScalarRequirements[i].objectName))
-					return
-				}
-			} else {
-				// Check stream directive compatibility for non-scalar fields
-				leftDirectives := f.operation.FieldDirectives(f.nonScalarRequirements[i].fieldRef)
-				rightDirectives := f.operation.FieldDirectives(ref)
-				if !f.operation.DirectiveSetsHasCompatibleStreamDirective(leftDirectives, rightDirectives) {
-					f.StopWithExternalErr(operationreport.ErrConflictingStreamDirectivesOnField(objectName))
-					return
-				}
-
-				if !f.definition.TypesAreCompatibleDeep(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
-					// Deliberate deviation from SameResponseShape (spec sec 5.3.2): when enclosing
-					// types cannot overlap at runtime (two distinct concrete object types),
-					// we allow nullability differences because only one branch will ever
-					// contribute to the response. This is gated behind relaxNullabilityCheck.
-					if !f.relaxNullabilityCheck ||
-						f.potentiallySameObject(f.nonScalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) ||
-						!f.definition.TypesAreCompatibleIgnoringNullability(f.nonScalarRequirements[i].fieldTypeRef, fieldType) {
-						left, err := f.definition.PrintTypeBytes(f.nonScalarRequirements[i].fieldTypeRef, nil)
-						if err != nil {
-							f.StopWithInternalErr(err)
-							return
-						}
-						right, err := f.definition.PrintTypeBytes(fieldType, nil)
-						if err != nil {
-							f.StopWithInternalErr(err)
-							return
-						}
-						f.StopWithExternalErr(operationreport.ErrTypesForFieldMismatch(objectName, left, right))
-						return
-					}
-				}
-			}
-
-			if fieldDefinitionTypeNode.Kind != f.nonScalarRequirements[i].fieldTypeDefinitionNode.Kind {
-				hasDifferentKindInRequirements = true
-			}
-		}
-
-		if hasDifferentKindInRequirements {
-			// If we've already checked this field against a requirement with a different Kind,
-			// we don't need to add it again to requirements.
+	// __typename is an implicit String! field even without the base schema.
+	// See https://spec.graphql.org/September2025/#sec-Type-Name-Introspection
+	fieldType := ast.InvalidRef
+	fieldTypeNode := ast.Node{Kind: ast.NodeKindScalarTypeDefinition, Ref: ast.InvalidRef}
+	if !bytes.Equal(fieldName, literal.TYPENAME) {
+		definition, ok := f.definition.NodeFieldDefinitionByName(f.EnclosingTypeDefinition, fieldName)
+		if !ok {
+			enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
+			f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, enclosingTypeName))
 			return
 		}
-
-		f.nonScalarRequirements = append(f.nonScalarRequirements, nonScalarRequirement{
-			path:                    path,
-			objectName:              objectName,
-			fieldRef:                ref,
-			fieldTypeRef:            fieldType,
-			fieldTypeDefinitionNode: fieldDefinitionTypeNode,
-			enclosingTypeDefinition: f.EnclosingTypeDefinition,
-		})
-		return
+		fieldType = f.definition.FieldDefinitionType(definition)
+		fieldTypeNode = f.definition.FieldDefinitionTypeNode(definition)
 	}
-
-	matchedRequirements := f.ScalarRequirementsByPathField(path, objectName)
-	hasDifferentKindInRequirements := false
-
-	for _, i := range matchedRequirements {
-		if f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) {
-			// here we do not check directives equality, only if the stream directives are the same for the fields
-			if !f.operation.FieldsAreEqualFlat(f.scalarRequirements[i].fieldRef, ref, false) {
-				f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(objectName))
-				return
-			}
-		}
-		if !f.definition.TypesAreCompatibleDeep(f.scalarRequirements[i].fieldType, fieldType) {
-			// Per SameResponseShape (spec sec 5.3.2), when enclosing types cannot overlap
-			// at runtime (two distinct concrete object types), nullability differences are
-			// acceptable because only one branch will ever contribute to the response.
-			// This relaxation is gated behind the relaxNullabilityCheck flag.
-			if !f.relaxNullabilityCheck ||
-				f.potentiallySameObject(f.scalarRequirements[i].enclosingTypeDefinition, f.EnclosingTypeDefinition) ||
-				!f.definition.TypesAreCompatibleIgnoringNullability(f.scalarRequirements[i].fieldType, fieldType) {
-				left, err := f.definition.PrintTypeBytes(f.scalarRequirements[i].fieldType, nil)
-				if err != nil {
-					f.StopWithInternalErr(err)
-					return
-				}
-				right, err := f.definition.PrintTypeBytes(fieldType, nil)
-				if err != nil {
-					f.StopWithInternalErr(err)
-					return
-				}
-				f.StopWithExternalErr(operationreport.ErrFieldsConflict(objectName, left, right))
-				return
-			}
-		}
-
-		if fieldDefinitionTypeNode.Kind != f.scalarRequirements[i].fieldTypeDefinitionNode.Kind {
-			hasDifferentKindInRequirements = true
-		}
-	}
-
-	if hasDifferentKindInRequirements {
-		return
-	}
-
-	f.scalarRequirements = append(f.scalarRequirements, scalarRequirement{
-		path:                    path,
-		objectName:              objectName,
+	current := fieldRequirement{
+		path:                    f.Path.WithoutInlineFragmentNames(),
+		responseName:            f.operation.FieldAliasOrNameBytes(ref),
 		fieldRef:                ref,
-		fieldType:               fieldType,
+		fieldTypeRef:            fieldType,
+		fieldTypeDefinitionNode: fieldTypeNode,
 		enclosingTypeDefinition: f.EnclosingTypeDefinition,
-		fieldTypeDefinitionNode: fieldDefinitionTypeNode,
-	})
+		parent:                  f.parentRequirement(),
+	}
+	for i := range f.requirements {
+		previous := &f.requirements[i]
+		if !previous.path.Equals(current.path) || !previous.responseName.Equals(current.responseName) {
+			continue
+		}
+		bothComposite := f.nodeIsCompositeType(previous.fieldTypeDefinitionNode) && f.nodeIsCompositeType(current.fieldTypeDefinitionNode)
+		// FieldsInSetCanMerge step 2.2 requires matching names and arguments outside
+		// mutually exclusive branches. The compatibility exception documented on
+		// FieldSelectionMerging also applies; SameResponseShape is always checked.
+		// See https://spec.graphql.org/September2025/#FieldsInSetCanMerge()
+		identityConflict := false
+		if !f.fieldsAreMutuallyExclusive(previous, &current) {
+			compatibleStream := f.operation.DirectiveSetsHasCompatibleStreamDirective(f.operation.FieldDirectives(previous.fieldRef), f.operation.FieldDirectives(ref))
+			if !compatibleStream {
+				if bothComposite {
+					f.StopWithExternalErr(operationreport.ErrConflictingStreamDirectivesOnField(current.responseName))
+				} else {
+					f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(current.responseName))
+				}
+				return
+			}
+			identityConflict = !bytes.Equal(f.operation.FieldNameBytes(previous.fieldRef), fieldName) ||
+				!f.operation.ArgumentSetsAreEqualUnordered(f.operation.FieldArguments(previous.fieldRef), f.operation.FieldArguments(ref))
+			// Preserve the existing leaf-field diagnostic when both identity and type differ.
+			if identityConflict && !bothComposite {
+				f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(current.responseName))
+				return
+			}
+		}
+		// Intentional deviation: SameResponseShape step 3 requires matching
+		// nullability even across mutually exclusive branches. The existing opt-in
+		// relaxation applies only when the immediate enclosing types cannot overlap.
+		// See https://spec.graphql.org/September2025/#SameResponseShape()
+		ignoreNullability := f.relaxNullabilityCheck && !f.potentiallySameObject(previous.enclosingTypeDefinition, current.enclosingTypeDefinition)
+		if !f.responseShapesAreCompatible(previous, &current, ignoreNullability) {
+			left, err := f.fieldTypeBytes(previous.fieldTypeRef)
+			if err != nil {
+				f.StopWithInternalErr(err)
+				return
+			}
+			right, err := f.fieldTypeBytes(current.fieldTypeRef)
+			if err != nil {
+				f.StopWithInternalErr(err)
+				return
+			}
+			if bothComposite {
+				f.StopWithExternalErr(operationreport.ErrTypesForFieldMismatch(current.responseName, left, right))
+			} else {
+				f.StopWithExternalErr(operationreport.ErrFieldsConflict(current.responseName, left, right))
+			}
+			return
+		}
+		if identityConflict {
+			f.StopWithExternalErr(operationreport.ErrDifferingFieldsOnPotentiallySameType(current.responseName))
+			return
+		}
+	}
+	// FieldsInSetCanMerge step 2 checks every pair. Retain every selection;
+	// compatibility with one field does not establish compatibility with others.
+	f.requirements = append(f.requirements, current)
+}
+
+func (f *fieldSelectionMergingVisitor) responseShapesAreCompatible(left, right *fieldRequirement, ignoreNullability bool) bool {
+	if left.fieldTypeRef != ast.InvalidRef && right.fieldTypeRef != ast.InvalidRef {
+		return f.definition.TypesHaveCompatibleResponseShape(left.fieldTypeRef, right.fieldTypeRef, left.fieldTypeDefinitionNode, right.fieldTypeDefinitionNode, ignoreNullability)
+	}
+	if left.fieldTypeRef == right.fieldTypeRef {
+		return true // Both fields are __typename.
+	}
+	other := left.fieldTypeRef
+	if other == ast.InvalidRef {
+		other = right.fieldTypeRef
+	}
+	if f.definition.Types[other].TypeKind == ast.TypeKindNonNull {
+		other = f.definition.Types[other].OfType
+	} else if !ignoreNullability {
+		return false
+	}
+	return f.definition.Types[other].TypeKind == ast.TypeKindNamed && bytes.Equal(f.definition.TypeNameBytes(other), literal.STRING)
+}
+
+func (f *fieldSelectionMergingVisitor) fieldTypeBytes(ref int) ([]byte, error) {
+	if ref == ast.InvalidRef {
+		return []byte("String!"), nil
+	}
+	return f.definition.PrintTypeBytes(ref, nil)
+}
+
+// parentRequirement uses the walker's ancestry because SkipNode can suppress
+// LeaveField callbacks in other visitors.
+func (f *fieldSelectionMergingVisitor) parentRequirement() int {
+	for _, ancestor := range slices.Backward(f.Ancestors) {
+		if ancestor.Kind != ast.NodeKindField {
+			continue
+		}
+		for j := range slices.Backward(f.requirements) {
+			if f.requirements[j].fieldRef == ancestor.Ref {
+				return j
+			}
+		}
+		break
+	}
+	return -1
+}
+
+// fieldsAreMutuallyExclusive includes ancestors because FieldsInSetCanMerge
+// step 2.2 skips recursive identity checks across distinct object branches.
+// It also preserves the interface/object exception documented on FieldSelectionMerging.
+// SameResponseShape still checks their descendants' response shapes.
+func (f *fieldSelectionMergingVisitor) fieldsAreMutuallyExclusive(left, right *fieldRequirement) bool {
+	for {
+		leftType, rightType := left.enclosingTypeDefinition, right.enclosingTypeDefinition
+		switch {
+		case leftType.Kind == ast.NodeKindObjectTypeDefinition && rightType.Kind == ast.NodeKindObjectTypeDefinition:
+			if leftType != rightType {
+				return true
+			}
+		case leftType.Kind == ast.NodeKindInterfaceTypeDefinition && rightType.Kind == ast.NodeKindObjectTypeDefinition,
+			leftType.Kind == ast.NodeKindObjectTypeDefinition && rightType.Kind == ast.NodeKindInterfaceTypeDefinition:
+			if !f.potentiallySameObject(leftType, rightType) {
+				return true
+			}
+		}
+		if left.parent == -1 || right.parent == -1 {
+			return false
+		}
+		left, right = &f.requirements[left.parent], &f.requirements[right.parent]
+	}
+}
+
+func (f *fieldSelectionMergingVisitor) nodeIsCompositeType(node ast.Node) bool {
+	switch node.Kind {
+	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
+		return true
+	default:
+		return false
+	}
 }
 
 // potentiallySameObject reports whether two enclosing type definitions could apply
 // to the same runtime object. This determines whether field merging must enforce
-// strict type equality (including nullability) or may relax it.
+// matching nullability or may apply the optional nullability relaxation.
 //
 //   - If one type is an interface and the other is an object, returns true only
 //     when the object type implements the interface (otherwise they cannot overlap).

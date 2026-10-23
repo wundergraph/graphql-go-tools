@@ -151,6 +151,10 @@ func ErrTypesForFieldMismatch(objectName, leftType, rightType ast.ByteSlice) (er
 	return err
 }
 
+// ErrResponseOfDifferingTypesMustBeOfSameShape reports incompatible composite response shapes.
+// It is retained for compatibility with callers outside this module.
+//
+// Deprecated: Use ErrTypesForFieldMismatch to include the response name and conflicting types.
 func ErrResponseOfDifferingTypesMustBeOfSameShape(leftObjectName, rightObjectName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("objects '%s' and '%s' on differing response types must be of same response shape", leftObjectName, rightObjectName)
 	return err

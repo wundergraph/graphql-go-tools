@@ -31,6 +31,7 @@ type variablesExtractionVisitor struct {
 	importer                  astimport.Importer
 	skip                      bool
 	extractedVariables        [][]byte
+	extractedVariableValues   []ast.Value
 	extractedVariableTypeRefs []int
 	uploadFinder              *uploads.UploadFinder
 	uploadsPath               []uploads.UploadPathMapping
@@ -71,7 +72,7 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 		v.StopWithInternalErr(err)
 		return
 	}
-	if exists, name, _ := v.variableExists(valueBytes, inputValueDefinition); exists {
+	if exists, name, _ := v.variableExists(valueBytes, v.operation.Arguments[ref].Value, inputValueDefinition); exists {
 		variable := ast.VariableValue{
 			Name: v.operation.Input.AppendInputBytes(name),
 		}
@@ -106,6 +107,7 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	}
 
 	v.extractedVariables = append(v.extractedVariables, variableNameBytes)
+	v.extractedVariableValues = append(v.extractedVariableValues, v.operation.Arguments[ref].Value)
 	v.extractedVariableTypeRefs = append(v.extractedVariableTypeRefs, v.definition.InputValueDefinitions[inputValueDefinition].Type)
 
 	variable := ast.VariableValue{
@@ -146,19 +148,23 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 func (v *variablesExtractionVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation, v.definition = operation, definition
 	v.extractedVariables = v.extractedVariables[:0]
+	v.extractedVariableValues = v.extractedVariableValues[:0]
 	v.extractedVariableTypeRefs = v.extractedVariableTypeRefs[:0]
 }
 
-func (v *variablesExtractionVisitor) variableExists(variableValue []byte, inputValueDefinition int) (exists bool, name []byte, definition int) {
+func (v *variablesExtractionVisitor) variableExists(variableValue []byte, originalValue ast.Value, inputValueDefinition int) (exists bool, name []byte, definition int) {
 	_ = jsonparser.ObjectEach(v.operation.Input.Variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
-		if !v.extractedVariablesContainsKey(key, inputValueDefinition) {
+		index, ok := v.extractedVariableIndex(key, inputValueDefinition)
+		if !ok {
 			// skip variables that were not extracted but user defined
 			return nil
 		}
 		if dataType == jsonparser.String {
 			value = v.operation.Input.Variables[offset-len(value)-2 : offset]
 		}
-		if bytes.Equal(value, variableValue) {
+		// Input objects are unordered. Keep the original values so extraction can
+		// reuse a variable even when field order produces different JSON bytes.
+		if bytes.Equal(value, variableValue) || v.operation.ArgumentValuesAreEqual(v.extractedVariableValues[index], originalValue) {
 			exists = true
 			name = key
 		}
@@ -170,12 +176,12 @@ func (v *variablesExtractionVisitor) variableExists(variableValue []byte, inputV
 	return
 }
 
-func (v *variablesExtractionVisitor) extractedVariablesContainsKey(key []byte, inputValueDefinition int) bool {
+func (v *variablesExtractionVisitor) extractedVariableIndex(key []byte, inputValueDefinition int) (int, bool) {
 	typeRef := v.definition.InputValueDefinitions[inputValueDefinition].Type
 	for i := range v.extractedVariables {
 		if bytes.Equal(v.extractedVariables[i], key) && v.definition.TypesAreEqualDeep(typeRef, v.extractedVariableTypeRefs[i]) {
-			return true
+			return i, true
 		}
 	}
-	return false
+	return 0, false
 }

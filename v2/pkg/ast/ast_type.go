@@ -207,22 +207,33 @@ func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 	return d.typesAreCompatible(left, right, false)
 }
 
-// TypesAreCompatibleIgnoringNullability is a relaxed variant of TypesAreCompatibleDeep
-// that strips NonNull wrappers at every nesting level but still requires the same list
-// structure and the same base named type.
+// TypesAreCompatibleIgnoringNullability strips NonNull wrappers at every nesting
+// level while preserving the list structure and named-type compatibility rules of
+// TypesAreCompatibleDeep, including object/interface and object/union compatibility.
 //
-// Use this only when the two fields' enclosing types cannot overlap at runtime
-// (i.e. potentiallySameObject returns false), for example two distinct concrete
-// object types inside inline fragments on the same union/interface field. In that
-// case the spec's SameResponseShape algorithm permits differing nullability because
-// only one branch can ever execute for a given runtime object.
+// This is not the spec's SameResponseShape check: that requires matching
+// nullability and compares selected subfields of composite types. Callers opting
+// into nullability relaxation must enforce their own applicability conditions.
 //
-// See https://spec.graphql.org/October2021/#SameResponseShape()
+// See https://spec.graphql.org/September2025/#SameResponseShape()
 func (d *Document) TypesAreCompatibleIgnoringNullability(left int, right int) bool {
 	return d.typesAreCompatible(left, right, true)
 }
 
-func (d *Document) typesAreCompatible(left int, right int, ignoreNullability bool) bool {
+// TypesHaveCompatibleResponseShape compares type wrappers and named leaf types.
+// The supplied definitions must describe the named types underlying left and right.
+// Composite names may differ; callers must also compare their selected subfields.
+// ignoreNullability deliberately relaxes the spec's wrapper requirements.
+//
+// See https://spec.graphql.org/September2025/#SameResponseShape()
+func (d *Document) TypesHaveCompatibleResponseShape(left, right int, leftDefinition, rightDefinition Node, ignoreNullability bool) bool {
+	composite := func(node Node) bool {
+		return node.Kind == NodeKindObjectTypeDefinition || node.Kind == NodeKindInterfaceTypeDefinition || node.Kind == NodeKindUnionTypeDefinition
+	}
+	return d.typesAreCompatible(left, right, ignoreNullability, composite(leftDefinition) && composite(rightDefinition))
+}
+
+func (d *Document) typesAreCompatible(left int, right int, ignoreNullability bool, compositeNamesCompatible ...bool) bool {
 	for {
 		if left == -1 || right == -1 {
 			return false
@@ -243,6 +254,9 @@ func (d *Document) typesAreCompatible(left int, right int, ignoreNullability boo
 			rightName := d.TypeNameBytes(right)
 			if bytes.Equal(leftName, rightName) {
 				return true
+			}
+			if len(compositeNamesCompatible) != 0 {
+				return compositeNamesCompatible[0]
 			}
 			leftNode, _ := d.Index.FirstNodeByNameBytes(leftName)
 			rightNode, _ := d.Index.FirstNodeByNameBytes(rightName)

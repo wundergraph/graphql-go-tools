@@ -67,6 +67,13 @@ func (f *inlineFragmentSelectionMergeVisitor) fieldsCanMerge(left, right int) bo
 		return false
 	}
 
+	// FieldsInSetCanMerge requires matching arguments for fields on the same
+	// parent type. Normalization precedes validation, so preserve conflicts.
+	// See https://spec.graphql.org/September2025/#FieldsInSetCanMerge()
+	if !f.operation.ArgumentSetsAreEqualUnordered(f.operation.FieldArguments(left), f.operation.FieldArguments(right)) {
+		return false
+	}
+
 	leftDirectives := f.operation.FieldDirectives(left)
 	rightDirectives := f.operation.FieldDirectives(right)
 
