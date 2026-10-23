@@ -103,7 +103,7 @@ func (w *wireMessage) appendProtoMessage(msg protoref.Message, data *astjson.Val
 }
 
 // appendOneOfProto resolves the concrete subtype via __typename and populates
-// the matching oneof variant. Mirrors the oneof branch in appendProtoWire.
+// the matching oneof variant. Mirrors appendOneOfProtoWire.
 func (w *wireMessage) appendOneOfProto(msg protoref.Message, data *astjson.Value) error {
 	if !data.Exists("__typename") {
 		return fmt.Errorf("__typename is required for oneof fields")
@@ -128,8 +128,7 @@ func (w *wireMessage) appendOneOfProto(msg protoref.Message, data *astjson.Value
 		}
 	}
 	if matched == nil {
-		// No matching member type — leave the oneof unset.
-		return nil
+		return fmt.Errorf("%s not found in oneof %s", typeName, oneOfDescriptor.Name())
 	}
 
 	subMsg := dynamicpb.NewMessage(matched.Message())
