@@ -191,6 +191,8 @@ type result struct {
 	// cache digests these for Vary, not a second call to the headers builder,
 	// which need not answer the same twice.
 	sentHeaders http.Header
+	// sharedWireHeaders are the singleflight leader's wire headers, set on a follower.
+	sharedWireHeaders http.Header
 	// responseCacheHit and responseCacheTTL record that the fetch was served entirely from the cache
 	// and the min lifetime left across its entries. Fetch-local, so the unlocked load phase is safe.
 	responseCacheHit bool
@@ -2239,6 +2241,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 				}
 			}
 		}
+		res.sharedWireHeaders = item.requestHeaders
 		return nil
 	}
 
@@ -2261,6 +2264,9 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		item.statusCode = rc.StatusCode
 		if rc.Response != nil && rc.Response.Header != nil {
 			item.responseHeaders = rc.Response.Header.Clone()
+		}
+		if rc.Response != nil && rc.Response.Request != nil {
+			item.requestHeaders = rc.Response.Request.Header.Clone()
 		}
 	}
 	return nil

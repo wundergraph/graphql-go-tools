@@ -388,6 +388,9 @@ func responseCacheVary(headers, sent, wire http.Header) (responseVary, bool) {
 
 // responseCacheWireHeaders is the request the subgraph actually received.
 func responseCacheWireHeaders(res *result) http.Header {
+	if res.sharedWireHeaders != nil {
+		return res.sharedWireHeaders
+	}
 	if res.httpResponseContext == nil || res.httpResponseContext.Response == nil || res.httpResponseContext.Response.Request == nil {
 		return nil
 	}
