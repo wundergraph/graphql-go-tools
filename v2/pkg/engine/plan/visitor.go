@@ -550,23 +550,22 @@ func (v *Visitor) resolveOnTypeNames(fieldRef int, fieldName ast.ByteSlice) (onT
 }
 
 func (v *Visitor) addInterfaceObjectNameToTypeNames(fieldRef int, typeName []byte, onTypeNames [][]byte) [][]byte {
-	includeInterfaceObjectName := false
-	var interfaceObjectName string
+	fieldName := v.Operation.FieldNameUnsafeString(fieldRef)
+
 	for i := range v.planners {
 		if !v.planners[i].HasPathWithFieldRef(fieldRef) {
 			continue
 		}
 
-		for _, interfaceObjCfg := range v.planners[i].DataSourceConfiguration().FederationConfiguration().InterfaceObjects {
-			if slices.Contains(interfaceObjCfg.ConcreteTypeNames, string(typeName)) {
-				includeInterfaceObjectName = true
-				interfaceObjectName = interfaceObjCfg.InterfaceTypeName
-				break
-			}
+		interfaceObjectName, ok := v.planners[i].InterfaceObjectNameForTypeField(string(typeName), fieldName)
+		if !ok {
+			continue
 		}
-	}
-	if includeInterfaceObjectName {
-		onTypeNames = append(onTypeNames, []byte(interfaceObjectName))
+
+		name := []byte(interfaceObjectName)
+		if !slices.ContainsFunc(onTypeNames, func(existing []byte) bool { return bytes.Equal(existing, name) }) {
+			onTypeNames = append(onTypeNames, name)
+		}
 	}
 
 	return onTypeNames
