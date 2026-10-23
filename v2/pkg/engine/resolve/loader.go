@@ -191,6 +191,8 @@ type result struct {
 	// cache digests these for Vary, not a second call to the headers builder,
 	// which need not answer the same twice.
 	sentHeaders http.Header
+	// sharedWireHeaders are the singleflight leader's wire headers, set on a follower.
+	sharedWireHeaders http.Header
 	// responseCacheHit and responseCacheTTL record that the fetch was served entirely from the cache
 	// and the min lifetime left across its entries. Fetch-local, so the unlocked load phase is safe.
 	responseCacheHit bool
@@ -287,6 +289,10 @@ func IsIntrospectionDataSource(dataSourceID string) bool {
 type Loader struct {
 	// dataBuffer holds the shared response tree and its concurrency guard.
 	dataBuffer *DataBuffer
+
+	// responseCacheHeld are cache writes waiting on resolution.
+	responseCacheHeld   []responseCacheWrite
+	responseCacheHeldMu sync.Mutex
 
 	// authorization is set for the loader serving the primary response when pre-fetch field
 	// authorization is enabled. It holds the up-front batch decisions that isFetchAuthorizedFromCache
@@ -389,6 +395,7 @@ func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
 	l.info = responseInfo
 	l.taintedObjs = make(taintedObjects)
 	l.erroredFetchIDs = nil
+	l.responseCacheHeld = nil
 }
 
 func (l *Loader) ensureErrorsInitialized() {
@@ -571,10 +578,7 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 		return errors.WithStack(err)
 	}
 	err = l.mergePhase(prepared)
-	// After mergePhase released the data lock: the cache round trip must not
-	// hold up the fetches waiting on it. Runs regardless of the merge outcome,
-	// matching the store that used to sit in the load phase.
-	l.responseCacheFlush(prepared)
+	l.responseCacheHold(prepared)
 	return err
 }
 
@@ -1846,7 +1850,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 	// the offsets above still point at what they were taken from.
 	if l.responseCacheEnabledFor(res.ds.Name) {
 		rendered := preparedInput.Bytes()
-		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		selection := responseCacheSelection(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:], undefinedVariables)
 		l.responseCacheSetKeys(prepared, selection, []caching.Digest{caching.DigestBytes(renderedItem)})
 	}
 
@@ -2044,7 +2048,7 @@ WithNextItem:
 
 	if len(responseCacheItems) > 0 {
 		rendered := preparedInput.Bytes()
-		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		selection := responseCacheSelection(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:], undefinedVariables)
 		l.responseCacheSetKeys(prepared, selection, responseCacheItems)
 	}
 
@@ -2237,6 +2241,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 				}
 			}
 		}
+		res.sharedWireHeaders = item.requestHeaders
 		return nil
 	}
 
@@ -2259,6 +2264,9 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		item.statusCode = rc.StatusCode
 		if rc.Response != nil && rc.Response.Header != nil {
 			item.responseHeaders = rc.Response.Header.Clone()
+		}
+		if rc.Response != nil && rc.Response.Request != nil {
+			item.requestHeaders = rc.Response.Request.Header.Clone()
 		}
 	}
 	return nil

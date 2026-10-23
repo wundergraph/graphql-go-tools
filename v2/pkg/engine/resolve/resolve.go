@@ -412,6 +412,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}
 
 	ctx.TypeNameStats = resolvable.typeNameStats
+	loader.responseCacheCommit(!resolvable.walkFailed)
 
 	return resp, err
 }
@@ -531,6 +532,8 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// all data is written to the client
 	// we're safe to release our buffer
 	r.responseBufferPool.Release(responseArena)
+	// After the client has its response.
+	loader.responseCacheCommit(!resolvable.walkFailed)
 	return resp, err
 }
 
@@ -612,6 +615,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		if err != nil {
 			return nil, err
 		}
+		loader.responseCacheCommit(!resolvable.walkFailed)
 
 		// The initial frame is now on the wire — the multipart response is
 		// committed. From here every exit must terminate the stream, so Complete()
@@ -702,6 +706,10 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 		return nil, dc.writer.Flush()
 	}
 
+	// Runs after the unlock below: the cache round trip must not hold renders.
+	resolved := false
+	defer func() { groupLoader.responseCacheCommit(resolved) }()
+
 	// RENDER PHASE — serialised by the DataBuffer lock.
 	dc.db.Lock()
 	defer dc.db.Unlock()
@@ -726,6 +734,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	if err != nil {
 		return nil, err
 	}
+	resolved = !dc.resolvable.walkFailed
 	return liveChildren, dc.writer.Flush()
 }
 

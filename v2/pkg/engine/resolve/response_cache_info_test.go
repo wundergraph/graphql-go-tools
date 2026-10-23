@@ -177,7 +177,7 @@ func TestResponseCacheInfo_MultiEntity(t *testing.T) {
 			&recordingDataSource{response: []byte(multiEntityRootResponse)},
 			multiDS,
 		)
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		require.NoError(t, loadAndCommit(loader, ctx, response))
 		require.Len(t, infos, 2)
 		return infos[1].ResponseCache
 	}
@@ -422,7 +422,7 @@ func mergedFetchCacheInfo(t *testing.T, multiDS DataSource) ResponseCacheInfo {
 	}})
 	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 	response := multiEntityMergedTree(&recordingDataSource{response: []byte(multiEntityRootResponse)}, multiDS)
-	_ = loader.LoadGraphQLResponseData(ctx, response)
+	_ = loadAndCommit(loader, ctx, response)
 	require.Len(t, infos, 2)
 	return infos[1].ResponseCache
 }

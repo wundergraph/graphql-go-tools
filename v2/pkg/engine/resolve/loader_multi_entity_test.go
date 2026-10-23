@@ -652,7 +652,7 @@ func TestLoadGraphQLResponseData_MultiEntity(t *testing.T) {
 			multiDS,
 		)
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(multiEntityContext(t), response))
+		require.NoError(t, loadAndCommit(loader, multiEntityContext(t), response))
 		assertMergedErrors(t, loader, "")
 		return string(loader.dataBuffer.Get().MarshalTo(nil)), multiDS
 	}
@@ -665,7 +665,7 @@ func TestLoadGraphQLResponseData_MultiEntity(t *testing.T) {
 			&recordingDataSource{response: []byte(`{"data":{"_entities":[{"notes":"n"}]}}`)},
 		)
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(multiEntityContext(t), response))
+		require.NoError(t, loadAndCommit(loader, multiEntityContext(t), response))
 		assertMergedErrors(t, loader, "")
 		return string(loader.dataBuffer.Get().MarshalTo(nil))
 	}
@@ -745,7 +745,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCache(t *testing.T) {
 			multiDS,
 		)
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		require.NoError(t, loadAndCommit(loader, ctx, response))
 		assertMergedErrors(t, loader, "")
 		return string(loader.dataBuffer.Get().MarshalTo(nil))
 	}
@@ -830,7 +830,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheKeys(t *testing.T) {
 			OnError:    func(err error) { t.Errorf("response cache error: %v", err) },
 		})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, multiEntityMergedTree(rootDS, multiDS)))
+		require.NoError(t, loadAndCommit(loader, ctx, multiEntityMergedTree(rootDS, multiDS)))
 		assertMergedErrors(t, loader, "")
 	}
 
@@ -890,7 +890,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCachePartialFailure(t *test
 			&recordingDataSource{response: []byte(multiEntityRootResponse)},
 			multiDS,
 		)
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		require.NoError(t, loadAndCommit(loader, ctx, response))
 		return string(loader.dataBuffer.Get().MarshalTo(nil)), loader
 	}
 
@@ -955,7 +955,7 @@ func TestLoadGraphQLResponseData_SingleFetch_ResponseCacheCorruptJSON(t *testing
 			batchDS,
 			entityDS,
 		)
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		require.NoError(t, loadAndCommit(loader, ctx, response))
 		return string(loader.dataBuffer.Get().MarshalTo(nil)), loader
 	}
 
@@ -1008,7 +1008,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheCorruptJSON(t *testing
 			&recordingDataSource{response: []byte(multiEntityRootResponse)},
 			multiDS,
 		)
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		require.NoError(t, loadAndCommit(loader, ctx, response))
 		return string(loader.dataBuffer.Get().MarshalTo(nil)), loader
 	}
 
@@ -1085,7 +1085,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T
 			&recordingDataSource{response: []byte(multiEntityRootResponse)},
 			multiDS,
 		)
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		require.NoError(t, loadAndCommit(loader, ctx, response))
 		assertMergedErrors(t, loader, "")
 		return reports
 	}
@@ -1154,7 +1154,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHookBody(t *testing.T)
 			&recordingDataSource{response: []byte(multiEntityRootResponse)},
 			multiDS,
 		)
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		require.NoError(t, loadAndCommit(loader, ctx, response))
 		assertMergedErrors(t, loader, "")
 		require.Len(t, bodies, 2)
 		return bodies[1]
@@ -1216,7 +1216,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHookBody(t *testing.T)
 			},
 		})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, multiEntityMergedTree(
+		require.NoError(t, loadAndCommit(loader, ctx, multiEntityMergedTree(
 			&recordingDataSource{response: []byte(multiEntityRootResponse)},
 			&recordingDataSource{response: []byte(`not json`), responseHeaders: cacheableHeaders()},
 		)))
@@ -1244,7 +1244,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheHookBody(t *testing.T)
 			},
 		})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, multiEntityMergedTree(
+		require.NoError(t, loadAndCommit(loader, ctx, multiEntityMergedTree(
 			&recordingDataSource{response: []byte(multiEntityRootResponse)},
 			&recordingDataSource{err: errors.New("boom")},
 		)))
@@ -1291,7 +1291,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheTags(t *testing.T) {
 	multi.Info.DataSourceName = "products"
 
 	loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-	require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: Sequence(
+	require.NoError(t, loadAndCommit(loader, ctx, &GraphQLResponse{Fetches: Sequence(
 		Single(multiEntityRootFetch(&recordingDataSource{response: []byte(rootResponse)})),
 		Single(multi),
 	)}))
@@ -1329,7 +1329,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheSurrogateKeys(t *testi
 		multi.Info.DataSourceName = "products"
 
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		require.NoError(t, loader.LoadGraphQLResponseData(ctx, &GraphQLResponse{Fetches: Sequence(
+		require.NoError(t, loadAndCommit(loader, ctx, &GraphQLResponse{Fetches: Sequence(
 			Single(multiEntityRootFetch(&recordingDataSource{response: []byte(multiEntityRootResponse)})),
 			Single(multi),
 		)}))

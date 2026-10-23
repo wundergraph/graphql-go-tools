@@ -33,6 +33,8 @@ type SingleFlightItem struct {
 	response []byte
 	// responseHeaders contains the cloned subgraph response headers from the leader's HTTP call
 	responseHeaders http.Header
+	// requestHeaders are the leader's wire request headers
+	requestHeaders http.Header
 	// statusCode is the HTTP status code from the leader's subgraph response
 	statusCode int
 	// err is non nil if the leader produced an error while doing the work
