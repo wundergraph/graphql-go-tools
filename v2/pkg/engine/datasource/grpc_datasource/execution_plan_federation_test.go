@@ -299,6 +299,33 @@ func TestExecutionPlan_Federation_EntityLookup(t *testing.T) {
 	}
 }
 
+// TestExecutionPlan_Federation_MissingEntityConfig tests that an entity fragment
+// without a key configuration returns a planning error.
+func TestExecutionPlan_Federation_MissingEntityConfig(t *testing.T) {
+	t.Parallel()
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(`query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { id name } } }`)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	planner, err := NewPlanner("Products", testMapping(), plan.FederationFieldConfigurations{
+		{
+			TypeName:     "Product",
+			SelectionSet: "id",
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to create planner %s", err)
+	}
+
+	_, err = planner.PlanOperation(&queryDoc, &schemaDoc)
+	if err == nil || !strings.Contains(err.Error(), "no entity configuration found for type Storage") {
+		t.Fatalf("expected a missing entity configuration error, got: %v", err)
+	}
+}
+
 func TestExecutionPlan_Federation_EntityKeys(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

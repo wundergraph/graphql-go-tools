@@ -74,6 +74,10 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		requiredFieldRef:       ast.InvalidRef,
 		requiredFieldIdx:       ast.InvalidRef,
 		fieldPath:              ast.Path{}.WithFieldNameItem([]byte("result")),
+		planInfo: planningInfo{
+			currentResponseMessage: &RPCMessage{},
+			currentRequestMessage:  &RPCMessage{},
+		},
 	}
 
 	walker.RegisterDocumentVisitor(visitor)
@@ -151,7 +155,7 @@ func (r *rpcPlanVisitorFederation) EnterOperationDefinition(ref int) {
 		return
 	}
 
-	r.planInfo.operationType = r.operation.OperationDefinitions[ref].OperationType
+	r.planInfo.operationType = ast.OperationTypeQuery
 }
 
 // EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
@@ -163,6 +167,7 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
 	entityConfigData, ok := r.entityConfig.getEntity(fragmentName)
 	if !ok {
+		r.walker.StopWithInternalErr(fmt.Errorf("no entity configuration found for type %s", fragmentName))
 		return
 	}
 
