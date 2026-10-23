@@ -121,11 +121,12 @@ func (r *Request) IsIntrospectionQuery() (result bool, err error) {
 		}
 	}
 
-	if len(possibleOperationDefinitionRefs) == 0 {
+	switch len(possibleOperationDefinitionRefs) {
+	case 0:
 		return
-	} else if len(possibleOperationDefinitionRefs) == 1 {
+	case 1:
 		operationDefinitionRef = possibleOperationDefinitionRefs[0]
-	} else {
+	default:
 		for i := 0; i < len(possibleOperationDefinitionRefs); i++ {
 			ref := possibleOperationDefinitionRefs[i]
 			name := r.document.OperationDefinitionNameString(ref)
