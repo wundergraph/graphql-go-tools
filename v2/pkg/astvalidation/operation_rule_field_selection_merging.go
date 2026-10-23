@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"bytes"
+	"encoding/binary"
 	"hash/maphash"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -24,10 +25,10 @@ func FieldSelectionMerging(relaxNullabilityCheck ...bool) Rule {
 		visitor := fieldSelectionMergingVisitor{
 			Walker:                walker,
 			relaxNullabilityCheck: relax,
-			visitedGroups:         map[visitedKey]int{},
-			seed:                  maphash.MakeSeed(),
+			visitedGroups:         map[uint64]int{},
 			inherited:             map[[2]int]fieldPair{},
 		}
+		visitor.hash.SetSeed(maphash.MakeSeed())
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterFieldVisitor(&visitor)
 		walker.RegisterEnterOperationVisitor(&visitor)
@@ -41,24 +42,17 @@ type fieldSelectionMergingVisitor struct {
 	definition, operation *ast.Document
 	relaxNullabilityCheck bool
 
-	visited       [][]int              // refs of the entered fields in the operation or fragment, grouped by visitedKey
-	visitedGroups map[visitedKey]int   // index of a group in visited
-	seed          maphash.Seed         // for hashes of response keys in visitedKey
+	visited       [][]int              // refs of the entered fields in the operation or fragment, grouped by pathHash
+	visitedGroups map[uint64]int       // index of a group in visited, keyed by pathHash
+	hash          maphash.Hash         // computes pathHash
 	fields        []mergingField       // lookup table indexed by field refs
 	inherited     map[[2]int]fieldPair // fieldPair inherited from two parent fields, keyed by their refs
-}
-
-// visitedKey is what fields with the same response path share: the depth and the response key.
-// It holds a hash of the response key, because a string key would allocate for every new group.
-type visitedKey struct {
-	depth int
-	hash  uint64
 }
 
 // mergingField is an entered field.
 type mergingField struct {
 	key       ast.ByteSlice // response key
-	depth     int           // number of ancestor fields
+	pathHash  uint64        // hash of the response keys from the root field down to this field
 	parent    int           // nearest ancestor field; ast.InvalidRef for root fields
 	enclosing ast.Node      // type the field is selected on
 	typeRef   int           // ast.InvalidRef for __typename, which is String!
@@ -111,10 +105,14 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 		typeRef:   ast.InvalidRef,
 		typeNode:  ast.InvalidNode,
 	}
+
+	var parentHash uint64
 	if field.parent != ast.InvalidRef {
-		field.depth = f.fields[field.parent].depth + 1
+		parentHash = f.fields[field.parent].pathHash
 	}
+	field.pathHash = f.pathHash(parentHash, field.key)
 	name := f.operation.FieldNameBytes(ref)
+
 	if !bytes.Equal(name, literal.TYPENAME) {
 		definition, ok := f.definition.NodeFieldDefinitionByName(f.EnclosingTypeDefinition, name)
 		if !ok {
@@ -127,8 +125,9 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	}
 	f.fields[ref] = field
 
-	group := f.visitedGroup(field)
+	group := f.visitedGroup(field.pathHash)
 	for _, other := range f.visited[group] {
+		// sameResponsePath is false only when two paths have the same hash.
 		if f.sameResponsePath(other, ref) && !f.canMergeFields(other, ref) {
 			return
 		}
@@ -136,15 +135,24 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 	f.visited[group] = append(f.visited[group], ref)
 }
 
-// visitedGroup returns the index of the group in visited with the depth and response key of the field.
+// pathHash returns the hash of a response path from the hash of its parent path and its last response key.
+func (f *fieldSelectionMergingVisitor) pathHash(parent uint64, key ast.ByteSlice) uint64 {
+	var parentBytes [8]byte
+	binary.LittleEndian.PutUint64(parentBytes[:], parent)
+	f.hash.Reset()
+	_, _ = f.hash.Write(parentBytes[:])
+	_, _ = f.hash.Write(key)
+	return f.hash.Sum64()
+}
+
+// visitedGroup returns the index of the group in visited for a path hash.
 // It adds an empty group when there is none.
-func (f *fieldSelectionMergingVisitor) visitedGroup(field mergingField) int {
-	key := visitedKey{depth: field.depth, hash: maphash.Bytes(f.seed, field.key)}
-	if group, ok := f.visitedGroups[key]; ok {
+func (f *fieldSelectionMergingVisitor) visitedGroup(pathHash uint64) int {
+	if group, ok := f.visitedGroups[pathHash]; ok {
 		return group
 	}
 	group := len(f.visited)
-	f.visitedGroups[key] = group
+	f.visitedGroups[pathHash] = group
 	if group < cap(f.visited) {
 		// Reuse the slice of a group from an earlier operation or fragment.
 		f.visited = f.visited[:group+1]
@@ -157,11 +165,8 @@ func (f *fieldSelectionMergingVisitor) visitedGroup(field mergingField) int {
 
 // sameResponsePath reports whether two fields have equal response keys at every level.
 func (f *fieldSelectionMergingVisitor) sameResponsePath(a, b int) bool {
-	if f.fields[a].depth != f.fields[b].depth {
-		return false
-	}
 	for a != b {
-		if !bytes.Equal(f.fields[a].key, f.fields[b].key) {
+		if a == ast.InvalidRef || b == ast.InvalidRef || !bytes.Equal(f.fields[a].key, f.fields[b].key) {
 			return false
 		}
 		a, b = f.fields[a].parent, f.fields[b].parent
