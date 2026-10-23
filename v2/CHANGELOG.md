@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.30.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.0...v2.30.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* connect improvements ([#1730](https://github.com/wundergraph/graphql-go-tools/issues/1730)) ([1a85045](https://github.com/wundergraph/graphql-go-tools/commit/1a850451e9e606c07e05c420ee2ec43997abb0ae))
+
 ## [2.30.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.29.0...v2.30.0) (2026-10-21)
 
 
