@@ -91,6 +91,44 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			},
 		},
 		{
+			name:  "Should ignore entity queries which have additional fields outside of the fragment",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { __typename ...on Product { id name } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Product","id":"2"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+
+				// Check required fields are present
+				require.Contains(t, entities[0], "id")
+				require.Contains(t, entities[0], "name")
+
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				product, ok := entities[0].(map[string]any)
+				require.True(t, ok, "product should be an object")
+				require.Equal(t, "1", product["id"])
+				require.Equal(t, "Product 1", product["name"])
+
+				product2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "product2 should be an object")
+				require.Equal(t, "2", product2["id"])
+				require.Equal(t, "Product 2", product2["name"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
 			name:  "Query warehouse and expect an error",
 			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Warehouse { id name } } }`,
 			vars: `{"variables":{"representations":[
