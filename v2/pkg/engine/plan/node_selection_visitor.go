@@ -42,7 +42,7 @@ type nodeSelectionVisitor struct {
 	fieldLandedTo               map[int]DSHash                                   // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
 	fieldDependencyKind         map[fieldDependencyKey]fieldDependencyKind
 
-	secondaryRun bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
+	firstRun     bool // firstRun is a flag to indicate that we're running the nodeSelectionVisitor the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 
 	rewrittenFieldRefs          []int            // rewrittenFieldRefs holds field refs which had their selection sets rewritten during the current walk
@@ -86,38 +86,16 @@ func (c *nodeSelectionVisitor) addNewFieldRefs(fieldRefs ...int) {
 	}
 }
 
-// pruneStaleFieldRequirements removes field requirements recorded for (field, datasource) pairs
-// which are no longer selected. When fallback key jumps get enabled, the datasources are
-// refiltered from scratch, and fields may land on different datasources than on the previous runs.
-// Requirements of the de-selected pairs would otherwise remain in the dependency maps
-// and produce dependencies on fetches which will never happen.
-func (c *nodeSelectionVisitor) pruneStaleFieldRequirements() {
-	if len(c.fieldDependsOn) == 0 {
-		return
+// addFieldDependency records that the field of the (field, datasource) pair depends on the required field.
+// Several key requirements could pass through the same pair,
+// e.g. a field selected on a datasource could also be a key member of a key jump chain via this datasource,
+// so an already recorded dependency is skipped.
+func (c *nodeSelectionVisitor) addFieldDependency(fieldKey fieldIndexKey, requiredFieldRef int) {
+	if !slices.Contains(c.fieldDependsOn[fieldKey], requiredFieldRef) {
+		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRef)
 	}
-
-	for fieldKey, deps := range c.fieldDependsOn {
-		if c.nodeSuggestions.hasSelectedSuggestionForFieldRefOnDataSource(fieldKey.fieldRef, fieldKey.dsHash) {
-			continue
-		}
-
-		delete(c.fieldDependsOn, fieldKey)
-		delete(c.fieldRequirementsConfigs, fieldKey)
-		delete(c.visitedFieldsKeyChecks, fieldKey)
-		delete(c.visitedFieldsRequiresChecks, fieldKey)
-		for _, dep := range deps {
-			delete(c.fieldDependencyKind, fieldDependencyKey{field: fieldKey.fieldRef, dependsOn: dep})
-		}
-	}
-
-	c.fieldRefDependsOn = make(map[int][]int, len(c.fieldDependsOn))
-	for fieldKey, deps := range c.fieldDependsOn {
-		for _, dep := range deps {
-			if slices.Contains(c.fieldRefDependsOn[fieldKey.fieldRef], dep) {
-				continue
-			}
-			c.fieldRefDependsOn[fieldKey.fieldRef] = append(c.fieldRefDependsOn[fieldKey.fieldRef], dep)
-		}
+	if !slices.Contains(c.fieldRefDependsOn[fieldKey.fieldRef], requiredFieldRef) {
+		c.fieldRefDependsOn[fieldKey.fieldRef] = append(c.fieldRefDependsOn[fieldKey.fieldRef], requiredFieldRef)
 	}
 }
 
@@ -205,7 +183,7 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 		c.selectionSetRefs = c.selectionSetRefs[:0]
 	}
 
-	if c.secondaryRun {
+	if !c.firstRun {
 		return
 	}
 
@@ -666,8 +644,9 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	// add mapping for the field dependencies
 	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
 		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
-		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], addFieldsResult.requiredFieldRefs...)
-		c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], addFieldsResult.requiredFieldRefs...)
+		for _, requiredFieldRef := range addFieldsResult.requiredFieldRefs {
+			c.addFieldDependency(fieldKey, requiredFieldRef)
+		}
 
 		// TODO: actually we could probably build representations right away?
 		// e.g. build it here, pass to path visitor and down to datasource, without the need to parse it there?
@@ -768,8 +747,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 						// e.g., if it depends on itself
 						continue
 					}
-					c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRef)
-					c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRef)
+					c.addFieldDependency(fieldKey, requiredFieldRef)
 				}
 
 				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
@@ -796,8 +774,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 						// e.g., if it depends on itself
 						continue
 					}
-					c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRef)
-					c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRef)
+					c.addFieldDependency(fieldKey, requiredFieldRef)
 				}
 
 				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
