@@ -947,8 +947,15 @@ func closeSubs(subs []*subscriptionState) {
 // It does not send any downstream messages — Complete/Error are sent separately.
 func (s *subscriptionState) done() {
 	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
 	close(s.completed)
+	s.writeMu.Unlock()
+
+	// done is only called for states that won the removed transition. Run the
+	// callback after releasing writeMu so module code cannot block writes or
+	// deadlock if it inspects subscription state.
+	if s.ctx.OnSubscriptionEnd != nil {
+		s.ctx.OnSubscriptionEnd()
+	}
 }
 
 // complete delivers a "subscription done" signal to the downstream writer.
@@ -1819,6 +1826,14 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 }
 
 func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter, id SubscriptionIdentifier) (err error) {
+	// A terminal response or setup error can return before a subscriber is
+	// registered. In that case there is no state to close later.
+	registered := false
+	defer func() {
+		if !registered && ctx.OnSubscriptionEnd != nil {
+			ctx.OnSubscriptionEnd()
+		}
+	}()
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
@@ -1881,7 +1896,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return writeFlushComplete(writer, msg)
 	}
 
-	return r.addSubscription(triggerID, &addSubscription{
+	err = r.addSubscription(triggerID, &addSubscription{
 		ctx:        ctx,
 		input:      input,
 		resolve:    subscription,
@@ -1891,6 +1906,8 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		sourceName: subscription.Trigger.SourceName,
 		headers:    headers,
 	})
+	registered = err == nil
+	return err
 }
 
 func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscription) (input []byte, err error) {
