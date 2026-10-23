@@ -111,7 +111,7 @@ func (c *wsConnection) subscribe(ctx context.Context, id string, req *common.Req
 		abstractlogger.String("status", "subscribed"),
 	)
 
-	cancel := func() { c.unsubscribe(id) }
+	cancel := func() { c.unsubscribe(id) } //nolint:contextcheck
 
 	return cancel, nil
 }
