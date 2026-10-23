@@ -310,16 +310,21 @@ func (d *DataSource) runFetch(
 		result.entityIndexMap = callMap[fetch.dependentCall.ID].entityIndexMap
 	}
 
-	// In case of a federated response, we need to ensure that the response is valid.
-	// The number of entities per type must match the number of lookup keys in the variables.
-	// On success we build the index map used by mergeEntities to place each response
-	// entity at the correct position in the final _entities array.
-	if fetch.kind == CallKindEntity {
+	// Entity and required calls only get the representations of one entity type.
+	// The index map gives the position of each result in the _entities array.
+	switch fetch.kind {
+	case CallKindEntity:
+		// The number of entities must match the number of representations of the type.
+		// mergeEntities uses the index map to place each entity.
 		representations := getRepresentations(astJsonVariables)
 		if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
 			return fetchResult{}, err
 		}
 		result.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, representations)
+	case CallKindRequired:
+		// A required call only gets the representations of its own entity type.
+		// mergeWithPath checks that the number of results matches.
+		result.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, getRepresentations(astJsonVariables))
 	}
 
 	return result, nil
