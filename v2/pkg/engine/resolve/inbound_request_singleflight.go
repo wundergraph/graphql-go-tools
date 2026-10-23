@@ -67,6 +67,8 @@ type InflightRequest struct {
 	ID            inboundRequestKey
 
 	followerCount atomic.Int32
+	// finished makes Finish* idempotent: a leader may panic after finishing.
+	finished atomic.Bool
 }
 
 func (r *InflightRequest) AddFollower() {
@@ -133,7 +135,7 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 }
 
 func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte) {
-	if req == nil {
+	if req == nil || !req.finished.CompareAndSwap(false, true) {
 		return
 	}
 	shard := r.shardFor(req.ID)
@@ -147,7 +149,7 @@ func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte)
 }
 
 func (r *InboundRequestSingleFlight) FinishErr(req *InflightRequest, err error) {
-	if req == nil {
+	if req == nil || !req.finished.CompareAndSwap(false, true) {
 		return
 	}
 	shard := r.shardFor(req.ID)
