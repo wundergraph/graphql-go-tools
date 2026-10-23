@@ -27,3 +27,12 @@ func TestNodeKindIsAbstractType(t *testing.T) {
 		assert.Equal(t, NodeKindScalarTypeDefinition.IsAbstractType(), false)
 	})
 }
+
+func TestNodeKindIsCompositeType(t *testing.T) {
+	for _, kind := range []NodeKind{NodeKindObjectTypeDefinition, NodeKindInterfaceTypeDefinition, NodeKindUnionTypeDefinition} {
+		assert.True(t, kind.IsCompositeType(), kind.String())
+	}
+	for _, kind := range []NodeKind{NodeKindScalarTypeDefinition, NodeKindEnumTypeDefinition, NodeKindInputObjectTypeDefinition, NodeKindUnknown} {
+		assert.False(t, kind.IsCompositeType(), kind.String())
+	}
+}
