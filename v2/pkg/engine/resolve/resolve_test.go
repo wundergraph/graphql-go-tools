@@ -5800,7 +5800,7 @@ type _fakeStream struct {
 	subscriptionOnStartFn func(ctx StartupHookContext, input []byte) (err error)
 	withCursor            string
 	// validateDeliveryGuaranteeFn returns the negotiated delivery guarantee. If nil, none is negotiated.
-	validateDeliveryGuaranteeFn func(ctx *Context, input []byte) (string, error)
+	validateDeliveryGuaranteeFn func(ctx *Context, input []byte) (NegotiatedDeliveryGuarantee, error)
 	// onStartCtx is called with the context passed to Start.
 	onStartCtx func(ctx *Context)
 }
@@ -5831,14 +5831,17 @@ func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
 	}
 }
 
-func (f *_fakeStream) HashTriggerDeliveryGuarantee(negotiated string, xxh *xxhash.Digest) error {
-	_, err := xxh.WriteString(negotiated)
+func (f *_fakeStream) HashTriggerDeliveryGuarantee(negotiated NegotiatedDeliveryGuarantee, xxh *xxhash.Digest) error {
+	if _, err := xxh.WriteString(negotiated.Guarantee); err != nil {
+		return err
+	}
+	_, err := xxh.WriteString(negotiated.ResumeToken)
 	return err
 }
 
-func (f *_fakeStream) ValidateDeliveryGuarantee(ctx *Context, input []byte) (string, error) {
+func (f *_fakeStream) ValidateDeliveryGuarantee(ctx *Context, input []byte) (NegotiatedDeliveryGuarantee, error) {
 	if f.validateDeliveryGuaranteeFn == nil {
-		return "", nil
+		return NegotiatedDeliveryGuarantee{}, nil
 	}
 	return f.validateDeliveryGuaranteeFn(ctx, input)
 }
@@ -5907,9 +5910,9 @@ type _fakeDeliveryPubsubStream struct {
 	validateErr error
 }
 
-func (f *_fakeDeliveryPubsubStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (string, error) {
+func (f *_fakeDeliveryPubsubStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (NegotiatedDeliveryGuarantee, error) {
 	f.called.Store(true)
-	return "", f.validateErr
+	return NegotiatedDeliveryGuarantee{}, f.validateErr
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
@@ -6926,8 +6929,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				// Both subscriptions are resolved sequentially on this goroutine,
 				// so the n-th validation belongs to the n-th subscription.
 				var validateCount atomic.Int32
-				fakeStream.validateDeliveryGuaranteeFn = func(_ *Context, _ []byte) (string, error) {
-					return tc.guarantees[validateCount.Add(1)-1], nil
+				fakeStream.validateDeliveryGuaranteeFn = func(_ *Context, _ []byte) (NegotiatedDeliveryGuarantee, error) {
+					return NegotiatedDeliveryGuarantee{Guarantee: tc.guarantees[validateCount.Add(1)-1]}, nil
 				}
 
 				resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
@@ -7117,10 +7120,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				} else {
 					err = resolver.ResolveGraphQLSubscription(ctx, plan, recorder)
 				}
-				require.NoError(t, err)
+				require.EqualError(t, err, "input rejected")
 
-				recorder.AwaitComplete(t, defaultTimeout)
-				assert.Equal(t, []string{`{"errors":[{"message":"invalid subscription input"}]}`}, recorder.Messages())
+				assert.Empty(t, recorder.Messages())
 				assert.True(t, fakeStream.called.Load(), "ValidateDeliveryGuarantee must be called")
 				assert.False(t, createCalled.Load(), "SubscriptionOnCreate must not be called")
 				assert.False(t, startupHookCalled.Load(), "SubscriptionOnStart must not be called")
@@ -7136,13 +7138,13 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				fakeStream := createFakeStream(func(counter int) (message string, done bool) {
 					return `{"data":{"counter":0}}`, true
 				}, 1*time.Millisecond, nil, nil)
-				fakeStream.validateDeliveryGuaranteeFn = func(_ *Context, _ []byte) (string, error) {
-					return "at-least-once", nil
+				fakeStream.validateDeliveryGuaranteeFn = func(_ *Context, _ []byte) (NegotiatedDeliveryGuarantee, error) {
+					return NegotiatedDeliveryGuarantee{Guarantee: "at-least-once"}, nil
 				}
 
 				startGuarantee := make(chan string, 1)
 				fakeStream.onStartCtx = func(ctx *Context) {
-					startGuarantee <- ctx.DeliveryGuarantee()
+					startGuarantee <- ctx.DeliveryGuarantee().Guarantee
 				}
 
 				resolver, plan, recorder, id := setup(t.Context(), fakeStream)
@@ -8348,12 +8350,12 @@ func (s *startFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) err
 	return err
 }
 
-func (s *startFailStream) HashTriggerDeliveryGuarantee(_ string, _ *xxhash.Digest) error {
+func (s *startFailStream) HashTriggerDeliveryGuarantee(_ NegotiatedDeliveryGuarantee, _ *xxhash.Digest) error {
 	return nil
 }
 
-func (s *startFailStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (string, error) {
-	return "", nil
+func (s *startFailStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (NegotiatedDeliveryGuarantee, error) {
+	return NegotiatedDeliveryGuarantee{}, nil
 }
 
 func (s *startFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
@@ -8445,12 +8447,12 @@ func (s *hookFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) erro
 	return err
 }
 
-func (s *hookFailStream) HashTriggerDeliveryGuarantee(_ string, _ *xxhash.Digest) error {
+func (s *hookFailStream) HashTriggerDeliveryGuarantee(_ NegotiatedDeliveryGuarantee, _ *xxhash.Digest) error {
 	return nil
 }
 
-func (s *hookFailStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (string, error) {
-	return "", nil
+func (s *hookFailStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (NegotiatedDeliveryGuarantee, error) {
+	return NegotiatedDeliveryGuarantee{}, nil
 }
 
 func (s *hookFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {

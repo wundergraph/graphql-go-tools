@@ -9144,12 +9144,12 @@ func TestSubscriptionSource_DeliveryGuarantee(t *testing.T) {
 		without := xxhash.New()
 		require.NoError(t, subscriptionSource.HashTriggerInput(input, without))
 
-		for _, negotiated := range []string{"", "at-least-once"} {
+		for _, negotiated := range []resolve.NegotiatedDeliveryGuarantee{{}, {Guarantee: "at-least-once"}} {
 			with := xxhash.New()
 			require.NoError(t, subscriptionSource.HashTriggerInput(input, with))
 			require.NoError(t, subscriptionSource.HashTriggerDeliveryGuarantee(negotiated, with))
 
-			assert.Equal(t, without.Sum64(), with.Sum64(), "negotiated=%q", negotiated)
+			assert.Equal(t, without.Sum64(), with.Sum64(), "negotiated=%v", negotiated)
 		}
 	})
 }

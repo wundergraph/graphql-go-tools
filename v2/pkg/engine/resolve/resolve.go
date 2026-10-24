@@ -1684,7 +1684,7 @@ func (r *Resolver) UnsubscribeClient(connectionID ConnectionID) error {
 // prepareTrigger safely gets the headers for the trigger Subgraph and computes the hash across headers and input
 // the generated hash is the unique triggerID
 // the headers must be forwarded to the DataSource to create the trigger
-func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, negotiatedGuarantee string, source SubscriptionDataSource) (
+func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, negotiatedGuarantee NegotiatedDeliveryGuarantee, source SubscriptionDataSource) (
 	headers http.Header, triggerID uint64, err error) {
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
@@ -1759,7 +1759,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 
 	negotiatedGuarantee, err := subscription.Trigger.Source.ValidateDeliveryGuarantee(ctx, input)
 	if err != nil {
-		return writeFlushComplete(writer, []byte(`{"errors":[{"message":"invalid subscription input"}]}`))
+		return err
 	}
 	ctx.deliveryGuarantee = negotiatedGuarantee
 
@@ -1886,7 +1886,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 
 	negotiatedGuarantee, err := subscription.Trigger.Source.ValidateDeliveryGuarantee(ctx, input)
 	if err != nil {
-		return writeFlushComplete(writer, []byte(`{"errors":[{"message":"invalid subscription input"}]}`))
+		return err
 	}
 	ctx.deliveryGuarantee = negotiatedGuarantee
 

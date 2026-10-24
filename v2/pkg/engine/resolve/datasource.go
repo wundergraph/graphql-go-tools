@@ -23,10 +23,26 @@ type SubscriptionDataSource interface {
 	// HashTriggerDeliveryGuarantee writes the negotiated delivery guarantee into xxh,
 	// so clients with different guarantees never share a trigger.
 	// negotiated is the value returned by ValidateDeliveryGuarantee.
-	HashTriggerDeliveryGuarantee(negotiated string, xxh *xxhash.Digest) error
+	HashTriggerDeliveryGuarantee(negotiated NegotiatedDeliveryGuarantee, xxh *xxhash.Digest) error
 	// ValidateDeliveryGuarantee lets a subscription data source reject a client before start.
-	// It returns the delivery guarantee negotiated with the client, empty if the source has none.
-	ValidateDeliveryGuarantee(ctx *Context, input []byte) (negotiated string, err error)
+	// It returns the delivery guarantee negotiated with the client, zero if the source has none.
+	ValidateDeliveryGuarantee(ctx *Context, input []byte) (negotiated NegotiatedDeliveryGuarantee, err error)
+}
+
+// NegotiatedDeliveryGuarantee is the outcome of delivery guarantee negotiation for a single
+// subscribing client. It travels from ValidateDeliveryGuarantee to the trigger hash and to
+// Start on the resolve context, so a client is validated exactly once per subscription.
+type NegotiatedDeliveryGuarantee struct {
+	// Guarantee is the negotiated delivery guarantee, empty for sources that have none.
+	Guarantee string
+	// ResumePosition is the already verified position a resuming client continues from,
+	// nil when the client does not resume. It is opaque to the engine: only the routers data source
+	// that produced it interprets it.
+	ResumePosition any
+	// ResumeToken is the raw form of ResumePosition as the client presented it. The engine
+	// mixes it into the trigger id, so two clients resuming from different positions never
+	// share a trigger and therefore never receive each other's replay.
+	ResumeToken string
 }
 
 // HookableSubscriptionDataSource is a hookable interface for subscription data sources.
