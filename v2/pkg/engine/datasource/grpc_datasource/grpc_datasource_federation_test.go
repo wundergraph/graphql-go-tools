@@ -1618,6 +1618,76 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 			},
 		},
 		{
+			// A required call without representations of its entity type must not fail the fetch.
+			name:  "Query Product and Storage with tagSummary without Storage representations",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { __typename id name } ...on Storage { __typename id name tagSummary } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Product","id":"3"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "1", "name": "Product 1"}, entities[0])
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "3", "name": "Product 3"}, entities[1])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			// A required call without representations of its entity type must not fail the fetch.
+			name:  "Query Product and Storage with optionalTagSummary without Storage representations",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { __typename id name } ...on Storage { __typename id name optionalTagSummary } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Product","id":"3"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalTagSummary",
+					SelectionSet: "optionalTags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "1", "name": "Product 1"}, entities[0])
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "3", "name": "Product 3"}, entities[1])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
 			// The result of the required call must only be merged into entities of its own type.
 			name:  "Query Product and Storage with optionalTagSummary requiring nullable tags list",
 			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { __typename id name } ...on Storage { __typename id name optionalTagSummary } } }`,

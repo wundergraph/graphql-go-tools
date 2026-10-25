@@ -346,6 +346,18 @@ func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 // loadWithConnect supplies messageRequestBuilder (a populated protoref.Message).
 type requestBuilder func(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchResult, requestVariables *astjson.Value) (any, bool, error)
 
+// entityRequestVariables returns the request variables for an entity or a required call.
+// They only keep the representations of the requested entity type.
+// A call without these representations has nothing to resolve, so it is skipped.
+func entityRequestVariables(a arena.Arena, fetch *fetchProgram, variables *astjson.Value) (*astjson.Value, bool) {
+	if fetch.requestedEntityType == "" {
+		return variables, false
+	}
+
+	filtered := filterRepresentations(a, variables, fetch.requestedEntityType)
+	return filtered, len(getRepresentations(filtered)) == 0
+}
+
 // wireRequestBuilder builds a pre-encoded gRPC request for the fetch, ready to be
 // handed to RPCTransport.Invoke via PreWiredInputMessage.
 func wireRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchResult, requestVariables *astjson.Value) (any, bool, error) {
@@ -359,8 +371,10 @@ func wireRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]fetc
 			return nil, false, err
 		}
 	case CallKindEntity, CallKindRequired:
-		if fetch.requestedEntityType != "" {
-			requestVariables = filterRepresentations(a, requestVariables, fetch.requestedEntityType)
+		var skip bool
+		requestVariables, skip = entityRequestVariables(a, fetch, requestVariables)
+		if skip {
+			return nil, true, nil
 		}
 
 		buffer, err = fetch.request.createProtoWire(requestVariables)
@@ -404,8 +418,10 @@ func messageRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]f
 			return nil, false, err
 		}
 	case CallKindEntity, CallKindRequired:
-		if fetch.requestedEntityType != "" {
-			requestVariables = filterRepresentations(a, requestVariables, fetch.requestedEntityType)
+		var skip bool
+		requestVariables, skip = entityRequestVariables(a, fetch, requestVariables)
+		if skip {
+			return nil, true, nil
 		}
 
 		message, err = fetch.request.createProtoMessage(requestVariables)
