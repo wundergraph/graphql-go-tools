@@ -242,7 +242,7 @@ func TestResponseCacheVary(t *testing.T) {
 			require.Equal(t, 0, warm.calls)
 			require.Contains(t, out, `"products":["a"]`)
 			require.Contains(t, out, `"notes":"n"`)
-			require.ElementsMatch(t, []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}, ctx.ResponseCacheSurrogateKeys())
+			require.ElementsMatch(t, []caching.SurrogateKey{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}, ctx.ResponseCacheSurrogateKeys())
 
 			origin := &recordingDataSource{response: []byte(enResponse), responseHeaders: varyHeaders("Accept-Language")}
 			_, out = run(t, cache, origin, en)
@@ -358,6 +358,50 @@ func TestResponseCacheVary(t *testing.T) {
 				caching.VariantKey("pub-1", digest([]string{"accept-language"}, deEU)),
 				caching.VariantKey("pub-1", digest(langRegion, deEU)),
 			}, store.lookups[1])
+		})
+
+		t.Run("the trace names the variant that was served", func(t *testing.T) {
+			t.Parallel()
+			store := newTestCache()
+			seed(t, store, record, variant([]string{"accept-language"}, deEU, `{"set":"lang"}`), variant(langRegion, deEU, `{"set":"lang-region"}`))
+
+			// Both variants are cached; a map scan would pick either.
+			for range 20 {
+				loader, res := varyLoader(t, store, "", "", "", "", deEU)
+				loader.ctx.TracingOptions.Enable = true
+				prepared := &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+				require.True(t, loader.responseCacheLookup(prepared))
+
+				entry := ResponseCacheTraceEntry{Key: "pub-1"}
+				require.JSONEq(t, `{"set":"lang"}`, string(loader.traceLookup(prepared, &entry)))
+				require.Equal(t, record.Vary, entry.Vary)
+			}
+		})
+
+		t.Run("the trace's TTL is the served variant's, and a record without one is not found", func(t *testing.T) {
+			t.Parallel()
+			store := newTestCache()
+			short := variant([]string{"accept-language"}, deEU, `{"set":"lang"}`)
+			short.TTL = 20 * time.Second
+			seed(t, store, record, short)
+
+			loader, res := varyLoader(t, store, "", "", "", "", deEU)
+			loader.ctx.TracingOptions.Enable = true
+			prepared := &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+			require.True(t, loader.responseCacheLookup(prepared))
+			entry := ResponseCacheTraceEntry{Key: "pub-1"}
+			loader.traceLookup(prepared, &entry)
+			require.True(t, entry.Found)
+			require.LessOrEqual(t, entry.RemainingTTLNano, (20 * time.Second).Nanoseconds())
+
+			loader, res = varyLoader(t, store, "", "", "", "", fr)
+			loader.ctx.TracingOptions.Enable = true
+			prepared = &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+			require.False(t, loader.responseCacheLookup(prepared))
+			entry = ResponseCacheTraceEntry{Key: "pub-1"}
+			require.Nil(t, loader.traceLookup(prepared, &entry))
+			require.False(t, entry.Found)
+			require.Equal(t, record.Vary, entry.Vary, "the record's sets are still shown")
 		})
 
 		t.Run("a header the request does not send counts as empty", func(t *testing.T) {

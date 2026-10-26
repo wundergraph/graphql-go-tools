@@ -189,21 +189,25 @@ func responseCacheLookupKeys(keys, privateKeys []string) []string {
 	return append(lookup, privateKeys...)
 }
 
-// responseCacheFoundItem picks one position's entry, the user's own over the
-// shared: a body, or a record pointing at one. An invalid body is a miss.
-func (l *Loader) responseCacheFoundItem(subgraph string, found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
+// responseCachePick picks one position's entry, the user's own over the
+// shared: a body, or a record pointing at one. An empty entry is a miss.
+func responseCachePick(found map[string]caching.Item, key, privateKey string) (item caching.Item, pickedKey string, private, ok bool) {
 	if privateKey != "" {
-		item, ok = found[privateKey]
-		ok = ok && (len(item.Value) > 0 || len(item.Vary) > 0)
-		private = ok
-	}
-	if private {
-		key = privateKey
-	} else {
-		item, ok = found[key]
-		if !ok || (len(item.Value) == 0 && len(item.Vary) == 0) {
-			return caching.Item{}, false, false
+		if item, ok = found[privateKey]; ok && (len(item.Value) > 0 || len(item.Vary) > 0) {
+			return item, privateKey, true, true
 		}
+	}
+	if item, ok = found[key]; ok && (len(item.Value) > 0 || len(item.Vary) > 0) {
+		return item, key, false, true
+	}
+	return caching.Item{}, "", false, false
+}
+
+// responseCacheFoundItem is responseCachePick, with an invalid body a miss.
+func (l *Loader) responseCacheFoundItem(subgraph string, found map[string]caching.Item, key, privateKey string) (item caching.Item, private, ok bool) {
+	item, key, private, ok = responseCachePick(found, key, privateKey)
+	if !ok {
+		return caching.Item{}, false, false
 	}
 	if len(item.Vary) > 0 {
 		// A record has no body; the variant it points at is read next.
@@ -280,7 +284,7 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 			l.reportResponseCacheError(ResponseCacheOperationLookup, subgraph, fmt.Errorf("response cache lookup of %d variants: %w", len(variants), err))
 			return false
 		}
-		if !l.responseCacheFillVariants(subgraph, items, candidates, found) {
+		if !l.responseCacheFillVariants(prepared, items, candidates, found) {
 			return false
 		}
 	}
@@ -342,7 +346,8 @@ func (l *Loader) responseCacheVariantKeys(prepared *preparedFetch, items []cachi
 
 // responseCacheFillVariants replaces each record with the first valid body
 // among its candidates, the newest set's. False when a record has none.
-func (l *Loader) responseCacheFillVariants(subgraph string, items []caching.Item, candidates [][]string, found map[string]caching.Item) bool {
+func (l *Loader) responseCacheFillVariants(prepared *preparedFetch, items []caching.Item, candidates [][]string, found map[string]caching.Item) bool {
+	subgraph := prepared.res.ds.Name
 	for i := range candidates {
 		if len(candidates[i]) == 0 {
 			continue
@@ -351,6 +356,12 @@ func (l *Loader) responseCacheFillVariants(subgraph string, items []caching.Item
 		for _, key := range candidates[i] {
 			body, ok := found[key]
 			if ok && l.responseCacheValidBody(subgraph, key, body) {
+				if l.ctx.TracingOptions.Enable {
+					if prepared.responseCacheVariantServed == nil {
+						prepared.responseCacheVariantServed = make(map[string]caching.Item)
+					}
+					prepared.responseCacheVariantServed[items[i].Key] = body
+				}
 				items[i] = body
 				filled = true
 				break
@@ -411,8 +422,8 @@ func (v responseVary) append(items []caching.Item, base string, body caching.Ite
 }
 
 // foundSurrogateKeys unions what the hit entries were stored with.
-func foundSurrogateKeys(items []caching.Item) []string {
-	lists := make([][]string, 0, len(items))
+func foundSurrogateKeys(items []caching.Item) []caching.SurrogateKey {
+	lists := make([][]caching.SurrogateKey, 0, len(items))
 	for _, item := range items {
 		lists = append(lists, item.SurrogateKeys)
 	}
@@ -544,7 +555,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	declared := responseCacheTags(response, len(values), prepared.isRootFetchCache)
 
 	items := make([]caching.Item, 0, 2*len(prepared.responseCacheKeys))
-	surrogateKeyLists := make([][]string, 0, len(prepared.responseCacheKeys))
+	surrogateKeyLists := make([][]caching.SurrogateKey, 0, len(prepared.responseCacheKeys))
 	for i, value := range values {
 		if value.Type() != astjson.TypeObject {
 			continue
@@ -700,12 +711,12 @@ type responseCacheTagInput struct {
 
 // responseCacheIdentities: tags follow the index options, surrogate keys carry
 // every tier.
-func responseCacheIdentities(input responseCacheTagInput) (tags, surrogateKeys []string) {
+func responseCacheIdentities(input responseCacheTagInput) (tags []string, surrogateKeys []caching.SurrogateKey) {
 	if input.subgraph == "" {
 		return nil, nil
 	}
 
-	surrogateKeys = make([]string, 0, len(input.declared)+2)
+	surrogateKeys = make([]caching.SurrogateKey, 0, len(input.declared)+2)
 	surrogateKeys = append(surrogateKeys, caching.SubgraphSurrogateKey(input.subgraph))
 
 	var typeName string
@@ -716,7 +727,9 @@ func responseCacheIdentities(input responseCacheTagInput) (tags, surrogateKeys [
 	if typeName != "" {
 		surrogateKeys = append(surrogateKeys, caching.TypeSurrogateKey(input.subgraph, typeName))
 	}
-	surrogateKeys = append(surrogateKeys, input.declared...)
+	for _, tag := range input.declared {
+		surrogateKeys = append(surrogateKeys, caching.DeclaredSurrogateKey(tag))
+	}
 
 	if !input.opts.any() {
 		return nil, surrogateKeys
@@ -806,7 +819,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	storeDecision := caching.StoreDecisionNoEntity
 
 	var items []caching.Item
-	var surrogateKeyLists [][]string
+	var surrogateKeyLists [][]caching.SurrogateKey
 	for i := range prepared.multiEntries {
 		entry := &prepared.multiEntries[i]
 		if !entry.sentCacheable() {
@@ -989,7 +1002,7 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 			continue
 		}
 		// A record whose variant is gone leaves the entry to the origin, whole.
-		if !l.responseCacheFillVariants(subgraph, lookup.items, lookup.candidates, found) {
+		if !l.responseCacheFillVariants(prepared, lookup.items, lookup.candidates, found) {
 			continue
 		}
 
@@ -1024,6 +1037,8 @@ func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
 type responseCacheWrite struct {
 	subgraph string
 	items    []caching.Item
+	// trace gets the write's outcome, if the fetch is traced.
+	trace *ResponseCacheTrace
 }
 
 // responseCacheHold keeps what responseCacheCollect gathered for
@@ -1033,7 +1048,11 @@ func (l *Loader) responseCacheHold(prepared *preparedFetch) {
 		return
 	}
 	l.responseCacheHeldMu.Lock()
-	l.responseCacheHeld = append(l.responseCacheHeld, responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems})
+	write := responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems}
+	if prepared.trace != nil {
+		write.trace = prepared.trace.ResponseCache
+	}
+	l.responseCacheHeld = append(l.responseCacheHeld, write)
 	l.responseCacheHeldMu.Unlock()
 	prepared.responseCacheItems = nil
 }
@@ -1046,13 +1065,20 @@ func (l *Loader) responseCacheCommit(resolved bool) {
 	held := l.responseCacheHeld
 	l.responseCacheHeld = nil
 	l.responseCacheHeldMu.Unlock()
-	if !resolved || !l.responseCacheEnabled() {
+	if !l.responseCacheEnabled() {
 		return
 	}
 	for _, write := range held {
-		if err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, write.items); err != nil {
-			l.reportResponseCacheError(ResponseCacheOperationWrite, write.subgraph, fmt.Errorf("response cache write of %d entities: %w", len(write.items), err))
+		if !resolved {
+			traceWriteOutcome(write.trace, nil, nil)
+			continue
 		}
+		items := write.items
+		err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
+		if err != nil {
+			l.reportResponseCacheError(ResponseCacheOperationWrite, write.subgraph, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
+		}
+		traceWriteOutcome(write.trace, items, err)
 	}
 }
 

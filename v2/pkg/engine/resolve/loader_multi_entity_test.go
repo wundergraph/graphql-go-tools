@@ -1343,7 +1343,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheSurrogateKeys(t *testi
 
 		require.Len(t, cache.items, 3)
 
-		want := []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
+		want := []caching.SurrogateKey{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
 		for key, item := range cache.items {
 			assert.Equal(t, want, item.SurrogateKeys, key)
 		}
@@ -1358,7 +1358,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheSurrogateKeys(t *testi
 		ctx := run(t, cache, warm)
 		require.Equal(t, 0, warm.calls)
 
-		want := []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
+		want := []caching.SurrogateKey{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
 		assert.Equal(t, want, ctx.ResponseCacheSurrogateKeys())
 	})
 
@@ -1381,7 +1381,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheSurrogateKeys(t *testi
 		}
 		ctx := run(t, cache, partial)
 		require.Equal(t, 1, partial.calls)
-		assert.ElementsMatch(t, []string{
+		assert.ElementsMatch(t, []caching.SurrogateKey{
 			caching.SubgraphSurrogateKey("products"),
 			caching.TypeSurrogateKey("products", "Contractor"),
 			caching.TypeSurrogateKey("products", "Employee"),

@@ -243,7 +243,8 @@ func TestFreshnessOfExpires(t *testing.T) {
 	t.Parallel()
 
 	const defaultTTL = 30 * time.Second
-	date := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	// Now, as Expires also counts from the clock.
+	date := time.Now().UTC().Truncate(time.Second)
 	at := func(d time.Duration) string { return date.Add(d).Format(http.TimeFormat) }
 
 	for _, tc := range []struct {
@@ -251,6 +252,7 @@ func TestFreshnessOfExpires(t *testing.T) {
 		cacheControl string
 		expires      []string
 		noDate       bool
+		date         time.Duration
 		want         StoreDecision
 		wantTTL      time.Duration
 		wantShared   bool
@@ -265,6 +267,8 @@ func TestFreshnessOfExpires(t *testing.T) {
 		{name: "empty expires is expired", cacheControl: "public", expires: []string{""}, want: StoreDecisionNoLifetime},
 		{name: "non-GMT zone is expired", cacheControl: "public", expires: []string{"Wed, 21 Oct 2026 13:00:00 PST"}, want: StoreDecisionNoLifetime},
 		{name: "without date, now is the base", expires: []string{time.Now().Add(time.Hour).UTC().Format(http.TimeFormat)}, noDate: true, want: StoreDecisionStored},
+		{name: "expires past at receipt", expires: []string{at(-time.Minute)}, date: -time.Hour, want: StoreDecisionNoLifetime},
+		{name: "expires nearer than date says", expires: []string{at(time.Minute)}, date: -time.Hour, want: StoreDecisionStored, wantTTL: time.Minute},
 		{name: "no-store outranks expires", cacheControl: "no-store", expires: []string{at(time.Minute)}, want: StoreDecisionNoStore},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -274,7 +278,7 @@ func TestFreshnessOfExpires(t *testing.T) {
 				headers.Set("Cache-Control", tc.cacheControl)
 			}
 			if !tc.noDate {
-				headers.Set("Date", at(0))
+				headers.Set("Date", at(tc.date))
 			}
 			f := FreshnessOf(headers, nil, defaultTTL)
 			assert.Equal(t, tc.want, f.Decision)
@@ -282,7 +286,8 @@ func TestFreshnessOfExpires(t *testing.T) {
 				assert.InDelta(t, time.Hour, f.TTL, float64(2*time.Second))
 				return
 			}
-			assert.Equal(t, tc.wantTTL, f.TTL)
+			// Expires counts down from date, a second at most.
+			assert.InDelta(t, tc.wantTTL, f.TTL, float64(time.Second))
 			assert.Equal(t, tc.wantShared, f.SharedOnly)
 		})
 	}
