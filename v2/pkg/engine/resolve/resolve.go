@@ -416,6 +416,9 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	return resp, err
 }
 
+// errDeduplicatedLeaderPanicked is what requests waiting on a panicked leader get.
+var errDeduplicatedLeaderPanicked = errors.New("deduplicated request failed: the request it waited on panicked")
+
 func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
 	resp := &GraphQLResolveInfo{}
 
@@ -437,6 +440,18 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		resp.ResponseWriteStartTime = responseWriteStart
 		resp.ResponseWriteDuration = time.Since(responseWriteStart)
 		return resp, err
+	}
+
+	if inflight != nil {
+		// A panicking leader would leave its flight registered, and every
+		// later identical request would wait on it forever.
+		defer func() {
+			if p := recover(); p != nil {
+				// Not the panic value: followers may write their error to a client.
+				r.inboundRequestSingleFlight.FinishErr(inflight, errDeduplicatedLeaderPanicked)
+				panic(p)
+			}
+		}()
 	}
 
 	start := time.Now()
@@ -988,7 +1003,7 @@ func (s *subscriptionState) sendHeartbeat() error {
 	return s.writer.Heartbeat()
 }
 
-func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte) {
+func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte, md *SubscriptionUpdateMetadata) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
@@ -1004,6 +1019,9 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
 	resolvable := NewResolvable(resolveArena.Arena, r.options.ResolvableOptions)
+	if md != nil {
+		resolvable.cursor = md.Cursor
+	}
 	authorization := NewFieldAuthorization(resolveCtx)
 	resolvable.SetFieldAuthorization(authorization)
 
@@ -1136,7 +1154,7 @@ func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscripti
 	hookCtx := StartupHookContext{
 		Context: add.ctx.Context(),
 		Updater: func(data []byte) {
-			updater.UpdateSubscription(add.id, data)
+			updater.UpdateSubscription(add.id, data, nil)
 		},
 	}
 	err := hook.SubscriptionOnStart(hookCtx, add.input)
@@ -1490,7 +1508,7 @@ type pendingFilterError struct {
 }
 
 // handleTriggerUpdate sends data to all subscriptions of a trigger.
-func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
+func (r *Resolver) handleTriggerUpdate(id uint64, data []byte, md *SubscriptionUpdateMetadata) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
 		return
@@ -1511,14 +1529,14 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 			continue
 		}
 		wg.Go(func() {
-			r.executeSubscriptionUpdate(sub.ctx, sub, data)
+			r.executeSubscriptionUpdate(sub.ctx, sub, data, md)
 		})
 	}
 	wg.Wait()
 }
 
 // handleUpdateSubscription sends data to a single subscription.
-func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
+func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier, md *SubscriptionUpdateMetadata) {
 	trig, ok := r.getTrigger(id)
 	if !ok {
 		return
@@ -1535,7 +1553,7 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 	}
 
 	if sub != nil && !sub.removed.Load() {
-		r.executeSubscriptionUpdate(sub.ctx, sub, data)
+		r.executeSubscriptionUpdate(sub.ctx, sub, data, md)
 	}
 }
 
@@ -1930,7 +1948,7 @@ type subscriptionUpdater struct {
 	subsFn    func() map[context.Context]SubscriptionIdentifier
 }
 
-func (s *subscriptionUpdater) Update(data []byte) {
+func (s *subscriptionUpdater) Update(data []byte, md *SubscriptionUpdateMetadata) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
@@ -1939,7 +1957,7 @@ func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
-	s.resolver.handleTriggerUpdate(s.triggerID, data)
+	s.resolver.handleTriggerUpdate(s.triggerID, data, md)
 }
 
 func (s *subscriptionUpdater) Heartbeat() {
@@ -1951,7 +1969,7 @@ func (s *subscriptionUpdater) Heartbeat() {
 	s.resolver.heartbeatTriggerSubscriptions(s.triggerID)
 }
 
-func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
+func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte, md *SubscriptionUpdateMetadata) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
@@ -1960,7 +1978,7 @@ func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
-	s.resolver.handleUpdateSubscription(s.triggerID, data, id)
+	s.resolver.handleUpdateSubscription(s.triggerID, data, id, md)
 }
 
 func (s *subscriptionUpdater) Subscriptions() map[context.Context]SubscriptionIdentifier {
@@ -2037,11 +2055,20 @@ type addSubscription struct {
 	headers    http.Header
 }
 
+// SubscriptionUpdateMetadata carries optional data that accompanies a subscription update.
+type SubscriptionUpdateMetadata struct {
+	// Cursor identifies the position of the update in the upstream stream.
+	// An empty cursor means no cursor is present.
+	Cursor string
+}
+
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
-	Update(data []byte)
+	// md is optional and may be nil.
+	Update(data []byte, md *SubscriptionUpdateMetadata)
 	// UpdateSubscription sends an update to a single subscription. It is not guaranteed that the update is sent immediately.
-	UpdateSubscription(id SubscriptionIdentifier, data []byte)
+	// md is optional and may be nil.
+	UpdateSubscription(id SubscriptionIdentifier, data []byte, md *SubscriptionUpdateMetadata)
 	// Complete delivers a "subscription done" signal to all subscriptions on the trigger.
 	// Does not perform cleanup — call Done() after Complete().
 	Complete()

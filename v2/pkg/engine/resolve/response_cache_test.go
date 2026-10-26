@@ -739,6 +739,22 @@ func TestHitLifetimesClient(t *testing.T) {
 }
 
 // Surrogate keys ride with the entry so a hit can rebuild the header without the index.
+// testSurrogateKeys tiers values by their spelling, as an untiered entry decodes.
+func testSurrogateKeys(values ...string) []caching.SurrogateKey {
+	out := make([]caching.SurrogateKey, 0, len(values))
+	for _, v := range values {
+		switch {
+		case strings.HasPrefix(v, "subgraph-"):
+			out = append(out, caching.SurrogateKey{Value: v, Tier: caching.SurrogateKeyTierSubgraph})
+		case strings.HasPrefix(v, "type-"):
+			out = append(out, caching.SurrogateKey{Value: v, Tier: caching.SurrogateKeyTierType})
+		default:
+			out = append(out, caching.DeclaredSurrogateKey(v))
+		}
+	}
+	return out
+}
+
 func TestResponseCacheSurrogateKeys(t *testing.T) {
 	newLoader := func(t *testing.T, body string, opts ResponseCacheTagIndexOptions) (*Loader, *result) {
 		t.Helper()
@@ -782,13 +798,13 @@ func TestResponseCacheSurrogateKeys(t *testing.T) {
 
 		require.Len(t, prepared.responseCacheItems, 2)
 		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "users", "user-42"},
-			prepared.responseCacheItems[0].SurrogateKeys)
+			caching.SurrogateKeyValues(prepared.responseCacheItems[0].SurrogateKeys))
 		require.Equal(t, []string{"subgraph-accounts", "type-accounts-Group", "groups"},
-			prepared.responseCacheItems[1].SurrogateKeys)
+			caching.SurrogateKeyValues(prepared.responseCacheItems[1].SurrogateKeys))
 		require.Empty(t, prepared.responseCacheItems[0].Tags)
 		require.Equal(t, []string{
 			"subgraph-accounts", "type-accounts-User", "users", "user-42", "type-accounts-Group", "groups",
-		}, res.responseCacheSurrogateKeys, "the fetch reports the union")
+		}, caching.SurrogateKeyValues(res.responseCacheSurrogateKeys), "the fetch reports the union")
 	})
 
 	t.Run("a declared tag spelled like a derived one is emitted verbatim but indexed as declared", func(t *testing.T) {
@@ -803,8 +819,10 @@ func TestResponseCacheSurrogateKeys(t *testing.T) {
 		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"k-42"}}
 		require.NoError(t, loader.responseCacheCollect(prepared))
 
-		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "subgraph-employee", "type-employee-Employee"},
-			prepared.responseCacheItems[0].SurrogateKeys)
+		require.Equal(t, []caching.SurrogateKey{
+			caching.SubgraphSurrogateKey("accounts"), caching.TypeSurrogateKey("accounts", "User"),
+			caching.DeclaredSurrogateKey("subgraph-employee"), caching.DeclaredSurrogateKey("type-employee-Employee"),
+		}, prepared.responseCacheItems[0].SurrogateKeys)
 		require.Equal(t, []string{
 			"declared:accounts:subgraph-employee", "declared:accounts:type-employee-Employee",
 			"subgraph:accounts",
@@ -831,16 +849,16 @@ func TestResponseCacheSurrogateKeys(t *testing.T) {
 		require.NoError(t, loader.responseCacheCollect(prepared))
 
 		require.Equal(t, []string{"subgraph-accounts", "employees", "homepage"},
-			prepared.responseCacheItems[0].SurrogateKeys)
+			caching.SurrogateKeyValues(prepared.responseCacheItems[0].SurrogateKeys))
 	})
 
 	t.Run("a hit reports the union of what its entries were stored with", func(t *testing.T) {
 		store := newTestCache()
 		require.NoError(t, store.SetMany(context.Background(), []caching.Item{
 			{Key: "k-42", Value: []byte(`{"id":42}`), TTL: time.Minute,
-				SurrogateKeys: []string{"subgraph-accounts", "type-accounts-User", "user-42"}},
+				SurrogateKeys: testSurrogateKeys("subgraph-accounts", "type-accounts-User", "user-42")},
 			{Key: "k-7", Value: []byte(`{"id":7}`), TTL: time.Minute,
-				SurrogateKeys: []string{"subgraph-accounts", "type-accounts-User", "user-7"}},
+				SurrogateKeys: testSurrogateKeys("subgraph-accounts", "type-accounts-User", "user-7")},
 		}))
 
 		ctx := NewContext(context.Background())
@@ -852,7 +870,7 @@ func TestResponseCacheSurrogateKeys(t *testing.T) {
 		require.True(t, loader.responseCacheLookup(prepared))
 
 		require.Equal(t, []string{"subgraph-accounts", "type-accounts-User", "user-42", "user-7"},
-			res.responseCacheSurrogateKeys)
+			caching.SurrogateKeyValues(res.responseCacheSurrogateKeys))
 	})
 
 	t.Run("the request collects every fetch's surrogate keys once", func(t *testing.T) {
@@ -860,14 +878,14 @@ func TestResponseCacheSurrogateKeys(t *testing.T) {
 		ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
 		loader := &Loader{ctx: ctx}
 
-		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: []string{"subgraph-accounts", "user-42"}})
-		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: []string{"subgraph-products", "subgraph-accounts"}})
+		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: testSurrogateKeys("subgraph-accounts", "user-42")})
+		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: testSurrogateKeys("subgraph-products", "subgraph-accounts")})
 		loader.responseCacheMergeSurrogateKeys(&result{})
 
-		require.Equal(t, []string{"subgraph-accounts", "user-42", "subgraph-products"}, ctx.ResponseCacheSurrogateKeys())
+		require.Equal(t, []string{"subgraph-accounts", "user-42", "subgraph-products"}, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()))
 
 		ctx.Free()
-		require.Nil(t, ctx.ResponseCacheSurrogateKeys(), "freed with the rest of the request")
+		require.Nil(t, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()), "freed with the rest of the request")
 	})
 
 	t.Run("a declared tag equal to another fetch's derived tag is merged, not duplicated", func(t *testing.T) {
@@ -904,45 +922,42 @@ func TestResponseCacheSurrogateKeys(t *testing.T) {
 			"data": {"_entities": [{"__typename": "Employee", "id": 7}]}
 		}`)
 
-		got := ctx.ResponseCacheSurrogateKeys()
+		// Kept once per tier: the header decides which tiers it carries.
+		require.Equal(t, []caching.SurrogateKey{
+			caching.SubgraphSurrogateKey("accounts"), caching.TypeSurrogateKey("accounts", "User"),
+			caching.DeclaredSurrogateKey("subgraph-employee"),
+			caching.SubgraphSurrogateKey("employee"), caching.TypeSurrogateKey("employee", "Employee"),
+		}, ctx.ResponseCacheSurrogateKeys())
 		require.Equal(t, []string{
 			"subgraph-accounts", "type-accounts-User", "subgraph-employee", "type-employee-Employee",
-		}, got)
-
-		seen := 0
-		for _, tag := range got {
-			if tag == "subgraph-employee" {
-				seen++
-			}
-		}
-		require.Equal(t, 1, seen, "one string, whoever put it there")
+		}, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()), "one string, whoever put it there")
 	})
 
 	t.Run("no cache means no surrogate keys", func(t *testing.T) {
 		ctx := NewContext(context.Background())
-		require.Nil(t, ctx.ResponseCacheSurrogateKeys())
-		ctx.setResponseCacheSurrogateKeys([]string{"ignored"})
-		require.Nil(t, ctx.ResponseCacheSurrogateKeys(), "nowhere to store them")
+		require.Nil(t, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()))
+		ctx.setResponseCacheSurrogateKeys(testSurrogateKeys("ignored"))
+		require.Nil(t, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()), "nowhere to store them")
 	})
 
 	t.Run("a new resolution on the same context starts empty", func(t *testing.T) {
 		ctx := NewContext(context.Background())
 		ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
 		loader := &Loader{ctx: ctx}
-		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: []string{"user-1"}})
-		require.Equal(t, []string{"user-1"}, ctx.ResponseCacheSurrogateKeys())
+		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: testSurrogateKeys("user-1")})
+		require.Equal(t, []string{"user-1"}, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()))
 
 		// What a resolution does on entry, and a follower with the leader's set.
 		ctx.setResponseCacheSurrogateKeys(nil)
-		require.Nil(t, ctx.ResponseCacheSurrogateKeys())
+		require.Nil(t, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()))
 
 		// A loader on its own keeps what the request has: defer groups share one Context.
-		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: []string{"user-1"}})
+		loader.responseCacheMergeSurrogateKeys(&result{responseCacheSurrogateKeys: testSurrogateKeys("user-1")})
 		loader.Init(ctx, nil)
-		require.Equal(t, []string{"user-1"}, ctx.ResponseCacheSurrogateKeys())
+		require.Equal(t, []string{"user-1"}, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()))
 		ctx.setResponseCacheSurrogateKeys(nil)
-		ctx.setResponseCacheSurrogateKeys([]string{"user-2"})
-		require.Equal(t, []string{"user-2"}, ctx.ResponseCacheSurrogateKeys())
+		ctx.setResponseCacheSurrogateKeys(testSurrogateKeys("user-2"))
+		require.Equal(t, []string{"user-2"}, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()))
 	})
 }
 
@@ -1023,14 +1038,14 @@ func TestResponseCacheSurrogateKeysDefer(t *testing.T) {
 	ctx := NewContext(context.Background())
 	ctx.SetResponseCache(ResponseCacheOptions{Store: newTestCache(), DefaultTTL: time.Minute})
 	// Left over from an earlier resolution on the same Context.
-	ctx.setResponseCacheSurrogateKeys([]string{"stale"})
+	ctx.setResponseCacheSurrogateKeys(testSurrogateKeys("stale"))
 
 	w := &testDeferWriter{}
 	_, err := resolver.ResolveGraphQLDeferResponse(ctx, response, w)
 	require.NoError(t, err)
 	require.True(t, w.complete)
 
-	require.ElementsMatch(t, want, ctx.ResponseCacheSurrogateKeys())
+	require.ElementsMatch(t, want, caching.SurrogateKeyValues(ctx.ResponseCacheSurrogateKeys()))
 }
 
 type blockingCachedDataSource struct{ *blockingDataSource }
@@ -1157,15 +1172,15 @@ func TestResponseCacheSurrogateKeysInboundDedupWithSubgraphErrors(t *testing.T) 
 	t.Run("a clean leader hands its tags to the follower", func(t *testing.T) {
 		leader, follower := run(t, false)
 		require.NoError(t, leader.SubgraphErrors())
-		require.ElementsMatch(t, []string{"subgraph-a", "subgraph-b"}, leader.ResponseCacheSurrogateKeys())
-		require.Equal(t, leader.ResponseCacheSurrogateKeys(), follower.ResponseCacheSurrogateKeys())
+		require.ElementsMatch(t, []string{"subgraph-a", "subgraph-b"}, caching.SurrogateKeyValues(leader.ResponseCacheSurrogateKeys()))
+		require.Equal(t, caching.SurrogateKeyValues(leader.ResponseCacheSurrogateKeys()), caching.SurrogateKeyValues(follower.ResponseCacheSurrogateKeys()))
 	})
 
 	t.Run("a leader with a subgraph error hands the follower none", func(t *testing.T) {
 		leader, follower := run(t, true)
 		require.Error(t, leader.SubgraphErrors())
 		// The subgraph-a tag is omitted when emitted in the response even though it is here when there is an error
-		require.Equal(t, []string{"subgraph-a"}, leader.ResponseCacheSurrogateKeys(), "the fetch that succeeded still contributed")
-		require.Nil(t, follower.ResponseCacheSurrogateKeys(), "no positive cache signal on an errored body")
+		require.Equal(t, []string{"subgraph-a"}, caching.SurrogateKeyValues(leader.ResponseCacheSurrogateKeys()), "the fetch that succeeded still contributed")
+		require.Nil(t, caching.SurrogateKeyValues(follower.ResponseCacheSurrogateKeys()), "no positive cache signal on an errored body")
 	})
 }

@@ -88,13 +88,15 @@ func FreshnessOf(headers, sent http.Header, defaultTTL time.Duration) Freshness 
 	// Explicit freshness takes precedence over the configured fallback.
 	var lifetime time.Duration
 	var fromExpires bool
+	var expires time.Time
 	switch {
 	case cc.SMaxAge != nil:
 		lifetime = cc.SMaxAge.AsDuration()
 	case cc.MaxAge != nil:
 		lifetime = cc.MaxAge.AsDuration()
 	case len(headers.Values("Expires")) > 0:
-		lifetime, fromExpires = expiresLifetime(headers), true
+		lifetime, expires = expiresLifetime(headers)
+		fromExpires = true
 	case !cc.HasCachingDirectives():
 		// Only recognized cache directives opt into the configured fallback.
 		return Freshness{Decision: StoreDecisionNoDirective}
@@ -108,6 +110,10 @@ func FreshnessOf(headers, sent http.Header, defaultTTL time.Duration) Freshness 
 	// Time already spent in upstream caches is gone (RFC 9111 §4.2.3).
 	spent := age(headers)
 	ttl := lifetime - spent
+	// Expires is absolute: no later than it, whatever Date said.
+	if fromExpires {
+		ttl = min(ttl, time.Until(expires))
+	}
 	if ttl <= 0 {
 		return Freshness{Decision: StoreDecisionNoLifetime}
 	}
@@ -123,18 +129,19 @@ func FreshnessOf(headers, sent http.Header, defaultTTL time.Duration) Freshness 
 	return f
 }
 
-// expiresLifetime is Expires less Date, or less now without a Date. An invalid
-// Expires, "0" included, is already expired (RFC 9111 §5.3).
-func expiresLifetime(headers http.Header) time.Duration {
+// expiresLifetime is Expires less Date, or less now without a Date, and
+// Expires itself. An invalid Expires, "0" included, is already expired
+// (RFC 9111 §5.3).
+func expiresLifetime(headers http.Header) (time.Duration, time.Time) {
 	expires, err := http.ParseTime(headers.Get("Expires"))
 	if err != nil {
-		return 0
+		return 0, time.Time{}
 	}
 	date, err := http.ParseTime(headers.Get("Date"))
 	if err != nil {
 		date = time.Now()
 	}
-	return expires.Sub(date)
+	return expires.Sub(date), expires
 }
 
 // age is the Age header, zero when absent or invalid. A list uses its first
