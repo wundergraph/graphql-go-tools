@@ -191,7 +191,7 @@ type result struct {
 	responseCachePrivate bool
 	// responseCacheSurrogateKeys is what the fetch contributes to the cache tag
 	// header, read back on a hit and computed on a miss.
-	responseCacheSurrogateKeys []string
+	responseCacheSurrogateKeys []caching.SurrogateKey
 	// responseCache is what the hooks are told the cache did for the fetch.
 	responseCache ResponseCacheInfo
 	rootFields    []GraphCoordinate
