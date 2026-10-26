@@ -43,43 +43,48 @@ func CacheableStatus(code int) bool {
 	return code == 0 || code == http.StatusOK || code == http.StatusNonAuthoritativeInfo
 }
 
-// Freshness is what a response allows a cache to do with it.
-type Freshness struct {
-	TTL      time.Duration
-	Private  bool
+// CachePolicy is what a response allows the cache and the client. Decision
+// is StoreDecisionStored, or why it is not stored; the rest is zero then.
+type CachePolicy struct {
 	Decision StoreDecision
+
+	// TTL is how long the router may keep it: s-maxage, else max-age, else
+	// Expires, else the fallback, net of Age.
+	TTL time.Duration
+	// ClientTTL is how long a client may keep it: max-age, else Expires, net
+	// of Age, never over TTL. Zero when SharedOnly.
+	ClientTTL time.Duration
+	// SharedOnly is a shareable response with no max-age or Expires: s-maxage,
+	// or public on the fallback. Clients get no lifetime from it. Without
+	// public a fallback lifetime stays a max-age, as s-maxage would grant
+	// sharing.
+	SharedOnly bool
+
 	// Public is the response's own public directive.
 	Public bool
-	// SharedOnly is a shareable response with no max-age or Expires: s-maxage,
-	// or public on the fallback. Its lifetime is for shared caches only.
-	// Without public a fallback lifetime stays a max-age, as s-maxage would
-	// grant sharing.
-	SharedOnly bool
-	// ClientShortfall is how much less than TTL a client may keep it: the
-	// response's max-age, else Expires, net of Age, under the s-maxage TTL was
-	// taken from.
-	ClientShortfall time.Duration
+	// Private is stored per user only: private, or a request with
+	// Authorization the response did not allow to be shared.
+	Private bool
 }
 
-// FreshnessOf reads how long a response may be stored for, and what a client
-// may be told of it. The decision is StoreDecisionStored, or the reason the
-// response is not to be stored. sent is the request
-// the subgraph answered: one carrying Authorization is only shared when the
-// response allows it (RFC 9111 §3.5), and is otherwise private.
-func FreshnessOf(headers, sent http.Header, defaultTTL time.Duration) Freshness {
+// CachePolicyOf reads what a response allows the cache and the client. sent
+// is the request the subgraph answered: one carrying Authorization is only
+// shared when the response allows it (RFC 9111 §3.5), and is otherwise
+// private.
+func CachePolicyOf(headers, sent http.Header, defaultTTL time.Duration) CachePolicy {
 	cc, err := cache.ParseCacheControlResponse(headers)
 	if err != nil {
-		return Freshness{Decision: StoreDecisionInvalidCacheControl}
+		return CachePolicy{Decision: StoreDecisionInvalidCacheControl}
 	}
 
 	if cc.NoStore {
-		return Freshness{Decision: StoreDecisionNoStore}
+		return CachePolicy{Decision: StoreDecisionNoStore}
 	}
 
 	// Unqualified no-cache is not reusable in any form. no-cache="field" only
 	// bars the named headers, and entries store no headers.
 	if cc.NoCache != nil && !cc.NoCache.Qualified() {
-		return Freshness{Decision: StoreDecisionNoCache}
+		return CachePolicy{Decision: StoreDecisionNoCache}
 	}
 
 	private := cc.Private != nil
@@ -101,31 +106,30 @@ func FreshnessOf(headers, sent http.Header, defaultTTL time.Duration) Freshness 
 		ttl = expiresTTL(headers, spent)
 	case !cc.HasCachingDirectives():
 		// Only recognized cache directives opt into the configured fallback.
-		return Freshness{Decision: StoreDecisionNoDirective}
+		return CachePolicy{Decision: StoreDecisionNoDirective}
 	default:
 		ttl = defaultTTL - spent
 	}
 	if ttl <= 0 {
-		return Freshness{Decision: StoreDecisionNoLifetime}
+		return CachePolicy{Decision: StoreDecisionNoLifetime}
 	}
 
-	f := Freshness{TTL: ttl, Private: private, Decision: StoreDecisionStored, Public: cc.Public}
+	p := CachePolicy{Decision: StoreDecisionStored, TTL: ttl, Public: cc.Public, Private: private}
 	// A client's lifetime is max-age, else Expires; s-maxage is for shared
 	// caches only (RFC 9111 §5.2.2.10).
-	var client time.Duration
 	switch {
 	case cc.MaxAge != nil:
-		client = cc.MaxAge.AsDuration() - spent
+		p.ClientTTL = cc.MaxAge.AsDuration() - spent
 	case hasExpires:
-		client = expiresTTL(headers, spent)
+		p.ClientTTL = expiresTTL(headers, spent)
+	case !private && (cc.SMaxAge != nil || cc.Public):
+		p.SharedOnly = true
+		return p
 	default:
-		f.SharedOnly = !private && (cc.SMaxAge != nil || cc.Public)
-		return f
+		p.ClientTTL = ttl
 	}
-	if client = max(client, 0); client < ttl {
-		f.ClientShortfall = ttl - client
-	}
-	return f
+	p.ClientTTL = min(max(p.ClientTTL, 0), ttl)
+	return p
 }
 
 // expiresTTL is what Expires leaves after spent: Expires less Date, or less
