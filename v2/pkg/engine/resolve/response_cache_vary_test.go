@@ -516,6 +516,7 @@ func TestResponseCacheVarySingleFlightFollower(t *testing.T) {
 // wireHeadersDataSource answers with Vary on a header a transport hook set.
 type wireHeadersDataSource struct {
 	*blockingDataSource
+
 	wire http.Header
 }
 
@@ -539,6 +540,7 @@ func (d *wireHeadersDataSource) LoadWithFiles(ctx context.Context, headers http.
 // joinedCtx signals the first Done call.
 type joinedCtx struct {
 	context.Context
+
 	once   sync.Once
 	joined chan struct{}
 }
