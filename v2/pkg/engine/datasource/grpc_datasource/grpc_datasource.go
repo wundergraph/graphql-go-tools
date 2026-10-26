@@ -78,6 +78,16 @@ type DataSourceConfig struct {
 
 // NewDataSource creates a new datasource with the given RPCTransport.
 func NewDataSource(transport RPCTransport, config DataSourceConfig) (*DataSource, error) {
+	// A disabled datasource only returns an error on Load.
+	// It does not need a plan or a compiled program.
+	if config.Disabled {
+		return &DataSource{disabled: true}, nil
+	}
+
+	if config.Compiler == nil {
+		return nil, fmt.Errorf("compiler is required")
+	}
+
 	planner, err := NewPlanner(config.SubgraphName, config.Mapping, config.FederationConfigs)
 	if err != nil {
 		return nil, err
@@ -183,15 +193,10 @@ func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest req
 	}
 
 	astJsonVariables := value.Get("variables")
-	if !value.Exists() {
-		return nil, fmt.Errorf("variables are required")
-	}
-
 	builder := newJSONBuilder(item.Arena, d.mapping)
 
 	root := astjson.ObjectValue(nil)
 	callMap := make(map[int]fetchResult)
-	representations := getRepresentations(astJsonVariables)
 
 	for _, stage := range d.program.stages {
 		results := make([]fetchResult, len(stage.fetches))
@@ -213,7 +218,6 @@ func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest req
 					fetchBuilder,
 					callMap,
 					astJsonVariables,
-					representations,
 					buildRequest,
 				)
 				if err != nil {
@@ -261,9 +265,15 @@ func (d *DataSource) runFetch(
 	fetchBuilder *jsonBuilder,
 	callMap map[int]fetchResult,
 	astJsonVariables *astjson.Value,
-	representations []*astjson.Value,
 	buildRequest requestBuilder,
-) (fetchResult, error) {
+) (_ fetchResult, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			// The error is sent to the client. Do not include the panic value.
+			err = errors.New("internal error during gRPC call")
+		}
+	}()
+
 	request, skip, err := buildRequest(a, fetch, callMap, astJsonVariables)
 	if err != nil {
 		return fetchResult{}, err
@@ -299,6 +309,7 @@ func (d *DataSource) runFetch(
 	// On success we build the index map used by mergeEntities to place each response
 	// entity at the correct position in the final _entities array.
 	if fetch.kind == CallKindEntity {
+		representations := getRepresentations(astJsonVariables)
 		if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
 			return fetchResult{}, err
 		}
