@@ -202,7 +202,7 @@ type result struct {
 	responseCachePrivate bool
 	// responseCacheSurrogateKeys is what the fetch contributes to the cache tag
 	// header, read back on a hit and computed on a miss.
-	responseCacheSurrogateKeys []string
+	responseCacheSurrogateKeys []caching.SurrogateKey
 	// responseCache is what the hooks are told the cache did for the fetch.
 	responseCache ResponseCacheInfo
 	rootFields    []GraphCoordinate
@@ -578,6 +578,8 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 		return errors.WithStack(err)
 	}
 	err = l.mergePhase(prepared)
+	// Traced as held; responseCacheCommit adds the outcome, after the trace renders.
+	l.setResponseCacheTrace(prepared, prepared.responseCacheItems)
 	l.responseCacheHold(prepared)
 	return err
 }
@@ -599,6 +601,10 @@ type preparedFetch struct {
 	// responseCacheFound is round one of the lookup, so a write after a miss
 	// keeps the sets its records held.
 	responseCacheFound map[string]caching.Item
+
+	// responseCacheVariantServed is the variant body each record was served
+	// from, by record key; kept for the trace only.
+	responseCacheVariantServed map[string]caching.Item
 
 	isRootFetchCache bool
 

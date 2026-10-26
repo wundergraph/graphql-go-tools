@@ -397,6 +397,21 @@ func formatRPCMessageVisited(sb *strings.Builder, message RPCMessage, indent int
 	}
 }
 
+type planningInfo struct {
+	operationType      ast.OperationType
+	operationFieldName string
+
+	currentRequestMessage *RPCMessage
+
+	responseMessageAncestors []*RPCMessage
+	currentResponseMessage   *RPCMessage
+}
+
+type contextField struct {
+	fieldRef    int
+	resolvePath ast.Path
+}
+
 type rpcPlanningContext struct {
 	operation         *ast.Document
 	definition        *ast.Document
@@ -901,12 +916,14 @@ func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
 type resolverField struct {
 	id                     int
 	callerRef              int
+	requiredFieldIdx       int
 	parentTypeNode         ast.Node
 	fieldRef               int
 	fieldDefinitionTypeRef int
 	fieldsSelectionSetRef  int
 	responsePath           ast.Path
 	contextPath            ast.Path
+	nestedPath             ast.Path
 
 	contextFields      []contextField
 	fieldArguments     []fieldArgument
@@ -914,6 +931,11 @@ type resolverField struct {
 	fragmentType       OneOfType
 	listNestingLevel   int
 	memberTypes        []string
+}
+
+// nestedContextPath returns the context path for a field resolver inside of this resolver.
+func (f *resolverField) nestedContextPath() ast.Path {
+	return append(slices.Clone(f.contextPath), f.nestedPath...)
 }
 
 type fragmentSelection struct {
@@ -1044,6 +1066,39 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 	if r.typeIsNullableOrNestedList(fieldDefType) {
 		resolvedField.listNestingLevel = r.definition.TypeNumberOfListWraps(fieldDefType)
 	}
+
+	return r.setResolverSelectionSet(fieldDefRef, resolvedField)
+}
+
+// setResolverSelectionSet stores the selection set of the resolver field.
+// buildMessageForField uses it to build the response message of the resolver call.
+// The selection sets of plain fields inside of the resolver are nested in it. Thus we do not store them.
+func (r *rpcPlanningContext) setResolverSelectionSet(fieldDefRef int, resolvedField *resolverField) error {
+	resolvedField.fieldsSelectionSetRef = ast.InvalidRef
+
+	// A resolver field that returns a scalar or an enum has no selection set.
+	selectionSetRef, ok := r.operation.FieldSelectionSet(resolvedField.fieldRef)
+	if !ok {
+		return nil
+	}
+
+	typeNode := r.definition.FieldDefinitionTypeNode(fieldDefRef)
+	compositeType := r.getCompositeType(typeNode)
+	if compositeType == OneOfTypeNone {
+		resolvedField.fieldsSelectionSetRef = selectionSetRef
+		return nil
+	}
+
+	memberTypes, err := r.getMemberTypes(typeNode)
+	if err != nil {
+		return err
+	}
+
+	config := r.buildCompositeTypeConfig(compositeType, selectionSetRef)
+	resolvedField.memberTypes = memberTypes
+	resolvedField.fieldsSelectionSetRef = config.fieldsSelectionSetRef
+	resolvedField.fragmentType = config.oneOfType
+	resolvedField.fragmentSelections = config.fragmentSelections
 
 	return nil
 }
@@ -1385,10 +1440,11 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 	}
 
 	call := RPCCall{
-		ID:          callIndex,
-		ServiceName: r.resolveServiceName(subgraphName),
-		Kind:        CallKindRequired,
-		MethodName:  rpcConfig.RPC,
+		ID:                  callIndex,
+		ServiceName:         r.resolveServiceName(subgraphName),
+		Kind:                CallKindRequired,
+		MethodName:          rpcConfig.RPC,
+		RequestedEntityType: typeName,
 		ResponsePath: ast.Path{
 			{Kind: ast.FieldName, FieldName: []byte("_entities")},
 			{Kind: ast.FieldName, FieldName: []byte(rf.resultField.AliasOrPath())},
@@ -1399,7 +1455,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 				{
 					Name:          contextFieldName, // Static name for the context field.
 					ProtoTypeName: DataTypeMessage,
-					JSONPath:      "representations",
+					JSONPath:      representationsKey,
 					Repeated:      true,
 					Message: &RPCMessage{
 						Name: rpcConfig.RPC + "Context",

@@ -41,7 +41,7 @@ type preparedMultiEntry struct {
 	// lifetimes is what cachedValues report.
 	lifetimes hitLifetimes
 	// responseCacheSurrogateKeys is what cachedValues were stored with.
-	responseCacheSurrogateKeys []string
+	responseCacheSurrogateKeys []caching.SurrogateKey
 }
 
 // cacheHit reports whether every representation of this entry was found in the response cache.

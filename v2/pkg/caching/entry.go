@@ -3,6 +3,7 @@ package caching
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"time"
 )
@@ -16,25 +17,25 @@ import (
 // flags     1 byte, bit 0 public, bit 1 shared only
 // shortfall uvarint, ClientShortfall in ms
 // count     uvarint, number of surrogate keys
-// keys      count times: uvarint byte length, then the key, that many bytes
+// keys      count times: 1 byte tier, uvarint byte length, then the key, that many bytes
 // value     everything after the last key, the cached body itself, no length prefix
 // record:
 // sets      uvarint, number of name sets, at least one
-// names     sets times: uvarint count, then count names, each length prefixed like a key
+// names     sets times: uvarint count, then count names, each uvarint length prefixed
 //
-// Example: public Value {"id":42} with keys "users" and "user-42"
-// 03               kind: body
-// 01               flags: public
-// 00               shortfall: none
-// 02               count: 2 keys
-// 05 users         length 5, then the bytes
-// 07 user-42       length 7, then the bytes
-// {"id":42}        value, afterwards
+// Example: public Value {"id":42} with keys "subgraph-users" and declared "user-42"
+// 04                   kind: body
+// 01                   flags: public
+// 00                   shortfall: none
+// 02                   count: 2 keys
+// 00 0e subgraph-users tier subgraph, length 14, then the bytes
+// 02 07 user-42        tier declared, length 7, then the bytes
+// {"id":42}            value, afterwards
 //
-// Kind 1, a body without flags, is retired and refused.
+// Kinds 1 and 3, bodies without flags, are retired and refused.
 const (
 	entryFormatRecord byte = 2
-	entryFormatBody   byte = 3
+	entryFormatBody   byte = 4
 )
 
 const (
@@ -46,16 +47,26 @@ var ErrEntryFormat = errors.New("cache entry is not in a known format")
 
 // EncodeItem picks the envelope the item calls for. Empty vary sets are
 // dropped, since a set names at least one header and DecodeEntry refuses a
-// record that says otherwise; with no set left the item is a body.
-func EncodeItem(item Item) []byte {
+// record that says otherwise; with no set left the item is a body. A key with
+// an unknown tier is refused, as DecodeEntry would refuse the entry.
+func EncodeItem(item Item) ([]byte, error) {
 	if sets := nonEmptySets(item.Vary); len(sets) > 0 {
-		return encodeVaryRecord(sets)
+		return encodeVaryRecord(sets), nil
 	}
-	return encodeBody(item)
+	for _, surrogateKey := range item.SurrogateKeys {
+		if !surrogateKey.Tier.valid() {
+			return nil, fmt.Errorf("%w: %d, key %q", ErrInvalidSurrogateKeyTier, surrogateKey.Tier, item.Key)
+		}
+	}
+	return encodeBody(item), nil
 }
 
 func encodeBody(item Item) []byte {
-	out := make([]byte, 0, 2+binary.MaxVarintLen64+listSize(item.SurrogateKeys)+len(item.Value))
+	size := 2 + 2*binary.MaxVarintLen64 + len(item.Value)
+	for _, surrogateKey := range item.SurrogateKeys {
+		size += 1 + binary.MaxVarintLen64 + len(surrogateKey.Value)
+	}
+	out := make([]byte, 0, size)
 	out = append(out, entryFormatBody)
 	var flags byte
 	if item.Public {
@@ -66,7 +77,12 @@ func encodeBody(item Item) []byte {
 	}
 	out = append(out, flags)
 	out = binary.AppendUvarint(out, uint64(max(item.ClientShortfall, 0)/time.Millisecond))
-	out = appendList(out, item.SurrogateKeys)
+	out = binary.AppendUvarint(out, uint64(len(item.SurrogateKeys)))
+	for _, surrogateKey := range item.SurrogateKeys {
+		out = append(out, byte(surrogateKey.Tier))
+		out = binary.AppendUvarint(out, uint64(len(surrogateKey.Value)))
+		out = append(out, surrogateKey.Value...)
+	}
 	return append(out, item.Value...)
 }
 
@@ -138,13 +154,13 @@ func DecodeItem(b []byte) (Item, error) {
 		if n <= 0 || shortfall > math.MaxInt64/uint64(time.Millisecond) {
 			return Item{}, ErrEntryFormat
 		}
-		list, value, ok := readList(rest[1+n:])
+		surrogateKeys, value, ok := readTieredList(rest[1+n:])
 		if !ok {
 			return Item{}, ErrEntryFormat
 		}
 		return Item{
 			Value:           value,
-			SurrogateKeys:   list,
+			SurrogateKeys:   surrogateKeys,
 			Public:          flags&entryFlagPublic != 0,
 			SharedOnly:      flags&entryFlagSharedOnly != 0,
 			ClientShortfall: time.Duration(shortfall) * time.Millisecond,
@@ -179,7 +195,7 @@ func DecodeItem(b []byte) (Item, error) {
 }
 
 // DecodeEntry is DecodeItem without the client directives.
-func DecodeEntry(b []byte) (value []byte, surrogateKeys []string, vary [][]string, err error) {
+func DecodeEntry(b []byte) (value []byte, surrogateKeys []SurrogateKey, vary [][]string, err error) {
 	item, err := DecodeItem(b)
 	return item.Value, item.SurrogateKeys, item.Vary, err
 }
@@ -201,6 +217,34 @@ func readList(b []byte) (list []string, rest []byte, ok bool) {
 		}
 		rest = rest[n:]
 		list = append(list, string(rest[:size]))
+		rest = rest[size:]
+	}
+	return list, rest, true
+}
+
+// readTieredList reads a body's keys off b and returns what follows them.
+func readTieredList(b []byte) (list []SurrogateKey, rest []byte, ok bool) {
+	count, n := binary.Uvarint(b)
+	if n <= 0 || count > uint64(len(b)) {
+		return nil, nil, false
+	}
+	rest = b[n:]
+
+	for range count {
+		if len(rest) == 0 {
+			return nil, nil, false
+		}
+		tier := SurrogateKeyTier(rest[0])
+		if !tier.valid() {
+			return nil, nil, false
+		}
+		rest = rest[1:]
+		size, n := binary.Uvarint(rest)
+		if n <= 0 || size > uint64(len(rest)-n) {
+			return nil, nil, false
+		}
+		rest = rest[n:]
+		list = append(list, SurrogateKey{Value: string(rest[:size]), Tier: tier})
 		rest = rest[size:]
 	}
 	return list, rest, true
