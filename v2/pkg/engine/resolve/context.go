@@ -285,8 +285,8 @@ type responseCache struct {
 	hasSingleFlightID bool
 	// surrogateKeys is the union over every fetch of the request, merged under
 	// the loader's data lock as each fetch is merged.
-	surrogateKeys []string
-	traceDetails  func(surrogateKeys []string) any
+	surrogateKeys []caching.SurrogateKey
+	traceDetails  func(surrogateKeys []caching.SurrogateKey) any
 }
 
 // responseCacheFor is the cache's settings for a subgraph, or false when nothing
@@ -330,7 +330,7 @@ func (c *Context) responseCacheSingleFlightID() (caching.Digest, bool) {
 // ResponseCacheSurrogateKeys are the cache tags of every cached fetch in the
 // request so far, hits and misses alike, for the response header. Complete once
 // resolution has finished.
-func (c *Context) ResponseCacheSurrogateKeys() []string {
+func (c *Context) ResponseCacheSurrogateKeys() []caching.SurrogateKey {
 	if c.responseCache == nil {
 		return nil
 	}
@@ -339,7 +339,7 @@ func (c *Context) ResponseCacheSurrogateKeys() []string {
 
 // setResponseCacheSurrogateKeys replaces the set: a fresh resolution starts empty,
 // and a deduplicated follower takes the leader's.
-func (c *Context) setResponseCacheSurrogateKeys(surrogateKeys []string) {
+func (c *Context) setResponseCacheSurrogateKeys(surrogateKeys []caching.SurrogateKey) {
 	if c.responseCache != nil {
 		c.responseCache.surrogateKeys = surrogateKeys
 	}
@@ -383,7 +383,7 @@ type ResponseCacheOptions struct {
 	// is kept, not copied, and must not change after SetResponseCache.
 	Subgraphs map[string]ResponseCacheSubgraphOptions
 	// TraceDetails adds the caller's view of the request's surrogate keys to ART.
-	TraceDetails func(surrogateKeys []string) any
+	TraceDetails func(surrogateKeys []caching.SurrogateKey) any
 }
 
 // ResponseCacheSubgraphOptions is the cache's settings for one subgraph.

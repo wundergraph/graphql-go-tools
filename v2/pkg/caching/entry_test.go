@@ -7,16 +7,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// declared is surrogate keys of the declared tier.
+func declared(values ...string) []SurrogateKey {
+	out := make([]SurrogateKey, len(values))
+	for i, v := range values {
+		out[i] = DeclaredSurrogateKey(v)
+	}
+	return out
+}
+
+func encodeItem(t *testing.T, item Item) []byte {
+	t.Helper()
+	encoded, err := EncodeItem(item)
+	require.NoError(t, err)
+	return encoded
+}
+
 func TestEntryRoundTrip(t *testing.T) {
 	tests := []struct {
 		name          string
 		value         []byte
-		surrogateKeys []string
+		surrogateKeys []SurrogateKey
 	}{
-		{name: "value and surrogate keys", value: []byte(`{"id":42}`), surrogateKeys: []string{"subgraph-accounts", "type-accounts-User", "user-42"}},
+		{name: "value and surrogate keys", value: []byte(`{"id":42}`), surrogateKeys: []SurrogateKey{SubgraphSurrogateKey("accounts"), TypeSurrogateKey("accounts", "User"), DeclaredSurrogateKey("user-42")}},
+		{name: "a declared key spelled like a derived one keeps its tier", value: []byte("v"), surrogateKeys: []SurrogateKey{SubgraphSurrogateKey("accounts"), DeclaredSurrogateKey("subgraph-accounts")}},
 		{name: "no surrogate keys decodes to nil", value: []byte(`{"id":42}`)},
-		{name: "empty value", value: []byte{}, surrogateKeys: []string{"a"}},
-		{name: "long, non ascii and empty surrogate keys", value: []byte("v"), surrogateKeys: []string{strings.Repeat("x", 300), "ünïcödé", ""}},
+		{name: "empty value", value: []byte{}, surrogateKeys: declared("a")},
+		{name: "long, non ascii and empty surrogate keys", value: []byte("v"), surrogateKeys: declared(strings.Repeat("x", 300), "ünïcödé", "")},
 	}
 
 	for _, tt := range tests {
@@ -30,8 +47,30 @@ func TestEntryRoundTrip(t *testing.T) {
 	}
 }
 
+// Written before tiers, so read back with the tier its prefix implies.
+func TestEntryDecodeUntieredBody(t *testing.T) {
+	encoded := []byte{entryFormatBody, 3}
+	for _, key := range []string{"subgraph-accounts", "type-accounts-User", "user-42"} {
+		encoded = append(encoded, byte(len(key)))
+		encoded = append(encoded, key...)
+	}
+	encoded = append(encoded, `{"id":42}`...)
+
+	value, surrogateKeys, vary, err := DecodeEntry(encoded)
+	require.NoError(t, err)
+	require.Equal(t, []byte(`{"id":42}`), value)
+	require.Equal(t, []SurrogateKey{SubgraphSurrogateKey("accounts"), TypeSurrogateKey("accounts", "User"), DeclaredSurrogateKey("user-42")}, surrogateKeys)
+	require.Nil(t, vary)
+
+	_, _, _, err = DecodeEntry([]byte{entryFormatBody, 0xff, 0xff, 0x7f})
+	require.ErrorIs(t, err, ErrEntryFormat)
+}
+
 func TestEntryDecodeRefuses(t *testing.T) {
-	encoded := encodeEntry([]byte("value"), []string{"a-long-surrogateKey", "another"})
+	encoded := encodeEntry([]byte("value"), declared("a-long-surrogateKey", "another"))
+
+	unknownTier := append([]byte(nil), encoded...)
+	unknownTier[2] = byte(SurrogateKeyTierDeclared + 1)
 
 	unknownVersion := append([]byte(nil), encoded...)
 	unknownVersion[0] = 9
@@ -43,10 +82,12 @@ func TestEntryDecodeRefuses(t *testing.T) {
 		{name: "nil", input: nil},
 		{name: "raw value", input: []byte(`{"id":42}`)},
 		{name: "unknown version", input: unknownVersion},
-		{name: "surrogate key count larger than the input", input: []byte{entryFormatBody, 0xff, 0xff, 0x7f}},
+		{name: "unknown tier", input: unknownTier},
+		{name: "surrogate key count larger than the input", input: []byte{entryFormatTieredBody, 0xff, 0xff, 0x7f}},
 		{name: "cut inside the count", input: encoded[:1]},
-		{name: "cut inside a surrogate key length", input: encoded[:2]},
-		{name: "cut inside a surrogate key", input: encoded[:5]},
+		{name: "cut before a tier", input: encoded[:2]},
+		{name: "cut inside a surrogate key length", input: encoded[:3]},
+		{name: "cut inside a surrogate key", input: encoded[:6]},
 		{name: "cut before the last surrogate key", input: encoded[:len(encoded)-len("value")-len("another")-1]},
 	}
 
@@ -85,22 +126,27 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 		})
 	}
 
-	require.Equal(t, encodeVaryRecord(sets), EncodeItem(Item{Vary: sets, Value: []byte("ignored")}), "a record has no body")
-	require.Equal(t, encodeEntry([]byte("v"), []string{"a"}), EncodeItem(Item{Value: []byte("v"), SurrogateKeys: []string{"a"}}))
+	require.Equal(t, encodeVaryRecord(sets), encodeItem(t, Item{Vary: sets, Value: []byte("ignored")}), "a record has no body")
+	require.Equal(t, encodeEntry([]byte("v"), declared("a")), encodeItem(t, Item{Value: []byte("v"), SurrogateKeys: declared("a")}))
+
+	t.Run("unknown tier is refused", func(t *testing.T) {
+		_, err := EncodeItem(Item{Key: "k", Value: []byte("v"), SurrogateKeys: []SurrogateKey{{Value: "a", Tier: 255}}})
+		require.ErrorIs(t, err, ErrInvalidSurrogateKeyTier)
+	})
 
 	t.Run("empty sets are dropped so every record decodes", func(t *testing.T) {
-		withEmpty := EncodeItem(Item{Vary: [][]string{{"accept-language"}, {}, {"accept"}}})
+		withEmpty := encodeItem(t, Item{Vary: [][]string{{"accept-language"}, {}, {"accept"}}})
 		require.Equal(t, encodeVaryRecord([][]string{{"accept-language"}, {"accept"}}), withEmpty)
 		_, _, vary, err := DecodeEntry(withEmpty)
 		require.NoError(t, err)
 		require.Equal(t, [][]string{{"accept-language"}, {"accept"}}, vary)
 
-		onlyEmpty := EncodeItem(Item{Vary: [][]string{{}}, Value: []byte("v"), SurrogateKeys: []string{"a"}})
-		require.Equal(t, encodeEntry([]byte("v"), []string{"a"}), onlyEmpty, "no set left means a body")
+		onlyEmpty := encodeItem(t, Item{Vary: [][]string{{}}, Value: []byte("v"), SurrogateKeys: declared("a")})
+		require.Equal(t, encodeEntry([]byte("v"), declared("a")), onlyEmpty, "no set left means a body")
 		value, surrogateKeys, vary, err := DecodeEntry(onlyEmpty)
 		require.NoError(t, err)
 		require.Equal(t, []byte("v"), value)
-		require.Equal(t, []string{"a"}, surrogateKeys)
+		require.Equal(t, declared("a"), surrogateKeys)
 		require.Nil(t, vary)
 	})
 

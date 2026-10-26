@@ -21,9 +21,9 @@ func (c *Context) responseCacheRequestTrace() *ResponseCacheRequestTrace {
 	if c.responseCache == nil {
 		return nil
 	}
-	trace := &ResponseCacheRequestTrace{SurrogateKeys: c.responseCache.surrogateKeys}
+	trace := &ResponseCacheRequestTrace{SurrogateKeys: caching.SurrogateKeyValues(c.responseCache.surrogateKeys)}
 	if c.responseCache.traceDetails != nil {
-		trace.Details = c.responseCache.traceDetails(trace.SurrogateKeys)
+		trace.Details = c.responseCache.traceDetails(c.responseCache.surrogateKeys)
 	}
 	return trace
 }
@@ -119,7 +119,6 @@ func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []cachin
 
 	bodies := writtenBodies(written)
 	stored := knownStoredKeys(writeErr)
-	subgraph := res.ds.Name
 	for _, group := range groups {
 		trace.PrivateID = trace.PrivateID || group.privateKeys != nil
 		for i, key := range group.keys {
@@ -133,7 +132,6 @@ func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []cachin
 			}
 			l.traceValue(&entry, value, prepared.isRootFetchCache)
 			entry.Written = entry.Written && (writeErr == nil || stored[entry.WrittenKey])
-			entry.DeclaredTags = declaredSurrogateKeys(entry.SurrogateKeys, subgraph, entry.TypeName)
 			trace.Entries = append(trace.Entries, entry)
 		}
 	}
@@ -196,7 +194,8 @@ func (l *Loader) traceLookup(prepared *preparedFetch, entry *ResponseCacheTraceE
 	entry.Private = private
 	entry.RemainingTTLNano = item.TTL.Nanoseconds()
 	entry.RemainingTTLPretty = item.TTL.String()
-	entry.SurrogateKeys = item.SurrogateKeys
+	entry.SurrogateKeys = caching.SurrogateKeyValues(item.SurrogateKeys)
+	entry.DeclaredTags = declaredSurrogateKeys(item.SurrogateKeys)
 	return item.Value
 }
 
@@ -222,7 +221,8 @@ func (l *Loader) traceWrite(bodies map[string]writtenBody, entry *ResponseCacheT
 	entry.WriteTTLNano = item.TTL.Nanoseconds()
 	entry.WriteTTLPretty = item.TTL.String()
 	entry.Tags = item.Tags
-	entry.SurrogateKeys = item.SurrogateKeys
+	entry.SurrogateKeys = caching.SurrogateKeyValues(item.SurrogateKeys)
+	entry.DeclaredTags = declaredSurrogateKeys(item.SurrogateKeys)
 	return item.Value
 }
 
@@ -279,14 +279,13 @@ func writtenBodies(written []caching.Item) map[string]writtenBody {
 	return bodies
 }
 
-// declaredSurrogateKeys is what the subgraph declared: the surrogate keys minus the derived tiers.
-func declaredSurrogateKeys(surrogateKeys []string, subgraph, typeName string) []string {
+// declaredSurrogateKeys is what the subgraph declared: the declared tier.
+func declaredSurrogateKeys(surrogateKeys []caching.SurrogateKey) []string {
 	var declared []string
 	for _, key := range surrogateKeys {
-		if key == caching.SubgraphSurrogateKey(subgraph) || (typeName != "" && key == caching.TypeSurrogateKey(subgraph, typeName)) {
-			continue
+		if key.Tier == caching.SurrogateKeyTierDeclared {
+			declared = append(declared, key.Value)
 		}
-		declared = append(declared, key)
 	}
 	return declared
 }

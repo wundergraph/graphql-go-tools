@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"google.golang.org/grpc/codes"
@@ -96,34 +97,48 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult fetchResult
 }
 
 // mergeWithPath merges a JSON value with a resolved value by its path.
-func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path) error {
+// If indexMap is set, only the items of the root array at these indexes are merged.
+func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path, indexMap entityIndexMap) error {
 	if len(path) == 0 {
 		return errors.New("path is empty")
 	}
 
 	resolvedValues := resolved.GetArray(resolveResponsePath)
-	if len(resolvedValues) == 0 {
-		return nil
-	}
 
-	searchPath := path[:len(path)-1]
+	searchPath := path.RemoveLastItem()
 	elementName := path[len(path)-1].FieldName.String()
 
 	responseValues := make([]*astjson.Value, 0, len(resolvedValues))
 
 	// We retrieve a flat list of all the values that we need to merge with the resolved values.
-	current := base
-	current = current.Get(searchPath[0].FieldName.String())
-	switch current.Type() {
+	next := base.Get(searchPath[0].FieldName.String())
+	if next == nil {
+		return fmt.Errorf("field %s not found in object", searchPath[0].FieldName.String())
+	}
+
+	switch next.Type() {
 	case astjson.TypeArray:
-		arr := current.GetArray()
+		arr := next.GetArray()
+		if len(indexMap) > 0 {
+			indexedValues := make([]*astjson.Value, 0, len(indexMap))
+			for _, index := range indexMap {
+				if index < 0 || index >= len(arr) {
+					return fmt.Errorf("index %d is out of bounds for array of length %d", index, len(arr))
+				}
+
+				indexedValues = append(indexedValues, arr[index])
+			}
+
+			arr = indexedValues
+		}
+
 		values, err := j.flattenList(arr, searchPath[1:])
 		if err != nil {
 			return err
 		}
 		responseValues = append(responseValues, values...)
 	default:
-		values, err := j.flattenObject(current, searchPath[1:])
+		values, err := j.flattenObject(next, searchPath[1:])
 		if err != nil {
 			return err
 		}
@@ -131,7 +146,7 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 	}
 
 	if len(resolvedValues) != len(responseValues) {
-		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(resolvedValues), len(responseValues))
+		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(responseValues), len(resolvedValues))
 	}
 
 	for i := range responseValues {
@@ -226,7 +241,9 @@ func (j *jsonBuilder) marshalResponseJSON(message *RPCMessage, data protoref.Mes
 	}
 
 	// Determine which fields to include in the response
-	validFields := message.Fields
+	// Clip trick: create a new slice header with capacity equal to its length.
+	// This does not allocate, and any append creates a new backing array.
+	validFields := slices.Clip(message.Fields)
 	if message.IsOneOf() {
 		// For oneOf types, add type-specific fields based on the actual concrete type
 		validFields = append(validFields, message.FragmentFields.SelectFieldsForTypes(message.SelectValidTypes(string(data.Type().Descriptor().Name())))...)
