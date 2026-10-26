@@ -484,9 +484,9 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	headers := responseCacheHeaders(res)
-	freshness := caching.FreshnessOf(headers, res.sentHeaders, sub.ttl)
-	if freshness.Decision != caching.StoreDecisionStored {
-		res.responseCache.StoreDecision = freshness.Decision
+	policy := caching.CachePolicyOf(headers, res.sentHeaders, sub.ttl)
+	if policy.Decision != caching.StoreDecisionStored {
+		res.responseCache.StoreDecision = policy.Decision
 		return nil
 	}
 
@@ -498,7 +498,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 
 	// A private body only ever lands under a per-user key.
 	writeKeys := prepared.responseCacheKeys
-	if freshness.Private {
+	if policy.Private {
 		if prepared.responseCachePrivateKeys == nil {
 			res.responseCache.StoreDecision = caching.StoreDecisionPrivateWithoutID
 			return nil
@@ -526,10 +526,10 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		}
 		item := caching.Item{
 			Value:           value.MarshalTo(nil),
-			TTL:             freshness.TTL,
-			Public:          freshness.Public,
-			SharedOnly:      freshness.SharedOnly,
-			ClientShortfall: freshness.ClientShortfall,
+			TTL:             policy.TTL,
+			Public:          policy.Public,
+			SharedOnly:      policy.SharedOnly,
+			ClientShortfall: policy.TTL - policy.ClientTTL,
 			FetchedAt:       res.responseCacheFetchedAt,
 		}
 		// Indexed by i like the key: a null entity is skipped above without
@@ -555,7 +555,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	res.responseCache.StoreDecision = storeDecisionFor(items)
 	if res.responseCache.StoreDecision == caching.StoreDecisionStored {
-		res.responseCache.StoredTTL = freshness.TTL
+		res.responseCache.StoredTTL = policy.TTL
 	}
 	return nil
 }
@@ -778,8 +778,8 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	// and so is being private. Checked per entry, after its errors, as the
 	// single-fetch path does.
 	headers := responseCacheHeaders(res)
-	freshness := caching.FreshnessOf(headers, res.sentHeaders, sub.ttl)
-	headerDecision := freshness.Decision
+	policy := caching.CachePolicyOf(headers, res.sentHeaders, sub.ttl)
+	headerDecision := policy.Decision
 
 	// One Vary as well: what the merged answer varied on covers every entry in
 	// it, even one that alone would have varied on less.
@@ -811,7 +811,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		}
 		// A private body only ever lands under a per-user key.
 		writeKeys := entry.responseCacheKeys
-		if freshness.Private {
+		if policy.Private {
 			if entry.responseCachePrivateKeys == nil {
 				storeDecision = min(storeDecision, caching.StoreDecisionPrivateWithoutID)
 				continue
@@ -839,10 +839,10 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 			}
 			item := caching.Item{
 				Value:           value.MarshalTo(nil),
-				TTL:             freshness.TTL,
-				Public:          freshness.Public,
-				SharedOnly:      freshness.SharedOnly,
-				ClientShortfall: freshness.ClientShortfall,
+				TTL:             policy.TTL,
+				Public:          policy.Public,
+				SharedOnly:      policy.SharedOnly,
+				ClientShortfall: policy.TTL - policy.ClientTTL,
 				FetchedAt:       prepared.res.responseCacheFetchedAt,
 			}
 
@@ -866,7 +866,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	if len(items) > 0 {
 		storeDecision = caching.StoreDecisionStored
-		res.responseCache.StoredTTL = freshness.TTL
+		res.responseCache.StoredTTL = policy.TTL
 	}
 	res.responseCache.StoreDecision = storeDecision
 }
