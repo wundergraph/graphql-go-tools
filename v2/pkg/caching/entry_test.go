@@ -9,9 +9,9 @@ import (
 
 // declared is surrogate keys of the declared tier.
 func declared(values ...string) []SurrogateKey {
-	out := make([]SurrogateKey, 0, len(values))
-	for _, v := range values {
-		out = append(out, DeclaredSurrogateKey(v))
+	out := make([]SurrogateKey, len(values))
+	for i, v := range values {
+		out[i] = DeclaredSurrogateKey(v)
 	}
 	return out
 }
