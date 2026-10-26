@@ -51,6 +51,7 @@ type Context struct {
 	preFetchFieldAuthorizer BatchAuthorizer
 	rateLimiter             RateLimiter
 	fieldRenderer           FieldValueRenderer
+	objectDirectiveHandler  ObjectDirectiveHandler
 
 	responseCache *responseCache
 

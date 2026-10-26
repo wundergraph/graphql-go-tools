@@ -29,6 +29,16 @@ type Configuration struct {
 
 	CustomResolveMap map[string]resolve.CustomResolve
 
+	// TypeDirectives are attached to every response object whose possible types
+	// include the concrete type name they are keyed by. The resolver calls the
+	// context's ObjectDirectiveHandler for each object of such a type.
+	TypeDirectives map[string][]*resolve.TypeDirective
+
+	// HiddenFieldAliasPrefix marks fields that are fetched but never rendered:
+	// a field whose alias starts with this prefix is planned like a client field
+	// and left out of the response. Empty disables hidden fields.
+	HiddenFieldAliasPrefix string
+
 	// Debug - configure debug options
 	Debug DebugConfiguration
 

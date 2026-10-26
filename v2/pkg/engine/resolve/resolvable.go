@@ -1423,6 +1423,19 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 		}
 	}
 
+	// Type directives decide in the pre-walk whether the object is returned at all,
+	// before its fields are walked.
+	if !r.enableRender && len(obj.TypeDirectives) > 0 && r.ctx != nil && r.ctx.objectDirectiveHandler != nil {
+		if r.applyTypeDirectives(obj, typeName, value) {
+			if obj.Nullable && len(obj.Path) > 0 {
+				astjson.SetNull(r.astjsonArena, parent, obj.Path...)
+				return false
+			}
+			// list items are nulled by walkArray, non-null objects bubble
+			return r.err()
+		}
+	}
+
 	// Cost-control stats are recorded during the render pass: by then the pre-walk has
 	// applied all nulls (denials and non-null violations alike), so the stats describe
 	// exactly the response the client receives.

@@ -22,6 +22,10 @@ type Object struct {
 	// InaccessibleTypes are members/implementers of the abstract type marked
 	// @inaccessible; excluded from PossibleTypes. Nil when none.
 	InaccessibleTypes map[string]struct{} `json:"-"`
+
+	// TypeDirectives are the directives that apply to objects of a concrete type,
+	// keyed by concrete type name. Nil when none of the possible types has any.
+	TypeDirectives map[string][]*TypeDirective `json:"-"`
 }
 
 func (o *Object) Copy() Node {
@@ -34,6 +38,10 @@ func (o *Object) Copy() Node {
 		Path:         o.Path,
 		Fields:       fields,
 		Unresolvable: o.Unresolvable,
+		// TypeName and TypeDirectives must survive copies (e.g. field merging),
+		// otherwise type directives would silently stop applying
+		TypeName:       o.TypeName,
+		TypeDirectives: o.TypeDirectives,
 	}
 }
 

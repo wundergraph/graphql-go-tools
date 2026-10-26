@@ -287,6 +287,8 @@ const multiHopCompoundKeyExpectedPlan = `
          SourceName: "",
          TypeName: "Product",
          InaccessibleTypes: [],
+         TypeDirectives: {
+         },
         },
         Position: {
          Line: 3,
@@ -335,6 +337,8 @@ const multiHopCompoundKeyExpectedPlan = `
          SourceName: "",
          TypeName: "Product",
          InaccessibleTypes: [],
+         TypeDirectives: {
+         },
         },
         Position: {
          Line: 4,
@@ -354,6 +358,8 @@ const multiHopCompoundKeyExpectedPlan = `
       SourceName: "",
       TypeName: "ProductList",
       InaccessibleTypes: [],
+      TypeDirectives: {
+      },
      },
      Position: {
       Line: 2,
@@ -373,6 +379,8 @@ const multiHopCompoundKeyExpectedPlan = `
    SourceName: "",
    TypeName: "",
    InaccessibleTypes: [],
+   TypeDirectives: {
+   },
   },
   RawFetches: [
    {

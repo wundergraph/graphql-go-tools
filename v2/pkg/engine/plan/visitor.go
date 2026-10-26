@@ -643,7 +643,19 @@ func (v *Visitor) assignDefer(fieldRef int) {
 // If it returns false, the user requests the field.
 func (v *Visitor) skipField(ref int) bool {
 	// TODO: If this grows, switch to map[int]struct{} for O(1).
-	return slices.Contains(v.skipFieldsRefs, ref)
+	if slices.Contains(v.skipFieldsRefs, ref) {
+		return true
+	}
+	return v.isHiddenField(ref)
+}
+
+// isHiddenField reports whether the field was added to the operation to be fetched
+// but not rendered, see Configuration.HiddenFieldAliasPrefix.
+func (v *Visitor) isHiddenField(ref int) bool {
+	if v.Config.HiddenFieldAliasPrefix == "" || !v.Operation.FieldAliasIsDefined(ref) {
+		return false
+	}
+	return strings.HasPrefix(v.Operation.FieldAliasString(ref), v.Config.HiddenFieldAliasPrefix)
 }
 
 func (v *Visitor) introspectionShouldEvaluateIncludeDeprecated(fieldName string, enclosingTypeName string) bool {
@@ -860,6 +872,17 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 					}
 				}
 			default:
+			}
+
+			if len(v.Config.TypeDirectives) > 0 {
+				for possibleType := range object.PossibleTypes {
+					if directives := v.Config.TypeDirectives[possibleType]; len(directives) > 0 {
+						if object.TypeDirectives == nil {
+							object.TypeDirectives = make(map[string][]*resolve.TypeDirective, 1)
+						}
+						object.TypeDirectives[possibleType] = directives
+					}
+				}
 			}
 
 			if v.currentField.Info != nil {
