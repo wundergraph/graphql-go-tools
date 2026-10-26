@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.30.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.0...v2.30.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **caching:** store each surrogate key's tier with the entry ([#1728](https://github.com/wundergraph/graphql-go-tools/issues/1728)) ([4f75d1d](https://github.com/wundergraph/graphql-go-tools/commit/4f75d1da739748b7e95e83c669527cc9e70d6b6e))
+* connect improvements ([#1730](https://github.com/wundergraph/graphql-go-tools/issues/1730)) ([1a85045](https://github.com/wundergraph/graphql-go-tools/commit/1a850451e9e606c07e05c420ee2ec43997abb0ae))
+* **resolve:** release deduplicated followers when the leader panics ([#1718](https://github.com/wundergraph/graphql-go-tools/issues/1718)) ([dd2df85](https://github.com/wundergraph/graphql-go-tools/commit/dd2df85ccd392f9484b4c6353b67c48871937ba8))
+
 ## [2.30.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.29.0...v2.30.0) (2026-10-21)
 
 
