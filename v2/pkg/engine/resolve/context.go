@@ -281,7 +281,8 @@ type responseCache struct {
 	hasSingleFlightID bool
 	// surrogateKeys is the union over every fetch of the request, merged under
 	// the loader's data lock as each fetch is merged.
-	surrogateKeys []string
+	surrogateKeys []caching.SurrogateKey
+	traceDetails  func(surrogateKeys []caching.SurrogateKey) any
 	// onlyIfCached refuses every fetch the cache cannot answer; unsatisfied
 	// records that one was refused. Fetches run in parallel.
 	onlyIfCached bool
@@ -329,7 +330,7 @@ func (c *Context) responseCacheSingleFlightID() (caching.Digest, bool) {
 // ResponseCacheSurrogateKeys are the cache tags of every cached fetch in the
 // request so far, hits and misses alike, for the response header. Complete once
 // resolution has finished.
-func (c *Context) ResponseCacheSurrogateKeys() []string {
+func (c *Context) ResponseCacheSurrogateKeys() []caching.SurrogateKey {
 	if c.responseCache == nil {
 		return nil
 	}
@@ -338,7 +339,7 @@ func (c *Context) ResponseCacheSurrogateKeys() []string {
 
 // setResponseCacheSurrogateKeys replaces the set: a fresh resolution starts empty,
 // and a deduplicated follower takes the leader's.
-func (c *Context) setResponseCacheSurrogateKeys(surrogateKeys []string) {
+func (c *Context) setResponseCacheSurrogateKeys(surrogateKeys []caching.SurrogateKey) {
 	if c.responseCache != nil {
 		c.responseCache.surrogateKeys = surrogateKeys
 	}
@@ -384,6 +385,8 @@ type ResponseCacheOptions struct {
 	// OnlyIfCached fails every fetch the cache cannot answer instead of sending
 	// it (RFC 9111 §5.2.1.7). Fetches of uncached subgraphs fail too.
 	OnlyIfCached bool
+	// TraceDetails adds the caller's view of the request's surrogate keys to ART.
+	TraceDetails func(surrogateKeys []caching.SurrogateKey) any
 }
 
 // ResponseCacheSubgraphOptions is the cache's settings for one subgraph.
@@ -409,6 +412,7 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		defaultDisabled: opts.DefaultDisabled,
 		subgraphs:       opts.Subgraphs,
 		onlyIfCached:    opts.OnlyIfCached,
+		traceDetails:    opts.TraceDetails,
 	}
 	if opts.DefaultDisabled {
 		// Nothing is keyed by it, so it must not keep users apart either.
