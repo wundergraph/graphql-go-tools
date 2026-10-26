@@ -73,8 +73,11 @@ func TestCollectKeysForPathUnknownAncestor(t *testing.T) {
 		type Info { id: ID! name: String! }
 	`)
 	cases := []struct {
-		selection string
-		paths     []KeyInfoFieldPath
+		selection         string
+		providedSelection providesSelection
+		expectSource      bool
+		paths             []KeyInfoFieldPath
+		notExternalPaths  map[string]struct{}
 	}{
 		{
 			selection: "id info { id name }",
@@ -82,6 +85,10 @@ func TestCollectKeysForPathUnknownAncestor(t *testing.T) {
 				{Path: "query.me.id"},
 				{Path: "query.me.info.id"},
 				{Path: "query.me.info.name", IsExternal: true},
+			},
+			notExternalPaths: map[string]struct{}{
+				"query.me.id":      {},
+				"query.me.info.id": {},
 			},
 		},
 		{
@@ -91,11 +98,43 @@ func TestCollectKeysForPathUnknownAncestor(t *testing.T) {
 				{Path: "query.me.info.name", IsExternal: true},
 				{Path: "query.me.id"},
 			},
+			notExternalPaths: map[string]struct{}{
+				"query.me.id":      {},
+				"query.me.info.id": {},
+			},
+		},
+		{
+			selection: "info { id }",
+			paths: []KeyInfoFieldPath{
+				{Path: "query.me.info.id"},
+			},
+			notExternalPaths: map[string]struct{}{
+				"query.me.info.id": {},
+			},
+		},
+		{
+			selection: "info { id }",
+			providedSelection: providesSelection{
+				"info": {{allowedTypes: pTypes("User"), selection: providesSelection{
+					"id": {{allowedTypes: pTypes("Info")}},
+				}}},
+			},
+			expectSource: true,
+			paths: []KeyInfoFieldPath{
+				{Path: "query.me.info.id"},
+			},
+			notExternalPaths: map[string]struct{}{
+				"query.me.info.id": {},
+			},
 		},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.selection, func(t *testing.T) {
+		name := tc.selection
+		if tc.providedSelection != nil {
+			name += " (provided)"
+		}
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			// User.info exists in the schema but has no datasource metadata.
@@ -111,16 +150,14 @@ func TestCollectKeysForPathUnknownAncestor(t *testing.T) {
 				notExternalKeyPaths: make(map[string]struct{}),
 			}
 
-			require.NoError(t, visitor.collectKeysForPath("User", "query.me", nil))
+			require.NoError(t, visitor.collectKeysForPath("User", "query.me", tc.providedSelection))
 			require.Len(t, visitor.keys, 1)
 			require.Len(t, visitor.keys[0].Keys, 1)
 			key := visitor.keys[0].Keys[0]
 			assert.Equal(t, tc.paths, key.FieldPaths, "the unknown ancestor must not appear in the output paths")
-			assert.False(t, key.Source, "an unknown ancestor must not make its external descendant locally available")
-			assert.Equal(t, map[string]struct{}{
-				"query.me.id":      {},
-				"query.me.info.id": {},
-			}, visitor.notExternalKeyPaths)
+			assert.Equal(t, tc.expectSource, key.Source, "an unknown ancestor must be provided to supply this key")
+			assert.True(t, key.Target, "an unknown ancestor does not prevent resolving this key")
+			assert.Equal(t, tc.notExternalPaths, visitor.notExternalKeyPaths)
 		})
 	}
 }

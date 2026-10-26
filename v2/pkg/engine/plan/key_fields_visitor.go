@@ -227,6 +227,10 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 		// external descendants locally available through the key fallback.
 		// This entry only tracks ancestry; it is not added to the output keyPaths.
 		v.currentKeyPath = append(v.currentKeyPath, KeyInfoFieldPath{Path: currentPath, IsExternal: true})
+		// A missing field also prevents supplying the key unless it is provided.
+		if !isProvided {
+			v.hasExternalFields = true
+		}
 		// TODO: report an error
 		return
 	}
