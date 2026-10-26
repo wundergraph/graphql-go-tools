@@ -1523,6 +1523,10 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 		}
 
 		if hasErrors {
+			// The pass through fields below go unwalked.
+			if r.currentDefer != nil && len(passThroughFields) > 0 {
+				r.walkSkipped = true
+			}
 			return true
 		}
 	}

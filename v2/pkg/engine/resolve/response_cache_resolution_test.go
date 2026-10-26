@@ -148,3 +148,19 @@ func TestRemainingLifetimes(t *testing.T) {
 	require.Equal(t, time.Minute, items[0].TTL, "the originals are kept")
 	require.Empty(t, remainingLifetimes(items, time.Minute))
 }
+
+// A deferred field's null stops the walk before the pass through fields.
+func TestResolveDeferBatchFailsOnUnwalkedPassThrough(t *testing.T) {
+	data := &Object{Fields: []*Field{
+		{Name: []byte("nested"), Value: &Object{Path: []string{"nested"}, Nullable: true, Fields: []*Field{
+			{Name: []byte("bad"), Value: &String{Path: []string{"bad"}, Nullable: true}, Defer: &DeferField{DeferID: 1}},
+		}}},
+		{Name: []byte("must"), Value: &String{Path: []string{"must"}}, Defer: &DeferField{DeferID: 1}},
+	}}
+	res := NewResolvable(nil, ResolvableOptions{})
+	require.NoError(t, res.Init(NewContext(context.Background()), []byte(`{"nested":{"bad":42},"must":null}`), ast.OperationTypeQuery))
+	res.currentDefer = &DeferDescriptor{ID: 1}
+	var outstanding int64 = 1
+	_, _ = res.ResolveDeferBatch(data, &bytes.Buffer{}, &outstanding)
+	require.True(t, res.walkFailed)
+}
