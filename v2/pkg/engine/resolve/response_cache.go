@@ -520,6 +520,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	headers := responseCacheHeaders(res)
+	collectedAt := time.Now()
 	freshness := caching.FreshnessOf(headers, res.sentHeaders, sub.ttl)
 	if freshness.Decision != caching.StoreDecisionStored {
 		res.responseCache.StoreDecision = freshness.Decision
@@ -586,7 +587,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	prepared.responseCacheItems = items
-	prepared.responseCacheCollectedAt = time.Now()
+	prepared.responseCacheCollectedAt = collectedAt
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	res.responseCache.StoreDecision = storeDecisionFor(items)
 	if res.responseCache.StoreDecision == caching.StoreDecisionStored {
@@ -803,6 +804,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	// and so is being private. Checked per entry, after its errors, as the
 	// single-fetch path does.
 	headers := responseCacheHeaders(res)
+	collectedAt := time.Now()
 	freshness := caching.FreshnessOf(headers, res.sentHeaders, sub.ttl)
 	headerDecision := freshness.Decision
 
@@ -887,7 +889,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	}
 
 	prepared.responseCacheItems = items
-	prepared.responseCacheCollectedAt = time.Now()
+	prepared.responseCacheCollectedAt = collectedAt
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	if len(items) > 0 {
 		storeDecision = caching.StoreDecisionStored
