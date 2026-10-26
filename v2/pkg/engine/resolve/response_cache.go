@@ -575,6 +575,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	prepared.responseCacheItems = items
+	prepared.responseCacheCollectedAt = time.Now()
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	res.responseCache.StoreDecision = storeDecisionFor(items)
 	if res.responseCache.StoreDecision == caching.StoreDecisionStored {
@@ -873,6 +874,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	}
 
 	prepared.responseCacheItems = items
+	prepared.responseCacheCollectedAt = time.Now()
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	if len(items) > 0 {
 		storeDecision = caching.StoreDecisionStored
@@ -1022,8 +1024,9 @@ func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
 
 // responseCacheWrite is one fetch's entries, held until the response resolves.
 type responseCacheWrite struct {
-	subgraph string
-	items    []caching.Item
+	subgraph    string
+	items       []caching.Item
+	collectedAt time.Time
 }
 
 // responseCacheHold keeps what responseCacheCollect gathered for
@@ -1033,14 +1036,15 @@ func (l *Loader) responseCacheHold(prepared *preparedFetch) {
 		return
 	}
 	l.responseCacheHeldMu.Lock()
-	l.responseCacheHeld = append(l.responseCacheHeld, responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems})
+	l.responseCacheHeld = append(l.responseCacheHeld, responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems, collectedAt: prepared.responseCacheCollectedAt})
 	l.responseCacheHeldMu.Unlock()
 	prepared.responseCacheItems = nil
 }
 
 // responseCacheCommit writes the held entries, or drops them when resolution
-// found a value of the wrong type. Nulls don't count: federation reports a
-// missing entity that way, and a cached null resolves like a fetched one.
+// found a value of the wrong type or left values unchecked. A null alone
+// doesn't count: federation reports a missing entity that way, and a cached
+// null resolves like a fetched one. Time since collection comes off each TTL.
 func (l *Loader) responseCacheCommit(resolved bool) {
 	l.responseCacheHeldMu.Lock()
 	held := l.responseCacheHeld
@@ -1050,10 +1054,29 @@ func (l *Loader) responseCacheCommit(resolved bool) {
 		return
 	}
 	for _, write := range held {
-		if err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, write.items); err != nil {
-			l.reportResponseCacheError(ResponseCacheOperationWrite, write.subgraph, fmt.Errorf("response cache write of %d entities: %w", len(write.items), err))
+		items := remainingLifetimes(write.items, time.Since(write.collectedAt))
+		if len(items) == 0 {
+			continue
+		}
+		if err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items); err != nil {
+			l.reportResponseCacheError(ResponseCacheOperationWrite, write.subgraph, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
 		}
 	}
+}
+
+// remainingLifetimes is items with elapsed taken off each TTL, without the
+// ones it used up. Copies, leaving the held items as collected.
+func remainingLifetimes(items []caching.Item, elapsed time.Duration) []caching.Item {
+	if elapsed <= 0 {
+		return items
+	}
+	out := make([]caching.Item, 0, len(items))
+	for _, item := range items {
+		if item.TTL -= elapsed; item.TTL > 0 {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func responseCacheHeaders(res *result) http.Header {
