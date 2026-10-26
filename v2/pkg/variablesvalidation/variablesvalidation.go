@@ -3,8 +3,7 @@ package variablesvalidation
 import (
 	"bytes"
 	"fmt"
-	"strconv"
-	"strings"
+	"math"
 
 	"github.com/wundergraph/astjson"
 
@@ -16,30 +15,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
-
-// intCoercion is the result of integer values coercion.
-type intCoercion int
-
-const (
-	intValid intCoercion = iota
-	intNotInteger
-	intOutOfRange
-)
-
-// coerceJSONNumberToInt32 checks whether the JSON number token s is a plain integer
-// within the 32-bit signed range. Fractions and exponents are rejected, even "1.0" and "1e3".
-// JSON number format validation should be performed before this functioned is used, so the err in ParseInt
-// can be ignored.
-func coerceJSONNumberToInt32(s string) (int32, intCoercion) {
-	if strings.ContainsAny(s, ".eE") {
-		return 0, intNotInteger
-	}
-	n, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		return 0, intOutOfRange
-	}
-	return int32(n), intValid
-}
 
 type InvalidVariableError struct {
 	ExtensionCode string
@@ -519,20 +494,15 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 				return
 			}
 		case "Int":
-			if jsonValue.Type() != astjson.TypeNumber {
+			floatVal, err := jsonValue.Float64()
+			if err != nil || math.Trunc(floatVal) != floatVal {
 				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 
-			switch _, result := coerceJSONNumberToInt32(unsafebytes.BytesToString(jsonValue.MarshalTo(nil))); result {
-			case intNotInteger:
-				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
-				return
-			case intOutOfRange:
+			if floatVal < math.MinInt32 || floatVal > math.MaxInt32 {
 				v.renderVariableIntOutOfRangeError(jsonValue)
 				return
-			default:
-				break
 			}
 
 		case "Float":

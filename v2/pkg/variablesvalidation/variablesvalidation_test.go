@@ -578,23 +578,21 @@ func TestVariablesValidation(t *testing.T) {
 		assert.Equal(t, `Variable "$bar" got invalid value; Expected type "Foo" to be an object.`, err.Error())
 	})
 
-	t.Run("wrong Int value for Int variable (sent as Float with fractional 0)", func(t *testing.T) {
+	t.Run("correct Float value for Int variable (sent as Float with fractional 0)", func(t *testing.T) {
 		tc := testCase{
-			schema:    `type Query{ count(arg: Int!): Int! } type Echo { raw: String! }`,
-			operation: `query Count($count: Int!) { count(arg: $count) { raw} }`,
+			schema:    `type Query{ count(arg: Int!): Int! }`,
+			operation: `query Count($count: Int!) { count(arg: $count) }`,
 			variables: `{"count":1.0}`,
 		}
 
-		err := runTest(t, tc)
-		require.Error(t, err)
-		assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non-integer value`, err.Error())
+		require.NoError(t, runTest(t, tc))
 	})
 
-	t.Run("wrong Int value for Int variable (sent as exponential)", func(t *testing.T) {
+	t.Run("wrong Float value for Int variable (sent as Float with fractional !=0)", func(t *testing.T) {
 		tc := testCase{
-			schema:    `type Query{ count(arg: Int!): Int! } type Echo { raw: String! }`,
-			operation: `query Count($count: Int!) { count(arg: $count) { raw} }`,
-			variables: `{"count":1e3}`,
+			schema:    `type Query{ count(arg: Int!): Int! }`,
+			operation: `query Count($count: Int!) { count(arg: $count) }`,
+			variables: `{"count":1.1}`,
 		}
 
 		err := runTest(t, tc)
@@ -602,16 +600,82 @@ func TestVariablesValidation(t *testing.T) {
 		assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non-integer value`, err.Error())
 	})
 
-	t.Run("wrong Int value for Int variable (overflows int32)", func(t *testing.T) {
+	t.Run("correct Float value for Int variable (sent as exponential)", func(t *testing.T) {
 		tc := testCase{
-			schema:    `type Query{ count(arg: Int!): Int! } type Echo { raw: String! }`,
-			operation: `query Count($count: Int!) { count(arg: $count) { raw} }`,
-			variables: `{"count":1586759375663856238}`,
+			schema:    `type Query{ count(arg: Int!): Int! }`,
+			operation: `query Count($count: Int!) { count(arg: $count) }`,
+			variables: `{"count":1e3}`,
+		}
+
+		require.NoError(t, runTest(t, tc))
+	})
+
+	t.Run("positive edge value for Int32", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query{ count(arg: Int!): Int! }`,
+			operation: `query Count($count: Int!) { count(arg: $count) }`,
+			variables: `{"count":2147483647}`,
+		}
+
+		require.NoError(t, runTest(t, tc))
+	})
+
+	t.Run("negative edge value for Int32", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query{ count(arg: Int!): Int! }`,
+			operation: `query Count($count: Int!) { count(arg: $count) }`,
+			variables: `{"count":-2147483648}`,
+		}
+
+		require.NoError(t, runTest(t, tc))
+	})
+
+	t.Run("wrong Int value for Int variable (overflows int32 positively)", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query{ count(arg: Int!): Int! } `,
+			operation: `query Count($count: Int!) { count(arg: $count) }`,
+			variables: `{"count":2147483648}`,
 		}
 
 		err := runTest(t, tc)
 		require.Error(t, err)
 		assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non 32-bit signed integer value`, err.Error())
+	})
+
+	t.Run("wrong Int value for Int variable (overflows int32 negatively)", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query{ count(arg: Int!): Int! }`,
+			operation: `query Count($count: Int!) { count(arg: $count) }`,
+			variables: `{"count":-2147483649}`,
+		}
+
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non 32-bit signed integer value`, err.Error())
+	})
+
+	t.Run("wrong Int value passed as list", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query{ count(arg: [Int!]!): Int! }`,
+			operation: `query Count($count: [Int!]!) { count(arg: $count) }`,
+			variables: `{"count":[1.5]}`,
+		}
+
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$count" got invalid value at "count.[0]"; Int cannot represent non-integer value`, err.Error())
+	})
+
+	t.Run("wrong Int value passed as object", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query{ count(in: Input!): Int! } input Input { count: Int! }`,
+			operation: `query Count($in: Input!) { count(in: $in) }`,
+			variables: `{"in":{"count":1.2}}`,
+		}
+
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$in" got invalid value at "in.count"; Int cannot represent non-integer value`, err.Error())
 	})
 
 	t.Run("required field on present input object not provided - with variable content", func(t *testing.T) {
