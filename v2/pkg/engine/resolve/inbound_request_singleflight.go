@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -62,7 +63,7 @@ type InflightRequest struct {
 	SharedData any
 	// SurrogateKeys are the leader's response cache surrogate keys, so a follower
 	// serving the same body sends the same header.
-	SurrogateKeys []string
+	SurrogateKeys []caching.SurrogateKey
 	Err           error
 	ID            inboundRequestKey
 
