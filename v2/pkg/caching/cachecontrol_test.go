@@ -256,11 +256,16 @@ func TestFreshnessOfExpires(t *testing.T) {
 		want         StoreDecision
 		wantTTL      time.Duration
 		wantShared   bool
+		// wantClient is TTL less ClientShortfall.
+		wantClient *time.Duration
 	}{
 		{name: "expires alone is a lifetime", expires: []string{at(time.Minute)}, want: StoreDecisionStored, wantTTL: time.Minute},
 		{name: "expires outranks the fallback", cacheControl: "public", expires: []string{at(10 * time.Second)}, want: StoreDecisionStored, wantTTL: 10 * time.Second},
 		{name: "max-age outranks expires", cacheControl: "max-age=60", expires: []string{at(-time.Hour)}, want: StoreDecisionStored, wantTTL: time.Minute},
-		{name: "s-maxage outranks expires", cacheControl: "s-maxage=60", expires: []string{at(-time.Hour)}, want: StoreDecisionStored, wantTTL: time.Minute, wantShared: true},
+		{name: "s-maxage outranks expires for shared caches only", cacheControl: "s-maxage=60", expires: []string{at(-time.Hour)}, want: StoreDecisionStored, wantTTL: time.Minute, wantClient: new(time.Duration(0))},
+		{name: "expires 0 leaves a client nothing under s-maxage", cacheControl: "s-maxage=600", expires: []string{"0"}, want: StoreDecisionStored, wantTTL: 10 * time.Minute, wantClient: new(time.Duration(0))},
+		{name: "expires is the client's lifetime under s-maxage", cacheControl: "s-maxage=600", expires: []string{at(30 * time.Second)}, want: StoreDecisionStored, wantTTL: 10 * time.Minute, wantClient: new(30 * time.Second)},
+		{name: "max-age outranks expires for clients", cacheControl: "s-maxage=600, max-age=60", expires: []string{"0"}, want: StoreDecisionStored, wantTTL: 10 * time.Minute, wantClient: new(time.Minute)},
 		{name: "past expires", cacheControl: "public", expires: []string{at(-time.Hour)}, want: StoreDecisionNoLifetime},
 		{name: "expires equal to date", expires: []string{at(0)}, want: StoreDecisionNoLifetime},
 		{name: "expires 0 is expired", cacheControl: "public", expires: []string{"0"}, want: StoreDecisionNoLifetime},
@@ -289,6 +294,9 @@ func TestFreshnessOfExpires(t *testing.T) {
 			// Expires counts down from date, a second at most.
 			assert.InDelta(t, tc.wantTTL, f.TTL, float64(time.Second))
 			assert.Equal(t, tc.wantShared, f.SharedOnly)
+			if tc.wantClient != nil {
+				assert.InDelta(t, *tc.wantClient, f.TTL-f.ClientShortfall, float64(time.Second))
+			}
 		})
 	}
 }
