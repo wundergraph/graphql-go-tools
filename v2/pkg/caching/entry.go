@@ -3,6 +3,7 @@ package caching
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 )
 
 // Entry envelope. The first byte says what follows: a body carries its
@@ -37,12 +38,18 @@ var ErrEntryFormat = errors.New("cache entry is not in a known format")
 
 // EncodeItem picks the envelope the item calls for. Empty vary sets are
 // dropped, since a set names at least one header and DecodeEntry refuses a
-// record that says otherwise; with no set left the item is a body.
-func EncodeItem(item Item) []byte {
+// record that says otherwise; with no set left the item is a body. A key with
+// an unknown tier is refused, as DecodeEntry would refuse the entry.
+func EncodeItem(item Item) ([]byte, error) {
 	if sets := nonEmptySets(item.Vary); len(sets) > 0 {
-		return encodeVaryRecord(sets)
+		return encodeVaryRecord(sets), nil
 	}
-	return encodeEntry(item.Value, item.SurrogateKeys)
+	for _, surrogateKey := range item.SurrogateKeys {
+		if !surrogateKey.Tier.valid() {
+			return nil, fmt.Errorf("%w: %d, key %q", ErrInvalidSurrogateKeyTier, surrogateKey.Tier, item.Key)
+		}
+	}
+	return encodeEntry(item.Value, item.SurrogateKeys), nil
 }
 
 // nonEmptySets is sets without its empty members, and sets itself when there

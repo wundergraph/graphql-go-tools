@@ -16,6 +16,13 @@ func declared(values ...string) []SurrogateKey {
 	return out
 }
 
+func encodeItem(t *testing.T, item Item) []byte {
+	t.Helper()
+	encoded, err := EncodeItem(item)
+	require.NoError(t, err)
+	return encoded
+}
+
 func TestEntryRoundTrip(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -119,17 +126,22 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 		})
 	}
 
-	require.Equal(t, encodeVaryRecord(sets), EncodeItem(Item{Vary: sets, Value: []byte("ignored")}), "a record has no body")
-	require.Equal(t, encodeEntry([]byte("v"), declared("a")), EncodeItem(Item{Value: []byte("v"), SurrogateKeys: declared("a")}))
+	require.Equal(t, encodeVaryRecord(sets), encodeItem(t, Item{Vary: sets, Value: []byte("ignored")}), "a record has no body")
+	require.Equal(t, encodeEntry([]byte("v"), declared("a")), encodeItem(t, Item{Value: []byte("v"), SurrogateKeys: declared("a")}))
+
+	t.Run("unknown tier is refused", func(t *testing.T) {
+		_, err := EncodeItem(Item{Key: "k", Value: []byte("v"), SurrogateKeys: []SurrogateKey{{Value: "a", Tier: 255}}})
+		require.ErrorIs(t, err, ErrInvalidSurrogateKeyTier)
+	})
 
 	t.Run("empty sets are dropped so every record decodes", func(t *testing.T) {
-		withEmpty := EncodeItem(Item{Vary: [][]string{{"accept-language"}, {}, {"accept"}}})
+		withEmpty := encodeItem(t, Item{Vary: [][]string{{"accept-language"}, {}, {"accept"}}})
 		require.Equal(t, encodeVaryRecord([][]string{{"accept-language"}, {"accept"}}), withEmpty)
 		_, _, vary, err := DecodeEntry(withEmpty)
 		require.NoError(t, err)
 		require.Equal(t, [][]string{{"accept-language"}, {"accept"}}, vary)
 
-		onlyEmpty := EncodeItem(Item{Vary: [][]string{{}}, Value: []byte("v"), SurrogateKeys: declared("a")})
+		onlyEmpty := encodeItem(t, Item{Vary: [][]string{{}}, Value: []byte("v"), SurrogateKeys: declared("a")})
 		require.Equal(t, encodeEntry([]byte("v"), declared("a")), onlyEmpty, "no set left means a body")
 		value, surrogateKeys, vary, err := DecodeEntry(onlyEmpty)
 		require.NoError(t, err)

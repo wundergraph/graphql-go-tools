@@ -57,6 +57,8 @@ var (
 	ErrMissingTTL = errors.New("cache item requires a positive TTL")
 	ErrNoKeys     = errors.New("response cache lookup requires at least one key")
 	ErrNoItems    = errors.New("response cache write requires at least one item")
+
+	ErrInvalidSurrogateKeyTier = errors.New("surrogate key has an unknown tier")
 )
 
 type SetManyError struct {
