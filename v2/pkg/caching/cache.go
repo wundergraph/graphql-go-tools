@@ -38,7 +38,7 @@ type Item struct {
 	Vary [][]string
 	// Public is whether the response said public, so a hit says it only then.
 	Public bool
-	// SharedOnly is Freshness.SharedOnly: a hit gives a client no max-age of
+	// SharedOnly is CachePolicy.SharedOnly: a hit gives a client no max-age of
 	// its own. Stored and returned with the value.
 	SharedOnly bool
 	// ClientShortfall is how much less than TTL a client may keep the entry,

@@ -99,8 +99,8 @@ func TestTTL(t *testing.T) {
 				headers.Set("Cache-Control", tc.cacheControl)
 			}
 
-			f := FreshnessOf(headers, nil, tc.defaultTTL)
-			ttl, private, ok := f.TTL, f.Private, f.Decision == StoreDecisionStored
+			p := CachePolicyOf(headers, nil, tc.defaultTTL)
+			ttl, private, ok := p.TTL, p.Private, p.Decision == StoreDecisionStored
 			assert.Equal(t, tc.wantTTL > 0, ok)
 			assert.Equal(t, tc.wantTTL, ttl)
 			assert.Equal(t, tc.wantPrivate, private)
@@ -141,8 +141,8 @@ func TestTTLAge(t *testing.T) {
 			}
 			headers.Set("Age", tc.age)
 
-			f := FreshnessOf(headers, nil, defaultTTL)
-			ttl, ok := f.TTL, f.Decision == StoreDecisionStored
+			p := CachePolicyOf(headers, nil, defaultTTL)
+			ttl, ok := p.TTL, p.Decision == StoreDecisionStored
 			assert.Equal(t, tc.wantTTL > 0, ok)
 			assert.Equal(t, tc.wantTTL, ttl)
 		})
@@ -179,8 +179,8 @@ func TestLifetime(t *testing.T) {
 				headers.Set("Cache-Control", tc.cacheControl)
 			}
 
-			f := FreshnessOf(headers, nil, tc.defaultTTL)
-			ttl, decision := f.TTL, f.Decision
+			p := CachePolicyOf(headers, nil, tc.defaultTTL)
+			ttl, decision := p.TTL, p.Decision
 			assert.Equal(t, tc.want, decision)
 			assert.NotEmpty(t, decision.String())
 
@@ -191,7 +191,7 @@ func TestLifetime(t *testing.T) {
 	}
 }
 
-func TestFreshnessOf(t *testing.T) {
+func TestCachePolicyOf(t *testing.T) {
 	t.Parallel()
 
 	const defaultTTL = 30 * time.Second
@@ -205,22 +205,22 @@ func TestFreshnessOf(t *testing.T) {
 		wantTTL       time.Duration
 		wantPrivate   bool
 		wantPublic    bool
-		wantShortfall time.Duration
+		wantClientTTL time.Duration
 		wantShared    bool
 	}{
-		{name: "authorized without public is private", cacheControl: "max-age=60", sent: authorized, wantTTL: time.Minute, wantPrivate: true},
-		{name: "authorized with public is shared", cacheControl: "public, max-age=60", sent: authorized, wantTTL: time.Minute, wantPublic: true},
+		{name: "authorized without public is private", cacheControl: "max-age=60", sent: authorized, wantTTL: time.Minute, wantPrivate: true, wantClientTTL: time.Minute},
+		{name: "authorized with public is shared", cacheControl: "public, max-age=60", sent: authorized, wantTTL: time.Minute, wantPublic: true, wantClientTTL: time.Minute},
 		{name: "authorized with s-maxage is shared", cacheControl: "s-maxage=60", sent: authorized, wantTTL: time.Minute, wantShared: true},
-		{name: "authorized with must-revalidate is shared", cacheControl: "must-revalidate, max-age=60", sent: authorized, wantTTL: time.Minute},
-		{name: "unauthorized without public is shared", cacheControl: "max-age=60", wantTTL: time.Minute},
-		{name: "max-age under s-maxage is the client's", cacheControl: "public, max-age=60, s-maxage=600", wantTTL: 600 * time.Second, wantPublic: true, wantShortfall: 540 * time.Second},
-		{name: "max-age over s-maxage leaves no shortfall", cacheControl: "max-age=600, s-maxage=60", wantTTL: time.Minute},
-		{name: "age comes off both", cacheControl: "max-age=60, s-maxage=600", age: "30", wantTTL: 570 * time.Second, wantShortfall: 540 * time.Second},
-		{name: "a stale max-age leaves the client nothing", cacheControl: "max-age=10, s-maxage=600", age: "30", wantTTL: 570 * time.Second, wantShortfall: 570 * time.Second},
-		{name: "no max-age, no shortfall", cacheControl: "public", wantTTL: defaultTTL, wantPublic: true, wantShared: true},
+		{name: "authorized with must-revalidate is shared", cacheControl: "must-revalidate, max-age=60", sent: authorized, wantTTL: time.Minute, wantClientTTL: time.Minute},
+		{name: "unauthorized without public is shared", cacheControl: "max-age=60", wantTTL: time.Minute, wantClientTTL: time.Minute},
+		{name: "max-age under s-maxage is the client's", cacheControl: "public, max-age=60, s-maxage=600", wantTTL: 600 * time.Second, wantPublic: true, wantClientTTL: time.Minute},
+		{name: "max-age over s-maxage is capped at it", cacheControl: "max-age=600, s-maxage=60", wantTTL: time.Minute, wantClientTTL: time.Minute},
+		{name: "age comes off both", cacheControl: "max-age=60, s-maxage=600", age: "30", wantTTL: 570 * time.Second, wantClientTTL: 30 * time.Second},
+		{name: "a stale max-age leaves the client nothing", cacheControl: "max-age=10, s-maxage=600", age: "30", wantTTL: 570 * time.Second},
+		{name: "public without max-age is shared only", cacheControl: "public", wantTTL: defaultTTL, wantPublic: true, wantShared: true},
 		{name: "s-maxage alone is shared only", cacheControl: "s-maxage=60", age: "20", wantTTL: 40 * time.Second, wantShared: true},
-		{name: "a fallback without public is not shared only", cacheControl: "must-revalidate", wantTTL: defaultTTL},
-		{name: "a private fallback is not shared only", cacheControl: "private", wantTTL: defaultTTL, wantPrivate: true},
+		{name: "a fallback without public is not shared only", cacheControl: "must-revalidate", wantTTL: defaultTTL, wantClientTTL: defaultTTL},
+		{name: "a private fallback is not shared only", cacheControl: "private", wantTTL: defaultTTL, wantPrivate: true, wantClientTTL: defaultTTL},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -228,18 +228,18 @@ func TestFreshnessOf(t *testing.T) {
 			if tc.age != "" {
 				headers.Set("Age", tc.age)
 			}
-			f := FreshnessOf(headers, tc.sent, defaultTTL)
-			assert.Equal(t, StoreDecisionStored, f.Decision)
-			assert.Equal(t, tc.wantTTL, f.TTL)
-			assert.Equal(t, tc.wantPrivate, f.Private)
-			assert.Equal(t, tc.wantPublic, f.Public)
-			assert.Equal(t, tc.wantShortfall, f.ClientShortfall)
-			assert.Equal(t, tc.wantShared, f.SharedOnly)
+			p := CachePolicyOf(headers, tc.sent, defaultTTL)
+			assert.Equal(t, StoreDecisionStored, p.Decision)
+			assert.Equal(t, tc.wantTTL, p.TTL)
+			assert.Equal(t, tc.wantPrivate, p.Private)
+			assert.Equal(t, tc.wantPublic, p.Public)
+			assert.Equal(t, tc.wantClientTTL, p.ClientTTL)
+			assert.Equal(t, tc.wantShared, p.SharedOnly)
 		})
 	}
 }
 
-func TestFreshnessOfExpires(t *testing.T) {
+func TestCachePolicyOfExpires(t *testing.T) {
 	t.Parallel()
 
 	const defaultTTL = 30 * time.Second
@@ -256,8 +256,7 @@ func TestFreshnessOfExpires(t *testing.T) {
 		want         StoreDecision
 		wantTTL      time.Duration
 		wantShared   bool
-		// wantClient is TTL less ClientShortfall.
-		wantClient *time.Duration
+		wantClient   *time.Duration
 	}{
 		{name: "expires alone is a lifetime", expires: []string{at(time.Minute)}, want: StoreDecisionStored, wantTTL: time.Minute},
 		{name: "expires outranks the fallback", cacheControl: "public", expires: []string{at(10 * time.Second)}, want: StoreDecisionStored, wantTTL: 10 * time.Second},
@@ -285,17 +284,17 @@ func TestFreshnessOfExpires(t *testing.T) {
 			if !tc.noDate {
 				headers.Set("Date", at(tc.date))
 			}
-			f := FreshnessOf(headers, nil, defaultTTL)
-			assert.Equal(t, tc.want, f.Decision)
+			p := CachePolicyOf(headers, nil, defaultTTL)
+			assert.Equal(t, tc.want, p.Decision)
 			if tc.noDate {
-				assert.InDelta(t, time.Hour, f.TTL, float64(2*time.Second))
+				assert.InDelta(t, time.Hour, p.TTL, float64(2*time.Second))
 				return
 			}
 			// Expires counts down from date, a second at most.
-			assert.InDelta(t, tc.wantTTL, f.TTL, float64(time.Second))
-			assert.Equal(t, tc.wantShared, f.SharedOnly)
+			assert.InDelta(t, tc.wantTTL, p.TTL, float64(time.Second))
+			assert.Equal(t, tc.wantShared, p.SharedOnly)
 			if tc.wantClient != nil {
-				assert.InDelta(t, *tc.wantClient, f.TTL-f.ClientShortfall, float64(time.Second))
+				assert.InDelta(t, *tc.wantClient, p.ClientTTL, float64(time.Second))
 			}
 		})
 	}
