@@ -108,6 +108,7 @@ func TestResponseCacheStoresOnlyResolvedResponses(t *testing.T) {
 // slowWriter takes delay over its first write, as a slow client would.
 type slowWriter struct {
 	bytes.Buffer
+
 	delay time.Duration
 }
 
@@ -118,6 +119,7 @@ func (w *slowWriter) Write(p []byte) (int, error) {
 }
 
 func TestResponseCacheCommitKeepsTheOriginLifetime(t *testing.T) {
+	t.Parallel()
 	for _, arena := range []bool{false, true} {
 		t.Run(fmt.Sprintf("arena=%v", arena), func(t *testing.T) {
 			t.Parallel()
