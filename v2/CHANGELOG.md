@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.30.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.1...v2.30.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* entity calls with multiple requested types incorrectly filter representations ([#1733](https://github.com/wundergraph/graphql-go-tools/issues/1733)) ([b4089a2](https://github.com/wundergraph/graphql-go-tools/commit/b4089a2243f5b0deb23cdf88b9061237411d2685))
+* handle additional fields in entity calls ([#1732](https://github.com/wundergraph/graphql-go-tools/issues/1732)) ([af5ff7f](https://github.com/wundergraph/graphql-go-tools/commit/af5ff7f99019dba7c23671f9e8ce840144ea59d0))
+
 ## [2.30.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.0...v2.30.1) (2026-10-26)
 
 
