@@ -41,9 +41,9 @@ type Item struct {
 	// SharedOnly is CachePolicy.SharedOnly: a hit gives a client no max-age of
 	// its own. Stored and returned with the value.
 	SharedOnly bool
-	// ClientShortfall is how much less than TTL a client may keep the entry,
+	// ClientTTLReduction is how much less than TTL a client may keep the entry,
 	// as when max-age is under s-maxage. Stored and returned with the value.
-	ClientShortfall time.Duration
+	ClientTTLReduction time.Duration
 	// FetchedAt is when the fetch behind the item started. A store drops the
 	// item if one of its tags was invalidated since. Not stored.
 	FetchedAt time.Time
