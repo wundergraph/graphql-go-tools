@@ -460,7 +460,7 @@ func (h *hitLifetimes) add(ttl, clientTTL time.Duration, public, sharedOnly bool
 func hitLifetimesOf(items []caching.Item) hitLifetimes {
 	var h hitLifetimes
 	for _, item := range items {
-		h.add(item.TTL, max(item.TTL-item.ClientShortfall, 0), item.Public, item.SharedOnly)
+		h.add(item.TTL, max(item.TTL-item.ClientTTLReduction, 0), item.Public, item.SharedOnly)
 	}
 	return h
 }
@@ -561,11 +561,11 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			continue
 		}
 		item := caching.Item{
-			Value:           value.MarshalTo(nil),
-			TTL:             policy.TTL,
-			Public:          policy.Public,
-			SharedOnly:      policy.SharedOnly,
-			ClientShortfall: policy.TTL - policy.ClientTTL,
+			Value:              value.MarshalTo(nil),
+			TTL:                policy.TTL,
+			Public:             policy.Public,
+			SharedOnly:         policy.SharedOnly,
+			ClientTTLReduction: policy.TTL - policy.ClientTTL,
 		}
 		// Indexed by i like the key: a null entity is skipped above without
 		// consuming a tag list, so the two stay aligned.
@@ -862,11 +862,11 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 				continue
 			}
 			item := caching.Item{
-				Value:           value.MarshalTo(nil),
-				TTL:             policy.TTL,
-				Public:          policy.Public,
-				SharedOnly:      policy.SharedOnly,
-				ClientShortfall: policy.TTL - policy.ClientTTL,
+				Value:              value.MarshalTo(nil),
+				TTL:                policy.TTL,
+				Public:             policy.Public,
+				SharedOnly:         policy.SharedOnly,
+				ClientTTLReduction: policy.TTL - policy.ClientTTL,
 			}
 
 			// Declared tags are left out: apolloEntityCacheTags is one flat
