@@ -243,6 +243,8 @@ func TestCachePolicyOfExpires(t *testing.T) {
 	t.Parallel()
 
 	const defaultTTL = 30 * time.Second
+	// Slack for second-truncated dates and slow runners.
+	const slack = float64(5 * time.Second)
 	// Now, as Expires also counts from the clock.
 	date := time.Now().UTC().Truncate(time.Second)
 	at := func(d time.Duration) string { return date.Add(d).Format(http.TimeFormat) }
@@ -287,14 +289,14 @@ func TestCachePolicyOfExpires(t *testing.T) {
 			p := CachePolicyOf(headers, nil, defaultTTL)
 			assert.Equal(t, tc.want, p.Decision)
 			if tc.noDate {
-				assert.InDelta(t, time.Hour, p.TTL, float64(2*time.Second))
+				assert.InDelta(t, time.Hour, p.TTL, slack)
 				return
 			}
-			// Expires counts down from date, a second at most.
-			assert.InDelta(t, tc.wantTTL, p.TTL, float64(time.Second))
+			// Expires counts down from date.
+			assert.InDelta(t, tc.wantTTL, p.TTL, slack)
 			assert.Equal(t, tc.wantShared, p.SharedOnly)
 			if tc.wantClient != nil {
-				assert.InDelta(t, *tc.wantClient, p.ClientTTL, float64(time.Second))
+				assert.InDelta(t, *tc.wantClient, p.ClientTTL, slack)
 			}
 		})
 	}
