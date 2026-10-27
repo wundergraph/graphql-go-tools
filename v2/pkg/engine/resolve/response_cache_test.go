@@ -681,8 +681,8 @@ func TestHitLifetimesTTL(t *testing.T) {
 }
 
 func TestHitLifetimesClient(t *testing.T) {
-	clientItem := func(ttl, shortfall time.Duration) caching.Item {
-		return caching.Item{TTL: ttl, ClientShortfall: shortfall, Public: true}
+	clientItem := func(ttl, reduction time.Duration) caching.Item {
+		return caching.Item{TTL: ttl, ClientTTLReduction: reduction, Public: true}
 	}
 	sharedItem := func(ttl time.Duration) caching.Item {
 		return caching.Item{TTL: ttl, SharedOnly: true, Public: true}
@@ -694,7 +694,7 @@ func TestHitLifetimesClient(t *testing.T) {
 		wantTTL    time.Duration
 		wantShared bool
 	}{
-		{name: "max-age net of shortfall", items: []caching.Item{clientItem(60*time.Second, 50*time.Second)}, wantTTL: 10 * time.Second},
+		{name: "max-age net of reduction", items: []caching.Item{clientItem(60*time.Second, 50*time.Second)}, wantTTL: 10 * time.Second},
 		{name: "shared only gives no client lifetime", items: []caching.Item{sharedItem(60 * time.Second)}, wantShared: true},
 		{name: "shared only entries leave the client lifetime to the others", items: []caching.Item{sharedItem(5 * time.Second), clientItem(60*time.Second, 0)}, wantTTL: 60 * time.Second},
 	}

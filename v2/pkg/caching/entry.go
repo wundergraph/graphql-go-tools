@@ -15,7 +15,7 @@ import (
 // kind      1 byte, entryFormatBody or entryFormatRecord
 // body:
 // flags     1 byte, bit 0 public, bit 1 shared only
-// shortfall uvarint, ClientShortfall in ms
+// reduction uvarint, ClientTTLReduction in ms
 // count     uvarint, number of surrogate keys
 // keys      count times: 1 byte tier, uvarint byte length, then the key, that many bytes
 // value     everything after the last key, the cached body itself, no length prefix
@@ -26,7 +26,7 @@ import (
 // Example: public Value {"id":42} with keys "subgraph-users" and declared "user-42"
 // 04                   kind: body
 // 01                   flags: public
-// 00                   shortfall: none
+// 00                   reduction: none
 // 02                   count: 2 keys
 // 00 0e subgraph-users tier subgraph, length 14, then the bytes
 // 02 07 user-42        tier declared, length 7, then the bytes
@@ -76,7 +76,7 @@ func encodeBody(item Item) []byte {
 		flags |= entryFlagSharedOnly
 	}
 	out = append(out, flags)
-	out = binary.AppendUvarint(out, uint64(max(item.ClientShortfall, 0)/time.Millisecond))
+	out = binary.AppendUvarint(out, uint64(max(item.ClientTTLReduction, 0)/time.Millisecond))
 	out = binary.AppendUvarint(out, uint64(len(item.SurrogateKeys)))
 	for _, surrogateKey := range item.SurrogateKeys {
 		out = append(out, byte(surrogateKey.Tier))
@@ -150,8 +150,8 @@ func DecodeItem(b []byte) (Item, error) {
 			return Item{}, ErrEntryFormat
 		}
 		flags := rest[0]
-		shortfall, n := binary.Uvarint(rest[1:])
-		if n <= 0 || shortfall > math.MaxInt64/uint64(time.Millisecond) {
+		reduction, n := binary.Uvarint(rest[1:])
+		if n <= 0 || reduction > math.MaxInt64/uint64(time.Millisecond) {
 			return Item{}, ErrEntryFormat
 		}
 		surrogateKeys, value, ok := readTieredList(rest[1+n:])
@@ -159,11 +159,11 @@ func DecodeItem(b []byte) (Item, error) {
 			return Item{}, ErrEntryFormat
 		}
 		return Item{
-			Value:           value,
-			SurrogateKeys:   surrogateKeys,
-			Public:          flags&entryFlagPublic != 0,
-			SharedOnly:      flags&entryFlagSharedOnly != 0,
-			ClientShortfall: time.Duration(shortfall) * time.Millisecond,
+			Value:              value,
+			SurrogateKeys:      surrogateKeys,
+			Public:             flags&entryFlagPublic != 0,
+			SharedOnly:         flags&entryFlagSharedOnly != 0,
+			ClientTTLReduction: time.Duration(reduction) * time.Millisecond,
 		}, nil
 
 	case entryFormatRecord:

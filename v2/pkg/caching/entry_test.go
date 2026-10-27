@@ -75,7 +75,7 @@ func TestEntryDecodeRefuses(t *testing.T) {
 		{name: "unknown tier", input: unknownTier},
 		{name: "surrogate key count larger than the input", input: []byte{entryFormatBody, 0, 0, 0xff, 0xff, 0x7f}},
 		{name: "cut before the flags", input: encoded[:1]},
-		{name: "cut before the shortfall", input: encoded[:2]},
+		{name: "cut before the reduction", input: encoded[:2]},
 		{name: "cut before the count", input: encoded[:3]},
 		{name: "cut before a tier", input: encoded[:4]},
 		{name: "cut inside a surrogate key length", input: encoded[:5]},
@@ -169,19 +169,19 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 }
 
 func TestClientEntryRoundTrip(t *testing.T) {
-	item := Item{Value: []byte(`{"id":1}`), SurrogateKeys: declared("a", "b"), Public: true, ClientShortfall: 540 * time.Second}
+	item := Item{Value: []byte(`{"id":1}`), SurrogateKeys: declared("a", "b"), Public: true, ClientTTLReduction: 540 * time.Second}
 	got, err := DecodeItem(encodeItem(t, item))
 	require.NoError(t, err)
 	require.Equal(t, item.Value, got.Value)
 	require.Equal(t, item.SurrogateKeys, got.SurrogateKeys)
 	require.True(t, got.Public)
-	require.Equal(t, 540*time.Second, got.ClientShortfall)
+	require.Equal(t, 540*time.Second, got.ClientTTLReduction)
 
 	private, err := DecodeItem(encodeItem(t, Item{Value: []byte("v")}))
 	require.NoError(t, err)
 	require.False(t, private.Public)
 	require.False(t, private.SharedOnly)
-	require.Zero(t, private.ClientShortfall)
+	require.Zero(t, private.ClientTTLReduction)
 
 	shared, err := DecodeItem(encodeItem(t, Item{Value: []byte("v"), SharedOnly: true}))
 	require.NoError(t, err)
