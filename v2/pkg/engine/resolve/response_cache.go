@@ -374,14 +374,14 @@ func responseCacheVary(headers, sent http.Header) (responseVary, bool) {
 
 // append adds body under base or, when the answer varied, a record at base and
 // body under its variant. The record keeps seen so earlier variants stay
-// reachable; same tags so invalidation drops both.
+// reachable; same tags and FetchedAt so invalidation drops both.
 func (v responseVary) append(items []caching.Item, base string, body caching.Item, seen [][]string) []caching.Item {
 	if len(v.names) == 0 {
 		body.Key = base
 		return append(items, body)
 	}
 	body.Key = caching.VariantKey(base, v.digest)
-	items = append(items, caching.Item{Key: base, Vary: caching.MergeVarySets(v.names, seen), TTL: body.TTL, Tags: body.Tags})
+	items = append(items, caching.Item{Key: base, Vary: caching.MergeVarySets(v.names, seen), TTL: body.TTL, Tags: body.Tags, FetchedAt: body.FetchedAt})
 	return append(items, body)
 }
 

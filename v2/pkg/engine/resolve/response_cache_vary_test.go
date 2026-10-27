@@ -39,6 +39,7 @@ func TestResponseCacheVary(t *testing.T) {
 			loader, res := varyLoader(t, newTestCache(), "max-age=60", "Accept-Language", body, "", de)
 			// The digest is of the headers the request went out with, not what the builder says now.
 			loader.ctx.SubgraphHeadersBuilder = fr
+			res.responseCacheFetchedAt = time.Now()
 			items := collect(t, loader, res, public, nil)
 			require.Len(t, items, 4)
 
@@ -53,6 +54,7 @@ func TestResponseCacheVary(t *testing.T) {
 				require.JSONEq(t, fmt.Sprintf(`{"__typename":"User","id":%d}`, i+1), string(variant.Value))
 				require.Equal(t, variant.Tags, record.Tags, "invalidation drops both")
 				require.Equal(t, variant.TTL, record.TTL)
+				require.Equal(t, res.responseCacheFetchedAt, record.FetchedAt, "a store drops neither alone")
 			}
 		})
 
