@@ -933,3 +933,39 @@ func (s *MockServiceConnect) ResolveTestContainerDetails(ctx context.Context, re
 	}
 	return connect.NewResponse(resp), nil
 }
+
+// RequireStorageStorageAuditById forwards the Connect call to the gRPC implementation.
+func (s *MockServiceConnect) RequireStorageStorageAuditById(ctx context.Context, req *connect.Request[productv1.RequireStorageStorageAuditByIdRequest]) (*connect.Response[productv1.RequireStorageStorageAuditByIdResponse], error) {
+	resp, err := s.inner.RequireStorageStorageAuditById(connectCtxToGRPC(ctx, req.Header()), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ResolveStorageAuditRiskScore forwards the Connect call to the gRPC implementation.
+func (s *MockServiceConnect) ResolveStorageAuditRiskScore(ctx context.Context, req *connect.Request[productv1.ResolveStorageAuditRiskScoreRequest]) (*connect.Response[productv1.ResolveStorageAuditRiskScoreResponse], error) {
+	resp, err := s.inner.ResolveStorageAuditRiskScore(connectCtxToGRPC(ctx, req.Header()), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ResolveAuditFindingRemediation forwards the Connect call to the gRPC implementation.
+func (s *MockServiceConnect) ResolveAuditFindingRemediation(ctx context.Context, req *connect.Request[productv1.ResolveAuditFindingRemediationRequest]) (*connect.Response[productv1.ResolveAuditFindingRemediationResponse], error) {
+	resp, err := s.inner.ResolveAuditFindingRemediation(connectCtxToGRPC(ctx, req.Header()), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ResolveAuditRemediationEstimatedHours forwards the Connect call to the gRPC implementation.
+func (s *MockServiceConnect) ResolveAuditRemediationEstimatedHours(ctx context.Context, req *connect.Request[productv1.ResolveAuditRemediationEstimatedHoursRequest]) (*connect.Response[productv1.ResolveAuditRemediationEstimatedHoursResponse], error) {
+	resp, err := s.inner.ResolveAuditRemediationEstimatedHours(connectCtxToGRPC(ctx, req.Header()), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}

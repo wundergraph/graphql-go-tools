@@ -628,10 +628,12 @@ func (s *MockService) ResolveCategoryChildCategories(_ context.Context, req *pro
 		results[i] = &productv1.ResolveCategoryChildCategoriesResult{
 			ChildCategories: []*productv1.Category{
 				{
-					Id:   fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i),
-					Name: fmt.Sprintf("Child Category %s %d", ctx.GetName(), i),
-					Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER,
+					Id:            fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i),
+					Name:          fmt.Sprintf("Child Category %s %d", ctx.GetName(), i),
+					Kind:          productv1.CategoryKind_CATEGORY_KIND_OTHER,
+					Subcategories: createSubcategories(fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i), productv1.CategoryKind_CATEGORY_KIND_OTHER, 2),
 				},
+				// Subcategories is left null so nested resolvers see a mix of null and non-null parents.
 				{
 					Id:   fmt.Sprintf("child-category-%s-%d", ctx.GetId(), i+1),
 					Name: fmt.Sprintf("Child Category %s %d", ctx.GetName(), i+1),
@@ -1114,4 +1116,52 @@ func (s *MockService) ResolveCategoryMetricsAverageScore(_ context.Context, req 
 	return &productv1.ResolveCategoryMetricsAverageScoreResponse{
 		Result: results,
 	}, nil
+}
+
+// ResolveStorageAuditRiskScore implements productv1.ProductServiceServer.
+func (s *MockService) ResolveStorageAuditRiskScore(_ context.Context, req *productv1.ResolveStorageAuditRiskScoreRequest) (*productv1.ResolveStorageAuditRiskScoreResponse, error) {
+	results := make([]*productv1.ResolveStorageAuditRiskScoreResult, 0, len(req.GetContext()))
+
+	weight := req.GetFieldArgs().GetWeight()
+	for _, ctx := range req.GetContext() {
+		results = append(results, &productv1.ResolveStorageAuditRiskScoreResult{
+			RiskScore: float64(len(ctx.GetZone())) * weight,
+		})
+	}
+
+	return &productv1.ResolveStorageAuditRiskScoreResponse{Result: results}, nil
+}
+
+// ResolveAuditFindingRemediation implements productv1.ProductServiceServer.
+func (s *MockService) ResolveAuditFindingRemediation(_ context.Context, req *productv1.ResolveAuditFindingRemediationRequest) (*productv1.ResolveAuditFindingRemediationResponse, error) {
+	results := make([]*productv1.ResolveAuditFindingRemediationResult, 0, len(req.GetContext()))
+
+	detailed := req.GetFieldArgs().GetDetailed()
+	for _, ctx := range req.GetContext() {
+		description := fmt.Sprintf("Fix %s", ctx.GetCode())
+		if detailed {
+			description = fmt.Sprintf("Fix %s (severity %d)", ctx.GetCode(), ctx.GetSeverity())
+		}
+
+		results = append(results, &productv1.ResolveAuditFindingRemediationResult{
+			Remediation: &productv1.AuditRemediation{
+				Description: description,
+			},
+		})
+	}
+
+	return &productv1.ResolveAuditFindingRemediationResponse{Result: results}, nil
+}
+
+// ResolveAuditRemediationEstimatedHours implements productv1.ProductServiceServer.
+func (s *MockService) ResolveAuditRemediationEstimatedHours(_ context.Context, req *productv1.ResolveAuditRemediationEstimatedHoursRequest) (*productv1.ResolveAuditRemediationEstimatedHoursResponse, error) {
+	results := make([]*productv1.ResolveAuditRemediationEstimatedHoursResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		results = append(results, &productv1.ResolveAuditRemediationEstimatedHoursResult{
+			EstimatedHours: float64(len(ctx.GetDescription())) * 0.5,
+		})
+	}
+
+	return &productv1.ResolveAuditRemediationEstimatedHoursResponse{Result: results}, nil
 }
