@@ -80,7 +80,7 @@ func TestResponseCacheTrace(t *testing.T) {
 		require.True(t, written.Written)
 		require.Equal(t, written.Key, written.WrittenKey)
 		require.Equal(t, time.Minute.Nanoseconds(), written.WriteTTLNano)
-		require.Equal(t, []string{caching.SubgraphSurrogateKey("accounts")}, written.SurrogateKeys)
+		require.Equal(t, []string{caching.SubgraphSurrogateKey("accounts").Value}, written.SurrogateKeys)
 		require.Empty(t, written.DeclaredTags)
 		require.JSONEq(t, `{"me":"anonymous"}`, string(written.Value))
 
@@ -169,7 +169,7 @@ func TestResponseCacheTrace(t *testing.T) {
 		ctx.SetResponseCache(ResponseCacheOptions{
 			Store:      newTestCache(),
 			DefaultTTL: time.Minute,
-			TraceDetails: func(surrogateKeys []string) any {
+			TraceDetails: func(surrogateKeys []caching.SurrogateKey) any {
 				return map[string]int{"count": len(surrogateKeys)}
 			},
 		})

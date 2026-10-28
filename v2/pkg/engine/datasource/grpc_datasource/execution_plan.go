@@ -1440,10 +1440,11 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 	}
 
 	call := RPCCall{
-		ID:          callIndex,
-		ServiceName: r.resolveServiceName(subgraphName),
-		Kind:        CallKindRequired,
-		MethodName:  rpcConfig.RPC,
+		ID:                  callIndex,
+		ServiceName:         r.resolveServiceName(subgraphName),
+		Kind:                CallKindRequired,
+		MethodName:          rpcConfig.RPC,
+		RequestedEntityType: typeName,
 		ResponsePath: ast.Path{
 			{Kind: ast.FieldName, FieldName: []byte("_entities")},
 			{Kind: ast.FieldName, FieldName: []byte(rf.resultField.AliasOrPath())},
@@ -1454,7 +1455,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 				{
 					Name:          contextFieldName, // Static name for the context field.
 					ProtoTypeName: DataTypeMessage,
-					JSONPath:      "representations",
+					JSONPath:      representationsKey,
 					Repeated:      true,
 					Message: &RPCMessage{
 						Name: rpcConfig.RPC + "Context",

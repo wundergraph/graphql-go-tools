@@ -416,6 +416,9 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	return resp, err
 }
 
+// errDeduplicatedLeaderPanicked is what requests waiting on a panicked leader get.
+var errDeduplicatedLeaderPanicked = errors.New("deduplicated request failed: the request it waited on panicked")
+
 func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
 	resp := &GraphQLResolveInfo{}
 
@@ -437,6 +440,18 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		resp.ResponseWriteStartTime = responseWriteStart
 		resp.ResponseWriteDuration = time.Since(responseWriteStart)
 		return resp, err
+	}
+
+	if inflight != nil {
+		// A panicking leader would leave its flight registered, and every
+		// later identical request would wait on it forever.
+		defer func() {
+			if p := recover(); p != nil {
+				// Not the panic value: followers may write their error to a client.
+				r.inboundRequestSingleFlight.FinishErr(inflight, errDeduplicatedLeaderPanicked)
+				panic(p)
+			}
+		}()
 	}
 
 	start := time.Now()
