@@ -1700,7 +1700,7 @@ func (r *Resolver) UnsubscribeClient(connectionID ConnectionID) error {
 // prepareTrigger safely gets the headers for the trigger Subgraph and computes the hash across headers and input
 // the generated hash is the unique triggerID
 // the headers must be forwarded to the DataSource to create the trigger
-func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, negotiatedGuarantee NegotiatedDeliveryGuarantee, source SubscriptionDataSource) (
+func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, negotiated NegotiatedParams, source SubscriptionDataSource) (
 	headers http.Header, triggerID uint64, err error) {
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
@@ -1719,18 +1719,18 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte,
 		}
 	}
 
-	hashDeliveryGuarantee(negotiatedGuarantee, keyGen)
+	hashNegotiatedParams(negotiated, keyGen)
 
 	triggerID = keyGen.Sum64()
 
 	return headers, triggerID, nil
 }
 
-// hashDeliveryGuarantee writes the non-empty fields of the negotiated guarantee into xxh,
+// hashNegotiatedParams writes the non-empty fields of the negotiated guarantee into xxh,
 // so clients with different guarantees or resume positions never share a trigger.
 // Each field is prefixed with its tag and length to keep the encoding unambiguous.
 // Zero values are skipped, so trigger IDs of sources without a guarantee stay unchanged.
-func hashDeliveryGuarantee(negotiated NegotiatedDeliveryGuarantee, xxh *xxhash.Digest) {
+func hashNegotiatedParams(negotiated NegotiatedParams, xxh *xxhash.Digest) {
 	write := func(tag byte, value string) {
 		if value == "" {
 			return
@@ -1741,8 +1741,8 @@ func hashDeliveryGuarantee(negotiated NegotiatedDeliveryGuarantee, xxh *xxhash.D
 		_, _ = xxh.Write(b[:1+n])
 		_, _ = xxh.WriteString(value)
 	}
-	write(1, negotiated.Guarantee)
-	write(2, negotiated.ResumeToken)
+	write(1, negotiated.SubscriptionCursor.Guarantee)
+	write(2, negotiated.SubscriptionCursor.ResumeToken)
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
@@ -1790,11 +1790,11 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return writeFlushComplete(writer, body)
 	}
 
-	negotiatedGuarantee, err := subscription.Trigger.Source.ValidateDeliveryGuarantee(ctx, input)
+	negotiated, err := subscription.Trigger.Source.Negotiate(ctx, input)
 	if err != nil {
 		return err
 	}
-	ctx.deliveryGuarantee = negotiatedGuarantee
+	ctx.negotiated = negotiated
 
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {
 		input, err = hook.SubscriptionOnCreate(ctx.Context(), input)
@@ -1808,7 +1808,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		ctx,
 		subscription.Trigger.SourceName,
 		input,
-		negotiatedGuarantee,
+		negotiated,
 		subscription.Trigger.Source,
 	)
 	if err != nil {
@@ -1917,11 +1917,11 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return writeFlushComplete(writer, body)
 	}
 
-	negotiatedGuarantee, err := subscription.Trigger.Source.ValidateDeliveryGuarantee(ctx, input)
+	negotiated, err := subscription.Trigger.Source.Negotiate(ctx, input)
 	if err != nil {
 		return err
 	}
-	ctx.deliveryGuarantee = negotiatedGuarantee
+	ctx.negotiated = negotiated
 
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {
 		input, err = hook.SubscriptionOnCreate(ctx.Context(), input)
@@ -1936,7 +1936,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		ctx,
 		subscription.Trigger.SourceName,
 		input,
-		negotiatedGuarantee,
+		negotiated,
 		subscription.Trigger.Source,
 	)
 	if err != nil {

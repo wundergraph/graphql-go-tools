@@ -63,11 +63,8 @@ type Context struct {
 	// Used to compute the actual cost.
 	TypeNameStats map[string]TypeNameStats
 
-	// deliveryGuarantee is the delivery guarantee negotiated with the subscribing client in
-	// case the context is for EDFS / Cosmo Streams subscriptions, together with the
-	// position a resuming client continues from. It's the zero value for plain GraphQL
-	// subscriptions or other non-subscription operations.
-	deliveryGuarantee NegotiatedDeliveryGuarantee
+	// subscription characteristics negotiated with the subscribing client.
+	negotiated NegotiatedParams
 
 	// GetDeduplicationData is called after the leader of an inbound singleflight request
 	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
@@ -543,11 +540,11 @@ func (c *Context) Free() {
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
 	c.responseCache = nil
-	c.deliveryGuarantee = NegotiatedDeliveryGuarantee{}
+	c.negotiated = NegotiatedParams{}
 }
 
-func (c *Context) DeliveryGuarantee() NegotiatedDeliveryGuarantee {
-	return c.deliveryGuarantee
+func (c *Context) NegotiatedParams() NegotiatedParams {
+	return c.negotiated
 }
 
 func (c *Context) VariablesView() VariablesView {

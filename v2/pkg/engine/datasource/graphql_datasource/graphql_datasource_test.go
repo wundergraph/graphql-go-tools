@@ -9125,12 +9125,12 @@ func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
 func TestSubscriptionSource_DeliveryGuarantee(t *testing.T) {
 	input := []byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`)
 
-	t.Run("ValidateDeliveryGuarantee accepts input without negotiating a guarantee", func(t *testing.T) {
+	t.Run("Negotiate accepts input without negotiating a guarantee", func(t *testing.T) {
 		// Plain GraphQL subscriptions must never be rejected and have no delivery guarantee to negotiate.
 		subscriptionSource := SubscriptionSource{}
 		ctx := resolve.NewContext(t.Context())
 
-		negotiated, err := subscriptionSource.ValidateDeliveryGuarantee(ctx, input)
+		negotiated, err := subscriptionSource.Negotiate(ctx, input)
 		require.NoError(t, err)
 		assert.Empty(t, negotiated)
 	})

@@ -2153,9 +2153,9 @@ func (s *SubscriptionSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) 
 	return err
 }
 
-// ValidateDeliveryGuarantee accepts every input. Plain GraphQL subscriptions have nothing to validate.
-func (s *SubscriptionSource) ValidateDeliveryGuarantee(_ *resolve.Context, _ []byte) (resolve.NegotiatedDeliveryGuarantee, error) {
-	return resolve.NegotiatedDeliveryGuarantee{}, nil
+// Negotiate accepts every input. Plain GraphQL subscriptions have nothing to negotiate.
+func (s *SubscriptionSource) Negotiate(_ *resolve.Context, _ []byte) (resolve.NegotiatedParams, error) {
+	return resolve.NegotiatedParams{}, nil
 }
 
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
