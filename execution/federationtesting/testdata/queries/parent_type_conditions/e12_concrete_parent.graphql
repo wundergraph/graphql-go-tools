@@ -1,0 +1,15 @@
+# A concrete parent with a fragment on its own type and on an interface it implements.
+# Normalization flattens both fragments, so no __typename is needed.
+query ConcreteParent {
+    me {
+        username
+        ... on User {
+            history {
+                __typename
+            }
+        }
+        ... on Identifiable {
+            id
+        }
+    }
+}
