@@ -1298,6 +1298,7 @@ func TestExecutionValidation(t *testing.T) {
 						definition := `
 							scalar String
 							enum Status { OPEN }
+							enum Priority { HIGH }
 							schema { query: Query }
 							type Query {
 								parent: Parent
@@ -1328,6 +1329,7 @@ func TestExecutionValidation(t *testing.T) {
 								name: String!
 								otherName: String!
 								otherStatus: Status
+								priority: Priority
 								otherDetail: RightObject
 								nested: RightInterface
 								label(locale: String): String
@@ -1487,6 +1489,16 @@ func TestExecutionValidation(t *testing.T) {
 								}`, FieldSelectionMerging(), Invalid,
 								withValidationErrors(`differing types 'String!' and 'Status' for objectName 'value'`))
 						})
+						t.Run("__typename and a nullable String leaf", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: label } }
+										... on Right { list { value: __typename } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types 'String' and 'String!' for objectName 'value'`))
+						})
 						t.Run("different fields on the same type", func(t *testing.T) {
 							runWithDefinition(t, definition, `
 								{
@@ -1633,8 +1645,18 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}`, FieldSelectionMerging(true), Valid)
 						})
-						// These are valid, because exclusivity is inherited from parent fields.
+						t.Run("different nullability below exclusive fields of the same type", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { shared { leftList { value: name } } }
+										... on Right { shared { leftList { value: label } } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`fields 'value' conflict because they return conflicting types 'String!' and 'String'`))
+						})
 						t.Run("exclusivity inherited from a parent field", func(t *testing.T) {
+							// These are valid, because exclusivity is inherited from parent fields.
 							t.Run("fragments on a grandparent field", func(t *testing.T) {
 								runWithDefinition(t, definition, `
 									{
@@ -1686,6 +1708,24 @@ func TestExecutionValidation(t *testing.T) {
 										parent {
 											... on Left { s: shared { items: leftList { name } } }
 											... on Right { s: other { items: rightList { name } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different leaf fields below exclusive fields of the same type", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { rightList { value: name } } }
+											... on Right { shared { rightList { value: otherName } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("__typename and a String! leaf below exclusive fields of the same type", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { leftList { value: name } } }
+											... on Right { shared { leftList { value: __typename } } }
 										}
 									}`, FieldSelectionMerging(), Valid)
 							})
@@ -1775,9 +1815,9 @@ func TestExecutionValidation(t *testing.T) {
 									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
 							})
 						})
-						// The two "k" fields are never compared.
-						// When their list or non-null wrappers differ, the fields below them must not merge by response shape.
 						t.Run("different wrappers on fields that are never compared", func(t *testing.T) {
+							// The two "k" fields are never compared.
+							// When their list or non-null wrappers differ, the fields below them must not merge by response shape.
 							t.Run("differently named interfaces below", func(t *testing.T) {
 								runWithDefinition(t, definition, `
 										{
@@ -1853,23 +1893,25 @@ func TestExecutionValidation(t *testing.T) {
 										}`, FieldSelectionMerging(), Invalid,
 									withValidationErrors(`differing fields for objectName 'v' on (potentially) same type`))
 							})
-							// Known gaps (ROUTER-873): __typename and enum fields are not compared with composite fields.
-							// t.Run("__typename and an object", func(t *testing.T) {
-							// 	runWithDefinition(t, definition, `
-							// 		{
-							// 			parent {
-							// 				... on Right { single { v: __typename v: otherDetail { name } } }
-							// 			}
-							// 		}`, FieldSelectionMerging(), Invalid)
-							// })
-							// t.Run("enum and object", func(t *testing.T) {
-							// 	runWithDefinition(t, definition, `
-							// 		{
-							// 			parent {
-							// 				... on Right { single { v: otherStatus v: otherDetail { name } } }
-							// 			}
-							// 		}`, FieldSelectionMerging(), Invalid)
-							// })
+							t.Run("deviation on __typename and an object", func(t *testing.T) {
+								// Known deviation (ROUTER-873): the spec forbids these, but the rule accepts them.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { single { v: __typename v: otherDetail { name } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("deviation on enum and object", func(t *testing.T) {
+								// Known deviation (ROUTER-873): the spec forbids these, but the rule accepts them.
+								// Rejecting them might break production for some customers.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { single { v: otherStatus v: otherDetail { name } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
 						})
 						t.Run("scalar and enum fields", func(t *testing.T) {
 							// A scalar field and an enum field under one response key never have the same response shape.
@@ -1912,6 +1954,63 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}`, FieldSelectionMerging(), Invalid,
 									withValidationErrors(`differing fields for objectName 'v' on (potentially) same type`))
+							})
+						})
+						t.Run("known deviations", func(t *testing.T) {
+							// Known deviations: the spec forbids these, but the rule accepts them.
+							// Rejecting them might break production for some customers.
+							t.Run("__typename and a nullable String leaf below exclusive fields of the same type", func(t *testing.T) {
+								// Known deviation: __typename is checked only below a merge by response shape, so this is valid.
+								// The spec rejects it at "value": label is String, __typename is String!.
+								// graphql-js accepts it.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { leftList { value: label } } }
+											... on Right { shared { leftList { value: __typename } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("__typename and a leaf in one selection set", func(t *testing.T) {
+								// Known deviation: __typename is checked only below a merge by response shape, so this is valid.
+								// The spec and graphql-js reject it at "v": name and __typename are different fields.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { single { v: name v: __typename } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different object fields in one selection set", func(t *testing.T) {
+								// Known deviation: the names of the "s" fields are not compared, so this is valid.
+								// The spec and graphql-js reject it at "s": shared and other are different fields.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { s: shared { __typename } s: other { __typename } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different enums below exclusive fields of the same type", func(t *testing.T) {
+								// Known deviation: enum fields are compared only below a merge by response shape, so this is valid.
+								// The spec and graphql-js reject it at "v": Status and Priority are different types.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { rightList { v: otherStatus } } }
+											... on Right { shared { rightList { v: priority } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different enum fields in one selection set", func(t *testing.T) {
+								// Known deviation: enum fields are compared only below a merge by response shape, so this is valid.
+								// The spec and graphql-js reject it at "v": otherStatus and priority are different fields.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { single { v: otherStatus v: priority } }
+										}
+									}`, FieldSelectionMerging(), Valid)
 							})
 						})
 						// Separate fields never share a response object, so they may use different @stream arguments,
