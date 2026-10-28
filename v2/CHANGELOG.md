@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.30.4](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.3...v2.30.4) (2026-10-28)
+
+
+### Bug Fixes
+
+* allow same-shaped fields with different type names ([#1721](https://github.com/wundergraph/graphql-go-tools/issues/1721)) ([27860ee](https://github.com/wundergraph/graphql-go-tools/commit/27860eeba73c4b52defda2bf9ce46fcb5f8a539d))
+
 ## [2.30.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.2...v2.30.3) (2026-10-27)
 
 
