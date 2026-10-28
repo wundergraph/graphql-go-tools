@@ -74,6 +74,10 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		requiredFieldRef:       ast.InvalidRef,
 		requiredFieldIdx:       ast.InvalidRef,
 		fieldPath:              ast.Path{}.WithFieldNameItem([]byte("result")),
+		planInfo: planningInfo{
+			currentResponseMessage: &RPCMessage{},
+			currentRequestMessage:  &RPCMessage{},
+		},
 	}
 
 	walker.RegisterDocumentVisitor(visitor)
@@ -151,7 +155,7 @@ func (r *rpcPlanVisitorFederation) EnterOperationDefinition(ref int) {
 		return
 	}
 
-	r.planInfo.operationType = r.operation.OperationDefinitions[ref].OperationType
+	r.planInfo.operationType = ast.OperationTypeQuery
 }
 
 // EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
@@ -162,7 +166,8 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
 	entityConfigData, ok := r.entityConfig.getEntity(fragmentName)
-	if !ok {
+	if !ok || entityConfigData.keyFields == "" {
+		r.walker.StopWithInternalErr(fmt.Errorf("no entity configuration found for type %s", fragmentName))
 		return
 	}
 
@@ -669,7 +674,7 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 			Name:          "keys",
 			ProtoTypeName: DataTypeMessage,
 			Repeated:      true, // The inputs are always a list of objects
-			JSONPath:      "representations",
+			JSONPath:      representationsKey,
 			Message:       keyFieldMessage,
 		},
 	}
@@ -680,9 +685,9 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(typeName string, ecd ent
 		Name: typeName,
 		Fields: []RPCField{
 			{
-				Name:          "__typename",
+				Name:          typenameFieldName,
 				ProtoTypeName: DataTypeString,
-				JSONPath:      "__typename",
+				JSONPath:      typenameFieldName,
 				StaticValue:   typeName,
 			},
 		},

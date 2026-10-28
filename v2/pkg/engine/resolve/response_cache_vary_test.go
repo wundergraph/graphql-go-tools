@@ -239,7 +239,7 @@ func TestResponseCacheVary(t *testing.T) {
 			require.Equal(t, 0, warm.calls)
 			require.Contains(t, out, `"products":["a"]`)
 			require.Contains(t, out, `"notes":"n"`)
-			require.ElementsMatch(t, []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}, ctx.ResponseCacheSurrogateKeys())
+			require.ElementsMatch(t, []caching.SurrogateKey{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}, ctx.ResponseCacheSurrogateKeys())
 
 			origin := &recordingDataSource{response: []byte(enResponse), responseHeaders: varyHeaders("Accept-Language")}
 			_, out = run(t, cache, origin, en)

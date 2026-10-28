@@ -91,6 +91,44 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			},
 		},
 		{
+			name:  "Should ignore entity queries which have additional fields outside of the fragment",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { __typename ...on Product { id name } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Product","id":"2"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+
+				// Check required fields are present
+				require.Contains(t, entities[0], "id")
+				require.Contains(t, entities[0], "name")
+
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				product, ok := entities[0].(map[string]any)
+				require.True(t, ok, "product should be an object")
+				require.Equal(t, "1", product["id"])
+				require.Equal(t, "Product 1", product["name"])
+
+				product2, ok := entities[1].(map[string]any)
+				require.True(t, ok, "product2 should be an object")
+				require.Equal(t, "2", product2["id"])
+				require.Equal(t, "Product 2", product2["name"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
 			name:  "Query warehouse and expect an error",
 			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Warehouse { id name } } }`,
 			vars: `{"variables":{"representations":[
@@ -152,6 +190,57 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 					require.InDelta(t, float64(77.49), entity["shippingEstimate"], 0.01)
 				}
 
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			// The field resolver result must only be merged into entities of its own type.
+			name:  "Query Product with field resolvers and Storage",
+			query: `query($representations: [_Any!]!, $input: ShippingEstimateInput!) { _entities(representations: $representations) { ...on Product { __typename id name price shippingEstimate(input: $input) } ...on Storage { __typename id name } } }`,
+			vars: `{"variables":{
+				"representations":[
+					{"__typename":"Product","id":"1"},
+					{"__typename":"Storage","id":"2"},
+					{"__typename":"Product","id":"3"},
+					{"__typename":"Storage","id":"4"}
+				],
+				"input":{
+					"destination":"INTERNATIONAL",
+					"weight":10.0,
+					"expedited":true
+				}
+			}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 4, "Should return 4 entities")
+
+				for _, index := range []int{0, 2} {
+					product, ok := entities[index].(map[string]any)
+					require.True(t, ok, "product should be an object")
+					require.Equal(t, "Product", product["__typename"])
+					require.Equal(t, fmt.Sprintf("%d", index+1), product["id"])
+					require.Equal(t, fmt.Sprintf("Product %d", index+1), product["name"])
+					require.InDelta(t, float64(77.49), product["shippingEstimate"], 0.01)
+				}
+
+				for _, index := range []int{1, 3} {
+					storage, ok := entities[index].(map[string]any)
+					require.True(t, ok, "storage should be an object")
+					require.Equal(t, map[string]any{"__typename": "Storage", "id": fmt.Sprintf("%d", index+1), "name": fmt.Sprintf("Storage %d", index+1)}, storage)
+				}
 			},
 			validateError: func(t *testing.T, errorData []graphqlError) {
 				require.Empty(t, errorData)
@@ -1478,6 +1567,166 @@ func Test_DataSource_Load_WithEntity_Calls_And_Requires(t *testing.T) {
 				require.Equal(t, "2", storage2["id"])
 				require.Equal(t, "Storage 2", storage2["name"])
 				require.Equal(t, "Gadgets (CATEGORY_KIND_ELECTRONICS)", storage2["categoryInfoSummary"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			// The required call must only receive the representations of its own entity type.
+			name:  "Query Product and Storage with tagSummary requiring tags list",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { __typename id name } ...on Storage { __typename id name tagSummary } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Storage","id":"2","tags":["electronics","gadgets"]},
+				{"__typename":"Product","id":"3"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				product1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "product1 should be an object")
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "1", "name": "Product 1"}, product1)
+
+				storage, ok := entities[1].(map[string]any)
+				require.True(t, ok, "storage should be an object")
+				require.Equal(t, map[string]any{"__typename": "Storage", "id": "2", "name": "Storage 2", "tagSummary": "electronics, gadgets"}, storage)
+
+				product3, ok := entities[2].(map[string]any)
+				require.True(t, ok, "product3 should be an object")
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "3", "name": "Product 3"}, product3)
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			// A required call without representations of its entity type must not fail the fetch.
+			name:  "Query Product and Storage with tagSummary without Storage representations",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { __typename id name } ...on Storage { __typename id name tagSummary } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Product","id":"3"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "tagSummary",
+					SelectionSet: "tags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "1", "name": "Product 1"}, entities[0])
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "3", "name": "Product 3"}, entities[1])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			// A required call without representations of its entity type must not fail the fetch.
+			name:  "Query Product and Storage with optionalTagSummary without Storage representations",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { __typename id name } ...on Storage { __typename id name optionalTagSummary } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Product","id":"3"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalTagSummary",
+					SelectionSet: "optionalTags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 2, "Should return 2 entities")
+
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "1", "name": "Product 1"}, entities[0])
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "3", "name": "Product 3"}, entities[1])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			// The result of the required call must only be merged into entities of its own type.
+			name:  "Query Product and Storage with optionalTagSummary requiring nullable tags list",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { __typename id name } ...on Storage { __typename id name optionalTagSummary } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Storage","id":"2","optionalTags":["premium","featured"]},
+				{"__typename":"Product","id":"3"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					FieldName:    "optionalTagSummary",
+					SelectionSet: "optionalTags",
+				},
+			},
+			validate: func(t *testing.T, data map[string]any) {
+				entities, ok := data["_entities"].([]any)
+				require.True(t, ok, "_entities should be an array")
+				require.Len(t, entities, 3, "Should return 3 entities")
+
+				product1, ok := entities[0].(map[string]any)
+				require.True(t, ok, "product1 should be an object")
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "1", "name": "Product 1"}, product1)
+
+				storage, ok := entities[1].(map[string]any)
+				require.True(t, ok, "storage should be an object")
+				require.Equal(t, map[string]any{"__typename": "Storage", "id": "2", "name": "Storage 2", "optionalTagSummary": "premium, featured"}, storage)
+
+				product3, ok := entities[2].(map[string]any)
+				require.True(t, ok, "product3 should be an object")
+				require.Equal(t, map[string]any{"__typename": "Product", "id": "3", "name": "Product 3"}, product3)
 			},
 			validateError: func(t *testing.T, errorData []graphqlError) {
 				require.Empty(t, errorData)

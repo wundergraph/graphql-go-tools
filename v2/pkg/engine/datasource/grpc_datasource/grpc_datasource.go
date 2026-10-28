@@ -242,7 +242,7 @@ func (d *DataSource) execute(ctx context.Context, input []byte, buildRequest req
 
 			switch result.kind {
 			case CallKindResolve, CallKindRequired:
-				err = builder.mergeWithPath(root, result.response, result.responsePath)
+				err = builder.mergeWithPath(root, result.response, result.responsePath, result.entityIndexMap)
 			default:
 				root, err = builder.mergeValues(root, result)
 			}
@@ -304,16 +304,27 @@ func (d *DataSource) runFetch(
 		responsePath:    fetch.responsePath,
 	}
 
-	// In case of a federated response, we need to ensure that the response is valid.
-	// The number of entities per type must match the number of lookup keys in the variables.
-	// On success we build the index map used by mergeEntities to place each response
-	// entity at the correct position in the final _entities array.
-	if fetch.kind == CallKindEntity {
+	// A resolver below _entities only gets the entities of one type as context.
+	// It uses the index map of the call it depends on to find these entities in the response.
+	if fetch.kind == CallKindResolve {
+		result.entityIndexMap = callMap[fetch.dependentCall.ID].entityIndexMap
+	}
+
+	// Entity and required calls only get the representations of one entity type.
+	// The index map gives the position of each result in the _entities array.
+	switch fetch.kind {
+	case CallKindEntity:
+		// The number of entities must match the number of representations of the type.
+		// mergeEntities uses the index map to place each entity.
 		representations := getRepresentations(astJsonVariables)
 		if err := validateEntityResponse(responseJson, fetch.requestedEntityType, representations); err != nil {
 			return fetchResult{}, err
 		}
 		result.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, representations)
+	case CallKindRequired:
+		// A required call only gets the representations of its own entity type.
+		// mergeWithPath checks that the number of results matches.
+		result.entityIndexMap = newEntityIndexMap(fetch.requestedEntityType, getRepresentations(astJsonVariables))
 	}
 
 	return result, nil
@@ -335,6 +346,18 @@ func (d *DataSource) acquirePoolItem(input []byte, index int) *arena.PoolItem {
 // loadWithConnect supplies messageRequestBuilder (a populated protoref.Message).
 type requestBuilder func(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchResult, requestVariables *astjson.Value) (any, bool, error)
 
+// entityRequestVariables returns the request variables for an entity or a required call.
+// They only keep the representations of the requested entity type.
+// A call without these representations has nothing to resolve, so it is skipped.
+func entityRequestVariables(a arena.Arena, fetch *fetchProgram, variables *astjson.Value) (*astjson.Value, bool) {
+	if fetch.requestedEntityType == "" {
+		return variables, false
+	}
+
+	filtered := filterRepresentations(a, variables, fetch.requestedEntityType)
+	return filtered, len(getRepresentations(filtered)) == 0
+}
+
 // wireRequestBuilder builds a pre-encoded gRPC request for the fetch, ready to be
 // handed to RPCTransport.Invoke via PreWiredInputMessage.
 func wireRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]fetchResult, requestVariables *astjson.Value) (any, bool, error) {
@@ -348,8 +371,10 @@ func wireRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]fetc
 			return nil, false, err
 		}
 	case CallKindEntity, CallKindRequired:
-		if fetch.requestedEntityType != "" {
-			requestVariables = filterRepresentations(a, requestVariables, fetch.requestedEntityType)
+		var skip bool
+		requestVariables, skip = entityRequestVariables(a, fetch, requestVariables)
+		if skip {
+			return nil, true, nil
 		}
 
 		buffer, err = fetch.request.createProtoWire(requestVariables)
@@ -393,8 +418,10 @@ func messageRequestBuilder(a arena.Arena, fetch *fetchProgram, callMap map[int]f
 			return nil, false, err
 		}
 	case CallKindEntity, CallKindRequired:
-		if fetch.requestedEntityType != "" {
-			requestVariables = filterRepresentations(a, requestVariables, fetch.requestedEntityType)
+		var skip bool
+		requestVariables, skip = entityRequestVariables(a, fetch, requestVariables)
+		if skip {
+			return nil, true, nil
 		}
 
 		message, err = fetch.request.createProtoMessage(requestVariables)

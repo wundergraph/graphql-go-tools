@@ -59,7 +59,7 @@ func TestJSONBuilder_MergeWithPath_NullParents(t *testing.T) {
 			resolved := astjson.MustParse(tt.resolved)
 
 			builder := newJSONBuilder(nil, nil)
-			require.NoError(t, builder.mergeWithPath(base, resolved, buildPath(tt.path)))
+			require.NoError(t, builder.mergeWithPath(base, resolved, buildPath(tt.path), nil))
 			require.JSONEq(t, tt.expected, base.String())
 		})
 	}
@@ -76,7 +76,7 @@ func TestJSONBuilder_MergeWithPath_LengthMismatch(t *testing.T) {
 		base := astjson.MustParse(`{"parents":[{"id":"a"},{"id":"b"}]}`)
 		resolved := astjson.MustParse(`{"result":[]}`)
 
-		err := newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"))
+		err := newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"), nil)
 		require.EqualError(t, err, "length of values doesn't match the length of the result array, expected 2, got 0")
 	})
 
@@ -86,7 +86,7 @@ func TestJSONBuilder_MergeWithPath_LengthMismatch(t *testing.T) {
 		base := astjson.MustParse(`{"parents":[{"id":"a"},{"id":"b"}]}`)
 		resolved := astjson.MustParse(`{"result":[{"value":1}]}`)
 
-		err := newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"))
+		err := newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"), nil)
 		require.EqualError(t, err, "length of values doesn't match the length of the result array, expected 2, got 1")
 	})
 }
@@ -101,7 +101,7 @@ func TestJSONBuilder_MergeWithPath_MissingRootField(t *testing.T) {
 
 	var err error
 	require.NotPanics(t, func() {
-		err = newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"))
+		err = newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"), nil)
 	})
 	require.EqualError(t, err, "field parents not found in object")
 }
