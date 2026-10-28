@@ -35,10 +35,6 @@ type SubscriptionDataSource interface {
 type NegotiatedDeliveryGuarantee struct {
 	// Guarantee is the negotiated delivery guarantee, empty for sources that have none.
 	Guarantee string
-	// ResumePosition is the already verified position a resuming client continues from,
-	// nil when the client does not resume. It is opaque to the engine: only the routers data source
-	// that produced it interprets it.
-	ResumePosition any
 	// ResumeToken is the raw form of ResumePosition as the client presented it. The engine
 	// mixes it into the trigger id, so two clients resuming from different positions never
 	// share a trigger and therefore never receive each other's replay.
