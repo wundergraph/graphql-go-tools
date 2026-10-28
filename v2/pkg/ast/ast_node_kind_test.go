@@ -6,33 +6,21 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNodeKindIsAbstractType(t *testing.T) {
-	t.Run("Interface type returns true", func(t *testing.T) {
-		assert.Equal(t, NodeKindInterfaceTypeDefinition.IsAbstractType(), true)
-	})
-
-	t.Run("Union type returns true", func(t *testing.T) {
-		assert.Equal(t, NodeKindUnionTypeDefinition.IsAbstractType(), true)
-	})
-
-	t.Run("Enum type returns false", func(t *testing.T) {
-		assert.Equal(t, NodeKindEnumTypeDefinition.IsAbstractType(), false)
-	})
-
-	t.Run("Interface type returns false", func(t *testing.T) {
-		assert.Equal(t, NodeKindObjectTypeDefinition.IsAbstractType(), false)
-	})
-
-	t.Run("Scalar type returns false", func(t *testing.T) {
-		assert.Equal(t, NodeKindScalarTypeDefinition.IsAbstractType(), false)
-	})
-}
-
-func TestNodeKindIsCompositeType(t *testing.T) {
-	for _, kind := range []NodeKind{NodeKindObjectTypeDefinition, NodeKindInterfaceTypeDefinition, NodeKindUnionTypeDefinition} {
-		assert.True(t, kind.IsCompositeType(), kind.String())
-	}
-	for _, kind := range []NodeKind{NodeKindScalarTypeDefinition, NodeKindEnumTypeDefinition, NodeKindInputObjectTypeDefinition, NodeKindUnknown} {
-		assert.False(t, kind.IsCompositeType(), kind.String())
+func TestNodeKindTypeCategories(t *testing.T) {
+	for _, tc := range []struct {
+		kind      NodeKind
+		abstract  bool
+		composite bool
+	}{
+		{NodeKindInterfaceTypeDefinition, true, true},
+		{NodeKindUnionTypeDefinition, true, true},
+		{NodeKindObjectTypeDefinition, false, true},
+		{NodeKindScalarTypeDefinition, false, false},
+		{NodeKindEnumTypeDefinition, false, false},
+		{NodeKindInputObjectTypeDefinition, false, false},
+		{NodeKindUnknown, false, false},
+	} {
+		assert.Equal(t, tc.abstract, tc.kind.IsAbstractType(), "%s.IsAbstractType", tc.kind)
+		assert.Equal(t, tc.composite, tc.kind.IsCompositeType(), "%s.IsCompositeType", tc.kind)
 	}
 }
