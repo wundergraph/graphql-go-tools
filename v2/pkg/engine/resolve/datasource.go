@@ -20,10 +20,6 @@ type SubscriptionDataSource interface {
 	Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error
 	// HashTriggerInput writes identity-relevant fields of the subscription into xxh.
 	HashTriggerInput(input []byte, xxh *xxhash.Digest) error
-	// HashTriggerDeliveryGuarantee writes the negotiated delivery guarantee into xxh,
-	// so clients with different guarantees never share a trigger.
-	// negotiated is the value returned by ValidateDeliveryGuarantee.
-	HashTriggerDeliveryGuarantee(negotiated NegotiatedDeliveryGuarantee, xxh *xxhash.Digest) error
 	// ValidateDeliveryGuarantee lets a subscription data source reject a client before start.
 	// It returns the delivery guarantee negotiated with the client, zero if the source has none.
 	ValidateDeliveryGuarantee(ctx *Context, input []byte) (negotiated NegotiatedDeliveryGuarantee, err error)
@@ -36,7 +32,7 @@ type NegotiatedDeliveryGuarantee struct {
 	// Guarantee is the negotiated delivery guarantee, empty for sources that have none.
 	Guarantee string
 	// ResumeToken is the raw form of ResumePosition as the client presented it. The engine
-	// mixes it into the trigger id, so two clients resuming from different positions never
+	// hashes it into the trigger id itself, so two clients resuming from different positions never
 	// share a trigger and therefore never receive each other's replay.
 	ResumeToken string
 }

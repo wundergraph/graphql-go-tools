@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
@@ -1718,13 +1719,30 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte,
 		}
 	}
 
-	if err = source.HashTriggerDeliveryGuarantee(negotiatedGuarantee, keyGen); err != nil {
-		return nil, 0, err
-	}
+	hashDeliveryGuarantee(negotiatedGuarantee, keyGen)
 
 	triggerID = keyGen.Sum64()
 
 	return headers, triggerID, nil
+}
+
+// hashDeliveryGuarantee writes the non-empty fields of the negotiated guarantee into xxh,
+// so clients with different guarantees or resume positions never share a trigger.
+// Each field is prefixed with its tag and length to keep the encoding unambiguous.
+// Zero values are skipped, so trigger IDs of sources without a guarantee stay unchanged.
+func hashDeliveryGuarantee(negotiated NegotiatedDeliveryGuarantee, xxh *xxhash.Digest) {
+	write := func(tag byte, value string) {
+		if value == "" {
+			return
+		}
+		var b [1 + binary.MaxVarintLen64]byte
+		b[0] = tag
+		n := binary.PutUvarint(b[1:], uint64(len(value)))
+		_, _ = xxh.Write(b[:1+n])
+		_, _ = xxh.WriteString(value)
+	}
+	write(1, negotiated.Guarantee)
+	write(2, negotiated.ResumeToken)
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {

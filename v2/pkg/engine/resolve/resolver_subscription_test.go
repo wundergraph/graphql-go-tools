@@ -72,10 +72,6 @@ func (f *FakeSource) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	return err
 }
 
-func (f *FakeSource) HashTriggerDeliveryGuarantee(_ NegotiatedDeliveryGuarantee, _ *xxhash.Digest) error {
-	return nil
-}
-
 func (f *FakeSource) ValidateDeliveryGuarantee(_ *Context, _ []byte) (NegotiatedDeliveryGuarantee, error) {
 	return NegotiatedDeliveryGuarantee{}, nil
 }

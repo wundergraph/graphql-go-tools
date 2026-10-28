@@ -5831,14 +5831,6 @@ func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
 	}
 }
 
-func (f *_fakeStream) HashTriggerDeliveryGuarantee(negotiated NegotiatedDeliveryGuarantee, xxh *xxhash.Digest) error {
-	if _, err := xxh.WriteString(negotiated.Guarantee); err != nil {
-		return err
-	}
-	_, err := xxh.WriteString(negotiated.ResumeToken)
-	return err
-}
-
 func (f *_fakeStream) ValidateDeliveryGuarantee(ctx *Context, input []byte) (NegotiatedDeliveryGuarantee, error) {
 	if f.validateDeliveryGuaranteeFn == nil {
 		return NegotiatedDeliveryGuarantee{}, nil
@@ -8350,10 +8342,6 @@ func (s *startFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) err
 	return err
 }
 
-func (s *startFailStream) HashTriggerDeliveryGuarantee(_ NegotiatedDeliveryGuarantee, _ *xxhash.Digest) error {
-	return nil
-}
-
 func (s *startFailStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (NegotiatedDeliveryGuarantee, error) {
 	return NegotiatedDeliveryGuarantee{}, nil
 }
@@ -8445,10 +8433,6 @@ type hookFailStream struct {
 func (s *hookFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	_, err := xxh.Write(input)
 	return err
-}
-
-func (s *hookFailStream) HashTriggerDeliveryGuarantee(_ NegotiatedDeliveryGuarantee, _ *xxhash.Digest) error {
-	return nil
 }
 
 func (s *hookFailStream) ValidateDeliveryGuarantee(_ *Context, _ []byte) (NegotiatedDeliveryGuarantee, error) {

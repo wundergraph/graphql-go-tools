@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/google/uuid"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/kylelemons/godebug/pretty"
@@ -9134,23 +9133,6 @@ func TestSubscriptionSource_DeliveryGuarantee(t *testing.T) {
 		negotiated, err := subscriptionSource.ValidateDeliveryGuarantee(ctx, input)
 		require.NoError(t, err)
 		assert.Empty(t, negotiated)
-	})
-
-	t.Run("HashTriggerDeliveryGuarantee does not change the trigger hash", func(t *testing.T) {
-		// The guarantee must not affect the trigger ID, so plain GraphQL subscriptions
-		// with the same input keep sharing one trigger, whatever guarantee value is passed in.
-		subscriptionSource := SubscriptionSource{}
-
-		without := xxhash.New()
-		require.NoError(t, subscriptionSource.HashTriggerInput(input, without))
-
-		for _, negotiated := range []resolve.NegotiatedDeliveryGuarantee{{}, {Guarantee: "at-least-once"}} {
-			with := xxhash.New()
-			require.NoError(t, subscriptionSource.HashTriggerInput(input, with))
-			require.NoError(t, subscriptionSource.HashTriggerDeliveryGuarantee(negotiated, with))
-
-			assert.Equal(t, without.Sum64(), with.Sum64(), "negotiated=%v", negotiated)
-		}
 	})
 }
 
