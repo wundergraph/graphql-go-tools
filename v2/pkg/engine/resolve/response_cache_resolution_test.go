@@ -142,9 +142,10 @@ func TestResponseCacheCommitKeepsTheOriginLifetime(t *testing.T) {
 }
 
 func TestRemainingLifetimes(t *testing.T) {
-	items := []caching.Item{{Key: "a", TTL: time.Minute}, {Key: "b", TTL: time.Second}}
+	items := []caching.Item{{Key: "a", TTL: time.Minute, ClientTTL: 40 * time.Second}, {Key: "b", TTL: time.Second}}
 	require.Equal(t, items, remainingLifetimes(items, 0))
-	require.Equal(t, []caching.Item{{Key: "a", TTL: 30 * time.Second}}, remainingLifetimes(items, 30*time.Second))
+	require.Equal(t, []caching.Item{{Key: "a", TTL: 30 * time.Second, ClientTTL: 10 * time.Second}}, remainingLifetimes(items, 30*time.Second))
+	require.Equal(t, []caching.Item{{Key: "a", TTL: 15 * time.Second}}, remainingLifetimes(items, 45*time.Second), "ClientTTL stops at zero")
 	require.Equal(t, time.Minute, items[0].TTL, "the originals are kept")
 	require.Empty(t, remainingLifetimes(items, time.Minute))
 }

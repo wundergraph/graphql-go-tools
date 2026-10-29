@@ -1092,8 +1092,8 @@ func (l *Loader) responseCacheCommit(resolved bool) {
 	}
 }
 
-// remainingLifetimes is items with elapsed taken off each TTL, without the
-// ones it used up. Copies, as the trace keeps the originals.
+// remainingLifetimes is items with elapsed taken off each TTL and ClientTTL,
+// without the ones it used up. Copies, as the trace keeps the originals.
 func remainingLifetimes(items []caching.Item, elapsed time.Duration) []caching.Item {
 	if elapsed <= 0 {
 		return items
@@ -1101,6 +1101,7 @@ func remainingLifetimes(items []caching.Item, elapsed time.Duration) []caching.I
 	out := make([]caching.Item, 0, len(items))
 	for _, item := range items {
 		if item.TTL -= elapsed; item.TTL > 0 {
+			item.ClientTTL = max(item.ClientTTL-elapsed, 0)
 			out = append(out, item)
 		}
 	}
