@@ -6880,11 +6880,16 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		testCases := []struct {
 			name                string
 			guarantees          [2]string // 0 = sub1, 1 = sub2
+			resumeTokens        [2]string // 0 = sub1, 1 = sub2
 			wantStartedTriggers int32
 		}{
 			{name: "without delivery guarantee", guarantees: [2]string{"", ""}, wantStartedTriggers: 1},
 			{name: "with equal delivery guarantees", guarantees: [2]string{"at-least-once", "at-least-once"}, wantStartedTriggers: 1},
-			{name: "withhout different delivery guarantees", guarantees: [2]string{"at-least-once", ""}, wantStartedTriggers: 2},
+			{name: "with different delivery guarantees", guarantees: [2]string{"at-least-once", ""}, wantStartedTriggers: 2},
+			{name: "with equal guarantees and different resume tokens", guarantees: [2]string{"at-least-once", "at-least-once"}, resumeTokens: [2]string{"token-1", "token-2"}, wantStartedTriggers: 2},
+			// a resume token also salts the trigger id with the connection and subscription id,
+			// so equal tokens still never share a trigger.
+			{name: "with equal guarantees and equal resume tokens", guarantees: [2]string{"at-least-once", "at-least-once"}, resumeTokens: [2]string{"token", "token"}, wantStartedTriggers: 2},
 		}
 
 		for _, tc := range testCases {
@@ -6922,7 +6927,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				// so the n-th validation belongs to the n-th subscription.
 				var validateCount atomic.Int32
 				fakeStream.negotiateFn = func(_ *Context, _ []byte) (NegotiatedParams, error) {
-					return NegotiatedParams{SubscriptionCursor: SubscriptionCursorNegotiatedParams{Guarantee: tc.guarantees[validateCount.Add(1)-1]}}, nil
+					i := validateCount.Add(1) - 1
+					return NegotiatedParams{SubscriptionCursor: SubscriptionCursorNegotiatedParams{Guarantee: tc.guarantees[i], ResumeToken: tc.resumeTokens[i]}}, nil
 				}
 
 				resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
