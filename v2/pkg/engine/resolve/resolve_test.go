@@ -1936,67 +1936,67 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	}, nil))
 	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
-			Fetches: Single(&SingleFetch{
-				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`)},
-			}),
-			Data: &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("user"),
-						Value: &Object{
-							Fields: []*Field{
-								{
-									Name: []byte("id"),
-									Value: &Integer{
-										Path:     []string{"id"},
-										Nullable: false,
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`)},
+				}),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("user"),
+							Value: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path:     []string{"id"},
+											Nullable: false,
+										},
 									},
-								},
-								{
-									Name: []byte("name"),
-									Value: &String{
-										Path:     []string{"name"},
-										Nullable: false,
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
 									},
-								},
-								{
-									Name: []byte("__typename"),
-									Value: &String{
-										Path:       []string{"__typename"},
-										Nullable:   false,
-										IsTypeName: true,
+									{
+										Name: []byte("__typename"),
+										Value: &String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
 									},
-								},
-								{
-									Name: []byte("aliased"),
-									Value: &String{
-										Path:       []string{"__typename"},
-										Nullable:   false,
-										IsTypeName: true,
+									{
+										Name: []byte("aliased"),
+										Value: &String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
 									},
-								},
-								{
-									Name: []byte("rewritten"),
-									Value: &String{
-										Path:       []string{"rewritten"},
-										Nullable:   false,
-										IsTypeName: true,
+									{
+										Name: []byte("rewritten"),
+										Value: &String{
+											Path:       []string{"rewritten"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
 									},
 								},
 							},
 						},
 					},
 				},
-			},
-		}, Context{
-			ctx: context.Background(),
-			RenameTypeNames: []RenameTypeName{
-				{
-					From: []byte("User"),
-					To:   []byte("namespaced_User"),
+			}, Context{
+				ctx: context.Background(),
+				RenameTypeNames: []RenameTypeName{
+					{
+						From: []byte("User"),
+						To:   []byte("namespaced_User"),
+					},
 				},
-			},
-		}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
+			}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
 	}))
 	t.Run("empty graphql response for non-nullable object query field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -6951,6 +6951,69 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				assert.Equal(t, `{"data":{"counter":100}}`, recorder2.Messages()[100])
 
 				assert.Equal(t, tc.wantStartedTriggers, startCount.Load(), "unexpected number of started triggers")
+			})
+		}
+	})
+
+	t.Run("subscriptions with equal resume tokens never share a trigger", func(t *testing.T) {
+		testCases := []struct {
+			name                 string
+			joinAfterFirstUpdate bool
+		}{
+			{name: "joining before the first update", joinAfterFirstUpdate: false},
+			{name: "joining after the first update", joinAfterFirstUpdate: true},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				c := t.Context()
+
+				// startGate holds back the first trigger's updates until sub2 is registered
+				// when sub2 should join before the first update.
+				startGate := make(chan struct{})
+				if tc.joinAfterFirstUpdate {
+					close(startGate)
+				}
+				messageFn := func(counter int) (message string, done bool) {
+					return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
+				}
+
+				var startCount atomic.Int32
+				onStartFn := func(_ []byte) {
+					if startCount.Add(1) == 1 {
+						<-startGate
+					}
+				}
+
+				fakeStream := createFakeStream(messageFn, 1*time.Millisecond, onStartFn, nil)
+				fakeStream.negotiateFn = func(_ *Context, _ []byte) (NegotiatedParams, error) {
+					return NegotiatedParams{SubscriptionCursor: SubscriptionCursorNegotiatedParams{Guarantee: "at-least-once", ResumeToken: "token"}}, nil
+				}
+
+				resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
+				_, _, recorder2, id2 := setup(c, fakeStream)
+				id2.ConnectionID = id1.ConnectionID + 1
+				id2.SubscriptionID = id1.SubscriptionID + 1
+
+				err := resolver1.AsyncResolveGraphQLSubscription(&Context{ctx: context.Background()}, plan1, recorder1, id1)
+				require.NoError(t, err)
+				if tc.joinAfterFirstUpdate {
+					recorder1.AwaitAnyMessageCount(t, defaultTimeout)
+				}
+
+				err = resolver1.AsyncResolveGraphQLSubscription(&Context{ctx: context.Background()}, plan1, recorder2, id2)
+				require.NoError(t, err)
+				if !tc.joinAfterFirstUpdate {
+					close(startGate)
+				}
+
+				for _, recorder := range []*SubscriptionRecorder{recorder1, recorder2} {
+					recorder.AwaitComplete(t, defaultTimeout)
+					require.Equal(t, 101, len(recorder.Messages()))
+					assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[0], "every subscriber must receive the replay from its resume position")
+				}
+
+				assert.Equal(t, int32(2), startCount.Load(), "every resumed subscription must start its own trigger")
 			})
 		}
 	})

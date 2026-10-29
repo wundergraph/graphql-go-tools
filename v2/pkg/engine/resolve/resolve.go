@@ -1700,7 +1700,8 @@ func (r *Resolver) UnsubscribeClient(connectionID ConnectionID) error {
 // prepareTrigger safely gets the headers for the trigger Subgraph and computes the hash across headers and input
 // the generated hash is the unique triggerID
 // the headers must be forwarded to the DataSource to create the trigger
-func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, negotiated NegotiatedParams, source SubscriptionDataSource) (
+// a subscription resuming from a cursor gets a trigger of its own, see hashResumedSubscription
+func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, negotiated NegotiatedParams, id SubscriptionIdentifier, source SubscriptionDataSource) (
 	headers http.Header, triggerID uint64, err error) {
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
@@ -1720,6 +1721,14 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte,
 	}
 
 	hashNegotiatedParams(negotiated, keyGen)
+
+	// subscribers who want to resume from a cursor get their own trigger.
+	if negotiated.SubscriptionCursor.ResumeToken != "" {
+		var b [16]byte
+		binary.LittleEndian.PutUint64(b[:8], uint64(id.ConnectionID))
+		binary.LittleEndian.PutUint64(b[8:], uint64(id.SubscriptionID))
+		_, _ = keyGen.Write(b[:])
+	}
 
 	triggerID = keyGen.Sum64()
 
@@ -1804,11 +1813,17 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		}
 	}
 
+	id := SubscriptionIdentifier{
+		ConnectionID:   NewConnectionID(),
+		SubscriptionID: 0,
+	}
+
 	headers, triggerID, err := r.prepareTrigger(
 		ctx,
 		subscription.Trigger.SourceName,
 		input,
 		negotiated,
+		id,
 		subscription.Trigger.Source,
 	)
 	if err != nil {
@@ -1816,10 +1831,6 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return writeFlushComplete(writer, msg)
 	}
 
-	id := SubscriptionIdentifier{
-		ConnectionID:   NewConnectionID(),
-		SubscriptionID: 0,
-	}
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", triggerID, id.SubscriptionID)
 	}
@@ -1937,6 +1948,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		subscription.Trigger.SourceName,
 		input,
 		negotiated,
+		id,
 		subscription.Trigger.Source,
 	)
 	if err != nil {
