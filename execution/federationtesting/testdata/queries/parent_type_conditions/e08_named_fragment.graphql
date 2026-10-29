@@ -1,0 +1,29 @@
+# A named fragment on the interface wraps the inline fragments of e01.
+query NamedFragment {
+    someNestedInterfaces {
+        __typename
+        otherInterfaces {
+            __typename
+        }
+        ... on SomeNestedInterface {
+            ...Detail
+        }
+    }
+}
+
+fragment Detail on SomeNestedInterface {
+    ... on SomeNestedType2 {
+        otherInterfaces {
+            someObject {
+                a
+            }
+        }
+    }
+    ... on SomeNestedType1 {
+        otherInterfaces {
+            someObject {
+                a
+            }
+        }
+    }
+}
