@@ -7134,7 +7134,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	t.Run("should reject subscription when delivery guarantee validation fails", func(t *testing.T) {
 		// use a mocked pubsub stream, which returns an error during guarantee validation and
 		// check the behaviour of the resolver. We expect
-		// - an error message being sent to the subscriber (here: recorder)
+		// - the validation error being returned to the caller
 		// - that the validation method is actually called
 		// - that both startup hooks are NOT called (must only happen after successful validation)
 		// - subscription is not started
