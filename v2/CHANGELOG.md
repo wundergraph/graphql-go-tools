@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.30.5](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.4...v2.30.5) (2026-10-29)
+
+
+### Bug Fixes
+
+* encode nullable enum arguments as plain enums in gRPC requests ([#1745](https://github.com/wundergraph/graphql-go-tools/issues/1745)) ([f7e0879](https://github.com/wundergraph/graphql-go-tools/commit/f7e08795cee45a5a6faa0b82ab4aeb7c97a65ec3))
+* **postprocess:** preserve parent type conditions on merged fields ([#1702](https://github.com/wundergraph/graphql-go-tools/issues/1702)) ([2108e49](https://github.com/wundergraph/graphql-go-tools/commit/2108e4983bb90de7bf985aafe61ce03c88f4a0af))
+* validate conditional [@defer](https://github.com/defer) and [@stream](https://github.com/stream) directives ([#1698](https://github.com/wundergraph/graphql-go-tools/issues/1698)) ([dbd0533](https://github.com/wundergraph/graphql-go-tools/commit/dbd0533afa796455be59e6b1bbdb261b7d372507))
+
 ## [2.30.4](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.3...v2.30.4) (2026-10-28)
 
 
