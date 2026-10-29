@@ -35,8 +35,8 @@ func (d *Document) copyInlineFragment(ref int, remaining *int) int {
 	}
 	if d.InlineFragments[ref].HasSelections {
 		selectionSet = d.copySelectionSet(d.InlineFragments[ref].SelectionSet, remaining)
-		if selectionSet == -1 {
-			return -1
+		if selectionSet == InvalidRef {
+			return InvalidRef
 		}
 	}
 	return d.AddInlineFragment(InlineFragment{

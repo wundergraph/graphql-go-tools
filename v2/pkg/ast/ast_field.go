@@ -36,8 +36,8 @@ func (d *Document) copyField(ref int, remaining *int) int {
 	}
 	if d.Fields[ref].HasSelections {
 		selectionSet = d.copySelectionSet(d.Fields[ref].SelectionSet, remaining)
-		if selectionSet == -1 {
-			return -1
+		if selectionSet == InvalidRef {
+			return InvalidRef
 		}
 	}
 	copyRef := d.AddField(Field{

@@ -85,7 +85,7 @@ func (d *Document) ReplaceFragmentSpreadWithInlineFragmentWithBudget(selectionSe
 		return false
 	}
 	selectionSetCopyRef := d.copySelectionSet(replaceWithSelectionSet, remaining)
-	if selectionSetCopyRef == -1 {
+	if selectionSetCopyRef == InvalidRef {
 		return false
 	}
 	directiveListCopy := d.CopyDirectiveList(directiveList)

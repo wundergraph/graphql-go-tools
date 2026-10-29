@@ -33,26 +33,26 @@ func (d *Document) CopySelection(ref int) int {
 	return d.copySelection(ref, nil)
 }
 
-// copySelection returns -1 when the budget is exhausted. Charge before copying
+// copySelection returns InvalidRef when the budget is exhausted. Charge before copying
 // the selection's payload or descending into its children.
 func (d *Document) copySelection(ref int, remaining *int) int {
 	if !consumeSelectionCopyBudget(remaining) {
-		return -1
+		return InvalidRef
 	}
-	innerRef := -1
+	innerRef := InvalidRef
 
 	switch d.Selections[ref].Kind {
 	case SelectionKindField:
 		innerRef = d.copyField(d.Selections[ref].Ref, remaining)
-		if innerRef == -1 {
-			return -1
+		if innerRef == InvalidRef {
+			return InvalidRef
 		}
 	case SelectionKindFragmentSpread:
 		innerRef = d.CopyFragmentSpread(d.Selections[ref].Ref)
 	case SelectionKindInlineFragment:
 		innerRef = d.copyInlineFragment(d.Selections[ref].Ref, remaining)
-		if innerRef == -1 {
-			return -1
+		if innerRef == InvalidRef {
+			return InvalidRef
 		}
 	}
 
@@ -70,8 +70,8 @@ func (d *Document) copySelectionSet(ref int, remaining *int) int {
 	refs := d.NewEmptyRefs()
 	for _, r := range d.SelectionSets[ref].SelectionRefs {
 		copyRef := d.copySelection(r, remaining)
-		if copyRef == -1 {
-			return -1
+		if copyRef == InvalidRef {
+			return InvalidRef
 		}
 		refs = append(refs, copyRef)
 	}
