@@ -231,10 +231,16 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 	}
 
+	// A directive with an unresolved required variable stays in the operation.
+	// Only variables validation reports that variable, so a request without variables or with null variables gets an empty object, as in the router.
+	if len(operation.Variables) == 0 || string(operation.Variables) == "null" {
+		operation.Variables = []byte("{}")
+	}
+
 	// Validate user-supplied and extracted variables against the (remapped) operation.
 	// ValidateWithRemap translates renamed names back to originals for both JSON lookup
 	// and error messages, so users still see their declared variable names in errors.
-	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
+	if operation.Variables[0] == '{' {
 		validator := variablesvalidation.NewVariablesValidator(variablesvalidation.VariablesValidatorOptions{
 			ApolloCompatibilityFlags: e.apolloCompatibilityFlags,
 		})
