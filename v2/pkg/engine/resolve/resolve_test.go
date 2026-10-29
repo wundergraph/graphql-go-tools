@@ -5900,11 +5900,12 @@ type _fakeDeliveryPubsubStream struct {
 
 	called      atomic.Bool
 	validateErr error
+	negotiated  NegotiatedParams
 }
 
 func (f *_fakeDeliveryPubsubStream) Negotiate(_ *Context, _ []byte) (NegotiatedParams, error) {
 	f.called.Store(true)
-	return NegotiatedParams{}, f.validateErr
+	return f.negotiated, f.validateErr
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
@@ -7169,6 +7170,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				fakeStream := &_fakeDeliveryPubsubStream{
 					_fakePubsubStream: createFakePubsubStream(sendSingleMessage, messageDelay, recordStart, recordOnCreateHook),
 					validateErr:       errors.New("input rejected"),
+					negotiated:        NegotiatedParams{SubscriptionCursor: SubscriptionCursorNegotiatedParams{Guarantee: "at-least-once", ResumeToken: "token"}},
 				}
 				fakeStream.subscriptionOnStartFn = recordOnStartHook
 
