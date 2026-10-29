@@ -580,6 +580,30 @@ func TestCreateProtoWire(t *testing.T) {
 		assertProtoEqual(t, runtime, "EnumRequest", expected, got)
 	})
 
+	t.Run("nullable enum field", func(t *testing.T) {
+		// A nullable GraphQL enum argument (`status: Status`) maps to a plain proto
+		// enum field. Proto has no wrapper message for enums, so it must not be
+		// encoded as an optional scalar wrapper.
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "EnumRequest",
+			Fields: RPCFields{
+				{Name: "status", ProtoTypeName: DataTypeEnum, JSONPath: "status", EnumName: "Status", Optional: true},
+			},
+		}, runtime.getMessageByName("EnumRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		got, err := wm.createProtoWire(astjson.MustParse(`{"status":"ACTIVE"}`))
+		require.NoError(t, err)
+		expected := marshalDynamic(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("status"), protoref.ValueOfEnum(1))
+		})
+		assertProtoEqual(t, runtime, "EnumRequest", expected, got)
+
+		got, err = wm.createProtoWire(astjson.MustParse(`{"status":null}`))
+		require.NoError(t, err)
+		assertProtoEqual(t, runtime, "EnumRequest", marshalDynamic(t, runtime, "EnumRequest", func(*dynamicpb.Message, protoref.MessageDescriptor) {}), got)
+	})
+
 	t.Run("repeated enums", func(t *testing.T) {
 		message := compileTestProgramMessage(t, runtime, &RPCMessage{
 			Name: "EnumRequest",
