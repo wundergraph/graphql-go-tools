@@ -1077,7 +1077,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T
 		var reports []cacheReport
 		ctx.SetEngineLoaderHooks(&spyLoaderHooks{
 			onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
-				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL})
+				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL.Round(time.Second)}) // commit trims elapsed time
 			},
 		})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}

@@ -612,6 +612,8 @@ type preparedFetch struct {
 	responseCacheHit bool
 
 	responseCacheItems []caching.Item
+	// responseCacheCollectedAt is when the items' TTLs were taken.
+	responseCacheCollectedAt time.Time
 
 	multiEntries []preparedMultiEntry
 

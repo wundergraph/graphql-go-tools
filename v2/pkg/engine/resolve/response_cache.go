@@ -520,6 +520,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	headers := responseCacheHeaders(res)
+	collectedAt := time.Now()
 	policy := caching.CachePolicyOf(headers, res.sentHeaders, sub.ttl)
 	if policy.Decision != caching.StoreDecisionStored {
 		res.responseCache.StoreDecision = policy.Decision
@@ -586,6 +587,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	prepared.responseCacheItems = items
+	prepared.responseCacheCollectedAt = collectedAt
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	res.responseCache.StoreDecision = storeDecisionFor(items)
 	if res.responseCache.StoreDecision == caching.StoreDecisionStored {
@@ -802,6 +804,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	// and so is being private. Checked per entry, after its errors, as the
 	// single-fetch path does.
 	headers := responseCacheHeaders(res)
+	collectedAt := time.Now()
 	policy := caching.CachePolicyOf(headers, res.sentHeaders, sub.ttl)
 	headerDecision := policy.Decision
 
@@ -886,6 +889,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	}
 
 	prepared.responseCacheItems = items
+	prepared.responseCacheCollectedAt = collectedAt
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	if len(items) > 0 {
 		storeDecision = caching.StoreDecisionStored
@@ -1035,8 +1039,9 @@ func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
 
 // responseCacheWrite is one fetch's entries, held until the response resolves.
 type responseCacheWrite struct {
-	subgraph string
-	items    []caching.Item
+	subgraph    string
+	items       []caching.Item
+	collectedAt time.Time
 	// trace gets the write's outcome, if the fetch is traced.
 	trace *ResponseCacheTrace
 }
@@ -1048,7 +1053,7 @@ func (l *Loader) responseCacheHold(prepared *preparedFetch) {
 		return
 	}
 	l.responseCacheHeldMu.Lock()
-	write := responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems}
+	write := responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems, collectedAt: prepared.responseCacheCollectedAt}
 	if prepared.trace != nil {
 		write.trace = prepared.trace.ResponseCache
 	}
@@ -1058,8 +1063,9 @@ func (l *Loader) responseCacheHold(prepared *preparedFetch) {
 }
 
 // responseCacheCommit writes the held entries, or drops them when resolution
-// found a value of the wrong type. Nulls don't count: federation reports a
-// missing entity that way, and a cached null resolves like a fetched one.
+// found a value of the wrong type or left values unchecked. A null alone
+// doesn't count: federation reports a missing entity that way, and a cached
+// null resolves like a fetched one. Time since collection comes off each TTL.
 func (l *Loader) responseCacheCommit(resolved bool) {
 	l.responseCacheHeldMu.Lock()
 	held := l.responseCacheHeld
@@ -1073,13 +1079,33 @@ func (l *Loader) responseCacheCommit(resolved bool) {
 			traceWriteOutcome(write.trace, nil, nil)
 			continue
 		}
-		items := write.items
+		items := remainingLifetimes(write.items, time.Since(write.collectedAt))
+		if len(items) == 0 {
+			traceWriteOutcome(write.trace, nil, nil)
+			continue
+		}
 		err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
 		if err != nil {
 			l.reportResponseCacheError(ResponseCacheOperationWrite, write.subgraph, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
 		}
 		traceWriteOutcome(write.trace, items, err)
 	}
+}
+
+// remainingLifetimes is items with elapsed taken off each TTL and ClientTTL,
+// without the ones it used up. Copies, as the trace keeps the originals.
+func remainingLifetimes(items []caching.Item, elapsed time.Duration) []caching.Item {
+	if elapsed <= 0 {
+		return items
+	}
+	out := make([]caching.Item, 0, len(items))
+	for _, item := range items {
+		if item.TTL -= elapsed; item.TTL > 0 {
+			item.ClientTTL = max(item.ClientTTL-elapsed, 0)
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func responseCacheHeaders(res *result) http.Header {

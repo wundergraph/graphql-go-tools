@@ -46,10 +46,14 @@ type Resolvable struct {
 	// response already carries errors but no data (set per render in Resolve).
 	skipAddingNullErrors bool
 
-	// walkFailed is set when the last walk found a value of the wrong type.
+	// walkFailed is set when the last walk found a value of the wrong type, or
+	// left values unchecked. An authorization denial counts: the walk skips
+	// what it denies.
 	walkFailed bool
 	// nullErrors counts non-null violations, which walkFailed leaves out.
 	nullErrors int
+	// walkSkipped is set when an error stopped the walk before later fields or items.
+	walkSkipped bool
 
 	// astjsonArena is the arena to handle json, supplied by Resolver
 	// not thread safe, but Resolvable is single threaded anyways
@@ -254,6 +258,7 @@ func (r *Resolvable) Reset() {
 	r.valueCompletion = nil
 	r.walkFailed = false
 	r.nullErrors = 0
+	r.walkSkipped = false
 	r.depth = 0
 	r.enableRender = false
 	r.out = nil
@@ -415,8 +420,9 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 
 	errorsBefore, nullsBefore := r.errorCount(), r.nullErrors
+	r.walkSkipped = false
 	hasErrors := r.walkObject(rootData, r.data)
-	r.walkFailed = r.errorCount()-errorsBefore > r.nullErrors-nullsBefore
+	r.walkFailed = r.errorCount()-errorsBefore > r.nullErrors-nullsBefore || r.walkSkipped
 	r.unreachedAuthWalk = false
 	if r.authorizationError != nil {
 		return r.authorizationError
@@ -482,8 +488,9 @@ func (r *Resolvable) ResolveDeferBatch(rootData *Object, out io.Writer, outstand
 	r.deferItemDataNull = false
 
 	errorsBefore, nullsBefore := r.errorCount(), r.nullErrors
+	r.walkSkipped = false
 	_ = r.walkObject(rootData, r.data)
-	r.walkFailed = r.errorCount()-errorsBefore > r.nullErrors-nullsBefore
+	r.walkFailed = r.errorCount()-errorsBefore > r.nullErrors-nullsBefore || r.walkSkipped
 	if r.authorizationError != nil {
 		// Scope the authorizer error to this defer: record it as the fragment's
 		// error and route it to the completed-with-errors form, completing the
@@ -1187,6 +1194,13 @@ func (r *Resolvable) WroteErrorsWithoutData() bool {
 	return r.wroteErrors && !r.wroteData
 }
 
+// markSkipped records an error at index at of n stopping the walk before the rest.
+func (r *Resolvable) markSkipped(at, n int) {
+	if at < n-1 {
+		r.walkSkipped = true
+	}
+}
+
 // errorCount is how many errors and value completions r holds.
 func (r *Resolvable) errorCount() int {
 	n := 0
@@ -1509,6 +1523,10 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) (hasError bo
 		}
 
 		if hasErrors {
+			// The pass through fields below go unwalked.
+			if r.currentDefer != nil && len(passThroughFields) > 0 {
+				r.walkSkipped = true
+			}
 			return true
 		}
 	}
@@ -1695,9 +1713,11 @@ func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjs
 					addComma = true
 					continue
 				}
+				r.markSkipped(i, len(obj.Fields))
 				// Non-nullable parent: propagate error; caller closes the envelope.
 				return err
 			}
+			r.markSkipped(i, len(obj.Fields))
 			if obj.Nullable {
 				if len(obj.Path) > 0 {
 					astjson.SetNull(r.astjsonArena, parent, obj.Path...)
@@ -1992,6 +2012,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 				value.SetArrayItem(r.astjsonArena, i, astjson.NullValue)
 				continue
 			}
+			r.markSkipped(i, len(values))
 			if arr.Nullable {
 				astjson.SetNull(r.astjsonArena, parent, arr.Path...)
 				return false
