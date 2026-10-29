@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -31,122 +32,332 @@ func limitsTestDefinition(t testing.TB) ast.Document {
 	return definition
 }
 
+func assertNormalizationLimit(t *testing.T, report operationreport.Report, name string) {
+	t.Helper()
+	require.Len(t, report.ExternalErrors, 1)
+	assert.Contains(t, report.ExternalErrors[0].Message, name)
+	assert.Equal(t, "NORMALIZATION_LIMIT_EXCEEDED", report.ExternalErrors[0].ExtensionCode)
+	assert.Equal(t, 400, report.ExternalErrors[0].StatusCode)
+}
+
 func TestNormalizationLimits(t *testing.T) {
-	definition := limitsTestDefinition(t)
-	for _, tt := range []struct {
-		name, query    string
-		copies, fields int
-		wantLimit      string
-	}{
-		{"exact copying budget", repeatedFragmentDocument(2, "hello"), 17, 4, ""},
-		{"copying budget exhausted", repeatedFragmentDocument(2, "hello"), 16, 4, "max_fragment_expansion_selections"},
-		{"duplicate fields count", repeatedFragmentDocument(2, "__typename"), 17, 3, "max_expanded_selection_set_fields"},
-		{"copied inline wrapper counts", `{ ...F } fragment F on Query { ... on Query { hello } }`, 2, 1, "max_fragment_expansion_selections"},
-		{"existing inline wrappers are not copies", `{ ... on Query { ... on Query { hello } } }`, 1, 1, ""},
-		{"inline wrappers share width", `{ hello ... on Query { hello ... on Query { hello } } }`, 0, 2, "max_expanded_selection_set_fields"},
-		{"child widths are separate", `{ child { a b } other { a b } }`, 0, 2, ""},
-		{"nested field width exceeded", `{ child { a b c } }`, 0, 2, "max_expanded_selection_set_fields"},
-		{"aliases count", `{ a: hello b: hello }`, 0, 1, "max_expanded_selection_set_fields"},
-		{"pruned fields do not count", `{ hello hello @skip(if: true) hello @include(if: false) }`, 0, 1, ""},
-		{"pruned spreads do not spend budget", `{ hello ...F @skip(if: true) } fragment F on Query { hello hello }`, 1, 1, ""},
-		{"unused fragments do not count", `{ hello } fragment Unused on Query { hello hello hello }`, 1, 1, ""},
-		{"revisits do not double count fields", `{ hello ...F ...F } fragment F on Query { hello }`, 4, 3, ""},
-		{"multiple operations have separate budgets", `query A { ...F } query B { ...F } fragment F on Query { hello }`, 2, 1, ""},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			op, report := astparser.ParseGraphqlDocumentString(tt.query)
-			require.False(t, report.HasErrors())
-			original := len(op.Selections)
-			NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithLimits(Limits{tt.copies, tt.fields})).NormalizeOperation(&op, &definition, &report)
-			if tt.wantLimit == "" {
-				require.False(t, report.HasErrors(), report.Error())
-				return
-			}
-			require.Len(t, report.ExternalErrors, 1)
-			require.Contains(t, report.ExternalErrors[0].Message, tt.wantLimit)
-			require.Equal(t, "NORMALIZATION_LIMIT_EXCEEDED", report.ExternalErrors[0].ExtensionCode)
-			require.Equal(t, 400, report.ExternalErrors[0].StatusCode)
-			if tt.copies > 0 {
-				require.LessOrEqual(t, len(op.Selections)-original, tt.copies)
-			}
-		})
+	t.Parallel()
+
+	normalize := func(t *testing.T, query string, limits Limits) operationreport.Report {
+		t.Helper()
+		definition := limitsTestDefinition(t)
+		op, report := astparser.ParseGraphqlDocumentString(query)
+		require.False(t, report.HasErrors(), report.Error())
+		original := len(op.Selections)
+		normalizer := NewWithOpts(
+			WithInlineFragmentSpreads(),
+			WithRemoveFragmentDefinitions(),
+			WithLimits(limits),
+		)
+		normalizer.NormalizeOperation(&op, &definition, &report)
+		if report.HasErrors() && limits.MaxFragmentExpansionSelections > 0 {
+			assert.LessOrEqual(t, len(op.Selections)-original, limits.MaxFragmentExpansionSelections)
+		}
+		return report
 	}
+
+	t.Run("exact copying budget", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, repeatedFragmentDocument(2, "hello"), Limits{
+			MaxFragmentExpansionSelections: 17,
+			MaxExpandedSelectionSetFields:  4,
+		})
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("copying budget exhausted", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, repeatedFragmentDocument(2, "hello"), Limits{
+			MaxFragmentExpansionSelections: 16,
+			MaxExpandedSelectionSetFields:  4,
+		})
+		assertNormalizationLimit(t, report, "max_fragment_expansion_selections")
+	})
+	t.Run("duplicate fields count", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, repeatedFragmentDocument(2, "__typename"), Limits{
+			MaxFragmentExpansionSelections: 17,
+			MaxExpandedSelectionSetFields:  3,
+		})
+		assertNormalizationLimit(t, report, "max_expanded_selection_set_fields")
+	})
+	t.Run("copied inline wrapper counts", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ ...F } fragment F on Query { ... on Query { hello } }`, Limits{
+			MaxFragmentExpansionSelections: 2,
+			MaxExpandedSelectionSetFields:  1,
+		})
+		assertNormalizationLimit(t, report, "max_fragment_expansion_selections")
+	})
+	t.Run("existing inline wrappers are not copies", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ ... on Query { ... on Query { hello } } }`, Limits{
+			MaxFragmentExpansionSelections: 1,
+			MaxExpandedSelectionSetFields:  1,
+		})
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("inline wrappers share width", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ hello ... on Query { hello ... on Query { hello } } }`, Limits{
+			MaxExpandedSelectionSetFields: 2,
+		})
+		assertNormalizationLimit(t, report, "max_expanded_selection_set_fields")
+	})
+	t.Run("child widths are separate", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ child { a b } other { a b } }`, Limits{
+			MaxExpandedSelectionSetFields: 2,
+		})
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("duplicate parent fields have separate widths before merging", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ child { a b } child { b c } }`, Limits{
+			MaxExpandedSelectionSetFields: 2,
+		})
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("nested field width exceeded", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ child { a b c } }`, Limits{
+			MaxExpandedSelectionSetFields: 2,
+		})
+		assertNormalizationLimit(t, report, "max_expanded_selection_set_fields")
+	})
+	t.Run("aliases count", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ a: hello b: hello }`, Limits{
+			MaxExpandedSelectionSetFields: 1,
+		})
+		assertNormalizationLimit(t, report, "max_expanded_selection_set_fields")
+	})
+	t.Run("pruned fields do not count", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ hello hello @skip(if: true) hello @include(if: false) }`, Limits{
+			MaxExpandedSelectionSetFields: 1,
+		})
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("pruned spreads do not spend budget", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ hello ...F @skip(if: true) } fragment F on Query { hello hello }`, Limits{
+			MaxFragmentExpansionSelections: 1,
+			MaxExpandedSelectionSetFields:  1,
+		})
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("unused fragments do not count", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ hello } fragment Unused on Query { hello hello hello }`, Limits{
+			MaxFragmentExpansionSelections: 1,
+			MaxExpandedSelectionSetFields:  1,
+		})
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("revisits do not double count fields", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `{ hello ...F ...F } fragment F on Query { hello }`, Limits{
+			MaxFragmentExpansionSelections: 4,
+			MaxExpandedSelectionSetFields:  3,
+		})
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("multiple operations have separate budgets", func(t *testing.T) {
+		t.Parallel()
+		report := normalize(t, `query A { ...F } query B { ...F } fragment F on Query { hello }`, Limits{
+			MaxFragmentExpansionSelections: 2,
+			MaxExpandedSelectionSetFields:  1,
+		})
+		assert.False(t, report.HasErrors(), report.Error())
+	})
 }
 
 func TestNormalizationLimitsBoundExpansion(t *testing.T) {
-	definition := limitsTestDefinition(t)
-	for _, levels := range []int{18, 198} {
-		for _, leaf := range []string{"__typename", "hello"} {
-			for _, limits := range []Limits{{MaxFragmentExpansionSelections: 10000}, {MaxFragmentExpansionSelections: 10000, MaxExpandedSelectionSetFields: 1000}} {
-				t.Run(fmt.Sprintf("%s/%d/%v", leaf, levels, limits), func(t *testing.T) {
-					op := ast.NewSmallDocument()
-					op.Input.ResetInputString(repeatedFragmentDocument(levels, leaf))
-					var report operationreport.Report
-					_, err := astparser.NewParser().ParseWithLimits(astparser.TokenizerLimits{MaxDepth: 200, MaxFields: 3500}, op, &report)
-					require.NoError(t, err)
-					require.False(t, report.HasErrors())
-					original := len(op.Selections)
-					NewWithOpts(WithInlineFragmentSpreads(), WithLimits(limits)).NormalizeOperation(op, &definition, &report)
-					require.Len(t, report.ExternalErrors, 1)
-					require.Equal(t, "NORMALIZATION_LIMIT_EXCEEDED", report.ExternalErrors[0].ExtensionCode)
-					require.Positive(t, len(op.Selections)-original, "work is allowed up to the budget")
-					require.LessOrEqual(t, len(op.Selections)-original, limits.MaxFragmentExpansionSelections)
-				})
-			}
-		}
+	t.Parallel()
+
+	check := func(t *testing.T, levels int, leaf string, limits Limits) {
+		t.Helper()
+		definition := limitsTestDefinition(t)
+		op := ast.NewSmallDocument()
+		op.Input.ResetInputString(repeatedFragmentDocument(levels, leaf))
+		var report operationreport.Report
+		parser := astparser.NewParser()
+		_, err := parser.ParseWithLimits(astparser.TokenizerLimits{MaxDepth: 200, MaxFields: 3500}, op, &report)
+		require.NoError(t, err)
+		require.False(t, report.HasErrors(), report.Error())
+		original := len(op.Selections)
+		normalizer := NewWithOpts(WithInlineFragmentSpreads(), WithLimits(limits))
+		normalizer.NormalizeOperation(op, &definition, &report)
+		require.Len(t, report.ExternalErrors, 1)
+		assert.Equal(t, "NORMALIZATION_LIMIT_EXCEEDED", report.ExternalErrors[0].ExtensionCode)
+		assert.Positive(t, len(op.Selections)-original, "work is allowed up to the budget")
+		assert.LessOrEqual(t, len(op.Selections)-original, limits.MaxFragmentExpansionSelections)
 	}
+
+	t.Run("typename level 18 copy budget", func(t *testing.T) {
+		t.Parallel()
+		check(t, 18, "__typename", Limits{MaxFragmentExpansionSelections: 10000})
+	})
+	t.Run("typename level 18 both budgets", func(t *testing.T) {
+		t.Parallel()
+		check(t, 18, "__typename", Limits{
+			MaxFragmentExpansionSelections: 10000,
+			MaxExpandedSelectionSetFields:  1000,
+		})
+	})
+	t.Run("field level 18 copy budget", func(t *testing.T) {
+		t.Parallel()
+		check(t, 18, "hello", Limits{MaxFragmentExpansionSelections: 10000})
+	})
+	t.Run("field level 18 both budgets", func(t *testing.T) {
+		t.Parallel()
+		check(t, 18, "hello", Limits{
+			MaxFragmentExpansionSelections: 10000,
+			MaxExpandedSelectionSetFields:  1000,
+		})
+	})
+	t.Run("typename level 198 copy budget", func(t *testing.T) {
+		t.Parallel()
+		check(t, 198, "__typename", Limits{MaxFragmentExpansionSelections: 10000})
+	})
+	t.Run("typename level 198 both budgets", func(t *testing.T) {
+		t.Parallel()
+		check(t, 198, "__typename", Limits{
+			MaxFragmentExpansionSelections: 10000,
+			MaxExpandedSelectionSetFields:  1000,
+		})
+	})
+	t.Run("field level 198 copy budget", func(t *testing.T) {
+		t.Parallel()
+		check(t, 198, "hello", Limits{MaxFragmentExpansionSelections: 10000})
+	})
+	t.Run("field level 198 both budgets", func(t *testing.T) {
+		t.Parallel()
+		check(t, 198, "hello", Limits{
+			MaxFragmentExpansionSelections: 10000,
+			MaxExpandedSelectionSetFields:  1000,
+		})
+	})
 }
 
 func TestNormalizationLimitsNamedOperationAndReuse(t *testing.T) {
+	t.Parallel()
+
 	definition := limitsTestDefinition(t)
-	normalizer := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithRemoveNotMatchingOperationDefinitions(), WithLimits(Limits{10000, 1000}))
-	for _, tt := range []struct{ query, name, want string }{
-		{repeatedFragmentDocument(18, "hello"), "Q", "NORMALIZATION_LIMIT_EXCEEDED"},
-		{`query Small { hello hello } ` + repeatedFragmentDocument(18, "hello"), "Small", ""},
-		{`query Q { ...Missing }`, "Q", "undefined"},
-		{`query Q { ...A } fragment A on Query { ...B } fragment B on Query { ...A }`, "Q", "cycle"},
-		{`query Q { hello hello }`, "Q", ""},
-	} {
-		op, report := astparser.ParseGraphqlDocumentString(tt.query)
-		require.False(t, report.HasErrors())
-		normalizer.NormalizeNamedOperation(&op, &definition, []byte(tt.name), &report)
-		if tt.want == "" {
-			require.False(t, report.HasErrors(), report.Error())
-			printed, err := astprinter.PrintString(&op)
-			require.NoError(t, err)
-			require.Equal(t, "query "+tt.name+" {hello}", printed)
-		} else {
-			require.True(t, report.HasErrors())
-			if tt.want == "NORMALIZATION_LIMIT_EXCEEDED" {
-				require.Equal(t, tt.want, report.ExternalErrors[0].ExtensionCode)
-			} else {
-				require.Contains(t, report.Error(), tt.want)
-			}
-		}
+	normalizer := NewWithOpts(
+		WithInlineFragmentSpreads(),
+		WithRemoveFragmentDefinitions(),
+		WithRemoveNotMatchingOperationDefinitions(),
+		WithLimits(Limits{
+			MaxFragmentExpansionSelections: 10000,
+			MaxExpandedSelectionSetFields:  1000,
+		}),
+	)
+	normalize := func(query, name string) (*ast.Document, operationreport.Report) {
+		t.Helper()
+		op, report := astparser.ParseGraphqlDocumentString(query)
+		require.False(t, report.HasErrors(), report.Error())
+		normalizer.NormalizeNamedOperation(&op, &definition, []byte(name), &report)
+		return &op, report
 	}
+
+	// These operations intentionally share a normalizer and run in sequence.
+	_, report := normalize(repeatedFragmentDocument(18, "hello"), "Q")
+	assertNormalizationLimit(t, report, "max_expanded_selection_set_fields")
+
+	op, report := normalize(`query Small { hello hello } `+repeatedFragmentDocument(18, "hello"), "Small")
+	require.False(t, report.HasErrors(), report.Error())
+	printed, err := astprinter.PrintString(op)
+	require.NoError(t, err)
+	assert.Equal(t, "query Small {hello}", printed)
+
+	_, report = normalize(`query Q { ...Missing }`, "Q")
+	assert.True(t, report.HasErrors())
+	assert.Contains(t, report.Error(), "undefined")
+
+	_, report = normalize(`query Q { ...A } fragment A on Query { ...B } fragment B on Query { ...A }`, "Q")
+	assert.True(t, report.HasErrors())
+	assert.Contains(t, report.Error(), "cycle")
+
+	op, report = normalize(`query Q { hello hello }`, "Q")
+	require.False(t, report.HasErrors(), report.Error())
+	printed, err = astprinter.PrintString(op)
+	require.NoError(t, err)
+	assert.Equal(t, "query Q {hello}", printed)
 }
 
 func TestNormalizationLimitsDisabled(t *testing.T) {
-	definition := limitsTestDefinition(t)
+	t.Parallel()
+
 	query := "{ " + strings.Repeat("hello ", 1001) + "}"
-	for _, tt := range []struct {
-		name       string
-		normalizer *OperationNormalizer
-		reject     bool
-	}{
-		{"legacy constructor", NewNormalizer(true, false), false},
-		{"options constructor", NewWithOpts(WithInlineFragmentSpreads()), false},
-		{"explicit zero value", NewWithOpts(WithLimits(Limits{})), false},
-		{"source fields do not spend copy budget", NewWithOpts(WithInlineFragmentSpreads(), WithLimits(Limits{MaxFragmentExpansionSelections: 1})), false},
-		{"width without fragment inlining", NewWithOpts(WithLimits(Limits{MaxExpandedSelectionSetFields: 1000})), true},
-		{"zero overrides limits", NewWithOpts(WithLimits(Limits{1000, 1000}), WithLimits(Limits{})), false},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			op, report := astparser.ParseGraphqlDocumentString(query)
-			tt.normalizer.NormalizeOperation(&op, &definition, &report)
-			require.Equal(t, tt.reject, report.HasErrors(), report.Error())
-		})
+	normalize := func(t *testing.T, normalizer *OperationNormalizer) operationreport.Report {
+		t.Helper()
+		definition := limitsTestDefinition(t)
+		op, report := astparser.ParseGraphqlDocumentString(query)
+		require.False(t, report.HasErrors(), report.Error())
+		normalizer.NormalizeOperation(&op, &definition, &report)
+		return report
 	}
+
+	t.Run("legacy constructor", func(t *testing.T) {
+		t.Parallel()
+		normalizer := NewNormalizer(true, false)
+		report := normalize(t, normalizer)
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("options constructor", func(t *testing.T) {
+		t.Parallel()
+		normalizer := NewWithOpts(WithInlineFragmentSpreads())
+		report := normalize(t, normalizer)
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("explicit zero value", func(t *testing.T) {
+		t.Parallel()
+		normalizer := NewWithOpts(WithLimits(Limits{}))
+		report := normalize(t, normalizer)
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("source fields do not spend copy budget", func(t *testing.T) {
+		t.Parallel()
+		normalizer := NewWithOpts(
+			WithInlineFragmentSpreads(),
+			WithLimits(Limits{MaxFragmentExpansionSelections: 1}),
+		)
+		report := normalize(t, normalizer)
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("width without fragment inlining", func(t *testing.T) {
+		t.Parallel()
+		normalizer := NewWithOpts(WithLimits(Limits{MaxExpandedSelectionSetFields: 1000}))
+		report := normalize(t, normalizer)
+		assertNormalizationLimit(t, report, "max_expanded_selection_set_fields")
+	})
+	t.Run("unexpanded named fragments are not counted", func(t *testing.T) {
+		t.Parallel()
+		definition := limitsTestDefinition(t)
+		op, report := astparser.ParseGraphqlDocumentString(`{ hello ...F } fragment F on Query { hello hello }`)
+		require.False(t, report.HasErrors(), report.Error())
+		normalizer := NewWithOpts(WithLimits(Limits{MaxExpandedSelectionSetFields: 1}))
+		normalizer.NormalizeOperation(&op, &definition, &report)
+		assert.False(t, report.HasErrors(), report.Error())
+	})
+	t.Run("zero overrides limits", func(t *testing.T) {
+		t.Parallel()
+		normalizer := NewWithOpts(
+			WithLimits(Limits{
+				MaxFragmentExpansionSelections: 1000,
+				MaxExpandedSelectionSetFields:  1000,
+			}),
+			WithLimits(Limits{}),
+		)
+		report := normalize(t, normalizer)
+		assert.False(t, report.HasErrors(), report.Error())
+	})
 }
 
 func BenchmarkNormalizationLimits(b *testing.B) {

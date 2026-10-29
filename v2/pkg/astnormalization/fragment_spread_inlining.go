@@ -8,11 +8,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-func fragmentSpreadInline(walker *astvisitor.Walker) {
-	fragmentSpreadInlineWithLimits(walker, Limits{}, true)
-}
-
-func fragmentSpreadInlineWithLimits(walker *astvisitor.Walker, limits Limits, expand bool) {
+func fragmentSpreadInline(walker *astvisitor.Walker, limits Limits, expand bool) {
 	visitor := fragmentSpreadInlineVisitor{
 		Walker: walker,
 		limits: limits,

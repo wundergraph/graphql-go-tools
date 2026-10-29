@@ -280,7 +280,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.inlineFragmentSpreads || o.options.limits.MaxExpandedSelectionSetFields > 0 {
 		fragmentInline := astvisitor.NewWalkerWithID(8, "FragmentSpreadInline")
-		fragmentSpreadInlineWithLimits(&fragmentInline, o.options.limits, o.options.inlineFragmentSpreads)
+		fragmentSpreadInline(&fragmentInline, o.options.limits, o.options.inlineFragmentSpreads)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "fragmentInline",
 			walker: &fragmentInline,
