@@ -41,9 +41,9 @@ type Item struct {
 	// SharedOnly is CachePolicy.SharedOnly: a hit gives a client no max-age of
 	// its own. Stored and returned with the value.
 	SharedOnly bool
-	// ClientShortfall is how much less than TTL a client may keep the entry,
-	// as when max-age is under s-maxage. Stored and returned with the value.
-	ClientShortfall time.Duration
+	// ClientTTL is CachePolicy.ClientTTL: how long a client may keep the
+	// entry, never over TTL. Like TTL, GetMany returns what is left of it.
+	ClientTTL time.Duration
 }
 
 // Cache is a batch oriented key/value cache.

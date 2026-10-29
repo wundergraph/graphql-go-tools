@@ -262,6 +262,106 @@ func (p *pathVisitor) EnterField(ref int) {
 	fmt.Fprintf(p.out, "EnterField: %s, path: %s\n", p.op.FieldNameUnsafeString(ref), p.Path)
 }
 
+func TestWalker_EnclosingFieldRef(t *testing.T) {
+	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
+	operation := unsafeparser.ParseGraphqlDocumentString(`
+		query {
+			posts {
+				id
+				... on Post {
+					... @include(if: true) {
+						user { name }
+					}
+				}
+			}
+			foo(bar: "bar", baz: true) { fooField }
+		}
+		fragment UserFields on User {
+			name
+			posts { id }
+		}`)
+
+	walker := astvisitor.NewWalker(48)
+	visitor := &enclosingFieldVisitor{Walker: &walker, operation: &operation}
+	walker.RegisterEnterFieldVisitor(visitor)
+	walker.RegisterLeaveFieldVisitor(visitor)
+	walker.RegisterEnterArgumentVisitor(visitor)
+	walker.RegisterEnterDirectiveVisitor(visitor)
+	walker.RegisterEnterSelectionSetVisitor(visitor)
+
+	report := operationreport.Report{}
+	walker.Walk(&operation, &definition, &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	require.Equal(t, []string{
+		"EnterSelectionSet: -", // query
+		"EnterField posts: -",
+		"EnterSelectionSet: posts",
+		"EnterField id: posts",
+		"LeaveField id: posts",
+		"EnterSelectionSet: posts",
+		"EnterDirective include: posts",
+		"EnterArgument if: posts",
+		"EnterSelectionSet: posts",
+		"EnterField user: posts",
+		"EnterSelectionSet: user",
+		"EnterField name: user",
+		"LeaveField name: user",
+		"LeaveField user: posts",
+		"LeaveField posts: -",
+		"EnterField foo: -",
+		"EnterArgument bar: foo",
+		"EnterArgument baz: foo",
+		"EnterSelectionSet: foo",
+		"EnterField fooField: foo",
+		"LeaveField fooField: foo",
+		"LeaveField foo: -",
+		"EnterSelectionSet: -", // fragment UserFields
+		"EnterField name: -",
+		"LeaveField name: -",
+		"EnterField posts: -",
+		"EnterSelectionSet: posts",
+		"EnterField id: posts",
+		"LeaveField id: posts",
+		"LeaveField posts: -",
+	}, visitor.events)
+}
+
+type enclosingFieldVisitor struct {
+	*astvisitor.Walker
+
+	operation *ast.Document
+	events    []string
+}
+
+func (v *enclosingFieldVisitor) record(event string) {
+	enclosing := "-"
+	if ref := v.EnclosingFieldRef(); ref != ast.InvalidRef {
+		enclosing = v.operation.FieldAliasOrNameString(ref)
+	}
+	v.events = append(v.events, event+": "+enclosing)
+}
+
+func (v *enclosingFieldVisitor) EnterField(ref int) {
+	v.record("EnterField " + v.operation.FieldAliasOrNameString(ref))
+}
+
+func (v *enclosingFieldVisitor) LeaveField(ref int) {
+	v.record("LeaveField " + v.operation.FieldAliasOrNameString(ref))
+}
+
+func (v *enclosingFieldVisitor) EnterArgument(ref int) {
+	v.record("EnterArgument " + v.operation.ArgumentNameString(ref))
+}
+
+func (v *enclosingFieldVisitor) EnterDirective(ref int) {
+	v.record("EnterDirective " + v.operation.DirectiveNameString(ref))
+}
+
+func (v *enclosingFieldVisitor) EnterSelectionSet(_ int) {
+	v.record("EnterSelectionSet")
+}
+
 func TestVisitWithSkip(t *testing.T) {
 
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)

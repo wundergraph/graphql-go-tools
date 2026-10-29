@@ -75,7 +75,7 @@ func TestEntryDecodeRefuses(t *testing.T) {
 		{name: "unknown tier", input: unknownTier},
 		{name: "surrogate key count larger than the input", input: []byte{entryFormatBody, 0, 0, 0xff, 0xff, 0x7f}},
 		{name: "cut before the flags", input: encoded[:1]},
-		{name: "cut before the shortfall", input: encoded[:2]},
+		{name: "cut before the reduction", input: encoded[:2]},
 		{name: "cut before the count", input: encoded[:3]},
 		{name: "cut before a tier", input: encoded[:4]},
 		{name: "cut inside a surrogate key length", input: encoded[:5]},
@@ -169,26 +169,36 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 }
 
 func TestClientEntryRoundTrip(t *testing.T) {
-	item := Item{Value: []byte(`{"id":1}`), SurrogateKeys: declared("a", "b"), Public: true, ClientShortfall: 540 * time.Second}
-	got, err := DecodeItem(encodeItem(t, item))
+	item := Item{Value: []byte(`{"id":1}`), TTL: 600 * time.Second, ClientTTL: 60 * time.Second, SurrogateKeys: declared("a", "b"), Public: true}
+	got, err := DecodeItem(encodeItem(t, item), 600*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, item.Value, got.Value)
 	require.Equal(t, item.SurrogateKeys, got.SurrogateKeys)
 	require.True(t, got.Public)
-	require.Equal(t, 540*time.Second, got.ClientShortfall)
+	require.Equal(t, 600*time.Second, got.TTL)
+	require.Equal(t, 60*time.Second, got.ClientTTL)
 
-	private, err := DecodeItem(encodeItem(t, Item{Value: []byte("v")}))
+	// ClientTTL counts down with TTL.
+	aged, err := DecodeItem(encodeItem(t, item), 550*time.Second)
+	require.NoError(t, err)
+	require.Equal(t, 10*time.Second, aged.ClientTTL)
+
+	expired, err := DecodeItem(encodeItem(t, item), 500*time.Second)
+	require.NoError(t, err)
+	require.Zero(t, expired.ClientTTL)
+
+	private, err := DecodeItem(encodeItem(t, Item{Value: []byte("v"), TTL: time.Minute, ClientTTL: time.Minute}), time.Minute)
 	require.NoError(t, err)
 	require.False(t, private.Public)
 	require.False(t, private.SharedOnly)
-	require.Zero(t, private.ClientShortfall)
+	require.Equal(t, time.Minute, private.ClientTTL)
 
-	shared, err := DecodeItem(encodeItem(t, Item{Value: []byte("v"), SharedOnly: true}))
+	shared, err := DecodeItem(encodeItem(t, Item{Value: []byte("v"), SharedOnly: true}), time.Minute)
 	require.NoError(t, err)
 	require.True(t, shared.SharedOnly)
 	require.False(t, shared.Public)
 
-	_, err = DecodeItem([]byte{entryFormatBody})
+	_, err = DecodeItem([]byte{entryFormatBody}, time.Minute)
 	require.ErrorIs(t, err, ErrEntryFormat)
 }
 

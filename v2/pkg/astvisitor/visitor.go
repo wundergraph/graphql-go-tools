@@ -4060,3 +4060,15 @@ func (w *Walker) ResolveInlineFragment() int {
 
 	return node.Ref
 }
+
+// EnclosingFieldRef returns the nearest field among the ancestors, or ast.InvalidRef outside fields.
+// In EnterField and LeaveField it is the parent field,
+// in a field's arguments, directives and selection set it is that field.
+func (w *Walker) EnclosingFieldRef() int {
+	for _, ancestor := range slices.Backward(w.Ancestors) {
+		if ancestor.Kind == ast.NodeKindField {
+			return ancestor.Ref
+		}
+	}
+	return ast.InvalidRef
+}

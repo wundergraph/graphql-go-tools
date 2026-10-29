@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.30.4](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.3...v2.30.4) (2026-10-28)
+
+
+### Bug Fixes
+
+* allow same-shaped fields with different type names ([#1721](https://github.com/wundergraph/graphql-go-tools/issues/1721)) ([27860ee](https://github.com/wundergraph/graphql-go-tools/commit/27860eeba73c4b52defda2bf9ce46fcb5f8a539d))
+
+## [2.30.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.2...v2.30.3) (2026-10-27)
+
+
+### Bug Fixes
+
+* **engine:** validate variable values for Int type ([#1726](https://github.com/wundergraph/graphql-go-tools/issues/1726)) ([716174d](https://github.com/wundergraph/graphql-go-tools/commit/716174dfd94d8e2dff3a654f276ca046c96980ae))
+
 ## [2.30.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.1...v2.30.2) (2026-10-26)
 
 

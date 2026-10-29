@@ -43,6 +43,10 @@ func (n NodeKind) IsAbstractType() bool {
 	return n == NodeKindInterfaceTypeDefinition || n == NodeKindUnionTypeDefinition
 }
 
+func (n NodeKind) IsCompositeType() bool {
+	return n == NodeKindObjectTypeDefinition || n == NodeKindInterfaceTypeDefinition || n == NodeKindUnionTypeDefinition
+}
+
 func (d *Document) NodeKindNameBytes(node Node) ByteSlice {
 	switch node.Kind {
 	case NodeKindOperationDefinition:

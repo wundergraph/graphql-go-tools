@@ -15,7 +15,7 @@ import (
 // kind      1 byte, entryFormatBody or entryFormatRecord
 // body:
 // flags     1 byte, bit 0 public, bit 1 shared only
-// shortfall uvarint, ClientShortfall in ms
+// gap       uvarint, TTL less ClientTTL in ms; both count down together
 // count     uvarint, number of surrogate keys
 // keys      count times: 1 byte tier, uvarint byte length, then the key, that many bytes
 // value     everything after the last key, the cached body itself, no length prefix
@@ -26,7 +26,7 @@ import (
 // Example: public Value {"id":42} with keys "subgraph-users" and declared "user-42"
 // 04                   kind: body
 // 01                   flags: public
-// 00                   shortfall: none
+// 00                   gap: none
 // 02                   count: 2 keys
 // 00 0e subgraph-users tier subgraph, length 14, then the bytes
 // 02 07 user-42        tier declared, length 7, then the bytes
@@ -76,7 +76,7 @@ func encodeBody(item Item) []byte {
 		flags |= entryFlagSharedOnly
 	}
 	out = append(out, flags)
-	out = binary.AppendUvarint(out, uint64(max(item.ClientShortfall, 0)/time.Millisecond))
+	out = binary.AppendUvarint(out, uint64(max(item.TTL-item.ClientTTL, 0)/time.Millisecond))
 	out = binary.AppendUvarint(out, uint64(len(item.SurrogateKeys)))
 	for _, surrogateKey := range item.SurrogateKeys {
 		out = append(out, byte(surrogateKey.Tier))
@@ -136,9 +136,9 @@ func appendList(out []byte, list []string) []byte {
 	return out
 }
 
-// DecodeItem decodes an entry. A body decodes to Value and SurrogateKeys, a
-// record to Vary; the value is a subslice of b.
-func DecodeItem(b []byte) (Item, error) {
+// DecodeItem decodes an entry with ttl left to live. A body decodes to Value
+// and SurrogateKeys, a record to Vary; the value is a subslice of b.
+func DecodeItem(b []byte, ttl time.Duration) (Item, error) {
 	if len(b) == 0 {
 		return Item{}, ErrEntryFormat
 	}
@@ -150,8 +150,8 @@ func DecodeItem(b []byte) (Item, error) {
 			return Item{}, ErrEntryFormat
 		}
 		flags := rest[0]
-		shortfall, n := binary.Uvarint(rest[1:])
-		if n <= 0 || shortfall > math.MaxInt64/uint64(time.Millisecond) {
+		gap, n := binary.Uvarint(rest[1:])
+		if n <= 0 || gap > math.MaxInt64/uint64(time.Millisecond) {
 			return Item{}, ErrEntryFormat
 		}
 		surrogateKeys, value, ok := readTieredList(rest[1+n:])
@@ -159,11 +159,12 @@ func DecodeItem(b []byte) (Item, error) {
 			return Item{}, ErrEntryFormat
 		}
 		return Item{
-			Value:           value,
-			SurrogateKeys:   surrogateKeys,
-			Public:          flags&entryFlagPublic != 0,
-			SharedOnly:      flags&entryFlagSharedOnly != 0,
-			ClientShortfall: time.Duration(shortfall) * time.Millisecond,
+			Value:         value,
+			TTL:           ttl,
+			SurrogateKeys: surrogateKeys,
+			Public:        flags&entryFlagPublic != 0,
+			SharedOnly:    flags&entryFlagSharedOnly != 0,
+			ClientTTL:     max(ttl-time.Duration(gap)*time.Millisecond, 0),
 		}, nil
 
 	case entryFormatRecord:
@@ -187,7 +188,7 @@ func DecodeItem(b []byte) (Item, error) {
 		if len(rest) != 0 {
 			return Item{}, ErrEntryFormat
 		}
-		return Item{Vary: vary}, nil
+		return Item{Vary: vary, TTL: ttl}, nil
 
 	default:
 		return Item{}, ErrEntryFormat
@@ -196,7 +197,7 @@ func DecodeItem(b []byte) (Item, error) {
 
 // DecodeEntry is DecodeItem without the client directives.
 func DecodeEntry(b []byte) (value []byte, surrogateKeys []SurrogateKey, vary [][]string, err error) {
-	item, err := DecodeItem(b)
+	item, err := DecodeItem(b, 0)
 	return item.Value, item.SurrogateKeys, item.Vary, err
 }
 
