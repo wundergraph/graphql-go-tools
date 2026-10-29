@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
@@ -296,11 +294,63 @@ func TestExecutionPlan_Federation_EntityLookup(t *testing.T) {
 				t.Fatalf("failed to plan operation: %s", err)
 			}
 
-			diff := cmp.Diff(tt.expectedPlan, plan)
-			if diff != "" {
-				t.Fatalf("execution plan mismatch: %s", diff)
-			}
+			assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 		})
+	}
+}
+
+// TestExecutionPlan_Federation_MissingEntityConfig tests that an entity fragment
+// without a key configuration returns a planning error.
+func TestExecutionPlan_Federation_MissingEntityConfig(t *testing.T) {
+	t.Parallel()
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(`query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { id name } } }`)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	planner, err := NewPlanner("Products", testMapping(), plan.FederationFieldConfigurations{
+		{
+			TypeName:     "Product",
+			SelectionSet: "id",
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to create planner %s", err)
+	}
+
+	_, err = planner.PlanOperation(&queryDoc, &schemaDoc)
+	if err == nil || !strings.Contains(err.Error(), "no entity configuration found for type Storage") {
+		t.Fatalf("expected a missing entity configuration error, got: %v", err)
+	}
+}
+
+// TestExecutionPlan_Federation_MissingEntityKeyConfig tests that an entity fragment
+// with only @requires configurations and no key fields returns a planning error.
+func TestExecutionPlan_Federation_MissingEntityKeyConfig(t *testing.T) {
+	t.Parallel()
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(`query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Storage { id name } } }`)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	planner, err := NewPlanner("Products", testMapping(), plan.FederationFieldConfigurations{
+		{
+			TypeName:     "Storage",
+			FieldName:    "tagSummary",
+			SelectionSet: "tags",
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to create planner %s", err)
+	}
+
+	_, err = planner.PlanOperation(&queryDoc, &schemaDoc)
+	if err == nil || !strings.Contains(err.Error(), "no entity configuration found for type Storage") {
+		t.Fatalf("expected a missing entity configuration error, got: %v", err)
 	}
 }
 
@@ -1886,11 +1936,351 @@ func TestEntityLookupWithFieldResolvers_ComplexResolverInNestedMessage(t *testin
 			t.Fatalf("failed to plan operation: %s", err)
 		}
 
-		diff := cmp.Diff(expectedPlan, plan)
-		if diff != "" {
-			t.Fatalf("execution plan mismatch: %s", diff)
-		}
+		assertExecutionPlanEqual(t, expectedPlan, plan)
 	})
+}
+
+// nestedEntityInlineFragmentFederationSchema defines an entity that can be selected again
+// with an inline fragment further down: once through a plain union field and once through
+// a field resolver. Only the fragment directly below _entities may start an entity lookup.
+var nestedEntityInlineFragmentFederationSchema = `
+scalar connect__FieldSet
+directive @connect__fieldResolver(context: connect__FieldSet!) on FIELD_DEFINITION
+
+schema {
+	query: Query
+}
+
+type Query {
+	_entities(representations: [_Any!]!): [_Entity]!
+}
+
+type Entity @key(fields: "id") {
+	id: ID!
+	plainUnionField: EntityOrNonEntity
+	resolverField(depth: Int!): [Entity!]! @connect__fieldResolver(context: "id")
+}
+
+type NonEntity {
+	value: String!
+}
+
+union EntityOrNonEntity = Entity | NonEntity
+
+union _Entity = Entity
+scalar _Any
+`
+
+var nestedEntityInlineFragmentFederationMapping = &GRPCMapping{
+	Service: "Products",
+	EntityRPCs: map[string][]EntityRPCConfig{
+		"Entity": {
+			{
+				Key: "id",
+				RPCConfig: RPCConfig{
+					RPC:      "LookupEntityById",
+					Request:  "LookupEntityByIdRequest",
+					Response: "LookupEntityByIdResponse",
+				},
+			},
+		},
+	},
+	ResolveRPCs: RPCConfigMap[ResolveRPCMapping]{
+		"Entity": {
+			"resolverField": ResolveRPCTypeField{
+				FieldMappingData: FieldMapData{
+					TargetName: "resolver_field",
+					ArgumentMappings: FieldArgumentMap{
+						"depth": "depth",
+					},
+				},
+				RPC:      "ResolveEntityResolverField",
+				Request:  "ResolveEntityResolverFieldRequest",
+				Response: "ResolveEntityResolverFieldResponse",
+			},
+		},
+	},
+	Fields: map[string]FieldMap{
+		"Entity": {
+			"id":              {TargetName: "id"},
+			"plainUnionField": {TargetName: "plain_union_field"},
+			"resolverField": {
+				TargetName: "resolver_field",
+				ArgumentMappings: FieldArgumentMap{
+					"depth": "depth",
+				},
+			},
+		},
+		"NonEntity": {
+			"value": {TargetName: "value"},
+		},
+	},
+}
+
+var nestedEntityInlineFragmentFederationConfigs = plan.FederationFieldConfigurations{
+	{
+		TypeName:     "Entity",
+		SelectionSet: "id",
+	},
+}
+
+// TestEntityLookupWithNestedEntityInlineFragments tests that an inline fragment on an entity
+// type below the entity inline fragment is planned as a regular fragment. Previously it
+// started a second entity lookup, which replaced the first one and left the plan without
+// call 0, so dependent resolver calls failed with "unable to find dependent call 0".
+func TestEntityLookupWithNestedEntityInlineFragments(t *testing.T) {
+	t.Parallel()
+
+	entityLookupRequest := RPCMessage{
+		Name: "LookupEntityByIdRequest",
+		Fields: []RPCField{
+			{
+				Name:          "keys",
+				ProtoTypeName: DataTypeMessage,
+				Repeated:      true,
+				JSONPath:      "representations",
+				Message: &RPCMessage{
+					Name:        "LookupEntityByIdRequestKey",
+					MemberTypes: []string{"Entity"},
+					Fields: []RPCField{
+						{
+							Name:          "id",
+							ProtoTypeName: DataTypeString,
+							JSONPath:      "id",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name              string
+		query             string
+		schema            string
+		expectedPlan      *RPCExecutionPlan
+		mapping           *GRPCMapping
+		federationConfigs plan.FederationFieldConfigurations
+	}{
+		{
+			name:              "Should plan an entity fragment inside a plain union field as a regular fragment",
+			query:             `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Entity { __typename id plainUnionField { ... on Entity { id } ... on NonEntity { value } } } } }`,
+			schema:            nestedEntityInlineFragmentFederationSchema,
+			mapping:           nestedEntityInlineFragmentFederationMapping,
+			federationConfigs: nestedEntityInlineFragmentFederationConfigs,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName:         "Products",
+						MethodName:          "LookupEntityById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Entity",
+						Request:             entityLookupRequest,
+						Response: RPCMessage{
+							Name: "LookupEntityByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Entity",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Entity",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+											{
+												Name:          "plain_union_field",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "plainUnionField",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name:        "EntityOrNonEntity",
+													OneOfType:   OneOfTypeUnion,
+													MemberTypes: []string{"Entity", "NonEntity"},
+													FragmentFields: RPCFieldSelectionSet{
+														"Entity": {
+															{
+																Name:          "id",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "id",
+															},
+														},
+														"NonEntity": {
+															{
+																Name:          "value",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "value",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:              "Should plan an entity fragment inside a plain union field below a field resolver as a regular fragment",
+			query:             `query EntityLookup($representations: [_Any!]!, $depth: Int!) { _entities(representations: $representations) { ... on Entity { __typename id resolverField(depth: $depth) { plainUnionField { ... on Entity { id } ... on NonEntity { value } } } } } }`,
+			schema:            nestedEntityInlineFragmentFederationSchema,
+			mapping:           nestedEntityInlineFragmentFederationMapping,
+			federationConfigs: nestedEntityInlineFragmentFederationConfigs,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName:         "Products",
+						MethodName:          "LookupEntityById",
+						Kind:                CallKindEntity,
+						RequestedEntityType: "Entity",
+						Request:             entityLookupRequest,
+						Response: RPCMessage{
+							Name: "LookupEntityByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "_entities",
+									Message: &RPCMessage{
+										Name: "Entity",
+										Fields: []RPCField{
+											{
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "Entity",
+											},
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ID:             1,
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveEntityResolverField",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("_entities.resolverField"),
+						Request: RPCMessage{
+							Name: "ResolveEntityResolverFieldRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveEntityResolverFieldContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("result.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveEntityResolverFieldArgs",
+										Fields: []RPCField{
+											{
+												Name:          "depth",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "depth",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveEntityResolverFieldResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveEntityResolverFieldResult",
+										Fields: []RPCField{
+											{
+												Name:          "resolver_field",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "resolverField",
+												Repeated:      true,
+												Message: &RPCMessage{
+													Name: "Entity",
+													Fields: []RPCField{
+														{
+															Name:          "plain_union_field",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "plainUnionField",
+															Optional:      true,
+															Message: &RPCMessage{
+																Name:        "EntityOrNonEntity",
+																OneOfType:   OneOfTypeUnion,
+																MemberTypes: []string{"Entity", "NonEntity"},
+																FragmentFields: RPCFieldSelectionSet{
+																	"Entity": {
+																		{
+																			Name:          "id",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "id",
+																		},
+																	},
+																	"NonEntity": {
+																		{
+																			Name:          "value",
+																			ProtoTypeName: DataTypeString,
+																			JSONPath:      "value",
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		runFederationTest(t, tt)
+	}
 }
 
 func runFederationTest(t *testing.T, tt struct {
@@ -1936,10 +2326,7 @@ func runFederationTest(t *testing.T, tt struct {
 			t.Fatalf("failed to plan operation: %s", err)
 		}
 
-		diff := cmp.Diff(tt.expectedPlan, plan)
-		if diff != "" {
-			t.Fatalf("execution plan mismatch: %s", diff)
-		}
+		assertExecutionPlanEqual(t, tt.expectedPlan, plan)
 	})
 
 }

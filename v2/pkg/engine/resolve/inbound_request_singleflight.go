@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -62,11 +63,13 @@ type InflightRequest struct {
 	SharedData any
 	// SurrogateKeys are the leader's response cache surrogate keys, so a follower
 	// serving the same body sends the same header.
-	SurrogateKeys []string
+	SurrogateKeys []caching.SurrogateKey
 	Err           error
 	ID            inboundRequestKey
 
 	followerCount atomic.Int32
+	// finished makes Finish* idempotent: a leader may panic after finishing.
+	finished atomic.Bool
 }
 
 func (r *InflightRequest) AddFollower() {
@@ -103,7 +106,7 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
 	binary.LittleEndian.PutUint64(b[keyHeadersHashOffset:keyPrivateIDOffset], hh)
-	if privateID, ok := ctx.responseCachePrivateID(); ok {
+	if privateID, ok := ctx.responseCacheSingleFlightID(); ok {
 		copy(b[keyPrivateIDOffset:], privateID[:])
 	}
 
@@ -133,7 +136,7 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 }
 
 func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte) {
-	if req == nil {
+	if req == nil || !req.finished.CompareAndSwap(false, true) {
 		return
 	}
 	shard := r.shardFor(req.ID)
@@ -147,7 +150,7 @@ func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte)
 }
 
 func (r *InboundRequestSingleFlight) FinishErr(req *InflightRequest, err error) {
-	if req == nil {
+	if req == nil || !req.finished.CompareAndSwap(false, true) {
 		return
 	}
 	shard := r.shardFor(req.ID)

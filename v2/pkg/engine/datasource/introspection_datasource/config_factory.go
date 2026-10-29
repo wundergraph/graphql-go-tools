@@ -20,7 +20,7 @@ func NewIntrospectionConfigFactory(schema *ast.Document) (*IntrospectionConfigFa
 	gen := introspection.NewGenerator()
 	gen.Generate(schema, &report, &data)
 	if report.HasErrors() {
-		return nil, report
+		return nil, &report
 	}
 
 	return &IntrospectionConfigFactory{introspectionData: &data}, nil

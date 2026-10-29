@@ -31,8 +31,8 @@ generate-mapping-code-grpc-test: regenerate-proto
 
 .PHONY: generate-mapping-code-grpc-datasource
 generate-mapping-code-grpc-datasource: generate-mapping-code-grpc-test
-	go run $(mkfile_dir)/cmd/mapping_helper/main.go -grpc-datasource $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_test_helper.go
-	go fmt $(grpc_datasource_dir)/mapping_test_helper.go
+	go run $(mkfile_dir)/cmd/mapping_helper/main.go -grpc-datasource $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_helper_test.go
+	go fmt $(grpc_datasource_dir)/mapping_helper_test.go
 
 .PHONY: cleanup-mapping-file
 cleanup-mapping-file: generate-mapping-code-grpc-datasource
@@ -55,8 +55,8 @@ generate-mapping-code-grpc-test-local: regenerate-proto-local
 
 .PHONY: generate-mapping-code-grpc-datasource-local
 generate-mapping-code-grpc-datasource-local: generate-mapping-code-grpc-test-local
-	go run $(mkfile_dir)/cmd/mapping_helper/main.go -grpc-datasource $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_test_helper.go
-	go fmt $(grpc_datasource_dir)/mapping_test_helper.go
+	go run $(mkfile_dir)/cmd/mapping_helper/main.go -grpc-datasource $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_helper_test.go
+	go fmt $(grpc_datasource_dir)/mapping_helper_test.go
 
 .PHONY: cleanup-mapping-file-local
 cleanup-mapping-file-local: generate-mapping-code-grpc-datasource-local

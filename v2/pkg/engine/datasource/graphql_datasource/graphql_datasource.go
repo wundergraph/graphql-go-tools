@@ -413,7 +413,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 
 		opDocument, opReport := astparser.ParseGraphqlDocumentBytes(operation)
 		if opReport.HasErrors() {
-			p.stopWithError(errors.WithStack(fmt.Errorf("failed to parse operation: %w", opReport)))
+			p.stopWithError(errors.WithStack(fmt.Errorf("failed to parse operation: %w", &opReport)))
 			return resolve.FetchConfiguration{}
 		}
 
@@ -423,6 +423,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			Mapping:           p.config.grpc.Mapping,
 			Compiler:          p.config.grpc.Compiler,
 			Disabled:          p.config.grpc.Disabled,
+			UseProtoReflect:   p.config.grpc.UseProtoReflect,
 			FederationConfigs: p.dataSourcePlannerConfig.RequiredFields,
 			// TODO: remove fallback logic in visitor for subgraph name and
 			// add proper error handling if the subgraph name is not set in the mapping

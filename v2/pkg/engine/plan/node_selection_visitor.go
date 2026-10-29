@@ -350,19 +350,16 @@ func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires boo
 // immediately when the nearest field ancestor lacks the directive instead of
 // continuing to climb.
 func (c *nodeSelectionVisitor) wrappingFieldDeferID() int {
-	for _, v := range slices.Backward(c.walker.Ancestors) {
-		ancestor := v
-		if ancestor.Kind != ast.NodeKindField {
-			continue
-		}
-		id, exists := c.operation.FieldInternalDeferID(ancestor.Ref)
-		if !exists {
-			// nearest field ancestor is not deferred -> not in a defer scope
-			return 0
-		}
-		return id
+	fieldRef := c.walker.EnclosingFieldRef()
+	if fieldRef == ast.InvalidRef {
+		return 0
 	}
-	return 0
+	id, exists := c.operation.FieldInternalDeferID(fieldRef)
+	if !exists {
+		// nearest field ancestor is not deferred -> not in a defer scope
+		return 0
+	}
+	return id
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {

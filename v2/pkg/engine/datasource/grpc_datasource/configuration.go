@@ -53,9 +53,10 @@ type EnumValueMapping struct {
 
 // GRPCConfiguration defines the configuration for a gRPC datasource
 type GRPCConfiguration struct {
-	Disabled bool         // Whether the RPC is disabled
-	Mapping  *GRPCMapping // The mapping between GraphQL types and gRPC messages
-	Compiler *RPCCompiler // The compiler for the RPC
+	Disabled        bool         // Whether the RPC is disabled
+	Mapping         *GRPCMapping // The mapping between GraphQL types and gRPC messages
+	Compiler        *RPCCompiler // The compiler for the RPC
+	UseProtoReflect bool         // Whether to use protoreflect instead of wire encoding for gRPC requests
 }
 
 // RPCConfig defines the configuration for a specific RPC operation
@@ -176,6 +177,10 @@ func (g *GRPCMapping) FindEnumValueMapping(enumName, enumValue string) (string, 
 
 // FindEntityRPCConfig finds the gRPC RPC config for a given GraphQL type and key
 func (g *GRPCMapping) FindEntityRPCConfig(typeName, key string) (RPCConfig, bool) {
+	if g == nil || g.EntityRPCs == nil {
+		return RPCConfig{}, false
+	}
+
 	rpcConfig, ok := g.EntityRPCs[typeName]
 	if !ok {
 		return RPCConfig{}, false
@@ -192,6 +197,10 @@ func (g *GRPCMapping) FindEntityRPCConfig(typeName, key string) (RPCConfig, bool
 }
 
 func (g *GRPCMapping) FindRequiredFieldsRPCConfig(typeName, key, field string) (RequiredFieldsRPCTypeField, bool) {
+	if g == nil || g.EntityRPCs == nil {
+		return RequiredFieldsRPCTypeField{}, false
+	}
+
 	rpcConfig, ok := g.EntityRPCs[typeName]
 	if !ok {
 		return RequiredFieldsRPCTypeField{}, false

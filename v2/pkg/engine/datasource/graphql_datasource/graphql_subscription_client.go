@@ -203,7 +203,7 @@ func buildMessageHandler(updater resolve.SubscriptionUpdater, errorCode string) 
 				updater.Done()
 				return
 			}
-			updater.Update(data)
+			updater.Update(data, nil)
 		case client.MessageTypeComplete:
 			updater.Complete()
 			updater.Done()
@@ -298,8 +298,7 @@ func formatUpstreamServiceError(err error, code string) []byte {
 		Extensions: errorExtensions{Code: code},
 	}
 
-	var closeErr websocket.CloseError
-	if errors.As(err, &closeErr) {
+	if closeErr, ok := errors.AsType[websocket.CloseError](err); ok {
 		gqlErr.Extensions.CloseCode = int(closeErr.Code)
 		gqlErr.Extensions.Reason = closeErr.Reason
 	}

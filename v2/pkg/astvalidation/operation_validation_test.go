@@ -87,7 +87,6 @@ type options struct {
 
 type option func(options *options)
 
-//nolint
 func withDisableNormalization() option {
 	return func(options *options) {
 		options.disableNormalization = true
@@ -109,8 +108,7 @@ func withValidationErrors(errMsgs ...string) option {
 
 func TestExecutionValidation(t *testing.T) {
 	must := func(err error) {
-		var report operationreport.Report
-		if errors.As(err, &report) {
+		if report, ok := errors.AsType[*operationreport.Report](err); ok {
 			if report.HasErrors() {
 				t.Fatal(report.Error())
 			}
@@ -123,7 +121,7 @@ func TestExecutionValidation(t *testing.T) {
 
 	mustDocument := func(doc ast.Document, report operationreport.Report) ast.Document {
 		if report.HasErrors() {
-			must(report)
+			must(&report)
 		}
 		return doc
 	}
@@ -947,6 +945,40 @@ func TestExecutionValidation(t *testing.T) {
 								}
 							}`, FieldSelectionMerging(), Valid)
 					})
+					t.Run("compatible return shapes on different object return types", func(t *testing.T) {
+						runWithDefinition(t, boxDefinition, `
+							{
+								someBox {
+									... on IntBox {
+										box: stringBox {
+											unrelatedField
+										}
+									}
+									... on StringBox {
+										box: intBox {
+											unrelatedField
+										}
+									}
+								}
+							}`, FieldSelectionMerging(), Valid)
+					})
+					t.Run("same interface return type on different object types", func(t *testing.T) {
+						runWithDefinition(t, boxDefinition, `
+							{
+								someBox {
+									... on NonNullStringBox1Impl {
+										deepBox {
+											unrelatedField
+										}
+									}
+									... on NonNullStringBox2Impl {
+										deepBox {
+											unrelatedField
+										}
+									}
+								}
+							}`, FieldSelectionMerging(), Valid)
+					})
 					t.Run("disallows differing return types despite no overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
 								{
@@ -1257,6 +1289,762 @@ func TestExecutionValidation(t *testing.T) {
 								  }
 								}
 								}`, FieldSelectionMerging(), Invalid, withExpectNormalizationError())
+					})
+
+					t.Run("merging by response shape on non-overlapping object types", func(t *testing.T) {
+						// Mutually exclusive fields, and fields with equal names and arguments,
+						// merge when their response shapes match, even with differently named types.
+						// Fields under fragments on distinct object types, such as Left and Right, are mutually exclusive.
+						definition := `
+							scalar String
+							enum Status { OPEN }
+							enum Priority { HIGH }
+							schema { query: Query }
+							type Query {
+								parent: Parent
+								shared: Shared
+							}
+
+							interface HasLeftList {
+								list: [LeftInterface!]!
+							}
+							interface HasRightList {
+								list: [RightInterface!]!
+							}
+							interface LeftInterface {
+								name: String!
+								status: Status
+								detail: LeftObject
+								nested: LeftInterface
+								label(locale: String): String
+							}
+							interface SubLeft implements LeftInterface {
+								name: String!
+								status: Status
+								detail: LeftObject
+								nested: LeftInterface
+								label(locale: String): String
+							}
+							interface RightInterface {
+								name: String!
+								otherName: String!
+								otherStatus: Status
+								priority: Priority
+								otherDetail: RightObject
+								nested: RightInterface
+								label(locale: String): String
+							}
+
+							union Parent = Left | Right | Other | Narrowed
+
+							type Left implements HasLeftList {
+								list: [LeftInterface!]!
+								single: LeftInterface
+								shared: Shared
+							}
+							type Right implements HasRightList {
+								list: [RightInterface!]!
+								single: RightInterface
+								shared: Shared
+								other: Shared
+								nullableList: [RightInterface]
+								nullableLeftList: [LeftInterface]
+							}
+							type Narrowed implements HasLeftList {
+								list: [SubLeft!]!
+							}
+							type Other {
+								otherList: [RightInterface!]!
+							}
+							type Shared {
+								leftList: [LeftInterface!]!
+								rightList: [RightInterface!]!
+								left: Left
+								right: Right
+								rights: [Right]
+							}
+							type LeftImpl implements LeftInterface {
+								name: String!
+								status: Status
+								detail: LeftObject
+								nested: LeftInterface
+								label(locale: String): String
+							}
+							type LeftObject {
+								name: String!
+							}
+							type RightObject {
+								name: String!
+							}`
+
+						t.Run("same response shape on different object types", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { name } }
+										... on Right { list { name } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("same response shape without list wrappers", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { single { name } }
+										... on Right { single { name } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("same enum on different fields", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: status } }
+										... on Right { list { value: otherStatus } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("same enum on different fields without list wrappers", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { single { value: status } }
+										... on Right { single { value: otherStatus } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("differently named objects with the same shape", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { item: detail { name } } }
+										... on Right { list { item: otherDetail { name } } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("differently named objects with the same shape without list wrappers", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { single { item: detail { name } } }
+										... on Right { single { item: otherDetail { name } } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("__typename and a String! leaf", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: __typename } }
+										... on Right { list { value: name } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("__typename and a String! leaf without list wrappers", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { single { value: __typename } }
+										... on Right { single { value: name } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("interface and an object that does not implement it", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { item: single { __typename } }
+										... on Right { item: shared { __typename } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("enum and scalar conflict inside inline fragments", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { ... on LeftImpl { value: status } } }
+										... on Right { list { ... on RightInterface { value: name } } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types 'Status' and 'String!' for objectName 'value'`))
+						})
+						t.Run("list and single value", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { items: list { name } }
+										... on Right { items: single { name } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types '[LeftInterface!]!' and 'RightInterface' for objectName 'items'`))
+						})
+						t.Run("__typename and a non-string leaf", func(t *testing.T) {
+							// The spec types __typename as String!, so it conflicts with Status.
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: __typename } }
+										... on Right { list { value: otherStatus } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types 'String!' and 'Status' for objectName 'value'`))
+						})
+						t.Run("__typename and a nullable String leaf", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: label } }
+										... on Right { list { value: __typename } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types 'String' and 'String!' for objectName 'value'`))
+						})
+						t.Run("different fields on the same type", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									shared {
+										items: leftList { name }
+										items: rightList { name }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface!]!' for objectName 'items'`))
+						})
+						t.Run("different fields on an interface and an object", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on HasLeftList { items: list { name } }
+										... on Other { items: otherList { name } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface!]!' for objectName 'items'`))
+						})
+						t.Run("different fields on an object and an interface", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Other { items: otherList { name } }
+										... on HasLeftList { items: list { name } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types '[RightInterface!]!' and '[LeftInterface!]!' for objectName 'items'`))
+						})
+						t.Run("object field before conflicting interface lists", func(t *testing.T) {
+							// A field of another kind must not hide a conflict between later fields.
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { items: shared { __typename } }
+										... on Right { items: nullableList { name } }
+										... on Narrowed { items: list { name } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types '[RightInterface]' and '[SubLeft!]!' for objectName 'items'`))
+						})
+						t.Run("different parent fields", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									shared {
+										branch: left { list { name } }
+										branch: right { list { name } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface!]!' for objectName 'list'`))
+						})
+						t.Run("fragments on different object types below equal parent fields", func(t *testing.T) {
+							// The directive keeps normalization from merging both parent fields.
+							runWithDefinition(t, definition, `
+								query Q($show: Boolean!) {
+									p: parent @include(if: $show) { ... on Left  { items: list      { name } } }
+									p: parent                     { ... on Other { items: otherList { name } } }
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("__typename on either side", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: name typename: __typename } }
+										... on Right { list { value: __typename typename: __typename } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("subfields selected on one side only", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { name status } }
+										... on Right { list { name otherName otherStatus } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("inline fragment without a type condition", func(t *testing.T) {
+							// Normalization keeps typeless fragments only when they have directives.
+							runWithDefinition(t, definition, `
+								query Q($show: Boolean!) {
+									parent {
+										... on Left { list { ... @include(if: $show) { value: name } } }
+										... on Right { list { value: name } }
+									}
+								}`, FieldSelectionMerging(), Valid)
+						})
+						t.Run("leaf and object subfields", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: name } }
+										... on Right { list { value: otherDetail { name } } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types 'String!' and 'RightObject' for objectName 'value'`))
+						})
+						t.Run("unknown subfield", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: name } }
+										... on Right { list { value: unknown } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`Cannot query field "unknown" on type "RightInterface".`))
+						})
+						t.Run("relaxed nullability with differently named types", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { items: list { name } }
+										... on Right { items: nullableList { name } }
+									}
+								}`, FieldSelectionMerging(true), Invalid,
+								withValidationErrors(`differing types '[LeftInterface!]!' and '[RightInterface]' for objectName 'items'`))
+						})
+						t.Run("relaxed nullability with the same type", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { items: list { name } }
+										... on Right { items: nullableLeftList { name } }
+									}
+								}`, FieldSelectionMerging(true), Valid)
+						})
+						t.Run("different nullability below exclusive fields", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: name } }
+										... on Right { list { value: label } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`differing types 'String!' and 'String' for objectName 'value'`))
+						})
+						t.Run("relaxed nullability below exclusive fields", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { list { value: name } }
+										... on Right { list { value: label } }
+									}
+								}`, FieldSelectionMerging(true), Valid)
+						})
+						t.Run("different nullability below exclusive fields of the same type", func(t *testing.T) {
+							runWithDefinition(t, definition, `
+								{
+									parent {
+										... on Left { shared { leftList { value: name } } }
+										... on Right { shared { leftList { value: label } } }
+									}
+								}`, FieldSelectionMerging(), Invalid,
+								withValidationErrors(`fields 'value' conflict because they return conflicting types 'String!' and 'String'`))
+						})
+						t.Run("exclusivity inherited from a parent field", func(t *testing.T) {
+							// These are valid, because exclusivity is inherited from parent fields.
+							t.Run("fragments on a grandparent field", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { items: leftList { name } } }
+											... on Right { shared { items: rightList { name } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different leaf fields below exclusive fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { list { value: name } }
+											... on Right { list { value: otherName } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("differently named interfaces below exclusive fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { list { nested { name } } }
+											... on Right { list { nested { name } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different arguments below exclusive fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { list { value: label(locale: "en") } }
+											... on Right { list { value: label(locale: "de") } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("three levels of differently named interfaces", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { list { nested { nested { name } } } }
+											... on Right { list { nested { nested { name } } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different parent fields below exclusive fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { s: shared { items: leftList { name } } }
+											... on Right { s: other { items: rightList { name } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different leaf fields below exclusive fields of the same type", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { rightList { value: name } } }
+											... on Right { shared { rightList { value: otherName } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("__typename and a String! leaf below exclusive fields of the same type", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { leftList { value: name } } }
+											... on Right { shared { leftList { value: __typename } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+						})
+						// These are valid, because the field names, arguments and response shapes match.
+						t.Run("same field on overlapping parent types", func(t *testing.T) {
+							t.Run("two interfaces", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { name } }
+											... on HasRightList { list { name } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("object narrowing an interface field to a sub-interface", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { name } }
+											... on Narrowed { list { name } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+						})
+						// These are invalid, because one object can implement both interfaces,
+						// and then one response key holds two different fields.
+						t.Run("different fields on overlapping parent types", func(t *testing.T) {
+							t.Run("leaf fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { value: name } }
+											... on HasRightList { list { value: otherName } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
+							})
+							t.Run("enum fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { value: status } }
+											... on HasRightList { list { value: otherStatus } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
+							})
+							t.Run("__typename and a String! leaf", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { value: __typename } }
+											... on HasRightList { list { value: name } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
+							})
+							t.Run("differently named objects with the same shape", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { item: detail { name } } }
+											... on HasRightList { list { item: otherDetail { name } } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'item' on (potentially) same type`))
+							})
+							t.Run("enum fields below the same field", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { nested { value: status } } }
+											... on HasRightList { list { nested { value: otherStatus } } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
+							})
+							t.Run("leaf field in a fragment on an object", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { ... on LeftImpl { value: name } } }
+											... on HasRightList { list { value: otherName } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'value' on (potentially) same type`))
+							})
+						})
+						t.Run("different wrappers on fields that are never compared", func(t *testing.T) {
+							// The two "k" fields are never compared.
+							// When their list or non-null wrappers differ, the fields below them must not merge by response shape.
+							t.Run("differently named interfaces below", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+										{
+										parent {
+											... on Left { shared { k: leftList { n: nested { name } } } }
+											... on Right { shared { k: right { n: single { name } } } }
+										}
+										}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing types 'LeftInterface' and 'RightInterface' for objectName 'n'`))
+							})
+							t.Run("different nullability with differently named interfaces below", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { k: leftList { n: nested { name } } } }
+											... on Right { shared { k: rights { n: single { name } } } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing types 'LeftInterface' and 'RightInterface' for objectName 'n'`))
+							})
+							t.Run("nothing merged below", func(t *testing.T) {
+								// Known deviation: the "k" fields are not compared, so this is valid.
+								// graphql-js rejects it at "k", a list against a single value.
+								// Fixing this might break production for some customers.
+								runWithDefinition(t, definition, `
+										{
+										parent {
+											... on Left { shared { k: leftList { name } } }
+											... on Right { shared { k: right { __typename } } }
+										}
+										}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("single values with differently named interfaces below", func(t *testing.T) {
+								// The "k" fields have equal wrappers, so the fields below may merge by response shape.
+								runWithDefinition(t, definition, `
+										{
+										parent {
+											... on Left { shared { k: left { n: single { name } } } }
+											... on Right { shared { k: right { n: single { name } } } }
+										}
+										}`, FieldSelectionMerging(), Valid)
+							})
+						})
+						t.Run("scalar and composite fields", func(t *testing.T) {
+							// A scalar field and a composite field under one response key
+							// never have the same response shape.
+							t.Run("object on separate fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+										{
+										parent {
+											... on Right { l: list { v: name } }
+											... on Other { l: otherList { v: otherDetail { name } } }
+										}
+										}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing types 'String!' and 'RightObject' for objectName 'v'`))
+							})
+							t.Run("interface on separate fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+										{
+										parent {
+											... on Right { l: list { v: name } }
+											... on Other { l: otherList { v: nested { name } } }
+										}
+										}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing types 'String!' and 'RightInterface' for objectName 'v'`))
+							})
+							t.Run("object in one selection set", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+										{
+										parent {
+											... on Right { single { v: name v: otherDetail { name } } }
+										}
+										}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'v' on (potentially) same type`))
+							})
+							t.Run("deviation on __typename and an object", func(t *testing.T) {
+								// Known deviation (ROUTER-873): the spec forbids these, but the rule accepts them.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { single { v: __typename v: otherDetail { name } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("deviation on enum and object", func(t *testing.T) {
+								// Known deviation (ROUTER-873): the spec forbids these, but the rule accepts them.
+								// Rejecting them might break production for some customers.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { single { v: otherStatus v: otherDetail { name } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+						})
+						t.Run("scalar and enum fields", func(t *testing.T) {
+							// A scalar field and an enum field under one response key never have the same response shape.
+							t.Run("enum on separate fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { l: list { v: name } }
+											... on Other { l: otherList { v: otherStatus } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing types 'String!' and 'Status' for objectName 'v'`))
+							})
+							t.Run("same enum on separate fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { l: list { v: otherStatus } }
+											... on Other { l: otherList { v: otherStatus } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("enum before scalar in one selection set", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { single { v: otherStatus v: name } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'v' on (potentially) same type`))
+							})
+							// The "v" fields are on one side of the "list" pair merged by response shape,
+							// so they do not inherit the strict check from it.
+							t.Run("one selection set below a merge by response shape", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on HasLeftList { list { name } }
+											... on HasRightList { list { v: name v: otherStatus } }
+										}
+									}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`differing fields for objectName 'v' on (potentially) same type`))
+							})
+						})
+						t.Run("known deviations", func(t *testing.T) {
+							// Known deviations: the spec forbids these, but the rule accepts them.
+							// Rejecting them might break production for some customers.
+							t.Run("__typename and a nullable String leaf below exclusive fields of the same type", func(t *testing.T) {
+								// Known deviation: __typename is checked only below a merge by response shape, so this is valid.
+								// The spec rejects it at "value": label is String, __typename is String!.
+								// graphql-js accepts it.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { leftList { value: label } } }
+											... on Right { shared { leftList { value: __typename } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("__typename and a leaf in one selection set", func(t *testing.T) {
+								// Known deviation: __typename is checked only below a merge by response shape, so this is valid.
+								// The spec and graphql-js reject it at "v": name and __typename are different fields.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { single { v: name v: __typename } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different object fields in one selection set", func(t *testing.T) {
+								// Known deviation: the names of the "s" fields are not compared, so this is valid.
+								// The spec and graphql-js reject it at "s": shared and other are different fields.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { s: shared { __typename } s: other { __typename } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different enums below exclusive fields of the same type", func(t *testing.T) {
+								// Known deviation: enum fields are compared only below a merge by response shape, so this is valid.
+								// The spec and graphql-js reject it at "v": Status and Priority are different types.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Left { shared { rightList { v: otherStatus } } }
+											... on Right { shared { rightList { v: priority } } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different enum fields in one selection set", func(t *testing.T) {
+								// Known deviation: enum fields are compared only below a merge by response shape, so this is valid.
+								// The spec and graphql-js reject it at "v": otherStatus and priority are different fields.
+								runWithDefinition(t, definition, `
+									{
+										parent {
+											... on Right { single { v: otherStatus v: priority } }
+										}
+									}`, FieldSelectionMerging(), Valid)
+							})
+						})
+						// Separate fields never share a response object, so they may use different @stream arguments,
+						// as for scalar fields on different union members.
+						t.Run("stream directives", func(t *testing.T) {
+							t.Run("different streams on separate lists", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+										{
+										parent {
+											... on Left { list @stream(initialCount: 1) { name } }
+											... on Narrowed { list { name } }
+										}
+										}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different streams below separate fields", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+										{
+										parent {
+											... on Left { shared { leftList @stream(initialCount: 1) { name } } }
+											... on Right { shared { leftList { name } } }
+										}
+										}`, FieldSelectionMerging(), Valid)
+							})
+							t.Run("different streams on overlapping parent types", func(t *testing.T) {
+								runWithDefinition(t, definition, `
+										{
+										parent {
+											... on HasLeftList { list @stream(initialCount: 1) { name } }
+											... on Left { list { name } }
+										}
+										}`, FieldSelectionMerging(), Invalid,
+									withValidationErrors(`found conflicting stream directives on the same field 'list'`))
+							})
+						})
 					})
 				})
 			})
@@ -5613,7 +6401,7 @@ func BenchmarkValidation(b *testing.B) {
 
 	mustDocument := func(doc ast.Document, report operationreport.Report) ast.Document {
 		if report.HasErrors() {
-			must(report)
+			must(&report)
 		}
 		return doc
 	}
