@@ -24,13 +24,20 @@ type InlineFragment struct {
 }
 
 func (d *Document) CopyInlineFragment(ref int) int {
+	return d.copyInlineFragment(ref, nil)
+}
+
+func (d *Document) copyInlineFragment(ref int, remaining *int) int {
 	var directives DirectiveList
 	var selectionSet int
 	if d.InlineFragments[ref].HasDirectives {
 		directives = d.CopyDirectiveList(d.InlineFragments[ref].Directives)
 	}
 	if d.InlineFragments[ref].HasSelections {
-		selectionSet = d.CopySelectionSet(d.InlineFragments[ref].SelectionSet)
+		selectionSet = d.copySelectionSet(d.InlineFragments[ref].SelectionSet, remaining)
+		if selectionSet == -1 {
+			return -1
+		}
 	}
 	return d.AddInlineFragment(InlineFragment{
 		TypeCondition: d.InlineFragments[ref].TypeCondition, // Value type; doesn't need to be copied.

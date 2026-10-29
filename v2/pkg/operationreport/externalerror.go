@@ -55,6 +55,14 @@ func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
 	return
 }
 
+func ErrNormalizationLimitExceeded(name string, limit int) ExternalError {
+	return ExternalError{
+		Message:       fmt.Sprintf("normalization limit %q of %d exceeded", name, limit),
+		ExtensionCode: "NORMALIZATION_LIMIT_EXCEEDED",
+		StatusCode:    400,
+	}
+}
+
 func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Cannot query field "%s" on type "%s".`, fieldName, typeName)
 	return err

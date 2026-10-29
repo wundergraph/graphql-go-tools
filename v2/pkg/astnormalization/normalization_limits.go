@@ -1,0 +1,22 @@
+package astnormalization
+
+// Limits bounds fragment expansion and sibling field counts during normalization.
+// A zero limit disables that check. The zero value imposes no limits.
+type Limits struct {
+	// MaxFragmentExpansionSelections limits new selection nodes created while
+	// inlining named fragments. It counts every copied field, inline fragment,
+	// and spread, plus each generated wrapper. Original selections are not charged.
+	MaxFragmentExpansionSelections int
+	// MaxExpandedSelectionSetFields counts sibling fields with fragment wrappers
+	// treated as transparent. Child field selection sets are counted separately.
+	// Counts include duplicates and branches remaining after skip/include pruning.
+	MaxExpandedSelectionSetFields int
+}
+
+// WithLimits sets normalization budgets. Limits are disabled by
+// default. Pass an empty Limits to disable both checks.
+func WithLimits(limits Limits) Option {
+	return func(options *options) {
+		options.limits = limits
+	}
+}
