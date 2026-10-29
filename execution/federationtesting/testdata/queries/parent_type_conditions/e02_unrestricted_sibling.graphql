@@ -1,0 +1,20 @@
+# An unconditional someObject { a } must survive for SomeNestedType2 although
+# SomeNestedType1 adds a sibling someObject { b } with a parent type restriction.
+query UnrestrictedSibling {
+    someNestedInterfaces {
+        __typename
+        otherInterfaces {
+            __typename
+            someObject {
+                a
+            }
+        }
+        ... on SomeNestedType1 {
+            otherInterfaces {
+                someObject {
+                    b
+                }
+            }
+        }
+    }
+}

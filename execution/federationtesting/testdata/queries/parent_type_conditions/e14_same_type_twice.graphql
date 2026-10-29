@@ -1,0 +1,16 @@
+# The same type in two fragments: normalization merges them before planning.
+query SameTypeTwice {
+    otherInterfaces {
+        __typename
+        ... on SomeType1 {
+            someObject {
+                a
+            }
+        }
+        ... on SomeType1 {
+            someObject {
+                b
+            }
+        }
+    }
+}
