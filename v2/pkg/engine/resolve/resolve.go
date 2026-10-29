@@ -1754,6 +1754,12 @@ func hashNegotiatedParams(negotiated NegotiatedParams, xxh *xxhash.Digest) {
 	write(2, negotiated.SubscriptionCursor.ResumeToken)
 }
 
+// ResolveGraphQLSubscription starts a subscription and blocks until it ends.
+//
+// Request-caused setup failures (invalid input, authorization denial, failed SubscriptionOnCreate
+// or trigger preparation) are written to the client as a GraphQL error and nil is returned.
+// Everything else is returned as an error and nothing is written to the client.
+// Negotiate errors come from the data source and are returned as-is, so callers decide whether to expose them.
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
@@ -1879,6 +1885,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	return nil
 }
 
+// AsyncResolveGraphQLSubscription registers a subscription and returns without waiting for it to end.
+// Errors are handled as in ResolveGraphQLSubscription; additionally, a canceled ctx is returned
+// as an error before anything starts.
 func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter, id SubscriptionIdentifier) (err error) {
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
