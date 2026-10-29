@@ -19,6 +19,7 @@ type SubscriptionDataSource interface {
 	// The updater is used to send updates to the client. Deduplication of the request must be done before calling this method.
 	Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error
 	// HashTriggerInput writes identity-relevant fields of the subscription into xxh.
+	// The resolver appends the subgraph headers hash afterward to produce the final trigger ID.
 	HashTriggerInput(input []byte, xxh *xxhash.Digest) error
 	// Negotiate lets a subscription data source negotiate subscription parameters with a client
 	// before start, or reject the client by returning an error.
