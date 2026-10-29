@@ -7179,7 +7179,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 				assert.Empty(t, recorder.Messages())
 				assert.True(t, fakeStream.called.Load(), "Negotiate must be called")
-				assert.False(t, createCalled.Load(), "SubscriptionOnCreate must not be called")
+				assert.True(t, createCalled.Load(), "SubscriptionOnCreate must run before Negotiate")
 				assert.False(t, startupHookCalled.Load(), "SubscriptionOnStart must not be called")
 				assert.False(t, startCalled.Load(), "Start must not be called")
 				assert.Empty(t, ctx.NegotiatedParams(), "a rejected subscription must not carry a delivery guarantee")

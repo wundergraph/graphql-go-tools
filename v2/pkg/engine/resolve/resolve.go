@@ -1799,12 +1799,6 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return writeFlushComplete(writer, body)
 	}
 
-	negotiated, err := subscription.Trigger.Source.Negotiate(ctx, input)
-	if err != nil {
-		return err
-	}
-	ctx.negotiated = negotiated
-
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {
 		input, err = hook.SubscriptionOnCreate(ctx.Context(), input)
 		if err != nil {
@@ -1812,6 +1806,12 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			return writeFlushComplete(writer, msg)
 		}
 	}
+
+	negotiated, err := subscription.Trigger.Source.Negotiate(ctx, input)
+	if err != nil {
+		return err
+	}
+	ctx.negotiated = negotiated
 
 	id := SubscriptionIdentifier{
 		ConnectionID:   NewConnectionID(),
@@ -1928,20 +1928,19 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return writeFlushComplete(writer, body)
 	}
 
-	negotiated, err := subscription.Trigger.Source.Negotiate(ctx, input)
-	if err != nil {
-		return err
-	}
-	ctx.negotiated = negotiated
-
 	if hook, ok := subscription.Trigger.Source.(HookablePubsubDatasource); ok {
 		input, err = hook.SubscriptionOnCreate(ctx.Context(), input)
 		if err != nil {
 			msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
 			return writeFlushComplete(writer, msg)
 		}
-
 	}
+
+	negotiated, err := subscription.Trigger.Source.Negotiate(ctx, input)
+	if err != nil {
+		return err
+	}
+	ctx.negotiated = negotiated
 
 	headers, triggerID, err := r.prepareTrigger(
 		ctx,
