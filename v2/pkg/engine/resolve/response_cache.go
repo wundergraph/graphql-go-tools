@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/wundergraph/astjson"
@@ -38,6 +39,14 @@ func (l *Loader) responseCacheRefuse(res *result) bool {
 // to, or false when nothing of that subgraph is cached.
 func (l *Loader) responseCacheSubgraph(subgraph string) (responseCacheSubgraph, bool) {
 	if !l.responseCacheEnabled() {
+		return responseCacheSubgraph{}, false
+	}
+	// A mutation or subscription must see fresh data, entities included.
+	if l.info != nil && l.info.OperationType != ast.OperationTypeQuery {
+		return responseCacheSubgraph{}, false
+	}
+	// Uploaded files reach the subgraph but not the key.
+	if len(l.ctx.Files) > 0 {
 		return responseCacheSubgraph{}, false
 	}
 	return l.ctx.responseCacheFor(subgraph)
@@ -139,6 +148,10 @@ func (l *Loader) responseCacheSetKeys(prepared *preparedFetch, selection caching
 // responseCacheKeys is responseCacheSetKeys for a caller that keeps the keys
 // itself. privateKeys is nil when the subgraph has no user id.
 func (l *Loader) responseCacheKeys(sub responseCacheSubgraph, selection caching.Digest, entities []caching.Digest) (keys, privateKeys []string) {
+	// Forwarded client extensions reach the subgraph beside the input.
+	if len(l.ctx.Extensions) > 0 {
+		selection = caching.DigestParts(selection[:], l.ctx.Extensions)
+	}
 	keys = make([]string, len(entities))
 	for i, entity := range entities {
 		keys[i] = caching.Key(entity, selection)
@@ -153,6 +166,16 @@ func (l *Loader) responseCacheKeys(sub responseCacheSubgraph, selection caching.
 		privateKeys[i] = caching.PrivateKey(entity, selection, sub.privateID)
 	}
 	return keys, privateKeys
+}
+
+// responseCacheSelection digests an entity fetch's header and footer, and the
+// variables left undefined: those are dropped from the request, which then
+// differs from one sending them as null.
+func responseCacheSelection(header, footer []byte, undefined []string) caching.Digest {
+	if len(undefined) == 0 {
+		return caching.DigestParts(header, footer)
+	}
+	return caching.DigestParts(header, footer, []byte(strings.Join(undefined, "\x00")))
 }
 
 // responseCacheLookupKeys is what one GetMany asks for: the shared keys and,
@@ -360,12 +383,29 @@ type responseVary struct {
 
 // responseCacheVary is not ok for "Vary: *", which matches no request, or more
 // names than a record keeps.
-func responseCacheVary(headers, sent http.Header) (responseVary, bool) {
+// It is not ok either when the request that went out differs, on a header
+// varied on, from the headers a lookup sees: a transport hook set it.
+func responseCacheVary(headers, sent, wire http.Header) (responseVary, bool) {
 	names, star := caching.Vary(headers)
 	if star || len(names) > caching.MaxVaryHeaders {
 		return responseVary{}, false
 	}
-	return responseVary{names: names, digest: caching.VaryDigest(names, sent)}, true
+	digest := caching.VaryDigest(names, sent)
+	if wire != nil && len(names) > 0 && caching.VaryDigest(names, wire) != digest {
+		return responseVary{}, false
+	}
+	return responseVary{names: names, digest: digest}, true
+}
+
+// responseCacheWireHeaders is the request the subgraph actually received.
+func responseCacheWireHeaders(res *result) http.Header {
+	if res.sharedWireHeaders != nil {
+		return res.sharedWireHeaders
+	}
+	if res.httpResponseContext == nil || res.httpResponseContext.Response == nil || res.httpResponseContext.Response.Request == nil {
+		return nil
+	}
+	return res.httpResponseContext.Response.Request.Header
 }
 
 // append adds body under base or, when the answer varied, a record at base and
@@ -486,7 +526,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		return nil
 	}
 
-	vary, ok := responseCacheVary(headers, res.sentHeaders)
+	vary, ok := responseCacheVary(headers, res.sentHeaders, responseCacheWireHeaders(res))
 	if !ok {
 		res.responseCache.StoreDecision = caching.StoreDecisionUnusableVary
 		return nil
@@ -769,7 +809,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	// it, even one that alone would have varied on less.
 	var vary responseVary
 	if headerDecision == caching.StoreDecisionStored {
-		if vary, ok = responseCacheVary(headers, res.sentHeaders); !ok {
+		if vary, ok = responseCacheVary(headers, res.sentHeaders, responseCacheWireHeaders(res)); !ok {
 			headerDecision = caching.StoreDecisionUnusableVary
 		}
 	}
@@ -993,26 +1033,53 @@ func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
 	return h
 }
 
-// responseCacheFlush writes what responseCacheCollect gathered. It is called with
-// the data lock released so a slow cache never blocks the fetches queued behind it.
-// Returns what it wrote, for the trace.
-func (l *Loader) responseCacheFlush(prepared *preparedFetch) ([]caching.Item, error) {
-	if !l.responseCacheEnabled() {
-		return nil, nil
-	}
+// responseCacheWrite is one fetch's entries, held until the response resolves.
+type responseCacheWrite struct {
+	subgraph string
+	items    []caching.Item
+	// trace gets the write's outcome, if the fetch is traced.
+	trace *ResponseCacheTrace
+}
 
-	if len(prepared.responseCacheItems) == 0 {
-		return nil, nil
+// responseCacheHold keeps what responseCacheCollect gathered for
+// responseCacheCommit.
+func (l *Loader) responseCacheHold(prepared *preparedFetch) {
+	if !l.responseCacheEnabled() || len(prepared.responseCacheItems) == 0 {
+		return
 	}
-
-	items := prepared.responseCacheItems
+	l.responseCacheHeldMu.Lock()
+	write := responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems}
+	if prepared.trace != nil {
+		write.trace = prepared.trace.ResponseCache
+	}
+	l.responseCacheHeld = append(l.responseCacheHeld, write)
+	l.responseCacheHeldMu.Unlock()
 	prepared.responseCacheItems = nil
+}
 
-	err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
-	if err != nil {
-		l.reportResponseCacheError(ResponseCacheOperationWrite, prepared.res.ds.Name, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
+// responseCacheCommit writes the held entries, or drops them when resolution
+// found a value of the wrong type. Nulls don't count: federation reports a
+// missing entity that way, and a cached null resolves like a fetched one.
+func (l *Loader) responseCacheCommit(resolved bool) {
+	l.responseCacheHeldMu.Lock()
+	held := l.responseCacheHeld
+	l.responseCacheHeld = nil
+	l.responseCacheHeldMu.Unlock()
+	if !l.responseCacheEnabled() {
+		return
 	}
-	return items, err
+	for _, write := range held {
+		if !resolved {
+			traceWriteOutcome(write.trace, nil, nil)
+			continue
+		}
+		items := write.items
+		err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
+		if err != nil {
+			l.reportResponseCacheError(ResponseCacheOperationWrite, write.subgraph, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
+		}
+		traceWriteOutcome(write.trace, items, err)
+	}
 }
 
 func responseCacheHeaders(res *result) http.Header {

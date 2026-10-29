@@ -83,8 +83,8 @@ type responseCacheTraceKeys struct {
 	served      bool
 }
 
-// setResponseCacheTrace records the cache's part in a fetch once its write is done.
-func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []caching.Item, writeErr error) {
+// setResponseCacheTrace records the cache's part in a fetch once its write is held.
+func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []caching.Item) {
 	if prepared.trace == nil || l.ctx.TracingOptions.ExcludeResponseCache || !l.responseCacheEnabled() {
 		return
 	}
@@ -107,10 +107,6 @@ func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []cachin
 		trace.CacheControl = headers.Get("Cache-Control")
 		trace.Vary = headers.Get("Vary")
 	}
-	if writeErr != nil {
-		trace.WriteError = writeErr.Error()
-	}
-
 	groups := l.responseCacheTraceGroups(prepared)
 	if len(groups) == 0 {
 		prepared.trace.ResponseCache = trace
@@ -118,7 +114,6 @@ func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []cachin
 	}
 
 	bodies := writtenBodies(written)
-	stored := knownStoredKeys(writeErr)
 	for _, group := range groups {
 		trace.PrivateID = trace.PrivateID || group.privateKeys != nil
 		for i, key := range group.keys {
@@ -131,7 +126,6 @@ func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []cachin
 				value = written
 			}
 			l.traceValue(&entry, value, prepared.isRootFetchCache)
-			entry.Written = entry.Written && (writeErr == nil || stored[entry.WrittenKey])
 			trace.Entries = append(trace.Entries, entry)
 		}
 	}
@@ -240,6 +234,26 @@ func (l *Loader) traceValue(entry *ResponseCacheTraceEntry, value []byte, rootFe
 }
 
 // knownStoredKeys are the keys a failed write still stored.
+// traceWriteOutcome marks the entries of trace that sent did not store. Nil
+// sent means the write was dropped.
+func traceWriteOutcome(trace *ResponseCacheTrace, sent []caching.Item, err error) {
+	if trace == nil {
+		return
+	}
+	if err != nil {
+		trace.WriteError = err.Error()
+	}
+	keys := make(map[string]bool, len(sent))
+	for _, item := range sent {
+		keys[item.Key] = true
+	}
+	stored := knownStoredKeys(err)
+	for i := range trace.Entries {
+		entry := &trace.Entries[i]
+		entry.Written = entry.Written && keys[entry.WrittenKey] && (err == nil || stored[entry.WrittenKey])
+	}
+}
+
 func knownStoredKeys(writeErr error) map[string]bool {
 	var setErr *caching.SetManyError
 	if !errors.As(writeErr, &setErr) {

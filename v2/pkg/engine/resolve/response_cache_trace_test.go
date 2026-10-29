@@ -206,6 +206,7 @@ func TestResponseCacheTrace_MultiEntity(t *testing.T) {
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 		response := multiEntityMergedTree(&recordingDataSource{response: []byte(multiEntityRootResponse)}, multiDS)
 		require.NoError(t, loader.LoadGraphQLResponseData(ctx, response))
+		loader.responseCacheCommit(true)
 		multi := response.Fetches.ChildNodes[1].Item.Fetch.(*MultiEntityFetch)
 		require.NotNil(t, multi.Trace)
 		return multi.Trace.ResponseCache

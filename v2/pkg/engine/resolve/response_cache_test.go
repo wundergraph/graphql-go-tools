@@ -1170,3 +1170,11 @@ func TestResponseCacheSurrogateKeysInboundDedupWithSubgraphErrors(t *testing.T) 
 		require.Nil(t, caching.SurrogateKeyValues(follower.ResponseCacheSurrogateKeys()), "no positive cache signal on an errored body")
 	})
 }
+
+// loadAndCommit loads like LoadGraphQLResponseData and writes the held cache
+// entries, as a clean resolution would.
+func loadAndCommit(loader *Loader, ctx *Context, response *GraphQLResponse) error {
+	err := loader.LoadGraphQLResponseData(ctx, response)
+	loader.responseCacheCommit(true)
+	return err
+}
