@@ -165,6 +165,10 @@ func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) erro
 		fieldData = data
 	}
 
+	if !fieldData.Exists() && f.defaultValue != nil {
+		fieldData = f.defaultValue
+	}
+
 	if !fieldData.Exists() {
 		if f.optional {
 			return nil
