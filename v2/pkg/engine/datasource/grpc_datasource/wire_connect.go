@@ -396,16 +396,7 @@ func (f *wireField) getUint64Value(data *astjson.Value) uint64 {
 }
 
 func getBytesValue(data *astjson.Value) []byte {
-	switch data.Type() {
-	case astjson.TypeString, astjson.TypeNumber:
-		return jsonStringBytes(data)
-	case astjson.TypeTrue:
-		return []byte{1}
-	case astjson.TypeFalse:
-		return []byte{0}
-	default:
-		return nil
-	}
+	return jsonStringBytes(data)
 }
 
 // getEnumValue gets the enum value from the data.
