@@ -77,6 +77,7 @@ func TestResponseCacheInfo(t *testing.T) {
 		miss := resolveWith(t, response, opts)
 		require.Equal(t, ResponseCacheStatusMiss, miss.ResponseCache.Status)
 		require.Equal(t, caching.StoreDecisionStored, miss.ResponseCache.StoreDecision)
+		require.Equal(t, time.Minute, miss.ResponseCache.StoredTTL)
 		require.Equal(t, 1, miss.ResponseCache.KeysRequested)
 		require.Zero(t, miss.ResponseCache.KeysFound)
 		require.Equal(t, rootFields, miss.RootFields)
@@ -84,6 +85,7 @@ func TestResponseCacheInfo(t *testing.T) {
 		hit := resolveWith(t, response, opts)
 		require.Equal(t, ResponseCacheStatusHit, hit.ResponseCache.Status)
 		require.Equal(t, caching.StoreDecisionNone, hit.ResponseCache.StoreDecision, "nothing is decided for a hit")
+		require.Zero(t, hit.ResponseCache.StoredTTL)
 		require.Equal(t, 1, hit.ResponseCache.KeysRequested)
 		require.Equal(t, 1, hit.ResponseCache.KeysFound)
 		require.Equal(t, rootFields, hit.RootFields)
@@ -188,6 +190,7 @@ func TestResponseCacheInfo_MultiEntity(t *testing.T) {
 	})
 	require.Equal(t, ResponseCacheStatusMiss, cold.Status)
 	require.Equal(t, caching.StoreDecisionStored, cold.StoreDecision)
+	require.Equal(t, time.Minute, cold.StoredTTL)
 	require.Positive(t, cold.KeysRequested)
 	require.Zero(t, cold.KeysFound)
 
@@ -215,6 +218,7 @@ func TestResponseCacheInfo_MultiEntity(t *testing.T) {
 	})
 	require.Equal(t, ResponseCacheStatusPartialHit, partial.Status)
 	require.Equal(t, caching.StoreDecisionStored, partial.StoreDecision)
+	require.Equal(t, 2*time.Minute, partial.StoredTTL)
 }
 
 // TestResponseCacheInfo_SingleAndMergedAgree pins that a merged fetch reports
@@ -231,6 +235,12 @@ func TestResponseCacheInfo_SingleAndMergedAgree(t *testing.T) {
 			single:   fixedDataSource{err: errors.New("boom")},
 			merged:   &recordingDataSource{err: errors.New("boom")},
 			decision: caching.StoreDecisionFetchFailed,
+		},
+		{
+			name:     "partial content",
+			single:   fixedDataSource{body: []byte(`{"data":{"me":"a"}}`), status: http.StatusPartialContent},
+			merged:   &recordingDataSource{response: []byte(`{"data":{"f1":[{"products":["a"]},{"products":["b"]}],"f2":[{"notes":"n"}]}}`), responseHeaders: cacheableHeaders(), status: http.StatusPartialContent},
+			decision: caching.StoreDecisionUncacheableStatus,
 		},
 		{
 			name:     "unparsable body",
@@ -368,8 +378,21 @@ func (d fixedDataSource) LoadWithFiles(ctx context.Context, h http.Header, in []
 // singleFetchCacheInfo resolves one root fetch and returns what the hook was told.
 func singleFetchCacheInfo(t *testing.T, ds DataSource, opts ResponseCacheOptions) ResponseCacheInfo {
 	t.Helper()
+	ctx := NewContext(context.Background())
+	ctx.SetResponseCache(opts)
+	var infos []*ResponseInfo
+	ctx.LoaderHooks = &spyLoaderHooks{onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
+		infos = append(infos, info)
+	}}
+	_, _ = newTestResolver(t, baseResolverOpts()).ResolveGraphQLResponse(ctx, singleFetchResponse(ds), nil, &bytes.Buffer{})
+	require.Len(t, infos, 1)
+	return infos[0].ResponseCache
+}
+
+// singleFetchResponse is one root fetch of {me} from ds.
+func singleFetchResponse(ds DataSource) *GraphQLResponse {
 	input := `{"method":"POST","url":"http://accounts","body":{"query":"{me}"}}`
-	response := &GraphQLResponse{
+	return &GraphQLResponse{
 		Info: &GraphQLResponseInfo{OperationType: ast.OperationTypeQuery},
 		Fetches: Single(&SingleFetch{
 			FetchConfiguration: FetchConfiguration{
@@ -386,15 +409,6 @@ func singleFetchCacheInfo(t *testing.T, ds DataSource, opts ResponseCacheOptions
 		}),
 		Data: &Object{Fields: []*Field{{Name: []byte("me"), Value: &String{Path: []string{"me"}, Nullable: true}}}},
 	}
-	ctx := NewContext(context.Background())
-	ctx.SetResponseCache(opts)
-	var infos []*ResponseInfo
-	ctx.LoaderHooks = &spyLoaderHooks{onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
-		infos = append(infos, info)
-	}}
-	_, _ = newTestResolver(t, baseResolverOpts()).ResolveGraphQLResponse(ctx, response, nil, &bytes.Buffer{})
-	require.Len(t, infos, 1)
-	return infos[0].ResponseCache
 }
 
 // mergedFetchCacheInfo resolves a merged entity fetch and returns what the hook was told about it.

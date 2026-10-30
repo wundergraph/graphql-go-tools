@@ -62,18 +62,6 @@ func ValidDeclaredSurrogateKey(tag string) bool {
 	})
 }
 
-// legacySurrogateKeyTier guesses by prefix, for entries stored without tiers.
-func legacySurrogateKeyTier(value string) SurrogateKeyTier {
-	switch {
-	case strings.HasPrefix(value, subgraphSurrogateKeyPrefix):
-		return SurrogateKeyTierSubgraph
-	case strings.HasPrefix(value, typeSurrogateKeyPrefix):
-		return SurrogateKeyTierType
-	default:
-		return SurrogateKeyTierDeclared
-	}
-}
-
 // SortSurrogateKeys groups by tier, coarsest first, keeping the order within a tier.
 func SortSurrogateKeys(surrogateKeys []SurrogateKey) {
 	slices.SortStableFunc(surrogateKeys, func(a, b SurrogateKey) int {

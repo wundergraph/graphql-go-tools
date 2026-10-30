@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -17,6 +18,20 @@ import (
 // a particular fetch is cached is responseCacheSubgraph's call.
 func (l *Loader) responseCacheEnabled() bool {
 	return l.ctx != nil && l.ctx.responseCache != nil
+}
+
+// ErrResponseCacheOnlyIfCached fails a fetch an only-if-cached request found no entry for.
+var ErrResponseCacheOnlyIfCached = errors.New("not in the response cache (only-if-cached)")
+
+// responseCacheRefuse fails a fetch the cache could not answer, when the
+// request allows nothing else. Introspection is local and always answered.
+func (l *Loader) responseCacheRefuse(res *result) bool {
+	if !l.responseCacheEnabled() || !l.ctx.responseCache.onlyIfCached || IsIntrospectionDataSource(res.ds.ID) {
+		return false
+	}
+	res.err = ErrResponseCacheOnlyIfCached
+	l.ctx.responseCache.unsatisfied.Store(true)
+	return true
 }
 
 // responseCacheSubgraph is the cache's settings for the subgraph a fetch goes
@@ -277,7 +292,7 @@ func (l *Loader) responseCacheLookup(prepared *preparedFetch) bool {
 	res.responseCacheHit = true
 	res.responseCache.Status = ResponseCacheStatusHit
 	res.responseCachePrivate = private
-	res.responseCacheTTL = remainingTTL(items)
+	hitLifetimesOf(items).report(res)
 	res.responseCacheSurrogateKeys = foundSurrogateKeys(items)
 
 	return true
@@ -375,27 +390,47 @@ func foundSurrogateKeys(items []caching.Item) []caching.SurrogateKey {
 	return caching.MergeSurrogateKeys(nil, lists...)
 }
 
-// remainingTTL is the shortest life left across a fetch's entries: a fetch is only
-// as fresh as its least fresh entry. Zero counts, it is an entry that is stale as
-// of now. Only a negative TTL is dropped, as no cache should report one.
-func remainingTTL(items []caching.Item) time.Duration {
-	ttl := time.Duration(-1)
+// hitLifetimes folds a hit's entries into what it reports: the least life
+// left, the least a client may keep (shared only entries leave that to the
+// others), public when every entry said it, shared only when every entry was.
+// A negative TTL is dropped, as no cache should report one; zero counts.
+type hitLifetimes struct {
+	ttl, clientTTL     time.Duration
+	public, sharedOnly bool
+	seen               bool
+}
+
+func (h *hitLifetimes) add(ttl, clientTTL time.Duration, public, sharedOnly bool) {
+	if !h.seen {
+		*h = hitLifetimes{ttl: -1, clientTTL: -1, public: true, sharedOnly: true, seen: true}
+	}
+	if ttl >= 0 && (h.ttl < 0 || ttl < h.ttl) {
+		h.ttl = ttl
+	}
+	h.public = h.public && public
+	if sharedOnly {
+		return
+	}
+	h.sharedOnly = false
+	if h.clientTTL < 0 || clientTTL < h.clientTTL {
+		h.clientTTL = clientTTL
+	}
+}
+
+func hitLifetimesOf(items []caching.Item) hitLifetimes {
+	var h hitLifetimes
 	for _, item := range items {
-		cachedTTL := item.TTL
-		if cachedTTL < 0 {
-			continue
-		}
-
-		if ttl < 0 || cachedTTL < ttl {
-			ttl = cachedTTL
-		}
+		h.add(item.TTL, item.ClientTTL, item.Public, item.SharedOnly)
 	}
+	return h
+}
 
-	if ttl < 0 {
-		return 0
-	}
-
-	return ttl
+// report puts the lifetimes on the fetch's result for the hooks.
+func (h hitLifetimes) report(res *result) {
+	res.responseCacheTTL = max(h.ttl, 0)
+	res.responseCache.ClientTTL = max(h.clientTTL, 0)
+	res.responseCache.Public = h.public
+	res.responseCache.SharedOnly = h.sharedOnly
 }
 
 func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
@@ -417,6 +452,10 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 		// handled at other locations.
 		res.responseCache.StoreDecision = caching.StoreDecisionFetchFailed
 		return nil //nolint:nilerr
+	}
+	if !caching.CacheableStatus(res.statusCode) {
+		res.responseCache.StoreDecision = caching.StoreDecisionUncacheableStatus
+		return nil
 	}
 
 	response, err := res.parsedResponse(l)
@@ -441,9 +480,9 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	headers := responseCacheHeaders(res)
-	ttl, private, decision := caching.Lifetime(headers, sub.ttl)
-	if decision != caching.StoreDecisionStored {
-		res.responseCache.StoreDecision = decision
+	policy := caching.CachePolicyOf(headers, res.sentHeaders, sub.ttl)
+	if policy.Decision != caching.StoreDecisionStored {
+		res.responseCache.StoreDecision = policy.Decision
 		return nil
 	}
 
@@ -455,7 +494,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 
 	// A private body only ever lands under a per-user key.
 	writeKeys := prepared.responseCacheKeys
-	if private {
+	if policy.Private {
 		if prepared.responseCachePrivateKeys == nil {
 			res.responseCache.StoreDecision = caching.StoreDecisionPrivateWithoutID
 			return nil
@@ -482,8 +521,11 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			continue
 		}
 		item := caching.Item{
-			Value: value.MarshalTo(nil),
-			TTL:   ttl,
+			Value:      value.MarshalTo(nil),
+			TTL:        policy.TTL,
+			Public:     policy.Public,
+			SharedOnly: policy.SharedOnly,
+			ClientTTL:  policy.ClientTTL,
 		}
 		// Indexed by i like the key: a null entity is skipped above without
 		// consuming a tag list, so the two stay aligned.
@@ -506,6 +548,9 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	prepared.responseCacheItems = items
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	res.responseCache.StoreDecision = storeDecisionFor(items)
+	if res.responseCache.StoreDecision == caching.StoreDecisionStored {
+		res.responseCache.StoredTTL = policy.TTL
+	}
 	return nil
 }
 
@@ -694,6 +739,10 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		res.responseCache.StoreDecision = caching.StoreDecisionFetchFailed
 		return
 	}
+	if !caching.CacheableStatus(res.statusCode) {
+		res.responseCache.StoreDecision = caching.StoreDecisionUncacheableStatus
+		return
+	}
 	if response == nil {
 		res.responseCache.StoreDecision = caching.StoreDecisionInvalidResponse
 		return
@@ -713,7 +762,8 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	// and so is being private. Checked per entry, after its errors, as the
 	// single-fetch path does.
 	headers := responseCacheHeaders(res)
-	ttl, private, headerDecision := caching.Lifetime(headers, sub.ttl)
+	policy := caching.CachePolicyOf(headers, res.sentHeaders, sub.ttl)
+	headerDecision := policy.Decision
 
 	// One Vary as well: what the merged answer varied on covers every entry in
 	// it, even one that alone would have varied on less.
@@ -745,7 +795,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 		}
 		// A private body only ever lands under a per-user key.
 		writeKeys := entry.responseCacheKeys
-		if private {
+		if policy.Private {
 			if entry.responseCachePrivateKeys == nil {
 				storeDecision = min(storeDecision, caching.StoreDecisionPrivateWithoutID)
 				continue
@@ -772,8 +822,11 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 				continue
 			}
 			item := caching.Item{
-				Value: value.MarshalTo(nil),
-				TTL:   ttl,
+				Value:      value.MarshalTo(nil),
+				TTL:        policy.TTL,
+				Public:     policy.Public,
+				SharedOnly: policy.SharedOnly,
+				ClientTTL:  policy.ClientTTL,
 			}
 
 			// Declared tags are left out: apolloEntityCacheTags is one flat
@@ -796,6 +849,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	if len(items) > 0 {
 		storeDecision = caching.StoreDecisionStored
+		res.responseCache.StoredTTL = policy.TTL
 	}
 	res.responseCache.StoreDecision = storeDecision
 }
@@ -920,7 +974,7 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 		entry := &prepared.multiEntries[i]
 		entry.cachedValues = values
 		entry.responseCachePrivate = lookup.private
-		entry.responseCacheTTL = remainingTTL(lookup.items)
+		entry.lifetimes = hitLifetimesOf(lookup.items)
 		entry.responseCacheSurrogateKeys = foundSurrogateKeys(lookup.items)
 		anyHit = true
 	}
@@ -928,22 +982,15 @@ func (l *Loader) multiEntityCacheLookup(prepared *preparedFetch, included []bool
 	return anyHit
 }
 
-// shortestCachedEntryTTL is the life left on a merged fetch answered entirely
-// from the cache: the least fresh of its entries, as remainingTTL is for one.
-func shortestCachedEntryTTL(entries []preparedMultiEntry) time.Duration {
-	ttl := time.Duration(-1)
+// cachedEntryLifetimes folds a merged fetch's hit entries.
+func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
+	var h hitLifetimes
 	for i := range entries {
-		if !entries[i].cacheHit() {
-			continue
-		}
-		if ttl < 0 || entries[i].responseCacheTTL < ttl {
-			ttl = entries[i].responseCacheTTL
+		if e := entries[i].lifetimes; entries[i].cacheHit() && e.seen {
+			h.add(e.ttl, e.clientTTL, e.public, e.sharedOnly)
 		}
 	}
-	if ttl < 0 {
-		return 0
-	}
-	return ttl
+	return h
 }
 
 // responseCacheFlush writes what responseCacheCollect gathered. It is called with

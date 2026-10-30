@@ -36,6 +36,14 @@ type Item struct {
 	// Each set's values select a variant stored under VariantKey. A record has
 	// no Value and no SurrogateKeys.
 	Vary [][]string
+	// Public is whether the response said public, so a hit says it only then.
+	Public bool
+	// SharedOnly is CachePolicy.SharedOnly: a hit gives a client no max-age of
+	// its own. Stored and returned with the value.
+	SharedOnly bool
+	// ClientTTL is CachePolicy.ClientTTL: how long a client may keep the
+	// entry, never over TTL. Like TTL, GetMany returns what is left of it.
+	ClientTTL time.Duration
 }
 
 // Cache is a batch oriented key/value cache.

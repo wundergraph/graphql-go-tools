@@ -97,6 +97,15 @@ type ResponseCacheInfo struct {
 	// StoreDecision is what was decided for the response of a fetch that was sent.
 	// The write itself happens after OnFinished, its failure is reported to OnError.
 	StoreDecision caching.StoreDecision
+	// StoredTTL is the lifetime the response is stored with, set when
+	// StoreDecision is StoreDecisionStored.
+	StoredTTL time.Duration
+	// ClientTTL, Public and SharedOnly are what a client may be told of a hit:
+	// the subgraph's max-age net of time cached, whether every entry said
+	// public, and whether none gave a client lifetime (caching.Item.SharedOnly).
+	ClientTTL  time.Duration
+	Public     bool
+	SharedOnly bool
 	// KeysRequested and KeysFound count what the cache was asked for and answered.
 	KeysRequested  int
 	KeysFound      int
@@ -503,6 +512,11 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 		return nil
 	}
 
+	if l.responseCacheRefuse(prepared.res) {
+		l.recordErroredFetchID(prepared.item)
+		return nil
+	}
+
 	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
 	if prepared.res.err != nil {
 		// TODO: for a MultiEntityFetch this marks all entries as failed,
@@ -790,7 +804,11 @@ func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
 
 func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
 	if res.err != nil {
-		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
+		reason := failedToFetchNoReason
+		if goerrors.Is(res.err, ErrResponseCacheOnlyIfCached) {
+			reason = ErrResponseCacheOnlyIfCached.Error()
+		}
+		return l.renderErrorsFailedToFetch(fetchItem, res, reason)
 	}
 	if res.authorizationRejected {
 		err := l.renderAuthorizationRejectedErrors(fetchItem, res)
