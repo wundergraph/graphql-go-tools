@@ -56,6 +56,7 @@ type programField struct {
 	jsonPath     string
 	enumName     string
 	staticValue  string
+	defaultValue string
 	optional     bool
 	repeated     bool
 	listMetadata *ListMetadata
@@ -338,6 +339,7 @@ func compileField(runtime *runtimeSchema, rpcField RPCField, rtField *runtimeFie
 		jsonPath:     rpcField.JSONPath,
 		enumName:     rpcField.EnumName,
 		staticValue:  rpcField.StaticValue,
+		defaultValue: rpcField.DefaultValue,
 		optional:     rpcField.Optional,
 		repeated:     rpcField.Repeated,
 		listMetadata: rpcField.ListMetadata,
