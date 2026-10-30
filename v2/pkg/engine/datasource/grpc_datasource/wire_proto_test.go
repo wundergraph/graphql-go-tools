@@ -375,6 +375,16 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("null item in a list of a proto2 enum that does not start at 0", func(t *testing.T) {
+		proto2 := newProto2WireTestRuntime(t)
+		got, err := compileTestWireMessage(t, proto2, proto2LevelListMessage(t, proto2)).createProtoMessage(astjson.MustParse(`{"levels":["HIGH",null]}`))
+		require.NoError(t, err)
+		expected := buildExpectedProto(t, proto2, "LevelListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			setProto2Levels(msg, desc, 6, 5)
+		})
+		assertProtoMessageEqual(t, expected, got)
+	})
+
 	t.Run("nullable enum field", func(t *testing.T) {
 		// A nullable GraphQL enum argument (`status: Status`) maps to a plain proto
 		// enum field. Proto has no wrapper message for enums, so it must not be

@@ -336,6 +336,11 @@ func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astj
 // empty string or 0, as the compiler did before #1474.
 func (f *wireField) appendNullListItem(buf *bytes.Buffer) error {
 	buf.Write(f.tag)
+	if f.runtimeEnum != nil {
+		// Sign-extended like any other enum number.
+		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(int64(f.runtimeEnum.firstValue))))
+		return nil
+	}
 	switch f.wireType {
 	case protowire.BytesType:
 		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), nil))
