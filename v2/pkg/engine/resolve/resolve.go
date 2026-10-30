@@ -1048,6 +1048,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 		return
 	}
 
+	resolvable.setSubscriptionErrorSources(sub.resolve.Trigger)
+
 	// The DataBuffer wraps the base tree produced by InitSubscription (the
 	// subscription event payload). The loader merges fetched data into it.
 	db := &DataBuffer{data: resolvable.data}
@@ -1077,12 +1079,10 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	// loader's fetch errors rather than overwrite them.
 	resolvable.data = loader.dataBuffer.Get()
 	resolvable.subgraphExtensions = loader.subgraphExtensions
-	if loader.errors != nil {
-		if resolvable.errors == nil {
-			resolvable.errors = loader.errors
-		} else {
-			resolvable.errors.AppendArrayItems(resolveArena.Arena, loader.errors)
-		}
+	if len(resolvable.errors) == 0 {
+		resolvable.errors = loader.errors
+	} else {
+		resolvable.errors = append(resolvable.errors, loader.errors...)
 	}
 	resolvable.skipValueCompletion = loader.skipValueCompletion
 

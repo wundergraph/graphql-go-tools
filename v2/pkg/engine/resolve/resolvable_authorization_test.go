@@ -124,7 +124,7 @@ func TestResolvableAuthorizationAuthorizeField(t *testing.T) {
 		resolvable := newResolvableForAuthorizationTest(ctx)
 
 		assert.True(t, resolvable.authorizeField(value, baseField()))
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.secret', Reason: missing scope.","path":["secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.secret', Reason: missing scope.","path":["secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, string(resolvable.errors.marshalTo(nil)))
 		require.Error(t, ctx.subgraphErrors["Accounts"])
 	})
 
@@ -318,7 +318,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 		walkUnreached(t, resolvable, root, data)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.@.secret', Reason: missing product scope.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.products.@.secret', Reason: missing product scope.","path":["products","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, string(resolvable.errors.marshalTo(nil)))
 	})
 
 	t.Run("null nullable parent emits denied nested field", func(t *testing.T) {
@@ -354,7 +354,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 		walkUnreached(t, resolvable, root, data)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret', Reason: missing account scope.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret', Reason: missing account scope.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, string(resolvable.errors.marshalTo(nil)))
 	})
 
 	t.Run("reached child is denied by the walk itself, not the synthetic descent", func(t *testing.T) {
@@ -391,7 +391,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 		walkUnreached(t, resolvable, root, data)
 
 		// exactly one error: the data walk owns reached fields, the synthetic descent stays out
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret', Reason: missing account scope.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret', Reason: missing account scope.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, string(resolvable.errors.marshalTo(nil)))
 	})
 
 	t.Run("denied frontier field stops the synthetic descent into its subtree", func(t *testing.T) {
@@ -447,7 +447,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 		walkUnreached(t, resolvable, root, data)
 
 		// the denied vault covers its subtree: no Vault.secret error
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.vault', Reason: missing vault scope.","path":["account","vault"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.vault', Reason: missing vault scope.","path":["account","vault"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, string(resolvable.errors.marshalTo(nil)))
 	})
 
 	t.Run("nested empty arrays recurse with a wildcard per list level", func(t *testing.T) {
@@ -490,7 +490,7 @@ func TestResolvableAuthorizationUnreachedData(t *testing.T) {
 
 		walkUnreached(t, resolvable, root, data)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.edges.@.nodes.@.secret', Reason: missing product scope.","path":["edges","@","nodes","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.edges.@.nodes.@.secret', Reason: missing product scope.","path":["edges","@","nodes","@","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, string(resolvable.errors.marshalTo(nil)))
 	})
 }
 
@@ -745,7 +745,7 @@ func TestResolvableAuthorizationRejectErrors(t *testing.T) {
 
 		resolvable.addRejectFieldError("missing scope", DataSourceInfo{ID: "accounts", Name: "Accounts"}, field)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret', Reason: missing scope.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret', Reason: missing scope.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, string(resolvable.errors.marshalTo(nil)))
 		require.Error(t, resolvable.ctx.subgraphErrors["Accounts"])
 	})
 
@@ -754,7 +754,7 @@ func TestResolvableAuthorizationRejectErrors(t *testing.T) {
 
 		resolvable.addRejectFieldError("", DataSourceInfo{ID: "accounts", Name: "Accounts"}, field)
 
-		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret'.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, resolvable.errors.String())
+		assert.Equal(t, `[{"message":"Unauthorized to load field 'Query.account.secret'.","path":["account","secret"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]`, string(resolvable.errors.marshalTo(nil)))
 	})
 
 }

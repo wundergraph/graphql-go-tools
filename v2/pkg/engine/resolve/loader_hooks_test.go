@@ -289,9 +289,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				assert.Equal(t, 0, subgraphError.ResponseCode)
 				assert.Len(t, subgraphError.DownstreamErrors, 2)
 				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
-				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions.Get("code"))
+				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions["code"])
 				assert.Equal(t, "errorMessage2", subgraphError.DownstreamErrors[1].Message)
-				assert.Nil(t, subgraphError.DownstreamErrors[1].Extensions.Get("code"))
+				assert.Nil(t, subgraphError.DownstreamErrors[1].Extensions["code"])
 
 				assert.NotNil(t, resolveCtx.SubgraphErrors())
 			}
@@ -1119,18 +1119,18 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					// non-allowed fields "internalTrace" and "sensitiveField" are absent.
 					assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
 					assert.NotNil(t, subgraphError.DownstreamErrors[0].Extensions)
-					assert.Equal(t, `"GRAPHQL_VALIDATION_FAILED"`, subgraphError.DownstreamErrors[0].Extensions.Get("code").String())
-					assert.Equal(t, `"products"`, subgraphError.DownstreamErrors[0].Extensions.Get("serviceName").String())
-					assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions.Get("internalTrace"))
-					assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions.Get("sensitiveField"))
+					assert.Equal(t, "GRAPHQL_VALIDATION_FAILED", subgraphError.DownstreamErrors[0].Extensions["code"])
+					assert.Equal(t, "products", subgraphError.DownstreamErrors[0].Extensions["serviceName"])
+					assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions["internalTrace"])
+					assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions["sensitiveField"])
 
 					// Second error: allowed fields "code" and "serviceName" are present,
 					// non-allowed field "internalTrace" is absent.
 					assert.Equal(t, "errorMessage2", subgraphError.DownstreamErrors[1].Message)
 					assert.NotNil(t, subgraphError.DownstreamErrors[1].Extensions)
-					assert.Equal(t, `"BAD_USER_INPUT"`, subgraphError.DownstreamErrors[1].Extensions.Get("code").String())
-					assert.Equal(t, `"users"`, subgraphError.DownstreamErrors[1].Extensions.Get("serviceName").String())
-					assert.Nil(t, subgraphError.DownstreamErrors[1].Extensions.Get("internalTrace"))
+					assert.Equal(t, "BAD_USER_INPUT", subgraphError.DownstreamErrors[1].Extensions["code"])
+					assert.Equal(t, "users", subgraphError.DownstreamErrors[1].Extensions["serviceName"])
+					assert.Nil(t, subgraphError.DownstreamErrors[1].Extensions["internalTrace"])
 
 					assert.NotNil(t, resolveCtx.SubgraphErrors())
 				}

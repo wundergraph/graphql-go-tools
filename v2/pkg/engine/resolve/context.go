@@ -29,16 +29,17 @@ type Context struct {
 	// the resolver will use the new name to look up the old name to render the variable in the query.
 	RemapVariables map[string]string
 
-	VariablesHash    uint64
-	Files            []*httpclient.FileUpload
-	Request          Request
-	RenameTypeNames  []RenameTypeName
-	TracingOptions   TraceOptions
-	RateLimitOptions RateLimitOptions
-	ExecutionOptions ExecutionOptions
-	InitialPayload   []byte
-	Extensions       []byte
-	LoaderHooks      LoaderHooks
+	VariablesHash        uint64
+	Files                []*httpclient.FileUpload
+	Request              Request
+	RenameTypeNames      []RenameTypeName
+	TracingOptions       TraceOptions
+	RateLimitOptions     RateLimitOptions
+	ExecutionOptions     ExecutionOptions
+	InitialPayload       []byte
+	Extensions           []byte
+	LoaderHooks          LoaderHooks
+	ResponseErrorHandler ResponseErrorHandler
 
 	InlineArguments []string
 
@@ -533,6 +534,7 @@ func (c *Context) Free() {
 	c.authorizer = nil
 	c.preFetchFieldAuthorizer = nil
 	c.LoaderHooks = nil
+	c.ResponseErrorHandler = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
