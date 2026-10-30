@@ -30,8 +30,12 @@ func ExampleResponseErrorHandler() {
 				}
 			}
 		}
-		gqlErr.Message = "Error from " + name + " - details redacted"
-		gqlErr.Extensions = map[string]any{"code": code}
-		return err
+		// A fresh error drops any opaque non-standard fields from the subgraph.
+		return &resolve.GraphQLError{
+			Message:    "Error from " + name + " - details redacted",
+			Path:       gqlErr.Path,
+			Locations:  gqlErr.Locations,
+			Extensions: map[string]any{"code": code},
+		}
 	}
 }

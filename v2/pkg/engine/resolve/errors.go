@@ -8,17 +8,19 @@ import (
 )
 
 // GraphQLError is a GraphQL error with a message and optional response metadata.
-// Values decoded into Path, Extensions, and AdditionalFields use json.Number
-// to preserve numeric precision. Extensions may contain nested maps and slices.
+// Values decoded into Path and Extensions use json.Number to preserve numeric
+// precision. Extensions is the public extension point for custom error metadata.
+// Unrecognized top-level fields are preserved when decoding and re-encoding an error.
 type GraphQLError struct {
 	Message   string     `json:"message"`
 	Locations []Location `json:"locations,omitempty"`
 	// Path contains field names and array indices in the client-visible response.
 	Path       []any          `json:"path,omitempty"`
 	Extensions map[string]any `json:"extensions,omitempty"`
-	// AdditionalFields holds non-standard top-level fields. Standard fields must
-	// be set using the corresponding fields above.
-	AdditionalFields map[string]any `json:"-"`
+
+	// Preserve non-standard fields from subgraphs without making them part of the
+	// public error model or decoding their contents. A fresh GraphQLError drops them.
+	additionalFields map[string]json.RawMessage
 }
 
 func (e *GraphQLError) Error() string { return e.Message }
@@ -47,14 +49,10 @@ func (e *GraphQLError) UnmarshalJSON(data []byte) error {
 		case "extensions":
 			target = &decoded.Extensions
 		default:
-			var value any
-			if err := decodeErrorJSON(raw, &value); err != nil {
-				return err
+			if decoded.additionalFields == nil {
+				decoded.additionalFields = make(map[string]json.RawMessage)
 			}
-			if decoded.AdditionalFields == nil {
-				decoded.AdditionalFields = make(map[string]any)
-			}
-			decoded.AdditionalFields[key] = value
+			decoded.additionalFields[key] = raw
 			continue
 		}
 		if err := decodeErrorJSON(raw, target); err != nil {
@@ -68,12 +66,8 @@ func (e *GraphQLError) UnmarshalJSON(data []byte) error {
 // MarshalJSON includes custom fields alongside the standard GraphQL error fields.
 // A nil optional field is omitted; a non-nil empty map or slice is preserved.
 func (e GraphQLError) MarshalJSON() ([]byte, error) {
-	fields := make(map[string]any, len(e.AdditionalFields)+4)
-	for key, value := range e.AdditionalFields {
-		switch key {
-		case "message", "locations", "path", "extensions":
-			continue
-		}
+	fields := make(map[string]any, len(e.additionalFields)+4)
+	for key, value := range e.additionalFields {
 		fields[key] = value
 	}
 	fields["message"] = e.Message
