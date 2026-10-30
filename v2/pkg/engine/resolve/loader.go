@@ -288,7 +288,7 @@ type Loader struct {
 	// errors accumulates fetch-time errors for this Loader instance.
 	// Each parallel defer group gets its own Loader (via NewLoader) and so its
 	// own errors. All writes happen under dataBuffer.Lock() (arena not thread-safe).
-	errors *astjson.Value
+	errors responseErrors
 
 	// subgraphErrors accumulates this Loader's subgraph errors, keyed by subgraph
 	// name, mirroring Context.subgraphErrors. Written only from mergeResult (serial
@@ -358,6 +358,7 @@ type Loader struct {
 }
 
 func (l *Loader) Free() {
+	l.errors = nil
 	l.info = nil
 	l.ctx = nil
 	l.taintedObjs = nil
@@ -380,12 +381,6 @@ func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
 	l.info = responseInfo
 	l.taintedObjs = make(taintedObjects)
 	l.erroredFetchIDs = nil
-}
-
-func (l *Loader) ensureErrorsInitialized() {
-	if l.errors == nil {
-		l.errors = astjson.ArrayValue(l.jsonArena)
-	}
 }
 
 func (l *Loader) ResolveFetchNode(node *FetchTreeNode) error {
@@ -1051,6 +1046,15 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 
 func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value) error {
 	values := value.GetArray()
+	var source *SubgraphError
+	if l.ctx.ResponseErrorHandler != nil {
+		// Keep the hook's source separate from the filtered errors recorded for
+		// telemetry so modules can inspect the original extensions and paths.
+		source = NewSubgraphError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason, res.statusCode)
+		if err := json.Unmarshal(value.MarshalTo(nil), &source.DownstreamErrors); err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	l.optionallyOmitErrorLocations(values)
 	// Multi entries prefix error paths with their internal alias. When rewriting
 	// is enabled, rewrite the root (the entry's alias, or "_entities" for an
@@ -1089,12 +1093,15 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 				return err
 			}
 		}
-		// for efficiency purposes, resolvable.errors is not initialized
-		// don't change this, it's measurable
-		// downside: we have to verify it's initialized before appending to it
-		l.ensureErrorsInitialized()
-		// If the error propagation mode is pass-through, we append the errors to the root array
-		l.errors.AppendArrayItems(l.jsonArena, value)
+		for i, value := range values {
+			entry := responseError{value: value}
+			if source != nil {
+				perError := *source
+				perError.DownstreamErrors = source.DownstreamErrors[i : i+1]
+				entry.source = &perError
+			}
+			l.errors = append(l.errors, entry)
+		}
 		return nil
 	}
 
@@ -1129,11 +1136,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	if err := l.addApolloRouterCompatibilityError(res); err != nil {
 		return err
 	}
-	// for efficiency purposes, resolvable.errors is not initialized
-	// don't change this, it's measurable
-	// downside: we have to verify it's initialized before appending to it
-	l.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+	l.errors = append(l.errors, responseError{value: errorObject, source: source})
 
 	return nil
 }
@@ -1432,11 +1435,7 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 	if err != nil {
 		return err
 	}
-	// for efficiency purposes, resolvable.errors is not initialized
-	// don't change this, it's measurable
-	// downside: we have to verify it's initialized before appending to it
-	l.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.errors, apolloRouterStatusError)
+	l.appendSubgraphResponseError(apolloRouterStatusError, res, "", http.StatusText(res.statusCode))
 
 	return nil
 }
@@ -1449,26 +1448,19 @@ func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
-	// for efficiency purposes, resolvable.errors is not initialized
-	// don't change this, it's measurable
-	// downside: we have to verify it's initialized before appending to it
-	l.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+	l.appendSubgraphResponseError(errorObject, res, fetchItem.ResponsePath, "failed to obtain field dependencies")
 	return nil
 }
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
-	l.recordSubgraphError(res, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+	source := NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode)
+	l.recordSubgraphError(res, res.err, source)
 	errorObject, err := astjson.ParseWithArena(l.jsonArena, l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
-	// for efficiency purposes, resolvable.errors is not initialized
-	// don't change this, it's measurable
-	// downside: we have to verify it's initialized before appending to it
-	l.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+	l.errors = append(l.errors, responseError{value: errorObject, source: source})
 	return nil
 }
 
@@ -1478,7 +1470,8 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 		reason += ": " + statusText
 	}
 
-	l.recordSubgraphError(res, res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+	source := NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode)
+	l.recordSubgraphError(res, res.err, source)
 
 	errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"%s"}`, reason))
 	if err != nil {
@@ -1486,11 +1479,7 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 	}
 
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
-	// for efficiency purposes, resolvable.errors is not initialized
-	// don't change this, it's measurable
-	// downside: we have to verify it's initialized before appending to it
-	l.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+	l.errors = append(l.errors, responseError{value: errorObject, source: source})
 	return nil
 }
 
@@ -1514,10 +1503,6 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	extensionErrorCode := fmt.Sprintf(`"extensions":{"code":"%s"}`, errorcodes.UnauthorizedFieldOrType)
-	// for efficiency purposes, resolvable.errors is not initialized
-	// don't change this, it's measurable
-	// downside: we have to verify it's initialized before appending to it
-	l.ensureErrorsInitialized()
 	if res.ds.Name == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
@@ -1525,13 +1510,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+				l.appendSubgraphResponseError(errorObject, res, fetchItem.ResponsePath, reason)
 			} else {
 				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s.",%s}`, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+				l.appendSubgraphResponseError(errorObject, res, fetchItem.ResponsePath, reason)
 			}
 		}
 	} else {
@@ -1541,13 +1526,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+				l.appendSubgraphResponseError(errorObject, res, fetchItem.ResponsePath, reason)
 			} else {
 				errorObject, err := astjson.ParseWithArena(l.jsonArena, fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s.",%s}`, res.ds.Name, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
-				astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+				l.appendSubgraphResponseError(errorObject, res, fetchItem.ResponsePath, reason)
 			}
 		}
 	}
@@ -1596,11 +1581,7 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 			return err
 		}
 	}
-	// for efficiency purposes, resolvable.errors is not initialized
-	// don't change this, it's measurable
-	// downside: we have to verify it's initialized before appending to it
-	l.ensureErrorsInitialized()
-	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+	l.appendSubgraphResponseError(errorObject, res, fetchItem.ResponsePath, res.rateLimitRejectedReason)
 	return nil
 }
 

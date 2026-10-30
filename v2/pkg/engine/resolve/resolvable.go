@@ -34,9 +34,9 @@ type Resolvable struct {
 	// In the case of defer it is injected before each render; during deferred delivery it points at the shared DataBuffer tree.
 	data *astjson.Value
 
-	// errors is the accumulated GraphQL `errors` array (arena-allocated) written
-	// into the response envelope.
-	errors *astjson.Value
+	// errors holds the outgoing GraphQL errors and their subgraph sources.
+	// Each error value is arena-allocated; the slice is allocated only on error.
+	errors responseErrors
 
 	// valueCompletion collects Apollo "value completion" extension entries for
 	// non-nullable fields that resolved to null; emitted under extensions when the
@@ -345,7 +345,9 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 		if postProcessing.SelectResponseErrorsPath != nil {
 			selectedInitialErrors := initialValue.Get(postProcessing.SelectResponseErrorsPath...)
 			if selectedInitialErrors != nil {
-				r.errors = selectedInitialErrors
+				for _, value := range selectedInitialErrors.GetArray() {
+					r.errors = append(r.errors, responseError{value: value})
+				}
 			}
 		}
 	}
@@ -581,7 +583,7 @@ func (r *Resolvable) renderCompleted(withErrors bool) {
 		r.printBytes(literalErrors)
 		r.printBytes(quote)
 		r.printBytes(colon)
-		r.printNode(r.errors)
+		r.printResponseErrors()
 	}
 	r.printBytes(rBrace)
 	r.printBytes(rBrack)
@@ -773,7 +775,7 @@ func (r *Resolvable) printDeferIdAndErrors() {
 		r.printBytes(literalErrors)
 		r.printBytes(quote)
 		r.printBytes(colon)
-		r.printNode(r.errors)
+		r.printResponseErrors()
 	}
 }
 
@@ -838,13 +840,6 @@ func (r *Resolvable) printDeferEnvelopeClose() {
 	r.printBytes(rBrace)
 }
 
-// ensureErrorsInitialized is used to lazily init r.errors if needed
-func (r *Resolvable) ensureErrorsInitialized() {
-	if r.errors == nil {
-		r.errors = astjson.ArrayValue(r.astjsonArena)
-	}
-}
-
 func (r *Resolvable) enclosingTypeName() string {
 	if len(r.enclosingTypeNames) > 0 {
 		return r.enclosingTypeNames[len(r.enclosingTypeNames)-1]
@@ -869,7 +864,7 @@ func (r *Resolvable) printErrors() {
 	r.printBytes(literalErrors)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.printNode(r.errors)
+	r.printResponseErrors()
 	r.printBytes(comma)
 	r.wroteErrors = true
 }
@@ -1178,14 +1173,7 @@ func (r *Resolvable) WroteErrorsWithoutData() bool {
 }
 
 func (r *Resolvable) hasErrors() bool {
-	if r.errors == nil {
-		return false
-	}
-	values, err := r.errors.Array()
-	if err != nil {
-		return false
-	}
-	return len(values) > 0
+	return len(r.errors) > 0
 }
 
 func (r *Resolvable) hasData() bool {
@@ -1761,8 +1749,7 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 	}
 	r.ctx.appendSubgraphErrors(ds, errors.New(errorMessage),
 		NewSubgraphError(ds, fieldPath, reason, 0))
-	r.ensureErrorsInitialized()
-	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, errorMessage, errorcodes.UnauthorizedFieldOrType, r.path)
+	r.addErrorWithCode(errorMessage, errorcodes.UnauthorizedFieldOrType)
 	r.popNodePathElement(nodePath)
 }
 
@@ -2361,8 +2348,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
 	} else {
 		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
-		r.ensureErrorsInitialized()
-		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
+		r.appendError(errorMessage)
 	}
 	r.popNodePathElement(fieldPath)
 }
@@ -2432,20 +2418,20 @@ func (r *Resolvable) renderFieldCoordinates() string {
 
 func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
-	r.ensureErrorsInitialized()
-	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, message, r.path)
+	r.appendError(message)
 	r.popNodePathElement(fieldPath)
 }
 
 func (r *Resolvable) addErrorWithCode(message, code string) {
-	r.ensureErrorsInitialized()
-	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
+	value := r.appendError(message)
+	extensions := astjson.ObjectValue(r.astjsonArena)
+	extensions.Set(r.astjsonArena, "code", astjson.StringValue(r.astjsonArena, code))
+	value.Set(r.astjsonArena, "extensions", extensions)
 }
 
 func (r *Resolvable) addErrorWithCodeAndPath(message, code string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
-	r.ensureErrorsInitialized()
-	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
+	r.addErrorWithCode(message, code)
 	r.popNodePathElement(fieldPath)
 }
 
