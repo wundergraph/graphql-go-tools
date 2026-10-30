@@ -580,6 +580,66 @@ func TestCreateProtoWire(t *testing.T) {
 		assertProtoEqual(t, runtime, "EnumRequest", expected, got)
 	})
 
+	t.Run("null items in lists with nullable items", func(t *testing.T) {
+		// `[Status]` and `[NestedItemInput]` allow null items. A repeated proto
+		// field cannot hold null, so each null item is sent as its zero value.
+		enums := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "EnumListRequest",
+			Fields: RPCFields{
+				{Name: "statuses", ProtoTypeName: DataTypeEnum, JSONPath: "statuses", IsListType: true, ListMetadata: &ListMetadata{NestingLevel: 1, LevelInfo: []LevelInfo{{Optional: true}}}, EnumName: "Status", Optional: true},
+			},
+		}, runtime.getMessageByName("EnumListRequest"))
+		got, err := compileTestWireMessage(t, runtime, enums).createProtoWire(astjson.MustParse(`{"statuses":["ACTIVE",null]}`))
+		require.NoError(t, err)
+		expected := marshalDynamic(t, runtime, "EnumListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			field := desc.Fields().ByName("statuses")
+			listField := field.Message().Fields().ByName("list")
+			inner := dynamicpb.NewMessage(listField.Message())
+			items := inner.Mutable(listField.Message().Fields().ByName("items")).List()
+			items.Append(protoref.ValueOfEnum(protoref.EnumNumber(runtime.enumByName["Status"].valuesByName["ACTIVE"].value)))
+			items.Append(protoref.ValueOfEnum(0))
+			wrapper := dynamicpb.NewMessage(field.Message())
+			wrapper.Set(listField, protoref.ValueOfMessage(inner))
+			msg.Set(field, protoref.ValueOfMessage(wrapper))
+		})
+		assertProtoEqual(t, runtime, "EnumListRequest", expected, got)
+
+		messages := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ListWrapperRequest",
+			Fields: RPCFields{
+				{
+					Name: "optional_items", ProtoTypeName: DataTypeMessage, JSONPath: "optionalItems", IsListType: true, Optional: true,
+					ListMetadata: &ListMetadata{NestingLevel: 1, LevelInfo: []LevelInfo{{Optional: true}}},
+					Message: &RPCMessage{
+						Name: "NestedItem",
+						Fields: RPCFields{
+							{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+							{Name: "value", ProtoTypeName: DataTypeString, JSONPath: "value"},
+						},
+					},
+				},
+			},
+		}, runtime.getMessageByName("ListWrapperRequest"))
+		got, err = compileTestWireMessage(t, runtime, messages).createProtoWire(astjson.MustParse(`{"optionalItems":[{"id":"1","value":"a"},null]}`))
+		require.NoError(t, err)
+		expected = marshalDynamic(t, runtime, "ListWrapperRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			field := desc.Fields().ByName("optional_items")
+			listField := field.Message().Fields().ByName("list")
+			inner := dynamicpb.NewMessage(listField.Message())
+			itemsField := listField.Message().Fields().ByName("items")
+			items := inner.Mutable(itemsField).List()
+			item := dynamicpb.NewMessage(itemsField.Message())
+			item.Set(itemsField.Message().Fields().ByName("id"), protoref.ValueOfString("1"))
+			item.Set(itemsField.Message().Fields().ByName("value"), protoref.ValueOfString("a"))
+			items.Append(protoref.ValueOfMessage(item))
+			items.Append(protoref.ValueOfMessage(dynamicpb.NewMessage(itemsField.Message())))
+			wrapper := dynamicpb.NewMessage(field.Message())
+			wrapper.Set(listField, protoref.ValueOfMessage(inner))
+			msg.Set(field, protoref.ValueOfMessage(wrapper))
+		})
+		assertProtoEqual(t, runtime, "ListWrapperRequest", expected, got)
+	})
+
 	t.Run("nullable enum field", func(t *testing.T) {
 		// A nullable GraphQL enum argument (`status: Status`) maps to a plain proto
 		// enum field. Proto has no wrapper message for enums, so it must not be
