@@ -79,6 +79,10 @@ func (l *Loader) reportResponseCacheError(operation ResponseCacheOperation, subg
 // responseCacheGetMany is GetMany, timed for the hooks.
 func (l *Loader) responseCacheGetMany(res *result, keys []string) (map[string]caching.Item, error) {
 	start := time.Now()
+	// The first lookup is as early as this fetch is known to have started.
+	if res.responseCacheFetchedAt.IsZero() {
+		res.responseCacheFetchedAt = start
+	}
 	found, err := l.ctx.responseCache.store.GetMany(l.ctx.ctx, keys)
 	res.responseCache.LookupDuration += time.Since(start)
 	return found, err
@@ -370,14 +374,14 @@ func responseCacheVary(headers, sent http.Header) (responseVary, bool) {
 
 // append adds body under base or, when the answer varied, a record at base and
 // body under its variant. The record keeps seen so earlier variants stay
-// reachable; same tags so invalidation drops both.
+// reachable; same tags and FetchedAt so invalidation drops both.
 func (v responseVary) append(items []caching.Item, base string, body caching.Item, seen [][]string) []caching.Item {
 	if len(v.names) == 0 {
 		body.Key = base
 		return append(items, body)
 	}
 	body.Key = caching.VariantKey(base, v.digest)
-	items = append(items, caching.Item{Key: base, Vary: caching.MergeVarySets(v.names, seen), TTL: body.TTL, Tags: body.Tags})
+	items = append(items, caching.Item{Key: base, Vary: caching.MergeVarySets(v.names, seen), TTL: body.TTL, Tags: body.Tags, FetchedAt: body.FetchedAt})
 	return append(items, body)
 }
 
@@ -526,6 +530,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			Public:     policy.Public,
 			SharedOnly: policy.SharedOnly,
 			ClientTTL:  policy.ClientTTL,
+			FetchedAt:  res.responseCacheFetchedAt,
 		}
 		// Indexed by i like the key: a null entity is skipped above without
 		// consuming a tag list, so the two stay aligned.
@@ -538,6 +543,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 			value:       value,
 			subgraph:    subgraph,
 			isRootFetch: prepared.isRootFetchCache,
+			rootType:    responseCacheRootType(res.rootFields),
 			opts:        invalidation,
 		}
 		item.Tags, item.SurrogateKeys = responseCacheIdentities(input)
@@ -666,7 +672,17 @@ type responseCacheTagInput struct {
 	value       *astjson.Value
 	subgraph    string
 	isRootFetch bool
-	opts        ResponseCacheTagIndexOptions
+	// rootType names a root fetch's value, which has no __typename.
+	rootType string
+	opts     ResponseCacheTagIndexOptions
+}
+
+// responseCacheRootType is the operation type a root fetch resolves fields of.
+func responseCacheRootType(rootFields []GraphCoordinate) string {
+	if len(rootFields) == 0 {
+		return ""
+	}
+	return rootFields[0].TypeName
 }
 
 // responseCacheIdentities: tags follow the index options, surrogate keys carry
@@ -679,7 +695,7 @@ func responseCacheIdentities(input responseCacheTagInput) (tags []string, surrog
 	surrogateKeys = make([]caching.SurrogateKey, 0, len(input.declared)+2)
 	surrogateKeys = append(surrogateKeys, caching.SubgraphSurrogateKey(input.subgraph))
 
-	var typeName string
+	typeName := input.rootType
 	if !input.isRootFetch {
 		typeName = string(input.value.GetStringBytes("__typename"))
 	}
@@ -827,6 +843,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 				Public:     policy.Public,
 				SharedOnly: policy.SharedOnly,
 				ClientTTL:  policy.ClientTTL,
+				FetchedAt:  prepared.res.responseCacheFetchedAt,
 			}
 
 			// Declared tags are left out: apolloEntityCacheTags is one flat

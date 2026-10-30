@@ -382,7 +382,19 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 			}))
 	})
 
-	t.Run("a root fetch is not indexed by type", func(t *testing.T) {
+	t.Run("a root fetch is indexed by its root type", func(t *testing.T) {
+		require.Equal(t, []string{"subgraph:accounts", "type:accounts:Query"},
+			tagsOf(responseCacheTagInput{
+				// The value's own __typename is not what names a root entry.
+				value:       parse(t, `{"__typename":"Other"}`),
+				subgraph:    "accounts",
+				isRootFetch: true,
+				rootType:    "Query",
+				opts:        all,
+			}))
+	})
+
+	t.Run("a root fetch without a root type is not indexed by type", func(t *testing.T) {
 		require.Equal(t, []string{"subgraph:accounts"},
 			tagsOf(responseCacheTagInput{
 				value:       parse(t, `{"__typename":"Query"}`),
@@ -610,15 +622,15 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		opts.Type = true
 
 		loader, res := newLoader(t, body, opts)
+		res.rootFields = []GraphCoordinate{{TypeName: "Query", FieldName: "employees"}}
 		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
 		require.NoError(t, loader.responseCacheCollect(prepared))
 
 		require.Len(t, prepared.responseCacheItems, 1)
-		// No type: a root fetch's data object is a selection set rather than an
-		// entity, so there is no one typename it could be indexed under.
+		// Typed by the root type its fields are on.
 		require.Equal(t, []string{
 			"declared:accounts:employees", "declared:accounts:homepage",
-			"subgraph:accounts",
+			"subgraph:accounts", "type:accounts:Query",
 		}, prepared.responseCacheItems[0].Tags)
 		require.JSONEq(t, `{"employees":[{"id":1}]}`, string(prepared.responseCacheItems[0].Value))
 	})
@@ -632,13 +644,15 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		require.Empty(t, collect(t, body, []string{"k-42"}, declaredOnly))
 	})
 
-	t.Run("a root fetch is never indexed by type", func(t *testing.T) {
-		body := `{"data":{"__typename":"Query","employees":[{"id":1}]}}`
+	t.Run("a root fetch is indexed and keyed by its root type", func(t *testing.T) {
+		body := `{"data":{"employees":[{"id":1}]}}`
 		loader, res := newLoader(t, body, ResponseCacheTagIndexOptions{Type: true})
+		res.rootFields = []GraphCoordinate{{TypeName: "Query", FieldName: "employees"}}
 		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
 		require.NoError(t, loader.responseCacheCollect(prepared))
 		require.Len(t, prepared.responseCacheItems, 1)
-		require.Empty(t, prepared.responseCacheItems[0].Tags)
+		require.Equal(t, []string{caching.TypeTag("accounts", "Query")}, prepared.responseCacheItems[0].Tags)
+		require.Contains(t, prepared.responseCacheItems[0].SurrogateKeys, caching.TypeSurrogateKey("accounts", "Query"))
 	})
 }
 
