@@ -1,8 +1,15 @@
 package astnormalization
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+)
 
 func TestInlineFragments(t *testing.T) {
+	registerFragmentSpreadInline := func(walker *astvisitor.Walker) {
+		fragmentSpreadInline(walker, Limits{}, true)
+	}
 	t.Run("simple", func(t *testing.T) {
 		t.Run("with inline selections", func(t *testing.T) {
 			runMany(t, testDefinition, `	
@@ -29,11 +36,11 @@ func TestInlineFragments(t *testing.T) {
 						sender
 					}
 					disallowedSecondRootField
-				}`, fragmentSpreadInline, inlineSelectionsFromInlineFragments)
+				}`, registerFragmentSpreadInline, inlineSelectionsFromInlineFragments)
 		})
 
 		t.Run("without inlining selections", func(t *testing.T) {
-			run(t, fragmentSpreadInline, testDefinition, `	
+			run(t, registerFragmentSpreadInline, testDefinition, `
 				subscription sub {
 					...multipleSubscriptions
 				}
@@ -64,7 +71,7 @@ func TestInlineFragments(t *testing.T) {
 
 	})
 	t.Run("simple with directive", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `	
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				subscription sub {
 					...multipleSubscriptions @include(if: true)
 				}
@@ -93,7 +100,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("simple 2x", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `	
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				subscription sub {
 					...multipleSubscriptions
 					...multipleSubscriptions
@@ -130,7 +137,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("nested", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `	
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				subscription sub {
 					...frag1
 				}
@@ -170,7 +177,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("2x nested", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `	
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				subscription sub {
 					...frag1
 				}
@@ -244,7 +251,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("5x nested", func(t *testing.T) {
-		run(t, fragmentSpreadInline, `
+		run(t, registerFragmentSpreadInline, `
 				schema {
 					query: Query
 				}
@@ -375,7 +382,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("mergeFields interface fields into selection if type implements interface", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				{
 					dog {
 						...definedOnImplementorsButNotInterface
@@ -396,7 +403,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("inline fragments if fragment type definition implements enclosing type definition", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				query conflictingDifferingResponses {
 					pet {
 						...conflictingDifferingResponses
@@ -436,7 +443,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("inline fragment if fragment type is member of enclosing union type", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				query conflictingDifferingResponses {
 					catOrDog {
 						...catDogFrag
@@ -476,7 +483,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("inline fragment of outer enclosing type inside union fragment could be inlined if enclosing type is member of union fragment", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				{
 					dog {
 						...fragOnObject
@@ -523,7 +530,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("type inside union inside type", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				{
 					dog {
 						...unionWithObjectFragment
@@ -558,7 +565,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("inline fragment inside union inside interface inside type", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				{
 					dog {
 						...unionWithInterface
@@ -593,7 +600,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("inline fragment inside interface inside union inside type", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				{
 					dog {
 						...interfaceWithUnion
@@ -628,7 +635,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("non intersecting interfaces shouldn't merge", func(t *testing.T) {
-		run(t, fragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `
 				{
 					dog {
 						...nonIntersectingInterfaces
@@ -655,7 +662,7 @@ func TestInlineFragments(t *testing.T) {
 				}`, withIndent())
 	})
 	t.Run("implicitly intersecting interfaces should merge", func(t *testing.T) {
-		run(t, fragmentSpreadInline, `
+		run(t, registerFragmentSpreadInline, `
 				schema {
 					query: Query
 				}
