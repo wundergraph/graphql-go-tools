@@ -63,6 +63,9 @@ type Context struct {
 	// Used to compute the actual cost.
 	TypeNameStats map[string]TypeNameStats
 
+	// subscription characteristics negotiated with the subscribing client.
+	negotiated NegotiatedParams
+
 	// GetDeduplicationData is called after the leader of an inbound singleflight request
 	// finishes resolving. It extracts data from the leader's context (e.g. accumulated
 	// response headers) that should be shared with all follower requests.
@@ -537,6 +540,11 @@ func (c *Context) Free() {
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
 	c.responseCache = nil
+	c.negotiated = NegotiatedParams{}
+}
+
+func (c *Context) NegotiatedParams() NegotiatedParams {
+	return c.negotiated
 }
 
 func (c *Context) VariablesView() VariablesView {

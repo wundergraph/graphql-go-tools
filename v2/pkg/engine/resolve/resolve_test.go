@@ -5799,6 +5799,10 @@ type _fakeStream struct {
 	isDone                atomic.Bool
 	subscriptionOnStartFn func(ctx StartupHookContext, input []byte) (err error)
 	withCursor            string
+	// negotiateFn returns the negotiated delivery guarantee. If nil, none is negotiated.
+	negotiateFn func(ctx *Context, input []byte) (NegotiatedParams, error)
+	// onStartCtx is called with the context passed to Start.
+	onStartCtx func(ctx *Context)
 }
 
 func (f *_fakeStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
@@ -5827,7 +5831,17 @@ func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
 	}
 }
 
+func (f *_fakeStream) Negotiate(ctx *Context, input []byte) (NegotiatedParams, error) {
+	if f.negotiateFn == nil {
+		return NegotiatedParams{}, nil
+	}
+	return f.negotiateFn(ctx, input)
+}
+
 func (f *_fakeStream) Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error {
+	if f.onStartCtx != nil {
+		f.onStartCtx(ctx)
+	}
 	if f.onStart != nil {
 		f.onStart(input)
 	}
@@ -5879,6 +5893,19 @@ func createFakePubsubStream(messageFunc messageFunc, delay time.Duration, onStar
 		_fakeStream:            createFakeStream(messageFunc, delay, onStart, nil),
 		subscriptionOnCreateFn: subscriptionOnCreateFn,
 	}
+}
+
+type _fakeDeliveryPubsubStream struct {
+	*_fakePubsubStream
+
+	called      atomic.Bool
+	validateErr error
+	negotiated  NegotiatedParams
+}
+
+func (f *_fakeDeliveryPubsubStream) Negotiate(_ *Context, _ []byte) (NegotiatedParams, error) {
+	f.called.Store(true)
+	return f.negotiated, f.validateErr
 }
 
 func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
@@ -6851,56 +6878,151 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	})
 
 	t.Run("it is possible to have two subscriptions to the same trigger", func(t *testing.T) {
-		c := t.Context()
-
-		// sub2Ready gates the data source goroutine so that it doesn't start
-		// emitting before sub2 has been registered on the trigger. Without this,
-		// the emitting goroutine's first triggerUpdate can race sub2's
-		// addSubscription on the unbuffered events channel, causing sub2 to
-		// miss counter=0.
-		sub2Ready := make(chan struct{})
-		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
-			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
-		}, 1*time.Millisecond, func(input []byte) {
-			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-			// Block the data source goroutine until sub2 is registered.
-			// onStart runs inside the goroutine that calls Start(), not the
-			// event loop, so blocking here is safe — the event loop remains
-			// free to process sub2's addSubscription event.
-			<-sub2Ready
-		}, func(ctx StartupHookContext, input []byte) (err error) {
-			return nil
-		})
-
-		resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
-		_, _, recorder2, id2 := setup(c, fakeStream)
-		id2.ConnectionID = id1.ConnectionID + 1
-		id2.SubscriptionID = id1.SubscriptionID + 1
-
-		ctx1 := &Context{
-			ctx: context.Background(),
-		}
-		ctx2 := &Context{
-			ctx: context.Background(),
+		testCases := []struct {
+			name                string
+			guarantees          [2]string // 0 = sub1, 1 = sub2
+			resumeTokens        [2]string // 0 = sub1, 1 = sub2
+			wantStartedTriggers int32
+		}{
+			{name: "without delivery guarantee", guarantees: [2]string{"", ""}, wantStartedTriggers: 1},
+			{name: "with equal delivery guarantees", guarantees: [2]string{"at-least-once", "at-least-once"}, wantStartedTriggers: 1},
+			{name: "with different delivery guarantees", guarantees: [2]string{"at-least-once", ""}, wantStartedTriggers: 2},
+			{name: "with equal guarantees and different resume tokens", guarantees: [2]string{"at-least-once", "at-least-once"}, resumeTokens: [2]string{"token-1", "token-2"}, wantStartedTriggers: 2},
+			// a resume token also salts the trigger id with the connection and subscription id,
+			// so equal tokens still never share a trigger.
+			{name: "with equal guarantees and equal resume tokens", guarantees: [2]string{"at-least-once", "at-least-once"}, resumeTokens: [2]string{"token", "token"}, wantStartedTriggers: 2},
 		}
 
-		err1 := resolver1.AsyncResolveGraphQLSubscription(ctx1, plan1, recorder1, id1)
-		assert.NoError(t, err1)
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				c := t.Context()
 
-		err2 := resolver1.AsyncResolveGraphQLSubscription(ctx2, plan1, recorder2, id2)
-		assert.NoError(t, err2)
-		close(sub2Ready)
+				var startCount atomic.Int32
+				// sub2Ready gates the data source goroutine so that it doesn't start
+				// emitting before sub2 has been registered on the trigger. Without this,
+				// the emitting goroutine's first triggerUpdate can race sub2's
+				// addSubscription on the unbuffered events channel, causing sub2 to
+				// miss counter=0.
+				sub2Ready := make(chan struct{})
+				messageFn := func(counter int) (message string, done bool) {
+					return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
+				}
 
-		// complete is called only on the last recorder
-		recorder1.AwaitComplete(t, defaultTimeout)
-		require.Equal(t, 101, len(recorder1.Messages()))
-		assert.Equal(t, `{"data":{"counter":0}}`, recorder1.Messages()[0])
-		assert.Equal(t, `{"data":{"counter":100}}`, recorder1.Messages()[100])
+				onStartFn := func(input []byte) {
+					startCount.Add(1)
+					assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+					// Block the data source goroutine until sub2 is registered.
+					// onStart runs inside the goroutine that calls Start(), not the
+					// event loop, so blocking here is safe — the event loop remains
+					// free to process sub2's addSubscription event.
+					<-sub2Ready
+				}
 
-		recorder2.AwaitComplete(t, defaultTimeout)
-		require.Equal(t, 101, len(recorder2.Messages()))
-		assert.Equal(t, `{"data":{"counter":0}}`, recorder2.Messages()[0])
-		assert.Equal(t, `{"data":{"counter":100}}`, recorder2.Messages()[100])
+				subscriptionOnStartFn := func(ctx StartupHookContext, input []byte) (err error) {
+					return nil
+				}
+
+				fakeStream := createFakeStream(messageFn, 1*time.Millisecond, onStartFn, subscriptionOnStartFn)
+
+				// Both subscriptions are resolved sequentially on this goroutine,
+				// so the n-th validation belongs to the n-th subscription.
+				var validateCount atomic.Int32
+				fakeStream.negotiateFn = func(_ *Context, _ []byte) (NegotiatedParams, error) {
+					i := validateCount.Add(1) - 1
+					return NegotiatedParams{SubscriptionCursor: SubscriptionCursorNegotiatedParams{Guarantee: tc.guarantees[i], ResumeToken: tc.resumeTokens[i]}}, nil
+				}
+
+				resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
+				_, _, recorder2, id2 := setup(c, fakeStream)
+				id2.ConnectionID = id1.ConnectionID + 1
+				id2.SubscriptionID = id1.SubscriptionID + 1
+
+				ctx1 := &Context{ctx: context.Background()}
+				ctx2 := &Context{ctx: context.Background()}
+
+				err1 := resolver1.AsyncResolveGraphQLSubscription(ctx1, plan1, recorder1, id1)
+				assert.NoError(t, err1)
+
+				err2 := resolver1.AsyncResolveGraphQLSubscription(ctx2, plan1, recorder2, id2)
+				assert.NoError(t, err2)
+				close(sub2Ready)
+
+				recorder1.AwaitComplete(t, defaultTimeout)
+				require.Equal(t, 101, len(recorder1.Messages()))
+				assert.Equal(t, `{"data":{"counter":0}}`, recorder1.Messages()[0])
+				assert.Equal(t, `{"data":{"counter":100}}`, recorder1.Messages()[100])
+
+				recorder2.AwaitComplete(t, defaultTimeout)
+				require.Equal(t, 101, len(recorder2.Messages()))
+				assert.Equal(t, `{"data":{"counter":0}}`, recorder2.Messages()[0])
+				assert.Equal(t, `{"data":{"counter":100}}`, recorder2.Messages()[100])
+
+				assert.Equal(t, tc.wantStartedTriggers, startCount.Load(), "unexpected number of started triggers")
+			})
+		}
+	})
+
+	t.Run("subscriptions with equal resume tokens never share a trigger", func(t *testing.T) {
+		testCases := []struct {
+			name                 string
+			joinAfterFirstUpdate bool
+		}{
+			{name: "joining before the first update", joinAfterFirstUpdate: false},
+			{name: "joining after the first update", joinAfterFirstUpdate: true},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				c := t.Context()
+
+				// startGate holds back the first trigger's updates until sub2 is registered
+				// when sub2 should join before the first update.
+				startGate := make(chan struct{})
+				if tc.joinAfterFirstUpdate {
+					close(startGate)
+				}
+				messageFn := func(counter int) (message string, done bool) {
+					return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
+				}
+
+				var startCount atomic.Int32
+				onStartFn := func(_ []byte) {
+					if startCount.Add(1) == 1 {
+						<-startGate
+					}
+				}
+
+				fakeStream := createFakeStream(messageFn, 1*time.Millisecond, onStartFn, nil)
+				fakeStream.negotiateFn = func(_ *Context, _ []byte) (NegotiatedParams, error) {
+					return NegotiatedParams{SubscriptionCursor: SubscriptionCursorNegotiatedParams{Guarantee: "at-least-once", ResumeToken: "token"}}, nil
+				}
+
+				resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
+				_, _, recorder2, id2 := setup(c, fakeStream)
+				id2.ConnectionID = id1.ConnectionID + 1
+				id2.SubscriptionID = id1.SubscriptionID + 1
+
+				err := resolver1.AsyncResolveGraphQLSubscription(&Context{ctx: context.Background()}, plan1, recorder1, id1)
+				require.NoError(t, err)
+				if tc.joinAfterFirstUpdate {
+					recorder1.AwaitAnyMessageCount(t, defaultTimeout)
+				}
+
+				err = resolver1.AsyncResolveGraphQLSubscription(&Context{ctx: context.Background()}, plan1, recorder2, id2)
+				require.NoError(t, err)
+				if !tc.joinAfterFirstUpdate {
+					close(startGate)
+				}
+
+				for _, recorder := range []*SubscriptionRecorder{recorder1, recorder2} {
+					recorder.AwaitComplete(t, defaultTimeout)
+					require.Equal(t, 101, len(recorder.Messages()))
+					assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[0], "every subscriber must receive the replay from its resume position")
+				}
+
+				assert.Equal(t, int32(2), startCount.Load(), "every resumed subscription must start its own trigger")
+			})
+		}
 	})
 
 	t.Run("should propagate errors from SubscriptionOnStart hook", func(t *testing.T) {
@@ -7014,6 +7136,100 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		require.Greater(t, len(messages), 0)
 		assert.Contains(t, messages[0], "errors")
 		assert.Contains(t, messages[0], "failed to prepare subscription trigger")
+	})
+
+	t.Run("should reject subscription when delivery guarantee validation fails", func(t *testing.T) {
+		// use a mocked pubsub stream, which returns an error during guarantee validation and
+		// check the behaviour of the resolver. We expect
+		// - the validation error being returned to the caller
+		// - that the validation method is actually called
+		// - that both startup hooks are NOT called (must only happen after successful validation)
+		// - subscription is not started
+		// - that the subscriptions context does not carry any delivery guarantee data
+
+		for _, async := range []bool{true, false} {
+			t.Run(fmt.Sprintf("async=%t", async), func(t *testing.T) {
+				var createCalled, startupHookCalled, startCalled atomic.Bool
+
+				sendSingleMessage := func(counter int) (message string, done bool) {
+					return `{"data":{"counter":0}}`, true
+				}
+				messageDelay := 1 * time.Millisecond
+				recordStart := func(input []byte) {
+					startCalled.Store(true)
+				}
+				recordOnCreateHook := func(ctx context.Context, input []byte) (newInput []byte, err error) {
+					createCalled.Store(true)
+					return input, nil
+				}
+				recordOnStartHook := func(ctx StartupHookContext, input []byte) error {
+					startupHookCalled.Store(true)
+					return nil
+				}
+
+				fakeStream := &_fakeDeliveryPubsubStream{
+					_fakePubsubStream: createFakePubsubStream(sendSingleMessage, messageDelay, recordStart, recordOnCreateHook),
+					validateErr:       errors.New("input rejected"),
+					negotiated:        NegotiatedParams{SubscriptionCursor: SubscriptionCursorNegotiatedParams{Guarantee: "at-least-once", ResumeToken: "token"}},
+				}
+				fakeStream.subscriptionOnStartFn = recordOnStartHook
+
+				resolver, plan, recorder, id := setup(t.Context(), fakeStream)
+				ctx := NewContext(t.Context())
+
+				var err error
+				if async {
+					err = resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+				} else {
+					err = resolver.ResolveGraphQLSubscription(ctx, plan, recorder)
+				}
+				require.EqualError(t, err, "input rejected")
+
+				assert.Empty(t, recorder.Messages())
+				assert.True(t, fakeStream.called.Load(), "Negotiate must be called")
+				assert.True(t, createCalled.Load(), "SubscriptionOnCreate must run before Negotiate")
+				assert.False(t, startupHookCalled.Load(), "SubscriptionOnStart must not be called")
+				assert.False(t, startCalled.Load(), "Start must not be called")
+				assert.Empty(t, ctx.NegotiatedParams(), "a rejected subscription must not carry a delivery guarantee")
+			})
+		}
+	})
+
+	t.Run("should pass negotiated delivery guarantee to Start", func(t *testing.T) {
+		for _, async := range []bool{true, false} {
+			t.Run(fmt.Sprintf("async=%t", async), func(t *testing.T) {
+				fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+					return `{"data":{"counter":0}}`, true
+				}, 1*time.Millisecond, nil, nil)
+				fakeStream.negotiateFn = func(_ *Context, _ []byte) (NegotiatedParams, error) {
+					return NegotiatedParams{SubscriptionCursor: SubscriptionCursorNegotiatedParams{Guarantee: "at-least-once"}}, nil
+				}
+
+				startGuarantee := make(chan string, 1)
+				fakeStream.onStartCtx = func(ctx *Context) {
+					startGuarantee <- ctx.NegotiatedParams().SubscriptionCursor.Guarantee
+				}
+
+				resolver, plan, recorder, id := setup(t.Context(), fakeStream)
+				ctx := NewContext(t.Context())
+
+				var err error
+				if async {
+					err = resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+				} else {
+					err = resolver.ResolveGraphQLSubscription(ctx, plan, recorder)
+				}
+				require.NoError(t, err)
+
+				recorder.AwaitComplete(t, defaultTimeout)
+				select {
+				case got := <-startGuarantee:
+					assert.Equal(t, "at-least-once", got)
+				default:
+					t.Fatal("Start was not called")
+				}
+			})
+		}
 	})
 
 	t.Run("should call SubscriptionOnCreate hook on pubsub datasource (syncronous resolve)", func(t *testing.T) {
@@ -8197,6 +8413,10 @@ func (s *startFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) err
 	return err
 }
 
+func (s *startFailStream) Negotiate(_ *Context, _ []byte) (NegotiatedParams, error) {
+	return NegotiatedParams{}, nil
+}
+
 func (s *startFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {
 	<-s.subBReady
 	return errors.New("connection refused")
@@ -8284,6 +8504,10 @@ type hookFailStream struct {
 func (s *hookFailStream) HashTriggerInput(input []byte, xxh *xxhash.Digest) error {
 	_, err := xxh.Write(input)
 	return err
+}
+
+func (s *hookFailStream) Negotiate(_ *Context, _ []byte) (NegotiatedParams, error) {
+	return NegotiatedParams{}, nil
 }
 
 func (s *hookFailStream) Start(_ *Context, _ http.Header, _ []byte, _ SubscriptionUpdater) error {

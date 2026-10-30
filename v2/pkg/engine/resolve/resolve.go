@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 
@@ -1699,7 +1700,8 @@ func (r *Resolver) UnsubscribeClient(connectionID ConnectionID) error {
 // prepareTrigger safely gets the headers for the trigger Subgraph and computes the hash across headers and input
 // the generated hash is the unique triggerID
 // the headers must be forwarded to the DataSource to create the trigger
-func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, source SubscriptionDataSource) (
+// a subscription resuming from a cursor gets a trigger of its own, see hashResumedSubscription
+func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte, negotiated NegotiatedParams, id SubscriptionIdentifier, source SubscriptionDataSource) (
 	headers http.Header, triggerID uint64, err error) {
 	keyGen := pool.Hash64.Get()
 	defer pool.Hash64.Put(keyGen)
@@ -1718,11 +1720,46 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte,
 		}
 	}
 
+	hashNegotiatedParams(negotiated, keyGen)
+
+	// subscribers who want to resume from a cursor get their own trigger.
+	if negotiated.SubscriptionCursor.ResumeToken != "" {
+		var b [16]byte
+		binary.LittleEndian.PutUint64(b[:8], uint64(id.ConnectionID))
+		binary.LittleEndian.PutUint64(b[8:], uint64(id.SubscriptionID))
+		_, _ = keyGen.Write(b[:])
+	}
+
 	triggerID = keyGen.Sum64()
 
 	return headers, triggerID, nil
 }
 
+// hashNegotiatedParams writes the non-empty fields of the negotiated guarantee into xxh,
+// so clients with different guarantees or resume positions never share a trigger.
+// Each field is prefixed with its tag and length to keep the encoding unambiguous.
+// Zero values are skipped, so trigger IDs of sources without a guarantee stay unchanged.
+func hashNegotiatedParams(negotiated NegotiatedParams, xxh *xxhash.Digest) {
+	write := func(tag byte, value string) {
+		if value == "" {
+			return
+		}
+		var b [1 + binary.MaxVarintLen64]byte
+		b[0] = tag
+		n := binary.PutUvarint(b[1:], uint64(len(value)))
+		_, _ = xxh.Write(b[:1+n])
+		_, _ = xxh.WriteString(value)
+	}
+	write(1, negotiated.SubscriptionCursor.Guarantee)
+	write(2, negotiated.SubscriptionCursor.ResumeToken)
+}
+
+// ResolveGraphQLSubscription starts a subscription and blocks until it ends.
+//
+// Request-caused setup failures (invalid input, authorization denial, failed SubscriptionOnCreate
+// or trigger preparation) are written to the client as a GraphQL error and nil is returned.
+// Everything else is returned as an error and nothing is written to the client.
+// Negotiate errors come from the data source and are returned as-is, so callers decide whether to expose them.
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
@@ -1776,15 +1813,30 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		}
 	}
 
-	headers, triggerID, err := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input, subscription.Trigger.Source)
+	negotiated, err := subscription.Trigger.Source.Negotiate(ctx, input)
 	if err != nil {
-		msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
-		return writeFlushComplete(writer, msg)
+		return err
 	}
+	ctx.negotiated = negotiated
+
 	id := SubscriptionIdentifier{
 		ConnectionID:   NewConnectionID(),
 		SubscriptionID: 0,
 	}
+
+	headers, triggerID, err := r.prepareTrigger(
+		ctx,
+		subscription.Trigger.SourceName,
+		input,
+		negotiated,
+		id,
+		subscription.Trigger.Source,
+	)
+	if err != nil {
+		msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
+		return writeFlushComplete(writer, msg)
+	}
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", triggerID, id.SubscriptionID)
 	}
@@ -1833,6 +1885,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	return nil
 }
 
+// AsyncResolveGraphQLSubscription registers a subscription and returns without waiting for it to end.
+// Errors are handled as in ResolveGraphQLSubscription; additionally, a canceled ctx is returned
+// as an error before anything starts.
 func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter, id SubscriptionIdentifier) (err error) {
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
@@ -1890,7 +1945,20 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		}
 	}
 
-	headers, triggerID, err := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input, subscription.Trigger.Source)
+	negotiated, err := subscription.Trigger.Source.Negotiate(ctx, input)
+	if err != nil {
+		return err
+	}
+	ctx.negotiated = negotiated
+
+	headers, triggerID, err := r.prepareTrigger(
+		ctx,
+		subscription.Trigger.SourceName,
+		input,
+		negotiated,
+		id,
+		subscription.Trigger.Source,
+	)
 	if err != nil {
 		msg := []byte(`{"errors":[{"message":"failed to prepare subscription trigger"}]}`)
 		return writeFlushComplete(writer, msg)
