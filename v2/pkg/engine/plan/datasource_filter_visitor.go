@@ -20,7 +20,6 @@ type DataSourceFilter struct {
 	nodes *NodeSuggestions
 
 	enableSelectionReasons bool
-	secondaryRun           bool
 
 	fieldDependsOn       map[int][]int
 	newFieldRefs         map[int]struct{}
@@ -89,7 +88,6 @@ func (f *DataSourceFilter) FilterDataSources(landedTo map[int]DSHash, fieldDepen
 		}
 	}
 
-	f.secondaryRun = true
 	return used, suggestions
 }
 

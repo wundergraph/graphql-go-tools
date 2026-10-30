@@ -572,23 +572,6 @@ func (f *NodeSuggestions) suggestionsForFieldRef(fieldRef int) []int {
 	return treeNode.GetData()
 }
 
-func (f *NodeSuggestions) hasSelectedSuggestionForFieldRefOnDataSource(fieldRef int, dsHash DSHash) bool {
-	for _, itemIdx := range f.suggestionsForFieldRef(fieldRef) {
-		item := f.items[itemIdx]
-		if item.IsOrphan {
-			continue
-		}
-		if !item.Selected {
-			continue
-		}
-		if item.DataSourceHash == dsHash {
-			return true
-		}
-	}
-
-	return false
-}
-
 // firstNonTargetSuggestionForFieldRef returns a datasource able to resolve the given field ref
 // other than the target datasource. It is used to plan a gather hop for a fallback key jump:
 // a member of the target's compound key which the jump source cannot provide (see KeyJump.SourcePaths)
