@@ -592,6 +592,8 @@ func TestCreateProtoWire(t *testing.T) {
 			`false`:                   `false`,
 			`42`:                      `42`,
 			`"plain"`:                 `plain`,
+			// null stays absent: the plain field keeps its default, the wrapper stays unset.
+			`null`: ``,
 		}
 		for input, want := range cases {
 			for _, request := range []string{"ScalarRequest", "WrapperScalarRequest"} {
@@ -606,6 +608,9 @@ func TestCreateProtoWire(t *testing.T) {
 				got, err := wm.createProtoWire(astjson.MustParse(`{"string_value":` + input + `}`))
 				require.NoError(t, err, input)
 				expected := marshalDynamic(t, runtime, request, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					if input == `null` {
+						return
+					}
 					if request == "WrapperScalarRequest" {
 						setWrapperValue(msg, "string_value", protoref.ValueOfString(want))
 						return
