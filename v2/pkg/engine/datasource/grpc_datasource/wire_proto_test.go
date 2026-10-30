@@ -315,6 +315,48 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("JSON scalar values in a string field", func(t *testing.T) {
+		// Protographic maps a GraphQL JSON scalar to a proto string. Objects,
+		// arrays and booleans must arrive as their JSON text, like strings and
+		// numbers already do, not as an empty string or a raw byte.
+		cases := map[string]string{
+			`{"a":1,"b":[true,null]}`: `{"a":1,"b":[true,null]}`,
+			`[1,"x",{}]`:              `[1,"x",{}]`,
+			`{}`:                      `{}`,
+			`true`:                    `true`,
+			`false`:                   `false`,
+			`42`:                      `42`,
+			`"plain"`:                 `plain`,
+			// null stays absent: the plain field keeps its default, the wrapper stays unset.
+			`null`: ``,
+		}
+		for input, want := range cases {
+			for _, request := range []string{"ScalarRequest", "WrapperScalarRequest"} {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: request,
+					Fields: RPCFields{
+						{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: request == "WrapperScalarRequest"},
+					},
+				}, runtime.getMessageByName(request))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"string_value":` + input + `}`))
+				require.NoError(t, err, input)
+				expected := buildExpectedProto(t, runtime, request, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					if input == `null` {
+						return
+					}
+					if request == "WrapperScalarRequest" {
+						setWrapperValue(msg, "string_value", protoref.ValueOfString(want))
+						return
+					}
+					msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString(want))
+				})
+				assertProtoMessageEqual(t, expected, got)
+			}
+		}
+	})
+
 	t.Run("nullable enum field", func(t *testing.T) {
 		// A nullable GraphQL enum argument (`status: Status`) maps to a plain proto
 		// enum field. Proto has no wrapper message for enums, so it must not be
