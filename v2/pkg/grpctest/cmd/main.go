@@ -40,7 +40,7 @@ func loggingInterceptor(
 }
 
 func main() {
-	l, err := net.Listen("tcp", ":9009")
+	l, err := net.Listen("tcp", ":9009") //nolint:noctx
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
