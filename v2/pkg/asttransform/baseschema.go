@@ -37,6 +37,8 @@ func MergeDefinitionWithBaseSchemaWithInternal(definition *ast.Document, include
 }
 
 func handleSchema(definition *ast.Document) error {
+	mergeSchemaExtensions(definition)
+
 	var queryNodeRef int
 	queryNode, hasQueryNode := findQueryNode(definition)
 	if hasQueryNode {
@@ -52,6 +54,32 @@ func handleSchema(definition *ast.Document) error {
 	typeNamesVisitor := NewTypeNameVisitor()
 
 	return typeNamesVisitor.ExtendSchema(definition)
+}
+
+// mergeSchemaExtensions folds every schema extension into the schema definition,
+// creating the definition when only extensions exist (e.g. `extend schema @link(...)`).
+// The second loop's first pass will create a schema definition root node if it does not exist,
+// and subsequent passes will augment that type.
+// It has to run before the root operation types are resolved, as those checks
+// only take the schema definition into account.
+func mergeSchemaExtensions(definition *ast.Document) {
+	var schemaExtensionRefs []int
+	for _, node := range definition.RootNodes {
+		if node.Kind == ast.NodeKindSchemaExtension {
+			schemaExtensionRefs = append(schemaExtensionRefs, node.Ref)
+		}
+	}
+
+	for _, ref := range schemaExtensionRefs {
+		schemaDefinitionRef := definition.SchemaDefinitionRef()
+		if schemaDefinitionRef == ast.InvalidRef {
+			definition.ImportAndExtendSchemaDefinitionBySchemaExtension(ref)
+			continue
+		}
+		definition.ExtendSchemaDefinitionBySchemaExtension(schemaDefinitionRef, ref)
+	}
+
+	definition.RemoveMergedTypeExtensions()
 }
 
 func addSchemaDefinition(definition *ast.Document) {

@@ -137,6 +137,70 @@ func TestNormalizeDefinition(t *testing.T) {
 			}
 		`)
 	})
+
+	t.Run("merges schema extension directives into schema definition", func(t *testing.T) {
+		run(t, `
+			directive @a on SCHEMA
+			schema { query: Query }
+			extend schema @a
+			type Query { me: String }
+		`, `
+			directive @a on SCHEMA
+			schema @a { query: Query }
+			type Query { me: String }
+		`)
+	})
+
+	t.Run("merges schema extension root operation types into schema definition", func(t *testing.T) {
+		run(t, `
+			directive @a on SCHEMA
+			extend schema @a { mutation: Mutation }
+			schema { query: Query }
+			type Query { me: String }
+			type Mutation { increase: String }
+		`, `
+			directive @a on SCHEMA
+			schema @a { query: Query mutation: Mutation }
+			type Query { me: String }
+			type Mutation { increase: String }
+		`)
+	})
+
+	t.Run("creates schema definition from orphan schema extension", func(t *testing.T) {
+		run(t, `
+			directive @a on SCHEMA
+			extend schema @a
+			type Query { me: String }
+		`, `
+			directive @a on SCHEMA
+			type Query { me: String }
+			schema @a { query: Query }
+		`)
+	})
+
+	t.Run("creates schema definition from orphan schema extension with root operation types", func(t *testing.T) {
+		run(t, `
+			directive @a on SCHEMA
+			extend schema @a { query: Query }
+			type Query { me: String }
+		`, `
+			directive @a on SCHEMA
+			type Query { me: String }
+			schema @a { query: Query }
+		`)
+	})
+
+	t.Run("creates empty schema definition from orphan schema extension without root operation types", func(t *testing.T) {
+		run(t, `
+			directive @a on SCHEMA
+			extend schema @a
+			type Entity { id: ID! }
+		`, `
+			directive @a on SCHEMA
+			type Entity { id: ID! }
+			schema @a {}
+		`)
+	})
 }
 
 func TestNormalizeSubgraphDefinition(t *testing.T) {
@@ -257,6 +321,53 @@ func TestNormalizeSubgraphDefinition(t *testing.T) {
 				name: String!
 				age: Int!
 			}
+		`)
+	})
+}
+
+func TestNormalizeSubgraphDefinitionSchemaExtension(t *testing.T) {
+	run := func(t *testing.T, definition, expectedOutput string) {
+		t.Helper()
+
+		definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+		expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
+
+		report := operationreport.Report{}
+		normalizer := NewSubgraphDefinitionNormalizer()
+		normalizer.NormalizeDefinition(&definitionDocument, &report)
+
+		if report.HasErrors() {
+			t.Fatal(report.Error())
+		}
+
+		got := mustString(astprinter.PrintString(&definitionDocument))
+		want := mustString(astprinter.PrintString(&expectedOutputDocument))
+
+		assert.Equal(t, want, got)
+	}
+
+	t.Run("merges schema extension into schema definition", func(t *testing.T) {
+		run(t, `
+			directive @a on SCHEMA
+			schema { query: Query }
+			extend schema @a
+			type Query { me: String }
+		`, `
+			directive @a on SCHEMA
+			schema @a { query: Query }
+			type Query { me: String }
+		`)
+	})
+
+	t.Run("keeps orphan schema extension", func(t *testing.T) {
+		run(t, `
+			directive @a on SCHEMA
+			extend schema @a
+			type Entity { id: ID! }
+		`, `
+			directive @a on SCHEMA
+			extend schema @a
+			type Entity { id: ID! }
 		`)
 	})
 }
