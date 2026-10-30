@@ -95,7 +95,7 @@ func (d *deduplicateSingleFetches) mergeTypeNames(left []string, right []string)
 		return nil // if either side is empty, fetch is unscoped
 	}
 
-	out := append(left, right...)
+	out := slices.Concat(left, right)
 
 	slices.Sort(out)
 	return slices.Compact(out) // removes consecutive duplicates from the sorted slice

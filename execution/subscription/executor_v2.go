@@ -60,8 +60,7 @@ type ExecutorV2 struct {
 
 func (e *ExecutorV2) Execute(writer resolve.SubscriptionResponseWriter) error {
 	options := make([]engine.ExecutionOptions, 0)
-	switch ctx := e.reqCtx.(type) {
-	case *InitialHttpRequestContext:
+	if ctx, ok := e.reqCtx.(*InitialHttpRequestContext); ok {
 		options = append(options, engine.WithAdditionalHttpHeaders(ctx.Request.Header))
 	}
 

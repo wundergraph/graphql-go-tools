@@ -176,10 +176,8 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			if len(testCase.expectedResponses) > 0 {
 				assert.Contains(t, testCase.expectedResponses, streamingResponse)
 			}
-		} else {
-			if testCase.expectedResponse != "" {
-				assert.Equal(t, testCase.expectedResponse, actualResponse)
-			}
+		} else if testCase.expectedResponse != "" {
+			assert.Equal(t, testCase.expectedResponse, actualResponse)
 		}
 
 		if testCase.expectedEstimatedCost != nil {
