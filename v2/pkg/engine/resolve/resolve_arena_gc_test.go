@@ -795,6 +795,28 @@ func TestArenaGCSafety_ApolloRouterCompatError(t *testing.T) {
 	assert.Equal(t, `{"errors":[{"message":"HTTP fetch failed from 'testService': 500: Internal Server Error","path":[],"extensions":{"code":"SUBREQUEST_HTTP_ERROR","service":"testService","reason":"500: Internal Server Error","http":{"status":500}}},{"message":"bad","extensions":{"statusCode":500}}],"data":{"field":null}}`, output)
 }
 
+func TestArenaGCSafety_ApolloRouterCompatError_StatusFallback(t *testing.T) {
+	// Covers: renderErrorsStatusFallback attaching addApolloRouterCompatibilityError.
+	// A non-2XX response with no GraphQL errors body must still carry the
+	// SUBREQUEST_HTTP_ERROR code when Apollo Router compatibility is enabled, so that
+	// status-only failures (e.g. a proxy 504 with an empty/non-GraphQL body) are shaped
+	// like the errors-body path instead of a bare status message.
+	opts := baseResolverOpts()
+	opts.ApolloRouterCompatibilitySubrequestHTTPError = true
+	resolver := newTestResolver(t, opts)
+	output := resolveWithGCPressure(t, resolver,
+		func() *Context { return NewContext(context.Background()) },
+		func() *GraphQLResponse {
+			resp, _ := gcTestResponse(&_statusCodeDataSource{
+				data:       `{"data":null}`,
+				statusCode: 504,
+			})
+			return resp
+		},
+	)
+	assert.Equal(t, `{"errors":[{"message":"HTTP fetch failed from 'testService': 504: Gateway Timeout","path":[],"extensions":{"code":"SUBREQUEST_HTTP_ERROR","service":"testService","reason":"504: Gateway Timeout","http":{"status":504}}}],"data":{"field":null}}`, output)
+}
+
 func TestArenaGCSafety_SubgraphStatusCodeInExtensions(t *testing.T) {
 	// Covers: setSubgraphStatusCode (adds statusCode to existing and new extensions)
 	opts := baseResolverOpts()
