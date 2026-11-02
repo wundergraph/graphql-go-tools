@@ -201,6 +201,47 @@ func TestNormalizeDefinition(t *testing.T) {
 			schema @a {}
 		`)
 	})
+
+	t.Run("orphan schema extension keeps implicit query type", func(t *testing.T) {
+		run(t, `
+			extend schema { mutation: CustomMutation }
+			type Query { hello: String }
+			type CustomMutation { setHello: String }
+		`, `
+			type Query { hello: String }
+			type CustomMutation { setHello: String }
+			schema { mutation: CustomMutation query: Query }
+		`)
+	})
+
+	t.Run("orphan schema extension root operation types take precedence over implicit ones", func(t *testing.T) {
+		run(t, `
+			extend schema { query: RootQuery }
+			type RootQuery { hello: String }
+			type Query { hello: String }
+			type Mutation { setHello: String }
+		`, `
+			type RootQuery { hello: String }
+			type Query { hello: String }
+			type Mutation { setHello: String }
+			schema { query: RootQuery mutation: Mutation }
+		`)
+	})
+
+	t.Run("orphan schema extensions are merged before implicit root operation types are added", func(t *testing.T) {
+		run(t, `
+			directive @a on SCHEMA
+			extend schema @a
+			extend schema { query: RootQuery }
+			type RootQuery { hello: String }
+			type Query { hello: String }
+		`, `
+			directive @a on SCHEMA
+			type RootQuery { hello: String }
+			type Query { hello: String }
+			schema @a { query: RootQuery }
+		`)
+	})
 }
 
 func TestNormalizeSubgraphDefinition(t *testing.T) {
