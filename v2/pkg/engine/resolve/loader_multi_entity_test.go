@@ -323,6 +323,7 @@ type recordingDataSource struct {
 	response        []byte
 	err             error
 	responseHeaders http.Header
+	status          int // 0 is 200
 	calls           int
 	lastInput       []byte
 }
@@ -347,9 +348,13 @@ func (r *recordingDataSource) record(ctx context.Context, input []byte) {
 	if responseContext == nil {
 		return
 	}
-	responseContext.StatusCode = http.StatusOK
+	status := r.status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	responseContext.StatusCode = status
 	responseContext.Response = &http.Response{
-		StatusCode: http.StatusOK,
+		StatusCode: status,
 		Header:     r.responseHeaders.Clone(),
 	}
 }
