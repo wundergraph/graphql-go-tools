@@ -180,8 +180,7 @@ func getKeyPaths(input *keyVisitorInput) (keyPaths []KeyInfoFieldPath, hasExtern
 		selectionStack: []providesSelection{input.providedSelection},
 	}
 
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.RegisterLeaveFieldVisitor(&keyInfoSelectionPopper{visitor: visitor})
+	walker.RegisterFieldVisitor(visitor)
 	walker.Walk(input.key, input.definition, input.report)
 
 	return visitor.keyPaths, visitor.hasExternalFields
@@ -199,16 +198,6 @@ type keyInfoVisitor struct {
 	// selectionStack tracks the provided selection at each nesting level of the key
 	// fragment walk; entries are nil below levels which are not provided
 	selectionStack []providesSelection
-}
-
-// keyInfoSelectionPopper keeps the selection stack of keyInfoVisitor in sync on field
-// leave; a separate type as keyInfoVisitor has an unregistered LeaveField method
-type keyInfoSelectionPopper struct {
-	visitor *keyInfoVisitor
-}
-
-func (p *keyInfoSelectionPopper) LeaveField(ref int) {
-	p.visitor.selectionStack = p.visitor.selectionStack[:len(p.visitor.selectionStack)-1]
 }
 
 func (v *keyInfoVisitor) EnterField(ref int) {
@@ -233,6 +222,15 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 	hasNode := hasRootNode || hasChildNode || hasExternalRootNode || hasExternalChildNode
 
 	if !hasNode {
+		// Record this unknown ancestor so LeaveField pops its own entry.
+		// Conservatively treat it as external: an unknown root must not make
+		// external descendants locally available through the key fallback.
+		// This entry only tracks ancestry; it is not added to the output keyPaths.
+		v.currentKeyPath = append(v.currentKeyPath, KeyInfoFieldPath{Path: currentPath, IsExternal: true})
+		// A missing field also prevents supplying the key unless it is provided.
+		if !isProvided {
+			v.hasExternalFields = true
+		}
 		// TODO: report an error
 		return
 	}
@@ -285,14 +283,11 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 		v.hasExternalFields = true
 	}
 
-	v.currentKeyPath = append(v.keyPaths, fieldKeyPath)
+	v.currentKeyPath = append(v.currentKeyPath, fieldKeyPath)
 }
 
 func (v *keyInfoVisitor) LeaveField(ref int) {
-	if len(v.currentKeyPath) == 0 {
-		return
-	}
-
+	v.selectionStack = v.selectionStack[:len(v.selectionStack)-1]
 	v.currentKeyPath = v.currentKeyPath[:len(v.currentKeyPath)-1]
 }
 
