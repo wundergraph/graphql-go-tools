@@ -44,6 +44,9 @@ type Item struct {
 	// ClientTTL is CachePolicy.ClientTTL: how long a client may keep the
 	// entry, never over TTL. Like TTL, GetMany returns what is left of it.
 	ClientTTL time.Duration
+	// FetchedAt is when the fetch behind the item started. A store drops the
+	// item if one of its tags was invalidated since. Not stored.
+	FetchedAt time.Time
 }
 
 // Cache is a batch oriented key/value cache.
