@@ -78,6 +78,9 @@ type NodesInfo interface {
 	HasExternalChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
 	RequireFetchReasons() map[FieldCoordinate]struct{}
+	InterfaceObjectNameForType(typeName string) (string, bool)
+	InterfaceObjectNameForTypeField(typeName, fieldName string) (string, bool)
+	UnambiguousInterfaceObjectNameForTypeField(typeName, fieldName string) (string, bool)
 }
 
 type fieldsIndex struct {
@@ -368,6 +371,15 @@ type DataSourcePlannerConfiguration struct {
 	PathType       PlannerPathType
 	IsNested       bool
 	Options        plannerConfigurationOptions
+	// InterfaceObjectNames maps a concrete type to the interface object the planner is bound to.
+	// It only contains concrete types which are a part of multiple interface objects of the data source.
+	InterfaceObjectNames map[string]string
+}
+
+// BoundInterfaceObjectName returns the interface object the planner is bound to for the concrete typeName.
+func (c *DataSourcePlannerConfiguration) BoundInterfaceObjectName(typeName string) (string, bool) {
+	name, ok := c.InterfaceObjectNames[typeName]
+	return name, ok
 }
 
 type PlannerPathType int
