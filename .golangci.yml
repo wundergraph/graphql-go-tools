@@ -17,6 +17,7 @@ linters:
     - makezero
     - nilerr
     - nilnesserr
+    - noctx
     - nolintlint
     - perfsprint
     - reassign
@@ -42,6 +43,11 @@ linters:
       - linters:
           - staticcheck
         text: "QF1008:"
+      # Threading contexts through test HTTP requests, dials and commands adds
+      # noise without catching real leaks.
+      - path: _test\.go
+        linters:
+          - noctx
       - path: pkg/astvalidation/reference
         linters:
           - staticcheck
