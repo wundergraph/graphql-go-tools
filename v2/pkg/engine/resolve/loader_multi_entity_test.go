@@ -170,7 +170,7 @@ func assertMergedErrors(t *testing.T, loader *Loader, expectedJSON string) {
 	t.Helper()
 	var got string
 	if loader.errors != nil {
-		got = string(loader.errors.MarshalTo(nil))
+		got = string(loader.errors.marshalTo(nil))
 	}
 	if expectedJSON == "" {
 		assert.Empty(t, got, "expected no accumulated errors")

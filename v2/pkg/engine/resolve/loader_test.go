@@ -300,7 +300,7 @@ func TestLoader_LoadGraphQLResponseData(t *testing.T) {
 	resolvable.errors = loader.errors
 	assert.NoError(t, err)
 	ctrl.Finish()
-	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+	out := printGraphQLResponse(resolvable.data, resolvable.errors)
 	assert.NoError(t, err)
 
 	expected1 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
@@ -864,7 +864,7 @@ func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
 	resolvable.errors = loader.errors
 	assert.NoError(t, err)
 	ctrl.Finish()
-	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+	out := printGraphQLResponse(resolvable.data, resolvable.errors)
 	assert.NoError(t, err)
 
 	expected1 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
@@ -1153,7 +1153,7 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 		if err != nil {
 			b.Fatalf("failed to load data %v", err)
 		}
-		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		out := printGraphQLResponse(resolvable.data, resolvable.errors)
 
 		if out != expected1 && out != expected2 {
 			b.Fatalf("unexpected output %s", out)
@@ -1541,7 +1541,7 @@ func TestLoader_InvalidBatchItemCount(t *testing.T) {
 	resolvable.errors = loader.errors
 	assert.NoError(t, err)
 	ctrl.Finish()
-	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+	out := printGraphQLResponse(resolvable.data, resolvable.errors)
 	assert.NoError(t, err)
 	// 2 errors expected in the response.
 	expected := `{"errors":[{"message":"Failed to fetch from Subgraph, Reason: returned entities count does not match the count of representation variables in the entities request. Expected 3, got 2."},{"message":"Failed to fetch from Subgraph, Reason: returned entities count does not match the count of representation variables in the entities request. Expected 2, got 3."}],"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}]},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1"}}]},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2"}}]}]}}`
@@ -2732,7 +2732,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 		// First run: nothing came from the cache. Loader makes all subgraph calls and stores the entities in the cache.
 		err = loader.LoadGraphQLResponseData(ctx, response)
 		assert.NoError(t, err)
-		out := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
+		out := printGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
 
 		expected1 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
 		expected2 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","stock":8,"reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}]},{"name":"Couch","__typename":"Product","upc":"2","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}]},{"name":"Chair","__typename":"Product","upc":"3","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}]}]}}`
@@ -2746,7 +2746,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 		loader = &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 		err = loader.LoadGraphQLResponseData(ctx, response)
 		assert.NoError(t, err)
-		cachedOut := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
+		cachedOut := printGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
 
 		assert.Contains(t, []string{expected1, expected2}, cachedOut)
 	})
@@ -2825,7 +2825,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 		assert.NoError(t, err)
 		err = loader.LoadGraphQLResponseData(ctx, response)
 		assert.NoError(t, err)
-		out := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
+		out := printGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
 
 		expected1 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
 		expected2 := `{"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","stock":8,"reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}]},{"name":"Couch","__typename":"Product","upc":"2","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}]},{"name":"Chair","__typename":"Product","upc":"3","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}]}]}}`
@@ -2842,7 +2842,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 		loader = &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
 		err = loader.LoadGraphQLResponseData(ctx, response)
 		assert.NoError(t, err)
-		cachedOut := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
+		cachedOut := printGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
 
 		assert.Contains(t, []string{expected1, expected2}, cachedOut)
 
@@ -2914,4 +2914,13 @@ func (t *testCache) SetMany(ctx context.Context, items []caching.Item) error {
 		t.items[item.Key] = item
 	}
 	return nil
+}
+
+// printGraphQLResponse renders loader output without applying response hooks.
+func printGraphQLResponse(data *astjson.Value, errors responseErrors) string {
+	var errorArray *astjson.Value
+	if len(errors) > 0 {
+		errorArray = astjson.MustParseBytes(errors.marshalTo(nil))
+	}
+	return fastjsonext.PrintGraphQLResponse(data, errorArray)
 }

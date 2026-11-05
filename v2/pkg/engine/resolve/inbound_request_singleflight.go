@@ -88,7 +88,9 @@ func (r *InflightRequest) HasFollowers() bool {
 // or if DisableInboundRequestDeduplication is set to true on Context
 func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQLResponse) (*InflightRequest, error) {
 
-	if ctx.ExecutionOptions.DisableInboundRequestDeduplication {
+	// A response error handler may depend on request-specific state. Sharing the
+	// serialized response would bypass followers' handlers and leak that state.
+	if ctx.ExecutionOptions.DisableInboundRequestDeduplication || ctx.ResponseErrorHandler != nil {
 		return nil, nil
 	}
 
