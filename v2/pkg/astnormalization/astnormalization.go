@@ -157,6 +157,7 @@ type options struct {
 	enableDefer                           bool
 	prevalidationRules                    []func(walker *astvisitor.Walker)
 	inlineArgumentsValidation             *InlineArgumentsValidationOptions
+	limits                                Limits
 }
 
 type Option func(options *options)
@@ -277,9 +278,9 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &directivesIncludeSkip,
 	})
 
-	if o.options.inlineFragmentSpreads {
+	if o.options.inlineFragmentSpreads || o.options.limits.MaxExpandedSelectionSetFields > 0 {
 		fragmentInline := astvisitor.NewWalkerWithID(8, "FragmentSpreadInline")
-		fragmentSpreadInline(&fragmentInline)
+		fragmentSpreadInline(&fragmentInline, o.options.limits, o.options.inlineFragmentSpreads)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "fragmentInline",
 			walker: &fragmentInline,

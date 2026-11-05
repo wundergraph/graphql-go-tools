@@ -30,15 +30,30 @@ type Selection struct {
 }
 
 func (d *Document) CopySelection(ref int) int {
-	innerRef := -1
+	return d.copySelection(ref, nil)
+}
+
+// copySelection returns InvalidRef when the budget is exhausted. Charge before copying
+// the selection's payload or descending into its children.
+func (d *Document) copySelection(ref int, remaining *int) int {
+	if !consumeSelectionCopyBudget(remaining) {
+		return InvalidRef
+	}
+	innerRef := InvalidRef
 
 	switch d.Selections[ref].Kind {
 	case SelectionKindField:
-		innerRef = d.CopyField(d.Selections[ref].Ref)
+		innerRef = d.copyField(d.Selections[ref].Ref, remaining)
+		if innerRef == InvalidRef {
+			return InvalidRef
+		}
 	case SelectionKindFragmentSpread:
 		innerRef = d.CopyFragmentSpread(d.Selections[ref].Ref)
 	case SelectionKindInlineFragment:
-		innerRef = d.CopyInlineFragment(d.Selections[ref].Ref)
+		innerRef = d.copyInlineFragment(d.Selections[ref].Ref, remaining)
+		if innerRef == InvalidRef {
+			return InvalidRef
+		}
 	}
 
 	return d.AddSelectionToDocument(Selection{
@@ -48,13 +63,32 @@ func (d *Document) CopySelection(ref int) int {
 }
 
 func (d *Document) CopySelectionSet(ref int) int {
+	return d.copySelectionSet(ref, nil)
+}
+
+func (d *Document) copySelectionSet(ref int, remaining *int) int {
 	refs := d.NewEmptyRefs()
 	for _, r := range d.SelectionSets[ref].SelectionRefs {
-		refs = append(refs, d.CopySelection(r))
+		copyRef := d.copySelection(r, remaining)
+		if copyRef == InvalidRef {
+			return InvalidRef
+		}
+		refs = append(refs, copyRef)
 	}
 	return d.AddSelectionSetToDocument(SelectionSet{
 		SelectionRefs: refs,
 	})
+}
+
+func consumeSelectionCopyBudget(remaining *int) bool {
+	if remaining == nil {
+		return true
+	}
+	if *remaining <= 0 {
+		return false
+	}
+	*remaining--
+	return true
 }
 
 func (d *Document) PrintSelections(selections []int) string {
