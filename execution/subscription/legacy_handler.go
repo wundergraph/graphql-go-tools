@@ -225,8 +225,7 @@ func (h *Handler) handleStart(ctx context.Context, id string, payload []byte) {
 }
 
 func (h *Handler) handleOnBeforeStart(executor Executor) error {
-	switch e := executor.(type) {
-	case *ExecutorV2:
+	if e, ok := executor.(*ExecutorV2); ok {
 		if hook := e.engine.GetWebsocketBeforeStartHook(); hook != nil {
 			return hook.OnBeforeStart(e.reqCtx, e.operation)
 		}

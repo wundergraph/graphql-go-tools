@@ -21,8 +21,7 @@ func (c *connectCodec) Name() string {
 
 // Marshal implements [encoding.CodecV2].
 func (c *connectCodec) Marshal(v any) (out mem.BufferSlice, err error) {
-	switch v := v.(type) {
-	case *PreWiredInputMessage:
+	if v, ok := v.(*PreWiredInputMessage); ok {
 		protoBytes, err := v.wire()
 		if err != nil {
 			return nil, err

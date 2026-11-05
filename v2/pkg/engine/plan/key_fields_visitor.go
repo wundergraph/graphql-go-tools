@@ -240,10 +240,11 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 	isExternal := hasExternalRootNode || hasExternalChildNode
 
 	if isExternal {
-		if isProvided {
+		switch {
+		case isProvided:
 			// if the field is provided, it should not be marked as external
 			isExternal = false
-		} else if hasRootNode || hasChildNode {
+		case hasRootNode || hasChildNode:
 			// fallback for how we used to handle keys marked as external in the current composition version
 			// if the key field present in both external fields and regular fields it should not be marked as external
 			// this logic is parallel to what we have in collect fields visitor
@@ -253,7 +254,7 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 			if !v.input.keyIsConditional {
 				isExternal = false
 			}
-		} else if !v.input.keyIsConditional && len(v.currentKeyPath) > 0 && !v.isRootKeyPathExternal() {
+		case !v.input.keyIsConditional && len(v.currentKeyPath) > 0 && !v.isRootKeyPathExternal():
 
 			// handles edge case when we mark direct child node as not external
 			// but nested fields was external for implicit key
@@ -271,7 +272,6 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 
 			isExternal = false
 		}
-
 	}
 
 	fieldKeyPath := KeyInfoFieldPath{
@@ -285,7 +285,7 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 		v.hasExternalFields = true
 	}
 
-	v.currentKeyPath = append(v.keyPaths, fieldKeyPath)
+	v.currentKeyPath = append(v.currentKeyPath, fieldKeyPath)
 }
 
 func (v *keyInfoVisitor) LeaveField(ref int) {
