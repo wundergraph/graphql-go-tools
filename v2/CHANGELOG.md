@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.30.6](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.5...v2.30.6) (2026-11-05)
+
+
+### Bug Fixes
+
+* enabling planning when a key jump moves a field to another DS ([#1711](https://github.com/wundergraph/graphql-go-tools/issues/1711)) ([79b3bb6](https://github.com/wundergraph/graphql-go-tools/commit/79b3bb66a474663cf1cf25a1e0ec6e5bb69f1ad4))
+
 ## [2.30.5](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.4...v2.30.5) (2026-10-29)
 
 
