@@ -83,7 +83,7 @@ func (t *SSETransport) Subscribe(ctx context.Context, req *common.Request, opts 
 
 	// The request cancels with the subscription (ctx) and on transport shutdown (t.ctx).
 	requestCtx, requestCancel := context.WithCancel(ctx)
-	stopTransport := context.AfterFunc(t.ctx, requestCancel)
+	stopTransport := context.AfterFunc(t.ctx, requestCancel) //nolint:contextcheck
 	cleanup := func() {
 		// Cancellation alone does not unregister the callback from t.ctx.
 		stopTransport()
