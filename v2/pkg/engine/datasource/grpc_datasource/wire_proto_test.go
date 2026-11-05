@@ -315,6 +315,50 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("omitted fields with schema defaults", func(t *testing.T) {
+		// An omitted input field with a schema default (`order: SortOrder! = DESC`)
+		// is sent with its default instead of failing as a missing required field.
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ScalarRequest",
+			Fields: RPCFields{
+				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", DefaultValue: `"fallback"`},
+				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", DefaultValue: `10`},
+				{Name: "bool_value", ProtoTypeName: DataTypeBool, JSONPath: "bool_value", DefaultValue: `true`},
+			},
+		}, runtime.getMessageByName("ScalarRequest"))
+		wm := compileTestWireMessage(t, runtime, message)
+
+		got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+		require.NoError(t, err)
+		expected := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString("fallback"))
+			msg.Set(desc.Fields().ByName("int_32"), protoref.ValueOfInt32(10))
+			msg.Set(desc.Fields().ByName("bool_value"), protoref.ValueOfBool(true))
+		})
+		assertProtoMessageEqual(t, expected, got)
+
+		// A value the client sends wins over the default.
+		got, err = wm.createProtoMessage(astjson.MustParse(`{"string_value":"sent","int_32":0,"bool_value":false}`))
+		require.NoError(t, err)
+		expected = buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString("sent"))
+		})
+		assertProtoMessageEqual(t, expected, got)
+
+		enum := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "EnumRequest",
+			Fields: RPCFields{
+				{Name: "status", ProtoTypeName: DataTypeEnum, JSONPath: "status", EnumName: "Status", DefaultValue: `"ACTIVE"`},
+			},
+		}, runtime.getMessageByName("EnumRequest"))
+		got, err = compileTestWireMessage(t, runtime, enum).createProtoMessage(astjson.MustParse(`{}`))
+		require.NoError(t, err)
+		expected = buildExpectedProto(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("status"), protoref.ValueOfEnum(protoref.EnumNumber(runtime.enumByName["Status"].valuesByName["ACTIVE"].value)))
+		})
+		assertProtoMessageEqual(t, expected, got)
+	})
+
 	t.Run("nullable enum field", func(t *testing.T) {
 		// A nullable GraphQL enum argument (`status: Status`) maps to a plain proto
 		// enum field. Proto has no wrapper message for enums, so it must not be
