@@ -21,6 +21,24 @@ type SubscriptionDataSource interface {
 	// HashTriggerInput writes identity-relevant fields of the subscription into xxh.
 	// The resolver appends the subgraph headers hash afterward to produce the final trigger ID.
 	HashTriggerInput(input []byte, xxh *xxhash.Digest) error
+	// Negotiate lets a subscription data source negotiate subscription parameters with a client
+	// before start, or reject the client by returning an error.
+	// It returns the negotiated parameters, zero if the source has none.
+	Negotiate(ctx *Context, input []byte) (negotiated NegotiatedParams, err error)
+}
+
+// NegotiatedParams is the outcome of parameter negotiation for a single subscribing client.
+type NegotiatedParams struct {
+	SubscriptionCursor SubscriptionCursorNegotiatedParams
+}
+
+type SubscriptionCursorNegotiatedParams struct {
+	// Guarantee is the negotiated delivery guarantee, empty for sources that have none.
+	Guarantee string
+	// ResumeToken is the raw form of ResumePosition as the client presented it. The engine
+	// hashes it into the trigger id itself, so two clients resuming from different positions never
+	// share a trigger and therefore never receive each other's replay.
+	ResumeToken string
 }
 
 // HookableSubscriptionDataSource is a hookable interface for subscription data sources.
