@@ -749,5 +749,71 @@ func TestInlineFragments(t *testing.T) {
 						}
 					}`)
 	})
-
+	t.Run("overlapping union to union fragment spreads", func(t *testing.T) {
+		run(t, fragmentSpreadInline, `
+				schema {
+					query: Query
+				}
+				type Query {
+					wide: ABC
+				}
+				type A { a: String }
+				type B { b: String }
+				type C { c: String }
+				union AB = A | B
+				union ABC = A | B | C
+		`, `
+				{
+					wide {
+						...narrowFragment
+					}
+				}
+				fragment narrowFragment on AB {
+					... on A { a }
+					... on B { b }
+				}`, `
+				{
+					wide {
+						... on AB {
+							... on A { a }
+							... on B { b }
+						}
+					}
+				}
+				fragment narrowFragment on AB {
+					... on A { a }
+					... on B { b }
+				}`)
+	})
+	t.Run("non overlapping unions shouldn't merge", func(t *testing.T) {
+		run(t, fragmentSpreadInline, `
+				schema {
+					query: Query
+				}
+				type Query {
+					ab: AB
+				}
+				type A { a: String }
+				type B { b: String }
+				type C { c: String }
+				union AB = A | B
+				union CD = C
+		`, `
+				{
+					ab {
+						...cdFragment
+					}
+				}
+				fragment cdFragment on CD {
+					... on C { c }
+				}`, `
+				{
+					ab {
+						...cdFragment
+					}
+				}
+				fragment cdFragment on CD {
+					... on C { c }
+				}`)
+	})
 }
