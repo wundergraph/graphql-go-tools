@@ -58,11 +58,12 @@ func (p *PathBuilder) CreatePlanningPaths(operation, definition *ast.Document, r
 	p.visitor.fieldDependsOn, p.visitor.fieldRequirementsConfigs =
 		p.selectionsConfig.fieldDependsOn, p.selectionsConfig.fieldRequirementsConfigs
 
-	p.visitor.secondaryRun = false
+	p.visitor.firstRun = true
 	p.walker.Walk(operation, definition, report)
 	if report.HasErrors() {
 		return nil
 	}
+	p.visitor.firstRun = false
 	// we have to populate missing paths after the walk
 	p.visitor.populateMissingPaths()
 
@@ -79,8 +80,6 @@ func (p *PathBuilder) CreatePlanningPaths(operation, definition *ast.Document, r
 	i := 1
 	// secondary runs to add path for the new required fields
 	for p.visitor.shouldRevisit() {
-		p.visitor.secondaryRun = true
-
 		p.walker.Walk(operation, definition, report)
 		if report.HasErrors() {
 			return nil
