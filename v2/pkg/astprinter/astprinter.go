@@ -1133,6 +1133,11 @@ func (p *printVisitor) EnterSchemaDefinition(ref int) {
 }
 
 func (p *printVisitor) LeaveSchemaDefinition(ref int) {
+	// the opening brace is printed by the first root operation type,
+	// so an empty schema definition has to open it here to stay parsable
+	if len(p.document.SchemaDefinitions[ref].RootOperationTypeDefinitions.Refs) == 0 {
+		p.write(literal.LBRACE)
+	}
 	if p.indent != nil {
 		p.write(literal.LINETERMINATOR)
 	}

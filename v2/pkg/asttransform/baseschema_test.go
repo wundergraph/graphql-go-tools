@@ -150,4 +150,23 @@ func TestMergeDefinitionWithBaseSchema(t *testing.T) {
 				adminInformation: String!
 			}
 	`, "with_mutation_subscription"))
+	t.Run("schema extension without root operation types", runTestMerge(`
+			directive @a on SCHEMA
+			extend schema @a
+			type Entity {
+				id: ID!
+			}
+	`, "schema_extension"))
+	t.Run("schema extension with root operation types", runTestMerge(`
+			directive @a on SCHEMA
+			extend schema @a {
+				query: Query
+			}
+			type Query {
+				entity(id: ID!): Entity
+			}
+			type Entity {
+				id: ID!
+			}
+	`, "schema_extension_with_root_operation_types"))
 }

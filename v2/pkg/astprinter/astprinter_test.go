@@ -368,6 +368,10 @@ fragment NameFragment on Dog {
 		run(t, `extend schema @foo `, `extend schema @foo `)
 	})
 
+	t.Run("schema definition without root operation types", func(t *testing.T) {
+		run(t, `schema @foo {}`, `schema @foo {}`)
+	})
+
 	t.Run("object type definition", func(t *testing.T) {
 		run(t, `
 				type Foo {
