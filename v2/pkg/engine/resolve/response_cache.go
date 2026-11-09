@@ -1054,28 +1054,30 @@ func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
 	return h
 }
 
-// responseCacheFlush writes what responseCacheCollect gathered, as soon as
-// the fetch merges. Known issue: unchecked, so data resolution rejects (a
-// wrong type, a null for a non-null field) is still cached.
-func (l *Loader) responseCacheFlush(prepared *preparedFetch) {
-	if !l.responseCacheEnabled() || len(prepared.responseCacheItems) == 0 {
-		return
+// responseCacheFlush writes what responseCacheCollect gathered. It is called with
+// the data lock released so a slow cache never blocks the fetches queued behind it.
+// Returns what it wrote, for the trace. Known issue: unchecked, so data
+// resolution rejects (a wrong type, a null for a non-null field) is still cached.
+func (l *Loader) responseCacheFlush(prepared *preparedFetch) ([]caching.Item, error) {
+	if !l.responseCacheEnabled() {
+		return nil, nil
 	}
-	var trace *ResponseCacheTrace
-	if prepared.trace != nil {
-		trace = prepared.trace.ResponseCache
+
+	if len(prepared.responseCacheItems) == 0 {
+		return nil, nil
 	}
+
 	items := remainingLifetimes(prepared.responseCacheItems, time.Since(prepared.responseCacheCollectedAt))
 	prepared.responseCacheItems = nil
 	if len(items) == 0 {
-		traceWriteOutcome(trace, nil, nil)
-		return
+		return nil, nil
 	}
+
 	err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
 	if err != nil {
 		l.reportResponseCacheError(ResponseCacheOperationWrite, prepared.res.ds.Name, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
 	}
-	traceWriteOutcome(trace, items, err)
+	return items, err
 }
 
 // remainingLifetimes is items with elapsed taken off each TTL and ClientTTL,

@@ -573,10 +573,11 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 		return errors.WithStack(err)
 	}
 	err = l.mergePhase(prepared)
-	l.setResponseCacheTrace(prepared, prepared.responseCacheItems)
 	// After mergePhase released the data lock: the cache round trip must not
-	// hold up the fetches waiting on it.
-	l.responseCacheFlush(prepared)
+	// hold up the fetches waiting on it. Runs regardless of the merge outcome,
+	// matching the store that used to sit in the load phase.
+	written, writeErr := l.responseCacheFlush(prepared)
+	l.setResponseCacheTrace(prepared, written, writeErr)
 	return err
 }
 
