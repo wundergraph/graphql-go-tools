@@ -102,7 +102,8 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	for i, leftSelection := range selectionRefs {
+	for i := 0; i < len(selectionRefs); i++ {
+		leftSelection := selectionRefs[i]
 		leftKind := f.operation.SelectionKind(leftSelection)
 		if leftKind != ast.SelectionKindInlineFragment && leftKind != ast.SelectionKindField {
 			continue
@@ -126,8 +127,8 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 
 				if f.mergeInlineFragments(leftRef, rightRef) {
 					f.operation.RemoveFromSelectionSet(ref, j)
-					f.RevisitNode()
-					return
+					selectionRefs = f.operation.SelectionSets[ref].SelectionRefs
+					j--
 				}
 				continue
 			}
@@ -141,8 +142,8 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 			}
 			if f.mergeFields(leftRef, rightRef) {
 				f.operation.RemoveFromSelectionSet(ref, j)
-				f.RevisitNode()
-				return
+				selectionRefs = f.operation.SelectionSets[ref].SelectionRefs
+				j--
 			}
 		}
 	}

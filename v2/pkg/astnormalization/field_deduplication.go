@@ -29,7 +29,9 @@ func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	for a, i := range d.operation.SelectionSets[ref].SelectionRefs {
+	refs := d.operation.SelectionSets[ref].SelectionRefs
+	for a := 0; a < len(refs); a++ {
+		i := refs[a]
 		if d.operation.Selections[i].Kind != ast.SelectionKindField {
 			continue
 		}
@@ -37,13 +39,8 @@ func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int) {
 		if d.operation.Fields[left].HasSelections {
 			continue
 		}
-		for b, j := range d.operation.SelectionSets[ref].SelectionRefs {
-			if a == b {
-				continue
-			}
-			if a > b {
-				continue
-			}
+		for b := a + 1; b < len(refs); b++ {
+			j := refs[b]
 			if d.operation.Selections[j].Kind != ast.SelectionKindField {
 				continue
 			}
@@ -56,8 +53,8 @@ func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int) {
 			if d.operation.FieldsAreEqualFlat(left, right, true) {
 				d.operation.MergeFieldsDefer(left, right)
 				d.operation.RemoveFromSelectionSet(ref, b)
-				d.RevisitNode()
-				return
+				refs = d.operation.SelectionSets[ref].SelectionRefs
+				b--
 			}
 		}
 	}
