@@ -290,10 +290,6 @@ type Loader struct {
 	// dataBuffer holds the shared response tree and its concurrency guard.
 	dataBuffer *DataBuffer
 
-	// responseCacheHeld are cache writes waiting on resolution.
-	responseCacheHeld   []responseCacheWrite
-	responseCacheHeldMu sync.Mutex
-
 	// authorization is set for the loader serving the primary response when pre-fetch field
 	// authorization is enabled. It holds the up-front batch decisions that isFetchAuthorizedFromCache
 	// reads to skip fetches serving only denied fields. It is nil for defer-group loaders, whose
@@ -395,7 +391,6 @@ func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
 	l.info = responseInfo
 	l.taintedObjs = make(taintedObjects)
 	l.erroredFetchIDs = nil
-	l.responseCacheHeld = nil
 }
 
 func (l *Loader) ensureErrorsInitialized() {
@@ -578,9 +573,11 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 		return errors.WithStack(err)
 	}
 	err = l.mergePhase(prepared)
-	// Traced as held; responseCacheCommit adds the outcome, after the trace renders.
-	l.setResponseCacheTrace(prepared, prepared.responseCacheItems)
-	l.responseCacheHold(prepared)
+	// After mergePhase released the data lock: the cache round trip must not
+	// hold up the fetches waiting on it. Runs regardless of the merge outcome,
+	// matching the store that used to sit in the load phase.
+	written, writeErr := l.responseCacheFlush(prepared)
+	l.setResponseCacheTrace(prepared, written, writeErr)
 	return err
 }
 

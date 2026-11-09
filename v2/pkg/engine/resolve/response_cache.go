@@ -1050,53 +1050,27 @@ func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
 	return h
 }
 
-// responseCacheWrite is one fetch's entries, held until the response resolves.
-type responseCacheWrite struct {
-	subgraph string
-	items    []caching.Item
-	// trace gets the write's outcome, if the fetch is traced.
-	trace *ResponseCacheTrace
-}
-
-// responseCacheHold keeps what responseCacheCollect gathered for
-// responseCacheCommit.
-func (l *Loader) responseCacheHold(prepared *preparedFetch) {
-	if !l.responseCacheEnabled() || len(prepared.responseCacheItems) == 0 {
-		return
-	}
-	l.responseCacheHeldMu.Lock()
-	write := responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems}
-	if prepared.trace != nil {
-		write.trace = prepared.trace.ResponseCache
-	}
-	l.responseCacheHeld = append(l.responseCacheHeld, write)
-	l.responseCacheHeldMu.Unlock()
-	prepared.responseCacheItems = nil
-}
-
-// responseCacheCommit writes the held entries, or drops them when resolution
-// found a value of the wrong type. Nulls don't count: federation reports a
-// missing entity that way, and a cached null resolves like a fetched one.
-func (l *Loader) responseCacheCommit(resolved bool) {
-	l.responseCacheHeldMu.Lock()
-	held := l.responseCacheHeld
-	l.responseCacheHeld = nil
-	l.responseCacheHeldMu.Unlock()
+// responseCacheFlush writes what responseCacheCollect gathered. It is called with
+// the data lock released so a slow cache never blocks the fetches queued behind it.
+// Returns what it wrote, for the trace. Known issue: unchecked, so data
+// resolution rejects (a wrong type, a null for a non-null field) is still cached.
+func (l *Loader) responseCacheFlush(prepared *preparedFetch) ([]caching.Item, error) {
 	if !l.responseCacheEnabled() {
-		return
+		return nil, nil
 	}
-	for _, write := range held {
-		if !resolved {
-			traceWriteOutcome(write.trace, nil, nil)
-			continue
-		}
-		items := write.items
-		err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
-		if err != nil {
-			l.reportResponseCacheError(ResponseCacheOperationWrite, write.subgraph, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
-		}
-		traceWriteOutcome(write.trace, items, err)
+
+	if len(prepared.responseCacheItems) == 0 {
+		return nil, nil
 	}
+
+	items := prepared.responseCacheItems
+	prepared.responseCacheItems = nil
+
+	err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
+	if err != nil {
+		l.reportResponseCacheError(ResponseCacheOperationWrite, prepared.res.ds.Name, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
+	}
+	return items, err
 }
 
 func responseCacheHeaders(res *result) http.Header {
