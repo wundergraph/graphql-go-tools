@@ -460,6 +460,37 @@ func varyLoader(t *testing.T, store caching.Cache, cacheControl, vary, body, pri
 	return loader, res
 }
 
+// The HTTP client's own headers differ from what was built, on every
+// request alike: varying on them still caches. A hook's header does not.
+func TestResponseCacheVaryClientHeaders(t *testing.T) {
+	t.Parallel()
+	wire := http.Header{
+		"Accept":          {"application/json"},
+		"Content-Type":    {"application/json"},
+		"Accept-Encoding": {"gzip", "deflate"},
+		"X-Tenant":        {"a"},
+	}
+	for _, tc := range []struct {
+		vary string
+		ok   bool
+	}{
+		{vary: "Accept-Encoding", ok: true},
+		{vary: "Accept", ok: true},
+		{vary: "Content-Type", ok: true},
+		{vary: "Accept-Encoding, X-Tenant", ok: false},
+		{vary: "X-Tenant", ok: false},
+	} {
+		for _, sent := range []http.Header{nil, {}} {
+			vary, ok := responseCacheVary(http.Header{"Vary": {tc.vary}}, sent, wire)
+			require.Equal(t, tc.ok, ok, "%s, sent=%v", tc.vary, sent)
+			if ok {
+				names, _ := caching.Vary(http.Header{"Vary": {tc.vary}})
+				require.Equal(t, caching.VaryDigest(names, sent), vary.digest, "digested as a lookup sees it")
+			}
+		}
+	}
+}
+
 // A singleflight follower gets no wire request of its own: it must check Vary
 // against the leader's, or it stores what the leader refused.
 func TestResponseCacheVarySingleFlightFollower(t *testing.T) {
