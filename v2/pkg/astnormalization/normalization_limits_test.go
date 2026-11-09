@@ -189,12 +189,32 @@ func TestSelectionSetLimitIncludesDeferPlaceholder(t *testing.T) {
 	assert.Len(t, op.Selections, 3)
 }
 
+func TestNormalizationLimitsOnlyExpandSelectedOperation(t *testing.T) {
+	def := limitsTestDefinition(t)
+	op, report := astparser.ParseGraphqlDocumentString(`query Small {hello hello} ` + repeatedFragmentDocument(18, "hello"))
+	require.False(t, report.HasErrors(), report.Error())
+	original := len(op.Selections)
+	n := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveNotMatchingOperationDefinitions(), WithRemoveFragmentDefinitions(), WithLimits(Limits{MaxSelections: 64, MaxSelectionSetSize: 4}))
+	n.NormalizeNamedOperation(&op, &def, []byte("Small"), &report)
+	require.False(t, report.HasErrors(), report.Error())
+	assert.Empty(t, op.Index.ReplacedFragmentSpreads)
+	activeRoots := 0
+	for _, root := range op.RootNodes {
+		if root.Kind != ast.NodeKindUnknown {
+			activeRoots++
+		}
+	}
+	assert.Equal(t, 1, activeRoots)
+	assert.Equal(t, original, len(op.Selections))
+	assert.Len(t, op.SelectionSets[op.OperationDefinitions[0].SelectionSet].SelectionRefs, 1)
+}
+
 func BenchmarkNormalizationLimits(b *testing.B) {
 	definition := limitsTestDefinition(b)
 	for _, levels := range []int{8, 18, 198} {
 		b.Run(fmt.Sprintf("levels_%d", levels), func(b *testing.B) {
 			query := repeatedFragmentDocument(levels, "hello")
-			n := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithLimits(Limits{10000, 1000}))
+			n := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithLimits(Limits{MaxSelections: 10000, MaxSelectionSetSize: 900}))
 			op := ast.NewSmallDocument()
 			parser := astparser.NewParser()
 			var report operationreport.Report
@@ -223,28 +243,28 @@ func BenchmarkNormalizationLimitOverhead(b *testing.B) {
 	definition := limitsTestDefinition(b)
 	var flat, wrappers strings.Builder
 	flat.WriteString("query Q {")
-	for i := range 1000 {
+	for i := range 900 {
 		fmt.Fprintf(&flat, "a%d:hello ", i)
 	}
 	flat.WriteString("}")
-	wrappers.WriteString("query Q {" + strings.Repeat("...F4 ", 1000) + "} fragment F0 on Query {hello} ")
+	wrappers.WriteString("query Q {" + strings.Repeat("...F4 ", 800) + "} fragment F0 on Query {hello} ")
 	for i := 1; i <= 4; i++ {
 		fmt.Fprintf(&wrappers, "fragment F%d on Query {...F%d} ", i, i-1)
 	}
 	for _, query := range []struct{ name, document string }{
 		{"small", "query Q { hello child { a b } }"},
-		{"fields_1000", flat.String()},
-		{"spreads_1000", "query Q {" + strings.Repeat("...F ", 1000) + "} fragment F on Query {hello}"},
-		{"copies_10000", wrappers.String()},
+		{"fields_900", flat.String()},
+		{"spreads_900", "query Q {" + strings.Repeat("...F ", 900) + "} fragment F on Query {hello}"},
+		{"wrapped_spreads_800", wrappers.String()},
 	} {
 		for _, budget := range []struct {
 			name   string
 			limits Limits
 		}{
 			{"disabled", Limits{}},
-			{"copies", Limits{MaxSelections: 10000}},
-			{"fields", Limits{MaxSelectionSetSize: 1000}},
-			{"both", Limits{MaxSelections: 10000, MaxSelectionSetSize: 1000}},
+			{"selections", Limits{MaxSelections: 10000}},
+			{"selection_set_size", Limits{MaxSelectionSetSize: 900}},
+			{"both", Limits{MaxSelections: 10000, MaxSelectionSetSize: 900}},
 		} {
 			b.Run(query.name+"/"+budget.name, func(b *testing.B) {
 				n := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithRemoveUnusedVariables(), WithRemoveNotMatchingOperationDefinitions(), WithLimits(budget.limits))
