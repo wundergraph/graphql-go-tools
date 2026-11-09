@@ -104,6 +104,24 @@ func TestNormalizationSelectionSetSize(t *testing.T) {
 		{"parent merge exceeded", "{child{a b} child{b c}}", 3, true},
 		{"inline merge exceeded", `query Q($v: Boolean!) { ... on Query @include(if:$v){hello hello} ... on Query @include(if:$v){hello hello} }`, 3, true},
 		{"source spreads count", "{...F ...F ...F} fragment F on Query{hello}", 2, true},
+		{
+			"inline wrapper after child field shares parent width",
+			`{
+                a: hello
+                b: hello
+                child { a }
+                ... on Query { hello }
+            }`,
+			3, true,
+		},
+		{
+			"inline wrapper after child field does not use child width",
+			`{
+                child { a b c }
+                ... on Query { hello }
+            }`,
+			3, false,
+		},
 		{"separate children", "{child{a b} other{b c}}", 2, false},
 		{"disabled", "{hello hello}", 0, false},
 		{"default exact", "{" + strings.Repeat("hello ", 900) + "}", 900, false},
