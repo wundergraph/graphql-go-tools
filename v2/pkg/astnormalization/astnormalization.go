@@ -391,11 +391,18 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 		}
 	}
 
+	if !o.options.limits.checkSelections(operation, report) {
+		return
+	}
+
 	for i := range o.operationWalkers {
 		if sc := o.operationWalkers[i].skipCondition; sc != nil && sc() {
 			continue
 		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
+		if !report.HasErrors() {
+			o.options.limits.checkSelections(operation, report)
+		}
 		if report.HasErrors() {
 			return
 		}
@@ -428,11 +435,18 @@ func (o *OperationNormalizer) NormalizeNamedOperationWithResult(
 		o.removeOperationDefinitionsVisitor.operationName = operationName
 	}
 
+	if !o.options.limits.checkSelections(operation, report) {
+		return nil
+	}
+
 	for i := range o.operationWalkers {
 		if sc := o.operationWalkers[i].skipCondition; sc != nil && sc() {
 			continue
 		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
+		if !report.HasErrors() {
+			o.options.limits.checkSelections(operation, report)
+		}
 		if report.HasErrors() {
 			return nil
 		}

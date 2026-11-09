@@ -17,7 +17,7 @@ func fragmentSpreadInline(walker *astvisitor.Walker, limits Limits, expand bool)
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
 	walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
-	if limits.MaxFragmentExpansionSelections > 0 || limits.MaxExpandedSelectionSetFields > 0 {
+	if limits.MaxSelections > 0 || limits.MaxExpandedSelectionSetFields > 0 {
 		walker.RegisterEnterOperationVisitor(&visitor)
 	}
 	if limits.MaxExpandedSelectionSetFields > 0 {
@@ -31,7 +31,6 @@ type fragmentSpreadInlineVisitor struct {
 	operation, definition *ast.Document
 	limits                Limits
 	expand                bool
-	remainingCopies       int
 	// Inline fragments share their enclosing field's sibling counter.
 	fieldCounts []int
 }
@@ -46,7 +45,6 @@ func (f *fragmentSpreadInlineVisitor) EnterDocument(operation, definition *ast.D
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterOperationDefinition(ref int) {
-	f.remainingCopies = f.limits.MaxFragmentExpansionSelections
 	f.fieldCounts = f.fieldCounts[:0]
 }
 
@@ -171,12 +169,9 @@ func (f *fragmentSpreadInlineVisitor) replaceFragmentSpread(selectionSetRef int,
 		fragmentInterfaceIntersectsEnclosingUnion ||
 		fragmentInterfaceIntersectsEnclosingInterface:
 
-		var remaining *int
-		if f.limits.MaxFragmentExpansionSelections > 0 {
-			remaining = &f.remainingCopies
-		}
-		if !f.operation.ReplaceFragmentSpreadWithInlineFragmentWithBudget(selectionSetRef, ref, replaceWith, typeCondition, directiveList, remaining) {
-			f.StopWithExternalErr(operationreport.ErrNormalizationLimitExceeded("max_fragment_expansion_selections", f.limits.MaxFragmentExpansionSelections))
+		f.operation.ReplaceFragmentSpreadWithInlineFragment(selectionSetRef, ref, replaceWith, typeCondition, directiveList)
+		if !f.limits.checkSelections(f.operation, f.Report) {
+			f.Stop()
 			return false
 		}
 

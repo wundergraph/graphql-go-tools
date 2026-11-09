@@ -21,10 +21,6 @@ type Field struct {
 }
 
 func (d *Document) CopyField(ref int) int {
-	return d.copyField(ref, nil)
-}
-
-func (d *Document) copyField(ref int, remaining *int) int {
 	var arguments ArgumentList
 	var directives DirectiveList
 	var selectionSet int
@@ -35,10 +31,7 @@ func (d *Document) copyField(ref int, remaining *int) int {
 		directives = d.CopyDirectiveList(d.Fields[ref].Directives)
 	}
 	if d.Fields[ref].HasSelections {
-		selectionSet = d.copySelectionSet(d.Fields[ref].SelectionSet, remaining)
-		if selectionSet == InvalidRef {
-			return InvalidRef
-		}
+		selectionSet = d.CopySelectionSet(d.Fields[ref].SelectionSet)
 	}
 	copyRef := d.AddField(Field{
 		Name:          d.copyByteSliceReference(d.Fields[ref].Name),

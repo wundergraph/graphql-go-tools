@@ -73,21 +73,7 @@ func (d *Document) ReplaceFragmentSpread(selectionSet int, spreadRef int, replac
 // ReplaceFragmentSpreadWithInlineFragment replaces a given fragment spread with an inline fragment
 // attention! the same rules apply as for 'ReplaceFragmentSpread', look above!
 func (d *Document) ReplaceFragmentSpreadWithInlineFragment(selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition TypeCondition, directiveList DirectiveList) {
-	d.ReplaceFragmentSpreadWithInlineFragmentWithBudget(selectionSet, spreadRef, replaceWithSelectionSet, typeCondition, directiveList, nil)
-}
-
-// ReplaceFragmentSpreadWithInlineFragmentWithBudget charges each copied selection
-// and the new inline-fragment wrapper against remaining. A nil budget is unlimited.
-// On exhaustion it returns false without replacing the spread. The document may
-// contain partial, unreachable copies; the caller must abort processing and reset it.
-func (d *Document) ReplaceFragmentSpreadWithInlineFragmentWithBudget(selectionSet int, spreadRef int, replaceWithSelectionSet int, typeCondition TypeCondition, directiveList DirectiveList, remaining *int) bool {
-	if !consumeSelectionCopyBudget(remaining) {
-		return false
-	}
-	selectionSetCopyRef := d.copySelectionSet(replaceWithSelectionSet, remaining)
-	if selectionSetCopyRef == InvalidRef {
-		return false
-	}
+	selectionSetCopyRef := d.CopySelectionSet(replaceWithSelectionSet)
 	directiveListCopy := d.CopyDirectiveList(directiveList)
 
 	d.InlineFragments = append(d.InlineFragments, InlineFragment{
@@ -107,8 +93,7 @@ func (d *Document) ReplaceFragmentSpreadWithInlineFragmentWithBudget(selectionSe
 		if d.Selections[j].Kind == SelectionKindFragmentSpread && d.Selections[j].Ref == spreadRef {
 			d.SelectionSets[selectionSet].SelectionRefs = append(d.SelectionSets[selectionSet].SelectionRefs[:i], append([]int{selectionRef}, d.SelectionSets[selectionSet].SelectionRefs[i+1:]...)...)
 			d.Index.ReplacedFragmentSpreads = append(d.Index.ReplacedFragmentSpreads, spreadRef)
-			return true
+			return
 		}
 	}
-	return true
 }
