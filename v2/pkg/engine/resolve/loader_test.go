@@ -2730,7 +2730,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 		assert.NoError(t, err)
 		// First run: nothing came from the cache. Loader makes all subgraph calls and stores the entities in the cache.
-		err = loadAndCommit(loader, ctx, response)
+		err = loader.LoadGraphQLResponseData(ctx, response)
 		assert.NoError(t, err)
 		out := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
 
@@ -2744,7 +2744,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 
 		// Second run: every entity fetch must be served from the cache. The mocks are set to Times(1), so any repeated subgraph call fails the test.
 		loader = &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		err = loadAndCommit(loader, ctx, response)
+		err = loader.LoadGraphQLResponseData(ctx, response)
 		assert.NoError(t, err)
 		cachedOut := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
 
@@ -2823,7 +2823,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 
 		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 		assert.NoError(t, err)
-		err = loadAndCommit(loader, ctx, response)
+		err = loader.LoadGraphQLResponseData(ctx, response)
 		assert.NoError(t, err)
 		out := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
 
@@ -2840,7 +2840,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 
 		// Second run: every entity fetch must be served from the cache. The mocks are set to Times(1), so any repeated subgraph call fails the test.
 		loader = &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
-		err = loadAndCommit(loader, ctx, response)
+		err = loader.LoadGraphQLResponseData(ctx, response)
 		assert.NoError(t, err)
 		cachedOut := fastjsonext.PrintGraphQLResponse(loader.dataBuffer.Get(), loader.errors)
 

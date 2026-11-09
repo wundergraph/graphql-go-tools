@@ -83,7 +83,7 @@ type responseCacheTraceKeys struct {
 	served      bool
 }
 
-// setResponseCacheTrace records the cache's part in a fetch once its write is held.
+// setResponseCacheTrace records the cache's part in a fetch before its write.
 func (l *Loader) setResponseCacheTrace(prepared *preparedFetch, written []caching.Item) {
 	if prepared.trace == nil || l.ctx.TracingOptions.ExcludeResponseCache || !l.responseCacheEnabled() {
 		return

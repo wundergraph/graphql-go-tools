@@ -1037,59 +1037,28 @@ func cachedEntryLifetimes(entries []preparedMultiEntry) hitLifetimes {
 	return h
 }
 
-// responseCacheWrite is one fetch's entries, held until the response resolves.
-type responseCacheWrite struct {
-	subgraph    string
-	items       []caching.Item
-	collectedAt time.Time
-	// trace gets the write's outcome, if the fetch is traced.
-	trace *ResponseCacheTrace
-}
-
-// responseCacheHold keeps what responseCacheCollect gathered for
-// responseCacheCommit.
-func (l *Loader) responseCacheHold(prepared *preparedFetch) {
+// responseCacheFlush writes what responseCacheCollect gathered, as soon as
+// the fetch merges. Known issue: unchecked, so data resolution rejects (a
+// wrong type, a null for a non-null field) is still cached.
+func (l *Loader) responseCacheFlush(prepared *preparedFetch) {
 	if !l.responseCacheEnabled() || len(prepared.responseCacheItems) == 0 {
 		return
 	}
-	l.responseCacheHeldMu.Lock()
-	write := responseCacheWrite{subgraph: prepared.res.ds.Name, items: prepared.responseCacheItems, collectedAt: prepared.responseCacheCollectedAt}
+	var trace *ResponseCacheTrace
 	if prepared.trace != nil {
-		write.trace = prepared.trace.ResponseCache
+		trace = prepared.trace.ResponseCache
 	}
-	l.responseCacheHeld = append(l.responseCacheHeld, write)
-	l.responseCacheHeldMu.Unlock()
+	items := remainingLifetimes(prepared.responseCacheItems, time.Since(prepared.responseCacheCollectedAt))
 	prepared.responseCacheItems = nil
-}
-
-// responseCacheCommit writes the held entries, or drops them when resolution
-// found a value of the wrong type or left values unchecked. A null alone
-// doesn't count: federation reports a missing entity that way, and a cached
-// null resolves like a fetched one. Time since collection comes off each TTL.
-func (l *Loader) responseCacheCommit(resolved bool) {
-	l.responseCacheHeldMu.Lock()
-	held := l.responseCacheHeld
-	l.responseCacheHeld = nil
-	l.responseCacheHeldMu.Unlock()
-	if !l.responseCacheEnabled() {
+	if len(items) == 0 {
+		traceWriteOutcome(trace, nil, nil)
 		return
 	}
-	for _, write := range held {
-		if !resolved {
-			traceWriteOutcome(write.trace, nil, nil)
-			continue
-		}
-		items := remainingLifetimes(write.items, time.Since(write.collectedAt))
-		if len(items) == 0 {
-			traceWriteOutcome(write.trace, nil, nil)
-			continue
-		}
-		err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
-		if err != nil {
-			l.reportResponseCacheError(ResponseCacheOperationWrite, write.subgraph, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
-		}
-		traceWriteOutcome(write.trace, items, err)
+	err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
+	if err != nil {
+		l.reportResponseCacheError(ResponseCacheOperationWrite, prepared.res.ds.Name, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
 	}
+	traceWriteOutcome(trace, items, err)
 }
 
 // remainingLifetimes is items with elapsed taken off each TTL and ClientTTL,
