@@ -11,6 +11,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -48,6 +49,7 @@ func TestNormalizationSelections(t *testing.T) {
 	}{
 		{"source exact", "{hello hello}", 2, false},
 		{"source exceeded", "{hello hello}", 1, true},
+		{"document scope", "query A{hello} query B{hello}", 1, true},
 		{"expansion exact", "{...F} fragment F on Query{hello}", 4, false},
 		{"expansion exceeded", "{...F} fragment F on Query{hello}", 3, true},
 		{"original unused nodes count", "{hello} fragment F on Query{hello hello}", 2, true},
@@ -86,6 +88,89 @@ func TestNormalizationSelectionLimitStopsAndReuses(t *testing.T) {
 	n.NormalizeOperation(&next, &def, &r)
 	assert.False(t, r.HasErrors(), r.Error())
 }
+func TestNormalizationSelectionSetSize(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, query string
+		limit       int
+		reject      bool
+	}{
+		{"source exact", "{hello hello}", 2, false},
+		{"source exceeded", "{hello hello}", 1, true},
+		{"wrappers are entries", "{... on Query{hello} ... on Query{hello}}", 1, true},
+		{"flatten exact", "{hello ... on Query{hello hello}}", 3, false},
+		{"flatten exceeded", "{hello ... on Query{hello hello}}", 2, true},
+		{"parent merge exact", "{child{a b} child{b c}}", 4, false},
+		{"parent merge exceeded", "{child{a b} child{b c}}", 3, true},
+		{"inline merge exceeded", `query Q($v: Boolean!) { ... on Query @include(if:$v){hello hello} ... on Query @include(if:$v){hello hello} }`, 3, true},
+		{"source spreads count", "{...F ...F ...F} fragment F on Query{hello}", 2, true},
+		{"separate children", "{child{a b} other{b c}}", 2, false},
+		{"disabled", "{hello hello}", 0, false},
+		{"default exact", "{" + strings.Repeat("hello ", 900) + "}", 900, false},
+		{"default exceeded", "{" + strings.Repeat("hello ", 901) + "}", 900, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			def := limitsTestDefinition(t)
+			op, report := astparser.ParseGraphqlDocumentString(tc.query)
+			require.False(t, report.HasErrors(), report.Error())
+			n := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithLimits(Limits{MaxSelectionSetSize: tc.limit}))
+			n.NormalizeOperation(&op, &def, &report)
+			if tc.reject {
+				assertNormalizationLimit(t, report, "max_selection_set_size")
+			} else {
+				assert.False(t, report.HasErrors(), report.Error())
+			}
+		})
+	}
+}
+func TestSelectionSetLimitStopsBeforeMergeAndReuses(t *testing.T) {
+	def := limitsTestDefinition(t)
+	n := NewWithOpts(WithLimits(Limits{MaxSelectionSetSize: 3}))
+	op, r := astparser.ParseGraphqlDocumentString(`{child{a b} child{b c}}`)
+	require.False(t, r.HasErrors(), r.Error())
+	merges := 0
+	op.OnMergeFields = func(left, right int) { merges++ }
+	n.NormalizeOperation(&op, &def, &r)
+	assertNormalizationLimit(t, r, "max_selection_set_size")
+	assert.Zero(t, merges)
+	refs := op.SelectionSets[op.OperationDefinitions[0].SelectionSet].SelectionRefs
+	assert.Len(t, refs, 2)
+	next, report := astparser.ParseGraphqlDocumentString(`{child{a}}`)
+	n.NormalizeOperation(&next, &def, &report)
+	assert.False(t, report.HasErrors(), report.Error())
+}
+func TestNormalizationLimitsDefaultAndOverride(t *testing.T) {
+	for _, n := range []*OperationNormalizer{NewNormalizer(true, false), NewWithOpts(WithInlineFragmentSpreads()), NewWithOpts(WithLimits(Limits{MaxSelections: 1, MaxSelectionSetSize: 1}), WithLimits(Limits{}))} {
+		def := limitsTestDefinition(t)
+		op, r := astparser.ParseGraphqlDocumentString(`{hello hello}`)
+		n.NormalizeOperation(&op, &def, &r)
+		assert.False(t, r.HasErrors(), r.Error())
+	}
+}
+
+func TestNormalizationLimitsPreserveDisabledFragmentInlining(t *testing.T) {
+	def := limitsTestDefinition(t)
+	op, report := astparser.ParseGraphqlDocumentString(`{hello ...F} fragment F on Query{hello hello}`)
+	require.False(t, report.HasErrors(), report.Error())
+	n := NewWithOpts(WithLimits(Limits{MaxSelections: 10, MaxSelectionSetSize: 3}))
+	n.NormalizeOperation(&op, &def, &report)
+	require.False(t, report.HasErrors(), report.Error())
+	assert.Empty(t, op.Index.ReplacedFragmentSpreads)
+	assert.Empty(t, op.InlineFragments)
+}
+
+func TestSelectionSetLimitIncludesDeferPlaceholder(t *testing.T) {
+	def := limitsTestDefinition(t)
+	op, report := astparser.ParseGraphqlDocumentString(`{child{a @__defer_internal(id:1) b @__defer_internal(id:1)}}`)
+	require.False(t, report.HasErrors(), report.Error())
+	walker := astvisitor.NewWalker(8)
+	deferEnsureTypenameWithLimits(&walker, Limits{MaxSelectionSetSize: 2})
+	walker.Walk(&op, &def, &report)
+	assertNormalizationLimit(t, report, "max_selection_set_size")
+	assert.Len(t, op.Selections, 3)
+}
+
 func BenchmarkNormalizationLimits(b *testing.B) {
 	definition := limitsTestDefinition(b)
 	for _, levels := range []int{8, 18, 198} {
@@ -140,8 +225,8 @@ func BenchmarkNormalizationLimitOverhead(b *testing.B) {
 		}{
 			{"disabled", Limits{}},
 			{"copies", Limits{MaxSelections: 10000}},
-			{"fields", Limits{MaxExpandedSelectionSetFields: 1000}},
-			{"both", Limits{MaxSelections: 10000, MaxExpandedSelectionSetFields: 1000}},
+			{"fields", Limits{MaxSelectionSetSize: 1000}},
+			{"both", Limits{MaxSelections: 10000, MaxSelectionSetSize: 1000}},
 		} {
 			b.Run(query.name+"/"+budget.name, func(b *testing.B) {
 				n := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithRemoveUnusedVariables(), WithRemoveNotMatchingOperationDefinitions(), WithLimits(budget.limits))

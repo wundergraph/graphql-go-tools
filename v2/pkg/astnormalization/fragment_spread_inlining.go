@@ -17,12 +17,6 @@ func fragmentSpreadInline(walker *astvisitor.Walker, limits Limits, expand bool)
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
 	walker.RegisterEnterFragmentDefinitionVisitor(&visitor)
-	if limits.MaxSelections > 0 || limits.MaxExpandedSelectionSetFields > 0 {
-		walker.RegisterEnterOperationVisitor(&visitor)
-	}
-	if limits.MaxExpandedSelectionSetFields > 0 {
-		walker.RegisterLeaveSelectionSetVisitor(&visitor)
-	}
 }
 
 type fragmentSpreadInlineVisitor struct {
@@ -31,8 +25,6 @@ type fragmentSpreadInlineVisitor struct {
 	operation, definition *ast.Document
 	limits                Limits
 	expand                bool
-	// Inline fragments share their enclosing field's sibling counter.
-	fieldCounts []int
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterFragmentDefinition(ref int) {
@@ -44,16 +36,8 @@ func (f *fragmentSpreadInlineVisitor) EnterDocument(operation, definition *ast.D
 	f.definition = definition
 }
 
-func (f *fragmentSpreadInlineVisitor) EnterOperationDefinition(ref int) {
-	f.fieldCounts = f.fieldCounts[:0]
-}
-
 func (f *fragmentSpreadInlineVisitor) EnterSelectionSet(ref int) {
-	fields := 0
 	for _, selection := range f.operation.SelectionSets[ref].SelectionRefs {
-		if f.operation.Selections[selection].Kind == ast.SelectionKindField {
-			fields++
-		}
 		if !f.expand || f.operation.Selections[selection].Kind != ast.SelectionKindFragmentSpread {
 			continue
 		}
@@ -64,28 +48,6 @@ func (f *fragmentSpreadInlineVisitor) EnterSelectionSet(ref int) {
 		if f.Report.HasErrors() {
 			return
 		}
-	}
-	if f.limits.MaxExpandedSelectionSetFields <= 0 {
-		return
-	}
-	// RevisitNode retries the replacement loop. Charge fields only once all
-	// spreads in this set have been replaced and the walker is about to descend.
-	parent := f.Ancestors[len(f.Ancestors)-1].Kind
-	if parent == ast.NodeKindField || parent == ast.NodeKindOperationDefinition {
-		f.fieldCounts = append(f.fieldCounts, 0)
-	}
-	current := &f.fieldCounts[len(f.fieldCounts)-1]
-	if fields > f.limits.MaxExpandedSelectionSetFields-*current {
-		f.StopWithExternalErr(operationreport.ErrNormalizationLimitExceeded("max_expanded_selection_set_fields", f.limits.MaxExpandedSelectionSetFields))
-		return
-	}
-	*current += fields
-}
-
-func (f *fragmentSpreadInlineVisitor) LeaveSelectionSet(ref int) {
-	parent := f.Ancestors[len(f.Ancestors)-1].Kind
-	if parent == ast.NodeKindField || parent == ast.NodeKindOperationDefinition {
-		f.fieldCounts = f.fieldCounts[:len(f.fieldCounts)-1]
 	}
 }
 

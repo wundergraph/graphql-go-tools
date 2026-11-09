@@ -234,6 +234,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	// we will visit only a single operation, so it is important to remove non-matching operations
 	if o.options.removeNotMatchingOperationDefinitions {
 		removeNotMatchingOperationDefinitionsWalker := astvisitor.NewWalkerWithID(2, "RemoveNotMatchingOperationDefinitions")
+
 		// This rule does not walk deep into ast, so a separate walk is not expensive,
 		// but we could not mix this walk with other rules, because they need to go deep
 		o.removeOperationDefinitionsVisitor = removeOperationDefinitions(&removeNotMatchingOperationDefinitionsWalker)
@@ -245,6 +246,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	directivesIncludeSkip := astvisitor.NewWalkerWithID(8, "DirectivesIncludeSkip")
+	registerSelectionSetSizeLimit(&directivesIncludeSkip, o.options.limits)
 	preventFragmentCycles(&directivesIncludeSkip)
 	directiveIncludeSkipKeepNodes(&directivesIncludeSkip, o.options.ignoreSkipInclude)
 
@@ -259,10 +261,11 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	cleanup := astvisitor.NewWalkerWithID(8, "Cleanup")
+
 	deduplicateFields(&cleanup)
 	if o.options.enableDefer {
 		// should happen after inlining defer fragments, to not produce unnecessary typename placeholders
-		deferEnsureTypename(&cleanup)
+		deferEnsureTypenameWithLimits(&cleanup, o.options.limits)
 	}
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
@@ -278,8 +281,9 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &directivesIncludeSkip,
 	})
 
-	if o.options.inlineFragmentSpreads || o.options.limits.MaxExpandedSelectionSetFields > 0 {
+	if o.options.inlineFragmentSpreads {
 		fragmentInline := astvisitor.NewWalkerWithID(8, "FragmentSpreadInline")
+
 		fragmentSpreadInline(&fragmentInline, o.options.limits, o.options.inlineFragmentSpreads)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "fragmentInline",
@@ -288,6 +292,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	inlineDefer := astvisitor.NewWalkerWithID(8, "Inline defer")
+
 	o.inlineDeferVisitor = deferExpandIntoInternalWithDisabled(&inlineDefer, !o.options.enableDefer)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "inlineDefer",
@@ -296,6 +301,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalkerWithID(8, "ExtractVariables")
+
 		extractVariables(&extractVariablesWalker)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "extractVariables",
@@ -304,15 +310,17 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	other := astvisitor.NewWalkerWithID(8, "Other")
+
 	removeSelfAliasing(&other)
-	inlineSelectionsFromInlineFragments(&other)
+	inlineSelectionsFromInlineFragmentsWithLimits(&other, o.options.limits)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "removeSelfAliasing, inlineSelectionsFromInlineFragments",
 		walker: &other,
 	})
 
 	mergeInlineFragments := astvisitor.NewWalkerWithID(8, "MergeInlineFragmentSelections")
-	mergeInlineFragmentSelections(&mergeInlineFragments)
+
+	mergeInlineFragmentSelectionsWithLimits(&mergeInlineFragments, o.options.limits)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "mergeInlineFragmentSelections",
 		walker: &mergeInlineFragments,
@@ -320,6 +328,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.removeFragmentDefinitions {
 		removeFragments := astvisitor.NewWalkerWithID(8, "RemoveFragmentDefinitions")
+
 		removeFragmentDefinitions(&removeFragments)
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -345,6 +354,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	// sequential stages guarantees the pre-scan sees the aligned tree.
 	if o.options.enableDefer {
 		alignTypename := astvisitor.NewWalkerWithID(8, "AlignDeferTypenameScope")
+
 		deferAlignTypenameScope(&alignTypename)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:          "alignDeferTypenameScope",
@@ -355,6 +365,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.enableDefer {
 		populateParentIds := astvisitor.NewWalkerWithID(8, "PopulateDeferParentIds")
+
 		deferPopulateParentIds(&populateParentIds)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:          "populateDeferParentIds",
@@ -365,6 +376,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.extractVariables {
 		variablesProcessing := astvisitor.NewWalkerWithID(8, "VariablesProcessing")
+
 		inputCoercionForList(&variablesProcessing)
 		extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)
