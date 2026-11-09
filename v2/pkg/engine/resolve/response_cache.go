@@ -391,10 +391,27 @@ func responseCacheVary(headers, sent, wire http.Header) (responseVary, bool) {
 		return responseVary{}, false
 	}
 	digest := caching.VaryDigest(names, sent)
-	if wire != nil && len(names) > 0 && caching.VaryDigest(names, wire) != digest {
-		return responseVary{}, false
+	if wire != nil {
+		if hooked := responseCacheHookableNames(names); len(hooked) > 0 && caching.VaryDigest(hooked, wire) != caching.VaryDigest(hooked, sent) {
+			return responseVary{}, false
+		}
 	}
 	return responseVary{names: names, digest: digest}, true
+}
+
+// responseCacheClientHeaders are set by the HTTP client on every request,
+// after the headers are built, the same each time: never a hook's doing.
+var responseCacheClientHeaders = []string{"accept", "accept-encoding", "content-type"}
+
+// responseCacheHookableNames is names less responseCacheClientHeaders.
+func responseCacheHookableNames(names []string) []string {
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		if !slices.Contains(responseCacheClientHeaders, name) {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // responseCacheWireHeaders is the request the subgraph actually received.
