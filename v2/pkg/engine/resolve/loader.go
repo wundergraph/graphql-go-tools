@@ -290,6 +290,10 @@ type Loader struct {
 	// own errors. All writes happen under dataBuffer.Lock() (arena not thread-safe).
 	errors *astjson.Value
 
+	// errorSources maps values in errors to their subgraph source. It is only
+	// populated when Context.ResponseErrorHandler is set.
+	errorSources responseErrorSources
+
 	// subgraphErrors accumulates this Loader's subgraph errors, keyed by subgraph
 	// name, mirroring Context.subgraphErrors. Written only from mergeResult (serial
 	// within a Loader) and flushed into l.ctx.subgraphErrors once after the fetch
@@ -374,6 +378,7 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 
 func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
 	l.errors = nil
+	l.errorSources = nil
 	l.skipValueCompletion = false
 	l.subgraphErrors = nil
 	l.ctx = ctx
@@ -788,7 +793,7 @@ func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
 	}
 }
 
-func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
+func (l *Loader) mergeFetchResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
 	}
@@ -1051,6 +1056,13 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 
 func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value) error {
 	values := value.GetArray()
+	var source *SubgraphError
+	if l.ctx.ResponseErrorHandler != nil {
+		var err error
+		if source, err = l.downstreamErrorSource(res, fetchItem, value); err != nil {
+			return errors.WithStack(err)
+		}
+	}
 	l.optionallyOmitErrorLocations(values)
 	// Multi entries prefix error paths with their internal alias. When rewriting
 	// is enabled, rewrite the root (the entry's alias, or "_entities" for an
@@ -1095,6 +1107,9 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		l.ensureErrorsInitialized()
 		// If the error propagation mode is pass-through, we append the errors to the root array
 		l.errors.AppendArrayItems(l.jsonArena, value)
+		if source != nil {
+			l.setPassThroughErrorSources(value.GetArray(), source)
+		}
 		return nil
 	}
 
@@ -1134,6 +1149,9 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	// downside: we have to verify it's initialized before appending to it
 	l.ensureErrorsInitialized()
 	astjson.AppendToArray(l.jsonArena, l.errors, errorObject)
+	if source != nil {
+		l.setErrorSource(errorObject, source)
+	}
 
 	return nil
 }
