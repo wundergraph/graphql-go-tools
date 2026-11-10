@@ -9,10 +9,9 @@ import (
 
 // mergeInlineFragmentSelections registers a visitor that
 // merges inline fragment and field selections.
-func mergeInlineFragmentSelections(walker *astvisitor.Walker, limits Limits) {
+func mergeInlineFragmentSelections(walker *astvisitor.Walker) {
 	visitor := inlineFragmentSelectionMergeVisitor{
 		Walker: walker,
-		limits: limits,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
@@ -20,8 +19,6 @@ func mergeInlineFragmentSelections(walker *astvisitor.Walker, limits Limits) {
 
 type inlineFragmentSelectionMergeVisitor struct {
 	*astvisitor.Walker
-
-	limits Limits
 
 	operation *ast.Document
 }
@@ -56,10 +53,6 @@ func (f *inlineFragmentSelectionMergeVisitor) mergeInlineFragments(left, right i
 		return
 	}
 
-	if !f.limits.checkSelectionSetSize(len(f.operation.SelectionSets[leftSet].SelectionRefs)+len(f.operation.SelectionSets[rightSet].SelectionRefs), f.Report) {
-		f.Stop()
-		return false
-	}
 	f.operation.AppendSelectionSet(leftSet, rightSet)
 	return true
 }
@@ -97,11 +90,8 @@ func (f *inlineFragmentSelectionMergeVisitor) mergeFields(left, right int) (ok b
 		return false
 	}
 
-	if !f.limits.checkSelectionSetSize(len(f.operation.SelectionSets[leftSet].SelectionRefs)+len(f.operation.SelectionSets[rightSet].SelectionRefs), f.Report) {
-		f.Stop()
-		return false
-	}
 	f.operation.MergeFieldsDefer(left, right)
+
 	f.operation.AppendSelectionSet(leftSet, rightSet)
 	return true
 }
@@ -139,9 +129,6 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 					f.RevisitNode()
 					return
 				}
-				if f.Report.HasErrors() {
-					return
-				}
 				continue
 			}
 
@@ -155,9 +142,6 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 			if f.mergeFields(leftRef, rightRef) {
 				f.operation.RemoveFromSelectionSet(ref, j)
 				f.RevisitNode()
-				return
-			}
-			if f.Report.HasErrors() {
 				return
 			}
 		}

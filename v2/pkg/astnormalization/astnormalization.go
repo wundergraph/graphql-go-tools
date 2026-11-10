@@ -245,7 +245,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	directivesIncludeSkip := astvisitor.NewWalkerWithID(8, "DirectivesIncludeSkip")
-	registerSelectionSetSizeLimit(&directivesIncludeSkip, o.options.limits)
 	preventFragmentCycles(&directivesIncludeSkip)
 	directiveIncludeSkipKeepNodes(&directivesIncludeSkip, o.options.ignoreSkipInclude)
 
@@ -265,7 +264,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		// should happen after inlining defer fragments, to not produce unnecessary typename placeholders
 		deferEnsureTypename(&cleanup)
 	}
-	registerSelectionSetSizeLimit(&cleanup, o.options.limits)
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
 		// register variable usage detection on the first stage
@@ -307,14 +305,14 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	other := astvisitor.NewWalkerWithID(8, "Other")
 	removeSelfAliasing(&other)
-	inlineSelectionsFromInlineFragmentsWithLimits(&other, o.options.limits)
+	inlineSelectionsFromInlineFragments(&other)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "removeSelfAliasing, inlineSelectionsFromInlineFragments",
 		walker: &other,
 	})
 
 	mergeInlineFragments := astvisitor.NewWalkerWithID(8, "MergeInlineFragmentSelections")
-	mergeInlineFragmentSelections(&mergeInlineFragments, o.options.limits)
+	mergeInlineFragmentSelections(&mergeInlineFragments)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "mergeInlineFragmentSelections",
 		walker: &mergeInlineFragments,

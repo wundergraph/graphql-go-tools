@@ -8,13 +8,8 @@ import (
 )
 
 func inlineSelectionsFromInlineFragments(walker *astvisitor.Walker) {
-	inlineSelectionsFromInlineFragmentsWithLimits(walker, Limits{})
-}
-
-func inlineSelectionsFromInlineFragmentsWithLimits(walker *astvisitor.Walker, limits Limits) {
 	visitor := inlineSelectionsFromInlineFragmentsVisitor{
 		Walker: walker,
-		limits: limits,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
@@ -22,8 +17,6 @@ func inlineSelectionsFromInlineFragmentsWithLimits(walker *astvisitor.Walker, li
 
 type inlineSelectionsFromInlineFragmentsVisitor struct {
 	*astvisitor.Walker
-
-	limits Limits
 
 	operation, definition *ast.Document
 }
@@ -83,11 +76,6 @@ func (m *inlineSelectionsFromInlineFragmentsVisitor) couldInline(inlineFragmentR
 }
 
 func (m *inlineSelectionsFromInlineFragmentsVisitor) resolveInlineFragment(selectionSetRef, index, inlineFragment int) {
-	with := m.operation.InlineFragments[inlineFragment].SelectionSet
-	if !m.limits.checkSelectionSetSize(len(m.operation.SelectionSets[selectionSetRef].SelectionRefs)-1+len(m.operation.SelectionSets[with].SelectionRefs), m.Report) {
-		m.Stop()
-		return
-	}
 	m.operation.ReplaceSelectionOnSelectionSet(selectionSetRef, index, m.operation.InlineFragments[inlineFragment].SelectionSet)
 }
 
@@ -102,9 +90,6 @@ func (m *inlineSelectionsFromInlineFragmentsVisitor) EnterSelectionSet(ref int) 
 			continue
 		}
 		m.resolveInlineFragment(ref, index, inlineFragment)
-		if m.Report.HasErrors() {
-			return
-		}
 		m.RevisitNode()
 		return
 	}
