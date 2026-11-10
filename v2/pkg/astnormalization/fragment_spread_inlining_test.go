@@ -10,6 +10,7 @@ func TestInlineFragments(t *testing.T) {
 	registerFragmentSpreadInline := func(walker *astvisitor.Walker) {
 		fragmentSpreadInline(walker, Limits{}, true)
 	}
+
 	t.Run("simple", func(t *testing.T) {
 		t.Run("with inline selections", func(t *testing.T) {
 			runMany(t, testDefinition, `	
@@ -40,7 +41,7 @@ func TestInlineFragments(t *testing.T) {
 		})
 
 		t.Run("without inlining selections", func(t *testing.T) {
-			run(t, registerFragmentSpreadInline, testDefinition, `
+			run(t, registerFragmentSpreadInline, testDefinition, `	
 				subscription sub {
 					...multipleSubscriptions
 				}
@@ -71,7 +72,7 @@ func TestInlineFragments(t *testing.T) {
 
 	})
 	t.Run("simple with directive", func(t *testing.T) {
-		run(t, registerFragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `	
 				subscription sub {
 					...multipleSubscriptions @include(if: true)
 				}
@@ -100,7 +101,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("simple 2x", func(t *testing.T) {
-		run(t, registerFragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `	
 				subscription sub {
 					...multipleSubscriptions
 					...multipleSubscriptions
@@ -137,7 +138,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("nested", func(t *testing.T) {
-		run(t, registerFragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `	
 				subscription sub {
 					...frag1
 				}
@@ -177,7 +178,7 @@ func TestInlineFragments(t *testing.T) {
 				}`)
 	})
 	t.Run("2x nested", func(t *testing.T) {
-		run(t, registerFragmentSpreadInline, testDefinition, `
+		run(t, registerFragmentSpreadInline, testDefinition, `	
 				subscription sub {
 					...frag1
 				}
