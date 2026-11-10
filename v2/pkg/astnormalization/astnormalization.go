@@ -264,8 +264,8 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	if o.options.enableDefer {
 		// should happen after inlining defer fragments, to not produce unnecessary typename placeholders
 		deferEnsureTypename(&cleanup)
-		registerSelectionSetSizeLimit(&cleanup, o.options.limits)
 	}
+	registerSelectionSetSizeLimit(&cleanup, o.options.limits)
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
 		// register variable usage detection on the first stage

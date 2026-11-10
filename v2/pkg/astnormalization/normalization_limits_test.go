@@ -210,6 +210,39 @@ func TestSelectionSetLimitIncludesDeferPlaceholder(t *testing.T) {
 	}
 }
 
+func TestCleanupSelectionSetLimit(t *testing.T) {
+	t.Parallel()
+	for _, enableDefer := range []bool{false, true} {
+		for _, limit := range []int{0, 2, 3} {
+			t.Run(fmt.Sprintf("defer_%t/limit_%d", enableDefer, limit), func(t *testing.T) {
+				t.Parallel()
+				opts := []Option{WithLimits(Limits{MaxSelectionSetSize: limit})}
+				if enableDefer {
+					opts = append(opts, WithEnableDefer())
+				}
+				n := NewWithOpts(opts...)
+				def := limitsTestDefinition(t)
+				op, report := astparser.ParseGraphqlDocumentString(`{a:hello b:hello c:hello}`)
+				require.False(t, report.HasErrors(), report.Error())
+				found := false
+				for _, stage := range n.operationWalkers {
+					if stage.name == "deduplicateFields, deleteUnusedVariables" {
+						found = true
+						stage.walker.Walk(&op, &def, &report)
+						break
+					}
+				}
+				require.True(t, found)
+				if limit == 2 {
+					assertNormalizationLimit(t, report, "max_selection_set_size")
+				} else {
+					assert.False(t, report.HasErrors(), report.Error())
+				}
+			})
+		}
+	}
+}
+
 func TestNormalizationLimitsOnlyExpandSelectedOperation(t *testing.T) {
 	def := limitsTestDefinition(t)
 	op, report := astparser.ParseGraphqlDocumentString(`query Small {hello hello} ` + repeatedFragmentDocument(18, "hello"))
