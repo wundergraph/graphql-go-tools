@@ -315,6 +315,122 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("JSON scalar", func(t *testing.T) {
+		// Protographic maps a GraphQL JSON scalar to a proto string.
+		encode := func(t *testing.T, request string, input string) protoref.Message {
+			t.Helper()
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: request,
+				Fields: RPCFields{
+					{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: request == "WrapperScalarRequest"},
+				},
+			}, runtime.getMessageByName(request))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{"string_value":` + input + `}`))
+			require.NoError(t, err)
+			return got
+		}
+
+		t.Run("in a string field", func(t *testing.T) {
+			expect := func(t *testing.T, want string) protoref.Message {
+				return buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString(want))
+				})
+			}
+
+			t.Run("is sent as JSON text for an object", func(t *testing.T) {
+				got := encode(t, "ScalarRequest", `{"a":1,"b":[true,null]}`)
+				assertProtoMessageEqual(t, expect(t, `{"a":1,"b":[true,null]}`), got)
+			})
+
+			t.Run("is sent as JSON text for an array", func(t *testing.T) {
+				got := encode(t, "ScalarRequest", `[1,"x",{}]`)
+				assertProtoMessageEqual(t, expect(t, `[1,"x",{}]`), got)
+			})
+
+			t.Run("is sent as JSON text for an empty object", func(t *testing.T) {
+				got := encode(t, "ScalarRequest", `{}`)
+				assertProtoMessageEqual(t, expect(t, `{}`), got)
+			})
+
+			t.Run("is sent as true for a boolean true", func(t *testing.T) {
+				got := encode(t, "ScalarRequest", `true`)
+				assertProtoMessageEqual(t, expect(t, `true`), got)
+			})
+
+			t.Run("is sent as false for a boolean false", func(t *testing.T) {
+				got := encode(t, "ScalarRequest", `false`)
+				assertProtoMessageEqual(t, expect(t, `false`), got)
+			})
+
+			t.Run("is sent as number text for a number", func(t *testing.T) {
+				got := encode(t, "ScalarRequest", `42`)
+				assertProtoMessageEqual(t, expect(t, `42`), got)
+			})
+
+			t.Run("is sent without quotes for a string", func(t *testing.T) {
+				got := encode(t, "ScalarRequest", `"plain"`)
+				assertProtoMessageEqual(t, expect(t, `plain`), got)
+			})
+
+			t.Run("is empty for null", func(t *testing.T) {
+				got := encode(t, "ScalarRequest", `null`)
+				expected := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+				assertProtoMessageEqual(t, expected, got)
+			})
+		})
+
+		t.Run("in a StringValue wrapper", func(t *testing.T) {
+			expect := func(t *testing.T, want string) protoref.Message {
+				return buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					setWrapperValue(msg, "string_value", protoref.ValueOfString(want))
+				})
+			}
+
+			t.Run("is sent as JSON text for an object", func(t *testing.T) {
+				got := encode(t, "WrapperScalarRequest", `{"a":1,"b":[true,null]}`)
+				assertProtoMessageEqual(t, expect(t, `{"a":1,"b":[true,null]}`), got)
+			})
+
+			t.Run("is sent as JSON text for an array", func(t *testing.T) {
+				got := encode(t, "WrapperScalarRequest", `[1,"x",{}]`)
+				assertProtoMessageEqual(t, expect(t, `[1,"x",{}]`), got)
+			})
+
+			t.Run("is sent as JSON text for an empty object", func(t *testing.T) {
+				got := encode(t, "WrapperScalarRequest", `{}`)
+				assertProtoMessageEqual(t, expect(t, `{}`), got)
+			})
+
+			t.Run("is sent as true for a boolean true", func(t *testing.T) {
+				got := encode(t, "WrapperScalarRequest", `true`)
+				assertProtoMessageEqual(t, expect(t, `true`), got)
+			})
+
+			t.Run("is sent as false for a boolean false", func(t *testing.T) {
+				got := encode(t, "WrapperScalarRequest", `false`)
+				assertProtoMessageEqual(t, expect(t, `false`), got)
+			})
+
+			t.Run("is sent as number text for a number", func(t *testing.T) {
+				got := encode(t, "WrapperScalarRequest", `42`)
+				assertProtoMessageEqual(t, expect(t, `42`), got)
+			})
+
+			t.Run("is sent without quotes for a string", func(t *testing.T) {
+				got := encode(t, "WrapperScalarRequest", `"plain"`)
+				assertProtoMessageEqual(t, expect(t, `plain`), got)
+			})
+
+			t.Run("is not set for null", func(t *testing.T) {
+				got := encode(t, "WrapperScalarRequest", `null`)
+				expected := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+				assertProtoMessageEqual(t, expected, got)
+			})
+		})
+	})
+
 	t.Run("nullable enum field", func(t *testing.T) {
 		// A nullable GraphQL enum argument (`status: Status`) maps to a plain proto
 		// enum field. Proto has no wrapper message for enums, so it must not be
