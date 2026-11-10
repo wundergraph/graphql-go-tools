@@ -20,13 +20,8 @@ import (
 //
 // Only nested selection sets are considered; the operation root is skipped.
 func deferEnsureTypename(walker *astvisitor.Walker) {
-	deferEnsureTypenameWithLimits(walker, Limits{})
-}
-
-func deferEnsureTypenameWithLimits(walker *astvisitor.Walker, limits Limits) {
 	visitor := deferEnsureTypenameVisitor{
 		Walker: walker,
-		limits: limits,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
@@ -34,8 +29,6 @@ func deferEnsureTypenameWithLimits(walker *astvisitor.Walker, limits Limits) {
 
 type deferEnsureTypenameVisitor struct {
 	*astvisitor.Walker
-
-	limits Limits
 
 	operation *ast.Document
 }
@@ -89,10 +82,6 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 	if parentDeferID == 0 {
 		// the enclosing field is not deferred; add a plain placeholder so the
 		// selection set has at least one non-deferred field selection
-		if !f.limits.checkSelectionSetSize(len(f.operation.SelectionSets[ref].SelectionRefs)+1, f.Report) {
-			f.Stop()
-			return
-		}
 		addInternalTypeNamePlaceholder(f.operation, ref)
 		return
 	}
@@ -105,10 +94,6 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 
 	// no intersection: add a placeholder annotated with the parent's defer id
 	// so it is planned in the parent field defer scope
-	if !f.limits.checkSelectionSetSize(len(f.operation.SelectionSets[ref].SelectionRefs)+1, f.Report) {
-		f.Stop()
-		return
-	}
 	fieldRef := addInternalTypeNamePlaceholder(f.operation, ref)
 	f.operation.AddDeferInternalDirectiveToField(fieldRef, parentDeferID, "", 0)
 }

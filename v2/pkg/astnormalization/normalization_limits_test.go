@@ -11,7 +11,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -178,15 +177,37 @@ func TestNormalizationLimitsPreserveDisabledFragmentInlining(t *testing.T) {
 	assert.Empty(t, op.InlineFragments)
 }
 
+type selectionLimitFieldCounter struct{ fields int }
+
+func (v *selectionLimitFieldCounter) EnterField(ref int) { v.fields++ }
+
 func TestSelectionSetLimitIncludesDeferPlaceholder(t *testing.T) {
-	def := limitsTestDefinition(t)
-	op, report := astparser.ParseGraphqlDocumentString(`{child{a @__defer_internal(id:1) b @__defer_internal(id:1)}}`)
-	require.False(t, report.HasErrors(), report.Error())
-	walker := astvisitor.NewWalker(8)
-	deferEnsureTypenameWithLimits(&walker, Limits{MaxSelectionSetSize: 2})
-	walker.Walk(&op, &def, &report)
-	assertNormalizationLimit(t, report, "max_selection_set_size")
-	assert.Len(t, op.Selections, 3)
+	t.Parallel()
+	for _, limit := range []int{0, 2, 3} {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			t.Parallel()
+			def := limitsTestDefinition(t)
+			op, report := astparser.ParseGraphqlDocumentString(`{child{... @defer {a b}}}`)
+			require.False(t, report.HasErrors(), report.Error())
+			original := len(op.Selections)
+			n := NewWithOpts(WithEnableDefer(), WithLimits(Limits{MaxSelectionSetSize: limit}))
+			counter := &selectionLimitFieldCounter{}
+			for _, stage := range n.operationWalkers {
+				if stage.name == "deduplicateFields, deleteUnusedVariables" {
+					stage.walker.RegisterEnterFieldVisitor(counter)
+				}
+			}
+			n.NormalizeOperation(&op, &def, &report)
+			assert.Len(t, op.Selections, original+1)
+			if limit == 2 {
+				assertNormalizationLimit(t, report, "max_selection_set_size")
+				assert.Equal(t, 1, counter.fields)
+			} else {
+				require.False(t, report.HasErrors(), report.Error())
+				assert.Equal(t, 4, counter.fields)
+			}
+		})
+	}
 }
 
 func TestNormalizationLimitsOnlyExpandSelectedOperation(t *testing.T) {

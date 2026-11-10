@@ -15,7 +15,8 @@ type Limits struct {
 	MaxSelections int
 	// MaxSelectionSetSize bounds the direct selection references in each set.
 	// Fields, named spreads, and inline-fragment wrappers each occupy one entry.
-	// The limit is checked on source lists and before normalization grows a list.
+	// Source lists and merge/flatten growth are checked before traversal or mutation.
+	// Cleanup checks internally generated placeholders after insertion, before descent.
 	MaxSelectionSetSize int
 }
 

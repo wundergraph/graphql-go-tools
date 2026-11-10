@@ -263,7 +263,8 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	deduplicateFields(&cleanup)
 	if o.options.enableDefer {
 		// should happen after inlining defer fragments, to not produce unnecessary typename placeholders
-		deferEnsureTypenameWithLimits(&cleanup, o.options.limits)
+		deferEnsureTypename(&cleanup)
+		registerSelectionSetSizeLimit(&cleanup, o.options.limits)
 	}
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
