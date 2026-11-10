@@ -15,10 +15,25 @@ import (
 )
 
 func repeatedFragmentDocument(levels int, leaf string) string {
+	const operation = `
+query Q {
+  ...F%d
+}
+
+fragment F0 on Query {
+  %s
+}
+`
+	const fragment = `
+fragment F%d on Query {
+  ...F%d
+  ...F%d
+}
+`
 	var out strings.Builder
-	fmt.Fprintf(&out, "query Q { ...F%d } fragment F0 on Query { %s } ", levels, leaf)
+	fmt.Fprintf(&out, operation, levels, leaf)
 	for i := 1; i <= levels; i++ {
-		fmt.Fprintf(&out, "fragment F%d on Query { ...F%d ...F%d } ", i, i-1, i-1)
+		fmt.Fprintf(&out, fragment, i, i-1, i-1)
 	}
 	return out.String()
 }
@@ -184,7 +199,12 @@ func TestNormalizationSelectionLimitStopsAndReuses(t *testing.T) {
 	for _, ref := range refs {
 		assert.Equal(t, ast.SelectionKindFragmentSpread, op.Selections[ref].Kind)
 	}
-	next, r := astparser.ParseGraphqlDocumentString(`{hello}`)
+	const nextQuery = `
+		{
+		  hello
+		}
+	`
+	next, r := astparser.ParseGraphqlDocumentString(nextQuery)
 	n.NormalizeOperation(&next, &def, &r)
 	assert.False(t, r.HasErrors(), r.Error())
 }
@@ -270,15 +290,15 @@ func BenchmarkNormalizationLimits(b *testing.B) {
 
 func TestNormalizationSelectionLimitIncludesGeneratedPlaceholders(t *testing.T) {
 	const query = `
-  query Q {
-    child {
-      ... @defer {
-        a
-        b
-      }
-    }
-  }
- `
+		query Q {
+		  child {
+		    ... @defer {
+		      a
+		      b
+		    }
+		  }
+		}
+	`
 	cases := []struct {
 		name  string
 		named bool
