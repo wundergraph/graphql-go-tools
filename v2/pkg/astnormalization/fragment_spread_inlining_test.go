@@ -8,7 +8,7 @@ import (
 
 func TestInlineFragments(t *testing.T) {
 	registerFragmentSpreadInline := func(walker *astvisitor.Walker) {
-		fragmentSpreadInline(walker, Limits{}, true)
+		fragmentSpreadInline(walker, Limits{})
 	}
 
 	t.Run("simple", func(t *testing.T) {

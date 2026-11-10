@@ -234,7 +234,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	// we will visit only a single operation, so it is important to remove non-matching operations
 	if o.options.removeNotMatchingOperationDefinitions {
 		removeNotMatchingOperationDefinitionsWalker := astvisitor.NewWalkerWithID(2, "RemoveNotMatchingOperationDefinitions")
-
 		// This rule does not walk deep into ast, so a separate walk is not expensive,
 		// but we could not mix this walk with other rules, because they need to go deep
 		o.removeOperationDefinitionsVisitor = removeOperationDefinitions(&removeNotMatchingOperationDefinitionsWalker)
@@ -261,7 +260,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	cleanup := astvisitor.NewWalkerWithID(8, "Cleanup")
-
 	deduplicateFields(&cleanup)
 	if o.options.enableDefer {
 		// should happen after inlining defer fragments, to not produce unnecessary typename placeholders
@@ -283,8 +281,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.inlineFragmentSpreads {
 		fragmentInline := astvisitor.NewWalkerWithID(8, "FragmentSpreadInline")
-
-		fragmentSpreadInline(&fragmentInline, o.options.limits, o.options.inlineFragmentSpreads)
+		fragmentSpreadInline(&fragmentInline, o.options.limits)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "fragmentInline",
 			walker: &fragmentInline,
@@ -292,7 +289,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	inlineDefer := astvisitor.NewWalkerWithID(8, "Inline defer")
-
 	o.inlineDeferVisitor = deferExpandIntoInternalWithDisabled(&inlineDefer, !o.options.enableDefer)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "inlineDefer",
@@ -301,7 +297,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.extractVariables {
 		extractVariablesWalker := astvisitor.NewWalkerWithID(8, "ExtractVariables")
-
 		extractVariables(&extractVariablesWalker)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "extractVariables",
@@ -310,7 +305,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	other := astvisitor.NewWalkerWithID(8, "Other")
-
 	removeSelfAliasing(&other)
 	inlineSelectionsFromInlineFragmentsWithLimits(&other, o.options.limits)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -319,7 +313,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	mergeInlineFragments := astvisitor.NewWalkerWithID(8, "MergeInlineFragmentSelections")
-
 	mergeInlineFragmentSelectionsWithLimits(&mergeInlineFragments, o.options.limits)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "mergeInlineFragmentSelections",
@@ -328,7 +321,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.removeFragmentDefinitions {
 		removeFragments := astvisitor.NewWalkerWithID(8, "RemoveFragmentDefinitions")
-
 		removeFragmentDefinitions(&removeFragments)
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -354,7 +346,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	// sequential stages guarantees the pre-scan sees the aligned tree.
 	if o.options.enableDefer {
 		alignTypename := astvisitor.NewWalkerWithID(8, "AlignDeferTypenameScope")
-
 		deferAlignTypenameScope(&alignTypename)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:          "alignDeferTypenameScope",
@@ -365,7 +356,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.enableDefer {
 		populateParentIds := astvisitor.NewWalkerWithID(8, "PopulateDeferParentIds")
-
 		deferPopulateParentIds(&populateParentIds)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:          "populateDeferParentIds",
@@ -376,7 +366,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.extractVariables {
 		variablesProcessing := astvisitor.NewWalkerWithID(8, "VariablesProcessing")
-
 		inputCoercionForList(&variablesProcessing)
 		extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)

@@ -8,11 +8,10 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-func fragmentSpreadInline(walker *astvisitor.Walker, limits Limits, expand bool) {
+func fragmentSpreadInline(walker *astvisitor.Walker, limits Limits) {
 	visitor := fragmentSpreadInlineVisitor{
 		Walker: walker,
 		limits: limits,
-		expand: expand,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterSelectionSetVisitor(&visitor)
@@ -24,7 +23,6 @@ type fragmentSpreadInlineVisitor struct {
 
 	operation, definition *ast.Document
 	limits                Limits
-	expand                bool
 }
 
 func (f *fragmentSpreadInlineVisitor) EnterFragmentDefinition(ref int) {
@@ -38,7 +36,7 @@ func (f *fragmentSpreadInlineVisitor) EnterDocument(operation, definition *ast.D
 
 func (f *fragmentSpreadInlineVisitor) EnterSelectionSet(ref int) {
 	for _, selection := range f.operation.SelectionSets[ref].SelectionRefs {
-		if !f.expand || f.operation.Selections[selection].Kind != ast.SelectionKindFragmentSpread {
+		if f.operation.Selections[selection].Kind != ast.SelectionKindFragmentSpread {
 			continue
 		}
 		if f.replaceFragmentSpread(ref, f.operation.Selections[selection].Ref) {
