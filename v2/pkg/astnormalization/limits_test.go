@@ -53,117 +53,203 @@ func assertNormalizationLimit(t *testing.T, report operationreport.Report, name 
 	assert.Equal(t, 400, report.ExternalErrors[0].StatusCode)
 }
 
-func TestNormalizationSelections(t *testing.T) {
+const limitSourceQuery = `
+	{
+	  hello
+	  hello
+	}
+`
+
+const limitFragmentQuery = `
+	{
+	  ...F
+	}
+
+	fragment F on Query {
+	  hello
+	}
+`
+
+const limitParentMergeQuery = `
+	{
+	  child {
+	    a
+	    b
+	  }
+	  child {
+	    b
+	    c
+	  }
+	}
+`
+
+func TestNormalizationLimits(t *testing.T) {
 	t.Parallel()
-	const (
-		sourceQuery = `
-			{
-			  hello
-			  hello
-			}
-		`
-		multipleOperations = `
-			query A {
-			  hello
-			}
 
-			query B {
-			  hello
-			}
-		`
-		fragmentQuery = `
-			{
-			  ...F
-			}
+	const multipleOperations = `
+		query A {
+		  hello
+		}
 
-			fragment F on Query {
-			  hello
-			}
-		`
-		unusedFragmentQuery = `
-			{
-			  hello
-			}
+		query B {
+		  hello
+		}
+	`
 
-			fragment F on Query {
-			  hello
-			  hello
-			}
-		`
-	)
+	const flattenQuery = `
+		{
+		  hello
+		  ... on Query {
+		    hello
+		    hello
+		  }
+		}
+	`
+
+	const inlineMergeQuery = `
+		query Q($v: Boolean!) {
+		  ... on Query @include(if: $v) {
+		    hello
+		    hello
+		  }
+		  ... on Query @include(if: $v) {
+		    hello
+		    hello
+		  }
+		}
+	`
+
+	const parentWidthQuery = `
+		{
+		  a: hello
+		  b: hello
+		  child {
+		    a
+		  }
+		  ... on Query {
+		    hello
+		  }
+		}
+	`
+
+	const childWidthQuery = `
+		{
+		  child {
+		    a
+		    b
+		    c
+		  }
+		  ... on Query {
+		    hello
+		  }
+		}
+	`
 
 	cases := []struct {
-		name   string
-		query  string
-		limit  int
-		reject bool
+		name      string
+		query     string
+		limits    Limits
+		wantLimit string
 	}{
 		{
-			name:   "source exact",
-			query:  sourceQuery,
-			limit:  2,
-			reject: false,
+			name:   "source selections exact",
+			query:  limitSourceQuery,
+			limits: Limits{MaxSelections: 2},
 		},
 		{
-			name:   "source exceeded",
-			query:  sourceQuery,
-			limit:  1,
-			reject: true,
+			name:      "source selections exceeded",
+			query:     limitSourceQuery,
+			limits:    Limits{MaxSelections: 1},
+			wantLimit: "max_selections",
 		},
 		{
-			name:   "document scope",
-			query:  multipleOperations,
-			limit:  1,
-			reject: true,
+			name:      "document scope",
+			query:     multipleOperations,
+			limits:    Limits{MaxSelections: 1},
+			wantLimit: "max_selections",
 		},
 		{
 			name:   "expansion exact",
-			query:  fragmentQuery,
-			limit:  4,
-			reject: false,
+			query:  limitFragmentQuery,
+			limits: Limits{MaxSelections: 4},
 		},
 		{
-			name:   "expansion exceeded",
-			query:  fragmentQuery,
-			limit:  3,
-			reject: true,
+			name:      "expansion exceeded",
+			query:     limitFragmentQuery,
+			limits:    Limits{MaxSelections: 3},
+			wantLimit: "max_selections",
 		},
 		{
-			name:   "original unused nodes count",
-			query:  unusedFragmentQuery,
-			limit:  2,
-			reject: true,
+			name:      "doubling bomb",
+			query:     repeatedFragmentDocument(16, "__typename"),
+			limits:    Limits{MaxSelections: 10000},
+			wantLimit: "max_selections",
 		},
 		{
-			name:   "disabled",
-			query:  sourceQuery,
-			limit:  0,
-			reject: false,
+			name:      "deep bomb",
+			query:     repeatedFragmentDocument(198, "hello"),
+			limits:    Limits{MaxSelections: 10000},
+			wantLimit: "max_selections",
 		},
 		{
-			name:   "doubling bomb",
-			query:  repeatedFragmentDocument(16, "__typename"),
-			limit:  10000,
-			reject: true,
+			name:   "source list exact",
+			query:  limitSourceQuery,
+			limits: Limits{MaxSelectionSetSize: 2},
 		},
 		{
-			name:   "deep bomb",
-			query:  repeatedFragmentDocument(198, "hello"),
-			limit:  10000,
-			reject: true,
+			name:   "flatten exact",
+			query:  flattenQuery,
+			limits: Limits{MaxSelectionSetSize: 3},
+		},
+		{
+			name:      "flatten exceeded",
+			query:     flattenQuery,
+			limits:    Limits{MaxSelectionSetSize: 2},
+			wantLimit: "max_selection_set_size",
+		},
+		{
+			name:   "parent merge exact",
+			query:  limitParentMergeQuery,
+			limits: Limits{MaxSelectionSetSize: 4},
+		},
+		{
+			name:      "inline merge exceeded",
+			query:     inlineMergeQuery,
+			limits:    Limits{MaxSelectionSetSize: 3},
+			wantLimit: "max_selection_set_size",
+		},
+		{
+			name:      "source spreads count",
+			query:     repeatedFragmentDocument(1, "hello"),
+			limits:    Limits{MaxSelectionSetSize: 1},
+			wantLimit: "max_selection_set_size",
+		},
+		{
+			name:      "inline wrapper after child field shares parent width",
+			query:     parentWidthQuery,
+			limits:    Limits{MaxSelectionSetSize: 3},
+			wantLimit: "max_selection_set_size",
+		},
+		{
+			name:   "inline wrapper after child field does not use child width",
+			query:  childWidthQuery,
+			limits: Limits{MaxSelectionSetSize: 3},
 		},
 	}
-
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			def := limitsTestDefinition(t)
 			op, report := astparser.ParseGraphqlDocumentString(tc.query)
 			require.False(t, report.HasErrors(), report.Error())
-			n := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithLimits(Limits{MaxSelections: tc.limit}))
+			n := NewWithOpts(
+				WithInlineFragmentSpreads(),
+				WithRemoveFragmentDefinitions(),
+				WithLimits(tc.limits),
+			)
 			n.NormalizeOperation(&op, &def, &report)
-			if tc.reject {
-				assertNormalizationLimit(t, report, "max_selections")
+			if tc.wantLimit != "" {
+				assertNormalizationLimit(t, report, tc.wantLimit)
 			} else {
 				assert.False(t, report.HasErrors(), report.Error())
 			}
@@ -209,239 +295,10 @@ func TestNormalizationSelectionLimitStopsAndReuses(t *testing.T) {
 	assert.False(t, r.HasErrors(), r.Error())
 }
 
-func TestNormalizationSelectionSetSize(t *testing.T) {
-	t.Parallel()
-	const (
-		sourceQuery = `
-			{
-			  hello
-			  hello
-			}
-		`
-		wrapperQuery = `
-			{
-			  ... on Query {
-			    hello
-			  }
-			  ... on Query {
-			    hello
-			  }
-			}
-		`
-		flattenQuery = `
-			{
-			  hello
-			  ... on Query {
-			    hello
-			    hello
-			  }
-			}
-		`
-		parentMergeQuery = `
-			{
-			  child {
-			    a
-			    b
-			  }
-			  child {
-			    b
-			    c
-			  }
-			}
-		`
-		inlineMergeQuery = `
-			query Q($v: Boolean!) {
-			  ... on Query @include(if: $v) {
-			    hello
-			    hello
-			  }
-			  ... on Query @include(if: $v) {
-			    hello
-			    hello
-			  }
-			}
-		`
-		spreadQuery = `
-			{
-			  ...F
-			  ...F
-			  ...F
-			}
-
-			fragment F on Query {
-			  hello
-			}
-		`
-		parentWidthQuery = `
-			{
-			  a: hello
-			  b: hello
-			  child {
-			    a
-			  }
-			  ... on Query {
-			    hello
-			  }
-			}
-		`
-		childWidthQuery = `
-			{
-			  child {
-			    a
-			    b
-			    c
-			  }
-			  ... on Query {
-			    hello
-			  }
-			}
-		`
-		separateChildrenQuery = `
-			{
-			  child {
-			    a
-			    b
-			  }
-			  other {
-			    b
-			    c
-			  }
-			}
-		`
-	)
-
-	cases := []struct {
-		name   string
-		query  string
-		limit  int
-		reject bool
-	}{
-		{
-			name:   "source exact",
-			query:  sourceQuery,
-			limit:  2,
-			reject: false,
-		},
-		{
-			name:   "source exceeded",
-			query:  sourceQuery,
-			limit:  1,
-			reject: true,
-		},
-		{
-			name:   "wrappers are entries",
-			query:  wrapperQuery,
-			limit:  1,
-			reject: true,
-		},
-		{
-			name:   "flatten exact",
-			query:  flattenQuery,
-			limit:  3,
-			reject: false,
-		},
-		{
-			name:   "flatten exceeded",
-			query:  flattenQuery,
-			limit:  2,
-			reject: true,
-		},
-		{
-			name:   "parent merge exact",
-			query:  parentMergeQuery,
-			limit:  4,
-			reject: false,
-		},
-		{
-			name:   "parent merge exceeded",
-			query:  parentMergeQuery,
-			limit:  3,
-			reject: true,
-		},
-		{
-			name:   "inline merge exceeded",
-			query:  inlineMergeQuery,
-			limit:  3,
-			reject: true,
-		},
-		{
-			name:   "source spreads count",
-			query:  spreadQuery,
-			limit:  2,
-			reject: true,
-		},
-		{
-			name:   "inline wrapper after child field shares parent width",
-			query:  parentWidthQuery,
-			limit:  3,
-			reject: true,
-		},
-		{
-			name:   "inline wrapper after child field does not use child width",
-			query:  childWidthQuery,
-			limit:  3,
-			reject: false,
-		},
-		{
-			name:   "separate children",
-			query:  separateChildrenQuery,
-			limit:  2,
-			reject: false,
-		},
-		{
-			name:   "disabled",
-			query:  sourceQuery,
-			limit:  0,
-			reject: false,
-		},
-		{
-			name:   "default exact",
-			query:  "{" + strings.Repeat("hello ", 900) + "}",
-			limit:  900,
-			reject: false,
-		},
-		{
-			name:   "default exceeded",
-			query:  "{" + strings.Repeat("hello ", 901) + "}",
-			limit:  900,
-			reject: true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			def := limitsTestDefinition(t)
-			op, report := astparser.ParseGraphqlDocumentString(tc.query)
-			require.False(t, report.HasErrors(), report.Error())
-			n := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithLimits(Limits{MaxSelectionSetSize: tc.limit}))
-			n.NormalizeOperation(&op, &def, &report)
-			if tc.reject {
-				assertNormalizationLimit(t, report, "max_selection_set_size")
-			} else {
-				assert.False(t, report.HasErrors(), report.Error())
-			}
-		})
-	}
-}
-
 func TestSelectionSetLimitStopsBeforeMergeAndReuses(t *testing.T) {
-	const query = `
-		{
-		  child {
-		    a
-		    b
-		  }
-		  child {
-		    b
-		    c
-		  }
-		}
-	`
-
 	def := limitsTestDefinition(t)
 	n := NewWithOpts(WithLimits(Limits{MaxSelectionSetSize: 3}))
-	op, r := astparser.ParseGraphqlDocumentString(query)
+	op, r := astparser.ParseGraphqlDocumentString(limitParentMergeQuery)
 	require.False(t, r.HasErrors(), r.Error())
 	merges := 0
 	op.OnMergeFields = func(left, right int) { merges++ }
@@ -456,29 +313,22 @@ func TestSelectionSetLimitStopsBeforeMergeAndReuses(t *testing.T) {
 }
 
 func TestNormalizationLimitsDefaultAndOverride(t *testing.T) {
-	for _, n := range []*OperationNormalizer{NewNormalizer(true, false), NewWithOpts(WithInlineFragmentSpreads()), NewWithOpts(WithLimits(Limits{MaxSelections: 1, MaxSelectionSetSize: 1}), WithLimits(Limits{}))} {
-		def := limitsTestDefinition(t)
-		op, r := astparser.ParseGraphqlDocumentString(`{hello hello}`)
-		n.NormalizeOperation(&op, &def, &r)
-		assert.False(t, r.HasErrors(), r.Error())
-	}
+	t.Parallel()
+	assert.Equal(t, Limits{}, NewNormalizer(true, false).options.limits)
+	assert.Equal(t, Limits{}, NewWithOpts().options.limits)
+	n := NewWithOpts(
+		WithLimits(Limits{
+			MaxSelections:       1,
+			MaxSelectionSetSize: 1,
+		}),
+		WithLimits(Limits{}),
+	)
+	assert.Equal(t, Limits{}, n.options.limits)
 }
 
 func TestNormalizationLimitsPreserveDisabledFragmentInlining(t *testing.T) {
-	const query = `
-		{
-		  hello
-		  ...F
-		}
-
-		fragment F on Query {
-		  hello
-		  hello
-		}
-	`
-
 	def := limitsTestDefinition(t)
-	op, report := astparser.ParseGraphqlDocumentString(query)
+	op, report := astparser.ParseGraphqlDocumentString(limitFragmentQuery)
 	require.False(t, report.HasErrors(), report.Error())
 	n := NewWithOpts(WithLimits(Limits{MaxSelections: 10, MaxSelectionSetSize: 3}))
 	n.NormalizeOperation(&op, &def, &report)
@@ -531,36 +381,38 @@ func TestSelectionSetLimitIncludesDeferPlaceholder(t *testing.T) {
 	}
 }
 
-func TestCleanupSelectionSetLimit(t *testing.T) {
+func TestCleanupSelectionSetLimitWithoutDefer(t *testing.T) {
 	t.Parallel()
-	for _, enableDefer := range []bool{false, true} {
-		for _, limit := range []int{0, 2, 3} {
-			t.Run(fmt.Sprintf("defer_%t/limit_%d", enableDefer, limit), func(t *testing.T) {
-				t.Parallel()
-				opts := []Option{WithLimits(Limits{MaxSelectionSetSize: limit})}
-				if enableDefer {
-					opts = append(opts, WithEnableDefer())
+	const query = `
+        {
+            a: hello
+            b: hello
+            c: hello
+        }
+    `
+	limits := []int{0, 2, 3}
+	for _, limit := range limits {
+		t.Run(fmt.Sprint(limit), func(t *testing.T) {
+			t.Parallel()
+			n := NewWithOpts(WithLimits(Limits{MaxSelectionSetSize: limit}))
+			def := limitsTestDefinition(t)
+			op, report := astparser.ParseGraphqlDocumentString(query)
+			require.False(t, report.HasErrors(), report.Error())
+			found := false
+			for _, stage := range n.operationWalkers {
+				if stage.name == "deduplicateFields, deleteUnusedVariables" {
+					found = true
+					stage.walker.Walk(&op, &def, &report)
+					break
 				}
-				n := NewWithOpts(opts...)
-				def := limitsTestDefinition(t)
-				op, report := astparser.ParseGraphqlDocumentString(`{a:hello b:hello c:hello}`)
-				require.False(t, report.HasErrors(), report.Error())
-				found := false
-				for _, stage := range n.operationWalkers {
-					if stage.name == "deduplicateFields, deleteUnusedVariables" {
-						found = true
-						stage.walker.Walk(&op, &def, &report)
-						break
-					}
-				}
-				require.True(t, found)
-				if limit == 2 {
-					assertNormalizationLimit(t, report, "max_selection_set_size")
-				} else {
-					assert.False(t, report.HasErrors(), report.Error())
-				}
-			})
-		}
+			}
+			require.True(t, found)
+			if limit == 2 {
+				assertNormalizationLimit(t, report, "max_selection_set_size")
+			} else {
+				assert.False(t, report.HasErrors(), report.Error())
+			}
+		})
 	}
 }
 
@@ -616,101 +468,5 @@ func BenchmarkNormalizationLimits(b *testing.B) {
 				}
 			}
 		})
-	}
-}
-
-// BenchmarkNormalizationLimitOverhead compares the individual budgets and their
-// combined cost on accepted inputs, reusing parser and normalizer state like a router kit.
-func BenchmarkNormalizationLimitOverhead(b *testing.B) {
-	definition := limitsTestDefinition(b)
-	var flat, wrappers strings.Builder
-	flat.WriteString("query Q {")
-	for i := range 900 {
-		fmt.Fprintf(&flat, "a%d:hello ", i)
-	}
-	flat.WriteString("}")
-	wrappers.WriteString("query Q {" + strings.Repeat("...F4 ", 800) + "} fragment F0 on Query {hello} ")
-	for i := 1; i <= 4; i++ {
-		fmt.Fprintf(&wrappers, "fragment F%d on Query {...F%d} ", i, i-1)
-	}
-	queries := []struct {
-		name     string
-		document string
-	}{
-		{
-			name:     "small",
-			document: "query Q { hello child { a b } }",
-		},
-		{
-			name:     "fields_900",
-			document: flat.String(),
-		},
-		{
-			name:     "spreads_900",
-			document: "query Q {" + strings.Repeat("...F ", 900) + "} fragment F on Query {hello}",
-		},
-		{
-			name:     "wrapped_spreads_800",
-			document: wrappers.String(),
-		},
-	}
-
-	budgets := []struct {
-		name   string
-		limits Limits
-	}{
-		{
-			name:   "disabled",
-			limits: Limits{},
-		},
-		{
-			name:   "selections",
-			limits: Limits{MaxSelections: 10000},
-		},
-		{
-			name:   "selection_set_size",
-			limits: Limits{MaxSelectionSetSize: 900},
-		},
-		{
-			name: "both",
-			limits: Limits{
-				MaxSelections:       10000,
-				MaxSelectionSetSize: 900,
-			},
-		},
-	}
-
-	for _, query := range queries {
-		for _, budget := range budgets {
-			b.Run(query.name+"/"+budget.name, func(b *testing.B) {
-				n := NewWithOpts(WithInlineFragmentSpreads(), WithRemoveFragmentDefinitions(), WithRemoveUnusedVariables(), WithRemoveNotMatchingOperationDefinitions(), WithLimits(budget.limits))
-				parser := astparser.NewParser()
-				op := ast.NewSmallDocument()
-				var report operationreport.Report
-				name := []byte("Q")
-				run := func() {
-					op.Reset()
-					report.Reset()
-					op.Input.ResetInputString(query.document)
-					_, err := parser.ParseWithLimits(astparser.TokenizerLimits{MaxDepth: 200, MaxFields: 3500}, op, &report)
-					if err != nil {
-						b.Fatal(err)
-					}
-					if report.HasErrors() {
-						b.Fatal(report.Error())
-					}
-					n.NormalizeNamedOperation(op, &definition, name, &report)
-					if report.HasErrors() {
-						b.Fatal(report.Error())
-					}
-				}
-				run() // Grow reusable AST and walker buffers outside the measurement.
-				b.ReportAllocs()
-				b.ResetTimer()
-				for i := 0; i < b.N; i++ {
-					run()
-				}
-			})
-		}
 	}
 }

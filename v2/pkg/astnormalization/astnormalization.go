@@ -402,10 +402,7 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 			continue
 		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
-		if !report.HasErrors() {
-			o.options.limits.checkSelections(operation, report)
-		}
-		if report.HasErrors() {
+		if report.HasErrors() || !o.options.limits.checkSelections(operation, report) {
 			return
 		}
 	}
@@ -446,10 +443,7 @@ func (o *OperationNormalizer) NormalizeNamedOperationWithResult(
 			continue
 		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
-		if !report.HasErrors() {
-			o.options.limits.checkSelections(operation, report)
-		}
-		if report.HasErrors() {
+		if report.HasErrors() || !o.options.limits.checkSelections(operation, report) {
 			return nil
 		}
 
