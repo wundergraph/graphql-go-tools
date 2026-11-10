@@ -314,7 +314,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	mergeInlineFragments := astvisitor.NewWalkerWithID(8, "MergeInlineFragmentSelections")
-	mergeInlineFragmentSelectionsWithLimits(&mergeInlineFragments, o.options.limits)
+	mergeInlineFragmentSelections(&mergeInlineFragments, o.options.limits)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "mergeInlineFragmentSelections",
 		walker: &mergeInlineFragments,

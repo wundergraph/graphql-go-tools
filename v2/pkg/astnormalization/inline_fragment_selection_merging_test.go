@@ -1,11 +1,19 @@
 package astnormalization
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+)
 
 func TestMergeInlineFragmentFieldSelections(t *testing.T) {
+	registerMergeInlineFragmentSelections := func(walker *astvisitor.Walker) {
+		mergeInlineFragmentSelections(walker, Limits{})
+	}
+
 	t.Run("just fragments", func(t *testing.T) {
 		t.Run("fragments with the same field", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query a {
 						pet {
 							... on Dog {
@@ -30,7 +38,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 					}`)
 		})
 		t.Run("fragments with different fields", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query a {
 						pet {
 							... on Dog {
@@ -55,7 +63,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 					}`)
 		})
 		t.Run("fragments with different types", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query a {
 						pet {
 							... on Dog {
@@ -78,7 +86,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 					}`)
 		})
 		t.Run("fragments with different directives", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query a {
 						pet {
 							... on Dog @skip(if: $foo) {
@@ -102,7 +110,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 		})
 
 		t.Run("fragments with the same directives", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query a {
 						pet {
 							... on Dog @skip(if: $foo) {
@@ -125,7 +133,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 	})
 	t.Run("just fields", func(t *testing.T) {
 		t.Run("depth 1", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							extra { string }
@@ -142,7 +150,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 					}`)
 		})
 		t.Run("depth 2", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							extra { string }
@@ -165,7 +173,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 					}`)
 		})
 		t.Run("aliased", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query conflictingBecauseAlias {
 						dog {
 							x: extras { string }
@@ -180,7 +188,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 					}`)
 		})
 		t.Run("fields with directives", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					{
 						field @skip(if: $foo) {
 							subfieldA
@@ -200,7 +208,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 		})
 
 		t.Run("fields with the same directives", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					{
 						field @skip(if: $foo) {
 							subfieldA
@@ -218,7 +226,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 		})
 
 		t.Run("fields with the same directives but in different order", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					{
 						field @skip(if: $foo) @include(if: $foo) {
 							subfieldA
@@ -237,7 +245,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 	})
 	t.Run("fragments and fields", func(t *testing.T) {
 		t.Run("field field fragment", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query fragmentsWithFields {
 						dog {
 							extras { 
@@ -266,7 +274,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 					}`)
 		})
 		t.Run("mixed heavily fields with deep inline fragments", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query mixedFragmentTypes {
 						pet {
 							... on Dog {
@@ -350,7 +358,7 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 		})
 
 		t.Run("with internal defer", func(t *testing.T) {
-			run(t, mergeInlineFragmentSelections, testDefinition, `
+			run(t, registerMergeInlineFragmentSelections, testDefinition, `
 					query pet {
 						pet {
 							... on Dog {

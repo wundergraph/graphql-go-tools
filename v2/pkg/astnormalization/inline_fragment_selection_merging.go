@@ -9,11 +9,7 @@ import (
 
 // mergeInlineFragmentSelections registers a visitor that
 // merges inline fragment and field selections.
-func mergeInlineFragmentSelections(walker *astvisitor.Walker) {
-	mergeInlineFragmentSelectionsWithLimits(walker, Limits{})
-}
-
-func mergeInlineFragmentSelectionsWithLimits(walker *astvisitor.Walker, limits Limits) {
+func mergeInlineFragmentSelections(walker *astvisitor.Walker, limits Limits) {
 	visitor := inlineFragmentSelectionMergeVisitor{
 		Walker: walker,
 		limits: limits,
