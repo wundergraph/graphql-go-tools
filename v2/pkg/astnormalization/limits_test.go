@@ -267,3 +267,44 @@ func BenchmarkNormalizationLimits(b *testing.B) {
 		})
 	}
 }
+
+func TestNormalizationSelectionLimitIncludesGeneratedPlaceholders(t *testing.T) {
+	const query = `
+  query Q {
+    child {
+      ... @defer {
+        a
+        b
+      }
+    }
+  }
+ `
+	cases := []struct {
+		name  string
+		named bool
+	}{
+		{
+			name: "operation",
+		},
+		{
+			name:  "named operation",
+			named: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			def := limitsTestDefinition(t)
+			op, report := astparser.ParseGraphqlDocumentString(query)
+			require.False(t, report.HasErrors(), report.Error())
+			original := len(op.Selections)
+			n := NewWithOpts(WithEnableDefer(), WithLimits(Limits{MaxSelections: original}))
+			if tc.named {
+				n.NormalizeNamedOperation(&op, &def, []byte("Q"), &report)
+			} else {
+				n.NormalizeOperation(&op, &def, &report)
+			}
+			require.Len(t, op.Selections, original+1)
+			assertNormalizationLimit(t, report, "max_selections")
+		})
+	}
+}

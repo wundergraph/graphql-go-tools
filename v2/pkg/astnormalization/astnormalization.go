@@ -400,10 +400,11 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 			continue
 		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
-		if report.HasErrors() || !o.options.limits.checkSelections(operation, report) {
+		if report.HasErrors() {
 			return
 		}
 	}
+	o.options.limits.checkSelections(operation, report)
 }
 
 func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast.Document, operationName []byte, report *operationreport.Report) {
@@ -441,7 +442,7 @@ func (o *OperationNormalizer) NormalizeNamedOperationWithResult(
 			continue
 		}
 		o.operationWalkers[i].walker.Walk(operation, definition, report)
-		if report.HasErrors() || !o.options.limits.checkSelections(operation, report) {
+		if report.HasErrors() {
 			return nil
 		}
 
@@ -450,6 +451,10 @@ func (o *OperationNormalizer) NormalizeNamedOperationWithResult(
 		// fmt.Println("\n\nNormalizeOperation stage:", o.operationWalkers[i].name)
 		// fmt.Println(printed)
 		// fmt.Println("variables:", string(operation.Input.Variables))
+	}
+
+	if !o.options.limits.checkSelections(operation, report) {
+		return nil
 	}
 
 	if o.inlineArgumentsVisitor != nil {
