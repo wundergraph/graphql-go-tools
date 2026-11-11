@@ -195,6 +195,8 @@ type result struct {
 	// and the min lifetime left across its entries. Fetch-local, so the unlocked load phase is safe.
 	responseCacheHit bool
 	responseCacheTTL time.Duration
+	// responseCacheFetchedAt is when the fetch's first lookup started.
+	responseCacheFetchedAt time.Time
 	// responseCachePrivate records that a hit was served, in whole or part,
 	// from entries scoped to the requesting user.
 	responseCachePrivate bool
