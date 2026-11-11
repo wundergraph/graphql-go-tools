@@ -25,11 +25,17 @@ func TestExecutionPlan_InputFieldDefaults(t *testing.T) {
 				DESC
 			}
 
+			input DateRange {
+				start: String!
+				end: String!
+			}
+
 			input SortInput {
 				field: String!
 				order: SortOrder! = DESC
 				limit: Int! = 10
 				tags: [String!] = ["a", "b"]
+				dateRange: DateRange! = { start: "2026-01-01", end: "2026-01-01" }
 			}`
 
 	mapping := &GRPCMapping{
@@ -49,4 +55,13 @@ func TestExecutionPlan_InputFieldDefaults(t *testing.T) {
 	require.Equal(t, `"DESC"`, findField(t, sort.Message.Fields, "order").DefaultValue)
 	require.Equal(t, `10`, findField(t, sort.Message.Fields, "limit").DefaultValue)
 	require.Equal(t, `["a","b"]`, findField(t, sort.Message.Fields, "tags").DefaultValue)
+
+	// The default of an input object field is the JSON object. Its nested message
+	// is planned as usual, so the default is encoded like a value the client sent.
+	dateRange := findField(t, sort.Message.Fields, "dateRange")
+	require.Equal(t, `{"start":"2026-01-01","end":"2026-01-01"}`, dateRange.DefaultValue)
+	require.NotNil(t, dateRange.Message)
+	require.Equal(t, "DateRange", dateRange.Message.Name)
+	require.Equal(t, "", findField(t, dateRange.Message.Fields, "start").DefaultValue)
+	require.Equal(t, "", findField(t, dateRange.Message.Fields, "end").DefaultValue)
 }
