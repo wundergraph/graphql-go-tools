@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.31.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.6...v2.31.0) (2026-11-11)
+
+
+### Features
+
+* tag root response cache entries by root type ([#1720](https://github.com/wundergraph/graphql-go-tools/issues/1720)) ([ff6f64c](https://github.com/wundergraph/graphql-go-tools/commit/ff6f64c8b8345908d642b004d10859838220bd8e))
+
+
+### Bug Fixes
+
+* age response cache TTL by time since fetch ([#1737](https://github.com/wundergraph/graphql-go-tools/issues/1737)) ([435b5f0](https://github.com/wundergraph/graphql-go-tools/commit/435b5f0d5df1be6bdaca5d5e33628630edf041be))
+* honor Age and no-cache fields in response cache ([#1719](https://github.com/wundergraph/graphql-go-tools/issues/1719)) ([70d1e18](https://github.com/wundergraph/graphql-go-tools/commit/70d1e184418b95bee300cd6c0e02a4553941d235))
+* response cache key, eligibility and invalidation fixes ([#1722](https://github.com/wundergraph/graphql-go-tools/issues/1722)) ([72722f3](https://github.com/wundergraph/graphql-go-tools/commit/72722f3ea13c444fefa8ac0a8e4a3d3cde2b4d9b))
+* send JSON object, array and boolean input values as JSON text in gRPC requests ([#1750](https://github.com/wundergraph/graphql-go-tools/issues/1750)) ([b5f507f](https://github.com/wundergraph/graphql-go-tools/commit/b5f507f63c70d1d80603ed9b8d92e51b43b54456))
+
+## [2.30.6](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.5...v2.30.6) (2026-11-05)
+
+
+### Bug Fixes
+
+* enabling planning when a key jump moves a field to another DS ([#1711](https://github.com/wundergraph/graphql-go-tools/issues/1711)) ([79b3bb6](https://github.com/wundergraph/graphql-go-tools/commit/79b3bb66a474663cf1cf25a1e0ec6e5bb69f1ad4))
+
 ## [2.30.5](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.4...v2.30.5) (2026-10-29)
 
 
