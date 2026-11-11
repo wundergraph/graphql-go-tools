@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -86,8 +87,8 @@ func BenchmarkSelectionMergeScans(b *testing.B) {
 		for _, size := range sizes {
 			b.Run(fmt.Sprintf("%s/%d", kind, size), func(b *testing.B) {
 				var body strings.Builder
-				for block := 0; block < 2; block++ {
-					for i := 0; i < size; i++ {
+				for range 2 {
+					for i := range size {
 						switch kind {
 						case "leaves":
 							fmt.Fprintf(&body, "a%d:hello ", i)
