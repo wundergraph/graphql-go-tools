@@ -304,28 +304,3 @@ func newProto2WireTestRuntime(t *testing.T) *runtimeSchema {
 	require.NoError(t, err)
 	return runtime
 }
-
-// proto2LevelListMessage is a `levels: [Level]` field with nullable items.
-func proto2LevelListMessage(t *testing.T, runtime *runtimeSchema) *programMessage {
-	t.Helper()
-	return compileTestProgramMessage(t, runtime, &RPCMessage{
-		Name: "LevelListRequest",
-		Fields: RPCFields{
-			{Name: "levels", ProtoTypeName: DataTypeEnum, JSONPath: "levels", IsListType: true, ListMetadata: &ListMetadata{NestingLevel: 1, LevelInfo: []LevelInfo{{Optional: true}}}, EnumName: "Level", Optional: true},
-		},
-	}, runtime.getMessageByName("LevelListRequest"))
-}
-
-// setProto2Levels fills LevelListRequest.levels with the given enum numbers.
-func setProto2Levels(msg *dynamicpb.Message, desc protoref.MessageDescriptor, numbers ...protoref.EnumNumber) {
-	field := desc.Fields().ByName("levels")
-	listField := field.Message().Fields().ByName("list")
-	inner := dynamicpb.NewMessage(listField.Message())
-	items := inner.Mutable(listField.Message().Fields().ByName("items")).List()
-	for _, number := range numbers {
-		items.Append(protoref.ValueOfEnum(number))
-	}
-	wrapper := dynamicpb.NewMessage(field.Message())
-	wrapper.Set(listField, protoref.ValueOfMessage(inner))
-	msg.Set(field, protoref.ValueOfMessage(wrapper))
-}

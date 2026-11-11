@@ -213,6 +213,12 @@ func (f *wireField) appendProtoRepeated(msg protoref.Message, fd protoref.FieldD
 
 	list := msg.Mutable(fd).List()
 	for _, element := range elements {
+		// A repeated proto field cannot hold null: a null item is sent as its
+		// type's default, matching appendNullListItem on the wire path.
+		if isNullJSONValue(element) {
+			list.Append(list.NewElement())
+			continue
+		}
 		switch {
 		case f.child != nil:
 			elem := list.NewElement()
@@ -312,9 +318,9 @@ func (f *wireField) traverseProtoList(rootMsg protoref.Message, wrapperRT *runti
 	if level+1 >= f.listMetadata.NestingLevel {
 		// Leaf level — items are scalars, enums, or messages.
 		for _, element := range elements {
-			// A repeated proto field cannot hold null: a null item of a list with
-			// nullable items is its type's zero value (first enum value, empty
-			// message, "" or 0), matching appendNullListItem on the wire path.
+			// A repeated proto field cannot hold null: a null item is sent as its
+			// type's default (first enum value, empty message, "" or 0), matching
+			// appendNullListItem on the wire path.
 			if isNullJSONValue(element) {
 				itemsList.Append(itemsList.NewElement())
 				continue

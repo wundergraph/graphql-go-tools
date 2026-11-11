@@ -32,10 +32,8 @@ type runtimeMessage struct {
 
 type runtimeEnum struct {
 	name         string
+	desc         protoref.EnumDescriptor
 	valuesByName map[string]*runtimeEnumValue
-	// firstValue is the number of the first declared value, the enum's default:
-	// always 0 in proto3, any value in proto2.
-	firstValue int32
 }
 
 type runtimeEnumValue struct {
@@ -100,11 +98,8 @@ func newSchemaRuntime(doc *Document) (*runtimeSchema, error) {
 	for _, enum := range doc.Enums {
 		rtEnum := &runtimeEnum{
 			name:         enum.Name,
+			desc:         enum.Desc,
 			valuesByName: make(map[string]*runtimeEnumValue, len(enum.Values)),
-		}
-
-		if len(enum.Values) > 0 {
-			rtEnum.firstValue = enum.Values[0].Number
 		}
 
 		for _, value := range enum.Values {

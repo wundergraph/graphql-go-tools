@@ -179,6 +179,14 @@ func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) erro
 
 	if f.repeated {
 		for _, element := range fieldData.GetArray() {
+			if isNullJSONValue(element) {
+				if err := f.appendNullListItem(buf); err != nil {
+					return err
+				}
+
+				continue
+			}
+
 			err := f.appendFieldValue(buf, element)
 			if err != nil {
 				return err
@@ -330,17 +338,24 @@ func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astj
 // isOptionalScalar reports whether the field is a nullable scalar that is
 // wrapped in a google.protobuf.*Value message. Nullable enums are plain proto
 // enum fields: protobuf has no wrapper type for them.
+func (f *wireField) isOptionalScalar() bool {
+	return f.optional && f.dataType != DataTypeMessage && f.dataType != DataTypeEnum
+}
+
 // appendNullListItem writes a null item of a list with nullable items
 // (`[Status]`, `[Input]`). A repeated proto field cannot hold null, so the item
-// is sent as its type's zero value: the first enum value, an empty message, an
-// empty string or 0, as the compiler did before #1474.
+// is sent as its type's default: the first enum value, an empty message, an
+// empty string or 0.
 func (f *wireField) appendNullListItem(buf *bytes.Buffer) error {
 	buf.Write(f.tag)
+
 	if f.runtimeEnum != nil {
-		// Sign-extended like any other enum number.
-		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(int64(f.runtimeEnum.firstValue))))
+		first := f.runtimeEnum.desc.Values().Get(0).Number()
+		// Sign-extend the enum number.
+		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(int64(first))))
 		return nil
 	}
+
 	switch f.wireType {
 	case protowire.BytesType:
 		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), nil))
@@ -353,11 +368,8 @@ func (f *wireField) appendNullListItem(buf *bytes.Buffer) error {
 	default:
 		return fmt.Errorf("unsupported wire type %d", f.wireType)
 	}
-	return nil
-}
 
-func (f *wireField) isOptionalScalar() bool {
-	return f.optional && f.dataType != DataTypeMessage && f.dataType != DataTypeEnum
+	return nil
 }
 
 func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) error {
