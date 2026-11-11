@@ -634,6 +634,26 @@ func TestCreateProtoWire(t *testing.T) {
 			assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
 		})
 
+		t.Run("is sent as the default for a nullable scalar", func(t *testing.T) {
+			// `limit: Int = 10` is a wrapper message (google.protobuf.Int32Value).
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "WrapperScalarRequest",
+				Fields: RPCFields{
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true, DefaultValue: `10`},
+				},
+			}, runtime.getMessageByName("WrapperScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoWire(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				setWrapperValue(msg, "int_32", protoref.ValueOfInt32(10))
+			})
+
+			assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
+		})
+
 		t.Run("is sent as the default for an enum", func(t *testing.T) {
 			message := compileTestProgramMessage(t, runtime, &RPCMessage{
 				Name: "EnumRequest",
