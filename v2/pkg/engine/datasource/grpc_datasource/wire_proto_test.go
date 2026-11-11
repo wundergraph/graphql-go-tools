@@ -315,6 +315,258 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("null item in a list with nullable items", func(t *testing.T) {
+		// `[Status]` and `[NestedItemInput]` allow null items. A repeated proto field
+		// cannot hold null, so a null item is sent as its type's default.
+		nestedItem := &RPCMessage{
+			Name: "NestedItem",
+			Fields: RPCFields{
+				{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+				{Name: "value", ProtoTypeName: DataTypeString, JSONPath: "value"},
+			},
+		}
+
+		// A nullable list (`[Status]`) is sent as a list wrapper message.
+		t.Run("in a list wrapper", func(t *testing.T) {
+			nullableList := &ListMetadata{NestingLevel: 1, LevelInfo: []LevelInfo{{Optional: true}}}
+
+			// setItems fills the `items` field of the list wrapper in the given field.
+			setItems := func(msg *dynamicpb.Message, field protoref.FieldDescriptor, fill func(items protoref.List, itemsField protoref.FieldDescriptor)) {
+				listField := field.Message().Fields().ByName("list")
+				itemsField := listField.Message().Fields().ByName("items")
+				inner := dynamicpb.NewMessage(listField.Message())
+				fill(inner.Mutable(itemsField).List(), itemsField)
+				wrapper := dynamicpb.NewMessage(field.Message())
+				wrapper.Set(listField, protoref.ValueOfMessage(inner))
+				msg.Set(field, protoref.ValueOfMessage(wrapper))
+			}
+
+			t.Run("is sent as the first enum value for an enum", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "EnumListRequest",
+					Fields: RPCFields{
+						{Name: "statuses", ProtoTypeName: DataTypeEnum, JSONPath: "statuses", EnumName: "Status", Optional: true, IsListType: true, ListMetadata: nullableList},
+					},
+				}, runtime.getMessageByName("EnumListRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"statuses":["ACTIVE",null]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "EnumListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					setItems(msg, desc.Fields().ByName("statuses"), func(items protoref.List, _ protoref.FieldDescriptor) {
+						items.Append(protoref.ValueOfEnum(1))
+						items.Append(protoref.ValueOfEnum(0))
+					})
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+
+			t.Run("is sent as the first enum value for an enum in a nested list", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "EnumListRequest",
+					Fields: RPCFields{
+						{
+							Name: "status_groups", ProtoTypeName: DataTypeEnum, JSONPath: "statusGroups", EnumName: "Status", Optional: true, IsListType: true,
+							ListMetadata: &ListMetadata{NestingLevel: 2, LevelInfo: []LevelInfo{{Optional: true}, {Optional: true}}},
+						},
+					},
+				}, runtime.getMessageByName("EnumListRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"statusGroups":[["ACTIVE",null]]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "EnumListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					setItems(msg, desc.Fields().ByName("status_groups"), func(groups protoref.List, groupsField protoref.FieldDescriptor) {
+						listField := groupsField.Message().Fields().ByName("list")
+						inner := dynamicpb.NewMessage(listField.Message())
+						items := inner.Mutable(listField.Message().Fields().ByName("items")).List()
+						items.Append(protoref.ValueOfEnum(1))
+						items.Append(protoref.ValueOfEnum(0))
+
+						group := dynamicpb.NewMessage(groupsField.Message())
+						group.Set(listField, protoref.ValueOfMessage(inner))
+						groups.Append(protoref.ValueOfMessage(group))
+					})
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+
+			t.Run("is sent as the first declared value for a proto2 enum that does not start at 0", func(t *testing.T) {
+				proto2 := newProto2WireTestRuntime(t)
+				message := compileTestProgramMessage(t, proto2, &RPCMessage{
+					Name: "LevelListRequest",
+					Fields: RPCFields{
+						{Name: "levels", ProtoTypeName: DataTypeEnum, JSONPath: "levels", EnumName: "Level", Optional: true, IsListType: true, ListMetadata: nullableList},
+					},
+				}, proto2.getMessageByName("LevelListRequest"))
+				wm := compileTestWireMessage(t, proto2, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"levels":["HIGH",null]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, proto2, "LevelListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					setItems(msg, desc.Fields().ByName("levels"), func(items protoref.List, _ protoref.FieldDescriptor) {
+						items.Append(protoref.ValueOfEnum(6))
+						items.Append(protoref.ValueOfEnum(5))
+					})
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+
+			t.Run("is sent as an empty message for a message", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "ListWrapperRequest",
+					Fields: RPCFields{
+						{Name: "optional_items", ProtoTypeName: DataTypeMessage, JSONPath: "optionalItems", Optional: true, IsListType: true, ListMetadata: nullableList, Message: nestedItem},
+					},
+				}, runtime.getMessageByName("ListWrapperRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"optionalItems":[{"id":"1","value":"a"},null]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "ListWrapperRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					setItems(msg, desc.Fields().ByName("optional_items"), func(items protoref.List, itemsField protoref.FieldDescriptor) {
+						itemDesc := itemsField.Message()
+
+						item := dynamicpb.NewMessage(itemDesc)
+						item.Set(itemDesc.Fields().ByName("id"), protoref.ValueOfString("1"))
+						item.Set(itemDesc.Fields().ByName("value"), protoref.ValueOfString("a"))
+						items.Append(protoref.ValueOfMessage(item))
+						items.Append(protoref.ValueOfMessage(dynamicpb.NewMessage(itemDesc)))
+					})
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+
+			t.Run("is sent as an empty string for a string", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "ListWrapperRequest",
+					Fields: RPCFields{
+						{Name: "optional_tags", ProtoTypeName: DataTypeString, JSONPath: "optionalTags", Optional: true, IsListType: true, ListMetadata: nullableList},
+					},
+				}, runtime.getMessageByName("ListWrapperRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"optionalTags":["a",null]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "ListWrapperRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					setItems(msg, desc.Fields().ByName("optional_tags"), func(items protoref.List, _ protoref.FieldDescriptor) {
+						items.Append(protoref.ValueOfString("a"))
+						items.Append(protoref.ValueOfString(""))
+					})
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+		})
+
+		// A non-null list (`[Status]!`) is sent as a plain repeated field.
+		t.Run("in a repeated field", func(t *testing.T) {
+			t.Run("is sent as the first enum value for an enum", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "EnumRequest",
+					Fields: RPCFields{
+						{Name: "statuses", ProtoTypeName: DataTypeEnum, JSONPath: "statuses", EnumName: "Status", Repeated: true},
+					},
+				}, runtime.getMessageByName("EnumRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"statuses":["ACTIVE",null]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					list := msg.Mutable(desc.Fields().ByName("statuses")).List()
+					list.Append(protoref.ValueOfEnum(1))
+					list.Append(protoref.ValueOfEnum(0))
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+
+			t.Run("is sent as an empty message for a message", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "NestedMessageRequest",
+					Fields: RPCFields{
+						{Name: "items", ProtoTypeName: DataTypeMessage, JSONPath: "items", Repeated: true, Message: nestedItem},
+					},
+				}, runtime.getMessageByName("NestedMessageRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"items":[{"id":"1","value":"a"},null]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "NestedMessageRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					itemsField := desc.Fields().ByName("items")
+					itemDesc := itemsField.Message()
+					list := msg.Mutable(itemsField).List()
+
+					item := dynamicpb.NewMessage(itemDesc)
+					item.Set(itemDesc.Fields().ByName("id"), protoref.ValueOfString("1"))
+					item.Set(itemDesc.Fields().ByName("value"), protoref.ValueOfString("a"))
+					list.Append(protoref.ValueOfMessage(item))
+					list.Append(protoref.ValueOfMessage(dynamicpb.NewMessage(itemDesc)))
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+
+			t.Run("is sent as an empty string or 0 for a scalar", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "RepeatedScalarRequest",
+					Fields: RPCFields{
+						{Name: "string_values", ProtoTypeName: DataTypeString, JSONPath: "stringValues", Repeated: true},
+						{Name: "int_32_values", ProtoTypeName: DataTypeInt32, JSONPath: "int32Values", Repeated: true},
+					},
+				}, runtime.getMessageByName("RepeatedScalarRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"stringValues":["a",null],"int32Values":[7,null]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "RepeatedScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					stringValues := msg.Mutable(desc.Fields().ByName("string_values")).List()
+					stringValues.Append(protoref.ValueOfString("a"))
+					stringValues.Append(protoref.ValueOfString(""))
+
+					intValues := msg.Mutable(desc.Fields().ByName("int_32_values")).List()
+					intValues.Append(protoref.ValueOfInt32(7))
+					intValues.Append(protoref.ValueOfInt32(0))
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+
+			t.Run("is sent as 0 for a float", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "ScalarRequest",
+					Fields: RPCFields{
+						{Name: "float_values", ProtoTypeName: DataTypeFloat, JSONPath: "floatValues", Repeated: true},
+					},
+				}, runtime.getMessageByName("ScalarRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"floatValues":[1.5,null]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					list := msg.Mutable(desc.Fields().ByName("float_values")).List()
+					list.Append(protoref.ValueOfFloat32(1.5))
+					list.Append(protoref.ValueOfFloat32(0))
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+		})
+	})
+
 	t.Run("JSON scalar", func(t *testing.T) {
 		// Protographic maps a GraphQL JSON scalar to a proto string.
 		encode := func(t *testing.T, request string, input string) protoref.Message {

@@ -260,3 +260,47 @@ func setWrapperValue(msg *dynamicpb.Message, fieldName protoref.Name, value prot
 	wrapper.Set(fd.Message().Fields().ByName("value"), value)
 	msg.Set(fd, protoref.ValueOfMessage(wrapper))
 }
+
+// A proto2 enum may start at a value other than 0. Its first declared value is
+// the default, so a null list item must be encoded as that value.
+var testProto2WireSchema = `
+syntax = "proto2";
+package test.wire.proto2.v1;
+
+enum Level {
+  LEVEL_LOW = 5;
+  LEVEL_HIGH = 6;
+}
+
+message ListOfLevel {
+  message List {
+    repeated Level items = 1;
+  }
+  optional List list = 1;
+}
+
+message LevelListRequest {
+  optional ListOfLevel levels = 1;
+}
+
+service Proto2Service {
+  rpc QueryLevels(LevelListRequest) returns (LevelListRequest) {}
+}
+`
+
+func newProto2WireTestRuntime(t *testing.T) *runtimeSchema {
+	t.Helper()
+	compiler, err := NewProtoCompiler(testProto2WireSchema, &GRPCMapping{
+		Service: "Proto2Service",
+		EnumValues: map[string][]EnumValueMapping{
+			"Level": {
+				{Value: "LOW", TargetValue: "LEVEL_LOW"},
+				{Value: "HIGH", TargetValue: "LEVEL_HIGH"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	runtime, err := newSchemaRuntime(compiler.doc)
+	require.NoError(t, err)
+	return runtime
+}

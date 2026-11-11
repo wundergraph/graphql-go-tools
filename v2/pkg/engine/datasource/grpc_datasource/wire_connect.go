@@ -179,6 +179,14 @@ func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) erro
 
 	if f.repeated {
 		for _, element := range fieldData.GetArray() {
+			if isNullJSONValue(element) {
+				if err := f.appendNullListItem(buf); err != nil {
+					return err
+				}
+
+				continue
+			}
+
 			err := f.appendFieldValue(buf, element)
 			if err != nil {
 				return err
@@ -218,6 +226,9 @@ func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) erro
 func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value, level int) error {
 	if level >= f.listMetadata.NestingLevel {
 		f.listMetadata = nil // reset the list metadata to avoid infinite recursion
+		if isNullJSONValue(data) {
+			return f.appendNullListItem(buf)
+		}
 		return f.appendFieldWire(buf, data)
 	}
 
@@ -329,6 +340,36 @@ func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astj
 // enum fields: protobuf has no wrapper type for them.
 func (f *wireField) isOptionalScalar() bool {
 	return f.optional && f.dataType != DataTypeMessage && f.dataType != DataTypeEnum
+}
+
+// appendNullListItem writes a null item of a list with nullable items
+// (`[Status]`, `[Input]`). A repeated proto field cannot hold null, so the item
+// is sent as its type's default: the first enum value, an empty message, an
+// empty string or 0.
+func (f *wireField) appendNullListItem(buf *bytes.Buffer) error {
+	buf.Write(f.tag)
+
+	if f.runtimeEnum != nil {
+		first := f.runtimeEnum.desc.Values().Get(0).Number()
+		// Sign-extend the enum number.
+		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(int64(first))))
+		return nil
+	}
+
+	switch f.wireType {
+	case protowire.BytesType:
+		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), nil))
+	case protowire.VarintType:
+		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), 0))
+	case protowire.Fixed32Type:
+		buf.Write(protowire.AppendFixed32(buf.AvailableBuffer(), 0))
+	case protowire.Fixed64Type:
+		buf.Write(protowire.AppendFixed64(buf.AvailableBuffer(), 0))
+	default:
+		return fmt.Errorf("unsupported wire type %d", f.wireType)
+	}
+
+	return nil
 }
 
 func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) error {
