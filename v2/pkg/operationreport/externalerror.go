@@ -18,6 +18,7 @@ const (
 	NotEnumErrMsg                           = `Enum "%s" cannot represent non-enum value: %s.`
 	NotAnEnumMemberErrMsg                   = `Value "%s" does not exist in "%s" enum.`
 	NullValueErrMsg                         = `Expected value of type "%s", found null.`
+	NonNullArgumentIsNullErrMsg             = `Argument "%s" of non-null type "%s" must not be null.`
 	UnknownArgumentOnDirectiveErrMsg        = `Unknown argument "%s" on directive "@%s".`
 	UnknownArgumentOnFieldErrMsg            = `Unknown argument "%s" on field "%s.%s".`
 	UnknownTypeErrMsg                       = `Unknown type "%s".`
@@ -373,6 +374,12 @@ func ErrArgumentOnFieldMustNotBeNull(argName, fieldName ast.ByteSlice) (err Exte
 	return err
 }
 
+func ErrNonNullArgumentIsNull(argName, argType ast.ByteSlice, valuePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(NonNullArgumentIsNullErrMsg, argName, argType)
+	err.Locations = LocationsFromPosition(valuePosition)
+	return err
+}
+
 func ErrFragmentSpreadFormsCycle(spreadName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("fragment spread: %s forms fragment cycle", spreadName)
 	return err
@@ -450,8 +457,7 @@ func ErrStreamDirectiveOnNonListField(directiveName, fieldName ast.ByteSlice, di
 }
 
 func ErrDeferStreamDirectiveLabelMustBeStatic(directiveName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
-	err.Message = fmt.Sprintf(`directive "@%s" label argument must be a static string value, not a variable`,
-		directiveName)
+	err.Message = fmt.Sprintf(`directive "@%s" label argument must be a static string value`, directiveName)
 	err.Locations = LocationsFromPosition(directivePosition)
 	return err
 }

@@ -324,8 +324,11 @@ func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astj
 	return nil
 }
 
+// isOptionalScalar reports whether the field is a nullable scalar that is
+// wrapped in a google.protobuf.*Value message. Nullable enums are plain proto
+// enum fields: protobuf has no wrapper type for them.
 func (f *wireField) isOptionalScalar() bool {
-	return f.optional && f.dataType != DataTypeMessage
+	return f.optional && f.dataType != DataTypeMessage && f.dataType != DataTypeEnum
 }
 
 func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) error {
@@ -393,16 +396,7 @@ func (f *wireField) getUint64Value(data *astjson.Value) uint64 {
 }
 
 func getBytesValue(data *astjson.Value) []byte {
-	switch data.Type() {
-	case astjson.TypeString, astjson.TypeNumber:
-		return jsonStringBytes(data)
-	case astjson.TypeTrue:
-		return []byte{1}
-	case astjson.TypeFalse:
-		return []byte{0}
-	default:
-		return nil
-	}
+	return jsonStringBytes(data)
 }
 
 // getEnumValue gets the enum value from the data.
