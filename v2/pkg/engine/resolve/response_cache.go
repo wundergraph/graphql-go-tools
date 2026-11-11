@@ -541,6 +541,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	headers := responseCacheHeaders(res)
+	collectedAt := time.Now()
 	policy := caching.CachePolicyOf(headers, res.sentHeaders, sub.ttl)
 	if policy.Decision != caching.StoreDecisionStored {
 		res.responseCache.StoreDecision = policy.Decision
@@ -609,6 +610,7 @@ func (l *Loader) responseCacheCollect(prepared *preparedFetch) error {
 	}
 
 	prepared.responseCacheItems = items
+	prepared.responseCacheCollectedAt = collectedAt
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	res.responseCache.StoreDecision = storeDecisionFor(items)
 	if res.responseCache.StoreDecision == caching.StoreDecisionStored {
@@ -835,6 +837,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	// and so is being private. Checked per entry, after its errors, as the
 	// single-fetch path does.
 	headers := responseCacheHeaders(res)
+	collectedAt := time.Now()
 	policy := caching.CachePolicyOf(headers, res.sentHeaders, sub.ttl)
 	headerDecision := policy.Decision
 
@@ -920,6 +923,7 @@ func (l *Loader) responseCacheCollectMultiEntity(prepared *preparedFetch, respon
 	}
 
 	prepared.responseCacheItems = items
+	prepared.responseCacheCollectedAt = collectedAt
 	prepared.res.responseCacheSurrogateKeys = caching.MergeSurrogateKeys(nil, surrogateKeyLists...)
 	if len(items) > 0 {
 		storeDecision = caching.StoreDecisionStored
@@ -1080,14 +1084,33 @@ func (l *Loader) responseCacheFlush(prepared *preparedFetch) ([]caching.Item, er
 		return nil, nil
 	}
 
-	items := prepared.responseCacheItems
+	items := remainingLifetimes(prepared.responseCacheItems, time.Since(prepared.responseCacheCollectedAt))
 	prepared.responseCacheItems = nil
+	if len(items) == 0 {
+		return nil, nil
+	}
 
 	err := l.ctx.responseCache.store.SetMany(l.ctx.ctx, items)
 	if err != nil {
 		l.reportResponseCacheError(ResponseCacheOperationWrite, prepared.res.ds.Name, fmt.Errorf("response cache write of %d entities: %w", len(items), err))
 	}
 	return items, err
+}
+
+// remainingLifetimes is items with elapsed taken off each TTL and ClientTTL,
+// without the ones it used up. Copies, as the trace keeps the originals.
+func remainingLifetimes(items []caching.Item, elapsed time.Duration) []caching.Item {
+	if elapsed <= 0 {
+		return items
+	}
+	out := make([]caching.Item, 0, len(items))
+	for _, item := range items {
+		if item.TTL -= elapsed; item.TTL > 0 {
+			item.ClientTTL = max(item.ClientTTL-elapsed, 0)
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func responseCacheHeaders(res *result) http.Header {

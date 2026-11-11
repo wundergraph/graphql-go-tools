@@ -3,6 +3,7 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -89,4 +91,50 @@ func TestResponseCacheStoresUnresolvedResponses(t *testing.T) {
 			}
 		})
 	}
+}
+
+// slowWriter takes delay over its first write, as a slow client would.
+type slowWriter struct {
+	bytes.Buffer
+
+	delay time.Duration
+}
+
+func (w *slowWriter) Write(p []byte) (int, error) {
+	time.Sleep(w.delay)
+	w.delay = 0
+	return w.Buffer.Write(p)
+}
+
+// Writes happen as the fetch merges, so a slow client doesn't age the entry.
+func TestResponseCacheWriteKeepsTheOriginLifetime(t *testing.T) {
+	t.Parallel()
+	for _, arena := range []bool{false, true} {
+		t.Run(fmt.Sprintf("arena=%v", arena), func(t *testing.T) {
+			t.Parallel()
+			store := newTestCache()
+			ctx := NewContext(context.Background())
+			ctx.SetResponseCache(ResponseCacheOptions{Store: store, DefaultTTL: time.Minute})
+			response := newResolutionResponse(resolutionDataSource{body: `{"data":{"me":"ok"}}`, cacheControl: "public, max-age=1"}, nil)
+			out := &slowWriter{delay: 1100 * time.Millisecond}
+			resolver := newTestResolver(t, baseResolverOpts())
+			var err error
+			if arena {
+				_, err = resolver.ArenaResolveGraphQLResponse(ctx, response, out)
+			} else {
+				_, err = resolver.ResolveGraphQLResponse(ctx, response, nil, out)
+			}
+			require.NoError(t, err)
+			require.Len(t, store.items, 1, "written before the slow client write")
+		})
+	}
+}
+
+func TestRemainingLifetimes(t *testing.T) {
+	items := []caching.Item{{Key: "a", TTL: time.Minute, ClientTTL: 40 * time.Second}, {Key: "b", TTL: time.Second}}
+	require.Equal(t, items, remainingLifetimes(items, 0))
+	require.Equal(t, []caching.Item{{Key: "a", TTL: 30 * time.Second, ClientTTL: 10 * time.Second}}, remainingLifetimes(items, 30*time.Second))
+	require.Equal(t, []caching.Item{{Key: "a", TTL: 15 * time.Second}}, remainingLifetimes(items, 45*time.Second), "ClientTTL stops at zero")
+	require.Equal(t, time.Minute, items[0].TTL, "the originals are kept")
+	require.Empty(t, remainingLifetimes(items, time.Minute))
 }
