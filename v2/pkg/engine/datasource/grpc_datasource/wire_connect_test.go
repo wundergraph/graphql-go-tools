@@ -654,6 +654,26 @@ func TestCreateProtoWire(t *testing.T) {
 			assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
 		})
 
+		t.Run("is sent as a zero default for a nullable scalar", func(t *testing.T) {
+			// `offset: Int = 0`: the wrapper is set and holds 0, it is not left out.
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "WrapperScalarRequest",
+				Fields: RPCFields{
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true, DefaultValue: `0`},
+				},
+			}, runtime.getMessageByName("WrapperScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoWire(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				setWrapperValue(msg, "int_32", protoref.ValueOfInt32(0))
+			})
+
+			assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
+		})
+
 		t.Run("is sent as the default for an enum", func(t *testing.T) {
 			message := compileTestProgramMessage(t, runtime, &RPCMessage{
 				Name: "EnumRequest",
@@ -830,7 +850,44 @@ func TestCreateProtoWire(t *testing.T) {
 			assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
 		})
 
-		t.Run("is not used when the client sends null", func(t *testing.T) {
+		t.Run("is not used when the client sends a zero value for a nullable scalar", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "WrapperScalarRequest",
+				Fields: RPCFields{
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true, DefaultValue: `10`},
+				},
+			}, runtime.getMessageByName("WrapperScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoWire(astjson.MustParse(`{"int_32":0}`))
+			require.NoError(t, err)
+
+			expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				setWrapperValue(msg, "int_32", protoref.ValueOfInt32(0))
+			})
+
+			assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
+		})
+
+		t.Run("is not used when the client sends null for a nullable scalar", func(t *testing.T) {
+			// The wrapper is left out: the subgraph sees null, not the default.
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "WrapperScalarRequest",
+				Fields: RPCFields{
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true, DefaultValue: `10`},
+				},
+			}, runtime.getMessageByName("WrapperScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoWire(astjson.MustParse(`{"int_32":null}`))
+			require.NoError(t, err)
+
+			expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+			assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
+		})
+
+		t.Run("is not used when the client sends null for a list wrapper", func(t *testing.T) {
 			// An explicit null is a value: it overrides the default of a nullable field.
 			message := compileTestProgramMessage(t, runtime, &RPCMessage{
 				Name: "ListWrapperRequest",
