@@ -1,0 +1,31 @@
+# Three paths select c: under SomeNestedType1 for any item, under SomeType2 for any
+# nested interface, and under SomeNestedType2 only for SomeType3. c renders when any path matches.
+query ThreePaths {
+    someNestedInterfaces {
+        __typename
+        otherInterfaces {
+            __typename
+            ... on SomeType2 {
+                someObject {
+                    c
+                }
+            }
+        }
+        ... on SomeNestedType1 {
+            otherInterfaces {
+                someObject {
+                    c
+                }
+            }
+        }
+        ... on SomeNestedType2 {
+            otherInterfaces {
+                ... on SomeType3 {
+                    someObject {
+                        c
+                    }
+                }
+            }
+        }
+    }
+}

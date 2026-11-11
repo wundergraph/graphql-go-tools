@@ -11,15 +11,14 @@ import (
 )
 
 // DeferStreamHaveUniqueLabels validates that defer and stream directive labels are:
-// 1. Unique across all defer and stream directives within an operation
-// 2. Not using variables (must be static string values)
+// 1. Unique across all defer and stream directives, whatever the value of the if argument
+// 2. Static string values or null, never a variable or another literal kind
 func DeferStreamHaveUniqueLabels() Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := deferStreamLabelsVisitor{
 			Walker: walker,
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
-		walker.RegisterEnterOperationVisitor(&visitor)
 		walker.RegisterEnterDirectiveVisitor(&visitor)
 	}
 }
@@ -41,9 +40,8 @@ type deferStreamLabelsVisitor struct {
 func (d *deferStreamLabelsVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation = operation
 	d.definition = definition
-}
-
-func (d *deferStreamLabelsVisitor) EnterOperationDefinition(ref int) {
+	// One map covers the document, so a label in a fragment before the operation also reserves its value.
+	// With WithRemoveNotMatchingOperationDefinitions, an earlier walk removes the operations that the request did not select.
 	d.seenLabels = make(map[string]labelPosition)
 }
 
@@ -55,41 +53,24 @@ func (d *deferStreamLabelsVisitor) EnterDirective(ref int) {
 	}
 
 	labelValue, hasLabel := d.operation.DirectiveArgumentValueByName(ref, literal.LABEL)
-	if !hasLabel {
-		// No label is okay, directives can be used without labels
+	// A null label means no label, the same as in graphql-js.
+	if !hasLabel || labelValue.Kind == ast.ValueKindNull {
 		return
 	}
 
 	directivePosition := d.operation.Directives[ref].At
 
-	// Labels must be static strings, not variables
-	if labelValue.Kind == ast.ValueKindVariable {
+	// A variable or a literal that is not a string fails, the same as in graphql-js.
+	if labelValue.Kind != ast.ValueKindString {
 		d.StopWithExternalErr(operationreport.ErrDeferStreamDirectiveLabelMustBeStatic(directiveName, directivePosition))
 		return
 	}
 
-	if labelValue.Kind != ast.ValueKindString {
-		// This should be caught by other validation rules, but skip if not a string
-		return
-	}
-
-	if ifValue, hasIf := d.operation.DirectiveArgumentValueByName(ref, literal.IF); hasIf {
-		switch ifValue.Kind {
-		case ast.ValueKindBoolean:
-			// If "if: false", ignore the directive
-			if !d.operation.BooleanValue(ifValue.Ref) {
-				return
-			}
-		case ast.ValueKindVariable:
-			// If if: $variable, we can't statically determine if it's enabled,
-			// so we ignore this until variable's value is provided.
-			return
-		}
-	}
-
 	labelString := d.operation.StringValueContentString(labelValue.Ref)
 
-	if previous, exists := d.seenLabels[labelString]; exists {
+	// The check is static: a label in an unused fragment or in a selection that @skip removes also reserves its value.
+	// The walker visits a directive again when a @skip or @include removal changes its selection set.
+	if previous, exists := d.seenLabels[labelString]; exists && previous.directiveRef != ref {
 		previousDirectiveName := d.operation.DirectiveNameBytes(previous.directiveRef)
 		d.StopWithExternalErr(operationreport.ErrDeferStreamDirectiveLabelMustBeUnique(
 			directiveName,
