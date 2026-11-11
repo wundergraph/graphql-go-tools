@@ -24,41 +24,47 @@ func (d *deduplicateFieldsVisitor) EnterDocument(operation, definition *ast.Docu
 	d.operation = operation
 }
 
+// EnterSelectionSet keeps the first of each group of equal leaf fields
+// and merges the later ones into it.
+// Merging changes only @__defer_internal, which the equality check ignores.
 func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int) {
-	if len(d.operation.SelectionSets[ref].SelectionRefs) < 2 {
+	refs := d.operation.SelectionSets[ref].SelectionRefs
+	if len(refs) < 2 {
 		return
 	}
 
-	for a, i := range d.operation.SelectionSets[ref].SelectionRefs {
-		if d.operation.Selections[i].Kind != ast.SelectionKindField {
+	// For each leaf field in order, it scans the fields after it.
+	// It merges equal ones into the first copy and filters them out of the list in place.
+	// The next field then scans the shorter list. The scan never restarts from the top.
+	for a := 0; a < len(refs); a++ {
+		left, ok := d.leafField(refs[a])
+		if !ok {
 			continue
 		}
-		left := d.operation.Selections[i].Ref
-		if d.operation.Fields[left].HasSelections {
-			continue
+		// Filter the tail in place; it holds only refs after a.
+		kept := refs[:a+1]
+		for _, j := range refs[a+1:] {
+			// Directives must be fully equal, in any order.
+			if right, ok := d.leafField(j); ok && d.operation.FieldsAreEqualFlat(left, right, true) {
+				d.operation.MergeFieldsDefer(left, right) // merge right into left.
+				continue
+			}
+			kept = append(kept, j)
 		}
-		for b, j := range d.operation.SelectionSets[ref].SelectionRefs {
-			if a == b {
-				continue
-			}
-			if a > b {
-				continue
-			}
-			if d.operation.Selections[j].Kind != ast.SelectionKindField {
-				continue
-			}
-			right := d.operation.Selections[j].Ref
-			if d.operation.Fields[right].HasSelections {
-				continue
-			}
-			// here we will check full directive equality if they are not equal, we won't deduplicate.
-			// the order of directives doesn't matter if they are fully equal.
-			if d.operation.FieldsAreEqualFlat(left, right, true) {
-				d.operation.MergeFieldsDefer(left, right)
-				d.operation.RemoveFromSelectionSet(ref, b)
-				d.RevisitNode()
-				return
-			}
-		}
+		refs = kept
 	}
+
+	d.operation.SelectionSets[ref].SelectionRefs = refs
+}
+
+// leafField returns the field ref of a selection that is a field without a selection set.
+func (d *deduplicateFieldsVisitor) leafField(selectionRef int) (int, bool) {
+	if d.operation.Selections[selectionRef].Kind != ast.SelectionKindField {
+		return ast.InvalidRef, false
+	}
+	fieldRef := d.operation.Selections[selectionRef].Ref
+	if d.operation.Fields[fieldRef].HasSelections {
+		return ast.InvalidRef, false
+	}
+	return fieldRef, true
 }
