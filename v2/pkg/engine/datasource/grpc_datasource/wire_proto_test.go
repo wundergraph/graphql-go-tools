@@ -363,6 +363,38 @@ func TestCreateProtoMessage(t *testing.T) {
 				assertProtoMessageEqual(t, expected, got)
 			})
 
+			t.Run("is sent as the first enum value for an enum in a nested list", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "EnumListRequest",
+					Fields: RPCFields{
+						{
+							Name: "status_groups", ProtoTypeName: DataTypeEnum, JSONPath: "statusGroups", EnumName: "Status", Optional: true, IsListType: true,
+							ListMetadata: &ListMetadata{NestingLevel: 2, LevelInfo: []LevelInfo{{Optional: true}, {Optional: true}}},
+						},
+					},
+				}, runtime.getMessageByName("EnumListRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"statusGroups":[["ACTIVE",null]]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "EnumListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					setItems(msg, desc.Fields().ByName("status_groups"), func(groups protoref.List, groupsField protoref.FieldDescriptor) {
+						listField := groupsField.Message().Fields().ByName("list")
+						inner := dynamicpb.NewMessage(listField.Message())
+						items := inner.Mutable(listField.Message().Fields().ByName("items")).List()
+						items.Append(protoref.ValueOfEnum(1))
+						items.Append(protoref.ValueOfEnum(0))
+
+						group := dynamicpb.NewMessage(groupsField.Message())
+						group.Set(listField, protoref.ValueOfMessage(inner))
+						groups.Append(protoref.ValueOfMessage(group))
+					})
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+
 			t.Run("is sent as the first declared value for a proto2 enum that does not start at 0", func(t *testing.T) {
 				proto2 := newProto2WireTestRuntime(t)
 				message := compileTestProgramMessage(t, proto2, &RPCMessage{
@@ -507,6 +539,27 @@ func TestCreateProtoMessage(t *testing.T) {
 					intValues := msg.Mutable(desc.Fields().ByName("int_32_values")).List()
 					intValues.Append(protoref.ValueOfInt32(7))
 					intValues.Append(protoref.ValueOfInt32(0))
+				})
+
+				assertProtoMessageEqual(t, expected, got)
+			})
+
+			t.Run("is sent as 0 for a float", func(t *testing.T) {
+				message := compileTestProgramMessage(t, runtime, &RPCMessage{
+					Name: "ScalarRequest",
+					Fields: RPCFields{
+						{Name: "float_values", ProtoTypeName: DataTypeFloat, JSONPath: "floatValues", Repeated: true},
+					},
+				}, runtime.getMessageByName("ScalarRequest"))
+				wm := compileTestWireMessage(t, runtime, message)
+
+				got, err := wm.createProtoMessage(astjson.MustParse(`{"floatValues":[1.5,null]}`))
+				require.NoError(t, err)
+
+				expected := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+					list := msg.Mutable(desc.Fields().ByName("float_values")).List()
+					list.Append(protoref.ValueOfFloat32(1.5))
+					list.Append(protoref.ValueOfFloat32(0))
 				})
 
 				assertProtoMessageEqual(t, expected, got)

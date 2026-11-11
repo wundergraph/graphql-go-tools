@@ -214,7 +214,8 @@ func (f *wireField) appendProtoRepeated(msg protoref.Message, fd protoref.FieldD
 	list := msg.Mutable(fd).List()
 	for _, element := range elements {
 		// A repeated proto field cannot hold null: a null item is sent as its
-		// type's default, matching appendNullListItem on the wire path.
+		// type's default (first enum value, empty message, "" or 0), matching
+		// appendNullListItem on the wire path.
 		if isNullJSONValue(element) {
 			list.Append(list.NewElement())
 			continue
