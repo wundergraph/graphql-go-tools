@@ -205,6 +205,9 @@ type RPCField struct {
 	EnumName string
 	// StaticValue is the static value of the field
 	StaticValue string
+	// DefaultValue is the JSON text of the schema default of an input object
+	// field, sent when the request omits the field.
+	DefaultValue string
 	// Optional indicates if the field is optional
 	Optional bool
 	// IsListType indicates if the field is a list wrapper type
@@ -784,6 +787,16 @@ func (r *rpcPlanningContext) buildMessageFieldFromInputValueDefinition(ivdRef in
 	field, err := r.buildInputMessageField(inputValueDef.Type, mappedName, fieldName, dt)
 	if err != nil {
 		return RPCField{}, err
+	}
+
+	// GraphQL applies an input object field's default when the field is omitted.
+	// A gRPC subgraph has no GraphQL layer to do that, so the request carries it.
+	if r.definition.InputValueDefinitionHasDefaultValue(ivdRef) {
+		defaultValue, err := r.definition.ValueToJSON(r.definition.InputValueDefinitionDefaultValue(ivdRef))
+		if err != nil {
+			return RPCField{}, fmt.Errorf("unable to convert default value of input field %s: %w", fieldName, err)
+		}
+		field.DefaultValue = string(defaultValue)
 	}
 
 	field.Message = fieldMessage

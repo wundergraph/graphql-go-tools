@@ -315,6 +315,332 @@ func TestCreateProtoMessage(t *testing.T) {
 		assertProtoMessageEqual(t, expected, got)
 	})
 
+	t.Run("omitted field with a schema default", func(t *testing.T) {
+		// An omitted input field with a schema default (`order: SortOrder! = DESC`)
+		// is sent with its default instead of failing as a missing required field.
+		nestedItem := &RPCMessage{
+			Name: "NestedItem",
+			Fields: RPCFields{
+				{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+				{Name: "value", ProtoTypeName: DataTypeString, JSONPath: "value"},
+			},
+		}
+		nullableList := &ListMetadata{NestingLevel: 1, LevelInfo: []LevelInfo{{Optional: true}}}
+
+		// newItem builds a NestedItem with the given id and value.
+		newItem := func(itemDesc protoref.MessageDescriptor, id, value string) protoref.Value {
+			item := dynamicpb.NewMessage(itemDesc)
+			item.Set(itemDesc.Fields().ByName("id"), protoref.ValueOfString(id))
+			item.Set(itemDesc.Fields().ByName("value"), protoref.ValueOfString(value))
+			return protoref.ValueOfMessage(item)
+		}
+
+		// setItems fills the `items` field of the list wrapper in the given field.
+		setItems := func(msg *dynamicpb.Message, field protoref.FieldDescriptor, fill func(items protoref.List, itemsField protoref.FieldDescriptor)) {
+			listField := field.Message().Fields().ByName("list")
+			itemsField := listField.Message().Fields().ByName("items")
+			inner := dynamicpb.NewMessage(listField.Message())
+			fill(inner.Mutable(itemsField).List(), itemsField)
+			wrapper := dynamicpb.NewMessage(field.Message())
+			wrapper.Set(listField, protoref.ValueOfMessage(inner))
+			msg.Set(field, protoref.ValueOfMessage(wrapper))
+		}
+
+		t.Run("is sent as the default for scalars", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "ScalarRequest",
+				Fields: RPCFields{
+					{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", DefaultValue: `"fallback"`},
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", DefaultValue: `10`},
+					{Name: "bool_value", ProtoTypeName: DataTypeBool, JSONPath: "bool_value", DefaultValue: `true`},
+				},
+			}, runtime.getMessageByName("ScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString("fallback"))
+				msg.Set(desc.Fields().ByName("int_32"), protoref.ValueOfInt32(10))
+				msg.Set(desc.Fields().ByName("bool_value"), protoref.ValueOfBool(true))
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is sent as the default for a nullable scalar", func(t *testing.T) {
+			// `limit: Int = 10` is a wrapper message (google.protobuf.Int32Value).
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "WrapperScalarRequest",
+				Fields: RPCFields{
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true, DefaultValue: `10`},
+				},
+			}, runtime.getMessageByName("WrapperScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				setWrapperValue(msg, "int_32", protoref.ValueOfInt32(10))
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is sent as a zero default for a nullable scalar", func(t *testing.T) {
+			// `offset: Int = 0`: the wrapper is set and holds 0, it is not left out.
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "WrapperScalarRequest",
+				Fields: RPCFields{
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true, DefaultValue: `0`},
+				},
+			}, runtime.getMessageByName("WrapperScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				setWrapperValue(msg, "int_32", protoref.ValueOfInt32(0))
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is sent as the default for an enum", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "EnumRequest",
+				Fields: RPCFields{
+					{Name: "status", ProtoTypeName: DataTypeEnum, JSONPath: "status", EnumName: "Status", DefaultValue: `"ACTIVE"`},
+				},
+			}, runtime.getMessageByName("EnumRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "EnumRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				msg.Set(desc.Fields().ByName("status"), protoref.ValueOfEnum(1))
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is sent as the default for a nested message", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "NestedMessageRequest",
+				Fields: RPCFields{
+					{Name: "item", ProtoTypeName: DataTypeMessage, JSONPath: "item", Message: nestedItem, DefaultValue: `{"id":"1","value":"a"}`},
+				},
+			}, runtime.getMessageByName("NestedMessageRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "NestedMessageRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				itemField := desc.Fields().ByName("item")
+				msg.Set(itemField, newItem(itemField.Message(), "1", "a"))
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is sent as the default for a field the nested message default omits", func(t *testing.T) {
+			// `item: NestedItem! = {id: "1"}` with `value: String! = "x"` in NestedItem:
+			// the default of the nested field applies inside the default of the outer one.
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "NestedMessageRequest",
+				Fields: RPCFields{
+					{
+						Name: "item", ProtoTypeName: DataTypeMessage, JSONPath: "item", DefaultValue: `{"id":"1"}`,
+						Message: &RPCMessage{
+							Name: "NestedItem",
+							Fields: RPCFields{
+								{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+								{Name: "value", ProtoTypeName: DataTypeString, JSONPath: "value", DefaultValue: `"x"`},
+							},
+						},
+					},
+				},
+			}, runtime.getMessageByName("NestedMessageRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "NestedMessageRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				itemField := desc.Fields().ByName("item")
+				msg.Set(itemField, newItem(itemField.Message(), "1", "x"))
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is sent as the default for repeated nested messages", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "NestedMessageRequest",
+				Fields: RPCFields{
+					{Name: "items", ProtoTypeName: DataTypeMessage, JSONPath: "items", Repeated: true, Message: nestedItem, DefaultValue: `[{"id":"1","value":"a"},{"id":"2","value":"b"}]`},
+				},
+			}, runtime.getMessageByName("NestedMessageRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "NestedMessageRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				itemsField := desc.Fields().ByName("items")
+				list := msg.Mutable(itemsField).List()
+				list.Append(newItem(itemsField.Message(), "1", "a"))
+				list.Append(newItem(itemsField.Message(), "2", "b"))
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is sent as the default for a list wrapper of strings", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "ListWrapperRequest",
+				Fields: RPCFields{
+					{Name: "optional_tags", ProtoTypeName: DataTypeString, JSONPath: "optionalTags", Optional: true, IsListType: true, ListMetadata: nullableList, DefaultValue: `["a","b"]`},
+				},
+			}, runtime.getMessageByName("ListWrapperRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "ListWrapperRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				setItems(msg, desc.Fields().ByName("optional_tags"), func(items protoref.List, _ protoref.FieldDescriptor) {
+					items.Append(protoref.ValueOfString("a"))
+					items.Append(protoref.ValueOfString("b"))
+				})
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is sent as the default for a list wrapper of nested messages", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "ListWrapperRequest",
+				Fields: RPCFields{
+					{Name: "optional_items", ProtoTypeName: DataTypeMessage, JSONPath: "optionalItems", Optional: true, IsListType: true, ListMetadata: nullableList, Message: nestedItem, DefaultValue: `[{"id":"1","value":"a"},{"id":"2","value":"b"}]`},
+				},
+			}, runtime.getMessageByName("ListWrapperRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "ListWrapperRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				setItems(msg, desc.Fields().ByName("optional_items"), func(items protoref.List, itemsField protoref.FieldDescriptor) {
+					items.Append(newItem(itemsField.Message(), "1", "a"))
+					items.Append(newItem(itemsField.Message(), "2", "b"))
+				})
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is not used when the client sends a value", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "NestedMessageRequest",
+				Fields: RPCFields{
+					{Name: "item", ProtoTypeName: DataTypeMessage, JSONPath: "item", Message: nestedItem, DefaultValue: `{"id":"1","value":"a"}`},
+					{Name: "items", ProtoTypeName: DataTypeMessage, JSONPath: "items", Repeated: true, Message: nestedItem, DefaultValue: `[{"id":"1","value":"a"}]`},
+				},
+			}, runtime.getMessageByName("NestedMessageRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{"item":{"id":"9","value":"sent"},"items":[]}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "NestedMessageRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				itemField := desc.Fields().ByName("item")
+				msg.Set(itemField, newItem(itemField.Message(), "9", "sent"))
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is not used when the client sends a zero value", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "ScalarRequest",
+				Fields: RPCFields{
+					{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", DefaultValue: `"fallback"`},
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", DefaultValue: `10`},
+					{Name: "bool_value", ProtoTypeName: DataTypeBool, JSONPath: "bool_value", DefaultValue: `true`},
+				},
+			}, runtime.getMessageByName("ScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{"string_value":"","int_32":0,"bool_value":false}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is not used when the client sends a zero value for a nullable scalar", func(t *testing.T) {
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "WrapperScalarRequest",
+				Fields: RPCFields{
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true, DefaultValue: `10`},
+				},
+			}, runtime.getMessageByName("WrapperScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{"int_32":0}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+				setWrapperValue(msg, "int_32", protoref.ValueOfInt32(0))
+			})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is not used when the client sends null for a nullable scalar", func(t *testing.T) {
+			// The wrapper is left out: the subgraph sees null, not the default.
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "WrapperScalarRequest",
+				Fields: RPCFields{
+					{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true, DefaultValue: `10`},
+				},
+			}, runtime.getMessageByName("WrapperScalarRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{"int_32":null}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+
+		t.Run("is not used when the client sends null for a list wrapper", func(t *testing.T) {
+			// An explicit null is a value: it overrides the default of a nullable field.
+			message := compileTestProgramMessage(t, runtime, &RPCMessage{
+				Name: "ListWrapperRequest",
+				Fields: RPCFields{
+					{Name: "optional_tags", ProtoTypeName: DataTypeString, JSONPath: "optionalTags", Optional: true, IsListType: true, ListMetadata: nullableList, DefaultValue: `["a","b"]`},
+				},
+			}, runtime.getMessageByName("ListWrapperRequest"))
+			wm := compileTestWireMessage(t, runtime, message)
+
+			got, err := wm.createProtoMessage(astjson.MustParse(`{"optionalTags":null}`))
+			require.NoError(t, err)
+
+			expected := buildExpectedProto(t, runtime, "ListWrapperRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+			assertProtoMessageEqual(t, expected, got)
+		})
+	})
+
 	t.Run("JSON scalar", func(t *testing.T) {
 		// Protographic maps a GraphQL JSON scalar to a proto string.
 		encode := func(t *testing.T, request string, input string) protoref.Message {
