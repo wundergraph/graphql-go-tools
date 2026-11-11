@@ -260,9 +260,11 @@ func (r *RPCField) AliasOrPath() string {
 	return r.JSONPath
 }
 
-// IsOptionalScalar checks if the field is an optional scalar value.
+// IsOptionalScalar checks if the field is an optional scalar value that is
+// wrapped in a google.protobuf.*Value message. Nullable enums are plain proto
+// enum fields: protobuf has no wrapper type for them.
 func (r *RPCField) IsOptionalScalar() bool {
-	return r.Optional && r.ProtoTypeName != DataTypeMessage
+	return r.Optional && r.ProtoTypeName != DataTypeMessage && r.ProtoTypeName != DataTypeEnum
 }
 
 // RPCFields is a list of RPCFields that provides helper methods
