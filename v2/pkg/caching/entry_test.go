@@ -3,6 +3,7 @@ package caching
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -47,30 +48,19 @@ func TestEntryRoundTrip(t *testing.T) {
 	}
 }
 
-// Written before tiers, so read back with the tier its prefix implies.
-func TestEntryDecodeUntieredBody(t *testing.T) {
-	encoded := []byte{entryFormatBody, 3}
-	for _, key := range []string{"subgraph-accounts", "type-accounts-User", "user-42"} {
-		encoded = append(encoded, byte(len(key)))
-		encoded = append(encoded, key...)
+// Bodies without flags: kind 1 untiered, kind 3 tiered.
+func TestEntryDecodeRetiredBodies(t *testing.T) {
+	for _, kind := range []byte{1, 3} {
+		_, _, _, err := DecodeEntry([]byte{kind, 1, 2, 0x07, 'u', 's', 'e', 'r', '-', '4', '2', '{', '}'})
+		require.ErrorIs(t, err, ErrEntryFormat, "kind %d", kind)
 	}
-	encoded = append(encoded, `{"id":42}`...)
-
-	value, surrogateKeys, vary, err := DecodeEntry(encoded)
-	require.NoError(t, err)
-	require.Equal(t, []byte(`{"id":42}`), value)
-	require.Equal(t, []SurrogateKey{SubgraphSurrogateKey("accounts"), TypeSurrogateKey("accounts", "User"), DeclaredSurrogateKey("user-42")}, surrogateKeys)
-	require.Nil(t, vary)
-
-	_, _, _, err = DecodeEntry([]byte{entryFormatBody, 0xff, 0xff, 0x7f})
-	require.ErrorIs(t, err, ErrEntryFormat)
 }
 
 func TestEntryDecodeRefuses(t *testing.T) {
 	encoded := encodeEntry([]byte("value"), declared("a-long-surrogateKey", "another"))
 
 	unknownTier := append([]byte(nil), encoded...)
-	unknownTier[2] = byte(SurrogateKeyTierDeclared + 1)
+	unknownTier[4] = byte(SurrogateKeyTierDeclared + 1)
 
 	unknownVersion := append([]byte(nil), encoded...)
 	unknownVersion[0] = 9
@@ -83,11 +73,13 @@ func TestEntryDecodeRefuses(t *testing.T) {
 		{name: "raw value", input: []byte(`{"id":42}`)},
 		{name: "unknown version", input: unknownVersion},
 		{name: "unknown tier", input: unknownTier},
-		{name: "surrogate key count larger than the input", input: []byte{entryFormatTieredBody, 0xff, 0xff, 0x7f}},
-		{name: "cut inside the count", input: encoded[:1]},
-		{name: "cut before a tier", input: encoded[:2]},
-		{name: "cut inside a surrogate key length", input: encoded[:3]},
-		{name: "cut inside a surrogate key", input: encoded[:6]},
+		{name: "surrogate key count larger than the input", input: []byte{entryFormatBody, 0, 0, 0xff, 0xff, 0x7f}},
+		{name: "cut before the flags", input: encoded[:1]},
+		{name: "cut before the reduction", input: encoded[:2]},
+		{name: "cut before the count", input: encoded[:3]},
+		{name: "cut before a tier", input: encoded[:4]},
+		{name: "cut inside a surrogate key length", input: encoded[:5]},
+		{name: "cut inside a surrogate key", input: encoded[:8]},
 		{name: "cut before the last surrogate key", input: encoded[:len(encoded)-len("value")-len("another")-1]},
 	}
 
@@ -174,4 +166,42 @@ func TestVaryRecordRoundTrip(t *testing.T) {
 		_, _, _, err := DecodeEntry(encoded[:cut])
 		require.ErrorIs(t, err, ErrEntryFormat, "cut at %d", cut)
 	}
+}
+
+func TestClientEntryRoundTrip(t *testing.T) {
+	item := Item{Value: []byte(`{"id":1}`), TTL: 600 * time.Second, ClientTTL: 60 * time.Second, SurrogateKeys: declared("a", "b"), Public: true}
+	got, err := DecodeItem(encodeItem(t, item), 600*time.Second)
+	require.NoError(t, err)
+	require.Equal(t, item.Value, got.Value)
+	require.Equal(t, item.SurrogateKeys, got.SurrogateKeys)
+	require.True(t, got.Public)
+	require.Equal(t, 600*time.Second, got.TTL)
+	require.Equal(t, 60*time.Second, got.ClientTTL)
+
+	// ClientTTL counts down with TTL.
+	aged, err := DecodeItem(encodeItem(t, item), 550*time.Second)
+	require.NoError(t, err)
+	require.Equal(t, 10*time.Second, aged.ClientTTL)
+
+	expired, err := DecodeItem(encodeItem(t, item), 500*time.Second)
+	require.NoError(t, err)
+	require.Zero(t, expired.ClientTTL)
+
+	private, err := DecodeItem(encodeItem(t, Item{Value: []byte("v"), TTL: time.Minute, ClientTTL: time.Minute}), time.Minute)
+	require.NoError(t, err)
+	require.False(t, private.Public)
+	require.False(t, private.SharedOnly)
+	require.Equal(t, time.Minute, private.ClientTTL)
+
+	shared, err := DecodeItem(encodeItem(t, Item{Value: []byte("v"), SharedOnly: true}), time.Minute)
+	require.NoError(t, err)
+	require.True(t, shared.SharedOnly)
+	require.False(t, shared.Public)
+
+	_, err = DecodeItem([]byte{entryFormatBody}, time.Minute)
+	require.ErrorIs(t, err, ErrEntryFormat)
+}
+
+func encodeEntry(value []byte, surrogateKeys []SurrogateKey) []byte {
+	return encodeBody(Item{Value: value, SurrogateKeys: surrogateKeys})
 }
