@@ -1769,7 +1769,7 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 func (r *Resolvable) objectFieldTypeName(v *astjson.Value, field *Field) string {
 	typeName := v.GetStringBytes("__typename")
 	if typeName != nil {
-		return unsafebytes.BytesToString(typeName)
+		return string(typeName)
 	}
 	return field.Info.ExactParentTypeName
 }
