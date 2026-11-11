@@ -97,6 +97,15 @@ type ResponseCacheInfo struct {
 	// StoreDecision is what was decided for the response of a fetch that was sent.
 	// The write itself happens after OnFinished, its failure is reported to OnError.
 	StoreDecision caching.StoreDecision
+	// StoredTTL is the lifetime the response is stored with, set when
+	// StoreDecision is StoreDecisionStored.
+	StoredTTL time.Duration
+	// ClientTTL, Public and SharedOnly are what a client may be told of a hit:
+	// the subgraph's max-age net of time cached, whether every entry said
+	// public, and whether none gave a client lifetime (caching.Item.SharedOnly).
+	ClientTTL  time.Duration
+	Public     bool
+	SharedOnly bool
 	// KeysRequested and KeysFound count what the cache was asked for and answered.
 	KeysRequested  int
 	KeysFound      int
@@ -182,10 +191,14 @@ type result struct {
 	// cache digests these for Vary, not a second call to the headers builder,
 	// which need not answer the same twice.
 	sentHeaders http.Header
+	// sharedWireHeaders are the singleflight leader's wire headers, set on a follower.
+	sharedWireHeaders http.Header
 	// responseCacheHit and responseCacheTTL record that the fetch was served entirely from the cache
 	// and the min lifetime left across its entries. Fetch-local, so the unlocked load phase is safe.
 	responseCacheHit bool
 	responseCacheTTL time.Duration
+	// responseCacheFetchedAt is when the fetch's first lookup started.
+	responseCacheFetchedAt time.Time
 	// responseCachePrivate records that a hit was served, in whole or part,
 	// from entries scoped to the requesting user.
 	responseCachePrivate bool
@@ -503,6 +516,11 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 		return nil
 	}
 
+	if l.responseCacheRefuse(prepared.res) {
+		l.recordErroredFetchID(prepared.item)
+		return nil
+	}
+
 	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
 	if prepared.res.err != nil {
 		// TODO: for a MultiEntityFetch this marks all entries as failed,
@@ -593,6 +611,8 @@ type preparedFetch struct {
 	responseCacheHit bool
 
 	responseCacheItems []caching.Item
+	// responseCacheCollectedAt is when the items' TTLs were taken.
+	responseCacheCollectedAt time.Time
 
 	multiEntries []preparedMultiEntry
 
@@ -790,7 +810,11 @@ func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
 
 func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
 	if res.err != nil {
-		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
+		reason := failedToFetchNoReason
+		if goerrors.Is(res.err, ErrResponseCacheOnlyIfCached) {
+			reason = ErrResponseCacheOnlyIfCached.Error()
+		}
+		return l.renderErrorsFailedToFetch(fetchItem, res, reason)
 	}
 	if res.authorizationRejected {
 		err := l.renderAuthorizationRejectedErrors(fetchItem, res)
@@ -1833,7 +1857,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 	// the offsets above still point at what they were taken from.
 	if l.responseCacheEnabledFor(res.ds.Name) {
 		rendered := preparedInput.Bytes()
-		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		selection := responseCacheSelection(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:], undefinedVariables)
 		l.responseCacheSetKeys(prepared, selection, []caching.Digest{caching.DigestBytes(renderedItem)})
 	}
 
@@ -2031,7 +2055,7 @@ WithNextItem:
 
 	if len(responseCacheItems) > 0 {
 		rendered := preparedInput.Bytes()
-		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		selection := responseCacheSelection(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:], undefinedVariables)
 		l.responseCacheSetKeys(prepared, selection, responseCacheItems)
 	}
 
@@ -2224,6 +2248,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 				}
 			}
 		}
+		res.sharedWireHeaders = item.requestHeaders
 		return nil
 	}
 
@@ -2246,6 +2271,9 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		item.statusCode = rc.StatusCode
 		if rc.Response != nil && rc.Response.Header != nil {
 			item.responseHeaders = rc.Response.Header.Clone()
+		}
+		if rc.Response != nil && rc.Response.Request != nil {
+			item.requestHeaders = rc.Response.Request.Header.Clone()
 		}
 	}
 	return nil
