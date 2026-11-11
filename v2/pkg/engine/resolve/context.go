@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/wundergraph/astjson"
@@ -282,6 +283,10 @@ type responseCache struct {
 	// the loader's data lock as each fetch is merged.
 	surrogateKeys []caching.SurrogateKey
 	traceDetails  func(surrogateKeys []caching.SurrogateKey) any
+	// onlyIfCached refuses every fetch the cache cannot answer; unsatisfied
+	// records that one was refused. Fetches run in parallel.
+	onlyIfCached bool
+	unsatisfied  atomic.Bool
 }
 
 // responseCacheFor is the cache's settings for a subgraph, or false when nothing
@@ -377,6 +382,9 @@ type ResponseCacheOptions struct {
 	// An entry replaces DefaultTTL and PrivateID whole for that subgraph. The map
 	// is kept, not copied, and must not change after SetResponseCache.
 	Subgraphs map[string]ResponseCacheSubgraphOptions
+	// OnlyIfCached fails every fetch the cache cannot answer instead of sending
+	// it (RFC 9111 §5.2.1.7). Fetches of uncached subgraphs fail too.
+	OnlyIfCached bool
 	// TraceDetails adds the caller's view of the request's surrogate keys to ART.
 	TraceDetails func(surrogateKeys []caching.SurrogateKey) any
 }
@@ -403,6 +411,7 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		def:             responseCacheSubgraph{ttl: opts.DefaultTTL},
 		defaultDisabled: opts.DefaultDisabled,
 		subgraphs:       opts.Subgraphs,
+		onlyIfCached:    opts.OnlyIfCached,
 		traceDetails:    opts.TraceDetails,
 	}
 	if opts.DefaultDisabled {
@@ -439,6 +448,12 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		rc.hasSingleFlightID = true
 	}
 	c.responseCache = rc
+}
+
+// ResponseCacheUnsatisfied reports whether an only-if-cached request had a
+// fetch the cache could not answer.
+func (c *Context) ResponseCacheUnsatisfied() bool {
+	return c.responseCache != nil && c.responseCache.unsatisfied.Load()
 }
 
 func (c *Context) SubgraphErrors() error {
