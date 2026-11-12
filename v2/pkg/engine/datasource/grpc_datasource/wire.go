@@ -46,6 +46,7 @@ type wireField struct {
 	wireType     protowire.Type
 	runtimeEnum  *runtimeEnum
 	staticValue  string
+	defaultValue *astjson.Value // schema default, used when the request omits the field
 	jsonPath     string
 	optional     bool
 	repeated     bool
@@ -129,6 +130,14 @@ func compileMessageFields(schema *runtimeSchema, messageFields []programField, c
 			optional:     messageField.optional,
 			repeated:     messageField.repeated,
 			listMetadata: messageField.listMetadata,
+		}
+
+		if messageField.defaultValue != "" {
+			defaultValue, err := astjson.Parse(messageField.defaultValue)
+			if err != nil {
+				return nil, fmt.Errorf("invalid default value for field %s: %w", messageField.jsonPath, err)
+			}
+			wf.defaultValue = defaultValue
 		}
 
 		if messageField.enumName != "" {
