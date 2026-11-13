@@ -194,62 +194,73 @@ func TestSelectionMergeScansPreserveOrder(t *testing.T) {
 }
 
 func BenchmarkSelectionMergeScans(b *testing.B) {
-	for _, kind := range []string{"leaves", "parents", "inline_fragments"} {
-		sizes := []int{32, 128, 500}
-		if kind == "inline_fragments" {
-			sizes = []int{32, 128}
-		}
-		for _, size := range sizes {
-			b.Run(fmt.Sprintf("%s/%d", kind, size), func(b *testing.B) {
-				var body strings.Builder
-				for range 2 {
-					for i := range size {
-						switch kind {
-						case "leaves":
-							fmt.Fprintf(&body, "a%d:hello ", i)
-						case "parents":
-							fmt.Fprintf(&body, "a%d:child{a} ", i)
-						case "inline_fragments":
-							fmt.Fprintf(&body, "... on Query @tag(value:%d){hello} ", i)
-						}
-					}
+	cases := []struct {
+		name            string
+		selectionFormat string
+		register        func(*astvisitor.Walker)
+	}{
+		{
+			name:            "leaves",
+			selectionFormat: "a%d: hello\n",
+			register:        deduplicateFields,
+		},
+		{
+			name: "parents",
+			selectionFormat: `
+				a%d: child {
+					a
 				}
-				query := "{" + body.String() + "}"
-				def, report := astparser.ParseGraphqlDocumentString(mergeScansDefinition)
+			`,
+			register: mergeInlineFragmentSelections,
+		},
+		{
+			name: "inline_fragments",
+			selectionFormat: `
+				... on Query @tag(value: %d) {
+					hello
+				}
+			`,
+			register: mergeInlineFragmentSelections,
+		},
+	}
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			var selections strings.Builder
+			for i := range 128 {
+				fmt.Fprintf(&selections, tc.selectionFormat, i)
+			}
+			// Each selection appears twice, with other selections between the copies.
+			query := "{\n" + strings.Repeat(selections.String(), 2) + "}"
+			def, report := astparser.ParseGraphqlDocumentString(mergeScansDefinition)
+			if report.HasErrors() {
+				b.Fatal(report.Error())
+			}
+			if err := asttransform.MergeDefinitionWithBaseSchema(&def); err != nil {
+				b.Fatal(err)
+			}
+			walker := astvisitor.NewWalker(8)
+			tc.register(&walker)
+			parser := astparser.NewParser()
+			op := ast.NewSmallDocument()
+			run := func() {
+				op.Reset()
+				report.Reset()
+				op.Input.ResetInputString(query)
+				parser.Parse(op, &report)
 				if report.HasErrors() {
 					b.Fatal(report.Error())
 				}
-				if err := asttransform.MergeDefinitionWithBaseSchema(&def); err != nil {
-					b.Fatal(err)
+				walker.Walk(op, &def, &report)
+				if report.HasErrors() {
+					b.Fatal(report.Error())
 				}
-				walker := astvisitor.NewWalker(8)
-				if kind == "leaves" {
-					deduplicateFields(&walker)
-				} else {
-					mergeInlineFragmentSelections(&walker)
-				}
-				parser := astparser.NewParser()
-				op := ast.NewSmallDocument()
-				run := func() {
-					op.Reset()
-					report.Reset()
-					op.Input.ResetInputString(query)
-					parser.Parse(op, &report)
-					if report.HasErrors() {
-						b.Fatal(report.Error())
-					}
-					walker.Walk(op, &def, &report)
-					if report.HasErrors() {
-						b.Fatal(report.Error())
-					}
-				}
+			}
+			run()
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
 				run()
-				b.ReportAllocs()
-				b.ResetTimer()
-				for i := 0; i < b.N; i++ {
-					run()
-				}
-			})
-		}
+			}
+		})
 	}
 }
