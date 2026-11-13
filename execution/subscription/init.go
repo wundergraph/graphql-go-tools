@@ -7,10 +7,12 @@ import (
 
 // WebsocketInitFunc is called when the server receives connection init message from the client.
 // This can be used to check initial payload to see whether to accept the websocket connection.
+//
 // Deprecated: Use websocket.InitFunc instead.
 type WebsocketInitFunc func(ctx context.Context, initPayload InitPayload) (context.Context, error)
 
 // InitPayload is a structure that is parsed from the websocket init message payload.
+//
 // Deprecated: Use websocket.InitPayload instead.
 type InitPayload json.RawMessage
 

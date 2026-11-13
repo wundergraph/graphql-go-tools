@@ -96,7 +96,7 @@ func (g *DataSourceJumpsGraph) getPaths(source DSHash, target DSHash, includeFal
 			}
 
 			if !visited[jump.To] {
-				newPath := append(path, jump)
+				newPath := slices.Concat(path, []KeyJump{jump})
 				if conns, exists := dfs(jump.To, newPath, depth+1); exists {
 					connections = append(connections, conns...)
 					found = true

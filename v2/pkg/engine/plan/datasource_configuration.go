@@ -443,6 +443,7 @@ type DataSourcePlanningBehavior struct {
 	//  }
 	// When true expected response will be { "rootField": ..., "alias": ... }
 	// When false expected response will be { "rootField": ..., "original": ... }
+	//
 	// Deprecated: has no effect anymore
 	OverrideFieldPathFromAlias bool
 

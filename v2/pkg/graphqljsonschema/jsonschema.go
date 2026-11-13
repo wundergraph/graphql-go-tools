@@ -51,8 +51,7 @@ func FromTypeRef(operation, definition *ast.Document, typeRef int, opts ...Optio
 }
 
 func resolveJsonSchemaPath(jsonSchema JsonSchema, path []string) JsonSchema {
-	switch typedJsonSchema := jsonSchema.(type) {
-	case Object:
+	if typedJsonSchema, ok := jsonSchema.(Object); ok {
 		for i := range path {
 			propertyJsonSchema, exists := typedJsonSchema.Properties[path[i]]
 			if !exists {
