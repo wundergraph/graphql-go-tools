@@ -1205,6 +1205,7 @@ func (c *pathBuilderVisitor) buildSubscriptionFilterCondition(condition Subscrip
 func (c *pathBuilderVisitor) buildSubscriptionFieldFilter(condition *SubscriptionFieldCondition) *resolve.SubscriptionFieldFilter {
 	filter := &resolve.SubscriptionFieldFilter{}
 	filter.FieldPath = condition.FieldPath
+	filter.BypassIfValuesNull = condition.BypassIfValuesNull
 	filter.Values = make([]resolve.InputTemplate, len(condition.Values))
 	for i, value := range condition.Values {
 		matches := argument_templates.ArgumentTemplateRegex.FindAllStringSubmatchIndex(value, -1)
