@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.31.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.1...v2.31.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **resolve:** use safe string for the __typename value ([#1762](https://github.com/wundergraph/graphql-go-tools/issues/1762)) ([d86f326](https://github.com/wundergraph/graphql-go-tools/commit/d86f326334fb62e2a4ef6105dfb4a327eca68b3d))
+
 ## [2.31.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.0...v2.31.1) (2026-11-12)
 
 
