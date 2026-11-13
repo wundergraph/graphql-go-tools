@@ -102,6 +102,8 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
+	// Merging adds child selections and may update @__defer_internal.
+	// Neither affects the merge checks, so we don't need to check earlier pairs again.
 	for i := 0; i < len(refs); i++ {
 		leftSelection := refs[i]
 		leftKind := f.operation.SelectionKind(leftSelection)
