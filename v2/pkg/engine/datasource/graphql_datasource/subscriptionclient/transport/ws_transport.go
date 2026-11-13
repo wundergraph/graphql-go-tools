@@ -114,7 +114,7 @@ func NewWSTransport(ctx context.Context, opts WSTransportOptions) *WSTransport {
 	}
 
 	if opts.PingInterval > 0 {
-		go t.pingLoop()
+		go t.pingLoop() //nolint:contextcheck
 	}
 
 	return t
@@ -293,7 +293,7 @@ func (t *WSTransport) dial(ctx context.Context, key uint64, opts common.Options)
 		onEmpty:      func() { t.removeConn(key) },
 	})
 
-	go conn.readLoop()
+	go conn.readLoop() //nolint:contextcheck
 
 	return conn, nil
 }

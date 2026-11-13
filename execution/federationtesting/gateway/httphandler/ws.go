@@ -154,7 +154,7 @@ func (g *GraphQLHTTPRequestHandler) handleWebsocket(connInitReqCtx context.Conte
 	errChan := make(chan error)
 
 	executorPool := subscription.NewExecutorV2Pool(g.engine, connInitReqCtx)
-	go HandleWebsocket(done, errChan, conn, executorPool, g.log)
+	go HandleWebsocket(done, errChan, conn, executorPool, g.log) //nolint:contextcheck
 	select {
 	case err := <-errChan:
 		g.log.Error("http.GraphQLHTTPRequestHandler.handleWebsocket()",
