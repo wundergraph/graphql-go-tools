@@ -50,6 +50,7 @@ func TestDefer_AllDefersCancelledBeforeInitialResult(t *testing.T) {
 		require.Equal(t, []string{
 			`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":{"user":null}}`,
 		}, w.payloads)
+		require.Equal(t, []bool{true}, w.finals)
 		require.True(t, w.complete)
 	})
 
@@ -105,6 +106,7 @@ func TestDefer_AllDefersCancelledBeforeInitialResult(t *testing.T) {
 		require.Equal(t, []string{
 			`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.boom'.","path":["user","boom"]}],"data":{"user":null}}`,
 		}, w.payloads)
+		require.Equal(t, []bool{true}, w.finals)
 		require.True(t, w.complete)
 	})
 
@@ -147,6 +149,7 @@ func TestDefer_AllDefersCancelledBeforeInitialResult(t *testing.T) {
 		require.Equal(t, []string{
 			`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.user.name'.","path":["user","name"]}],"data":null}`,
 		}, w.payloads)
+		require.Equal(t, []bool{true}, w.finals)
 		require.True(t, w.complete)
 	})
 
@@ -180,6 +183,7 @@ func TestDefer_AllDefersCancelledBeforeInitialResult(t *testing.T) {
 		require.Equal(t, []string{
 			`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.boom'.","path":["boom"]}],"data":null}`,
 		}, w.payloads)
+		require.Equal(t, []bool{true}, w.finals)
 		require.True(t, w.complete)
 	})
 }
