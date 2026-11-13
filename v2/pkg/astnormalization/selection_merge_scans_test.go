@@ -16,9 +16,18 @@ import (
 )
 
 const mergeScansDefinition = `
- type Query { hello: String child: Child }
- type Child { a: String b: String c: String }
- directive @tag(value: Int) on INLINE_FRAGMENT
+	type Query {
+		hello: String
+		child: Child
+	}
+
+	type Child {
+		a: String
+		b: String
+		c: String
+	}
+
+	directive @tag(value: Int) on INLINE_FRAGMENT
 `
 
 func TestSelectionMergeScansPreserveOrder(t *testing.T) {
