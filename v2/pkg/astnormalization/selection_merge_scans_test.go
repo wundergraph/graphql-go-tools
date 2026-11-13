@@ -32,13 +32,82 @@ const mergeScansDefinition = `
 
 func TestSelectionMergeScansPreserveOrder(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
-		name, query, want string
-		register          func(*astvisitor.Walker)
+	cases := []struct {
+		name     string
+		query    string
+		want     string
+		register func(*astvisitor.Walker)
 	}{
-		{"leaves", `{a:hello b:hello c:hello a:hello a:hello b:hello c:hello}`, `{a: hello b: hello c: hello}`, deduplicateFields},
-		{"parents", `{a:child{a} b:child{b} c:child{c} a:child{b} a:child{c} b:child{a} c:child{a}}`, `{a: child {a b c} b: child {b a} c: child {c a}}`, mergeInlineFragmentSelections},
-	} {
+		{
+			name: "leaves",
+			query: `
+				{
+					a: hello
+					b: hello
+					c: hello
+					a: hello
+					a: hello
+					b: hello
+					c: hello
+				}
+			`,
+			want: `
+				{
+					a: hello
+					b: hello
+					c: hello
+				}
+			`,
+			register: deduplicateFields,
+		},
+		{
+			name: "parents",
+			query: `
+				{
+					a: child {
+						a
+					}
+					b: child {
+						b
+					}
+					c: child {
+						c
+					}
+					a: child {
+						b
+					}
+					a: child {
+						c
+					}
+					b: child {
+						a
+					}
+					c: child {
+						a
+					}
+				}
+			`,
+			want: `
+				{
+					a: child {
+						a
+						b
+						c
+					}
+					b: child {
+						b
+						a
+					}
+					c: child {
+						c
+						a
+					}
+				}
+			`,
+			register: mergeInlineFragmentSelections,
+		},
+	}
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			def, report := astparser.ParseGraphqlDocumentString(mergeScansDefinition)
@@ -59,7 +128,11 @@ func TestSelectionMergeScansPreserveOrder(t *testing.T) {
 			require.False(t, report.HasErrors(), report.Error())
 			printed, err := astprinter.PrintString(&op)
 			require.NoError(t, err)
-			assert.Equal(t, tc.want, printed)
+			expected, report := astparser.ParseGraphqlDocumentString(tc.want)
+			require.False(t, report.HasErrors(), report.Error())
+			want, err := astprinter.PrintString(&expected)
+			require.NoError(t, err)
+			assert.Equal(t, want, printed)
 			assert.Equal(t, [][2]int{{fields[0], fields[3]}, {fields[0], fields[4]}, {fields[1], fields[5]}, {fields[2], fields[6]}}, merged)
 		})
 	}
@@ -68,14 +141,28 @@ func TestSelectionMergeScansPreserveOrder(t *testing.T) {
 		def, report := astparser.ParseGraphqlDocumentString(mergeScansDefinition)
 		require.False(t, report.HasErrors(), report.Error())
 		require.NoError(t, asttransform.MergeDefinitionWithBaseSchema(&def))
-		op, report := astparser.ParseGraphqlDocumentString(`{
-   ... on Query @tag(value:1) {hello}
-   ... on Query @tag(value:2) {hello}
-   child {a}
-   ... on Query @tag(value:1) {a:hello}
-   ... on Query @tag(value:1) {b:hello}
-   ... on Query @tag(value:2) {c:hello}
-  }`)
+		op, report := astparser.ParseGraphqlDocumentString(`
+			{
+				... on Query @tag(value: 1) {
+					hello
+				}
+				... on Query @tag(value: 2) {
+					hello
+				}
+				child {
+					a
+				}
+				... on Query @tag(value: 1) {
+					a: hello
+				}
+				... on Query @tag(value: 1) {
+					b: hello
+				}
+				... on Query @tag(value: 2) {
+					c: hello
+				}
+			}
+		`)
 		require.False(t, report.HasErrors(), report.Error())
 		walker := astvisitor.NewWalker(8)
 		mergeInlineFragmentSelections(&walker)
@@ -83,7 +170,26 @@ func TestSelectionMergeScansPreserveOrder(t *testing.T) {
 		require.False(t, report.HasErrors(), report.Error())
 		printed, err := astprinter.PrintString(&op)
 		require.NoError(t, err)
-		assert.Equal(t, `{... on Query @tag(value: 1) {hello a: hello b: hello} ... on Query @tag(value: 2) {hello c: hello} child {a}}`, printed)
+		expected, report := astparser.ParseGraphqlDocumentString(`
+			{
+				... on Query @tag(value: 1) {
+					hello
+					a: hello
+					b: hello
+				}
+				... on Query @tag(value: 2) {
+					hello
+					c: hello
+				}
+				child {
+					a
+				}
+			}
+		`)
+		require.False(t, report.HasErrors(), report.Error())
+		want, err := astprinter.PrintString(&expected)
+		require.NoError(t, err)
+		assert.Equal(t, want, printed)
 	})
 }
 
