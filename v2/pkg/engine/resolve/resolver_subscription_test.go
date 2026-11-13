@@ -183,6 +183,8 @@ func TestEventLoop(t *testing.T) {
 
 	subscriptionCtx := &Context{}
 	subscriptionCtx = subscriptionCtx.WithContext(context.Background())
+	var endCount atomic.Int64
+	subscriptionCtx.OnSubscriptionEnd = func() { endCount.Add(1) }
 
 	err := resolver.ResolveGraphQLSubscription(subscriptionCtx, subscription, writer)
 	require.NoError(t, err)
@@ -195,6 +197,7 @@ func TestEventLoop(t *testing.T) {
 	require.Equal(t, `{"data":{"counter":1}}`, writer.writtenMessages[0])
 	require.Equal(t, `{"data":{"counter":2}}`, writer.writtenMessages[1])
 	require.Equal(t, `{"data":{"counter":3}}`, writer.writtenMessages[2])
+	require.Equal(t, int64(1), endCount.Load())
 
 	stopEventLoop()
 
@@ -205,6 +208,46 @@ func TestEventLoop(t *testing.T) {
 		require.Equal(t, int64(0), subscriptionCount)
 		return true
 	}, time.Second, time.Millisecond*10)
+}
+
+func TestSubscriptionEndCallbackIsPerSubscriberOnSharedTrigger(t *testing.T) {
+	resolver := New(t.Context(), ResolverOptions{MaxConcurrency: 1})
+	const triggerID uint64 = 42
+	firstID := SubscriptionIdentifier{ConnectionID: 1, SubscriptionID: 1}
+	secondID := SubscriptionIdentifier{ConnectionID: 1, SubscriptionID: 2}
+	var firstEnds, secondEnds atomic.Int64
+	newState := func(id SubscriptionIdentifier, onEnd func()) *subscriptionState {
+		ctx := NewContext(context.Background())
+		ctx.OnSubscriptionEnd = onEnd
+		return &subscriptionState{triggerID: triggerID, ctx: ctx, id: id, completed: make(chan struct{})}
+	}
+	first := newState(firstID, func() { firstEnds.Add(1) })
+	second := newState(secondID, func() { secondEnds.Add(1) })
+	resolver.triggers[triggerID] = &trigger{
+		id: triggerID, cancel: func() {},
+		subscriptions: map[SubscriptionIdentifier]*subscriptionState{firstID: first, secondID: second},
+	}
+	resolver.subscriptionsByID[firstID] = first
+	resolver.subscriptionsByID[secondID] = second
+	resolver.subscriptionsByConnection[firstID.ConnectionID] = map[SubscriptionIdentifier]*subscriptionState{firstID: first, secondID: second}
+
+	require.NoError(t, resolver.UnsubscribeSubscription(firstID))
+	require.Equal(t, int64(1), firstEnds.Load())
+	require.Equal(t, int64(0), secondEnds.Load())
+	require.NoError(t, resolver.UnsubscribeSubscription(firstID))
+	require.Equal(t, int64(1), firstEnds.Load())
+	require.NoError(t, resolver.UnsubscribeSubscription(secondID))
+	require.Equal(t, int64(1), secondEnds.Load())
+}
+
+func TestAsyncSubscriptionEndCallbackOnSetupFailure(t *testing.T) {
+	resolver := New(t.Context(), ResolverOptions{MaxConcurrency: 1})
+	ctx := NewContext(context.Background())
+	var ends atomic.Int64
+	ctx.OnSubscriptionEnd = func() { ends.Add(1) }
+	err := resolver.AsyncResolveGraphQLSubscription(ctx, &GraphQLSubscription{}, &FakeSubscriptionWriter{}, SubscriptionIdentifier{})
+	require.ErrorContains(t, err, "no data source found")
+	require.Equal(t, int64(1), ends.Load())
 }
 
 func TestResolver_HeartbeatError_DoesNotDeadlockOnUnsubscribe(t *testing.T) {
