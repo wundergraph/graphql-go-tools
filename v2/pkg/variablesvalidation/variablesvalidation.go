@@ -3,6 +3,7 @@ package variablesvalidation
 import (
 	"bytes"
 	"fmt"
+	"math"
 
 	"github.com/wundergraph/astjson"
 
@@ -325,6 +326,15 @@ func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, t
 	v.err = v.newInvalidVariableError(fmt.Sprintf(`Variable "$%s" got invalid value null; Expected non-nullable type "%s" not to be null.`, string(variableName), typeName))
 }
 
+func (v *variablesVisitor) renderVariableIntOutOfRangeError(jsonValue *astjson.Value) {
+	invalidValue := string(jsonValue.MarshalTo(nil))
+	var path string
+	if len(v.path) > 1 {
+		path = fmt.Sprintf(` at "%s"`, v.renderPath())
+	}
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Int cannot represent non 32-bit signed integer value%s`, v.invalidValueMessage(string(v.currentVariableName), invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
+}
+
 func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, jsonValue *astjson.Value, typeRef, inputFieldRef int) {
 	if v.definition.TypeIsNonNull(typeRef) {
 		if jsonValue == nil || jsonValue.Type() == astjson.TypeNull {
@@ -484,10 +494,17 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 				return
 			}
 		case "Int":
-			if jsonValue.Type() != astjson.TypeNumber {
+			floatVal, err := jsonValue.Float64()
+			if err != nil || math.Trunc(floatVal) != floatVal {
 				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
+
+			if floatVal < math.MinInt32 || floatVal > math.MaxInt32 {
+				v.renderVariableIntOutOfRangeError(jsonValue)
+				return
+			}
+
 		case "Float":
 			if jsonValue.Type() != astjson.TypeNumber {
 				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)

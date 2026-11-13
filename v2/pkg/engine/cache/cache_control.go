@@ -89,6 +89,12 @@ func (f *FieldNames) has(name string) bool {
 	return ok
 }
 
+// Qualified reports whether the directive names fields, rather than applying to
+// the whole response.
+func (f *FieldNames) Qualified() bool {
+	return f != nil && !f.noFields && len(f.fields) > 0
+}
+
 func (f *FieldNames) LockFields() {
 	f.noFields = true
 }

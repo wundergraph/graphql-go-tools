@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,7 +15,9 @@ import (
 
 	"github.com/wundergraph/astjson"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/caching"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
 func TestResponseCacheVary(t *testing.T) {
@@ -39,6 +42,7 @@ func TestResponseCacheVary(t *testing.T) {
 			loader, res := varyLoader(t, newTestCache(), "max-age=60", "Accept-Language", body, "", de)
 			// The digest is of the headers the request went out with, not what the builder says now.
 			loader.ctx.SubgraphHeadersBuilder = fr
+			res.responseCacheFetchedAt = time.Now()
 			items := collect(t, loader, res, public, nil)
 			require.Len(t, items, 4)
 
@@ -53,6 +57,7 @@ func TestResponseCacheVary(t *testing.T) {
 				require.JSONEq(t, fmt.Sprintf(`{"__typename":"User","id":%d}`, i+1), string(variant.Value))
 				require.Equal(t, variant.Tags, record.Tags, "invalidation drops both")
 				require.Equal(t, variant.TTL, record.TTL)
+				require.Equal(t, res.responseCacheFetchedAt, record.FetchedAt, "a store drops neither alone")
 			}
 		})
 
@@ -60,6 +65,7 @@ func TestResponseCacheVary(t *testing.T) {
 			t.Parallel()
 			loader, res := varyLoader(t, newTestCache(), "max-age=60", "Accept-Language, *", body, "", de)
 			require.Empty(t, collect(t, loader, res, public, nil))
+			require.Equal(t, caching.StoreDecisionUnusableVary, res.responseCache.StoreDecision)
 
 			names := make([]string, caching.MaxVaryHeaders+1)
 			for i := range names {
@@ -67,9 +73,11 @@ func TestResponseCacheVary(t *testing.T) {
 			}
 			loader, res = varyLoader(t, newTestCache(), "max-age=60", strings.Join(names, ", "), body, "", de)
 			require.Empty(t, collect(t, loader, res, public, nil))
+			require.Equal(t, caching.StoreDecisionUnusableVary, res.responseCache.StoreDecision)
 
 			loader, res = varyLoader(t, newTestCache(), "max-age=60", strings.Join(names[1:], ", "), body, "", de)
 			require.Len(t, collect(t, loader, res, public, nil), 4, "the cap itself is fine")
+			require.Equal(t, caching.StoreDecisionStored, res.responseCache.StoreDecision)
 		})
 
 		t.Run("a private response varies under the user's key", func(t *testing.T) {
@@ -236,7 +244,7 @@ func TestResponseCacheVary(t *testing.T) {
 			require.Equal(t, 0, warm.calls)
 			require.Contains(t, out, `"products":["a"]`)
 			require.Contains(t, out, `"notes":"n"`)
-			require.ElementsMatch(t, []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}, ctx.ResponseCacheSurrogateKeys())
+			require.ElementsMatch(t, []caching.SurrogateKey{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}, ctx.ResponseCacheSurrogateKeys())
 
 			origin := &recordingDataSource{response: []byte(enResponse), responseHeaders: varyHeaders("Accept-Language")}
 			_, out = run(t, cache, origin, en)
@@ -354,6 +362,50 @@ func TestResponseCacheVary(t *testing.T) {
 			}, store.lookups[1])
 		})
 
+		t.Run("the trace names the variant that was served", func(t *testing.T) {
+			t.Parallel()
+			store := newTestCache()
+			seed(t, store, record, variant([]string{"accept-language"}, deEU, `{"set":"lang"}`), variant(langRegion, deEU, `{"set":"lang-region"}`))
+
+			// Both variants are cached; a map scan would pick either.
+			for range 20 {
+				loader, res := varyLoader(t, store, "", "", "", "", deEU)
+				loader.ctx.TracingOptions.Enable = true
+				prepared := &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+				require.True(t, loader.responseCacheLookup(prepared))
+
+				entry := ResponseCacheTraceEntry{Key: "pub-1"}
+				require.JSONEq(t, `{"set":"lang"}`, string(loader.traceLookup(prepared, &entry)))
+				require.Equal(t, record.Vary, entry.Vary)
+			}
+		})
+
+		t.Run("the trace's TTL is the served variant's, and a record without one is not found", func(t *testing.T) {
+			t.Parallel()
+			store := newTestCache()
+			short := variant([]string{"accept-language"}, deEU, `{"set":"lang"}`)
+			short.TTL = 20 * time.Second
+			seed(t, store, record, short)
+
+			loader, res := varyLoader(t, store, "", "", "", "", deEU)
+			loader.ctx.TracingOptions.Enable = true
+			prepared := &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+			require.True(t, loader.responseCacheLookup(prepared))
+			entry := ResponseCacheTraceEntry{Key: "pub-1"}
+			loader.traceLookup(prepared, &entry)
+			require.True(t, entry.Found)
+			require.LessOrEqual(t, entry.RemainingTTLNano, (20 * time.Second).Nanoseconds())
+
+			loader, res = varyLoader(t, store, "", "", "", "", fr)
+			loader.ctx.TracingOptions.Enable = true
+			prepared = &preparedFetch{res: res, responseCacheKeys: []string{"pub-1"}}
+			require.False(t, loader.responseCacheLookup(prepared))
+			entry = ResponseCacheTraceEntry{Key: "pub-1"}
+			require.Nil(t, loader.traceLookup(prepared, &entry))
+			require.False(t, entry.Found)
+			require.Equal(t, record.Vary, entry.Vary, "the record's sets are still shown")
+		})
+
 		t.Run("a header the request does not send counts as empty", func(t *testing.T) {
 			t.Parallel()
 			store := newTestCache()
@@ -408,4 +460,125 @@ func varyLoader(t *testing.T, store caching.Cache, cacheControl, vary, body, pri
 	loader.ctx.SubgraphHeadersBuilder = sent
 	res.sentHeaders = http.Header(sent)
 	return loader, res
+}
+
+// The HTTP client's own headers differ from what was built, on every
+// request alike: varying on them still caches. A hook's header does not.
+func TestResponseCacheVaryClientHeaders(t *testing.T) {
+	t.Parallel()
+	wire := http.Header{
+		"Accept":          {"application/json"},
+		"Content-Type":    {"application/json"},
+		"Accept-Encoding": {"gzip", "deflate"},
+		"X-Tenant":        {"a"},
+	}
+	for _, tc := range []struct {
+		vary string
+		ok   bool
+	}{
+		{vary: "Accept-Encoding", ok: true},
+		{vary: "Accept", ok: true},
+		{vary: "Content-Type", ok: true},
+		{vary: "Accept-Encoding, X-Tenant", ok: false},
+		{vary: "X-Tenant", ok: false},
+	} {
+		for _, sent := range []http.Header{nil, {}} {
+			vary, ok := responseCacheVary(http.Header{"Vary": {tc.vary}}, sent, wire)
+			require.Equal(t, tc.ok, ok, "%s, sent=%v", tc.vary, sent)
+			if ok {
+				names, _ := caching.Vary(http.Header{"Vary": {tc.vary}})
+				require.Equal(t, caching.VaryDigest(names, sent), vary.digest, "digested as a lookup sees it")
+			}
+		}
+	}
+}
+
+// A singleflight follower gets no wire request of its own: it must check Vary
+// against the leader's, or it stores what the leader refused.
+func TestResponseCacheVarySingleFlightFollower(t *testing.T) {
+	t.Parallel()
+	sent := sentHeaders{"Accept-Language": {"de"}}
+	hooked := http.Header{"Accept-Language": {"de"}, "X-Tenant": {"a"}}
+	ds := &wireHeadersDataSource{blockingDataSource: newBlockingDataSource([]byte(`{"data":{"me":{"id":1}}}`)), wire: hooked}
+	fetchItem := newFetchItem(&FetchInfo{DataSourceName: "accounts", OperationType: ast.OperationTypeQuery})
+	flight := NewSingleFlight(1)
+
+	load := func(ctx context.Context) (*result, *httpclient.ResponseContext, error) {
+		loader := &Loader{ctx: NewContext(context.Background()), singleFlight: flight}
+		loader.ctx.SubgraphHeadersBuilder = sent
+		res := &result{}
+		ctx, rc := httpclient.InjectResponseContext(ctx)
+		err := loader.loadByContext(ctx, ds, fetchItem, []byte(`{}`), res)
+		res.httpResponseContext = rc
+		return res, rc, err
+	}
+
+	type loaded struct {
+		res *result
+		rc  *httpclient.ResponseContext
+		err error
+	}
+	leaderDone := make(chan loaded, 1)
+	go func() {
+		res, rc, err := load(context.Background())
+		leaderDone <- loaded{res, rc, err}
+	}()
+	<-ds.ready
+
+	// The follower waits on ctx.Done once it has joined the flight.
+	joined := &joinedCtx{Context: context.Background(), joined: make(chan struct{})}
+	followerDone := make(chan loaded, 1)
+	go func() {
+		res, rc, err := load(joined)
+		followerDone <- loaded{res, rc, err}
+	}()
+	<-joined.joined
+	close(ds.release)
+
+	leader, follower := <-leaderDone, <-followerDone
+	require.NoError(t, leader.err)
+	require.NoError(t, follower.err)
+	require.Nil(t, follower.rc.Response.Request, "no synthetic request reaches ResponseInfo")
+	for _, l := range []loaded{leader, follower} {
+		require.Equal(t, hooked, responseCacheWireHeaders(l.res))
+		_, ok := responseCacheVary(responseCacheHeaders(l.res), l.res.sentHeaders, responseCacheWireHeaders(l.res))
+		require.False(t, ok, "a hook set a varied-on header")
+	}
+}
+
+// wireHeadersDataSource answers with Vary on a header a transport hook set.
+type wireHeadersDataSource struct {
+	*blockingDataSource
+
+	wire http.Header
+}
+
+func (d *wireHeadersDataSource) Load(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
+	d.waitForRelease()
+	if rc := httpclient.GetResponseContext(ctx); rc != nil {
+		rc.StatusCode = http.StatusOK
+		rc.Response = &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Cache-Control": {"public, max-age=60"}, "Vary": {"X-Tenant"}},
+			Request:    &http.Request{Header: d.wire.Clone()},
+		}
+	}
+	return d.data, nil
+}
+
+func (d *wireHeadersDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) ([]byte, error) {
+	return d.Load(ctx, headers, input)
+}
+
+// joinedCtx signals the first Done call.
+type joinedCtx struct {
+	context.Context
+
+	once   sync.Once
+	joined chan struct{}
+}
+
+func (c *joinedCtx) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.joined) })
+	return c.Context.Done()
 }

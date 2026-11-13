@@ -67,15 +67,6 @@ func (f *fragmentsVisitor) LeaveDocument(_, _ *ast.Document) {
 	}
 }
 
-func (f *fragmentsVisitor) fragmentOnNodeIsAllowed(node ast.Node) bool {
-	switch node.Kind {
-	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
-		return true
-	default:
-		return false
-	}
-}
-
 func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	if !f.operation.InlineFragmentHasTypeCondition(ref) {
@@ -92,7 +83,7 @@ func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 		return
 	}
 
-	if !f.fragmentOnNodeIsAllowed(node) {
+	if !node.Kind.IsCompositeType() {
 		f.StopWithExternalErr(operationreport.ErrInlineFragmentOnTypeDisallowed(typeName))
 		return
 	}
@@ -122,7 +113,7 @@ func (f *fragmentsVisitor) EnterFragmentDefinition(ref int) {
 		return
 	}
 
-	if !f.fragmentOnNodeIsAllowed(node) {
+	if !node.Kind.IsCompositeType() {
 		f.StopWithExternalErr(operationreport.ErrFragmentDefinitionOnTypeDisallowed(fragmentDefinitionName, typeName))
 		return
 	}

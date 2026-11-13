@@ -438,19 +438,20 @@ type GraphCoordinate struct {
 }
 
 type DataSourceLoadTrace struct {
-	RawInputData               json.RawMessage `json:"raw_input_data,omitempty"`
-	Input                      json.RawMessage `json:"input,omitempty"`
-	Output                     json.RawMessage `json:"output,omitempty"`
-	LoadError                  string          `json:"error,omitempty"`
-	DurationSinceStartNano     int64           `json:"duration_since_start_nanoseconds,omitempty"`
-	DurationSinceStartPretty   string          `json:"duration_since_start_pretty,omitempty"`
-	DurationLoadNano           int64           `json:"duration_load_nanoseconds,omitempty"`
-	DurationLoadPretty         string          `json:"duration_load_pretty,omitempty"`
-	SingleFlightUsed           bool            `json:"single_flight_used"`
-	SingleFlightSharedResponse bool            `json:"single_flight_shared_response"`
-	LoadSkipped                bool            `json:"load_skipped"`
-	LoadStats                  *LoadStats      `json:"load_stats,omitempty"`
-	Path                       string          `json:"-"`
+	RawInputData               json.RawMessage     `json:"raw_input_data,omitempty"`
+	Input                      json.RawMessage     `json:"input,omitempty"`
+	Output                     json.RawMessage     `json:"output,omitempty"`
+	LoadError                  string              `json:"error,omitempty"`
+	DurationSinceStartNano     int64               `json:"duration_since_start_nanoseconds,omitempty"`
+	DurationSinceStartPretty   string              `json:"duration_since_start_pretty,omitempty"`
+	DurationLoadNano           int64               `json:"duration_load_nanoseconds,omitempty"`
+	DurationLoadPretty         string              `json:"duration_load_pretty,omitempty"`
+	SingleFlightUsed           bool                `json:"single_flight_used"`
+	SingleFlightSharedResponse bool                `json:"single_flight_shared_response"`
+	LoadSkipped                bool                `json:"load_skipped"`
+	LoadStats                  *LoadStats          `json:"load_stats,omitempty"`
+	ResponseCache              *ResponseCacheTrace `json:"response_cache,omitempty"`
+	Path                       string              `json:"-"`
 }
 
 type LoadStats struct {

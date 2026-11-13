@@ -57,6 +57,10 @@ type Storage @key(fields: "id") {
   # @requires field with a nullable list field argument -> ListOfInt
   tagsByLengths(lengths: [Int!]): [String!] @requires(fields: "tags")
 
+  # @requires field returning nested types with field resolvers below it.
+  # Path: storageAudit -> report -> findings -> remediation -> estimatedHours
+  storageAudit: StorageAudit! @requires(fields: "metadata { capacity zone }")
+
   # External enum field for direct @requires testing
   storageKind: CategoryKind! @external
 
@@ -128,6 +132,32 @@ type StorageMetadata {
   capacity: Int!
   zone: String!
   priority: Int!
+}
+
+# Types for field resolvers nested inside a @requires field
+type StorageAudit {
+  zone: String!
+  report: AuditReport!
+  # Field resolver directly on the @requires return type
+  riskScore(weight: Float!): Float! @connect__fieldResolver(context: "zone")
+}
+
+type AuditReport {
+  generatedAt: String!
+  findings: [AuditFinding!]!
+}
+
+type AuditFinding {
+  code: String!
+  severity: Int!
+  # Field resolver in a list, two levels below the @requires return type
+  remediation(detailed: Boolean!): AuditRemediation @connect__fieldResolver(context: "code severity")
+}
+
+type AuditRemediation {
+  description: String!
+  # Field resolver nested inside another field resolver
+  estimatedHours: Float! @connect__fieldResolver(context: "description")
 }
 
 type StorageCategoryInfo {

@@ -85,9 +85,12 @@ service ProductService {
   rpc RequireStorageRecommendedItemsById(RequireStorageRecommendedItemsByIdRequest) returns (RequireStorageRecommendedItemsByIdResponse) {}
   rpc RequireStorageSecuritySummaryById(RequireStorageSecuritySummaryByIdRequest) returns (RequireStorageSecuritySummaryByIdResponse) {}
   rpc RequireStorageStockHealthScoreById(RequireStorageStockHealthScoreByIdRequest) returns (RequireStorageStockHealthScoreByIdResponse) {}
+  rpc RequireStorageStorageAuditById(RequireStorageStorageAuditByIdRequest) returns (RequireStorageStorageAuditByIdResponse) {}
   rpc RequireStorageTagSummaryById(RequireStorageTagSummaryByIdRequest) returns (RequireStorageTagSummaryByIdResponse) {}
   rpc RequireStorageTagsByLengthsById(RequireStorageTagsByLengthsByIdRequest) returns (RequireStorageTagsByLengthsByIdResponse) {}
   rpc RequireWarehouseStockHealthScoreById(RequireWarehouseStockHealthScoreByIdRequest) returns (RequireWarehouseStockHealthScoreByIdResponse) {}
+  rpc ResolveAuditFindingRemediation(ResolveAuditFindingRemediationRequest) returns (ResolveAuditFindingRemediationResponse) {}
+  rpc ResolveAuditRemediationEstimatedHours(ResolveAuditRemediationEstimatedHoursRequest) returns (ResolveAuditRemediationEstimatedHoursResponse) {}
   rpc ResolveCategoryActiveSubcategories(ResolveCategoryActiveSubcategoriesRequest) returns (ResolveCategoryActiveSubcategoriesResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
   rpc ResolveCategoryCategoryStatus(ResolveCategoryCategoryStatusRequest) returns (ResolveCategoryCategoryStatusResponse) {}
@@ -106,6 +109,7 @@ service ProductService {
   rpc ResolveProductRecommendedCategory(ResolveProductRecommendedCategoryRequest) returns (ResolveProductRecommendedCategoryResponse) {}
   rpc ResolveProductShippingEstimate(ResolveProductShippingEstimateRequest) returns (ResolveProductShippingEstimateResponse) {}
   rpc ResolveProductStockStatus(ResolveProductStockStatusRequest) returns (ResolveProductStockStatusResponse) {}
+  rpc ResolveStorageAuditRiskScore(ResolveStorageAuditRiskScoreRequest) returns (ResolveStorageAuditRiskScoreResponse) {}
   rpc ResolveStorageLinkedStorages(ResolveStorageLinkedStoragesRequest) returns (ResolveStorageLinkedStoragesResponse) {}
   rpc ResolveStorageNearbyStorages(ResolveStorageNearbyStoragesRequest) returns (ResolveStorageNearbyStoragesResponse) {}
   rpc ResolveStorageStorageStatus(ResolveStorageStorageStatusRequest) returns (ResolveStorageStorageStatusResponse) {}
@@ -948,6 +952,70 @@ message ResolveStorageNearbyStoragesResponse {
   repeated ResolveStorageNearbyStoragesResult result = 1;
 }
 
+message ResolveStorageAuditRiskScoreArgs {
+  double weight = 1;
+}
+
+message ResolveStorageAuditRiskScoreContext {
+  string zone = 1;
+}
+
+message ResolveStorageAuditRiskScoreRequest {
+  // context provides the resolver context for the field riskScore of type StorageAudit.
+  repeated ResolveStorageAuditRiskScoreContext context = 1;
+  // field_args provides the arguments for the resolver field riskScore of type StorageAudit.
+  ResolveStorageAuditRiskScoreArgs field_args = 2;
+}
+
+message ResolveStorageAuditRiskScoreResult {
+  double risk_score = 1;
+}
+
+message ResolveStorageAuditRiskScoreResponse {
+  repeated ResolveStorageAuditRiskScoreResult result = 1;
+}
+
+message ResolveAuditFindingRemediationArgs {
+  bool detailed = 1;
+}
+
+message ResolveAuditFindingRemediationContext {
+  string code = 1;
+  int32 severity = 2;
+}
+
+message ResolveAuditFindingRemediationRequest {
+  // context provides the resolver context for the field remediation of type AuditFinding.
+  repeated ResolveAuditFindingRemediationContext context = 1;
+  // field_args provides the arguments for the resolver field remediation of type AuditFinding.
+  ResolveAuditFindingRemediationArgs field_args = 2;
+}
+
+message ResolveAuditFindingRemediationResult {
+  AuditRemediation remediation = 1;
+}
+
+message ResolveAuditFindingRemediationResponse {
+  repeated ResolveAuditFindingRemediationResult result = 1;
+}
+
+message ResolveAuditRemediationEstimatedHoursContext {
+  string description = 1;
+}
+
+message ResolveAuditRemediationEstimatedHoursRequest {
+  // context provides the resolver context for the field estimatedHours of type AuditRemediation.
+  repeated ResolveAuditRemediationEstimatedHoursContext context = 1;
+}
+
+message ResolveAuditRemediationEstimatedHoursResult {
+  double estimated_hours = 1;
+}
+
+message ResolveAuditRemediationEstimatedHoursResponse {
+  repeated ResolveAuditRemediationEstimatedHoursResult result = 1;
+}
+
 message ResolveCategoryProductCountArgs {
   ProductCountFilter filters = 1;
 }
@@ -1608,6 +1676,34 @@ message RequireStorageTagsByLengthsByIdResult {
 
 message RequireStorageTagsByLengthsByIdFields {
   repeated string tags = 1;
+}
+
+message RequireStorageStorageAuditByIdRequest {
+  // RequireStorageStorageAuditByIdContext provides the context for the required fields method RequireStorageStorageAuditById.
+  repeated RequireStorageStorageAuditByIdContext context = 1;
+}
+
+message RequireStorageStorageAuditByIdContext {
+  LookupStorageByIdRequestKey key = 1;
+  RequireStorageStorageAuditByIdFields fields = 2;
+}
+
+message RequireStorageStorageAuditByIdResponse {
+  // RequireStorageStorageAuditByIdResult provides the result for the required fields method RequireStorageStorageAuditById.
+  repeated RequireStorageStorageAuditByIdResult result = 1;
+}
+
+message RequireStorageStorageAuditByIdResult {
+  StorageAudit storage_audit = 1;
+}
+
+message RequireStorageStorageAuditByIdFields {
+  message StorageMetadata {
+    int32 capacity = 1;
+    string zone = 2;
+  }
+
+  StorageMetadata metadata = 1;
 }
 
 message RequireStorageKindSummaryByIdRequest {
@@ -2469,6 +2565,25 @@ message StorageMetadata {
   int32 capacity = 1;
   string zone = 2;
   int32 priority = 3;
+}
+
+message StorageAudit {
+  string zone = 1;
+  AuditReport report = 2;
+}
+
+message AuditReport {
+  string generated_at = 1;
+  repeated AuditFinding findings = 2;
+}
+
+message AuditFinding {
+  string code = 1;
+  int32 severity = 2;
+}
+
+message AuditRemediation {
+  string description = 1;
 }
 
 message StorageCategoryInfo {

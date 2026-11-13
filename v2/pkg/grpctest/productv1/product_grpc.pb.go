@@ -94,9 +94,12 @@ const (
 	ProductService_RequireStorageRecommendedItemsById_FullMethodName                 = "/productv1.ProductService/RequireStorageRecommendedItemsById"
 	ProductService_RequireStorageSecuritySummaryById_FullMethodName                  = "/productv1.ProductService/RequireStorageSecuritySummaryById"
 	ProductService_RequireStorageStockHealthScoreById_FullMethodName                 = "/productv1.ProductService/RequireStorageStockHealthScoreById"
+	ProductService_RequireStorageStorageAuditById_FullMethodName                     = "/productv1.ProductService/RequireStorageStorageAuditById"
 	ProductService_RequireStorageTagSummaryById_FullMethodName                       = "/productv1.ProductService/RequireStorageTagSummaryById"
 	ProductService_RequireStorageTagsByLengthsById_FullMethodName                    = "/productv1.ProductService/RequireStorageTagsByLengthsById"
 	ProductService_RequireWarehouseStockHealthScoreById_FullMethodName               = "/productv1.ProductService/RequireWarehouseStockHealthScoreById"
+	ProductService_ResolveAuditFindingRemediation_FullMethodName                     = "/productv1.ProductService/ResolveAuditFindingRemediation"
+	ProductService_ResolveAuditRemediationEstimatedHours_FullMethodName              = "/productv1.ProductService/ResolveAuditRemediationEstimatedHours"
 	ProductService_ResolveCategoryActiveSubcategories_FullMethodName                 = "/productv1.ProductService/ResolveCategoryActiveSubcategories"
 	ProductService_ResolveCategoryCategoryMetrics_FullMethodName                     = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
 	ProductService_ResolveCategoryCategoryStatus_FullMethodName                      = "/productv1.ProductService/ResolveCategoryCategoryStatus"
@@ -115,6 +118,7 @@ const (
 	ProductService_ResolveProductRecommendedCategory_FullMethodName                  = "/productv1.ProductService/ResolveProductRecommendedCategory"
 	ProductService_ResolveProductShippingEstimate_FullMethodName                     = "/productv1.ProductService/ResolveProductShippingEstimate"
 	ProductService_ResolveProductStockStatus_FullMethodName                          = "/productv1.ProductService/ResolveProductStockStatus"
+	ProductService_ResolveStorageAuditRiskScore_FullMethodName                       = "/productv1.ProductService/ResolveStorageAuditRiskScore"
 	ProductService_ResolveStorageLinkedStorages_FullMethodName                       = "/productv1.ProductService/ResolveStorageLinkedStorages"
 	ProductService_ResolveStorageNearbyStorages_FullMethodName                       = "/productv1.ProductService/ResolveStorageNearbyStorages"
 	ProductService_ResolveStorageStorageStatus_FullMethodName                        = "/productv1.ProductService/ResolveStorageStorageStatus"
@@ -208,9 +212,12 @@ type ProductServiceClient interface {
 	RequireStorageRecommendedItemsById(ctx context.Context, in *RequireStorageRecommendedItemsByIdRequest, opts ...grpc.CallOption) (*RequireStorageRecommendedItemsByIdResponse, error)
 	RequireStorageSecuritySummaryById(ctx context.Context, in *RequireStorageSecuritySummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageSecuritySummaryByIdResponse, error)
 	RequireStorageStockHealthScoreById(ctx context.Context, in *RequireStorageStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireStorageStockHealthScoreByIdResponse, error)
+	RequireStorageStorageAuditById(ctx context.Context, in *RequireStorageStorageAuditByIdRequest, opts ...grpc.CallOption) (*RequireStorageStorageAuditByIdResponse, error)
 	RequireStorageTagSummaryById(ctx context.Context, in *RequireStorageTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageTagSummaryByIdResponse, error)
 	RequireStorageTagsByLengthsById(ctx context.Context, in *RequireStorageTagsByLengthsByIdRequest, opts ...grpc.CallOption) (*RequireStorageTagsByLengthsByIdResponse, error)
 	RequireWarehouseStockHealthScoreById(ctx context.Context, in *RequireWarehouseStockHealthScoreByIdRequest, opts ...grpc.CallOption) (*RequireWarehouseStockHealthScoreByIdResponse, error)
+	ResolveAuditFindingRemediation(ctx context.Context, in *ResolveAuditFindingRemediationRequest, opts ...grpc.CallOption) (*ResolveAuditFindingRemediationResponse, error)
+	ResolveAuditRemediationEstimatedHours(ctx context.Context, in *ResolveAuditRemediationEstimatedHoursRequest, opts ...grpc.CallOption) (*ResolveAuditRemediationEstimatedHoursResponse, error)
 	ResolveCategoryActiveSubcategories(ctx context.Context, in *ResolveCategoryActiveSubcategoriesRequest, opts ...grpc.CallOption) (*ResolveCategoryActiveSubcategoriesResponse, error)
 	ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error)
 	ResolveCategoryCategoryStatus(ctx context.Context, in *ResolveCategoryCategoryStatusRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryStatusResponse, error)
@@ -229,6 +236,7 @@ type ProductServiceClient interface {
 	ResolveProductRecommendedCategory(ctx context.Context, in *ResolveProductRecommendedCategoryRequest, opts ...grpc.CallOption) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(ctx context.Context, in *ResolveProductShippingEstimateRequest, opts ...grpc.CallOption) (*ResolveProductShippingEstimateResponse, error)
 	ResolveProductStockStatus(ctx context.Context, in *ResolveProductStockStatusRequest, opts ...grpc.CallOption) (*ResolveProductStockStatusResponse, error)
+	ResolveStorageAuditRiskScore(ctx context.Context, in *ResolveStorageAuditRiskScoreRequest, opts ...grpc.CallOption) (*ResolveStorageAuditRiskScoreResponse, error)
 	ResolveStorageLinkedStorages(ctx context.Context, in *ResolveStorageLinkedStoragesRequest, opts ...grpc.CallOption) (*ResolveStorageLinkedStoragesResponse, error)
 	ResolveStorageNearbyStorages(ctx context.Context, in *ResolveStorageNearbyStoragesRequest, opts ...grpc.CallOption) (*ResolveStorageNearbyStoragesResponse, error)
 	ResolveStorageStorageStatus(ctx context.Context, in *ResolveStorageStorageStatusRequest, opts ...grpc.CallOption) (*ResolveStorageStorageStatusResponse, error)
@@ -996,6 +1004,16 @@ func (c *productServiceClient) RequireStorageStockHealthScoreById(ctx context.Co
 	return out, nil
 }
 
+func (c *productServiceClient) RequireStorageStorageAuditById(ctx context.Context, in *RequireStorageStorageAuditByIdRequest, opts ...grpc.CallOption) (*RequireStorageStorageAuditByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RequireStorageStorageAuditByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_RequireStorageStorageAuditById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) RequireStorageTagSummaryById(ctx context.Context, in *RequireStorageTagSummaryByIdRequest, opts ...grpc.CallOption) (*RequireStorageTagSummaryByIdResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequireStorageTagSummaryByIdResponse)
@@ -1020,6 +1038,26 @@ func (c *productServiceClient) RequireWarehouseStockHealthScoreById(ctx context.
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RequireWarehouseStockHealthScoreByIdResponse)
 	err := c.cc.Invoke(ctx, ProductService_RequireWarehouseStockHealthScoreById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveAuditFindingRemediation(ctx context.Context, in *ResolveAuditFindingRemediationRequest, opts ...grpc.CallOption) (*ResolveAuditFindingRemediationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveAuditFindingRemediationResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveAuditFindingRemediation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveAuditRemediationEstimatedHours(ctx context.Context, in *ResolveAuditRemediationEstimatedHoursRequest, opts ...grpc.CallOption) (*ResolveAuditRemediationEstimatedHoursResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveAuditRemediationEstimatedHoursResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveAuditRemediationEstimatedHours_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1206,6 +1244,16 @@ func (c *productServiceClient) ResolveProductStockStatus(ctx context.Context, in
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveStorageAuditRiskScore(ctx context.Context, in *ResolveStorageAuditRiskScoreRequest, opts ...grpc.CallOption) (*ResolveStorageAuditRiskScoreResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveStorageAuditRiskScoreResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveStorageAuditRiskScore_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveStorageLinkedStorages(ctx context.Context, in *ResolveStorageLinkedStoragesRequest, opts ...grpc.CallOption) (*ResolveStorageLinkedStoragesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveStorageLinkedStoragesResponse)
@@ -1360,9 +1408,12 @@ type ProductServiceServer interface {
 	RequireStorageRecommendedItemsById(context.Context, *RequireStorageRecommendedItemsByIdRequest) (*RequireStorageRecommendedItemsByIdResponse, error)
 	RequireStorageSecuritySummaryById(context.Context, *RequireStorageSecuritySummaryByIdRequest) (*RequireStorageSecuritySummaryByIdResponse, error)
 	RequireStorageStockHealthScoreById(context.Context, *RequireStorageStockHealthScoreByIdRequest) (*RequireStorageStockHealthScoreByIdResponse, error)
+	RequireStorageStorageAuditById(context.Context, *RequireStorageStorageAuditByIdRequest) (*RequireStorageStorageAuditByIdResponse, error)
 	RequireStorageTagSummaryById(context.Context, *RequireStorageTagSummaryByIdRequest) (*RequireStorageTagSummaryByIdResponse, error)
 	RequireStorageTagsByLengthsById(context.Context, *RequireStorageTagsByLengthsByIdRequest) (*RequireStorageTagsByLengthsByIdResponse, error)
 	RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error)
+	ResolveAuditFindingRemediation(context.Context, *ResolveAuditFindingRemediationRequest) (*ResolveAuditFindingRemediationResponse, error)
+	ResolveAuditRemediationEstimatedHours(context.Context, *ResolveAuditRemediationEstimatedHoursRequest) (*ResolveAuditRemediationEstimatedHoursResponse, error)
 	ResolveCategoryActiveSubcategories(context.Context, *ResolveCategoryActiveSubcategoriesRequest) (*ResolveCategoryActiveSubcategoriesResponse, error)
 	ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error)
 	ResolveCategoryCategoryStatus(context.Context, *ResolveCategoryCategoryStatusRequest) (*ResolveCategoryCategoryStatusResponse, error)
@@ -1381,6 +1432,7 @@ type ProductServiceServer interface {
 	ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(context.Context, *ResolveProductShippingEstimateRequest) (*ResolveProductShippingEstimateResponse, error)
 	ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error)
+	ResolveStorageAuditRiskScore(context.Context, *ResolveStorageAuditRiskScoreRequest) (*ResolveStorageAuditRiskScoreResponse, error)
 	ResolveStorageLinkedStorages(context.Context, *ResolveStorageLinkedStoragesRequest) (*ResolveStorageLinkedStoragesResponse, error)
 	ResolveStorageNearbyStorages(context.Context, *ResolveStorageNearbyStoragesRequest) (*ResolveStorageNearbyStoragesResponse, error)
 	ResolveStorageStorageStatus(context.Context, *ResolveStorageStorageStatusRequest) (*ResolveStorageStorageStatusResponse, error)
@@ -1623,6 +1675,9 @@ func (UnimplementedProductServiceServer) RequireStorageSecuritySummaryById(conte
 func (UnimplementedProductServiceServer) RequireStorageStockHealthScoreById(context.Context, *RequireStorageStockHealthScoreByIdRequest) (*RequireStorageStockHealthScoreByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageStockHealthScoreById not implemented")
 }
+func (UnimplementedProductServiceServer) RequireStorageStorageAuditById(context.Context, *RequireStorageStorageAuditByIdRequest) (*RequireStorageStorageAuditByIdResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequireStorageStorageAuditById not implemented")
+}
 func (UnimplementedProductServiceServer) RequireStorageTagSummaryById(context.Context, *RequireStorageTagSummaryByIdRequest) (*RequireStorageTagSummaryByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireStorageTagSummaryById not implemented")
 }
@@ -1631,6 +1686,12 @@ func (UnimplementedProductServiceServer) RequireStorageTagsByLengthsById(context
 }
 func (UnimplementedProductServiceServer) RequireWarehouseStockHealthScoreById(context.Context, *RequireWarehouseStockHealthScoreByIdRequest) (*RequireWarehouseStockHealthScoreByIdResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RequireWarehouseStockHealthScoreById not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveAuditFindingRemediation(context.Context, *ResolveAuditFindingRemediationRequest) (*ResolveAuditFindingRemediationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveAuditFindingRemediation not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveAuditRemediationEstimatedHours(context.Context, *ResolveAuditRemediationEstimatedHoursRequest) (*ResolveAuditRemediationEstimatedHoursResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveAuditRemediationEstimatedHours not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveCategoryActiveSubcategories(context.Context, *ResolveCategoryActiveSubcategoriesRequest) (*ResolveCategoryActiveSubcategoriesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveCategoryActiveSubcategories not implemented")
@@ -1685,6 +1746,9 @@ func (UnimplementedProductServiceServer) ResolveProductShippingEstimate(context.
 }
 func (UnimplementedProductServiceServer) ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveProductStockStatus not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveStorageAuditRiskScore(context.Context, *ResolveStorageAuditRiskScoreRequest) (*ResolveStorageAuditRiskScoreResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveStorageAuditRiskScore not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveStorageLinkedStorages(context.Context, *ResolveStorageLinkedStoragesRequest) (*ResolveStorageLinkedStoragesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveStorageLinkedStorages not implemented")
@@ -3078,6 +3142,24 @@ func _ProductService_RequireStorageStockHealthScoreById_Handler(srv interface{},
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_RequireStorageStorageAuditById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequireStorageStorageAuditByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).RequireStorageStorageAuditById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_RequireStorageStorageAuditById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).RequireStorageStorageAuditById(ctx, req.(*RequireStorageStorageAuditByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_RequireStorageTagSummaryById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RequireStorageTagSummaryByIdRequest)
 	if err := dec(in); err != nil {
@@ -3128,6 +3210,42 @@ func _ProductService_RequireWarehouseStockHealthScoreById_Handler(srv interface{
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).RequireWarehouseStockHealthScoreById(ctx, req.(*RequireWarehouseStockHealthScoreByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveAuditFindingRemediation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveAuditFindingRemediationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveAuditFindingRemediation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveAuditFindingRemediation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveAuditFindingRemediation(ctx, req.(*ResolveAuditFindingRemediationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveAuditRemediationEstimatedHours_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveAuditRemediationEstimatedHoursRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveAuditRemediationEstimatedHours(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveAuditRemediationEstimatedHours_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveAuditRemediationEstimatedHours(ctx, req.(*ResolveAuditRemediationEstimatedHoursRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3452,6 +3570,24 @@ func _ProductService_ResolveProductStockStatus_Handler(srv interface{}, ctx cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).ResolveProductStockStatus(ctx, req.(*ResolveProductStockStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveStorageAuditRiskScore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveStorageAuditRiskScoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveStorageAuditRiskScore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveStorageAuditRiskScore_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveStorageAuditRiskScore(ctx, req.(*ResolveStorageAuditRiskScoreRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3890,6 +4026,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_RequireStorageStockHealthScoreById_Handler,
 		},
 		{
+			MethodName: "RequireStorageStorageAuditById",
+			Handler:    _ProductService_RequireStorageStorageAuditById_Handler,
+		},
+		{
 			MethodName: "RequireStorageTagSummaryById",
 			Handler:    _ProductService_RequireStorageTagSummaryById_Handler,
 		},
@@ -3900,6 +4040,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RequireWarehouseStockHealthScoreById",
 			Handler:    _ProductService_RequireWarehouseStockHealthScoreById_Handler,
+		},
+		{
+			MethodName: "ResolveAuditFindingRemediation",
+			Handler:    _ProductService_ResolveAuditFindingRemediation_Handler,
+		},
+		{
+			MethodName: "ResolveAuditRemediationEstimatedHours",
+			Handler:    _ProductService_ResolveAuditRemediationEstimatedHours_Handler,
 		},
 		{
 			MethodName: "ResolveCategoryActiveSubcategories",
@@ -3972,6 +4120,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveProductStockStatus",
 			Handler:    _ProductService_ResolveProductStockStatus_Handler,
+		},
+		{
+			MethodName: "ResolveStorageAuditRiskScore",
+			Handler:    _ProductService_ResolveStorageAuditRiskScore_Handler,
 		},
 		{
 			MethodName: "ResolveStorageLinkedStorages",

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -39,10 +38,10 @@ type preparedMultiEntry struct {
 	// responseCachePrivate records that cachedValues came, in whole or part,
 	// from entries scoped to the requesting user.
 	responseCachePrivate bool
-	// responseCacheTTL is the life left on the least fresh of cachedValues.
-	responseCacheTTL time.Duration
+	// lifetimes is what cachedValues report.
+	lifetimes hitLifetimes
 	// responseCacheSurrogateKeys is what cachedValues were stored with.
-	responseCacheSurrogateKeys []string
+	responseCacheSurrogateKeys []caching.SurrogateKey
 }
 
 // cacheHit reports whether every representation of this entry was found in the response cache.
@@ -413,8 +412,9 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 
 	// A partial hit still contains data with this much life left,
 	// and the hook needs it for Cache-Control.
-	prepared.res.responseCacheTTL = shortestCachedEntryTTL(prepared.multiEntries)
+	cachedEntryLifetimes(prepared.multiEntries).report(prepared.res)
 	prepared.res.responseCachePrivate = anyPrivateCachedEntry(prepared)
+	prepared.res.responseCache.Status = ResponseCacheStatusPartialHit
 
 	if !slices.Contains(assembly.included, true) {
 		// Every entry hit, so no request goes out and the body prepare assembled
@@ -427,6 +427,7 @@ func (l *Loader) applyMultiEntityResponseCache(ctx context.Context, prepared *pr
 		}
 		prepared.res.statusCode = http.StatusOK
 		prepared.res.responseCacheHit = true
+		prepared.res.responseCache.Status = ResponseCacheStatusHit
 		prepared.responseCacheHit = true
 		if prepared.trace != nil {
 			prepared.trace.LoadSkipped = true
@@ -527,6 +528,7 @@ func (l *Loader) mergeMultiEntityResult(prepared *preparedFetch) error {
 		// built from what it held, which is also the path an entirely warm
 		// fetch takes, no request having been sent for it.
 		l.applyTransportStateToEntries(prepared)
+		l.responseCacheCollectMultiEntity(prepared, nil, nil, false)
 
 		cached, err := l.serveCachedEntriesWithoutResponse(prepared)
 		if err != nil {
@@ -622,12 +624,9 @@ func (l *Loader) applyParsedResponseToEntries(prepared *preparedFetch, response 
 		return err
 	}
 
-	// If we have any errors that couldn't be matched to an alias, we can't cache the response.
-	if !unmatchedErrors {
-		// Collected off the response as the subgraph sent it, before the cached
-		// entities are written in.
-		l.responseCacheCollectMultiEntity(prepared, response, entryErrors)
-	}
+	// Collected off the response as the subgraph sent it, before the cached
+	// entities are written in. Errors no alias claims leave nothing to store.
+	l.responseCacheCollectMultiEntity(prepared, response, entryErrors, unmatchedErrors)
 
 	if err := l.applyCachedEntriesToResponse(prepared, response); err != nil {
 		return err

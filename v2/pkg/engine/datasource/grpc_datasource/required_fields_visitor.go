@@ -32,7 +32,9 @@ type requiredFieldsVisitor struct {
 	mapping *GRPCMapping
 	planCtx *rpcPlanningContext
 
-	messageAncestors []*RPCMessage
+	messageAncestors     []*RPCMessage
+	messageAncestorNames []string
+	messageNameMap       map[string]*RPCMessage
 
 	skipFieldResolvers      bool
 	referenceNestedMessages bool
@@ -42,14 +44,16 @@ type requiredFieldsVisitor struct {
 // It registers the visitor with the walker and returns it.
 func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, mapping *GRPCMapping) *requiredFieldsVisitor {
 	visitor := &requiredFieldsVisitor{
-		walker:              walker,
-		message:             message,
-		mapping:             mapping,
-		messageAncestors:    []*RPCMessage{},
-		fieldDefinitionRefs: []int{},
+		walker:               walker,
+		message:              message,
+		mapping:              mapping,
+		messageAncestors:     []*RPCMessage{},
+		messageAncestorNames: []string{},
+		messageNameMap:       make(map[string]*RPCMessage),
+		fieldDefinitionRefs:  []int{},
 	}
 
-	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterDocumentVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterEnterFieldVisitor(visitor)
 
@@ -107,6 +111,13 @@ func (r *requiredFieldsVisitor) EnterDocument(operation *ast.Document, definitio
 	r.planCtx = newRPCPlanningContext(operation, definition, r.mapping)
 }
 
+// LeaveDocument implements [astvisitor.DocumentVisitor].
+func (r *requiredFieldsVisitor) LeaveDocument(operation *ast.Document, definition *ast.Document) {
+	for name, message := range r.messageNameMap {
+		message.Name = name
+	}
+}
+
 func (r *requiredFieldsVisitor) enterNestedField(ref int, inlineFragmentRef int) bool {
 	lastField := r.planCtx.lastResponseField(r.message, inlineFragmentRef)
 	if lastField == nil {
@@ -118,8 +129,9 @@ func (r *requiredFieldsVisitor) enterNestedField(ref int, inlineFragmentRef int)
 	}
 
 	r.messageAncestors = append(r.messageAncestors, r.message)
+	r.messageAncestorNames = append(r.messageAncestorNames, r.message.Name)
 	if r.referenceNestedMessages {
-		lastField.Message.Name = r.formatNestedMessageName(lastField.Message.Name)
+		r.messageNameMap[r.formatNestedMessageName(lastField.Message.Name, inlineFragmentRef)] = lastField.Message
 	}
 	r.message = lastField.Message
 	return true
@@ -151,6 +163,10 @@ func (r *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 func (r *requiredFieldsVisitor) LeaveSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind != ast.NodeKindField {
 		return
+	}
+
+	if len(r.messageAncestorNames) > 0 {
+		r.messageAncestorNames = r.messageAncestorNames[:len(r.messageAncestorNames)-1]
 	}
 
 	if len(r.messageAncestors) > 0 {
@@ -239,14 +255,19 @@ func (r *requiredFieldsVisitor) handleCompositeType(node ast.Node) error {
 
 // formatNestedMessageName formats the name of a nested message.
 // It returns the full qualified name of the nested message.
-func (r *requiredFieldsVisitor) formatNestedMessageName(name string) string {
-	if len(r.messageAncestors) == 0 {
-		return name
+func (r *requiredFieldsVisitor) formatNestedMessageName(name string, inlineFragmentRef int) string {
+	messagePath := r.messageAncestorNames
+	if inlineFragmentRef != ast.InvalidRef {
+		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
+		messagePath[len(messagePath)-1] = inlineFragmentName
 	}
 
 	builder := strings.Builder{}
-	builder.WriteString(r.messageAncestors[len(r.messageAncestors)-1].Name)
-	builder.WriteString(".")
+	for _, messageName := range messagePath {
+		builder.WriteString(messageName)
+		builder.WriteString(".")
+	}
+
 	builder.WriteString(name)
 
 	return builder.String()

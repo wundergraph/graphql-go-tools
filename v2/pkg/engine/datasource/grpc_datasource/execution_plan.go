@@ -205,6 +205,9 @@ type RPCField struct {
 	EnumName string
 	// StaticValue is the static value of the field
 	StaticValue string
+	// DefaultValue is the JSON text of the schema default of an input object
+	// field, sent when the request omits the field.
+	DefaultValue string
 	// Optional indicates if the field is optional
 	Optional bool
 	// IsListType indicates if the field is a list wrapper type
@@ -260,9 +263,11 @@ func (r *RPCField) AliasOrPath() string {
 	return r.JSONPath
 }
 
-// IsOptionalScalar checks if the field is an optional scalar value.
+// IsOptionalScalar checks if the field is an optional scalar value that is
+// wrapped in a google.protobuf.*Value message. Nullable enums are plain proto
+// enum fields: protobuf has no wrapper type for them.
 func (r *RPCField) IsOptionalScalar() bool {
-	return r.Optional && r.ProtoTypeName != DataTypeMessage
+	return r.Optional && r.ProtoTypeName != DataTypeMessage && r.ProtoTypeName != DataTypeEnum
 }
 
 // RPCFields is a list of RPCFields that provides helper methods
@@ -395,6 +400,21 @@ func formatRPCMessageVisited(sb *strings.Builder, message RPCMessage, indent int
 		visited[field.Message] = struct{}{}
 		formatRPCMessageVisited(sb, *field.Message, indent+6, visited)
 	}
+}
+
+type planningInfo struct {
+	operationType      ast.OperationType
+	operationFieldName string
+
+	currentRequestMessage *RPCMessage
+
+	responseMessageAncestors []*RPCMessage
+	currentResponseMessage   *RPCMessage
+}
+
+type contextField struct {
+	fieldRef    int
+	resolvePath ast.Path
 }
 
 type rpcPlanningContext struct {
@@ -769,6 +789,16 @@ func (r *rpcPlanningContext) buildMessageFieldFromInputValueDefinition(ivdRef in
 		return RPCField{}, err
 	}
 
+	// GraphQL applies an input object field's default when the field is omitted.
+	// A gRPC subgraph has no GraphQL layer to do that, so the request carries it.
+	if r.definition.InputValueDefinitionHasDefaultValue(ivdRef) {
+		defaultValue, err := r.definition.ValueToJSON(r.definition.InputValueDefinitionDefaultValue(ivdRef))
+		if err != nil {
+			return RPCField{}, fmt.Errorf("unable to convert default value of input field %s: %w", fieldName, err)
+		}
+		field.DefaultValue = string(defaultValue)
+	}
+
 	field.Message = fieldMessage
 	return field, nil
 }
@@ -901,12 +931,14 @@ func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
 type resolverField struct {
 	id                     int
 	callerRef              int
+	requiredFieldIdx       int
 	parentTypeNode         ast.Node
 	fieldRef               int
 	fieldDefinitionTypeRef int
 	fieldsSelectionSetRef  int
 	responsePath           ast.Path
 	contextPath            ast.Path
+	nestedPath             ast.Path
 
 	contextFields      []contextField
 	fieldArguments     []fieldArgument
@@ -914,6 +946,11 @@ type resolverField struct {
 	fragmentType       OneOfType
 	listNestingLevel   int
 	memberTypes        []string
+}
+
+// nestedContextPath returns the context path for a field resolver inside of this resolver.
+func (f *resolverField) nestedContextPath() ast.Path {
+	return append(slices.Clone(f.contextPath), f.nestedPath...)
 }
 
 type fragmentSelection struct {
@@ -1044,6 +1081,39 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 	if r.typeIsNullableOrNestedList(fieldDefType) {
 		resolvedField.listNestingLevel = r.definition.TypeNumberOfListWraps(fieldDefType)
 	}
+
+	return r.setResolverSelectionSet(fieldDefRef, resolvedField)
+}
+
+// setResolverSelectionSet stores the selection set of the resolver field.
+// buildMessageForField uses it to build the response message of the resolver call.
+// The selection sets of plain fields inside of the resolver are nested in it. Thus we do not store them.
+func (r *rpcPlanningContext) setResolverSelectionSet(fieldDefRef int, resolvedField *resolverField) error {
+	resolvedField.fieldsSelectionSetRef = ast.InvalidRef
+
+	// A resolver field that returns a scalar or an enum has no selection set.
+	selectionSetRef, ok := r.operation.FieldSelectionSet(resolvedField.fieldRef)
+	if !ok {
+		return nil
+	}
+
+	typeNode := r.definition.FieldDefinitionTypeNode(fieldDefRef)
+	compositeType := r.getCompositeType(typeNode)
+	if compositeType == OneOfTypeNone {
+		resolvedField.fieldsSelectionSetRef = selectionSetRef
+		return nil
+	}
+
+	memberTypes, err := r.getMemberTypes(typeNode)
+	if err != nil {
+		return err
+	}
+
+	config := r.buildCompositeTypeConfig(compositeType, selectionSetRef)
+	resolvedField.memberTypes = memberTypes
+	resolvedField.fieldsSelectionSetRef = config.fieldsSelectionSetRef
+	resolvedField.fragmentType = config.oneOfType
+	resolvedField.fragmentSelections = config.fragmentSelections
 
 	return nil
 }
@@ -1183,7 +1253,6 @@ type buildFieldMessageConfig struct {
 	memberTypes           []string
 	fragmentSelections    []fragmentSelection
 	fieldsSelectionSetRef int
-	fieldRefs             []int
 }
 
 // buildMessageForField builds the message for a given field resolver type.
@@ -1243,7 +1312,7 @@ func (r *rpcPlanningContext) buildMessageForField(config buildFieldMessageConfig
 			continue
 		}
 
-		if message.Fields.Exists(r.operation.FieldNameString(fieldRef), "") {
+		if message.Fields.Exists(r.operation.FieldNameString(fieldRef), r.operation.FieldAliasString(fieldRef)) {
 			continue
 		}
 
@@ -1386,10 +1455,11 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 	}
 
 	call := RPCCall{
-		ID:          callIndex,
-		ServiceName: r.resolveServiceName(subgraphName),
-		Kind:        CallKindRequired,
-		MethodName:  rpcConfig.RPC,
+		ID:                  callIndex,
+		ServiceName:         r.resolveServiceName(subgraphName),
+		Kind:                CallKindRequired,
+		MethodName:          rpcConfig.RPC,
+		RequestedEntityType: typeName,
 		ResponsePath: ast.Path{
 			{Kind: ast.FieldName, FieldName: []byte("_entities")},
 			{Kind: ast.FieldName, FieldName: []byte(rf.resultField.AliasOrPath())},
@@ -1400,7 +1470,7 @@ func (r *rpcPlanningContext) createRequiredFieldsRPCCall(callIndex int, subgraph
 				{
 					Name:          contextFieldName, // Static name for the context field.
 					ProtoTypeName: DataTypeMessage,
-					JSONPath:      "representations",
+					JSONPath:      representationsKey,
 					Repeated:      true,
 					Message: &RPCMessage{
 						Name: rpcConfig.RPC + "Context",

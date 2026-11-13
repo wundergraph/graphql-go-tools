@@ -69,8 +69,47 @@ type ResponseInfo struct {
 	// ResponseCachePrivate reports that at least one entry the hit was served
 	// from belongs to the requesting user, so the response is private.
 	ResponseCachePrivate bool
+	// ResponseCache is what the response cache did for the fetch.
+	ResponseCache ResponseCacheInfo
+	// RootFields are the coordinates the fetch resolves, for an entity fetch the
+	// fields of the entity type. Shared with the plan, for reading only.
+	RootFields []GraphCoordinate
 	// This should be private as we do not want user's to access the raw responseBody directly
 	responseBody []byte
+}
+
+//go:generate go tool stringer -type=ResponseCacheStatus -linecomment -output=response_cache_status_string.go
+
+// ResponseCacheStatus is how much of a fetch the response cache answered.
+type ResponseCacheStatus uint8
+
+const (
+	// ResponseCacheStatusNotCacheable is a fetch the cache was never asked about.
+	ResponseCacheStatusNotCacheable ResponseCacheStatus = iota // not_cacheable
+	ResponseCacheStatusMiss                                    // miss
+	ResponseCacheStatusPartialHit                              // partial_hit
+	ResponseCacheStatusHit                                     // hit
+)
+
+// ResponseCacheInfo is what the response cache did for a fetch.
+type ResponseCacheInfo struct {
+	Status ResponseCacheStatus
+	// StoreDecision is what was decided for the response of a fetch that was sent.
+	// The write itself happens after OnFinished, its failure is reported to OnError.
+	StoreDecision caching.StoreDecision
+	// StoredTTL is the lifetime the response is stored with, set when
+	// StoreDecision is StoreDecisionStored.
+	StoredTTL time.Duration
+	// ClientTTL, Public and SharedOnly are what a client may be told of a hit:
+	// the subgraph's max-age net of time cached, whether every entry said
+	// public, and whether none gave a client lifetime (caching.Item.SharedOnly).
+	ClientTTL  time.Duration
+	Public     bool
+	SharedOnly bool
+	// KeysRequested and KeysFound count what the cache was asked for and answered.
+	KeysRequested  int
+	KeysFound      int
+	LookupDuration time.Duration
 }
 
 func (r *ResponseInfo) GetResponseBody() string {
@@ -84,6 +123,8 @@ func newResponseInfo(res *result) *ResponseInfo {
 		ResponseCacheHit:     res.responseCacheHit,
 		ResponseCacheTTL:     res.responseCacheTTL,
 		ResponseCachePrivate: res.responseCachePrivate,
+		ResponseCache:        res.responseCache,
+		RootFields:           res.rootFields,
 		responseBody:         res.out,
 	}
 	if res.httpResponseContext != nil {
@@ -150,16 +191,23 @@ type result struct {
 	// cache digests these for Vary, not a second call to the headers builder,
 	// which need not answer the same twice.
 	sentHeaders http.Header
+	// sharedWireHeaders are the singleflight leader's wire headers, set on a follower.
+	sharedWireHeaders http.Header
 	// responseCacheHit and responseCacheTTL record that the fetch was served entirely from the cache
 	// and the min lifetime left across its entries. Fetch-local, so the unlocked load phase is safe.
 	responseCacheHit bool
 	responseCacheTTL time.Duration
+	// responseCacheFetchedAt is when the fetch's first lookup started.
+	responseCacheFetchedAt time.Time
 	// responseCachePrivate records that a hit was served, in whole or part,
 	// from entries scoped to the requesting user.
 	responseCachePrivate bool
 	// responseCacheSurrogateKeys is what the fetch contributes to the cache tag
 	// header, read back on a hit and computed on a miss.
-	responseCacheSurrogateKeys []string
+	responseCacheSurrogateKeys []caching.SurrogateKey
+	// responseCache is what the hooks are told the cache did for the fetch.
+	responseCache ResponseCacheInfo
+	rootFields    []GraphCoordinate
 	// out is the subgraph response body
 	out               []byte
 	singleFlightStats *singleFlightStats
@@ -178,6 +226,7 @@ func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInf
 			ID:   info.DataSourceID,
 			Name: info.DataSourceName,
 		}
+		r.rootFields = info.RootFields
 	}
 }
 
@@ -467,6 +516,11 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 		return nil
 	}
 
+	if l.responseCacheRefuse(prepared.res) {
+		l.recordErroredFetchID(prepared.item)
+		return nil
+	}
+
 	l.executeSourceLoad(ctx, prepared.item, prepared.source, prepared.input, prepared.res, prepared.trace)
 	if prepared.res.err != nil {
 		// TODO: for a MultiEntityFetch this marks all entries as failed,
@@ -492,7 +546,7 @@ func (l *Loader) mergePhase(prepared *preparedFetch) error {
 	}
 
 	if err := l.responseCacheCollect(prepared); err != nil {
-		l.reportResponseCacheError(fmt.Errorf("response cache collect error: %w", err))
+		l.reportResponseCacheError(ResponseCacheOperationCollect, prepared.res.ds.Name, fmt.Errorf("response cache collect error: %w", err))
 	}
 	l.responseCacheMergeSurrogateKeys(prepared.res)
 
@@ -524,7 +578,8 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	// After mergePhase released the data lock: the cache round trip must not
 	// hold up the fetches waiting on it. Runs regardless of the merge outcome,
 	// matching the store that used to sit in the load phase.
-	l.responseCacheFlush(prepared)
+	written, writeErr := l.responseCacheFlush(prepared)
+	l.setResponseCacheTrace(prepared, written, writeErr)
 	return err
 }
 
@@ -546,12 +601,18 @@ type preparedFetch struct {
 	// keeps the sets its records held.
 	responseCacheFound map[string]caching.Item
 
+	// responseCacheVariantServed is the variant body each record was served
+	// from, by record key; kept for the trace only.
+	responseCacheVariantServed map[string]caching.Item
+
 	isRootFetchCache bool
 
 	// responseCacheHit is set when the fetch was answered entirely from the cache.
 	responseCacheHit bool
 
 	responseCacheItems []caching.Item
+	// responseCacheCollectedAt is when the items' TTLs were taken.
+	responseCacheCollectedAt time.Time
 
 	multiEntries []preparedMultiEntry
 
@@ -749,7 +810,11 @@ func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
 
 func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
 	if res.err != nil {
-		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
+		reason := failedToFetchNoReason
+		if goerrors.Is(res.err, ErrResponseCacheOnlyIfCached) {
+			reason = ErrResponseCacheOnlyIfCached.Error()
+		}
+		return l.renderErrorsFailedToFetch(fetchItem, res, reason)
 	}
 	if res.authorizationRejected {
 		err := l.renderAuthorizationRejectedErrors(fetchItem, res)
@@ -1792,7 +1857,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 	// the offsets above still point at what they were taken from.
 	if l.responseCacheEnabledFor(res.ds.Name) {
 		rendered := preparedInput.Bytes()
-		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		selection := responseCacheSelection(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:], undefinedVariables)
 		l.responseCacheSetKeys(prepared, selection, []caching.Digest{caching.DigestBytes(renderedItem)})
 	}
 
@@ -1990,7 +2055,7 @@ WithNextItem:
 
 	if len(responseCacheItems) > 0 {
 		rendered := preparedInput.Bytes()
-		selection := caching.DigestParts(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:])
+		selection := responseCacheSelection(rendered[:responseCacheHeaderEnd], rendered[responseCacheFooterStart:], undefinedVariables)
 		l.responseCacheSetKeys(prepared, selection, responseCacheItems)
 	}
 
@@ -2183,6 +2248,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 				}
 			}
 		}
+		res.sharedWireHeaders = item.requestHeaders
 		return nil
 	}
 
@@ -2205,6 +2271,9 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		item.statusCode = rc.StatusCode
 		if rc.Response != nil && rc.Response.Header != nil {
 			item.responseHeaders = rc.Response.Header.Clone()
+		}
+		if rc.Response != nil && rc.Response.Request != nil {
+			item.requestHeaders = rc.Response.Request.Header.Clone()
 		}
 	}
 	return nil

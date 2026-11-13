@@ -3,9 +3,9 @@ package grpcdatasource
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 
-	"github.com/tidwall/gjson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
@@ -32,17 +32,15 @@ const (
 // - Error response formatting
 type jsonBuilder struct {
 	mapping   *GRPCMapping // Mapping configuration for GraphQL to gRPC translation
-	variables gjson.Result // GraphQL variables containing entity representations
 	jsonArena arena.Arena
 }
 
 // newJSONBuilder creates a new JSON builder instance with the provided mapping
 // and variables. The builder automatically creates an index map for proper
 // federation entity ordering if representations are present in the variables.
-func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) *jsonBuilder {
+func newJSONBuilder(a arena.Arena, mapping *GRPCMapping) *jsonBuilder {
 	return &jsonBuilder{
 		mapping:   mapping,
-		variables: variables,
 		jsonArena: a,
 	}
 }
@@ -50,7 +48,7 @@ func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result)
 // mergeValues combines two JSON values while preserving proper federation entity ordering.
 // This is a critical function for GraphQL federation where multiple subgraphs may
 // return entities that need to be merged in the correct order.
-func (j *jsonBuilder) mergeValues(left *astjson.Value, right resultData) (*astjson.Value, error) {
+func (j *jsonBuilder) mergeValues(left *astjson.Value, right fetchResult) (*astjson.Value, error) {
 	if right.kind != CallKindEntity {
 		// No federation index map available - use simple merge
 		// This path is taken for non-federated queries
@@ -76,7 +74,7 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right resultData) (*astjs
 // _entities array. On subsequent calls, left is the result of a previous
 // mergeEntities call and already holds the _entities array, so we mutate it
 // in place rather than copying every accumulated entity into a new array.
-func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult resultData) (*astjson.Value, error) {
+func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult fetchResult) (*astjson.Value, error) {
 	right := rightResult.response
 	rightEntities := right.Get(entityPath).GetArray()
 
@@ -99,34 +97,48 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, rightResult resultData)
 }
 
 // mergeWithPath merges a JSON value with a resolved value by its path.
-func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path) error {
+// If indexMap is set, only the items of the root array at these indexes are merged.
+func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path, indexMap entityIndexMap) error {
 	if len(path) == 0 {
 		return errors.New("path is empty")
 	}
 
 	resolvedValues := resolved.GetArray(resolveResponsePath)
-	if len(resolvedValues) == 0 {
-		return nil
-	}
 
-	searchPath := path[:len(path)-1]
+	searchPath := path.RemoveLastItem()
 	elementName := path[len(path)-1].FieldName.String()
 
 	responseValues := make([]*astjson.Value, 0, len(resolvedValues))
 
 	// We retrieve a flat list of all the values that we need to merge with the resolved values.
-	current := base
-	current = current.Get(searchPath[0].FieldName.String())
-	switch current.Type() {
+	next := base.Get(searchPath[0].FieldName.String())
+	if next == nil {
+		return fmt.Errorf("field %s not found in object", searchPath[0].FieldName.String())
+	}
+
+	switch next.Type() {
 	case astjson.TypeArray:
-		arr := current.GetArray()
+		arr := next.GetArray()
+		if len(indexMap) > 0 {
+			indexedValues := make([]*astjson.Value, 0, len(indexMap))
+			for _, index := range indexMap {
+				if index < 0 || index >= len(arr) {
+					return fmt.Errorf("index %d is out of bounds for array of length %d", index, len(arr))
+				}
+
+				indexedValues = append(indexedValues, arr[index])
+			}
+
+			arr = indexedValues
+		}
+
 		values, err := j.flattenList(arr, searchPath[1:])
 		if err != nil {
 			return err
 		}
 		responseValues = append(responseValues, values...)
 	default:
-		values, err := j.flattenObject(current, searchPath[1:])
+		values, err := j.flattenObject(next, searchPath[1:])
 		if err != nil {
 			return err
 		}
@@ -134,7 +146,7 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 	}
 
 	if len(resolvedValues) != len(responseValues) {
-		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(resolvedValues), len(responseValues))
+		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(responseValues), len(resolvedValues))
 	}
 
 	for i := range responseValues {
@@ -147,6 +159,10 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 // flattenObject flattens a JSON object into a list of values.
 // This is needed because we want to get the values from the object by its path to merge them with the response values.
 func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*astjson.Value, error) {
+	if value.Type() == astjson.TypeNull {
+		return nil, nil
+	}
+
 	if path.Len() == 0 {
 		return []*astjson.Value{value}, nil
 	}
@@ -159,6 +175,8 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 
 	result := make([]*astjson.Value, 0)
 	switch current.Type() {
+	case astjson.TypeNull:
+		return result, nil
 	case astjson.TypeObject:
 		values, err := j.flattenObject(current, path[1:])
 		if err != nil {
@@ -181,11 +199,7 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 // flattenList flattens a list of JSON values into a list of values.
 // This is needed because we want to get the values from the list by its path to merge them with the response values.
 func (j *jsonBuilder) flattenList(items []*astjson.Value, path ast.Path) ([]*astjson.Value, error) {
-	if path.Len() == 0 {
-		return items, nil
-	}
-
-	result := make([]*astjson.Value, 0)
+	result := make([]*astjson.Value, 0, len(items))
 	for _, item := range items {
 		values, err := j.flattenObject(item, path)
 		if err != nil {
@@ -227,7 +241,9 @@ func (j *jsonBuilder) marshalResponseJSON(message *RPCMessage, data protoref.Mes
 	}
 
 	// Determine which fields to include in the response
-	validFields := message.Fields
+	// Clip trick: create a new slice header with capacity equal to its length.
+	// This does not allocate, and any append creates a new backing array.
+	validFields := slices.Clip(message.Fields)
 	if message.IsOneOf() {
 		// For oneOf types, add type-specific fields based on the actual concrete type
 		validFields = append(validFields, message.FragmentFields.SelectFieldsForTypes(message.SelectValidTypes(string(data.Type().Descriptor().Name())))...)

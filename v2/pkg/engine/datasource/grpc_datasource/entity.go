@@ -4,10 +4,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/tidwall/gjson"
-
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 )
+
+const representationsKey = "representations"
 
 // entityIndexMap maps positions in the typed gRPC response back to positions
 // in the original representations array. The slice index is the response
@@ -19,25 +20,47 @@ type entityIndexMap []int
 // newEntityIndexMap builds the index map for a single entity call by collecting
 // the positions of representations whose __typename matches the requested type.
 // A single pass over representations populates the slice.
-func newEntityIndexMap(requestedEntityType string, representations []gjson.Result) entityIndexMap {
+func newEntityIndexMap(requestedEntityType string, representations []*astjson.Value) entityIndexMap {
 	indexMap := make(entityIndexMap, 0, len(representations))
 	for i, representation := range representations {
-		if representation.Get(typenameFieldName).String() == requestedEntityType {
+		if string(representation.Get(typenameFieldName).GetStringBytes()) == requestedEntityType {
 			indexMap = append(indexMap, i)
 		}
 	}
 	return indexMap
 }
 
-// getRepresentations gets the representations from the variables.
-// If no representations are found, it returns nil.
-func getRepresentations(variables gjson.Result) []gjson.Result {
-	r := variables.Get("representations")
-	if !r.Exists() {
+// getRepresentations returns the representations from the variables, or nil if there are none.
+func getRepresentations(variables *astjson.Value) []*astjson.Value {
+	return variables.GetArray(representationsKey)
+}
+
+// filterRepresentations filters the representations to only include the ones of the requested entity type.
+func filterRepresentations(arena arena.Arena, variables *astjson.Value, requestedEntityType string) *astjson.Value {
+	representations := getRepresentations(variables)
+	if len(representations) == 0 {
 		return nil
 	}
 
-	return r.Array()
+	// Required calls might have arguments, which are provided as additional variables
+	// along with the representations. Therefore we need to copy all other elements into the new variables object.
+	ov := astjson.ObjectValue(arena)
+	variables.GetObject().Visit(func(key []byte, v *astjson.Value) {
+		if string(key) != representationsKey {
+			ov.Set(arena, string(key), v)
+		}
+	})
+
+	representationsArr := astjson.ArrayValue(arena)
+
+	for _, representation := range representations {
+		if string(representation.Get(typenameFieldName).GetStringBytes()) == requestedEntityType {
+			representationsArr.SetArrayItem(arena, len(representationsArr.GetArray()), representation)
+		}
+	}
+
+	ov.Set(arena, representationsKey, representationsArr)
+	return ov
 }
 
 // validateEntityResponse verifies that the number of entities returned by the
@@ -45,7 +68,7 @@ func getRepresentations(variables gjson.Result) []gjson.Result {
 // Callers should subsequently build an entityIndexMap via newEntityIndexMap to
 // merge the response — mergeEntities relies on the invariant that
 // len(response entities) == len(indexMap), which this function establishes.
-func validateEntityResponse(data *astjson.Value, requestedEntityType string, representations []gjson.Result) error {
+func validateEntityResponse(data *astjson.Value, requestedEntityType string, representations []*astjson.Value) error {
 	if data == nil {
 		return errors.New("validateEntityResponse: subgraph response data is nil")
 	}
@@ -60,7 +83,7 @@ func validateEntityResponse(data *astjson.Value, requestedEntityType string, rep
 
 	expected := 0
 	for _, representation := range representations {
-		if representation.Get(typenameFieldName).String() == requestedEntityType {
+		if string(representation.Get(typenameFieldName).GetStringBytes()) == requestedEntityType {
 			expected++
 		}
 	}

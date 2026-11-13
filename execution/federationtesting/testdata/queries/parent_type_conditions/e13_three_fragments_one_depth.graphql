@@ -1,0 +1,26 @@
+# Three fragments at one depth, all selecting the same nested object.
+query ThreeFragmentsOneDepth {
+    someNestedInterfaces {
+        __typename
+        ... on SomeNestedType1 {
+            otherInterfaces {
+                __typename
+                ... on SomeType1 {
+                    someObject {
+                        a
+                    }
+                }
+                ... on SomeType2 {
+                    someObject {
+                        a
+                    }
+                }
+                ... on SomeType3 {
+                    someObject {
+                        a
+                    }
+                }
+            }
+        }
+    }
+}

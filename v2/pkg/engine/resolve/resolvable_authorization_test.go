@@ -769,6 +769,19 @@ func TestResolvableAuthorizationObjectFieldTypeName(t *testing.T) {
 	assert.Equal(t, "Fallback", resolvable.objectFieldTypeName(mustParseAuthorizationValue(t, `{}`), field))
 }
 
+func TestResolvableAuthorizationObjectFieldTypeNameOwnsMemory(t *testing.T) {
+	resolvable := NewResolvable(nil, ResolvableOptions{})
+	field := &Field{
+		Info: &FieldInfo{ExactParentTypeName: "Fallback"},
+	}
+	object := mustParseAuthorizationValue(t, `{"__typename":"Concrete"}`)
+
+	typeName := resolvable.objectFieldTypeName(object, field)
+	clear(object.GetStringBytes("__typename"))
+
+	assert.Equal(t, "Concrete", typeName)
+}
+
 func newResolvableForAuthorizationTest(ctx *Context) *Resolvable {
 	resolvable := NewResolvable(nil, ResolvableOptions{})
 	requireNoError := resolvable.Init(ctx, nil, ast.OperationTypeQuery)

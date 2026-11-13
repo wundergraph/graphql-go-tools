@@ -4,7 +4,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
+
+// deferIfArgumentType is the type of the "if" argument in the @defer definition of the base schema.
+var deferIfArgumentType = []byte("Boolean!")
 
 // deferExpandIntoInternal registers a visitor that
 // applies the defer directive to every nested field
@@ -65,12 +69,24 @@ func (f *deferExpandIntoInternalVisitor) EnterInlineFragment(ref int) {
 		return
 	}
 
-	// check if defer is enabled
-	enabled := true
-	ifValue, hasIf := f.operation.DirectiveArgumentValueByName(directiveRef, literal.IF)
-	if hasIf {
-		isEnabled, valid := f.operation.GetBooleanValue(ifValue)
-		enabled = valid && isEnabled
+	// An absent variable and a null variable give different results.
+	// A cache of normalized operations must use different keys for the two values.
+	coercion := f.operation.CoerceIfArgument(directiveRef, f.Ancestors[0].Ref)
+	switch coercion {
+	case ast.IfArgumentNull:
+		// CoerceIfArgument returns IfArgumentNull only for a present argument, so the lookup cannot fail.
+		ifValue, _ := f.operation.DirectiveArgumentValueByName(directiveRef, literal.IF)
+		err := operationreport.ErrNonNullArgumentIsNull(literal.IF, deferIfArgumentType, ifValue.Position)
+		// Fragment inlining copies an argument without its position.
+		// A zero position is not a valid location, so the error gets no location.
+		if ifValue.Position.LineStart == 0 {
+			err.Locations = nil
+		}
+		f.StopWithExternalErr(err)
+		return
+	case ast.IfArgumentInvalid:
+		// Operation validation or variables validation reports the value, so the directive stays in the operation.
+		return
 	}
 
 	// remove defer directive from the inline fragment
@@ -80,7 +96,7 @@ func (f *deferExpandIntoInternalVisitor) EnterInlineFragment(ref int) {
 		Ref:  ref,
 	}, directiveRef)
 
-	if !enabled || f.disable || f.ignore {
+	if coercion == ast.IfArgumentFalse || f.disable || f.ignore {
 		return
 	}
 
@@ -94,10 +110,11 @@ func (f *deferExpandIntoInternalVisitor) EnterInlineFragment(ref int) {
 		return
 	}
 
-	// get label argument if any
+	// A null label means no label.
+	// A caller without the prevalidation rules can pass a label of any value kind.
 	labelValue, hasLabel := f.operation.DirectiveArgumentValueByName(directiveRef, literal.LABEL)
 	label := ""
-	if hasLabel {
+	if hasLabel && labelValue.Kind == ast.ValueKindString {
 		label = f.operation.StringValueContentString(labelValue.Ref)
 	}
 

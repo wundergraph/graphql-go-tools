@@ -25,6 +25,8 @@ type TraceOptions struct {
 	ExcludeOutput bool
 	// ExcludeLoadStats excludes the load timing information from the trace output
 	ExcludeLoadStats bool
+	// ExcludeResponseCache excludes what the response cache did for a load operation from the trace output
+	ExcludeResponseCache bool
 	// EnablePredictableDebugTimings makes the timings in the trace output predictable for debugging purposes
 	EnablePredictableDebugTimings bool
 	// IncludeTraceOutputInResponseExtensions includes the trace output in the response extensions
@@ -43,6 +45,7 @@ func (r *TraceOptions) EnableAll() {
 	r.ExcludeInput = false
 	r.ExcludeOutput = false
 	r.ExcludeLoadStats = false
+	r.ExcludeResponseCache = false
 	r.EnablePredictableDebugTimings = false
 	r.IncludeTraceOutputInResponseExtensions = true
 }
@@ -57,6 +60,7 @@ func (r *TraceOptions) DisableAll() {
 	r.ExcludeInput = true
 	r.ExcludeOutput = true
 	r.ExcludeLoadStats = true
+	r.ExcludeResponseCache = true
 	r.EnablePredictableDebugTimings = false
 	r.IncludeTraceOutputInResponseExtensions = false
 }
@@ -75,10 +79,11 @@ type RequestData struct {
 }
 
 type TraceData struct {
-	Version string              `json:"version"`
-	Info    *TraceInfo          `json:"info"`
-	Fetches *FetchTreeTraceNode `json:"fetches"`
-	Request *RequestData        `json:"request,omitempty"`
+	Version       string                     `json:"version"`
+	Info          *TraceInfo                 `json:"info"`
+	Fetches       *FetchTreeTraceNode        `json:"fetches"`
+	Request       *RequestData               `json:"request,omitempty"`
+	ResponseCache *ResponseCacheRequestTrace `json:"response_cache,omitempty"`
 }
 
 func GetTrace(ctx context.Context, fetchTree *FetchTreeNode) TraceData {
