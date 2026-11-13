@@ -304,7 +304,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 		return nil
 	case *plan.DeferResponsePlan:
-		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, writer)
+		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, deferWriterAdapter{writer})
 		return err
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)

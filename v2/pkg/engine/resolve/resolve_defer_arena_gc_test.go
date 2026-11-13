@@ -28,7 +28,7 @@ func (w *benchDeferWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (w *benchDeferWriter) Flush() error {
+func (w *benchDeferWriter) Flush(_ bool) error {
 	w.bytes += len(w.buf)
 	w.buf = w.buf[:0]
 	return nil
