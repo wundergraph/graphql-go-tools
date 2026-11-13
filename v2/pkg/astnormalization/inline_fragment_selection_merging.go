@@ -102,8 +102,6 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	// Merging adds child selections and may update @__defer_internal.
-	// Neither affects the merge checks, so we don't need to check earlier pairs again.
 	for i := 0; i < len(refs); i++ {
 		leftSelection := refs[i]
 		leftKind := f.operation.SelectionKind(leftSelection)
@@ -129,6 +127,8 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 
 				if f.mergeInlineFragments(leftRef, rightRef) {
 					f.operation.RemoveFromSelectionSet(ref, j)
+					// Merging fragments only adds child selections, which fragmentsCanBeMerged
+					// doesn't compare. We don't need to check earlier pairs again.
 					refs = f.operation.SelectionSets[ref].SelectionRefs
 					j--
 				}
@@ -144,6 +144,8 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 			}
 			if f.mergeFields(leftRef, rightRef) {
 				f.operation.RemoveFromSelectionSet(ref, j)
+				// Merging adds child selections and may update @__defer_internal.
+				// Neither affects fieldsCanMerge, so we don't need to check earlier pairs again.
 				refs = f.operation.SelectionSets[ref].SelectionRefs
 				j--
 			}

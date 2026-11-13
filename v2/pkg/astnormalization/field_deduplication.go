@@ -30,8 +30,6 @@ func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int) {
 	}
 
 	refs := d.operation.SelectionSets[ref].SelectionRefs
-	// A merge only updates @__defer_internal, which FieldsAreEqualFlat skips.
-	// Fields that didn't match before still won't match, so we can keep scanning.
 	for a := 0; a < len(refs); a++ {
 		i := refs[a]
 		if d.operation.Selections[i].Kind != ast.SelectionKindField {
@@ -55,6 +53,8 @@ func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int) {
 			if d.operation.FieldsAreEqualFlat(left, right, true) {
 				d.operation.MergeFieldsDefer(left, right)
 				d.operation.RemoveFromSelectionSet(ref, b)
+				// A merge only updates @__defer_internal, which FieldsAreEqualFlat skips.
+				// Fields that didn't match before still won't match, so we can keep scanning.
 				refs = d.operation.SelectionSets[ref].SelectionRefs
 				b--
 			}
