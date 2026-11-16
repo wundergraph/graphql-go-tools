@@ -152,6 +152,10 @@ func (f *wireField) setProtoField(msg protoref.Message, data *astjson.Value) err
 		fieldData = data
 	}
 
+	if !fieldData.Exists() && f.defaultValue != nil {
+		fieldData = f.defaultValue
+	}
+
 	if !fieldData.Exists() {
 		if f.optional {
 			return nil
