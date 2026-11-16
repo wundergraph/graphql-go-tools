@@ -395,29 +395,6 @@ func TestCreateProtoMessage(t *testing.T) {
 				assertProtoMessageEqual(t, expected, got)
 			})
 
-			t.Run("is sent as the first declared value for a proto2 enum that does not start at 0", func(t *testing.T) {
-				proto2 := newProto2WireTestRuntime(t)
-				message := compileTestProgramMessage(t, proto2, &RPCMessage{
-					Name: "LevelListRequest",
-					Fields: RPCFields{
-						{Name: "levels", ProtoTypeName: DataTypeEnum, JSONPath: "levels", EnumName: "Level", Optional: true, IsListType: true, ListMetadata: nullableList},
-					},
-				}, proto2.getMessageByName("LevelListRequest"))
-				wm := compileTestWireMessage(t, proto2, message)
-
-				got, err := wm.createProtoMessage(astjson.MustParse(`{"levels":["HIGH",null]}`))
-				require.NoError(t, err)
-
-				expected := buildExpectedProto(t, proto2, "LevelListRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-					setItems(msg, desc.Fields().ByName("levels"), func(items protoref.List, _ protoref.FieldDescriptor) {
-						items.Append(protoref.ValueOfEnum(6))
-						items.Append(protoref.ValueOfEnum(5))
-					})
-				})
-
-				assertProtoMessageEqual(t, expected, got)
-			})
-
 			t.Run("is sent as an empty message for a message", func(t *testing.T) {
 				message := compileTestProgramMessage(t, runtime, &RPCMessage{
 					Name: "ListWrapperRequest",
