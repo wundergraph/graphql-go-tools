@@ -564,12 +564,13 @@ The router implements `resolve.DeferResponseWriter`:
 ```go
 type DeferResponseWriter interface {
     ResponseWriter
-    Flush() error
+    Flush(final bool) error
     Complete()
 }
 ```
 
-`Flush()` sends the current payload.
+`Flush(final)` sends the current payload.
+`final` is true for the last payload (`"hasNext":false`).
 Each payload causes exactly one `Flush()`.
 `Complete()` closes the stream.
 
