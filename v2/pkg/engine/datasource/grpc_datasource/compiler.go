@@ -134,8 +134,9 @@ type Message struct {
 
 // Enum represents a protobuf enum type with its values.
 type Enum struct {
-	Name   string      // The name of the enum
-	Values []EnumValue // The values in the enum
+	Name   string                  // The name of the enum
+	Desc   protoref.EnumDescriptor // The protobuf descriptor for the enum
+	Values []EnumValue             // The values in the enum
 }
 
 // EnumValue represents a single value in a protobuf enum.
@@ -267,7 +268,7 @@ func (p *RPCCompiler) parseEnum(e protoref.EnumDescriptor, mapping *GRPCMapping)
 		values = append(values, p.parseEnumValue(e.Values().Get(j), enumValueMappings))
 	}
 
-	return Enum{Name: name, Values: values}
+	return Enum{Name: name, Desc: e, Values: values}
 }
 
 // parseEnumValue extracts information from a protobuf enum value descriptor.
