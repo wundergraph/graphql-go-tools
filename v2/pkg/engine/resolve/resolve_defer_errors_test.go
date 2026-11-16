@@ -172,6 +172,7 @@ func TestDefer_ErrorInIncremental(t *testing.T) {
 		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"f1":"hello"},"id":"1","errors":[{"message":"Failed to fetch from Subgraph.","extensions":{"errors":[{"message":"partial failure"}]}}]}],"completed":[{"id":"1"}],"hasNext":false}`,
 	}, w.payloads)
+	require.Equal(t, []bool{false, true}, w.finals)
 	require.True(t, w.complete)
 }
 
@@ -200,6 +201,7 @@ func TestDefer_ErrorInCompleted(t *testing.T) {
 		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"completed":[{"id":"1","errors":[{"message":"Cannot return null for non-nullable field 'Query.f1'.","path":["f1"]}]}],"hasNext":false}`,
 	}, w.payloads)
+	require.Equal(t, []bool{false, true}, w.finals)
 	require.True(t, w.complete)
 }
 
@@ -242,6 +244,7 @@ func TestDefer_MultipleErroringGroups_AllCompleted(t *testing.T) {
 	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
 	require.NoError(t, err)
 	require.Len(t, w.payloads, 3)
+	require.Equal(t, []bool{false, false, true}, w.finals)
 
 	// Initial frame announces both top-level defers (sorted by id).
 	require.Equal(t,
@@ -312,6 +315,7 @@ func TestDefer_ErrorOnDifferentRootPath_DeferStillDelivered(t *testing.T) {
 		`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.erroring.name'.","path":["erroring","name"]}],"data":{"erroring":null,"safe":"ok"},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"f1":"deferred"},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}`,
 	}, w.payloads)
+	require.Equal(t, []bool{false, true}, w.finals)
 	require.True(t, w.complete)
 }
 
@@ -385,6 +389,7 @@ func TestDefer_TwoRootDefers_IndependentGating(t *testing.T) {
 		`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.a.boom'.","path":["a","boom"]}],"data":{"a":null,"b":{"id":"b1"}},"pending":[{"id":"2","path":["b"]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"y":"yval"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}`,
 	}, w.payloads)
+	require.Equal(t, []bool{false, true}, w.finals)
 	require.True(t, w.complete)
 }
 
@@ -421,6 +426,7 @@ func TestDefer_EmptyListInDeferredFragment(t *testing.T) {
 		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"f1":[]},"id":"1"}],"completed":[{"id":"1"}],"hasNext":false}`,
 	}, w.payloads)
+	require.Equal(t, []bool{false, true}, w.finals)
 	require.True(t, w.complete)
 }
 
@@ -485,6 +491,7 @@ func TestDefer_InitialRenderError_ReturnsToRouter(t *testing.T) {
 	// ...and nothing was committed to the wire: no frame flushed and the stream
 	// was not terminated, so the router can still write a clean error response.
 	require.Empty(t, w.payloads)
+	require.Empty(t, w.finals)
 	require.False(t, w.complete)
 }
 
@@ -519,6 +526,7 @@ func TestDefer_AuthErrorDuringDeferredRender_MustComplete(t *testing.T) {
 		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"completed":[{"id":"1","errors":[{"message":"authorizer hard error on f1"}]}],"hasNext":false}`,
 	}, w.payloads)
+	require.Equal(t, []bool{false, true}, w.finals)
 	require.True(t, w.complete)
 }
 
@@ -551,6 +559,7 @@ func TestDefer_AuthDenyDuringDeferredRender(t *testing.T) {
 		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"incremental":[{"data":{"f1":null},"id":"1","errors":[{"message":"Unauthorized to load field 'Query.f1', Reason: missing scope.","path":["f1"],"extensions":{"code":"UNAUTHORIZED_FIELD_OR_TYPE"}}]}],"completed":[{"id":"1"}],"hasNext":false}`,
 	}, w.payloads)
+	require.Equal(t, []bool{false, true}, w.finals)
 	require.True(t, w.complete)
 }
 
@@ -580,6 +589,7 @@ func TestDefer_RenderErrorDuringDeferredRender_MustComplete(t *testing.T) {
 		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"completed":[{"id":"1","errors":[{"message":"field renderer error on f1"}]}],"hasNext":false}`,
 	}, w.payloads)
+	require.Equal(t, []bool{false, true}, w.finals)
 	require.True(t, w.complete)
 }
 
@@ -618,6 +628,7 @@ func TestDefer_RateLimitErrorDuringDeferredFetch_MustComplete(t *testing.T) {
 		`{"data":{},"pending":[{"id":"1","path":[]}],"hasNext":true}`,
 		`{"completed":[{"id":"1","errors":[{"message":"rate limiter hard error on ds"}]}],"hasNext":false}`,
 	}, w.payloads)
+	require.Equal(t, []bool{false, true}, w.finals)
 	require.True(t, w.complete)
 }
 
@@ -680,6 +691,7 @@ func TestDefer_NestedDefer_LazyAnnouncement(t *testing.T) {
 	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
 	require.NoError(t, err)
 	require.Len(t, w.payloads, 3)
+	require.Equal(t, []bool{false, false, true}, w.finals)
 
 	// Initial frame announces ONLY the top-level defer (id 1), not the nested id 2.
 	require.Equal(t,
@@ -757,6 +769,7 @@ func TestDefer_NestedChild_AnchorDies_Cancelled(t *testing.T) {
 	_, err := r.ResolveGraphQLDeferResponse(NewContext(context.Background()), response, w)
 	require.NoError(t, err)
 	require.Len(t, w.payloads, 2)
+	require.Equal(t, []bool{false, true}, w.finals)
 
 	// Initial: only the top-level defer.
 	require.Equal(t,

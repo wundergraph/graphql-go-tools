@@ -623,7 +623,10 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 			return nil, err
 		}
 
-		err = writer.Flush()
+		// Resolve has finished null propagation. Use the same surviving defers
+		// that were announced in the initial payload to determine finality.
+		liveTop := resolvable.liveChildDescriptors(0)
+		err = writer.Flush(len(liveTop) == 0)
 		if err != nil {
 			return nil, err
 		}
@@ -641,7 +644,6 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		// anchor null-propagated is pruned away here. Nested defers are announced
 		// lazily as their parent is released (see ResolveDeferBatch).
 		if response.DeferTree != nil {
-			liveTop := resolvable.liveChildDescriptors(0)
 			liveTree := pruneDeadDefers(response.DeferTree, liveTop)
 			if liveTree != nil {
 				// outstanding tracks announced-but-not-completed defers: it starts at
@@ -714,7 +716,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 		if err := dc.resolvable.ResolveDeferError(dc.writer, fetchErr.Error(), outstanding); err != nil {
 			return nil, err
 		}
-		return nil, dc.writer.Flush()
+		return nil, dc.writer.Flush(*outstanding == 0)
 	}
 
 	// RENDER PHASE — serialised by the DataBuffer lock.
@@ -741,7 +743,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	if err != nil {
 		return nil, err
 	}
-	return liveChildren, dc.writer.Flush()
+	return liveChildren, dc.writer.Flush(*outstanding == 0)
 }
 
 // resolveDeferTree walks a DeferTreeNode and resolves deferred fragments:

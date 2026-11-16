@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.31.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.1...v2.31.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* encode null items of nullable-item lists as zero values in gRPC requests ([#1751](https://github.com/wundergraph/graphql-go-tools/issues/1751)) ([016ec47](https://github.com/wundergraph/graphql-go-tools/commit/016ec470ed0c49ff7c9f3962e42088aec1d899ec))
+* **engine:** fix empty multipart chunks causing Apollo Client 4 parse errors ([#1764](https://github.com/wundergraph/graphql-go-tools/issues/1764)) ([90cd7bd](https://github.com/wundergraph/graphql-go-tools/commit/90cd7bd82a93a9368a4cce99fec684e2e6411316))
+* **resolve:** use safe string for the __typename value ([#1762](https://github.com/wundergraph/graphql-go-tools/issues/1762)) ([d86f326](https://github.com/wundergraph/graphql-go-tools/commit/d86f326334fb62e2a4ef6105dfb4a327eca68b3d))
+
+
+### Performance Improvements
+
+* **astnormalization:** avoid restarting selection merge scans ([#1760](https://github.com/wundergraph/graphql-go-tools/issues/1760)) ([d2d07ec](https://github.com/wundergraph/graphql-go-tools/commit/d2d07ecede3b985074003ff2cc9ae0f20ae82a32))
+
 ## [2.31.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.0...v2.31.1) (2026-11-12)
 
 

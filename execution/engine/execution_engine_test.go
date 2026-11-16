@@ -129,7 +129,23 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		execCtx, execCtxCancel := context.WithCancel(context.Background())
 		execCtx = context.WithValue(execCtx, fetchSequencerCtxKey, seq)
 		defer execCtxCancel()
-		err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
+		deferWriter := &testExecutionDeferWriter{EngineResultWriter: &resultWriter}
+		engineOptions := append([]ExecutionOptions{WithDeferResponseWriter(deferWriter)}, testCase.engineOptions...)
+		err = engine.Execute(execCtx, &operation, &resultWriter, engineOptions...)
+		for i, payload := range deferWriter.payloads {
+			var frame struct {
+				HasNext *bool `json:"hasNext"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(payload), &frame))
+			expectedFinal := frame.HasNext == nil || !*frame.HasNext
+			assert.Equal(t, expectedFinal, deferWriter.finals[i], "finality of defer frame %d", i)
+			if deferWriter.finals[i] {
+				assert.Equal(t, len(deferWriter.payloads)-1, i, "no frame may follow a final frame")
+			}
+		}
+		if err == nil && len(deferWriter.finals) > 0 {
+			assert.True(t, deferWriter.finals[len(deferWriter.finals)-1], "last defer frame must be final")
+		}
 		actualResponse := resultWriter.String()
 
 		if testCase.indentJSON {

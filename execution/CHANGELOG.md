@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.2](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.20.1...execution/v1.20.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* **engine:** fix empty multipart chunks causing Apollo Client 4 parse errors ([#1764](https://github.com/wundergraph/graphql-go-tools/issues/1764)) ([90cd7bd](https://github.com/wundergraph/graphql-go-tools/commit/90cd7bd82a93a9368a4cce99fec684e2e6411316))
+
 ## [1.20.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.20.0...execution/v1.20.1) (2026-10-29)
 
 
