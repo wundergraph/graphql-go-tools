@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.31.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.0...v2.31.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* apply input object field defaults in gRPC requests ([#1752](https://github.com/wundergraph/graphql-go-tools/issues/1752)) ([044a7bb](https://github.com/wundergraph/graphql-go-tools/commit/044a7bb9c26fd6b00c1548b79a2f96d2f82d14a0))
+* **caching:** bump response cache key format version to 3 ([#1763](https://github.com/wundergraph/graphql-go-tools/issues/1763)) ([bfcb7ad](https://github.com/wundergraph/graphql-go-tools/commit/bfcb7ad49cb79b825502517cb1a543f8c71b67b2))
+
 ## [2.31.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.30.6...v2.31.0) (2026-11-11)
 
 
