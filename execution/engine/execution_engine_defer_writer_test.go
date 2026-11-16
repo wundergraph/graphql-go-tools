@@ -14,6 +14,7 @@ import (
 
 type testExecutionDeferWriter struct {
 	*graphql.EngineResultWriter
+
 	payloads []string
 	finals   []bool
 	complete bool
@@ -33,7 +34,7 @@ func (w *testExecutionDeferWriter) Complete() {
 }
 
 func TestExecutionEngine_Execute_DeferWriter(t *testing.T) {
-	t.Parallel()
+	// Keep subtests sequential: the writer-reuse case follows an execution with a dedicated writer.
 
 	schema, err := graphql.NewSchemaFromString(`type Query { hello: String }`)
 	require.NoError(t, err)

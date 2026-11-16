@@ -571,6 +571,7 @@ type DeferResponseWriter interface {
 
 `Flush(final)` sends the current payload.
 `final` is true for the last payload (`"hasNext":false`).
+When no defer survives, `final` is also true for the initial payload even though it has no `hasNext` field.
 Each payload causes exactly one `Flush()`.
 `Complete()` closes the stream.
 
