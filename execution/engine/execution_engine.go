@@ -30,6 +30,7 @@ import (
 type internalExecutionContext struct {
 	resolveContext *resolve.Context
 	postProcessor  *postprocess.Processor
+	deferWriter    resolve.DeferResponseWriter
 }
 
 func newInternalExecutionContext(postProcessorOptions ...postprocess.ProcessorOption) *internalExecutionContext {
@@ -68,6 +69,15 @@ type WebsocketBeforeStartHook interface {
 }
 
 type ExecutionOptions func(ctx *internalExecutionContext)
+
+// WithDeferResponseWriter sets the writer for deferred responses, including the
+// final-frame signal needed for transport framing. It is required when Execute
+// plans a deferred response and is unused for synchronous and subscription plans.
+func WithDeferResponseWriter(w resolve.DeferResponseWriter) ExecutionOptions {
+	return func(ctx *internalExecutionContext) {
+		ctx.deferWriter = w
+	}
+}
 
 func WithAdditionalHttpHeaders(headers http.Header, excludeByKeys ...string) ExecutionOptions {
 	return func(ctx *internalExecutionContext) {
@@ -304,7 +314,10 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		}
 		return nil
 	case *plan.DeferResponsePlan:
-		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, deferWriterAdapter{writer})
+		if execContext.deferWriter == nil {
+			return errors.New("execution impossible: @defer requires WithDeferResponseWriter")
+		}
+		_, err := e.resolver.ResolveGraphQLDeferResponse(execContext.resolveContext, p.Response, execContext.deferWriter)
 		return err
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
