@@ -157,6 +157,7 @@ type options struct {
 	enableDefer                           bool
 	prevalidationRules                    []func(walker *astvisitor.Walker)
 	inlineArgumentsValidation             *InlineArgumentsValidationOptions
+	limits                                Limits
 }
 
 type Option func(options *options)
@@ -279,7 +280,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	if o.options.inlineFragmentSpreads {
 		fragmentInline := astvisitor.NewWalkerWithID(8, "FragmentSpreadInline")
-		fragmentSpreadInline(&fragmentInline)
+		fragmentSpreadInline(&fragmentInline, o.options.limits)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "fragmentInline",
 			walker: &fragmentInline,
@@ -390,6 +391,10 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 		}
 	}
 
+	if !o.options.limits.checkSelections(operation, report) {
+		return
+	}
+
 	for i := range o.operationWalkers {
 		if sc := o.operationWalkers[i].skipCondition; sc != nil && sc() {
 			continue
@@ -399,6 +404,7 @@ func (o *OperationNormalizer) NormalizeOperation(operation, definition *ast.Docu
 			return
 		}
 	}
+	o.options.limits.checkSelections(operation, report)
 }
 
 func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast.Document, operationName []byte, report *operationreport.Report) {
@@ -427,6 +433,10 @@ func (o *OperationNormalizer) NormalizeNamedOperationWithResult(
 		o.removeOperationDefinitionsVisitor.operationName = operationName
 	}
 
+	if !o.options.limits.checkSelections(operation, report) {
+		return nil
+	}
+
 	for i := range o.operationWalkers {
 		if sc := o.operationWalkers[i].skipCondition; sc != nil && sc() {
 			continue
@@ -441,6 +451,10 @@ func (o *OperationNormalizer) NormalizeNamedOperationWithResult(
 		// fmt.Println("\n\nNormalizeOperation stage:", o.operationWalkers[i].name)
 		// fmt.Println(printed)
 		// fmt.Println("variables:", string(operation.Input.Variables))
+	}
+
+	if !o.options.limits.checkSelections(operation, report) {
+		return nil
 	}
 
 	if o.inlineArgumentsVisitor != nil {
