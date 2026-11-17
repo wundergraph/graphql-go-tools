@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
@@ -652,6 +653,79 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		require.Error(t, err)
 		assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non 32-bit signed integer value`, err.Error())
+	})
+
+	t.Run("custom Int range", func(t *testing.T) {
+		const maxSafeInteger = 1<<53 - 1
+		safeIntegerOptions := VariablesValidatorOptions{
+			DisableExposingVariablesContent: true,
+			IntRange:                        ast.IntRange{Min: -maxSafeInteger, Max: maxSafeInteger},
+		}
+		scalarCase := func(variables string) testCase {
+			return testCase{
+				schema:    `type Query{ count(arg: Int!): Int! }`,
+				operation: `query Count($count: Int!) { count(arg: $count) }`,
+				variables: variables,
+			}
+		}
+		listCase := func(variables string) testCase {
+			return testCase{
+				schema:    `type Query{ count(arg: [[Int!]!]!): Int! }`,
+				operation: `query Count($count: [[Int!]!]!) { count(arg: $count) }`,
+				variables: variables,
+			}
+		}
+
+		for _, variables := range []string{
+			`{"count":3000000000}`,
+			`{"count":9007199254740991}`,
+			`{"count":-9007199254740991}`,
+			`{"count":3e9}`,
+		} {
+			t.Run("accepts "+variables, func(t *testing.T) {
+				require.NoError(t, runTestWithOptions(t, scalarCase(variables), safeIntegerOptions))
+			})
+		}
+
+		for _, variables := range []string{
+			`{"count":9007199254740992}`,
+			`{"count":9007199254740993}`,
+			`{"count":-9007199254740992}`,
+		} {
+			t.Run("rejects "+variables, func(t *testing.T) {
+				err := runTestWithOptions(t, scalarCase(variables), safeIntegerOptions)
+				require.Error(t, err)
+				assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [-9007199254740991, 9007199254740991]`, err.Error())
+			})
+		}
+
+		t.Run("still rejects fractional values", func(t *testing.T) {
+			err := runTestWithOptions(t, scalarCase(`{"count":3000000000.5}`), safeIntegerOptions)
+			require.Error(t, err)
+			assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non-integer value`, err.Error())
+		})
+
+		t.Run("accepts values in nested lists", func(t *testing.T) {
+			require.NoError(t, runTestWithOptions(t, listCase(`{"count":[[1],[3000000000]]}`), safeIntegerOptions))
+		})
+
+		t.Run("rejects out of range values in nested lists", func(t *testing.T) {
+			err := runTestWithOptions(t, listCase(`{"count":[[1],[9007199254740992]]}`), safeIntegerOptions)
+			require.Error(t, err)
+			assert.Equal(t, `Variable "$count" got invalid value at "count.[1].[0]"; Int cannot represent integer value outside [-9007199254740991, 9007199254740991]`, err.Error())
+		})
+
+		t.Run("applies an asymmetric range", func(t *testing.T) {
+			options := VariablesValidatorOptions{
+				DisableExposingVariablesContent: true,
+				IntRange:                        ast.IntRange{Min: -100, Max: 1000},
+			}
+			require.NoError(t, runTestWithOptions(t, scalarCase(`{"count":500}`), options))
+
+			err := runTestWithOptions(t, scalarCase(`{"count":-500}`), options)
+			require.Error(t, err)
+			assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [-100, 1000]`, err.Error())
+		})
 	})
 
 	t.Run("wrong Int value passed as list", func(t *testing.T) {

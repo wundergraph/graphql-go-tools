@@ -15,6 +15,7 @@ type OperationValidatorOptions struct {
 	ApolloCompatibilityFlags                   apollocompatibility.Flags
 	RelaxFieldSelectionMergingNullabilityCheck bool
 	AllowStringLiteralsForEnums                bool
+	IntRange                                   ast.IntRange
 }
 
 func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
@@ -41,6 +42,14 @@ func WithRelaxFieldSelectionMergingNullability() Option {
 func WithAllowStringLiteralsForEnums() Option {
 	return func(options *OperationValidatorOptions) {
 		options.AllowStringLiteralsForEnums = true
+	}
+}
+
+// WithIntRange enables a deliberate spec deviation that accepts Int literals in the given
+// inclusive range instead of the 32-bit signed range the spec defines.
+func WithIntRange(intRange ast.IntRange) Option {
+	return func(options *OperationValidatorOptions) {
+		options.IntRange = intRange
 	}
 }
 
@@ -72,7 +81,10 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(FieldSelections())
 	validator.RegisterRule(FieldSelectionMerging(opts.RelaxFieldSelectionMergingNullabilityCheck))
 	validator.RegisterRule(KnownArguments())
-	validator.RegisterRule(Values(opts.AllowStringLiteralsForEnums))
+	validator.RegisterRule(ValuesWithOptions(ValuesOptions{
+		AllowStringLiteralsForEnums: opts.AllowStringLiteralsForEnums,
+		IntRange:                    opts.IntRange,
+	}))
 	validator.RegisterRule(ArgumentUniqueness())
 	validator.RegisterRule(RequiredArguments())
 	validator.RegisterRule(Fragments())

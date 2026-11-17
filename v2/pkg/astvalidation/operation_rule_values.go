@@ -16,10 +16,23 @@ import (
 // that accepts a string literal where an enum value is expected, as long as the string
 // content matches one of the enum's values.
 func Values(allowStringLiteralsForEnums ...bool) Rule {
+	return ValuesWithOptions(ValuesOptions{
+		AllowStringLiteralsForEnums: len(allowStringLiteralsForEnums) > 0 && allowStringLiteralsForEnums[0],
+	})
+}
+
+type ValuesOptions struct {
+	AllowStringLiteralsForEnums bool
+	// IntRange is the inclusive range accepted for Int literals. The zero value means ast.Int32Range.
+	IntRange ast.IntRange
+}
+
+func ValuesWithOptions(options ValuesOptions) Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := valuesVisitor{
 			Walker:                      walker,
-			allowStringLiteralsForEnums: len(allowStringLiteralsForEnums) > 0 && allowStringLiteralsForEnums[0],
+			allowStringLiteralsForEnums: options.AllowStringLiteralsForEnums,
+			intRange:                    options.IntRange.OrDefault(),
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterArgumentVisitor(&visitor)
@@ -33,6 +46,7 @@ type valuesVisitor struct {
 	operation, definition       *ast.Document
 	importer                    astimport.Importer
 	allowStringLiteralsForEnums bool
+	intRange                    ast.IntRange
 }
 
 func (v *valuesVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -364,14 +378,8 @@ func (v *valuesVisitor) valueSatisfiesScalarBoolean(value ast.Value, definitionT
 }
 
 func (v *valuesVisitor) valueSatisfiesScalarInt(value ast.Value, definitionTypeRef int) bool {
-	var isValidInt32 bool
 	isInt := value.Kind == ast.ValueKindInteger
-
-	if isInt {
-		isValidInt32 = v.operation.IntValueValidInt32(value.Ref)
-	}
-
-	if isInt && isValidInt32 {
+	if isInt && v.operation.IntValueInRange(value.Ref, v.intRange) {
 		return true
 	}
 
@@ -385,7 +393,7 @@ func (v *valuesVisitor) valueSatisfiesScalarInt(value ast.Value, definitionTypeR
 		return false
 	}
 
-	v.Report.AddExternalError(operationreport.ErrBigIntValueDoesntSatisfyInt(printedValue, printedType, value.Position))
+	v.Report.AddExternalError(operationreport.ErrIntValueOutOfRange(printedValue, printedType, v.intRange, value.Position))
 	return false
 }
 

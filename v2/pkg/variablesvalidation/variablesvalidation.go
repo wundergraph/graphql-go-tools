@@ -76,9 +76,12 @@ type VariablesValidatorOptions struct {
 	ApolloCompatibilityFlags        apollocompatibility.Flags
 	ApolloRouterCompatibilityFlags  apollocompatibility.ApolloRouterFlags
 	DisableExposingVariablesContent bool
+	// IntRange is the inclusive range accepted for Int values. The zero value means ast.Int32Range.
+	IntRange ast.IntRange
 }
 
 func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidator {
+	options.IntRange = options.IntRange.OrDefault()
 	walker := astvisitor.NewWalkerWithID(8, "VariablesValidator")
 	visitor := &variablesVisitor{
 		walker: &walker,
@@ -332,7 +335,11 @@ func (v *variablesVisitor) renderVariableIntOutOfRangeError(jsonValue *astjson.V
 	if len(v.path) > 1 {
 		path = fmt.Sprintf(` at "%s"`, v.renderPath())
 	}
-	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Int cannot represent non 32-bit signed integer value%s`, v.invalidValueMessage(string(v.currentVariableName), invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
+	reason := "Int cannot represent non 32-bit signed integer value"
+	if v.opts.IntRange != ast.Int32Range {
+		reason = fmt.Sprintf("Int cannot represent integer value outside [%d, %d]", v.opts.IntRange.Min, v.opts.IntRange.Max)
+	}
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; %s%s`, v.invalidValueMessage(string(v.currentVariableName), invalidValue), path, reason, v.invalidValueIfAllowed(invalidValue)))
 }
 
 func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, jsonValue *astjson.Value, typeRef, inputFieldRef int) {
@@ -500,7 +507,7 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 				return
 			}
 
-			if floatVal < math.MinInt32 || floatVal > math.MaxInt32 {
+			if floatVal < float64(v.opts.IntRange.Min) || floatVal > float64(v.opts.IntRange.Max) {
 				v.renderVariableIntOutOfRangeError(jsonValue)
 				return
 			}

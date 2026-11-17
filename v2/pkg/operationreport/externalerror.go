@@ -12,6 +12,7 @@ const (
 	NotStringErrMsg                         = "%s cannot represent a non string value: %s"
 	NotIntegerErrMsg                        = "%s cannot represent non-integer value: %s"
 	BigIntegerErrMsg                        = "%s cannot represent non 32-bit signed integer value: %s"
+	IntegerOutOfRangeErrMsg                 = "%s cannot represent integer value outside [%d, %d]: %s"
 	NotFloatErrMsg                          = "%s cannot represent non numeric value: %s"
 	NotBooleanErrMsg                        = "%s cannot represent a non boolean value: %s"
 	NotIDErrMsg                             = "%s cannot represent a non-string and non-integer value: %s"
@@ -307,6 +308,16 @@ func ErrValueDoesntSatisfyInt(value, inputType ast.ByteSlice, position position.
 
 func ErrBigIntValueDoesntSatisfyInt(value, inputType ast.ByteSlice, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(BigIntegerErrMsg, inputType, value)
+	err.Locations = LocationsFromPosition(position)
+
+	return err
+}
+
+func ErrIntValueOutOfRange(value, inputType ast.ByteSlice, intRange ast.IntRange, position position.Position) (err ExternalError) {
+	if intRange == ast.Int32Range {
+		return ErrBigIntValueDoesntSatisfyInt(value, inputType, position)
+	}
+	err.Message = fmt.Sprintf(IntegerOutOfRangeErrMsg, inputType, intRange.Min, intRange.Max, value)
 	err.Locations = LocationsFromPosition(position)
 
 	return err
