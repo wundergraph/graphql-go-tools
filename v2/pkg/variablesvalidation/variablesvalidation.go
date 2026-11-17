@@ -76,8 +76,7 @@ type VariablesValidatorOptions struct {
 	ApolloCompatibilityFlags        apollocompatibility.Flags
 	ApolloRouterCompatibilityFlags  apollocompatibility.ApolloRouterFlags
 	DisableExposingVariablesContent bool
-	// IntRange is the inclusive range accepted for Int values. The zero value means ast.Int32Range.
-	IntRange ast.IntRange
+	IntRange                        ast.IntRange
 }
 
 func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidator {
@@ -508,7 +507,6 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 					v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 					return
 				}
-				// Int64 already accepts every plain integer in int64, so a magnitude of 2^63 here is an overflow that rounded onto the bound.
 				if math.Abs(floatVal) >= 1<<63 {
 					v.renderVariableIntOutOfRangeError(jsonValue)
 					return

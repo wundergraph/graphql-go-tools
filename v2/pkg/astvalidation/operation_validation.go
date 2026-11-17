@@ -45,8 +45,6 @@ func WithAllowStringLiteralsForEnums() Option {
 	}
 }
 
-// WithIntRange enables a deliberate spec deviation that accepts Int literals in the given
-// inclusive range instead of the 32-bit signed range the spec defines.
 func WithIntRange(intRange ast.IntRange) Option {
 	return func(options *OperationValidatorOptions) {
 		options.IntRange = intRange

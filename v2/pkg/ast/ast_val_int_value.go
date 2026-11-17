@@ -18,15 +18,12 @@ type IntValue struct {
 	Raw          ByteSliceReference // e.g. 123
 }
 
-// IntRange is an inclusive range of accepted Int values.
 type IntRange struct {
 	Min, Max int64
 }
 
-// Int32Range is the range the GraphQL spec defines for Int.
 var Int32Range = IntRange{Min: math.MinInt32, Max: math.MaxInt32}
 
-// OrDefault returns Int32Range for the zero value, so an unset option keeps spec behavior.
 func (r IntRange) OrDefault() IntRange {
 	if r == (IntRange{}) {
 		return Int32Range
