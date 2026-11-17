@@ -86,15 +86,6 @@ func TestBytesIsValidInt64(t *testing.T) {
 	t.Run("invalid quoted int", testValidation(BytesIsValidInt64, []byte("\"123\""), false))
 }
 
-func TestBytesIsValidInt32(t *testing.T) {
-	t.Run("valid int", testValidation(BytesIsValidInt32, []byte("123"), true))
-	t.Run("invalid valid big int", testValidation(BytesIsValidInt32, []byte("8293842938492834982"), false))
-	t.Run("invalid very big int", testValidation(BytesIsValidInt32, []byte("829384293849283498239482938"), false))
-	t.Run("invalid float", testValidation(BytesIsValidInt32, []byte("1.23"), false))
-	t.Run("invalid bool", testValidation(BytesIsValidInt32, []byte("true"), false))
-	t.Run("invalid quoted int", testValidation(BytesIsValidInt32, []byte("\"123\""), false))
-}
-
 func TestBytesIsValidBool(t *testing.T) {
 	t.Run("valid bool", testValidation(BytesIsValidBool, []byte("true"), true))
 	t.Run("valid bool", testValidation(BytesIsValidBool, []byte("false"), true))

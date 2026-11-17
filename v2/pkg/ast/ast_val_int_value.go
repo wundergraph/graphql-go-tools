@@ -2,6 +2,8 @@ package ast
 
 import (
 	"bytes"
+	"math"
+	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
@@ -42,8 +44,48 @@ func (d *Document) IntValueAsInt32(ref int) (out int32) {
 }
 
 func (d *Document) IntValueValidInt32(ref int) bool {
+	return d.IntValueInRange(ref, Int32Range)
+}
+
+// IntRange is an inclusive range of accepted Int values.
+type IntRange struct {
+	Min, Max int64
+}
+
+// Int32Range is the range the GraphQL spec defines for Int.
+var Int32Range = IntRange{Min: math.MinInt32, Max: math.MaxInt32}
+
+// OrDefault returns Int32Range for the zero value, so an unset option keeps spec behavior.
+func (r IntRange) OrDefault() IntRange {
+	if r == (IntRange{}) {
+		return Int32Range
+	}
+	return r
+}
+
+func (r IntRange) Contains(value int64) bool {
+	return value >= r.Min && value <= r.Max
+}
+
+func (d *Document) IntValueInRange(ref int, r IntRange) bool {
 	in := d.Input.ByteSlice(d.IntValues[ref].Raw)
-	return unsafebytes.BytesIsValidInt32(in)
+	magnitude, err := strconv.ParseUint(unsafebytes.BytesToString(in), 10, 64)
+	if err != nil {
+		return false
+	}
+	var value int64
+	switch {
+	case magnitude <= math.MaxInt64:
+		value = int64(magnitude)
+		if d.IntValues[ref].Negative {
+			value = -value
+		}
+	case magnitude == 1<<63 && d.IntValues[ref].Negative:
+		value = math.MinInt64
+	default:
+		return false
+	}
+	return r.Contains(value)
 }
 
 func (d *Document) IntValue(ref int) IntValue {
