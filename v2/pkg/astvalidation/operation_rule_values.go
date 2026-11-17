@@ -16,23 +16,15 @@ import (
 // that accepts a string literal where an enum value is expected, as long as the string
 // content matches one of the enum's values.
 func Values(allowStringLiteralsForEnums ...bool) Rule {
-	return ValuesWithOptions(ValuesOptions{
-		AllowStringLiteralsForEnums: len(allowStringLiteralsForEnums) > 0 && allowStringLiteralsForEnums[0],
-	})
+	return values(len(allowStringLiteralsForEnums) > 0 && allowStringLiteralsForEnums[0], ast.Int32Range)
 }
 
-type ValuesOptions struct {
-	AllowStringLiteralsForEnums bool
-	// IntRange is the inclusive range accepted for Int literals. The zero value means ast.Int32Range.
-	IntRange ast.IntRange
-}
-
-func ValuesWithOptions(options ValuesOptions) Rule {
+func values(allowStringLiteralsForEnums bool, intRange ast.IntRange) Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := valuesVisitor{
 			Walker:                      walker,
-			allowStringLiteralsForEnums: options.AllowStringLiteralsForEnums,
-			intRange:                    options.IntRange.OrDefault(),
+			allowStringLiteralsForEnums: allowStringLiteralsForEnums,
+			intRange:                    intRange,
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterEnterArgumentVisitor(&visitor)

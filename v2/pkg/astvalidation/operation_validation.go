@@ -81,10 +81,7 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(FieldSelections())
 	validator.RegisterRule(FieldSelectionMerging(opts.RelaxFieldSelectionMergingNullabilityCheck))
 	validator.RegisterRule(KnownArguments())
-	validator.RegisterRule(ValuesWithOptions(ValuesOptions{
-		AllowStringLiteralsForEnums: opts.AllowStringLiteralsForEnums,
-		IntRange:                    opts.IntRange,
-	}))
+	validator.RegisterRule(values(opts.AllowStringLiteralsForEnums, opts.IntRange.OrDefault()))
 	validator.RegisterRule(ArgumentUniqueness())
 	validator.RegisterRule(RequiredArguments())
 	validator.RegisterRule(Fragments())

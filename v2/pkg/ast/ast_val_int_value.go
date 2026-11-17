@@ -18,6 +18,26 @@ type IntValue struct {
 	Raw          ByteSliceReference // e.g. 123
 }
 
+// IntRange is an inclusive range of accepted Int values.
+type IntRange struct {
+	Min, Max int64
+}
+
+// Int32Range is the range the GraphQL spec defines for Int.
+var Int32Range = IntRange{Min: math.MinInt32, Max: math.MaxInt32}
+
+// OrDefault returns Int32Range for the zero value, so an unset option keeps spec behavior.
+func (r IntRange) OrDefault() IntRange {
+	if r == (IntRange{}) {
+		return Int32Range
+	}
+	return r
+}
+
+func (r IntRange) Contains(value int64) bool {
+	return value >= r.Min && value <= r.Max
+}
+
 func (d *Document) CopyIntValue(ref int) int {
 	return d.AddIntValue(IntValue{
 		Negative: d.IntValues[ref].Negative,
@@ -45,26 +65,6 @@ func (d *Document) IntValueAsInt32(ref int) (out int32) {
 
 func (d *Document) IntValueValidInt32(ref int) bool {
 	return d.IntValueInRange(ref, Int32Range)
-}
-
-// IntRange is an inclusive range of accepted Int values.
-type IntRange struct {
-	Min, Max int64
-}
-
-// Int32Range is the range the GraphQL spec defines for Int.
-var Int32Range = IntRange{Min: math.MinInt32, Max: math.MaxInt32}
-
-// OrDefault returns Int32Range for the zero value, so an unset option keeps spec behavior.
-func (r IntRange) OrDefault() IntRange {
-	if r == (IntRange{}) {
-		return Int32Range
-	}
-	return r
-}
-
-func (r IntRange) Contains(value int64) bool {
-	return value >= r.Min && value <= r.Max
 }
 
 func (d *Document) IntValueInRange(ref int, r IntRange) bool {
