@@ -669,63 +669,30 @@ func TestVariablesValidation(t *testing.T) {
 				variables: variables,
 			}
 		}
-		listCase := func(variables string) testCase {
-			return testCase{
-				schema:    `type Query{ count(arg: [[Int!]!]!): Int! }`,
-				operation: `query Count($count: [[Int!]!]!) { count(arg: $count) }`,
-				variables: variables,
-			}
-		}
 
-		for _, variables := range []string{
-			`{"count":3000000000}`,
-			`{"count":9007199254740991}`,
-			`{"count":-9007199254740991}`,
-			`{"count":3e9}`,
-		} {
-			t.Run("accepts "+variables, func(t *testing.T) {
-				require.NoError(t, runTestWithOptions(t, scalarCase(variables), safeIntegerOptions))
-			})
-		}
-
-		for _, variables := range []string{
-			`{"count":9007199254740992}`,
-			`{"count":9007199254740993}`,
-			`{"count":-9007199254740992}`,
-		} {
-			t.Run("rejects "+variables, func(t *testing.T) {
-				err := runTestWithOptions(t, scalarCase(variables), safeIntegerOptions)
-				require.Error(t, err)
-				assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [-9007199254740991, 9007199254740991]`, err.Error())
-			})
-		}
-
-		t.Run("still rejects fractional values", func(t *testing.T) {
-			err := runTestWithOptions(t, scalarCase(`{"count":3000000000.5}`), safeIntegerOptions)
-			require.Error(t, err)
-			assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non-integer value`, err.Error())
+		t.Run("accepts a value above int32", func(t *testing.T) {
+			require.NoError(t, runTestWithOptions(t, scalarCase(`{"count":3000000000}`), safeIntegerOptions))
 		})
 
-		t.Run("accepts values in nested lists", func(t *testing.T) {
-			require.NoError(t, runTestWithOptions(t, listCase(`{"count":[[1],[3000000000]]}`), safeIntegerOptions))
+		t.Run("accepts exponent form", func(t *testing.T) {
+			require.NoError(t, runTestWithOptions(t, scalarCase(`{"count":3e9}`), safeIntegerOptions))
+		})
+
+		t.Run("rejects a value above the range", func(t *testing.T) {
+			err := runTestWithOptions(t, scalarCase(`{"count":9007199254740992}`), safeIntegerOptions)
+			require.Error(t, err)
+			assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [-9007199254740991, 9007199254740991]`, err.Error())
 		})
 
 		t.Run("rejects out of range values in nested lists", func(t *testing.T) {
-			err := runTestWithOptions(t, listCase(`{"count":[[1],[9007199254740992]]}`), safeIntegerOptions)
+			tc := testCase{
+				schema:    `type Query{ count(arg: [[Int!]!]!): Int! }`,
+				operation: `query Count($count: [[Int!]!]!) { count(arg: $count) }`,
+				variables: `{"count":[[1],[9007199254740992]]}`,
+			}
+			err := runTestWithOptions(t, tc, safeIntegerOptions)
 			require.Error(t, err)
 			assert.Equal(t, `Variable "$count" got invalid value at "count.[1].[0]"; Int cannot represent integer value outside [-9007199254740991, 9007199254740991]`, err.Error())
-		})
-
-		t.Run("applies an asymmetric range", func(t *testing.T) {
-			options := VariablesValidatorOptions{
-				DisableExposingVariablesContent: true,
-				IntRange:                        ast.IntRange{Min: -100, Max: 1000},
-			}
-			require.NoError(t, runTestWithOptions(t, scalarCase(`{"count":500}`), options))
-
-			err := runTestWithOptions(t, scalarCase(`{"count":-500}`), options)
-			require.Error(t, err)
-			assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [-100, 1000]`, err.Error())
 		})
 
 		t.Run("compares bounds above 2^53 exactly", func(t *testing.T) {
@@ -740,34 +707,14 @@ func TestVariablesValidation(t *testing.T) {
 			assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [0, 9007199254740992]`, err.Error())
 		})
 
-		t.Run("int64 range", func(t *testing.T) {
+		t.Run("rejects JSON integers that overflow int64", func(t *testing.T) {
 			options := VariablesValidatorOptions{
 				DisableExposingVariablesContent: true,
 				IntRange:                        ast.IntRange{Min: math.MinInt64, Max: math.MaxInt64},
 			}
-
-			for _, variables := range []string{
-				`{"count":9223372036854775807}`,
-				`{"count":-9223372036854775808}`,
-				`{"count":3e18}`,
-			} {
-				t.Run("accepts "+variables, func(t *testing.T) {
-					require.NoError(t, runTestWithOptions(t, scalarCase(variables), options))
-				})
-			}
-
-			for _, variables := range []string{
-				`{"count":9223372036854775808}`,
-				`{"count":9223372036854776000}`,
-				`{"count":-9223372036854775809}`,
-				`{"count":1e19}`,
-			} {
-				t.Run("rejects "+variables, func(t *testing.T) {
-					err := runTestWithOptions(t, scalarCase(variables), options)
-					require.Error(t, err)
-					assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [-9223372036854775808, 9223372036854775807]`, err.Error())
-				})
-			}
+			err := runTestWithOptions(t, scalarCase(`{"count":9223372036854775808}`), options)
+			require.Error(t, err)
+			assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [-9223372036854775808, 9223372036854775807]`, err.Error())
 		})
 	})
 

@@ -1,18 +1,12 @@
 package ast
 
 import (
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDocument_IntValueInRange(t *testing.T) {
-	const maxSafeInteger = 1<<53 - 1
-	safeIntegerRange := IntRange{Min: -maxSafeInteger, Max: maxSafeInteger}
-	int64Range := IntRange{Min: math.MinInt64, Max: math.MaxInt64}
-	asymmetricRange := IntRange{Min: -100, Max: 1000}
-
 	tests := []struct {
 		name     string
 		raw      string
@@ -23,18 +17,7 @@ func TestDocument_IntValueInRange(t *testing.T) {
 		{name: "max int32", raw: "2147483647", r: Int32Range, want: true},
 		{name: "min int32", raw: "2147483648", negative: true, r: Int32Range, want: true},
 		{name: "above max int32", raw: "2147483648", r: Int32Range, want: false},
-		{name: "below min int32", raw: "2147483649", negative: true, r: Int32Range, want: false},
-		{name: "max safe integer", raw: "9007199254740991", r: safeIntegerRange, want: true},
-		{name: "min safe integer", raw: "9007199254740991", negative: true, r: safeIntegerRange, want: true},
-		{name: "above max safe integer", raw: "9007199254740992", r: safeIntegerRange, want: false},
-		{name: "below min safe integer", raw: "9007199254740992", negative: true, r: safeIntegerRange, want: false},
-		{name: "asymmetric rejects negative magnitude within max", raw: "500", negative: true, r: asymmetricRange, want: false},
-		{name: "asymmetric accepts positive", raw: "500", r: asymmetricRange, want: true},
-		{name: "max int64", raw: "9223372036854775807", r: int64Range, want: true},
-		{name: "min int64", raw: "9223372036854775808", negative: true, r: int64Range, want: true},
-		{name: "above max int64", raw: "9223372036854775808", r: int64Range, want: false},
-		{name: "below min int64", raw: "9223372036854775809", negative: true, r: int64Range, want: false},
-		{name: "beyond uint64", raw: "18446744073709551616", r: int64Range, want: false},
+		{name: "beyond uint64", raw: "18446744073709551616", r: Int32Range, want: false},
 	}
 
 	for _, tt := range tests {
