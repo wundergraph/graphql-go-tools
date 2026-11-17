@@ -1,6 +1,7 @@
 package variablesvalidation
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -725,6 +726,48 @@ func TestVariablesValidation(t *testing.T) {
 			err := runTestWithOptions(t, scalarCase(`{"count":-500}`), options)
 			require.Error(t, err)
 			assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [-100, 1000]`, err.Error())
+		})
+
+		t.Run("compares bounds above 2^53 exactly", func(t *testing.T) {
+			options := VariablesValidatorOptions{
+				DisableExposingVariablesContent: true,
+				IntRange:                        ast.IntRange{Min: 0, Max: 1 << 53},
+			}
+			require.NoError(t, runTestWithOptions(t, scalarCase(`{"count":9007199254740992}`), options))
+
+			err := runTestWithOptions(t, scalarCase(`{"count":9007199254740993}`), options)
+			require.Error(t, err)
+			assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [0, 9007199254740992]`, err.Error())
+		})
+
+		t.Run("int64 range", func(t *testing.T) {
+			options := VariablesValidatorOptions{
+				DisableExposingVariablesContent: true,
+				IntRange:                        ast.IntRange{Min: math.MinInt64, Max: math.MaxInt64},
+			}
+
+			for _, variables := range []string{
+				`{"count":9223372036854775807}`,
+				`{"count":-9223372036854775808}`,
+				`{"count":3e18}`,
+			} {
+				t.Run("accepts "+variables, func(t *testing.T) {
+					require.NoError(t, runTestWithOptions(t, scalarCase(variables), options))
+				})
+			}
+
+			for _, variables := range []string{
+				`{"count":9223372036854775808}`,
+				`{"count":9223372036854776000}`,
+				`{"count":-9223372036854775809}`,
+				`{"count":1e19}`,
+			} {
+				t.Run("rejects "+variables, func(t *testing.T) {
+					err := runTestWithOptions(t, scalarCase(variables), options)
+					require.Error(t, err)
+					assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent integer value outside [-9223372036854775808, 9223372036854775807]`, err.Error())
+				})
+			}
 		})
 	})
 
