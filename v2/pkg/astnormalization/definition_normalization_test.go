@@ -228,6 +228,24 @@ func TestNormalizeDefinition(t *testing.T) {
 		`)
 	})
 
+	t.Run("orphan schema extension mutation and subscription types take precedence over implicit ones", func(t *testing.T) {
+		run(t, `
+			extend schema { mutation: RootMutation subscription: RootSubscription }
+			type Query { hello: String }
+			type Mutation { setHello: String }
+			type Subscription { helloChanged: String }
+			type RootMutation { setHello: String }
+			type RootSubscription { helloChanged: String }
+		`, `
+			type Query { hello: String }
+			type Mutation { setHello: String }
+			type Subscription { helloChanged: String }
+			type RootMutation { setHello: String }
+			type RootSubscription { helloChanged: String }
+			schema { mutation: RootMutation subscription: RootSubscription query: Query }
+		`)
+	})
+
 	t.Run("orphan schema extensions are merged before implicit root operation types are added", func(t *testing.T) {
 		run(t, `
 			directive @a on SCHEMA

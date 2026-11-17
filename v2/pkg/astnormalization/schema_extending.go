@@ -59,45 +59,5 @@ func (e *extendSchemaDefinitionVisitor) LeaveDocument(_, _ *ast.Document) {
 		return
 	}
 
-	e.addImplicitRootOperationTypes(e.importedSchemaDefinitionRef)
-}
-
-// addImplicitRootOperationTypes adds the default root operation types the schema extensions do not define.
-// Orphan schema extensions extend the implicit schema, so e.g. `extend schema { mutation: CustomMutation }`
-// still has to resolve `Query` as the query type. implicitSchemaDefinition can't do it,
-// as it leaves schema definitions with root operation types untouched.
-func (e *extendSchemaDefinitionVisitor) addImplicitRootOperationTypes(schemaDefinitionRef int) {
-	implicitTypeNames := []struct {
-		operationType ast.OperationType
-		typeName      string
-	}{
-		{ast.OperationTypeQuery, implicitQueryTypeName},
-		{ast.OperationTypeMutation, implicitMutationTypeName},
-		{ast.OperationTypeSubscription, implicitSubscriptionTypeName},
-	}
-
-	for _, implicit := range implicitTypeNames {
-		if e.hasRootOperationType(schemaDefinitionRef, implicit.operationType) {
-			continue
-		}
-
-		typeName := implicitRootOperationTypeName(implicit.typeName, e.operation)
-		if typeName == "" {
-			continue
-		}
-
-		e.operation.SchemaDefinitions[schemaDefinitionRef].AddRootOperationTypeDefinitionRefs(
-			e.operation.ImportRootOperationTypeDefinition(typeName, implicit.operationType),
-		)
-	}
-}
-
-func (e *extendSchemaDefinitionVisitor) hasRootOperationType(schemaDefinitionRef int, operationType ast.OperationType) bool {
-	for _, ref := range e.operation.SchemaDefinitions[schemaDefinitionRef].RootOperationTypeDefinitions.Refs {
-		if e.operation.RootOperationTypeDefinitions[ref].OperationType == operationType {
-			return true
-		}
-	}
-
-	return false
+	addImplicitRootOperationTypes(e.operation, e.importedSchemaDefinitionRef)
 }

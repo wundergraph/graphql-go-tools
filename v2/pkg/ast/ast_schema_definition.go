@@ -28,6 +28,16 @@ func (d *Document) SchemaDefinitionRef() int {
 	return InvalidRef
 }
 
+func (d *Document) SchemaDefinitionHasRootOperationType(schemaDefinitionRef int, operationType OperationType) bool {
+	for _, ref := range d.SchemaDefinitions[schemaDefinitionRef].RootOperationTypeDefinitions.Refs {
+		if d.RootOperationTypeDefinitions[ref].OperationType == operationType {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (d *Document) AddSchemaDefinition(schemaDefinition SchemaDefinition) (ref int) {
 	d.SchemaDefinitions = append(d.SchemaDefinitions, schemaDefinition)
 	return len(d.SchemaDefinitions) - 1

@@ -58,8 +58,6 @@ func handleSchema(definition *ast.Document) error {
 
 // mergeSchemaExtensions folds every schema extension into the schema definition,
 // creating the definition when only extensions exist (e.g. `extend schema @link(...)`).
-// The second loop's first pass will create a schema definition root node if it does not exist,
-// and subsequent passes will augment that type.
 // It has to run before the root operation types are resolved, as those checks
 // only take the schema definition into account.
 func mergeSchemaExtensions(definition *ast.Document) {

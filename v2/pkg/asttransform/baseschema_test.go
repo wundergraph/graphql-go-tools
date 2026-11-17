@@ -169,4 +169,22 @@ func TestMergeDefinitionWithBaseSchema(t *testing.T) {
 				id: ID!
 			}
 	`, "schema_extension_with_root_operation_types"))
+	t.Run("schema extension root operation types take precedence over default type names", runTestMerge(`
+			extend schema {
+				query: RootQuery
+				mutation: RootMutation
+			}
+			type Query {
+				hello: String
+			}
+			type Mutation {
+				setHello: String
+			}
+			type RootQuery {
+				hello: String
+			}
+			type RootMutation {
+				setHello: String
+			}
+	`, "schema_extension_overrides_default_root_types"))
 }
