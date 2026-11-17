@@ -23,7 +23,6 @@ type nodesCollector struct {
 	maxConcurrency       uint
 	seenKeys             map[SeenKeyPath]struct{}
 	fieldInfo            map[int]fieldInfo
-	newFieldRefs         map[int]struct{}
 	unfetchableFieldRefs map[int]struct{}
 
 	dsVisitors        []*collectNodesDSVisitor
@@ -48,8 +47,11 @@ type SeenKeyPath struct {
 	DSHash   DSHash
 }
 
+// CollectNodes collects nodes for the fields which are new in the response tree:
+// all fields on the first run, later the fields added to the operation
+// or made new again by NodeSuggestions.RemoveSeenFields.
 func (c *nodesCollector) CollectNodes() (keys []DSKeyInfo) {
-	c.buildTree()
+	newFieldRefs := c.buildTree()
 	if c.report.HasErrors() {
 		return nil
 	}
@@ -57,7 +59,7 @@ func (c *nodesCollector) CollectNodes() (keys []DSKeyInfo) {
 	// reset keys to not preserve already collected keys from previous iterations
 	c.keys = c.keys[:0]
 
-	c.collectNodes()
+	c.collectNodes(newFieldRefs)
 	if c.report.HasErrors() {
 		return nil
 	}
@@ -66,9 +68,8 @@ func (c *nodesCollector) CollectNodes() (keys []DSKeyInfo) {
 }
 
 type nodeVisitTask struct {
-	fieldRef     int
-	treeNodeData []int
-	treeNodeId   uint
+	fieldRef   int
+	treeNodeId uint
 }
 
 func (c *nodesCollector) initVisitors() {
@@ -85,7 +86,6 @@ func (c *nodesCollector) initVisitors() {
 			info:                    c.fieldInfo,
 			keys:                    make([]DSKeyInfo, 0, 2),
 			localSeenKeys:           make(map[SeenKeyPath]struct{}),
-			localSuggestionLookup:   make(map[int]struct{}),
 			availableProvidedFields: make(map[int]providesSelection),
 			usedProvidedFields:      make(map[int]providesSelection),
 			globalSeenKeys:          c.seenKeys,
@@ -98,38 +98,22 @@ func (c *nodesCollector) initVisitors() {
 	}
 }
 
-func (c *nodesCollector) collectNodes() {
-	// collect fields to visit
-	nodesToVisit := make([]nodeVisitTask, 0, len(c.operation.Fields))
-	for treeNodeID, treeNode := range TraverseBFS(c.nodes.responseTree) {
+func (c *nodesCollector) collectNodes(newFieldRefs map[int]struct{}) {
+	// collect fields to visit, in breadth-first order
+	nodesToVisit := make([]nodeVisitTask, 0, len(newFieldRefs))
+	for treeNodeID := range TraverseBFS(c.nodes.responseTree) {
 		if treeNodeID == treeRootID {
 			continue
 		}
 		fieldRef := TreeNodeFieldRef(treeNodeID)
-
-		if len(c.newFieldRefs) > 0 {
-			if _, ok := c.newFieldRefs[fieldRef]; !ok {
-				// skip field refs which were not added during the current iteration
-				continue
-			}
+		if _, ok := newFieldRefs[fieldRef]; !ok {
+			continue
 		}
 
-		task := nodeVisitTask{
-			fieldRef:     fieldRef,
-			treeNodeData: treeNode.GetData(),
-			treeNodeId:   treeNodeID,
-		}
-
-		nodesToVisit = append(nodesToVisit, task)
-	}
-
-	// a field ref scheduled for a visit could have been marked for recollection
-	// (e.g. when it got a planner generated alias) - the lookup entries
-	// from the previous runs must not skip it
-	for _, visitor := range c.dsVisitors {
-		for _, task := range nodesToVisit {
-			delete(visitor.localSuggestionLookup, task.fieldRef)
-		}
+		nodesToVisit = append(nodesToVisit, nodeVisitTask{
+			fieldRef:   fieldRef,
+			treeNodeId: treeNodeID,
+		})
 	}
 
 	wg := &sync.WaitGroup{}
@@ -165,7 +149,7 @@ func (c *nodesCollector) collectNodes() {
 			visitor.reset()
 
 			for _, node := range nodesToVisit {
-				if err := visitor.EnterField(node.fieldRef, node.treeNodeData, node.treeNodeId); err != nil {
+				if err := visitor.EnterField(node.fieldRef, node.treeNodeId); err != nil {
 					report.AddInternalError(fmt.Errorf("data source %s: %w", visitor.dataSource.Name(), err))
 					// stop processing on error
 					return
@@ -201,19 +185,23 @@ func (c *nodesCollector) collectNodes() {
 	}
 }
 
-func (c *nodesCollector) buildTree() {
+// buildTree adds the fields not seen yet to the response tree and returns them
+func (c *nodesCollector) buildTree() (newFieldRefs map[int]struct{}) {
 	walker := astvisitor.NewWalkerWithID(32, "TreeBuilderVisitor")
 	visitor := &treeBuilderVisitor{
-		operation:  c.operation,
-		definition: c.definition,
-		walker:     &walker,
-		nodes:      c.nodes,
-		fieldInfo:  c.fieldInfo,
+		operation:    c.operation,
+		definition:   c.definition,
+		walker:       &walker,
+		nodes:        c.nodes,
+		fieldInfo:    c.fieldInfo,
+		newFieldRefs: make(map[int]struct{}),
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 	walker.Walk(c.operation, c.definition, c.report)
+
+	return visitor.newFieldRefs
 }
 
 type treeBuilderVisitor struct {
@@ -223,6 +211,7 @@ type treeBuilderVisitor struct {
 	nodes           *NodeSuggestions
 	parentFieldRefs []int // ancestor field refs, ast.InvalidRef sentinel at the root
 	fieldInfo       map[int]fieldInfo
+	newFieldRefs    map[int]struct{} // fields seen for the first time in this walk
 }
 
 func (f *treeBuilderVisitor) EnterDocument(_, _ *ast.Document) {
@@ -235,6 +224,7 @@ func (f *treeBuilderVisitor) EnterField(fieldRef int) {
 		return
 	}
 	f.nodes.AddSeenField(fieldRef)
+	f.newFieldRefs[fieldRef] = struct{}{}
 
 	// we intentionally ignore the return values added, exists
 	// because we do not recheck the same field refs, so all added nodes should be new and unique
@@ -268,8 +258,7 @@ type collectNodesDSVisitor struct {
 
 	// local suggestions stores suggestions for the current run of collecting fields
 	// they are reset after each run, because each time we collect suggestion only for new field refs
-	localSuggestions      []*NodeSuggestion
-	localSuggestionLookup map[int]struct{}
+	localSuggestions []*NodeSuggestion
 
 	// availableProvidedFields stores, per field ref carrying a @provides directive,
 	// the selection tree of fields the directive makes available under that field -
@@ -315,19 +304,6 @@ type collectNodesDSVisitor struct {
 func (f *collectNodesDSVisitor) reset() {
 	f.localSuggestions = f.localSuggestions[:0]
 	f.keys = f.keys[:0]
-}
-
-func (f *collectNodesDSVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) (itemID int, ok bool) {
-	idx := slices.IndexFunc(itemIds, func(i int) bool {
-		suggestion := f.nodes.items[i]
-		return !suggestion.IsOrphan && suggestion.FieldRef == ref && suggestion.DataSourceHash == f.dataSource.Hash()
-	})
-
-	if idx != -1 {
-		return itemIds[idx], true
-	}
-
-	return -1, false
 }
 
 func (f *collectNodesDSVisitor) hasProvidesConfiguration(typeName, fieldName string) (selectionSet string, ok bool) {
@@ -480,7 +456,7 @@ func (f *collectNodesDSVisitor) isNotExternalKeyField(currentPath string) bool {
 	return ok
 }
 
-func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNodeId uint) error {
+func (f *collectNodesDSVisitor) EnterField(fieldRef int, treeNodeId uint) error {
 	if _, ok := f.unfetchableFieldRefs[fieldRef]; ok {
 		// the field is intentionally left unplanned - it is resolved to null,
 		// so we should not collect suggestions for it
@@ -522,17 +498,6 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 				}
 			}
 		}
-	}
-
-	// this is the check for the global suggestions
-	if _, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
-		return nil
-	}
-
-	// this is the check for the current collect nodes iterations suggestions
-	// whether we already added a suggestion for the field with a typename
-	if _, hasLocalSuggestion := f.localSuggestionLookup[fieldRef]; hasLocalSuggestion {
-		return nil
 	}
 
 	isProvided := f.resolveProvided(fieldRef, info)
@@ -601,7 +566,6 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		}
 
 		f.localSuggestions = append(f.localSuggestions, &node)
-		f.localSuggestionLookup[fieldRef] = struct{}{}
 	}
 
 	return nil

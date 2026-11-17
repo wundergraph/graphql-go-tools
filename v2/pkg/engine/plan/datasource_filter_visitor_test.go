@@ -1037,7 +1037,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		dsFilter := NewDataSourceFilter(&operation, &definition, &report, DataSources, nil)
+		dsFilter := NewDataSourceFilter(&operation, &definition, &report, DataSources)
 		if report.HasErrors() {
 			t.Fatal(report.Error())
 		}
