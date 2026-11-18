@@ -138,8 +138,8 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, dataArena aren
 }
 
 func renderResponseVariable(ctx context.Context, dataArena arena.Arena, data *astjson.Value, renderer VariableRenderer, out InputTemplateWriter) error {
-	if g, ok := renderer.(*GraphQLVariableResolveRenderer); ok {
-		return g.RenderVariableWithArena(ctx, dataArena, data, out)
+	if arenaRenderer, ok := renderer.(ArenaVariableRenderer); ok {
+		return arenaRenderer.RenderVariableWithArena(ctx, dataArena, data, out)
 	}
 	return renderer.RenderVariable(ctx, data, out)
 }

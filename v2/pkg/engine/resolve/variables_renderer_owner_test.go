@@ -1,6 +1,9 @@
 package resolve
 
 import (
+	"bytes"
+	"context"
+	"io"
 	"testing"
 	"unsafe"
 
@@ -57,5 +60,32 @@ func TestFetchRepresentationUsesInputArena(t *testing.T) {
 			require.True(t, seller == astjson.NullValue || a.allocated[unsafe.Pointer(seller)], "replacement must belong to the input arena or be a shared null")
 			require.Equal(t, astjson.TypeNull, seller.Type())
 		})
+	}
+}
+
+// Embedding the ordinary JSON renderer supplies the legacy VariableRenderer methods.
+type customArenaRenderer struct {
+	JSONVariableRenderer
+	received arena.Arena
+}
+
+func (r *customArenaRenderer) RenderVariableWithArena(ctx context.Context, a arena.Arena, data *astjson.Value, out io.Writer) error {
+	r.received = a
+	return r.RenderVariable(ctx, data, out)
+}
+
+func TestInputTemplateCustomArenaRenderer(t *testing.T) {
+	a := arena.NewMonotonicArena()
+	data, err := astjson.ParseWithArena(a, `{"id":"1"}`)
+	require.NoError(t, err)
+	for _, kind := range []VariableKind{ObjectVariableKind, ResolvableObjectVariableKind} {
+		renderer := &customArenaRenderer{}
+		template := InputTemplate{Segments: []TemplateSegment{{
+			SegmentType: VariableSegmentType, VariableKind: kind, Renderer: renderer,
+		}}}
+		var out bytes.Buffer
+		require.NoError(t, template.RenderWithArena(NewContext(t.Context()), a, data, &out))
+		require.Same(t, a, renderer.received)
+		require.JSONEq(t, `{"id":"1"}`, out.String())
 	}
 }

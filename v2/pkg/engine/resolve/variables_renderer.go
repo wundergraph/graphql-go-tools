@@ -32,6 +32,15 @@ type VariableRenderer interface {
 	RenderVariable(ctx context.Context, data *astjson.Value, out io.Writer) error
 }
 
+// ArenaVariableRenderer is an optional extension for rendering response items.
+// Object-sourced template variables use RenderVariableWithArena when available,
+// including for heap-backed data (dataArena == nil). Implementations that write
+// into data must use its arena for those allocations.
+type ArenaVariableRenderer interface {
+	VariableRenderer
+	RenderVariableWithArena(ctx context.Context, dataArena arena.Arena, data *astjson.Value, out io.Writer) error
+}
+
 // JSONVariableRenderer is an implementation of VariableRenderer
 // It renders the provided data as JSON
 // If configured, it also does a JSON Validation Check before rendering
