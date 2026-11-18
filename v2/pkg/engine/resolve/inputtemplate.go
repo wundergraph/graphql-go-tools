@@ -70,8 +70,9 @@ func (i *InputTemplate) Render(ctx *Context, data *astjson.Value, preparedInput 
 	return i.RenderWithArena(ctx, nil, data, preparedInput)
 }
 
-// RenderWithArena renders a template using dataArena for writes to the response data.
-// The input owner supplies the arena; the output buffer has a separate lifetime.
+// RenderWithArena renders a template using dataArena for writes to response items.
+// A loader passes its request JSON arena here even when preparedInput uses a
+// shorter-lived scratch arena. Pass nil for heap-backed response items.
 func (i *InputTemplate) RenderWithArena(ctx *Context, dataArena arena.Arena, data *astjson.Value, preparedInput InputTemplateWriter) error {
 	var undefinedVariables []string
 
