@@ -1059,7 +1059,6 @@ func TestFindBestDataSourceSet(t *testing.T) {
 
 		// set default values for the fields that are not relevant for the test
 		for item := range slices.Values(actualItems) {
-			item.treeNodeId = 0
 			item.IsLeaf = false
 			if !item.onFragment {
 				item.parentPathWithoutFragment = ""

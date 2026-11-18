@@ -615,14 +615,12 @@ func (c *pathBuilderVisitor) LeaveField(ref int) {
 }
 
 func (c *pathBuilderVisitor) haveChildFieldsToPlan(field *currentFieldInfo) bool {
-	nodeId := field.suggestion.treeNodeID()
-
-	node, ok := c.nodeSuggestions.responseTree.Find(nodeId)
+	fieldInTree, ok := c.nodeSuggestions.responseTree.Find(field.suggestion.FieldRef)
 	if !ok {
 		return false
 	}
 
-	return slices.ContainsFunc(treeNodeChildren(node), func(child int) bool {
+	return slices.ContainsFunc(treeFieldChildren(fieldInTree), func(child int) bool {
 		childNode := c.nodeSuggestions.items[child]
 
 		if childNode.DataSourceHash != field.ds.Hash() || !childNode.Selected {
