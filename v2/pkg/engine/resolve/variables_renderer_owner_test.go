@@ -91,7 +91,6 @@ func TestFetchRepresentationUsesInputArena(t *testing.T) {
 	}
 }
 
-// Embedding the ordinary JSON renderer supplies the legacy VariableRenderer methods.
 type customArenaRenderer struct {
 	JSONVariableRenderer
 	received arena.Arena

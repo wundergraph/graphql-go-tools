@@ -47,8 +47,8 @@ type Resolvable struct {
 	// response already carries errors but no data (set per render in Resolve).
 	skipAddingNullErrors bool
 
-	// astjsonArena is borrowed from the caller for JSON allocations during a walk.
-	// A nil arena selects the Go heap. The caller controls the arena lifetime.
+	// astjsonArena is the arena to handle json, supplied by Resolver
+	// not thread safe, but Resolvable is single threaded anyways
 	astjsonArena arena.Arena
 
 	// parsers are pooled astjson parsers reused across walks to avoid per-call allocation.

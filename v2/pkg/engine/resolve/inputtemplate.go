@@ -65,14 +65,12 @@ type InputTemplateWriter interface {
 	Bytes() []byte
 }
 
-// Render renders a template with heap-backed response data. For arena-backed data, use RenderWithArena.
 func (i *InputTemplate) Render(ctx *Context, data *astjson.Value, preparedInput InputTemplateWriter) error {
 	return i.RenderWithArena(ctx, nil, data, preparedInput)
 }
 
-// RenderWithArena renders a template using dataArena for writes to response items.
-// A loader passes its request JSON arena here even when preparedInput uses a
-// shorter-lived scratch arena. Pass nil for heap-backed response items.
+// RenderWithArena may mutate data during null propagation. dataArena must be
+// the arena that owns data, or nil for heap-backed data.
 func (i *InputTemplate) RenderWithArena(ctx *Context, dataArena arena.Arena, data *astjson.Value, preparedInput InputTemplateWriter) error {
 	var undefinedVariables []string
 

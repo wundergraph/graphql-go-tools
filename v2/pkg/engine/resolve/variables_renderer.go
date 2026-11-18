@@ -360,21 +360,14 @@ func (g *GraphQLVariableResolveRenderer) putResolvable(r *Resolvable) {
 	_graphQLVariableResolveRendererPool.Put(r)
 }
 
-// RenderVariable renders a node backed by the Go heap.
 func (g *GraphQLVariableResolveRenderer) RenderVariable(ctx context.Context, data *astjson.Value, out io.Writer) error {
 	return g.RenderVariableWithArena(ctx, nil, data, out)
 }
 
-// RenderVariableWithArena renders a fetch variable to out. Null propagation can
-// replace a child in data, so callers must supply the arena that owns the
-// response items being walked. Pass nil for heap-backed items.
-//
-// Temporary JSON values, including errors built during the walk, also use
-// dataArena. Their space is reclaimed when the caller resets or releases it.
+// RenderVariableWithArena may mutate data during null propagation. dataArena must be
+// the arena that owns data, or nil for heap-backed data.
 func (g *GraphQLVariableResolveRenderer) RenderVariableWithArena(ctx context.Context, dataArena arena.Arena, data *astjson.Value, out io.Writer) error {
 	r := g.getResolvable()
-	// Fresh instances start with a nil arena. On pool return, putResolvable
-	// calls Reset, which clears this reference and leaves the arena with its owner.
 	r.astjsonArena = dataArena
 	defer g.putResolvable(r)
 
