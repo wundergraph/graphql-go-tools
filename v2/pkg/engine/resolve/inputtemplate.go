@@ -138,7 +138,9 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, dataArena aren
 }
 
 func renderResponseVariable(ctx context.Context, dataArena arena.Arena, data *astjson.Value, renderer VariableRenderer, out InputTemplateWriter) error {
-	if arenaRenderer, ok := renderer.(ArenaVariableRenderer); ok {
+	if arenaRenderer, ok := renderer.(interface {
+		RenderVariableWithArena(context.Context, arena.Arena, *astjson.Value, io.Writer) error
+	}); ok {
 		return arenaRenderer.RenderVariableWithArena(ctx, dataArena, data, out)
 	}
 	return renderer.RenderVariable(ctx, data, out)
