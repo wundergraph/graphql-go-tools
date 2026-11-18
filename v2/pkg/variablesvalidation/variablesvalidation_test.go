@@ -654,6 +654,67 @@ func TestVariablesValidation(t *testing.T) {
 		assert.Equal(t, `Variable "$count" got invalid value; Int cannot represent non 32-bit signed integer value`, err.Error())
 	})
 
+	t.Run("Int values with AllowInt64Values", func(t *testing.T) {
+		int64Options := VariablesValidatorOptions{DisableExposingVariablesContent: true, AllowInt64Values: true}
+
+		for _, tc := range []struct {
+			name, variables string
+		}{
+			{name: "overflows int32 positively", variables: `{"count":2147483648}`},
+			{name: "overflows int32 negatively", variables: `{"count":-2147483649}`},
+			{name: "min int64", variables: `{"count":-9223372036854775808}`},
+			{name: "large int64 in exponential notation", variables: `{"count":9e18}`},
+		} {
+			t.Run("accepts "+tc.name, func(t *testing.T) {
+				require.NoError(t, runTestWithOptions(t, testCase{
+					schema:    `type Query{ count(arg: Int!): Int! }`,
+					operation: `query Count($count: Int!) { count(arg: $count) }`,
+					variables: tc.variables,
+				}, int64Options))
+			})
+		}
+
+		for _, tc := range []struct {
+			name, variables, expectedErr string
+		}{
+			{
+				name:        "overflows int64 positively",
+				variables:   `{"count":9223372036854775808}`,
+				expectedErr: `Variable "$count" got invalid value; Int cannot represent non 64-bit signed integer value`,
+			},
+			{
+				name:        "overflows int64 negatively",
+				variables:   `{"count":-1e19}`,
+				expectedErr: `Variable "$count" got invalid value; Int cannot represent non 64-bit signed integer value`,
+			},
+			{
+				name:        "non-integer value",
+				variables:   `{"count":2147483648.5}`,
+				expectedErr: `Variable "$count" got invalid value; Int cannot represent non-integer value`,
+			},
+		} {
+			t.Run("rejects "+tc.name, func(t *testing.T) {
+				err := runTestWithOptions(t, testCase{
+					schema:    `type Query{ count(arg: Int!): Int! }`,
+					operation: `query Count($count: Int!) { count(arg: $count) }`,
+					variables: tc.variables,
+				}, int64Options)
+				require.Error(t, err)
+				assert.Equal(t, tc.expectedErr, err.Error())
+			})
+		}
+
+		t.Run("rejects int64 overflow nested in input object with variable content", func(t *testing.T) {
+			err := runTestWithOptions(t, testCase{
+				schema:    `type Query{ count(in: Input!): Int! } input Input { count: [Int!]! }`,
+				operation: `query Count($in: Input!) { count(in: $in) }`,
+				variables: `{"in":{"count":[1,9223372036854775808]}}`,
+			}, VariablesValidatorOptions{AllowInt64Values: true})
+			require.Error(t, err)
+			assert.Equal(t, `Variable "$in" got invalid value 9223372036854775808 at "in.count.[1]"; Int cannot represent non 64-bit signed integer value: 9223372036854775808`, err.Error())
+		})
+	})
+
 	t.Run("wrong Int value passed as list", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query{ count(arg: [Int!]!): Int! }`,
