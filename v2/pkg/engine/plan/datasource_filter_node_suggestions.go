@@ -8,6 +8,8 @@ import (
 
 	"github.com/kingledion/go-tools/tree"
 	"github.com/phf/go-queue/queue"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 const treeRootID = ^uint(0)
@@ -177,7 +179,11 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 	}
 }
 
-func (f *NodeSuggestions) ProcessDefer(fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration) {
+// ProcessDefer propagates each defer ID to its fetch anchor.
+// A field whose fetch anchor is a mutation root field moves to the initial response, because a second fetch runs the mutation again.
+// The planner can fetch a query root field again, so a query defer keeps its anchor.
+func (f *NodeSuggestions) ProcessDefer(fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration, descriptors map[int]resolve.DeferDescriptor, mutationTypeName string) error {
+	var movedDeferIDs []int
 	for i := range f.items {
 		if !f.items[i].Selected {
 			continue
@@ -187,14 +193,44 @@ func (f *NodeSuggestions) ProcessDefer(fieldRequirementsConfigs map[fieldIndexKe
 			continue
 		}
 
-		f.propagateDeferParentsUpToRootNode(i, fieldRequirementsConfigs)
+		if f.propagateDeferParentsUpToRootNode(i, fieldRequirementsConfigs, mutationTypeName) {
+			movedDeferIDs = append(movedDeferIDs, f.items[i].deferInfo.ID)
+			f.items[i].deferInfo = nil
+		}
 	}
+
+	return f.deleteEmptyDeferDescriptors(movedDeferIDs, descriptors)
 }
 
-func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration) {
-	// if the item is a root node and requires a key we are already able to jump from here,
-	// so we skip propagating defer id
+// deleteEmptyDeferDescriptors deletes a moved defer that has no field left, so the response announces no pending or completed entry for it.
+// The children of a deleted defer get its parent ID.
+func (f *NodeSuggestions) deleteEmptyDeferDescriptors(movedDeferIDs []int, descriptors map[int]resolve.DeferDescriptor) error {
+	slices.Sort(movedDeferIDs)
+	for _, id := range slices.Compact(movedDeferIDs) {
+		if slices.ContainsFunc(f.items, func(item *NodeSuggestion) bool {
+			return item.Selected && item.deferInfo != nil && item.deferInfo.ID == id
+		}) {
+			continue
+		}
 
+		deleted, ok := descriptors[id]
+		if !ok {
+			return fmt.Errorf("deleteEmptyDeferDescriptors: no descriptor for defer id %d", id)
+		}
+		delete(descriptors, id)
+
+		for childID, child := range descriptors {
+			if child.ParentID == id {
+				child.ParentID = deleted.ParentID
+				descriptors[childID] = child
+			}
+		}
+	}
+	return nil
+}
+
+// isEntityFetchAnchor reports whether the item is its own fetch anchor through an entity fetch.
+func (f *NodeSuggestions) isEntityFetchAnchor(i int, fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration) bool {
 	hasKeyDependency := false
 	hasRequiresKey := f.items[i].requiresKey != nil
 
@@ -212,8 +248,14 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 		}
 	}
 
-	if (f.items[i].IsRootNode && hasRequiresKey) || hasKeyDependency {
-		return
+	return (f.items[i].IsRootNode && hasRequiresKey) || hasKeyDependency
+}
+
+// propagateDeferParentsUpToRootNode marks the path to the fetch anchor with the defer ID.
+// It returns true without marks when a deferred fetch of the field would repeat a mutation root field outside the defer.
+func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration, mutationTypeName string) (anchoredAtMutationRoot bool) {
+	if f.isEntityFetchAnchor(i, fieldRequirementsConfigs) {
+		return false
 	}
 
 	parentIndexesToAddDeferID := make([]int, 0, 2)
@@ -223,6 +265,7 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 		parentNodeIndexes := treeNode.GetParent().GetData()
 
 		parentIdToUpdate := -1
+		parentInSameDefer := false
 		for _, parentIdx := range parentNodeIndexes {
 			if f.items[parentIdx].DataSourceHash != f.items[current].DataSourceHash {
 				continue
@@ -232,6 +275,8 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 				// If the parent item is in the same defer scope, we should not mark it as a
 				// defer parent, because defer parents are planned twice - in a deferred planner
 				// and in the regular planner.
+				parentIdToUpdate = parentIdx
+				parentInSameDefer = true
 				break
 			}
 
@@ -244,9 +289,21 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 		}
 
 		if parentIdToUpdate == -1 {
-			// could happen if we haven't set it
-			// because it already contains this defer id
+			// The walk stops when no parent uses this data source or an earlier walk already marked the parent.
+			// The validator rejects a defer on a mutation root field, so skip the item itself.
+			anchoredAtMutationRoot = current != i && f.isMutationRootField(current, mutationTypeName)
 			break
+		}
+
+		if parentInSameDefer {
+			// The parent shares this defer, so do not mark it. Stop when the parent is its fetch anchor.
+			// Each field finds its own anchor, so the result does not depend on the order of the items.
+			if f.isEntityFetchAnchor(parentIdToUpdate, fieldRequirementsConfigs) ||
+				f.isMutationRootField(parentIdToUpdate, mutationTypeName) {
+				break
+			}
+			current = parentIdToUpdate
+			continue
 		}
 
 		parentIndexesToAddDeferID = append(parentIndexesToAddDeferID, parentIdToUpdate)
@@ -261,16 +318,22 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 		current = parentIdToUpdate
 	}
 
-	// Collect the parent indexes during the walk, then mark them in a second pass.
-	// The walk above reads descendantDeferIDs to decide when to stop climbing
-	// (the "already contains this defer id" break). Appending inline would let the
-	// in-progress walk observe a defer id it just wrote and stop early, so the
-	// mutation is deferred until the parent path is fully resolved.
+	if anchoredAtMutationRoot {
+		return true
+	}
+
+	// Mark the parents after the walk, because the mutation root check can discard the whole path.
 	for _, parentIdx := range parentIndexesToAddDeferID {
 		if !slices.Contains(f.items[parentIdx].descendantDeferIDs, f.items[i].deferInfo.ID) {
 			f.items[parentIdx].descendantDeferIDs = append(f.items[parentIdx].descendantDeferIDs, f.items[i].deferInfo.ID)
 		}
 	}
+	return false
+}
+
+// isMutationRootField reports whether the item is a field of the mutation root type at the top of the response tree.
+func (f *NodeSuggestions) isMutationRootField(i int, mutationTypeName string) bool {
+	return f.items[i].TypeName == mutationTypeName && f.treeNode(i).GetParentID() == treeRootID
 }
 
 func (f *NodeSuggestions) AddItems(items ...*NodeSuggestion) {
