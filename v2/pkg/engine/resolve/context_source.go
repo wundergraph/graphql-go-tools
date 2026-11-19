@@ -6,9 +6,10 @@ import (
 	"io"
 	"slices"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
-	"golang.org/x/sync/errgroup"
 )
 
 // ContextSource describes how to read a hidden argument from the ancestor at Depth.
@@ -134,10 +135,9 @@ func (db *DataBuffer) collectDeferredContextPaths(node *DeferTreeNode, dependent
 	}
 }
 
-// Called under the merge lock. Only overlapping subtrees can receive different
-// writes for repeated representations. Ignore list wrappers and type conditions
-// when comparing paths, so all runtime variants of a field remain isolated.
-func (db *DataBuffer) batchTargetsNeedIsolation(fetchPath []FetchItemPathElement, mergePath []string) bool {
+// Both isolation of deduplicated representations and propagation of required-field
+// failures consult the contextual writes in this response, including deferred groups.
+func (db *DataBuffer) hasContextWrites() bool {
 	if db.fetchTreeToCheck != nil || db.deferTreeToCheck != nil {
 		db.contextFetchPaths = nil
 		dependent := make(map[int]bool)
@@ -147,8 +147,15 @@ func (db *DataBuffer) batchTargetsNeedIsolation(fetchPath []FetchItemPathElement
 		db.deferTreeToCheck = nil
 		db.contextPathsKnown = true
 	}
-	if !db.contextPathsKnown {
-		return true
+	return len(db.contextFetchPaths) > 0
+}
+
+// Called under the merge lock. Only overlapping subtrees can receive different
+// writes for repeated representations. Ignore list wrappers and type conditions
+// when comparing paths, so all runtime variants of a field remain isolated.
+func (db *DataBuffer) batchTargetsNeedIsolation(fetchPath []FetchItemPathElement, mergePath []string) bool {
+	if !db.hasContextWrites() {
+		return !db.contextPathsKnown
 	}
 	for _, path := range db.contextFetchPaths {
 		if mergeOverlapsContext(fetchPath, mergePath, path) {
@@ -205,11 +212,15 @@ type contextGroup struct {
 
 func (l *Loader) resolveContextGroups(ctx context.Context, item *FetchItem, bindings []ContextBinding) error {
 	l.dataBuffer.Lock()
-	if l.shouldSkipErroredDependencyLocked(item) {
+	blocked, skip := l.failedDependencyTargetsLocked(item)
+	if skip {
 		l.dataBuffer.Unlock()
 		return nil
 	}
-	groups := l.contextGroups(item.FetchPath, bindings)
+	groups, failedItems := l.contextGroups(item.FetchPath, bindings, blocked)
+	if len(failedItems) > 0 {
+		l.recordContextTargetsLocked(item.Fetch.Dependencies().FetchID, failedItems)
+	}
 	l.dataBuffer.Unlock()
 	// Each distinct ancestor binding can require a separate subgraph request.
 	// Bound per-fetch fan-out even when every item in a large list has a different binding.
@@ -218,9 +229,20 @@ func (l *Loader) resolveContextGroups(ctx context.Context, item *FetchItem, bind
 	if len(groups) > 1 {
 		loads.SetLimit(maxConcurrentContextGroups)
 	}
+	if l.ctx.TracingOptions.Enable {
+		item.contextTraces = nil
+	}
 	for _, group := range groups {
 		l.dataBuffer.Lock()
 		prepared, err := l.prepareItems(item, group.items, group.variables)
+		if l.ctx.TracingOptions.Enable && len(groups) > 1 {
+			switch f := item.Fetch.(type) {
+			case *BatchEntityFetch:
+				item.contextTraces = append(item.contextTraces, f.Trace)
+			case *EntityFetch:
+				item.contextTraces = append(item.contextTraces, f.Trace)
+			}
+		}
 		l.dataBuffer.Unlock()
 		if len(groups) == 1 {
 			return l.executePrepared(ctx, prepared, err)
@@ -251,28 +273,29 @@ type contextProjection struct {
 	source   *ContextSource
 	ancestor *astjson.Value
 	value    *astjson.Value
+	failed   bool
 	id       uint64
 
 	valueIDs map[string]uint64
 	encoded  []byte
 }
 
-func (p *contextProjection) read(l *Loader, binding *ContextBinding, ancestors []*astjson.Value) {
+func (p *contextProjection) read(l *Loader, binding *ContextBinding, ancestors []*astjson.Value, blocked taintedObjects) {
 	source, ancestor := binding.sourceFor(ancestors)
 	if p.value != nil && p.source == source && p.ancestor == ancestor {
 		return
 	}
 	p.source, p.ancestor = source, ancestor
-	p.value, p.id = astjson.NullValue, 0
+	p.value, p.failed, p.id = astjson.NullValue, false, 0
 	if source == nil {
 		return
 	}
 	if source.RootTypeName != "" {
 		p.value = astjson.StringValue(l.jsonArena, source.RootTypeName)
 	} else if len(source.Selection) > 0 {
-		p.value = l.contextValue(ancestor, source.Selection)
+		p.value, p.failed = l.contextValue(ancestor, source.Selection, blocked)
 	}
-	if p.value.Type() == astjson.TypeNull {
+	if p.failed || p.value.Type() == astjson.TypeNull {
 		return
 	}
 
@@ -288,89 +311,79 @@ func (p *contextProjection) read(l *Loader, binding *ContextBinding, ancestors [
 	}
 }
 
-func (l *Loader) contextGroups(path []FetchItemPathElement, bindings []ContextBinding) []contextGroup {
+func (l *Loader) contextGroups(path []FetchItemPathElement, bindings []ContextBinding, blocked taintedObjects) ([]contextGroup, []*astjson.Value) {
 	projections := make([]contextProjection, len(bindings))
 	byValues := make(map[string]int)
 	var groups []contextGroup
+	var failedItems []*astjson.Value
 	var tuple []byte
-	var visit func(int, []*astjson.Value)
-	visit = func(i int, ancestors []*astjson.Value) {
-		obj := ancestors[len(ancestors)-1]
+	l.walkFetchPath(path, blocked, true, func(obj *astjson.Value, ancestors []*astjson.Value) {
 		if obj == nil || obj.Type() == astjson.TypeNull {
 			return
 		}
-		if i == len(path) {
-			if len(l.taintedObjs) != 0 && l.taintedObjs.isTainted(obj, 0) {
+		tuple = tuple[:0]
+		for i := range bindings {
+			projection := &projections[i]
+			projection.read(l, &bindings[i], ancestors, blocked)
+			if projection.failed {
+				failedItems = append(failedItems, obj)
 				return
 			}
-			tuple = tuple[:0]
+			tuple = binary.AppendUvarint(tuple, projection.id)
+		}
+		idx, ok := byValues[string(tuple)]
+		if !ok {
+			idx = len(groups)
+			byValues[string(tuple)] = idx
+			vars := astjson.ObjectValue(l.jsonArena)
 			for i := range bindings {
-				projection := &projections[i]
-				projection.read(l, &bindings[i], ancestors)
-				tuple = binary.AppendUvarint(tuple, projection.id)
+				vars.Set(l.jsonArena, bindings[i].Variable, projections[i].value)
 			}
-			idx, ok := byValues[string(tuple)]
-			if !ok {
-				idx = len(groups)
-				byValues[string(tuple)] = idx
-				vars := astjson.ObjectValue(l.jsonArena)
-				for i := range bindings {
-					vars.Set(l.jsonArena, bindings[i].Variable, projections[i].value)
-				}
-				groups = append(groups, contextGroup{variables: vars})
-			}
-			groups[idx].items = append(groups[idx].items, obj)
-			return
+			groups = append(groups, contextGroup{variables: vars})
 		}
-		el := path[i]
-		if !isItemAllowedByTypename(obj, el.TypeNames) {
-			return
-		}
-		var descend func(int, []*astjson.Value)
-		descend = func(j int, chain []*astjson.Value) {
-			if j == len(el.Path) {
-				visit(i+1, chain)
-				return
-			}
-			next := chain[len(chain)-1].Get(el.Path[j])
-			if next == nil {
-				return
-			}
-			if next.Type() == astjson.TypeArray {
-				for _, child := range next.GetArray() {
-					descend(j+1, append(chain, child))
-				}
-				return
-			}
-			descend(j+1, append(chain, next))
-		}
-		descend(0, ancestors)
-	}
-	visit(0, []*astjson.Value{l.dataBuffer.Get()})
-	return groups
+		groups[idx].items = append(groups[idx].items, obj)
+	})
+	return groups, failedItems
 }
 
-func (l *Loader) contextValue(obj *astjson.Value, selection []ContextSelection) *astjson.Value {
+// Follow only the selected response path. A failed source can live on a
+// sibling of the receiving entity, and must not be mistaken for a nullable value.
+func (l *Loader) contextValue(obj *astjson.Value, selection []ContextSelection, blocked taintedObjects) (value *astjson.Value, failed bool) {
+	if _, failed := blocked[obj]; failed {
+		return astjson.NullValue, true
+	}
 	if obj == nil || obj.Type() == astjson.TypeNull {
-		return astjson.NullValue
+		return astjson.NullValue, false
+	}
+	if obj.Type() == astjson.TypeArray {
+		if _, failed := l.dataBuffer.failedContextFields[contextField{parent: obj}]; failed {
+			return astjson.NullValue, true
+		}
 	}
 	if len(selection) == 0 {
-		return obj
+		return obj, false
 	}
 	if obj.Type() == astjson.TypeArray {
 		result := astjson.ArrayValue(l.jsonArena)
-		for i, v := range obj.GetArray() {
-			result.SetArrayItem(l.jsonArena, i, l.contextValue(v, selection))
+		for i, element := range obj.GetArray() {
+			value, failed := l.contextValue(element, selection, blocked)
+			if failed {
+				return astjson.NullValue, true
+			}
+			result.SetArrayItem(l.jsonArena, i, value)
 		}
-		return result
+		return result, false
 	}
 	for _, step := range selection {
 		if step.Field != "" {
-			return l.contextValue(obj.Get(step.Field), step.Children)
+			if _, failed := l.dataBuffer.failedContextFields[contextField{parent: obj, name: step.Field}]; failed {
+				return astjson.NullValue, true
+			}
+			return l.contextValue(obj.Get(step.Field), step.Children, blocked)
 		}
 		if slices.Contains(step.Types, string(obj.GetStringBytes("__typename"))) {
-			return l.contextValue(obj, step.Children)
+			return l.contextValue(obj, step.Children, blocked)
 		}
 	}
-	return astjson.NullValue
+	return astjson.NullValue, false
 }

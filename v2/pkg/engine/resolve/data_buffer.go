@@ -27,12 +27,15 @@ type DataBuffer struct {
 	mu   sync.Mutex
 	data *astjson.Value
 
-	// Inspect the operation on its first deduplicated entity merge. Deferred
-	// groups may write into objects populated by an earlier group or the primary.
+	// Inspect the operation on its first deduplicated entity merge or subgraph error.
+	// Deferred groups may write into objects populated by an earlier group or the primary.
 	fetchTreeToCheck  *FetchTreeNode
 	deferTreeToCheck  *DeferTreeNode
 	contextFetchPaths [][]string
 	contextPathsKnown bool
+
+	// Failed response fields shared with deferred consumers of the same document.
+	failedContextFields map[contextField]struct{}
 }
 
 // Lock acquires the guard. It must be held for the whole critical section that

@@ -89,7 +89,7 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 		entry := &fetch.Input.Entries[k]
 		entryRes := &result{}
 		entryRes.init(entry.PostProcessing, entry.Info)
-		items := l.selectEntryTargets(entry)
+		items := l.selectItemsForPath(entry.Item.FetchPath, l.failedContextTargets[fetch.FetchID])
 		entries[k] = preparedMultiEntry{entry: entry, items: items, res: entryRes}
 
 		allowed, err := l.authorizeEntry(entry, entryRes)
@@ -159,12 +159,6 @@ func (l *Loader) prepareMultiEntityFetch(fetchItem *FetchItem, fetch *MultiEntit
 		l.setMultiFetchRawInputTrace(entries, fetch.Trace)
 	}
 	return nil
-}
-
-// selectEntryTargets picks this entry's merge targets via its own FetchPath
-// (type-condition- and taint-aware); the targets are jsonArena-backed.
-func (l *Loader) selectEntryTargets(entry *MultiEntityFetchEntry) []*astjson.Value {
-	return l.selectItemsForPath(entry.Item.FetchPath)
 }
 
 // authorizeEntry runs authorization first, before any input is rendered: for
@@ -729,7 +723,7 @@ func (l *Loader) mergeEntryResults(prepared *preparedFetch) error {
 	var firstErr error
 	for i := range prepared.multiEntries {
 		entry := prepared.multiEntries[i]
-		if err := l.mergeResult(entry.entry.Item, entry.res, entry.items); err != nil && firstErr == nil {
+		if err := l.mergeResult(entry.entry.Item, entry.res, entry.items, prepared.item.Fetch.Dependencies().FetchID); err != nil && firstErr == nil {
 			firstErr = err
 		}
 		res.subgraphError = goerrors.Join(res.subgraphError, entry.res.subgraphError)

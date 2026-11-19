@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptrace"
 	"slices"
@@ -165,6 +166,7 @@ type result struct {
 	// ]
 	batchStats   [][]*astjson.Value
 	fetchSkipped bool
+	contextGroup bool
 
 	statusCode int
 	err        error
@@ -276,10 +278,8 @@ func (r *result) taintInfo(fetchItem *FetchItem) *FetchInfo {
 	return fetchItem.Fetch.FetchInfo()
 }
 
-// emptyAliasIsBenign reports whether this is a single-origin multi entry whose
-// alias returned an empty _entities array: a benign no-op matching the unmerged
-// EntityFetch whose ["data","_entities","0"] selects null.
-func (r *result) emptyAliasIsBenign(responseData *astjson.Value) bool {
+// missingSingleEntityEntry distinguishes an omitted representation from [null].
+func (r *result) missingSingleEntityEntry(responseData *astjson.Value) bool {
 	return r.multi != nil && r.multi.originSingle &&
 		responseData.Type() == astjson.TypeArray && len(responseData.GetArray()) == 0
 }
@@ -353,6 +353,9 @@ type Loader struct {
 	taintedObjs taintedObjects
 
 	erroredFetchIDs map[int]struct{}
+	// Response objects left unresolved by a context group, keyed by fetch ID.
+	// Deferred loaders share this map under their DataBuffer lock.
+	failedContextTargets map[int]taintedObjects
 
 	// jsonArena is the arena for JSON allocation, supplied by the Resolver.
 	// Not thread safe — only use from the main goroutine.
@@ -375,6 +378,7 @@ func (l *Loader) Free() {
 	l.ctx = nil
 	l.taintedObjs = nil
 	l.erroredFetchIDs = nil
+	l.failedContextTargets = nil
 	l.subgraphErrors = nil
 }
 
@@ -394,6 +398,7 @@ func (l *Loader) Init(ctx *Context, responseInfo *GraphQLResponseInfo) {
 	l.info = responseInfo
 	l.taintedObjs = make(taintedObjects)
 	l.erroredFetchIDs = nil
+	l.failedContextTargets = nil
 }
 
 func (l *Loader) ensureErrorsInitialized() {
@@ -459,15 +464,23 @@ func (l *Loader) preparePhase(item *FetchItem) (*preparedFetch, error) {
 	l.dataBuffer.Lock()
 	defer l.dataBuffer.Unlock()
 
-	if l.shouldSkipErroredDependencyLocked(item) {
+	blocked, skip := l.failedDependencyTargetsLocked(item)
+	if skip {
 		return nil, nil
 	}
-
-	return l.prepareItems(item, l.selectItemsForPath(item.FetchPath), nil)
+	// Each entry of a merged fetch selects its own targets. Its parent has no response path.
+	if _, multi := item.Fetch.(*MultiEntityFetch); multi {
+		return l.prepareItems(item, nil, nil)
+	}
+	items := l.selectItemsForPath(item.FetchPath, blocked)
+	if len(blocked) > 0 && len(items) == 0 {
+		return nil, nil
+	}
+	return l.prepareItems(item, items, nil)
 }
 
 func (l *Loader) prepareItems(item *FetchItem, items []*astjson.Value, vars *astjson.Value) (*preparedFetch, error) {
-	res := &result{}
+	res := &result{contextGroup: vars != nil}
 	prepared := &preparedFetch{
 		contextVariables: vars,
 		item:             item,
@@ -522,7 +535,7 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 	}
 
 	if l.responseCacheRefuse(prepared.res) {
-		l.recordErroredFetchID(prepared.item)
+		l.recordFailedFetch(prepared)
 		return nil
 	}
 
@@ -532,7 +545,7 @@ func (l *Loader) loadPhase(ctx context.Context, prepared *preparedFetch) error {
 		//   including the ones served from the response cache.
 		//   Their dependents are then skipped and their fields stay null without an error.
 		//   Mark only the entries that were sent.
-		l.recordErroredFetchID(prepared.item)
+		l.recordFailedFetch(prepared)
 	}
 
 	// The response is not read here: this phase runs unlocked and concurrently
@@ -555,7 +568,7 @@ func (l *Loader) mergePhase(prepared *preparedFetch) error {
 	}
 	l.responseCacheMergeSurrogateKeys(prepared.res)
 
-	err := l.mergeResult(prepared.item, prepared.res, prepared.items)
+	err := l.mergeResult(prepared.item, prepared.res, prepared.items, prepared.item.Fetch.Dependencies().FetchID)
 	l.callOnFinished(prepared.res)
 	return err
 }
@@ -634,42 +647,66 @@ type preparedFetch struct {
 	multiAssembly *multiAssembly
 }
 
-func (l *Loader) shouldSkipErroredDependencyLocked(item *FetchItem) bool {
-	if item == nil || item.Fetch == nil || len(l.erroredFetchIDs) == 0 {
-		return false
+// Carry failed targets through the dependency chain. An independent fetch at
+// the same response path can still use all of its targets.
+func (l *Loader) failedDependencyTargetsLocked(item *FetchItem) (blocked taintedObjects, skip bool) {
+	if len(l.erroredFetchIDs) == 0 && len(l.failedContextTargets) == 0 {
+		return nil, false
 	}
-	dependencies := item.Fetch.Dependencies()
-	if dependencies == nil {
-		return false
+	deps := item.Fetch.Dependencies()
+	if deps == nil {
+		return nil, false
 	}
-	for _, dependencyID := range dependencies.DependsOnFetchIDs {
-		if _, ok := l.erroredFetchIDs[dependencyID]; ok {
-			l.recordErroredFetchIDLocked(item)
-			return true
+	for _, id := range deps.DependsOnFetchIDs {
+		if _, failed := l.erroredFetchIDs[id]; failed {
+			l.erroredFetchIDs[deps.FetchID] = struct{}{}
+			return nil, true
 		}
+		targets := l.failedContextTargets[id]
+		if len(targets) == 0 {
+			continue
+		}
+		if blocked == nil {
+			blocked = make(taintedObjects)
+		}
+		maps.Copy(blocked, targets)
 	}
-	return false
+	if blocked != nil {
+		l.failedContextTargets[deps.FetchID] = blocked
+	}
+	return blocked, false
 }
 
-func (l *Loader) recordErroredFetchID(item *FetchItem) {
+func (l *Loader) recordFailedFetch(prepared *preparedFetch) {
 	l.dataBuffer.Lock()
 	defer l.dataBuffer.Unlock()
-
-	l.recordErroredFetchIDLocked(item)
+	deps := prepared.item.Fetch.Dependencies()
+	if deps == nil {
+		return
+	}
+	id := deps.FetchID
+	if prepared.contextVariables == nil {
+		if l.erroredFetchIDs == nil {
+			l.erroredFetchIDs = make(map[int]struct{})
+		}
+		l.erroredFetchIDs[id] = struct{}{}
+		return
+	}
+	l.recordContextTargetsLocked(id, prepared.items)
 }
 
-func (l *Loader) recordErroredFetchIDLocked(item *FetchItem) {
-	if item == nil || item.Fetch == nil {
-		return
+func (l *Loader) recordContextTargetsLocked(id int, items []*astjson.Value) {
+	if l.failedContextTargets == nil {
+		l.failedContextTargets = make(map[int]taintedObjects)
 	}
-	dependencies := item.Fetch.Dependencies()
-	if dependencies == nil {
-		return
+	targets := l.failedContextTargets[id]
+	if targets == nil {
+		targets = make(taintedObjects)
+		l.failedContextTargets[id] = targets
 	}
-	if l.erroredFetchIDs == nil {
-		l.erroredFetchIDs = make(map[int]struct{})
+	for _, obj := range items {
+		targets.add(obj)
 	}
-	l.erroredFetchIDs[dependencies.FetchID] = struct{}{}
 }
 
 func (l *Loader) callOnFinished(res *result) {
@@ -700,20 +737,80 @@ func (l *Loader) appendSubgraphErrorsToContext() {
 	}
 }
 
-func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Value {
-	// Use arena allocation for the initial items slice
-	items := arena.AllocateSlice[*astjson.Value](l.jsonArena, 1, 1)
-	items[0] = l.dataBuffer.Get()
-	if len(path) == 0 {
-		return l.taintedObjs.filterOutTainted(items)
-	}
-	for i := range path {
-		if len(items) == 0 {
-			break
+func (l *Loader) selectItemsForPath(path []FetchItemPathElement, blocked taintedObjects) []*astjson.Value {
+	// Preserve the zero-copy list path for an ordinary entity batch.
+	root := l.dataBuffer.Get()
+	if len(blocked) == 0 {
+		if len(path) == 0 {
+			return l.taintedObjs.filterOutTainted([]*astjson.Value{root})
 		}
-		items = selectItems(l.jsonArena, items, path[i])
+		if len(path) == 1 && isItemAllowedByTypename(root, path[0].TypeNames) {
+			if field := root.Get(path[0].Path...); field != nil && field.Type() == astjson.TypeArray {
+				items := field.GetArray()
+				if !slices.ContainsFunc(items, func(item *astjson.Value) bool { return item.Type() == astjson.TypeArray }) {
+					return l.taintedObjs.filterOutTainted(items)
+				}
+			}
+		}
 	}
-	return l.taintedObjs.filterOutTainted(items)
+	var items []*astjson.Value
+	l.walkFetchPath(path, blocked, false, func(obj *astjson.Value, _ []*astjson.Value) {
+		items = arena.SliceAppend(l.jsonArena, items, obj)
+	})
+	return items
+}
+
+// A field contributes one ancestor, regardless of how many list wrappers it
+// has. Both ordinary fetches and context groups visit the same merge targets.
+func (l *Loader) walkFetchPath(path []FetchItemPathElement, blocked taintedObjects, keepAncestors bool, visit func(*astjson.Value, []*astjson.Value)) {
+	var ancestors []*astjson.Value
+	if keepAncestors {
+		depth := 1
+		for _, el := range path {
+			depth += len(el.Path)
+		}
+		ancestors = make([]*astjson.Value, 0, depth)
+	}
+	var walk func(*astjson.Value, []FetchItemPathElement, int, []*astjson.Value)
+	walk = func(obj *astjson.Value, path []FetchItemPathElement, field int, ancestors []*astjson.Value) {
+		if _, failed := blocked[obj]; failed {
+			return
+		}
+		if obj != nil && obj.Type() == astjson.TypeArray {
+			for _, child := range obj.GetArray() {
+				walk(child, path, field, ancestors)
+			}
+			return
+		}
+		if keepAncestors {
+			ancestors = append(ancestors, obj)
+		}
+		for len(path) > 0 {
+			el := path[0]
+			if field == 0 && !isItemAllowedByTypename(obj, el.TypeNames) {
+				return
+			}
+			if field < len(el.Path) {
+				if child := obj.Get(el.Path[field]); child != nil {
+					walk(child, path, field+1, ancestors)
+				}
+				return
+			}
+			path = path[1:]
+			field = 0
+		}
+		if obj != nil && len(blocked) > 0 && blocked.isTainted(obj, 0) {
+			// A fetch on a parent may require data from the failed child. Its
+			// own dependents must skip that parent as well.
+			blocked.add(obj)
+			return
+		}
+		if obj != nil && len(l.taintedObjs) > 0 && l.taintedObjs.isTainted(obj, 0) {
+			return
+		}
+		visit(obj, ancestors)
+	}
+	walk(l.dataBuffer.Get(), path, 0, ancestors)
 }
 
 func isItemAllowedByTypename(obj *astjson.Value, typeNames []string) bool {
@@ -730,46 +827,6 @@ func isItemAllowedByTypename(obj *astjson.Value, typeNames []string) bool {
 
 	__typeNameStr := string(__typeName)
 	return slices.Contains(typeNames, __typeNameStr)
-}
-
-func selectItems(a arena.Arena, items []*astjson.Value, element FetchItemPathElement) []*astjson.Value {
-	if len(items) == 0 {
-		return nil
-	}
-	if len(element.Path) == 0 {
-		return items
-	}
-
-	if len(items) == 1 {
-		if !isItemAllowedByTypename(items[0], element.TypeNames) {
-			return nil
-		}
-
-		field := items[0].Get(element.Path...)
-		if field == nil {
-			return nil
-		}
-		if field.Type() == astjson.TypeArray {
-			return field.GetArray()
-		}
-		return []*astjson.Value{field}
-	}
-	selected := arena.AllocateSlice[*astjson.Value](a, 0, len(items))
-	for _, item := range items {
-		if !isItemAllowedByTypename(item, element.TypeNames) {
-			continue
-		}
-		field := item.Get(element.Path...)
-		if field == nil {
-			continue
-		}
-		if field.Type() == astjson.TypeArray {
-			selected = arena.SliceAppend(a, selected, field.GetArray()...)
-			continue
-		}
-		selected = arena.SliceAppend(a, selected, field)
-	}
-	return selected
 }
 
 func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
@@ -820,13 +877,21 @@ func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
 	}
 }
 
-func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
+func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value, fetchID int) error {
+	// A failed request or unusable response supplies no context values. Keep its
+	// targets scoped to this producer's dependents, including subsequent patches.
+	unavailable := func(rendered error) error {
+		if l.dataBuffer.hasContextWrites() {
+			l.recordContextTargetsLocked(fetchID, items)
+		}
+		return rendered
+	}
 	if res.err != nil {
 		reason := failedToFetchNoReason
 		if goerrors.Is(res.err, ErrResponseCacheOnlyIfCached) {
 			reason = ErrResponseCacheOnlyIfCached.Error()
 		}
-		return l.renderErrorsFailedToFetch(fetchItem, res, reason)
+		return unavailable(l.renderErrorsFailedToFetch(fetchItem, res, reason))
 	}
 	if res.authorizationRejected {
 		err := l.renderAuthorizationRejectedErrors(fetchItem, res)
@@ -834,7 +899,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return err
 		}
 		l.setSkipErrors(res, items)
-		return nil
+		return unavailable(nil)
 	}
 	if res.rateLimitRejected {
 		err := l.renderRateLimitRejectedErrors(fetchItem, res)
@@ -842,7 +907,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return err
 		}
 		l.setSkipErrors(res, items)
-		return nil
+		return unavailable(nil)
 	}
 	if res.fetchSkipped {
 		return nil
@@ -850,7 +915,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	// A multi entry served from the response cache has no bytes of its own: its
 	// entities are already in the document the parent handed it.
 	if len(res.out) == 0 && (res.multi == nil || res.multi.response == nil) {
-		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
+		return unavailable(l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse))
 	}
 	// astjson.ParseBytesWithArena copies bytes onto the arena internally,
 	// tying the byte lifecycle to the arena and preventing GC-related segfaults.
@@ -859,9 +924,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if err != nil {
 		// Fall back to status code if parsing fails and non-2XX
 		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
-			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+			return unavailable(l.renderErrorsStatusFallback(fetchItem, res, res.statusCode))
 		}
-		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
+		return unavailable(l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse))
 	}
 
 	// Multi entries skip this: their parent multi fetch collects the extensions
@@ -892,8 +957,23 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			// If the response has the "errors" key, and its value is empty,
 			// we don't consider it as an error. Note: it is not compliant with graphql spec.
 			if hasErrors {
+				if l.dataBuffer.hasContextWrites() {
+					if astjson.ValueIsNull(responseData) {
+						// With no data, the error need not identify an individual field.
+						l.recordContextTargetsLocked(fetchID, items)
+					} else if errs := contextResponseErrors(fetchItem, res, responseData, responseErrors); len(errs) != 0 {
+						// Capture subgraph paths before rewriting. Bind them after the merge.
+						defer l.recordContextFieldErrors(fetchID, res, items, errs)
+					}
+				}
 				if l.validateRequiredExternalFields && res.postProcessing.SelectResponseDataPath != nil {
-					taintedIndices = getTaintedIndices(res.taintInfo(fetchItem), res.errorPathRoot(), responseData, responseErrors)
+					taintData := responseData
+					if res.multi == nil && fetchItem.Fetch.FetchKind() == FetchKindEntity && res.contextGroup {
+						// A single-entity fetch selects the first object for merging;
+						// GraphQL errors still address it by its index in _entities.
+						taintData = response.Get("data", "_entities")
+					}
+					taintedIndices = getTaintedIndices(res.taintInfo(fetchItem), res.errorPathRoot(), taintData, responseErrors)
 				}
 				if len(taintedIndices) > 0 {
 					// Override errors with generic error about missing deps.
@@ -901,6 +981,17 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 					if err != nil {
 						return errors.WithStack(err)
 					}
+				}
+				if res.contextGroup {
+					// Keep real @requires failures local to the group and its dependents.
+					for _, i := range taintedIndices {
+						if res.batchStats == nil {
+							l.recordContextTargetsLocked(fetchID, items)
+						} else if i < len(res.batchStats) {
+							l.recordContextTargetsLocked(fetchID, res.batchStats[i])
+						}
+					}
+					taintedIndices = nil
 				}
 				// Look for errors in the response and merge them into the "errors" array.
 				err = l.mergeErrors(res, fetchItem, responseErrors)
@@ -918,6 +1009,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// Multi-entity entry items carry no Fetch (nil) and have no trailing index in their
 		// data path, so the check does not apply to them.
 		if res.multi == nil && isEmptyEntityFetch(fetchItem, response) {
+			// [null] supplies a nullable entity. An empty array omitted the representation.
+			if len(response.GetArray("data", "_entities")) == 0 {
+				return unavailable(nil)
+			}
 			return nil
 		}
 
@@ -926,18 +1021,21 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// - Status code is not within the 2XX range
 		// We can fall back to a status code based error
 		if !hasErrors && ((res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300) {
-			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+			return unavailable(l.renderErrorsStatusFallback(fetchItem, res, res.statusCode))
 		}
 
-		// If we didn't get any data nor errors, we return an error because the response is invalid
-		// Returning an error here also avoids the need to walk over it later.
-		if !hasErrors && !l.apolloCompatibilitySuppressFetchErrors {
-			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
+		// Missing data and errors make the source unusable even when the
+		// compatibility setting suppresses the client-visible fetch error.
+		if !hasErrors {
+			if l.apolloCompatibilitySuppressFetchErrors {
+				return unavailable(nil)
+			}
+			return unavailable(l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape))
 		}
 
 		// we have no data but only errors
 		// skip value completion
-		if hasErrors && l.apolloCompatibilityValueCompletionInExtensions {
+		if l.apolloCompatibilityValueCompletionInExtensions {
 			l.skipValueCompletion = true
 		}
 
@@ -948,7 +1046,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if len(items) == 0 {
 		// If the data is set, it must be an object according to GraphQL over HTTP spec
 		if responseData.Type() != astjson.TypeObject {
-			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
+			return unavailable(l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape))
 		}
 		// TODO: unclear why we doing this
 		l.dataBuffer.Set(responseData)
@@ -968,19 +1066,18 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		return nil
 	}
-	// A single-origin multi entry over an empty _entities array is a benign no-op,
-	// matching the unmerged EntityFetch whose ["data","_entities","0"] selects null.
-	if res.emptyAliasIsBenign(responseData) {
-		return nil
+	// An empty single-origin alias has no representation for dependent context.
+	if res.missingSingleEntityEntry(responseData) {
+		return unavailable(nil)
 	}
 	batch := responseData.GetArray()
 	if batch == nil {
-		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
+		return unavailable(l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape))
 	}
 
 	if res.batchStats != nil {
 		if len(res.batchStats) != len(batch) {
-			return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, len(res.batchStats), len(batch)))
+			return unavailable(l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, len(res.batchStats), len(batch))))
 		}
 
 		var checkedIsolation, isolateTargets bool
@@ -1014,7 +1111,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	if batchCount, itemCount := len(batch), len(items); batchCount != itemCount {
-		return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, itemCount, batchCount))
+		return unavailable(l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, itemCount, batchCount)))
 	}
 
 	for i := range items {

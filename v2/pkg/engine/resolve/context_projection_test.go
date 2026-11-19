@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/astjson"
 )
 
@@ -19,7 +20,7 @@ func TestContextGroupsReuseSharedProjection(t *testing.T) {
 		{Variable: "kind", Sources: []ContextSource{{Depth: 2, Selection: []ContextSelection{{Field: "kind"}}}}},
 	}
 	path := []FetchItemPathElement{ArrayPath("accounts"), ArrayPath("wallets")}
-	groups := loader.contextGroups(path, bindings)
+	groups, _ := loader.contextGroups(path, bindings, nil)
 	require.Len(t, groups, 3)
 	require.Len(t, groups[0].items, 2)
 	require.Len(t, groups[1].items, 2)
@@ -31,7 +32,7 @@ func TestContextGroupsReuseSharedProjection(t *testing.T) {
 
 	// A later fetch (or subscription event) must read the new response state.
 	doc.Get("accounts", "0", "rates", "0").Set(nil, "code", astjson.StringValue(nil, "GBP"))
-	next := loader.contextGroups(path, bindings)
+	next, _ := loader.contextGroups(path, bindings, nil)
 	require.Len(t, next, 4)
 	require.JSONEq(t, `{"rates":["GBP","EUR"],"kind":"A"}`, string(next[0].variables.MarshalTo(nil)))
 }

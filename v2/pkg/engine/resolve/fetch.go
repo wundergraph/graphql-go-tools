@@ -28,6 +28,7 @@ type Fetch interface {
 }
 
 type FetchItem struct {
+	contextTraces        []*DataSourceLoadTrace
 	Fetch                Fetch
 	FetchPath            []FetchItemPathElement
 	ResponsePath         string
