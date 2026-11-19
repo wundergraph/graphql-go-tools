@@ -167,6 +167,24 @@ func TestAddRequiredFields(t *testing.T) {
 			expectedRequiredFieldsCount: 1, // existing field is marked as required
 		},
 		{
+			name:       "client alias occupies required field response name",
+			definition: `type Query { user: User } type User { id: ID! name: String! }`,
+			operation:  `{ user { name: id } }`,
+			typeName:   "User", fieldSet: "name",
+			expectedOperation:       `{ user { name: id __internal_name: name } }`,
+			expectedSkipFieldsCount: 1, expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths: map[string]string{"User.name": "__internal_name"},
+		},
+		{
+			name:       "inline fragment respects client aliases in sibling fragments",
+			definition: `type Query { user: Person } interface Person { id: ID! } type User implements Person { id: ID! name: String! }`,
+			operation:  `{ user { ... on User { name: id __internal_name: id } } }`,
+			typeName:   "Person", fieldSet: "... on User { name }", selectionSetRef: 1,
+			expectedOperation:       `{ user { ... on User { name: id __internal_name: id } ... on User { __internal_name_1: name } } }`,
+			expectedSkipFieldsCount: 1, expectedRequiredFieldsCount: 1,
+			expectedRemappedPaths: map[string]string{"Person.$0User.name": "__internal_name_1"},
+		},
+		{
 			name: "requires with conflicting arguments, needs alias",
 			definition: `
 				type Query {

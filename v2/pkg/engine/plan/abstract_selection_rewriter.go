@@ -58,8 +58,9 @@ In this case if any of rules 1-3 are not satisfied we have to rewrite this fragm
 	}
 */
 type fieldSelectionRewriter struct {
-	operation  *ast.Document
-	definition *ast.Document
+	expandContextScope bool // split an abstract ancestor so each concrete path can select its contextual resolver
+	operation          *ast.Document
+	definition         *ast.Document
 
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
@@ -226,7 +227,7 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 
 	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
 
-	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, unionTypeNames, entityNames)
+	needRewrite := r.expandContextScope || r.unionFieldSelectionNeedsRewrite(selectionSetInfo, unionTypeNames, entityNames)
 	if !needRewrite {
 		return resultNotRewritten, nil
 	}
@@ -471,7 +472,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	}
 	selectionSetInfo.isInterfaceObject = isInterfaceObject
 
-	needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames, interfaceTypeName)
+	needRewrite := r.expandContextScope || r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames, interfaceTypeName)
 	if !needRewrite {
 		return resultNotRewritten, nil
 	}

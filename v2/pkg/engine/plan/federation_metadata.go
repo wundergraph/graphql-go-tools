@@ -8,7 +8,18 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
+type ContextProvider struct {
+	ContextName, TypeName string
+	ConcreteTypeNames     []string
+}
+
+type ContextArgument struct {
+	ContextName, TypeName, FieldName, ArgumentName, ArgumentType, SelectionSet string
+}
+
 type FederationMetaData struct {
+	ContextProviders []ContextProvider
+	ContextArguments []ContextArgument
 	Keys             FederationFieldConfigurations
 	Requires         FederationFieldConfigurations
 	Provides         FederationFieldConfigurations
@@ -16,6 +27,40 @@ type FederationMetaData struct {
 	InterfaceObjects []EntityInterfaceConfiguration
 
 	entityTypeNames map[string]struct{}
+}
+
+// A selection on an abstract ancestor may run under several concrete providers.
+func contextRuntimeTypes(definition *ast.Document, typeName string) []string {
+	node, ok := definition.NodeByNameStr(typeName)
+	if !ok {
+		return nil
+	}
+	switch node.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		names, _ := definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+		return names
+	case ast.NodeKindUnionTypeDefinition:
+		names, _ := definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+		return names
+	default:
+		return []string{typeName}
+	}
+}
+
+func (m *FederationMetaData) providerTypes(definition *ast.Document, contextName, scope string) (matches []string, coversScope bool) {
+	possible := contextRuntimeTypes(definition, scope)
+	for _, name := range possible {
+		for _, p := range m.ContextProviders {
+			if p.ContextName != contextName {
+				continue
+			}
+			if p.TypeName == scope || slices.Contains(p.ConcreteTypeNames, name) || slices.Contains(contextRuntimeTypes(definition, p.TypeName), name) {
+				matches = append(matches, name)
+				break
+			}
+		}
+	}
+	return matches, len(matches) > 0 && len(matches) == len(possible)
 }
 
 type FederationInfo interface {
@@ -75,6 +120,7 @@ type EntityInterfaceConfiguration struct {
 }
 
 type FederationFieldConfiguration struct {
+	context               *plannedContext
 	TypeName              string         `json:"type_name"`            // TypeName is the name of the Entity the Fragment is for
 	FieldName             string         `json:"field_name,omitempty"` // FieldName is empty for key requirements, otherwise, it is the name of the field that has requires or provides directive
 	SelectionSet          string         `json:"selection_set"`        // SelectionSet is the selection set that is required for the given field (keys, requires, provides)

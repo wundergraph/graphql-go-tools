@@ -363,11 +363,12 @@ func (d *dataSourceConfiguration[T]) GetCostConfig() *DataSourceCostConfig {
 }
 
 type DataSourcePlannerConfiguration struct {
-	RequiredFields FederationFieldConfigurations
-	ParentPath     string
-	PathType       PlannerPathType
-	IsNested       bool
-	Options        plannerConfigurationOptions
+	ContextArguments map[int][]PlannedContextArgument
+	RequiredFields   FederationFieldConfigurations
+	ParentPath       string
+	PathType         PlannerPathType
+	IsNested         bool
+	Options          plannerConfigurationOptions
 }
 
 type PlannerPathType int

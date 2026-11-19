@@ -47,6 +47,22 @@ func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 		Options:        p.options,
 	}
 
+	for _, requirement := range p.requiredFields {
+		if requirement.context == nil {
+			continue
+		}
+		dataSourcePlannerConfig.RequiredFields = nil
+		dataSourcePlannerConfig.ContextArguments = make(map[int][]PlannedContextArgument)
+		for _, r := range p.requiredFields {
+			if r.context == nil {
+				dataSourcePlannerConfig.RequiredFields = append(dataSourcePlannerConfig.RequiredFields, r)
+				continue
+			}
+			b := r.context
+			dataSourcePlannerConfig.ContextArguments[b.fieldRef] = append(dataSourcePlannerConfig.ContextArguments[b.fieldRef], b.PlannedContextArgument)
+		}
+		break
+	}
 	return p.planner.Register(visitor, p.dataSourceConfiguration, dataSourcePlannerConfig)
 }
 
