@@ -12,6 +12,7 @@ const (
 	HeaderVariableKind
 	ResolvableObjectVariableKind
 	ListVariableKind
+	AncestorVariableKind
 )
 
 const (

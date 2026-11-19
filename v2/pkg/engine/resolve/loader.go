@@ -380,6 +380,7 @@ func (l *Loader) Free() {
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse) (err error) {
 	l.Init(ctx, response.Info)
+	l.dataBuffer.fetchTreeToCheck = response.Fetches
 	defer l.appendSubgraphErrorsToContext()
 
 	return l.ResolveFetchNode(response.Fetches)
@@ -462,12 +463,16 @@ func (l *Loader) preparePhase(item *FetchItem) (*preparedFetch, error) {
 		return nil, nil
 	}
 
-	items := l.selectItemsForPath(item.FetchPath)
+	return l.prepareItems(item, l.selectItemsForPath(item.FetchPath), nil)
+}
+
+func (l *Loader) prepareItems(item *FetchItem, items []*astjson.Value, vars *astjson.Value) (*preparedFetch, error) {
 	res := &result{}
 	prepared := &preparedFetch{
-		item:  item,
-		items: items,
-		res:   res,
+		contextVariables: vars,
+		item:             item,
+		items:            items,
+		res:              res,
 	}
 	switch fetch := item.Fetch.(type) {
 	case *SingleFetch:
@@ -559,7 +564,13 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 	if item == nil {
 		return nil
 	}
+	if bindings := fetchContextBindings(item.Fetch); len(bindings) > 0 {
+		return l.resolveContextGroups(ctx, item, bindings)
+	}
 	prepared, err := l.preparePhase(item)
+	return l.executePrepared(ctx, prepared, err)
+}
+func (l *Loader) executePrepared(ctx context.Context, prepared *preparedFetch, err error) error {
 	if prepared != nil {
 		defer func() {
 			batchEntityToolPool.Put(prepared.res.tools)
@@ -584,14 +595,15 @@ func (l *Loader) resolveSingle(ctx context.Context, item *FetchItem) error {
 }
 
 type preparedFetch struct {
-	item       *FetchItem
-	items      []*astjson.Value
-	res        *result
-	source     DataSource
-	input      []byte
-	trace      *DataSourceLoadTrace
-	skipLoad   bool
-	batchFetch bool
+	contextVariables *astjson.Value
+	item             *FetchItem
+	items            []*astjson.Value
+	res              *result
+	source           DataSource
+	input            []byte
+	trace            *DataSourceLoadTrace
+	skipLoad         bool
+	batchFetch       bool
 
 	responseCacheKeys []string
 
@@ -971,10 +983,21 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, len(res.batchStats), len(batch)))
 		}
 
+		var checkedIsolation, isolateTargets bool
 		for batchIndex, targets := range res.batchStats {
+			if len(targets) > 1 && !checkedIsolation {
+				isolateTargets = l.dataBuffer.batchTargetsNeedIsolation(fetchItem.FetchPath, res.postProcessing.MergePath)
+				checkedIsolation = true
+			}
 			src := batch[batchIndex]
-			for _, target := range targets {
-				_, _, mErr := astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
+			for i, target := range targets {
+				entity := src
+				if i > 0 && isolateTargets {
+					// MergeValuesWithPath installs nested objects and arrays by reference.
+					// Separate the branches before downstream fetches can mutate them.
+					entity = copyEntityContainers(l.jsonArena, src)
+				}
+				_, _, mErr := astjson.MergeValuesWithPath(l.jsonArena, target, entity, res.postProcessing.MergePath...)
 				if mErr != nil {
 					return errors.WithStack(ErrMergeResult{
 						Subgraph: res.ds.Name,
@@ -1803,7 +1826,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, prepared.contextVariables, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -1848,7 +1871,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 
 	responseCacheFooterStart := preparedInput.Len()
 
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, prepared.contextVariables, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -1970,7 +1993,7 @@ func (l *Loader) prepareBatchEntityFetch(fetchItem *FetchItem, fetch *BatchEntit
 	// I tried using arena here, but it only worsened the situation
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, prepared.contextVariables, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -2048,7 +2071,7 @@ WithNextItem:
 
 	responseCacheFooterStart := preparedInput.Len()
 
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, prepared.contextVariables, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}

@@ -93,6 +93,12 @@ func (i *InputTemplate) renderSegments(ctx *Context, dataArena arena.Arena, data
 			_, _ = preparedInput.Write(segment.Data)
 		case VariableSegmentType:
 			switch segment.VariableKind {
+			case AncestorVariableKind:
+				value := data.Get(segment.VariableSourcePath...)
+				if value == nil {
+					value = astjson.NullValue
+				}
+				err = segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 			case ObjectVariableKind:
 				err = i.renderObjectVariable(ctx.Context(), dataArena, data, segment, preparedInput)
 			case ContextVariableKind:

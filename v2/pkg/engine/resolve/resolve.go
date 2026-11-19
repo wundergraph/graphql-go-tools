@@ -595,6 +595,8 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		}
 
 		loader.Init(ctx, response.Response.Info)
+		db.fetchTreeToCheck = response.Response.Fetches
+		db.deferTreeToCheck = response.DeferTree
 
 		// fetch initial response
 		if err := loader.ResolveFetchNode(response.Response.Fetches); err != nil {

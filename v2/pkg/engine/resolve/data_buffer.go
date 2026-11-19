@@ -26,6 +26,13 @@ import (
 type DataBuffer struct {
 	mu   sync.Mutex
 	data *astjson.Value
+
+	// Inspect the operation on its first deduplicated entity merge. Deferred
+	// groups may write into objects populated by an earlier group or the primary.
+	fetchTreeToCheck  *FetchTreeNode
+	deferTreeToCheck  *DeferTreeNode
+	contextFetchPaths [][]string
+	contextPathsKnown bool
 }
 
 // Lock acquires the guard. It must be held for the whole critical section that
