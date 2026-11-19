@@ -2,13 +2,13 @@ package plan
 
 import (
 	"iter"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"math"
 )
 
 // treeRootID is the id of the response tree root.
 // The root is not a field, and a root field has no parent field.
-const treeRootID = ast.InvalidRef
+// It is not ast.InvalidRef, so a lookup of an invalid field ref finds nothing.
+const treeRootID = math.MinInt
 
 // responseTree is the tree of the operation fields.
 // The id of a field in the tree is its field ref.

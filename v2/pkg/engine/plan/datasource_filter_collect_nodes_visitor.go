@@ -259,9 +259,12 @@ func (f *treeBuilderVisitor) EnterField(fieldRef int) {
 	f.nodes.AddSeenField(fieldRef)
 	f.newFieldRefs[fieldRef] = struct{}{}
 
-	// the parent is the nearest ancestor field,
-	// ast.InvalidRef for a root field, which is the id of the tree root
-	f.nodes.responseTree.Add(fieldRef, f.parentFieldRefs[len(f.parentFieldRefs)-1])
+	// the parent is the nearest ancestor field, the tree root for a root field
+	parentID := f.parentFieldRefs[len(f.parentFieldRefs)-1]
+	if parentID == ast.InvalidRef {
+		parentID = treeRootID
+	}
+	f.nodes.responseTree.Add(fieldRef, parentID)
 
 	// must push before collectFieldInfo: it reads the parent field ref at len-2
 	f.parentFieldRefs = append(f.parentFieldRefs, fieldRef)

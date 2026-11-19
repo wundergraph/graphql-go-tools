@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 // bfsIDs returns the ids of the tree in breadth first order
@@ -109,6 +111,7 @@ func TestResponseTreeFind(t *testing.T) {
 		"leaf":          {id: 6, expOK: true},
 		"mid tree":      {id: 3, expOK: true},
 		"root":          {id: treeRootID, expOK: true},
+		"invalid ref":   {id: ast.InvalidRef, expOK: false},
 	}
 
 	for name, tt := range tests {
