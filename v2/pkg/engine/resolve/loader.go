@@ -1762,7 +1762,7 @@ func (l *Loader) prepareSingleFetch(fetchItem *FetchItem, fetch *SingleFetch, it
 		return nil
 	}
 
-	err := fetch.InputTemplate.Render(l.ctx, inputData, buf)
+	err := fetch.InputTemplate.RenderWithArena(l.ctx, l.jsonArena, inputData, buf)
 	if err != nil {
 		res.out = l.renderErrorsInvalidInput(fetchItem)
 		prepared.skipLoad = true
@@ -1809,7 +1809,7 @@ func (l *Loader) prepareEntityFetch(fetchItem *FetchItem, fetch *EntityFetch, it
 	}
 	responseCacheHeaderEnd := preparedInput.Len()
 
-	err = fetch.Input.Item.Render(l.ctx, input, item)
+	err = fetch.Input.Item.RenderWithArena(l.ctx, l.jsonArena, input, item)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
 			// skip fetch on render item error
@@ -1984,7 +1984,7 @@ WithNextItem:
 	for i, item := range items {
 		for j := range fetch.Input.Items {
 			itemInput.Reset()
-			err = fetch.Input.Items[j].Render(l.ctx, item, itemInput)
+			err = fetch.Input.Items[j].RenderWithArena(l.ctx, l.jsonArena, item, itemInput)
 			if err != nil {
 				if fetch.Input.SkipErrItems {
 					continue

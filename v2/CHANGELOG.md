@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.32.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.2...v2.32.0) (2026-11-18)
+
+
+### Features
+
+* **engine:** allow backwards compatible int64 value for Int data types ([#1771](https://github.com/wundergraph/graphql-go-tools/issues/1771)) ([7ef3dee](https://github.com/wundergraph/graphql-go-tools/commit/7ef3deefcc5b85329d183e13a7db99ade68a8176))
+
 ## [2.31.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.1...v2.31.2) (2026-11-16)
 
 
