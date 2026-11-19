@@ -54,7 +54,7 @@ jobs:
       - name: Set up Go ${{ matrix.go }}
         uses: actions/setup-go@v5
         with:
-          go-version: '~${{ matrix.go }}'
+          go-version: ${{ matrix.go }}
         id: go
       - name: Quick tests & benchmarks
         working-directory: v2
@@ -76,7 +76,7 @@ jobs:
       - name: Set up Go ${{ matrix.go }}
         uses: actions/setup-go@v5
         with:
-          go-version: '~${{ matrix.go }}'
+          go-version: ${{ matrix.go }}
       - name: Read golangci-lint version
         id: golangci-lint-version
         run: echo "version=$(go list -m -f '{{.Version}}' github.com/golangci/golangci-lint/v2)" >> "$GITHUB_OUTPUT"
@@ -97,7 +97,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '~1.26'
+          go-version: '1.26'
       - name: Check go.work.sum is up to date
         run: |
           go mod download all
