@@ -211,7 +211,7 @@ func (l *Loader) renderEntryRepresentations(
 
 	for i, item := range items {
 		itemInput.Reset()
-		err := entry.Representations.Render(l.ctx, item, itemInput)
+		err := entry.Representations.RenderWithArena(l.ctx, l.jsonArena, item, itemInput)
 		if err != nil {
 			if entry.SkipErrItems {
 				continue
