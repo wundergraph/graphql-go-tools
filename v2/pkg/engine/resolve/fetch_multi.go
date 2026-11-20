@@ -7,6 +7,8 @@ import (
 
 // SubgraphOperation is the planner hand-off for MultiFetch merging.
 type SubgraphOperation struct {
+	// RequiresIndividualFetch keeps the original dependency ID when a context group can fail independently.
+	RequiresIndividualFetch bool
 	// Document is the normalized and validated upstream operation. Ownership
 	// transfers to the plan; the planner nils its own reference after storing.
 	Document *ast.Document

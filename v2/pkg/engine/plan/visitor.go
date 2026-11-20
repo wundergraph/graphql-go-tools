@@ -1357,6 +1357,8 @@ func (v *Visitor) buildFetchDependencies(fetchID int) []resolve.FetchDependency 
 					origin.IsKey = true
 				case fieldDependencyKindRequires:
 					origin.IsRequires = true
+				case fieldDependencyKindContext:
+					origin.IsContext = true
 				}
 				dependency.DependsOn = append(dependency.DependsOn, origin)
 			}
@@ -1396,7 +1398,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 		}
 
 		var subgraphs []string
-		var isKey, isRequires bool
+		var isKey, isRequires, isContext bool
 
 		if dependants, ok := v.fieldRefDependants[fieldRef]; ok {
 			subgraphs = make([]string, 0, len(dependants))
@@ -1423,6 +1425,8 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 						isKey = true
 					case fieldDependencyKindRequires:
 						isRequires = true
+					case fieldDependencyKindContext:
+						isContext = true
 					}
 				}
 			}
@@ -1439,6 +1443,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 					reasons[i].BySubgraphs = append(reasons[i].BySubgraphs, subgraphs...)
 					reasons[i].IsKey = reasons[i].IsKey || isKey
 					reasons[i].IsRequires = reasons[i].IsRequires || isRequires
+					reasons[i].IsContext = reasons[i].IsContext || isContext
 				}
 			} else {
 				reasons = append(reasons, resolve.FetchReason{
@@ -1448,6 +1453,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 					ByUser:      byUser,
 					IsKey:       isKey,
 					IsRequires:  isRequires,
+					IsContext:   isContext,
 					Nullable:    nullable,
 				})
 				i = len(reasons) - 1
@@ -1517,6 +1523,7 @@ func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.Fetch
 				propagated[i].BySubgraphs = slices.Compact(propagated[i].BySubgraphs)
 				propagated[i].IsKey = propagated[i].IsKey || reason.IsKey
 				propagated[i].IsRequires = propagated[i].IsRequires || reason.IsRequires
+				propagated[i].IsContext = propagated[i].IsContext || reason.IsContext
 			}
 		} else {
 			propagated = append(propagated, reason)

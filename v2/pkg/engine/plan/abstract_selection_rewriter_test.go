@@ -22,6 +22,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		enclosingTypeName  string // default is "Query"
 		fieldName          string // default is "iface"
 		shouldRewrite      bool
+		expandContextScope bool
 	}
 
 	run := func(t *testing.T, testCase testCase) {
@@ -55,6 +56,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		rewriter, err := newFieldSelectionRewriter(&op, &def, ds)
 		require.NoError(t, err)
 
+		rewriter.expandContextScope = testCase.expandContextScope
 		result, err := rewriter.RewriteFieldSelection(fieldRef, node)
 		require.NoError(t, err)
 		assert.Equal(t, testCase.shouldRewrite, result.rewritten)
@@ -1808,6 +1810,17 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					}
 				}`,
 			shouldRewrite: true,
+		},
+		{
+			name:               "union interface fragment with partial context providers",
+			definition:         upstreamDefinitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsBuilder:          dsBuilderA(),
+			fieldName:          "u1",
+			operation:          `query { u1 { ... on Inter1 { id } } }`,
+			expectedOperation:  `query { u1 { ... on A { id } ... on B { id } } }`,
+			expandContextScope: true,
+			shouldRewrite:      true,
 		},
 		{
 			name:       "Union with interface fragment: no entity fragments, all fields local",

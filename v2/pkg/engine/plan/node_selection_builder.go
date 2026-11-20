@@ -25,6 +25,7 @@ type fieldDependencyKind int
 const (
 	fieldDependencyKindKey fieldDependencyKind = iota
 	fieldDependencyKindRequires
+	fieldDependencyKindContext
 )
 
 type NodeSelectionResult struct {
@@ -209,6 +210,13 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 		i++
 
+		if !p.nodeSelectionsVisitor.hasNewFields && p.retryContextOwners(operation, dsFilter) {
+			// Each retry permanently excludes an owner or enables fallback key jumps.
+			// Count ordinary requirement discovery passes separately.
+			i = 0
+			fallbackJustEnabled = true
+			continue
+		}
 		resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions)
 		if resolvableReport.HasErrors() {
 			// same failure gate as before the loop: unresolved fields on a later run

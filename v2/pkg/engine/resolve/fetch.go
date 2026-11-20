@@ -28,6 +28,7 @@ type Fetch interface {
 }
 
 type FetchItem struct {
+	contextTraces        []*DataSourceLoadTrace
 	Fetch                Fetch
 	FetchPath            []FetchItemPathElement
 	ResponsePath         string
@@ -392,6 +393,8 @@ type FetchDependencyOrigin struct {
 	IsKey bool `json:"isKey"`
 	// IsRequires is true if the Coordinate is a @requires dependency
 	IsRequires bool `json:"isRequires"`
+	// IsContext is true if the coordinate supplies a @fromContext argument.
+	IsContext bool `json:"isContext,omitempty"`
 }
 
 // FetchReason explains who requested a specific (TypeName, FieldName) coordinate.
@@ -403,6 +406,7 @@ type FetchReason struct {
 	ByUser      bool     `json:"by_user,omitempty"`
 	IsKey       bool     `json:"is_key,omitempty"`
 	IsRequires  bool     `json:"is_requires,omitempty"`
+	IsContext   bool     `json:"is_context,omitempty"`
 	Nullable    bool     `json:"-"`
 }
 

@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -92,6 +93,10 @@ func (c *nodesCollector) init() {
 			globalSeenKeys:          c.seenKeys,
 			dataSource:              dataSource,
 			notExternalKeyPaths:     make(map[string]struct{}),
+		}
+		metadata := dataSource.FederationConfiguration()
+		if len(metadata.ContextArguments) > 0 {
+			collector.contextMetadata = &metadata
 		}
 		c.dsCollectors = append(c.dsCollectors, collector)
 		c.dsCollectorsReports = append(c.dsCollectorsReports, operationreport.NewReport())
@@ -319,16 +324,21 @@ func (f *treeBuilderVisitor) LeaveField(ref int) {
 }
 
 type dsNodesCollector struct {
-	operation  *ast.Document
-	definition *ast.Document
-	dataSource DataSource
+	rejectedContextOwners map[int]struct{}
+	operation             *ast.Document
+	definition            *ast.Document
+	dataSource            DataSource
+
+	contextMetadata        *FederationMetaData
+	rootContextEligibility map[rootContextKey]bool
 
 	// assignedFieldRefs are the fields this collector visits in the current run, in the visit order.
 	assignedFieldRefs []int
 
 	// local suggestions stores suggestions for the current run of collecting fields
 	// they are reset after each run, because each time we collect suggestion only for new field refs
-	localSuggestions []*NodeSuggestion
+	partialContextScopes []int
+	localSuggestions     []*NodeSuggestion
 
 	// availableProvidedFields stores, per field ref carrying a @provides directive,
 	// the selection tree of fields the directive makes available under that field -
@@ -540,7 +550,70 @@ func (f *dsNodesCollector) isNotExternalKeyField(currentPath string) bool {
 	return ok
 }
 
+type rootContextKey struct {
+	trigger   int
+	selection string
+}
+
+func (f *dsNodesCollector) rootFieldProvidesContext(trigger int, root, selection string) bool {
+	key := rootContextKey{trigger, selection}
+	if available, checked := f.rootContextEligibility[key]; checked {
+		return available
+	}
+	doc, report := astparser.ParseGraphqlDocumentString(selection)
+	available := !report.HasErrors() && len(doc.OperationDefinitions) == 1 &&
+		rootFieldCanProject(f.definition, root, f.operation, trigger, &doc, contextFieldForType(f.definition, &doc, doc.OperationDefinitions[0].SelectionSet, root))
+	if f.rootContextEligibility == nil {
+		f.rootContextEligibility = make(map[rootContextKey]bool)
+	}
+	f.rootContextEligibility[key] = available
+	return available
+}
+
+// A contextual resolver is eligible only if every required context is available on
+// a strict ancestor. Narrow a partially covered abstract scope to its concrete types
+// so each branch can choose an eligible resolver independently.
+func (f *dsNodesCollector) hasRequiredContexts(info fieldInfo) bool {
+	for _, argument := range f.contextMetadata.ContextArguments {
+		if argument.TypeName != info.typeName || argument.FieldName != info.fieldName {
+			continue
+		}
+
+		covered := false
+		partialScope := ast.InvalidRef
+		for ref := info.parentFieldRef; ref != ast.InvalidRef; {
+			ancestor, ok := f.info[ref]
+			if !ok {
+				break
+			}
+			matches, all := f.contextMetadata.providerTypes(f.definition, argument.ContextName, ancestor.typeName)
+			if all {
+				if ancestor.parentFieldRef == ast.InvalidRef && rootContextUsesActiveField(f.definition, ancestor.typeName) &&
+					!f.rootFieldProvidesContext(ref, ancestor.typeName, argument.SelectionSet) {
+					break
+				}
+				covered = true
+				break
+			}
+			if len(matches) != 0 && partialScope == ast.InvalidRef {
+				partialScope = ancestor.parentFieldRef
+			}
+			ref = ancestor.parentFieldRef
+		}
+		if !covered {
+			if partialScope != ast.InvalidRef {
+				f.partialContextScopes = append(f.partialContextScopes, partialScope)
+			}
+			return false
+		}
+	}
+	return true
+}
+
 func (f *dsNodesCollector) collectField(fieldRef int) error {
+	if _, rejected := f.rejectedContextOwners[fieldRef]; rejected {
+		return nil
+	}
 	info, ok := f.info[fieldRef]
 	if !ok {
 		return nil
@@ -615,6 +688,9 @@ func (f *dsNodesCollector) collectField(fieldRef int) error {
 	}
 
 	if hasRootNode || hasChildNode || isExternal || isProvided {
+		if f.contextMetadata != nil && !isProvided && !f.hasRequiredContexts(info) {
+			return nil
+		}
 		disabledEntityResolver := hasRootNode && f.allKeysHasDisabledEntityResolver(info.typeName)
 
 		node := NodeSuggestion{
@@ -647,6 +723,14 @@ func (f *dsNodesCollector) collectField(fieldRef int) error {
 }
 
 func (f *dsNodesCollector) applySuggestions() {
+	for _, fieldRef := range f.partialContextScopes {
+		if f.nodes.partialContextScopes == nil {
+			f.nodes.partialContextScopes = make(map[int]struct{})
+		}
+		f.nodes.partialContextScopes[fieldRef] = struct{}{}
+	}
+	f.partialContextScopes = f.partialContextScopes[:0]
+
 	// copy local suggestions to the global nodes suggestions
 	for _, suggestion := range f.localSuggestions {
 		f.nodes.addSuggestion(suggestion)

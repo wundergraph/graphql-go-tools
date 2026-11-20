@@ -882,3 +882,37 @@ func TestCreateMultiFetch_MergeGroupAborts(t *testing.T) {
 		require.False(t, treeHasMultiEntityFetch(root))
 	})
 }
+
+func TestMultiFetchPreservesContextGroupDependencies(t *testing.T) {
+	member := func(id, parent int) *resolve.FetchTreeNode {
+		item := buildMergeMember(t, mergeMemberSpec{
+			fetchID: id, deps: []int{parent}, source: mergeM1Source, batch: true, input: mergeM1Repo(),
+			fragments: []resolve.SubgraphVariable{{Name: "representations", Value: []byte("[$$0$$]")}, {Name: "stale", Value: []byte("1")}},
+			variables: resolve.NewVariables(resolve.NewResolvableObjectVariable(&resolve.Object{})),
+		})
+		return resolve.Single(item.Fetch)
+	}
+	contextual := multiFetchNonCandidate(1, nil, 0)
+	contextual.Item.Fetch.(*resolve.SingleFetch).Variables = resolve.NewVariables(&resolve.ContextBinding{Variable: "tier"})
+	first := resolve.Parallel(contextual, multiFetchNonCandidate(2, nil, 0))
+	second := resolve.Parallel(member(3, 1), member(4, 2), member(5, 2))
+	third := resolve.Parallel(member(6, 3), member(7, 4), member(8, 5))
+	flat := resolve.Sequence()
+	for _, wave := range []*resolve.FetchTreeNode{first, second, third} {
+		flat.ChildNodes = append(flat.ChildNodes, wave.ChildNodes...)
+	}
+	stage := &createMultiFetch{}
+	stage.preserveContextDependencies(flat)
+	// The source of the contextual dependency was extracted into the initial
+	// response. Only its downstream waves remain in this deferred group.
+	tree := resolve.Sequence(second, third)
+	stage.ProcessFetchTree(tree)
+	// A failure in a single tier must retain the original dependency ID
+	// through both waves. Unrelated fetches still merge in each wave.
+	for i, want := range [][]int{{4, 5}, {7, 8}} {
+		wave := tree.ChildNodes[i]
+		require.Len(t, wave.ChildNodes, 2)
+		require.IsType(t, &resolve.SingleFetch{}, wave.ChildNodes[0].Item.Fetch)
+		require.Equal(t, want, wave.ChildNodes[1].Item.Fetch.(*resolve.MultiEntityFetch).MergedFetchIDs)
+	}
+}

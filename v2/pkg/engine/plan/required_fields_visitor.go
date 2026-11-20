@@ -3,6 +3,7 @@ package plan
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -53,8 +54,10 @@ func QueryPlanRequiredFieldsFragment(typeName, fieldName, requiredFields string)
 }
 
 type addRequiredFieldsConfiguration struct {
-	operation, definition        *ast.Document
-	operationSelectionSetRef     int
+	operation, definition    *ast.Document
+	operationSelectionSetRef int
+	// An inline fragment shares a response object with its enclosing selection set.
+	responseSelectionSetRef      *int
 	isTypeNameForEntityInterface bool
 	isKey                        bool
 	allowTypename                bool
@@ -386,7 +389,7 @@ func (v *requiredFieldsVisitor) handleRequiredFieldNonDeferred(field requiredFie
 	// the two selections cannot share the same field node, so we must alias the
 	// required copy to avoid clobbering the user's selection.
 	// Key fields never have arguments, so this check is absent in handleKeyFieldNonDeferred.
-	needAlias := v.key.FieldHasArguments(field.ref)
+	needAlias := v.key.FieldHasArguments(field.ref) || (operationHasField && v.config.operation.FieldHasArguments(operationFieldRef))
 
 	// if the existing field is deferred but we are adding requirements for a non-deferred scope,
 	// we must not reuse it — add an alias instead.
@@ -557,12 +560,20 @@ func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.
 		SelectionSet: ast.InvalidRef,
 	}
 
+	// A client alias, including one selected through a sibling fragment, can occupy
+	// the response name even when no unaliased field exists in the insertion set.
+	if !v.config.isKey && !addAlias && !bytes.Equal(fieldName, typeNameFieldBytes) {
+		addAlias = v.hasResponseName(fieldName, func(ref int) bool {
+			return !bytes.Equal(v.config.operation.FieldNameBytes(ref), fieldName) ||
+				v.config.operation.FieldHasArguments(ref) || v.key.FieldHasArguments(keyFieldRef)
+		})
+	}
 	if addAlias {
 		var fullAliasName []byte
 		if includeDeferIDInAlias && v.config.deferInfo != nil {
 			fullAliasName = fmt.Appendf(nil, "__internal_%d_%s", v.effectiveDeferID(), fieldName)
 		} else {
-			fullAliasName = v.resolveRegularFieldAliasName(selectionSetRef, fieldName)
+			fullAliasName = v.resolveRegularFieldAliasName(fieldName)
 		}
 
 		field.Alias = ast.Alias{
@@ -607,22 +618,74 @@ func (v *requiredFieldsVisitor) addRequiredField(keyFieldRef int, fieldName ast.
 	return addedFieldNode
 }
 
-func (v *requiredFieldsVisitor) resolveRegularFieldAliasName(selectionSetRef int, fieldName ast.ByteSlice) []byte {
-	initialAliasName := append([]byte("__internal_"), fieldName...)
-	fullAliasName := initialAliasName
-
-	counter := int64(0)
-	for {
-		operationHasField, _ := v.config.operation.SelectionSetHasFieldSelectionWithNameOrAliasBytes(selectionSetRef, fullAliasName)
-		if !operationHasField {
-			break
+// Search fields sharing the insertion response path, including selections in sibling
+// inline fragments. A missing conflict in a sibling creates an invalid upstream query.
+func (v *requiredFieldsVisitor) hasResponseName(name []byte, match func(int) bool) bool {
+	doc := v.config.operation
+	var visit func(int, []ast.Node) bool
+	visit = func(set int, path []ast.Node) bool {
+		for len(path) > 0 && path[0].Kind != ast.NodeKindField {
+			path = path[1:]
 		}
-
-		counter++
-		fullAliasName = strconv.AppendInt(append(initialAliasName, '_'), counter, 10)
+		for _, ref := range doc.SelectionSets[set].SelectionRefs {
+			sel := doc.Selections[ref]
+			switch sel.Kind {
+			case ast.SelectionKindInlineFragment:
+				if nested, ok := doc.InlineFragmentSelectionSet(sel.Ref); ok && visit(nested, path) {
+					return true
+				}
+			case ast.SelectionKindField:
+				responseName := doc.FieldAliasOrNameBytes(sel.Ref)
+				if len(path) == 0 {
+					if bytes.Equal(responseName, name) && match(sel.Ref) {
+						return true
+					}
+				} else if bytes.Equal(responseName, doc.FieldAliasOrNameBytes(path[0].Ref)) {
+					if nested, ok := doc.FieldSelectionSet(sel.Ref); ok && visit(nested, path[1:]) {
+						return true
+					}
+				}
+			}
+		}
+		return false
 	}
 
-	return fullAliasName
+	set := v.config.operationSelectionSetRef
+	if v.config.responseSelectionSetRef != nil {
+		set = *v.config.responseSelectionSetRef
+	}
+	return visit(set, v.OperationNodes)
+}
+
+func (v *requiredFieldsVisitor) resolveRegularFieldAliasName(fieldName ast.ByteSlice) []byte {
+	initial := append([]byte("__internal_"), fieldName...)
+	candidate := initial
+	for i := 1; v.hasResponseName(candidate, func(int) bool { return true }); i++ {
+		candidate = strconv.AppendInt(append(initial, '_'), int64(i), 10)
+	}
+	return candidate
+}
+
+// Supply the response object that owns the target set when the insertion happens inside a fragment.
+func (c *nodeSelectionVisitor) addRequiredFields(config *addRequiredFieldsConfiguration) (AddRequiredFieldsResult, *operationreport.Report) {
+	atTarget := config.operationSelectionSetRef == c.selectionSetRefs[len(c.selectionSetRefs)-1]
+	for _, n := range slices.Backward(c.walker.Ancestors) {
+		if n.Kind == ast.NodeKindSelectionSet && n.Ref == config.operationSelectionSetRef {
+			atTarget = true
+		}
+		if !atTarget {
+			continue
+		}
+		if n.Kind == ast.NodeKindField {
+			config.responseSelectionSetRef = &c.operation.Fields[n.Ref].SelectionSet
+			break
+		}
+		if n.Kind == ast.NodeKindOperationDefinition {
+			config.responseSelectionSetRef = &c.operation.OperationDefinitions[n.Ref].SelectionSet
+			break
+		}
+	}
+	return addRequiredFields(config)
 }
 
 func (v *requiredFieldsVisitor) applyDeferInternalDirective(fieldRef int) {
