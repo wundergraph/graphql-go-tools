@@ -307,11 +307,9 @@ func (c *Context) responseCacheFor(subgraph string) (responseCacheSubgraph, bool
 	if opts.Disabled {
 		return responseCacheSubgraph{}, false
 	}
-	sub := responseCacheSubgraph{ttl: opts.DefaultTTL}
-	if opts.DisableFallbackTTL {
-		sub.ttl = 0
-	} else if sub.ttl <= 0 {
-		sub.ttl = c.responseCache.def.ttl
+	sub := responseCacheSubgraph{ttl: c.responseCache.def.ttl}
+	if opts.DefaultTTL != nil {
+		sub.ttl = *opts.DefaultTTL
 	}
 	if opts.PrivateID != "" {
 		sub.privateID = c.responseCache.privateIDs[subgraph]
@@ -395,10 +393,8 @@ type ResponseCacheOptions struct {
 type ResponseCacheSubgraphOptions struct {
 	// Disabled caches nothing of this subgraph.
 	Disabled bool
-	// DisableFallbackTTL requires an explicit response freshness lifetime.
-	DisableFallbackTTL bool
-	// Unless DisableFallbackTTL is set, DefaultTTL of zero takes ResponseCacheOptions.DefaultTTL.
-	DefaultTTL time.Duration
+	// DefaultTTL overrides the global fallback. Nil inherits it and zero disables the fallback.
+	DefaultTTL *time.Duration
 	// PrivateID empty means private responses of this subgraph are not cached,
 	// whatever ResponseCacheOptions.PrivateID says.
 	PrivateID string
