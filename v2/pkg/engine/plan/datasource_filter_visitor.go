@@ -22,7 +22,6 @@ type DataSourceFilter struct {
 	enableSelectionReasons bool
 
 	fieldDependsOn       map[int][]int
-	newFieldRefs         map[int]struct{}
 	unfetchableFieldRefs map[int]struct{}
 	dataSources          []DataSource
 
@@ -35,18 +34,16 @@ type DataSourceFilter struct {
 	jumpsForPathForTypename map[KeyIndex]*DataSourceJumpsGraph
 	dsHashesHavingKeys      map[DSHash]struct{}
 
-	maxDataSourceCollectorsConcurrency uint
-	nodesCollector                     *nodesCollector
+	nodesCollector *nodesCollector
 }
 
-func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSource, newFieldRefs map[int]struct{}) *DataSourceFilter {
+func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSource) *DataSourceFilter {
 	return &DataSourceFilter{
-		operation:    operation,
-		definition:   definition,
-		report:       report,
-		dataSources:  dataSources,
-		nodes:        NewNodeSuggestions(),
-		newFieldRefs: newFieldRefs,
+		operation:   operation,
+		definition:  definition,
+		report:      report,
+		dataSources: dataSources,
+		nodes:       NewNodeSuggestions(),
 	}
 }
 
@@ -58,9 +55,10 @@ func (f *DataSourceFilter) EnableFallbackKeyJumps() {
 	f.allowFallbackKeyJumps = true
 }
 
-// WithMaxDataSourceCollectorsConcurrency sets the maximum number of concurrent data source collectors
-func (f *DataSourceFilter) WithMaxDataSourceCollectorsConcurrency(maxConcurrency uint) *DataSourceFilter {
-	f.maxDataSourceCollectorsConcurrency = maxConcurrency
+// WithMaxDataSourceCollectorsConcurrency returns the filter unchanged.
+//
+// Deprecated: has no effect. Set GOMAXPROCS to limit the CPU used by planning.
+func (f *DataSourceFilter) WithMaxDataSourceCollectorsConcurrency(_ uint) *DataSourceFilter {
 	return f
 }
 
@@ -120,16 +118,14 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 	}
 
 	for fieldRef, dsHash := range landedTo {
-		treeNodeID := TreeNodeID(fieldRef)
-
-		node, ok := f.nodes.responseTree.Find(treeNodeID)
+		field, ok := f.nodes.responseTree.find(fieldRef)
 		if !ok {
 			// no such node in the tree
 			// we may removed it as orphaned
 			continue
 		}
 
-		nodeData := node.GetData()
+		nodeData := field.suggestionIndexes
 		for _, itemID := range nodeData {
 			if f.nodes.items[itemID].DataSourceHash == dsHash {
 				f.nodes.items[itemID].unselect()
@@ -169,17 +165,15 @@ func (f *DataSourceFilter) collectNodes() {
 			dataSources:          f.dataSources,
 			nodes:                f.nodes,
 			report:               f.report,
-			maxConcurrency:       f.maxDataSourceCollectorsConcurrency,
 			seenKeys:             make(map[SeenKeyPath]struct{}),
 			fieldInfo:            make(map[int]fieldInfo),
-			newFieldRefs:         f.newFieldRefs,
 			unfetchableFieldRefs: f.unfetchableFieldRefs,
 		}
 
-		f.nodesCollector.initVisitors()
+		f.nodesCollector.init()
 	}
 
-	keysInfo := f.nodesCollector.CollectNodes()
+	keysInfo := f.nodesCollector.Collect()
 
 	if f.dsHashesHavingKeys == nil {
 		f.dsHashesHavingKeys = make(map[DSHash]struct{})
@@ -538,7 +532,7 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 	currentNode.requiresFallbackKey = false
 
 	// the newly selected parent may itself require a key to be reachable
-	f.assignKeys(parentIdx, f.nodes.treeNode(parentIdx).GetParent().GetData())
+	f.assignKeys(parentIdx, f.nodes.treeField(parentIdx).parent.suggestionIndexes)
 }
 
 // firstReachableKeyProvidingParent returns the first not yet selected parent duplicate
@@ -567,8 +561,8 @@ func (f *DataSourceFilter) firstReachableKeyProvidingParent(jumpsForTypename *Da
 			continue
 		}
 
-		parentTreeNode := f.nodes.treeNode(parentIdx)
-		if !f.canAssignKeys(parentIdx, parentTreeNode.GetParent().GetData()) {
+		parentField := f.nodes.treeField(parentIdx)
+		if !f.canAssignKeys(parentIdx, parentField.parent.suggestionIndexes) {
 			continue
 		}
 
@@ -645,7 +639,7 @@ func (f *DataSourceFilter) canAssignKeys(itemIdx int, parentNodeIndexes []int) b
 // On a second run in additional to all the checks from the first run
 // we select nodes which was not chosen by previous stages, so we just pick first available datasource
 func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
-	for id, treeNode := range TraverseBFS(f.nodes.responseTree) {
+	for id, field := range traverseBFS(f.nodes.responseTree) {
 		// f.nodes.printNodes("nodes")
 		// fmt.Println()
 
@@ -653,7 +647,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		itemIDs := treeNode.GetData()
+		itemIDs := field.suggestionIndexes
 		if len(itemIDs) == 0 {
 			// no available nodes to select
 			continue
@@ -662,7 +656,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		if len(itemIDs) == 1 {
 			// such node already selected as unique
 
-			parentNodeIndexes := treeNode.GetParent().GetData()
+			parentNodeIndexes := field.parent.suggestionIndexes
 
 			f.assignKeys(itemIDs[0], parentNodeIndexes)
 			continue
@@ -688,7 +682,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				continue
 			}
 
-			parentNodeIndexes := treeNode.GetParent().GetData()
+			parentNodeIndexes := field.parent.suggestionIndexes
 
 			f.assignKeys(itemID, parentNodeIndexes)
 		}
@@ -763,7 +757,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 				// when a node is a root query node, we will not have a parent
 				// so we need to check if the parent node id is not a root of a tree
-				if treeNode.GetParentID() != treeRootID {
+				if field.parent.id != treeRootID {
 					// we need to check if the node with the enabled resolver could actually get a key from the parent node
 					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 						return true
@@ -810,7 +804,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 				// when node is a root query node we will not have parent
 				// so we need to check if parent node id is not a root of a tree
-				if treeNode.GetParentID() != treeRootID {
+				if field.parent.id != treeRootID {
 					// we need to check if the node with enabled resolver could actually get a key from the parent node
 					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 						return true
@@ -859,7 +853,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 				// when node is a root query node we will not have parent
 				// so we need to check if parent node id is not a root of a tree
-				if treeNode.GetParentID() != treeRootID {
+				if field.parent.id != treeRootID {
 					// when node is not a root query node we also check if node could actually get a key from the parent node
 					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 						return true
@@ -932,8 +926,8 @@ func (f *DataSourceFilter) findPossibleParents(i int) (parentIds []int) {
 }
 
 func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx int) bool {
-	treeNode := f.nodes.treeNode(idx)
-	parentNodeIndexes := treeNode.GetParent().GetData()
+	field := f.nodes.treeField(idx)
+	parentNodeIndexes := field.parent.suggestionIndexes
 
 	for _, parentIdx := range parentNodeIndexes {
 		if !f.nodes.items[parentIdx].Selected {
@@ -1262,8 +1256,8 @@ func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
 }
 
 func (f *DataSourceFilter) childsHasOnlyTypename(i int) (hasOnlyTypename bool) {
-	treeNode := f.nodes.treeNode(i)
-	children := treeNode.GetChildren()
+	field := f.nodes.treeField(i)
+	children := field.children
 
 	if len(children) == 0 {
 		return false
@@ -1273,7 +1267,7 @@ func (f *DataSourceFilter) childsHasOnlyTypename(i int) (hasOnlyTypename bool) {
 	hasFields := false
 
 	for _, child := range children {
-		itemIds := child.GetData()
+		itemIds := child.suggestionIndexes
 		if len(itemIds) == 0 {
 			// the field is intentionally left unplanned (unfetchable) -
 			// it has no suggestions and contributes neither fields nor typename
