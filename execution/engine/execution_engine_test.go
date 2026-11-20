@@ -6060,7 +6060,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		t.Cleanup(engine.executionPlanCache.Purge)
 		require.Equal(t, 0, engine.executionPlanCache.Len())
 
-		firstInternalExecCtx := newInternalExecutionContext()
+		firstInternalExecCtx := newInternalExecutionContext(context.Background())
 		firstInternalExecCtx.resolveContext.Request.Header = http.Header{
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
@@ -6073,7 +6073,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
 		assert.Equal(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
 
-		secondInternalExecCtx := newInternalExecutionContext()
+		secondInternalExecCtx := newInternalExecutionContext(context.Background())
 		secondInternalExecCtx.resolveContext.Request.Header = http.Header{
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
@@ -6091,7 +6091,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		t.Cleanup(engine.executionPlanCache.Purge)
 		require.Equal(t, 0, engine.executionPlanCache.Len())
 
-		firstInternalExecCtx := newInternalExecutionContext()
+		firstInternalExecCtx := newInternalExecutionContext(context.Background())
 		firstInternalExecCtx.resolveContext.Request.Header = http.Header{
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
@@ -6104,7 +6104,7 @@ func TestExecutionEngine_GetCachedPlan(t *testing.T) {
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
 		assert.Equal(t, cachedPlan, oldestCachedPlan.(*plan.SubscriptionResponsePlan))
 
-		secondInternalExecCtx := newInternalExecutionContext()
+		secondInternalExecCtx := newInternalExecutionContext(context.Background())
 		secondInternalExecCtx.resolveContext.Request.Header = http.Header{
 			http.CanonicalHeaderKey("Authorization"): []string{"xyz098"},
 		}

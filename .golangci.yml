@@ -5,6 +5,7 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
+    - contextcheck
     - durationcheck
     - errcheck
     - errchkjson
