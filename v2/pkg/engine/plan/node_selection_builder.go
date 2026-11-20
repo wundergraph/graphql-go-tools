@@ -64,7 +64,6 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionVisitor := &nodeSelectionVisitor{
 		walker:                        &nodeSelectionsWalker,
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
-		newFieldRefs:                  make(map[int]struct{}),
 		unfetchableFieldRefs:          make(map[int]struct{}),
 		unresolvableFieldRefs:         make(map[int]struct{}),
 		fieldMergingAliasRefs:         make(map[int][]byte),
@@ -97,7 +96,6 @@ func (p *NodeSelectionBuilder) SetOperationName(name string) {
 
 func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
-	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.unfetchableFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.unresolvableFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.fieldMergingAliasRefs = make(map[int][]byte)
@@ -106,7 +104,7 @@ func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 // SelectNodes implements Steps 1-2 of the planner pipeline.
 // It assigns all the fields and their requirements (via @key and @requires) to DataSources.
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
-	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs).
+	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources).
 		WithUnfetchableFieldRefs(p.nodeSelectionsVisitor.unfetchableFieldRefs)
 
 	if p.config.Debug.PrintNodeSuggestions {
