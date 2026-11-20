@@ -3,10 +3,71 @@ package resolve
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
+
+// failOnTokenWriter accepts later writes so a successful closing brace cannot hide a lost error.
+type failOnTokenWriter struct {
+	token string
+	err   error
+}
+
+func (w failOnTokenWriter) Write(p []byte) (int, error) {
+	if string(p) == w.token {
+		return 0, w.err
+	}
+	return len(p), nil
+}
+
+func TestResolve_ResponseExtensionErrors(t *testing.T) {
+	t.Parallel()
+
+	fieldErr := errors.New("field renderer failed")
+	extensionErr := errors.New("authorization extension failed")
+	writeErr := errors.New("writing data failed")
+	const authExtension = `{"scope":"test"}`
+
+	cases := []struct {
+		name       string
+		skipLoader bool
+		writer     io.Writer
+		want       error
+	}{
+		{name: "query plan preserves field error", writer: io.Discard, want: fieldErr},
+		{name: "extension error takes precedence", writer: failOnTokenWriter{authExtension, extensionErr}, want: extensionErr},
+		{name: "query plan preserves write error with loader skipped", skipLoader: true, writer: failOnTokenWriter{"null", writeErr}, want: writeErr},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := NewContext(t.Context())
+			ctx.ExecutionOptions.SkipLoader = tc.skipLoader
+			ctx.ExecutionOptions.IncludeQueryPlanInResponse = true
+			ctx.SetAuthorizer(&testAuthorizer{hasResponseExtensionData: true, responseExtension: []byte(authExtension)})
+			ctx.SetFieldValueRenderer(createTestFieldValueRenderer(func(*Context, FieldValue, io.Writer) error {
+				return fieldErr
+			}))
+			res := NewResolvable(nil, ResolvableOptions{})
+			require.NoError(t, res.Init(ctx, []byte(`{"value":"hello"}`), ast.OperationTypeQuery))
+			data := &Object{Fields: []*Field{{
+				Name:  []byte("value"),
+				Value: &String{Path: []string{"value"}},
+				Info:  &FieldInfo{Name: "value", NamedType: "String", ExactParentTypeName: "Query"},
+			}}}
+			assert.ErrorIs(t, res.Resolve(t.Context(), data, nil, tc.writer), tc.want)
+		})
+	}
+}
 
 func TestExtensions(t *testing.T) {
 	t.Run("authorization", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
