@@ -64,7 +64,7 @@ func TestResponseCacheSubgraphKeys(t *testing.T) {
 
 	t.Run("a disabled default caches only the entries", func(t *testing.T) {
 		opts := ResponseCacheOptions{DefaultTTL: time.Minute, PrivateID: "u1", DefaultDisabled: true, Subgraphs: map[string]ResponseCacheSubgraphOptions{
-			"accounts": {DefaultTTL: time.Hour},
+			"accounts": {DefaultTTL: new(time.Hour)},
 			"reviews":  {Disabled: true},
 		}}
 		loader, _ := subgraphLoader(t, newTestCache(), "accounts", "public", body, opts)
@@ -93,7 +93,7 @@ func TestResponseCacheSubgraphKeys(t *testing.T) {
 
 	t.Run("an entry without a private id has none, whatever the default", func(t *testing.T) {
 		opts := ResponseCacheOptions{DefaultTTL: time.Minute, PrivateID: "u1", Subgraphs: map[string]ResponseCacheSubgraphOptions{
-			"accounts": {DefaultTTL: time.Hour},
+			"accounts": {DefaultTTL: new(time.Hour)},
 		}}
 		loader, res := subgraphLoader(t, newTestCache(), "accounts", "public", body, opts)
 		prepared := &preparedFetch{res: res}
@@ -119,13 +119,23 @@ func TestResponseCacheSubgraphTTL(t *testing.T) {
 
 	t.Run("an entry's fallback lifetime is used", func(t *testing.T) {
 		opts := ResponseCacheOptions{DefaultTTL: time.Minute, Subgraphs: map[string]ResponseCacheSubgraphOptions{
-			"accounts": {DefaultTTL: time.Hour},
+			"accounts": {DefaultTTL: new(time.Hour)},
 		}}
 		loader, res := subgraphLoader(t, newTestCache(), "accounts", "public", body, opts)
 		prepared := &preparedFetch{res: res, responseCacheKeys: keys}
 		require.NoError(t, loader.responseCacheCollect(prepared))
 		require.Len(t, prepared.responseCacheItems, 1)
 		require.Equal(t, time.Hour, prepared.responseCacheItems[0].TTL)
+	})
+
+	t.Run("an entry can disable the fallback", func(t *testing.T) {
+		opts := ResponseCacheOptions{DefaultTTL: time.Minute, Subgraphs: map[string]ResponseCacheSubgraphOptions{
+			"accounts": {DefaultTTL: new(time.Duration)},
+		}}
+		loader, res := subgraphLoader(t, newTestCache(), "accounts", "public", body, opts)
+		prepared := &preparedFetch{res: res, responseCacheKeys: keys}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+		require.Empty(t, prepared.responseCacheItems)
 	})
 
 	t.Run("an entry without one takes the default", func(t *testing.T) {
@@ -141,7 +151,7 @@ func TestResponseCacheSubgraphTTL(t *testing.T) {
 
 	t.Run("a max-age still wins over the entry", func(t *testing.T) {
 		opts := ResponseCacheOptions{DefaultTTL: time.Minute, Subgraphs: map[string]ResponseCacheSubgraphOptions{
-			"accounts": {DefaultTTL: time.Hour},
+			"accounts": {DefaultTTL: new(time.Hour)},
 		}}
 		loader, res := subgraphLoader(t, newTestCache(), "accounts", "public, max-age=5", body, opts)
 		prepared := &preparedFetch{res: res, responseCacheKeys: keys}
@@ -167,7 +177,7 @@ func TestResponseCacheSubgraphSingleFlightID(t *testing.T) {
 
 	t.Run("no id anywhere means none", func(t *testing.T) {
 		_, ok := newCtx(ResponseCacheOptions{Subgraphs: map[string]ResponseCacheSubgraphOptions{
-			"accounts": {DefaultTTL: time.Hour},
+			"accounts": {DefaultTTL: new(time.Hour)},
 		}}).responseCacheSingleFlightID()
 		require.False(t, ok)
 	})
@@ -287,7 +297,7 @@ func TestResponseCacheSubgraphResolve(t *testing.T) {
 		store := newTestCache()
 		resolver := newTestResolver(t, baseResolverOpts())
 		opts := ResponseCacheOptions{Store: store, DefaultTTL: time.Minute, Subgraphs: map[string]ResponseCacheSubgraphOptions{
-			"accounts": {DefaultTTL: time.Hour},
+			"accounts": {DefaultTTL: new(time.Hour)},
 		}}
 		accounts := newResponse("accounts", privateDataSource{cacheControl: "public", calls: &atomic.Int32{}})
 		require.False(t, resolveWith(t, resolver, accounts, opts).ResponseCacheHit)
