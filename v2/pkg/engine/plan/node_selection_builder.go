@@ -167,11 +167,11 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		fallbackJustEnabled = false
 
 		for _, fieldRef := range p.nodeSelectionsVisitor.rewrittenFieldRefs {
-			p.nodeSelectionsVisitor.nodeSuggestions.RemoveRewrittenFieldChilds(fieldRef)
+			p.nodeSelectionsVisitor.nodeSuggestions.RemoveRewrittenFieldChildren(fieldRef)
 		}
 
 		for _, fieldRef := range p.nodeSelectionsVisitor.aliasedFieldRefs {
-			p.nodeSelectionsVisitor.nodeSuggestions.AbandonFieldChilds(fieldRef)
+			p.nodeSelectionsVisitor.nodeSuggestions.AbandonFieldChildren(fieldRef)
 		}
 
 		// Repeat Step 1. Update suggestions for the new required fields.
@@ -449,13 +449,12 @@ func (p *NodeSelectionBuilder) printOperation(operation *ast.Document) {
 					return
 				}
 
-				treeNodeId := TreeNodeID(fieldRef)
-				node, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.Find(treeNodeId)
+				field, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.find(fieldRef)
 				if !ok {
 					return
 				}
 
-				items := node.GetData()
+				items := field.suggestionIndexes
 				for _, id := range items {
 					if p.nodeSelectionsVisitor.nodeSuggestions.items[id].Selected {
 						_, _ = fmt.Fprintf(out, "  %s", p.nodeSelectionsVisitor.nodeSuggestions.items[id].StringShort())

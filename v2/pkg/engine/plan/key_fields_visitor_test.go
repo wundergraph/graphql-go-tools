@@ -467,7 +467,7 @@ func TestCollectKeysForPath(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(c.definition)
 
-			collectNodesVisitor := &collectNodesDSVisitor{
+			collector := &dsNodesCollector{
 				definition:          &definition,
 				dataSource:          c.dataSource,
 				keys:                make([]DSKeyInfo, 0, 2),
@@ -475,12 +475,12 @@ func TestCollectKeysForPath(t *testing.T) {
 				notExternalKeyPaths: make(map[string]struct{}),
 			}
 
-			assert.NoError(t, collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath, c.providedSelection))
+			assert.NoError(t, collector.collectKeysForPath(c.typeName, c.parentPath, c.providedSelection))
 			// call it again to test the deduplication
-			assert.NoError(t, collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath, c.providedSelection))
+			assert.NoError(t, collector.collectKeysForPath(c.typeName, c.parentPath, c.providedSelection))
 
-			assert.Equal(t, len(c.expectKeys), len(collectNodesVisitor.keys))
-			assert.Equal(t, c.expectKeys, collectNodesVisitor.keys)
+			assert.Equal(t, len(c.expectKeys), len(collector.keys))
+			assert.Equal(t, c.expectKeys, collector.keys)
 		})
 	}
 }
