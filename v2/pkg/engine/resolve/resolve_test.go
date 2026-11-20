@@ -1935,6 +1935,15 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		}, *NewContext(context.Background()), `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at array element of type User at index 0.","path":["users",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}, nil))
 	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		ctx = Context{
+			ctx: context.Background(),
+			RenameTypeNames: []RenameTypeName{
+				{
+					From: []byte("User"),
+					To:   []byte("namespaced_User"),
+				},
+			},
+		}
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"User","rewritten":"User"}`)},
@@ -1988,15 +1997,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{
-			ctx: context.Background(),
-			RenameTypeNames: []RenameTypeName{
-				{
-					From: []byte("User"),
-					To:   []byte("namespaced_User"),
-				},
-			},
-		}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
+		}, ctx, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"namespaced_User","aliased":"namespaced_User","rewritten":"namespaced_User"}}}`
 	}))
 	t.Run("empty graphql response for non-nullable object query field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
