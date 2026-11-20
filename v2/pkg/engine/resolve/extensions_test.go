@@ -14,7 +14,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
-// failOnTokenWriter accepts later writes so a successful closing brace cannot hide a lost error.
+// failOnTokenWriter fails only on the selected token, allowing subsequent writes to succeed.
 type failOnTokenWriter struct {
 	token string
 	err   error
@@ -42,8 +42,8 @@ func TestResolve_ResponseExtensionErrors(t *testing.T) {
 		want       error
 	}{
 		{name: "query plan preserves field error", writer: io.Discard, want: fieldErr},
-		{name: "extension error takes precedence", writer: failOnTokenWriter{authExtension, extensionErr}, want: extensionErr},
-		{name: "query plan preserves write error with loader skipped", skipLoader: true, writer: failOnTokenWriter{"null", writeErr}, want: writeErr},
+		{name: "extension error takes precedence", writer: failOnTokenWriter{token: authExtension, err: extensionErr}, want: extensionErr},
+		{name: "query plan preserves write error with loader skipped", skipLoader: true, writer: failOnTokenWriter{token: "null", err: writeErr}, want: writeErr},
 	}
 
 	for _, tc := range cases {
