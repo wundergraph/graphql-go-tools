@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.32.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.0...v2.32.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **resolve:** pass the input arena to representation renderers ([#1773](https://github.com/wundergraph/graphql-go-tools/issues/1773)) ([0bdee2d](https://github.com/wundergraph/graphql-go-tools/commit/0bdee2dc604122ec4f2e2b6578f7628fba6d3c05))
+
 ## [2.32.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.2...v2.32.0) (2026-11-18)
 
 
