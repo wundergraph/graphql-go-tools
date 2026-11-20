@@ -2013,10 +2013,9 @@ func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguratio
 
 func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
 	b := plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      true,
-		OverrideFieldPathFromAlias: true,
-		AllowPlanningTypeName:      true,
-		AlwaysFlattenFragments:     f.rpcTransport != nil || f.rpcTransportProvider != nil,
+		MergeAliasedRootNodes:  true,
+		AllowPlanningTypeName:  true,
+		AlwaysFlattenFragments: f.rpcTransport != nil || f.rpcTransportProvider != nil,
 	}
 	return b
 }

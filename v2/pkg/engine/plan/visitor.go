@@ -1168,8 +1168,7 @@ func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input 
 			if len(path) != 2 {
 				break
 			}
-			switch path[0] {
-			case "headers":
+			if path[0] == "headers" {
 				key := path[1]
 				variableName, _ = variables.AddVariable(&resolve.HeaderVariable{
 					Path: []string{key},

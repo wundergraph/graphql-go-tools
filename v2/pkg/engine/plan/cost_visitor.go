@@ -202,8 +202,7 @@ func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInf
 		argValue := v.Operation.ArgumentValue(argRef)
 		argInfo := ArgumentInfo{}
 
-		switch argValue.Kind {
-		case ast.ValueKindVariable:
+		if argValue.Kind == ast.ValueKindVariable {
 			variableValue := v.Operation.VariableValueNameString(argValue.Ref)
 			if !v.Operation.OperationDefinitionHasVariableDefinition(*v.operationDefinition, variableValue) {
 				continue // omit optional argument when the variable is not defined
@@ -239,7 +238,6 @@ func (v *CostVisitor) extractFieldArguments(fieldRef int) map[string]ArgumentInf
 			}
 
 		}
-
 		arguments[argName] = argInfo
 	}
 

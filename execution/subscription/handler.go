@@ -147,10 +147,11 @@ func (u *UniversalProtocolHandler) Handle(ctx context.Context) {
 		}
 
 		message, err := u.client.ReadBytesFromClient()
-		if errors.Is(err, ErrTransportClientClosedConnection) {
+		switch {
+		case errors.Is(err, ErrTransportClientClosedConnection):
 			u.logger.Debug("subscription.UniversalProtocolHandler.Handle: reading from a closed connection")
 			return
-		} else if err != nil {
+		case err != nil:
 			u.logger.Error("subscription.UniversalProtocolHandler.Handle: on reading bytes from client",
 				abstractlogger.Error(err),
 				abstractlogger.ByteString("message", message),
@@ -173,7 +174,7 @@ func (u *UniversalProtocolHandler) Handle(ctx context.Context) {
 			}
 
 			u.protocol.EventHandler().Emit(EventTypeOnConnectionError, "", nil, ErrCouldNotReadMessageFromClient)
-		} else {
+		default:
 			if u.isReadTimeOutTimerRunning && u.readTimeOutCancel != nil {
 				u.readTimeOutCancel()
 				u.isReadTimeOutTimerRunning = false
