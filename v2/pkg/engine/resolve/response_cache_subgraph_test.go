@@ -128,6 +128,16 @@ func TestResponseCacheSubgraphTTL(t *testing.T) {
 		require.Equal(t, time.Hour, prepared.responseCacheItems[0].TTL)
 	})
 
+	t.Run("an entry can disable the fallback", func(t *testing.T) {
+		opts := ResponseCacheOptions{DefaultTTL: time.Minute, Subgraphs: map[string]ResponseCacheSubgraphOptions{
+			"accounts": {DisableFallbackTTL: true},
+		}}
+		loader, res := subgraphLoader(t, newTestCache(), "accounts", "public", body, opts)
+		prepared := &preparedFetch{res: res, responseCacheKeys: keys}
+		require.NoError(t, loader.responseCacheCollect(prepared))
+		require.Empty(t, prepared.responseCacheItems)
+	})
+
 	t.Run("an entry without one takes the default", func(t *testing.T) {
 		opts := ResponseCacheOptions{DefaultTTL: time.Minute, Subgraphs: map[string]ResponseCacheSubgraphOptions{
 			"accounts": {PrivateID: "u1"},
