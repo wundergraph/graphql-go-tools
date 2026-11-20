@@ -53,8 +53,6 @@ type nodeSelectionVisitor struct {
 	// used by "requires" keys, not only when fragments are present.
 	addTypenameInNestedSelections bool
 
-	newFieldRefs map[int]struct{} // newFieldRefs is a set of field refs which were added by the visitor or was modified by a rewrite
-
 	// unfetchableFieldRefs is a set of field refs which are kept in the operation
 	// to preserve the response shape, but must not be planned on any datasource -
 	// they resolve to null. E.g. fields of the union members outside the intersection
@@ -71,19 +69,8 @@ type nodeSelectionVisitor struct {
 	fieldMergingAliasRefs map[int][]byte
 }
 
-func (c *nodeSelectionVisitor) addNewSkipFieldRefs(fieldRefs ...int) {
-	c.addSkipFieldRefs(fieldRefs...)
-	c.addNewFieldRefs(fieldRefs...)
-}
-
 func (c *nodeSelectionVisitor) addSkipFieldRefs(fieldRefs ...int) {
 	c.skipFieldsRefs = append(c.skipFieldsRefs, fieldRefs...)
-}
-
-func (c *nodeSelectionVisitor) addNewFieldRefs(fieldRefs ...int) {
-	for _, fieldRef := range fieldRefs {
-		c.newFieldRefs[fieldRef] = struct{}{}
-	}
 }
 
 // addFieldDependency records that the field of the (field, datasource) pair depends on the required field.
@@ -458,13 +445,12 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldCtx fieldRequireme
 }
 
 func (c *nodeSelectionVisitor) getSelectedParentsDSHashes(fieldRef int) (out []DSHash) {
-	treeNodeID := TreeNodeID(fieldRef)
-	treeNode, ok := c.nodeSuggestions.responseTree.Find(treeNodeID)
+	field, ok := c.nodeSuggestions.responseTree.find(fieldRef)
 	if !ok {
 		return nil
 	}
 
-	parentIndexes := treeNode.GetParent().GetData()
+	parentIndexes := field.parent.suggestionIndexes
 
 	for _, itemID := range parentIndexes {
 		if c.nodeSuggestions.items[itemID].Selected {
@@ -637,7 +623,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	}
 	c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
 
-	c.addNewSkipFieldRefs(addFieldsResult.skipFieldRefs...)
+	c.addSkipFieldRefs(addFieldsResult.skipFieldRefs...)
 	// add mapping for the field dependencies
 	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
 		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
@@ -731,7 +717,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 		// op, _ := astprinter.PrintStringIndentDebug(c.operation, " ")
 		// fmt.Println("operation: ", op)
 
-		c.addNewSkipFieldRefs(addFieldsResult.skipFieldRefs...)
+		c.addSkipFieldRefs(addFieldsResult.skipFieldRefs...)
 
 		// setup deps between key chain items
 		if currentFieldRefs != nil && previousJump != nil {
@@ -898,7 +884,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	}
 
 	if result.rewritten {
-		c.addNewSkipFieldRefs(rewriter.skipFieldRefs...)
+		c.addSkipFieldRefs(rewriter.skipFieldRefs...)
 		c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
 		c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
 
@@ -959,10 +945,6 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 		}
 
 		c.fieldRefDependsOn[key] = updatedFieldRefs
-	}
-
-	for _, newRefs := range changedFieldRefs {
-		c.addNewFieldRefs(newRefs...)
 	}
 }
 

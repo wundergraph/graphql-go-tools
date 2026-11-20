@@ -3,14 +3,8 @@ package plan
 import (
 	"encoding/json"
 	"fmt"
-	"iter"
 	"slices"
-
-	"github.com/kingledion/go-tools/tree"
-	"github.com/phf/go-queue/queue"
 )
-
-const treeRootID = ^uint(0)
 
 type NodeSuggestion struct {
 	DataSourceID              string `json:"dsID"`
@@ -36,7 +30,6 @@ type NodeSuggestion struct {
 	onFragment                bool
 	Selected                  bool     `json:"isSelected"`
 	SelectionReasons          []string `json:"selectReason"`
-	treeNodeId                uint
 	possibleTypeNames         []string
 
 	deferInfo          *DeferInfo // this node's own defer directive, if the field itself is deferred
@@ -69,10 +62,6 @@ func (d *DeferInfo) Equals(o *DeferInfo) bool {
 	}
 
 	return d.ID == o.ID && d.Label == o.Label && d.ParentID == o.ParentID
-}
-
-func (n *NodeSuggestion) treeNodeID() uint {
-	return TreeNodeID(n.FieldRef)
 }
 
 func (n *NodeSuggestion) appendSelectionReason(reason string, saveReason bool) {
@@ -131,33 +120,11 @@ type NodeSuggestions struct {
 	items           []*NodeSuggestion
 	pathSuggestions map[string][]*NodeSuggestion
 	seenFields      map[int]struct{}
-	responseTree    tree.Tree[[]int]
+	responseTree    *responseTree
 	// providedSelections stores, per data source, the provided selection applying to
 	// the children of a field ref - for @provides anchor fields their own selection,
 	// for provided fields the nested selection from the enclosing @provides
 	providedSelections map[DSHash]map[int]providesSelection
-}
-
-func TraverseBFS(data tree.Tree[[]int]) iter.Seq2[uint, tree.Node[[]int]] {
-	return func(yield func(uint, tree.Node[[]int]) bool) {
-		q := queue.New()
-		q.PushBack(data.Root())
-
-		for {
-			current := q.PopFront()
-			switch node := current.(type) {
-			case tree.Node[[]int]:
-				for _, child := range node.GetChildren() {
-					q.PushBack(child)
-				}
-				if !yield(node.GetID(), node) {
-					return
-				}
-			case nil:
-				return
-			}
-		}
-	}
 }
 
 func NewNodeSuggestions() *NodeSuggestions {
@@ -165,14 +132,11 @@ func NewNodeSuggestions() *NodeSuggestions {
 }
 
 func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
-	responseTree := tree.Empty[[]int]()
-	responseTree.Add(treeRootID, 0, nil)
-
 	return &NodeSuggestions{
 		items:              make([]*NodeSuggestion, 0, size),
 		seenFields:         make(map[int]struct{}, size),
 		pathSuggestions:    make(map[string][]*NodeSuggestion),
-		responseTree:       *responseTree,
+		responseTree:       newResponseTree(),
 		providedSelections: make(map[DSHash]map[int]providesSelection),
 	}
 }
@@ -219,8 +183,8 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 	parentIndexesToAddDeferID := make([]int, 0, 2)
 	current := i
 	for {
-		treeNode := f.treeNode(current)
-		parentNodeIndexes := treeNode.GetParent().GetData()
+		field := f.treeField(current)
+		parentNodeIndexes := field.parent.suggestionIndexes
 
 		parentIdToUpdate := -1
 		for _, parentIdx := range parentNodeIndexes {
@@ -288,75 +252,75 @@ func (f *NodeSuggestions) AddSeenField(fieldRef int) {
 }
 
 // RemoveSeenFields makes the fields treated as new again,
-// so their tree nodes and suggestions are recollected on the next filter run
+// so their tree fields and suggestions are recollected on the next filter run
 func (f *NodeSuggestions) RemoveSeenFields(fieldRefs ...int) {
 	for _, fieldRef := range fieldRefs {
 		delete(f.seenFields, fieldRef)
 	}
 }
 
-// RemoveRewrittenFieldChilds removes the child nodes of a field which had its
+// RemoveRewrittenFieldChildren removes the children of a field from the tree, as the field had its
 // selection set rewritten - the old child suggestions do not make sense anymore.
 // A datasource could have been selected for the field or its parents only to resolve
 // the removed child selections - such chains are unselected to allow the next filter run
 // to re-select them for the updated operation.
-func (f *NodeSuggestions) RemoveRewrittenFieldChilds(fieldRef int) {
-	treeNodeId := TreeNodeID(fieldRef)
-	node, ok := f.responseTree.Find(treeNodeId)
+func (f *NodeSuggestions) RemoveRewrittenFieldChildren(fieldRef int) {
+	field, ok := f.responseTree.find(fieldRef)
 	if !ok {
 		return
 	}
 
 	// mark all nested suggestions as orphans and unselect them
-	f.abandonNodeChildren(node, false)
+	f.abandonChildren(field, false)
 
 	// unselect the field and its parents chains which have no selected children anymore
-	for _, itemIdx := range node.GetData() {
+	for _, itemIdx := range field.suggestionIndexes {
 		f.unselectWhenNoSelectedChildren(itemIdx)
 	}
 
-	// remove rewritten children nodes from the current node
-	node.ReplaceChildren()
+	// remove the rewritten children from the tree.
+	// They stay findable by their ids.
+	field.children = nil
 }
 
-// AbandonFieldChilds marks the child suggestions of the field as orphans
-// and detaches them from the tree nodes, keeping the response tree intact.
+// AbandonFieldChildren marks the child suggestions of the field as orphans
+// and detaches them from the tree fields, keeping the response tree intact.
 // Used when the child paths have changed (e.g. by adding planner generated aliases),
-// so the child suggestions have to be recollected for the same tree nodes.
-// Unlike after RemoveRewrittenFieldChilds, the tree nodes stay reachable,
-// so the orphaned items have to be removed from the node data to not affect
-// the following selection runs.
-func (f *NodeSuggestions) AbandonFieldChilds(fieldRef int) {
-	node, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+// so the child suggestions have to be recollected for the same tree fields.
+// Unlike after RemoveRewrittenFieldChildren, the tree fields stay reachable,
+// so the orphaned items have to be removed from the suggestion indexes of the tree fields,
+// to not affect the following selection runs.
+func (f *NodeSuggestions) AbandonFieldChildren(fieldRef int) {
+	field, ok := f.responseTree.find(fieldRef)
 	if !ok {
 		return
 	}
 
-	f.abandonAndDetachNodeChildrenItems(node, false)
+	f.abandonAndDetachChildrenItems(field, false)
 }
 
-func (f *NodeSuggestions) abandonAndDetachNodeChildrenItems(node tree.Node[[]int], clearData bool) {
-	for _, child := range node.GetChildren() {
-		f.abandonAndDetachNodeChildrenItems(child, true)
+func (f *NodeSuggestions) abandonAndDetachChildrenItems(field *treeField, clearData bool) {
+	for _, child := range field.children {
+		f.abandonAndDetachChildrenItems(child, true)
 	}
 
 	if clearData {
-		for _, idx := range node.GetData() {
+		for _, idx := range field.suggestionIndexes {
 			f.items[idx].IsOrphan = true
 			f.items[idx].unselect()
 		}
-		node.SetData(nil)
+		field.suggestionIndexes = nil
 	}
 }
 
-// abandonNodeChildren recursively marks all nested suggestions as orphans
-func (f *NodeSuggestions) abandonNodeChildren(node tree.Node[[]int], clearData bool) {
-	for _, child := range node.GetChildren() {
-		f.abandonNodeChildren(child, true)
+// abandonChildren recursively marks all nested suggestions as orphans
+func (f *NodeSuggestions) abandonChildren(field *treeField, clearData bool) {
+	for _, child := range field.children {
+		f.abandonChildren(child, true)
 	}
 
 	if clearData {
-		for _, idx := range node.GetData() {
+		for _, idx := range field.suggestionIndexes {
 			// we can't reslice f.items because tree data stores indexes of f.items
 			f.items[idx].orphan()
 		}
@@ -366,12 +330,12 @@ func (f *NodeSuggestions) abandonNodeChildren(node tree.Node[[]int], clearData b
 // IsSelectedOnDataSource reports whether the given field ref has a selected
 // non-orphan suggestion on the given data source
 func (f *NodeSuggestions) IsSelectedOnDataSource(fieldRef int, dsHash DSHash) bool {
-	treeNode, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	field, ok := f.responseTree.find(fieldRef)
 	if !ok {
 		return false
 	}
 
-	for _, itemIdx := range treeNode.GetData() {
+	for _, itemIdx := range field.suggestionIndexes {
 		item := f.items[itemIdx]
 		if item.DataSourceHash == dsHash && !item.IsOrphan && item.Selected {
 			return true
@@ -384,12 +348,12 @@ func (f *NodeSuggestions) IsSelectedOnDataSource(fieldRef int, dsHash DSHash) bo
 // OrphanSuggestionsForFieldRef marks all suggestions of the given field ref
 // and its nested fields as orphans
 func (f *NodeSuggestions) OrphanSuggestionsForFieldRef(fieldRef int) {
-	treeNode, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	field, ok := f.responseTree.find(fieldRef)
 	if !ok {
 		return
 	}
 
-	f.abandonNodeChildren(treeNode, true)
+	f.abandonChildren(field, true)
 }
 
 func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) (suggestionIdx int) {
@@ -427,7 +391,7 @@ func (f *NodeSuggestions) unselectWhenNoSelectedChildren(idx int) {
 	// the node should stay selected when it has a selected child on any datasource:
 	// even when the child is on another datasource, the current node could be
 	// an anchor providing the keys for the jump to the child datasource
-	for _, childIdx := range treeNodeChildren(f.treeNode(idx)) {
+	for _, childIdx := range treeFieldChildren(f.treeField(idx)) {
 		if f.items[childIdx].Selected {
 			return
 		}
@@ -450,16 +414,16 @@ func (f *NodeSuggestions) unselectWhenNoSelectedChildren(idx int) {
 // When the parent chain on the datasource is interrupted before an anchor is found,
 // the datasource is not able to resolve the field at this position.
 func (f *NodeSuggestions) IsSuggestionReachable(suggestion *NodeSuggestion) bool {
-	node, ok := f.responseTree.Find(suggestion.treeNodeID())
+	field, ok := f.responseTree.find(suggestion.FieldRef)
 	if !ok {
 		return false
 	}
 
 	dsHash := suggestion.DataSourceHash
 
-	for node.GetID() != treeRootID {
+	for field.id != treeRootID {
 		itemIdx := -1
-		for _, idx := range node.GetData() {
+		for _, idx := range field.suggestionIndexes {
 			if f.items[idx].DataSourceHash == dsHash && !f.items[idx].IsOrphan {
 				itemIdx = idx
 				break
@@ -475,7 +439,7 @@ func (f *NodeSuggestions) IsSuggestionReachable(suggestion *NodeSuggestion) bool
 			return true
 		}
 
-		node = node.GetParent()
+		field = field.parent
 	}
 
 	return false
@@ -484,12 +448,12 @@ func (f *NodeSuggestions) IsSuggestionReachable(suggestion *NodeSuggestion) bool
 // SuggestionsForFieldRef returns all non-orphan suggestions for the given field ref,
 // regardless of their selection state.
 func (f *NodeSuggestions) SuggestionsForFieldRef(fieldRef int) []*NodeSuggestion {
-	treeNode, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	field, ok := f.responseTree.find(fieldRef)
 	if !ok {
 		return nil
 	}
 
-	itemIndexes := treeNode.GetData()
+	itemIndexes := field.suggestionIndexes
 	out := make([]*NodeSuggestion, 0, len(itemIndexes))
 	for _, itemIdx := range itemIndexes {
 		if f.items[itemIdx].IsOrphan {
@@ -518,17 +482,17 @@ func (f *NodeSuggestions) providedSelectionForParentOfField(dsHash DSHash, field
 		return nil
 	}
 
-	node, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	field, ok := f.responseTree.find(fieldRef)
 	if !ok {
 		return nil
 	}
 
-	parentID := node.GetParentID()
+	parentID := field.parent.id
 	if parentID == treeRootID {
 		return nil
 	}
 
-	return perDS[TreeNodeFieldRef(parentID)]
+	return perDS[parentID]
 }
 
 func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
@@ -560,16 +524,16 @@ func (f *NodeSuggestions) SelectedSuggestionForPath(typeName, fieldName, path st
 }
 
 // suggestionsForFieldRef returns indexes of the suggestion items for the given field ref.
-// Suggestions for one field ref are grouped under a single response tree node,
-// so the lookup is cheap. When a tree node was removed, its items are orphaned,
-// so a missing tree node means there are no usable suggestions for the field ref.
+// Suggestions for one field ref are grouped under a single response tree field,
+// so the lookup is cheap. When a tree field was removed, its items are orphaned,
+// so a missing tree field means there are no usable suggestions for the field ref.
 func (f *NodeSuggestions) suggestionsForFieldRef(fieldRef int) []int {
-	treeNode, ok := f.responseTree.Find(TreeNodeID(fieldRef))
+	field, ok := f.responseTree.find(fieldRef)
 	if !ok {
 		return nil
 	}
 
-	return treeNode.GetData()
+	return field.suggestionIndexes
 }
 
 // firstNonTargetSuggestionForFieldRef returns a datasource able to resolve the given field ref
@@ -616,25 +580,24 @@ func (f *NodeSuggestions) firstNonTargetSuggestionForFieldRef(fieldRef int, targ
 }
 
 func (f *NodeSuggestions) isNodeUnique(idx int) bool {
-	treeNode := f.treeNode(idx)
+	field := f.treeField(idx)
 
-	return isTreeNodeUniq(treeNode)
+	return isTreeFieldUniq(field)
 }
 
-func (f *NodeSuggestions) treeNode(idx int) treeNode {
-	nodeID := f.items[idx].treeNodeID()
-	treeNode, _ := f.responseTree.Find(nodeID)
-	return treeNode
+func (f *NodeSuggestions) treeField(idx int) *treeField {
+	field, _ := f.responseTree.find(f.items[idx].FieldRef)
+	return field
 }
 
 func (f *NodeSuggestions) duplicatesOf(idx int) (out []int) {
-	treeNode := f.treeNode(idx)
+	field := f.treeField(idx)
 
-	if isTreeNodeUniq(treeNode) {
+	if isTreeFieldUniq(field) {
 		return nil
 	}
 
-	duplicatesIndexes := treeNode.GetData()
+	duplicatesIndexes := field.suggestionIndexes
 
 	out = make([]int, 0, len(duplicatesIndexes))
 	for _, duplicateIdx := range duplicatesIndexes {
@@ -648,8 +611,8 @@ func (f *NodeSuggestions) duplicatesOf(idx int) (out []int) {
 }
 
 func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
-	treeNode := f.treeNode(idx)
-	childIndexes := treeNodeChildren(treeNode)
+	field := f.treeField(idx)
+	childIndexes := treeFieldChildren(field)
 
 	out = make([]int, 0, len(childIndexes))
 
@@ -680,8 +643,8 @@ func (f *NodeSuggestions) selectableTreeNodeCount(idx int) (count int) {
 }
 
 func (f *NodeSuggestions) childNodesIdsOnOtherDS(idx int) (out []int) {
-	treeNode := f.treeNode(idx)
-	childIndexes := treeNodeChildren(treeNode)
+	field := f.treeField(idx)
+	childIndexes := treeFieldChildren(field)
 
 	out = make([]int, 0, len(childIndexes))
 
@@ -710,8 +673,8 @@ func (f *NodeSuggestions) withoutTypeName(in []int) (out []int) {
 }
 
 func (f *NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
-	treeNode := f.treeNode(idx)
-	siblingIndexes := treeNodeSiblings(treeNode)
+	field := f.treeField(idx)
+	siblingIndexes := treeFieldSiblings(field)
 
 	out = make([]int, 0, len(siblingIndexes))
 
@@ -730,14 +693,14 @@ func (f *NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
 }
 
 func (f *NodeSuggestions) isLeaf(idx int) bool {
-	treeNode := f.treeNode(idx)
+	field := f.treeField(idx)
 
-	return isTreeNodeLeaf(treeNode)
+	return isTreeFieldLeaf(field)
 }
 
 func (f *NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok bool) {
-	treeNode := f.treeNode(idx)
-	parentNodeIndexes := treeNode.GetParent().GetData()
+	field := f.treeField(idx)
+	parentNodeIndexes := field.parent.suggestionIndexes
 
 	for _, parentIdx := range parentNodeIndexes {
 		if f.items[parentIdx].DataSourceHash == f.items[idx].DataSourceHash {
@@ -784,18 +747,16 @@ func (f *NodeSuggestions) populateHasSuggestions() map[DSHash]struct{} {
 	return unique
 }
 
-type treeNode tree.Node[[]int]
-
-func isTreeNodeUniq(node treeNode) bool {
-	return len(node.GetData()) == 1
+func isTreeFieldUniq(field *treeField) bool {
+	return len(field.suggestionIndexes) == 1
 }
 
-func isTreeNodeLeaf(node treeNode) bool {
-	return len(node.GetChildren()) == 0
+func isTreeFieldLeaf(field *treeField) bool {
+	return len(field.children) == 0
 }
 
-func treeNodeSiblings(node treeNode) []int {
-	childrenOfParent := node.GetParent().GetChildren()
+func treeFieldSiblings(field *treeField) []int {
+	childrenOfParent := field.parent.children
 
 	if len(childrenOfParent) < 2 {
 		return nil
@@ -804,18 +765,18 @@ func treeNodeSiblings(node treeNode) []int {
 	out := make([]int, 0, len(childrenOfParent))
 
 	for _, child := range childrenOfParent {
-		if child.GetID() == node.GetID() {
+		if child.id == field.id {
 			continue
 		}
 
-		out = append(out, child.GetData()...)
+		out = append(out, child.suggestionIndexes...)
 	}
 
 	return out
 }
 
-func treeNodeChildren(node treeNode) []int {
-	children := node.GetChildren()
+func treeFieldChildren(field *treeField) []int {
+	children := field.children
 
 	if len(children) == 0 {
 		return nil
@@ -824,7 +785,7 @@ func treeNodeChildren(node treeNode) []int {
 	out := make([]int, 0, len(children))
 
 	for _, child := range children {
-		out = append(out, child.GetData()...)
+		out = append(out, child.suggestionIndexes...)
 	}
 
 	return out

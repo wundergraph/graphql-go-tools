@@ -64,7 +64,6 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionVisitor := &nodeSelectionVisitor{
 		walker:                        &nodeSelectionsWalker,
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
-		newFieldRefs:                  make(map[int]struct{}),
 		unfetchableFieldRefs:          make(map[int]struct{}),
 		unresolvableFieldRefs:         make(map[int]struct{}),
 		fieldMergingAliasRefs:         make(map[int][]byte),
@@ -97,7 +96,6 @@ func (p *NodeSelectionBuilder) SetOperationName(name string) {
 
 func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
-	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.unfetchableFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.unresolvableFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.fieldMergingAliasRefs = make(map[int][]byte)
@@ -106,7 +104,7 @@ func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 // SelectNodes implements Steps 1-2 of the planner pipeline.
 // It assigns all the fields and their requirements (via @key and @requires) to DataSources.
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
-	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs).
+	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources).
 		WithUnfetchableFieldRefs(p.nodeSelectionsVisitor.unfetchableFieldRefs)
 
 	if p.config.Debug.PrintNodeSuggestions {
@@ -169,11 +167,11 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		fallbackJustEnabled = false
 
 		for _, fieldRef := range p.nodeSelectionsVisitor.rewrittenFieldRefs {
-			p.nodeSelectionsVisitor.nodeSuggestions.RemoveRewrittenFieldChilds(fieldRef)
+			p.nodeSelectionsVisitor.nodeSuggestions.RemoveRewrittenFieldChildren(fieldRef)
 		}
 
 		for _, fieldRef := range p.nodeSelectionsVisitor.aliasedFieldRefs {
-			p.nodeSelectionsVisitor.nodeSuggestions.AbandonFieldChilds(fieldRef)
+			p.nodeSelectionsVisitor.nodeSuggestions.AbandonFieldChildren(fieldRef)
 		}
 
 		// Repeat Step 1. Update suggestions for the new required fields.
@@ -451,13 +449,12 @@ func (p *NodeSelectionBuilder) printOperation(operation *ast.Document) {
 					return
 				}
 
-				treeNodeId := TreeNodeID(fieldRef)
-				node, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.Find(treeNodeId)
+				field, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.find(fieldRef)
 				if !ok {
 					return
 				}
 
-				items := node.GetData()
+				items := field.suggestionIndexes
 				for _, id := range items {
 					if p.nodeSelectionsVisitor.nodeSuggestions.items[id].Selected {
 						_, _ = fmt.Fprintf(out, "  %s", p.nodeSelectionsVisitor.nodeSuggestions.items[id].StringShort())
