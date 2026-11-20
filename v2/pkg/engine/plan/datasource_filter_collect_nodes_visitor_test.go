@@ -37,10 +37,11 @@ func TestNodesCollectorAssignFields(t *testing.T) {
 		// 4 has no field info
 		5: {typeName: "Review", fieldName: "body"},
 		6: {typeName: "SearchResult", fieldName: "__typename", isTypeName: true},
-		// 7 has a @provides, 8 is its child, 9 is its grandchild
-		7: {typeName: "Query", fieldName: "other", parentFieldRef: ast.InvalidRef},
-		8: {typeName: "Product", fieldName: "upc", parentFieldRef: 7},
-		9: {typeName: "Review", fieldName: "body", parentFieldRef: 8},
+		// 9 has a @provides, 8 is its child, 7 is its grandchild.
+		// The parser adds a child field before its parent, so the parent has the higher ref.
+		9: {typeName: "Query", fieldName: "other", parentFieldRef: ast.InvalidRef},
+		8: {typeName: "Product", fieldName: "upc", parentFieldRef: 9},
+		7: {typeName: "Review", fieldName: "body", parentFieldRef: 8},
 	}
 
 	newCollector := func() *nodesCollector {
@@ -75,16 +76,34 @@ func TestNodesCollectorAssignFields(t *testing.T) {
 
 	t.Run("assigns the fields at or under a @provides field", func(t *testing.T) {
 		c := newCollector()
-		c.assignFields([]int{7, 8, 9})
+		c.assignFields([]int{9, 8, 7})
 
 		assert.Equal(t, [][]int{
-			{7},
+			{9},
 			{},
 			{8},
-			// field 7 once, for the @provides and for the type Query
-			{7, 8, 9},
+			// field 9 once, for the @provides and for the type Query
+			{9, 8, 7},
 			{},
 		}, assignedFieldRefs(c))
+	})
+
+	t.Run("keeps a data source once in the @provides scope", func(t *testing.T) {
+		// @provides on field 9 and on its child 8, on the same data source
+		ds := dsb().Hash(1).Schema(`type Query { other: String }`).RootNode("Query", "other").
+			WithMetadata(func(data *FederationMetaData) {
+				data.Provides = FederationFieldConfigurations{
+					{TypeName: "Query", FieldName: "other", SelectionSet: "upc"},
+					{TypeName: "Product", FieldName: "upc", SelectionSet: "body"},
+				}
+			}).DS()
+		c := &nodesCollector{dataSources: []DataSource{ds}, fieldInfo: fieldInfos}
+		c.init()
+		c.assignFields([]int{9, 8, 7})
+
+		assert.Equal(t, []int{0}, c.providesScopeDS[8])
+		assert.Equal(t, []int{0}, c.providesScopeDS[7])
+		assert.Equal(t, []int{9, 8, 7}, c.dsCollectors[0].assignedFieldRefs)
 	})
 
 	t.Run("resets the fields between runs", func(t *testing.T) {

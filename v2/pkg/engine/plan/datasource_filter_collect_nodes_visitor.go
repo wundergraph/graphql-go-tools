@@ -215,7 +215,12 @@ func (c *nodesCollector) assignProvidesScope(fieldRef int) {
 	}
 	scope := c.providesScopeDS[info.parentFieldRef]
 	if dsIndexes := c.providesDS[info.typeName+"."+info.fieldName]; len(dsIndexes) > 0 {
-		scope = append(slices.Clone(scope), dsIndexes...)
+		scope = slices.Clone(scope)
+		for _, i := range dsIndexes {
+			if !slices.Contains(scope, i) {
+				scope = append(scope, i)
+			}
+		}
 	}
 	if len(scope) == 0 {
 		return
@@ -225,11 +230,7 @@ func (c *nodesCollector) assignProvidesScope(fieldRef int) {
 		return
 	}
 	for _, i := range scope {
-		collector := c.dsCollectors[i]
-		if n := len(collector.assignedFieldRefs); n > 0 && collector.assignedFieldRefs[n-1] == fieldRef {
-			continue
-		}
-		collector.assignedFieldRefs = append(collector.assignedFieldRefs, fieldRef)
+		c.dsCollectors[i].assignedFieldRefs = append(c.dsCollectors[i].assignedFieldRefs, fieldRef)
 	}
 }
 
