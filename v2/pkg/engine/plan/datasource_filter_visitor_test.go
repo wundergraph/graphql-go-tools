@@ -1023,6 +1023,70 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Profile has no node in data source 11,
+			// so only the @provides on Query.me gives Profile.name to it
+			Description: "nested @provides on a type without nodes in the data source",
+			Definition: `
+				type Query {
+					me: User
+				}
+				type User {
+					id: ID!
+					profile: Profile
+				}
+				type Profile {
+					name: String!
+				}
+			`,
+			Query: `
+				query {
+					me {
+						profile {
+							name
+						}
+					}
+				}
+			`,
+			DataSources: []DataSource{
+				dsb().Hash(11).Schema(`
+					type Query {
+						me: User @provides(fields: "profile { name }")
+					}
+					type User @key(fields: "id") {
+						id: ID!
+						profile: Profile @external
+					}
+					type Profile {
+						name: String! @external
+					}
+				`).RootNode("Query", "me").
+					RootNode("User", "id").
+					AddRootNodeExternalFieldNames("User", "profile").
+					KeysMetadata(FederationFieldConfigurations{{TypeName: "User", SelectionSet: "id"}}).
+					WithMetadata(func(data *FederationMetaData) {
+						data.Provides = FederationFieldConfigurations{
+							{TypeName: "Query", FieldName: "me", SelectionSet: "profile { name }"},
+						}
+					}).DS(),
+				dsb().Hash(22).Schema(`
+					type User @key(fields: "id") {
+						id: ID!
+						profile: Profile
+					}
+					type Profile {
+						name: String!
+					}
+				`).RootNode("User", "id", "profile").
+					ChildNode("Profile", "name").
+					KeysMetadata(FederationFieldConfigurations{{TypeName: "User", SelectionSet: "id"}}).DS(),
+			},
+			ExpectedSuggestions: newNodeSuggestions([]NodeSuggestion{
+				{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
+				{TypeName: "User", FieldName: "profile", DataSourceHash: 11, Path: "query.me.profile", ParentPath: "query.me", IsProvided: true, IsExternal: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent", "@provides"}},
+				{TypeName: "Profile", FieldName: "name", DataSourceHash: 11, Path: "query.me.profile.name", ParentPath: "query.me.profile", IsProvided: true, Selected: true, SelectionReasons: []string{"@provides", "@provides"}},
+			}),
+		},
 	}
 
 	run := func(t *testing.T, Definition, Query string, DataSources []DataSource, expected *NodeSuggestions) {

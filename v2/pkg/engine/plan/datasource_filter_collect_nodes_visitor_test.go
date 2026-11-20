@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -19,7 +20,7 @@ func TestNodesCollectorAssignFields(t *testing.T) {
 		// 2 - keys for Product only
 		dsb().Hash(3).Schema(`type Product { upc: ID! }`).
 			KeysMetadata(FederationFieldConfigurations{{TypeName: "Product", SelectionSet: "upc"}}).DS(),
-		// 3 - @provides
+		// 3 - a root node of Query and a @provides on Query.other
 		dsb().Hash(4).Schema(`type Query { other: String }`).RootNode("Query", "other").
 			WithMetadata(func(data *FederationMetaData) {
 				data.Provides = FederationFieldConfigurations{{TypeName: "Query", FieldName: "other", SelectionSet: "upc"}}
@@ -36,6 +37,10 @@ func TestNodesCollectorAssignFields(t *testing.T) {
 		// 4 has no field info
 		5: {typeName: "Review", fieldName: "body"},
 		6: {typeName: "SearchResult", fieldName: "__typename", isTypeName: true},
+		// 7 has a @provides, 8 is its child, 9 is its grandchild
+		7: {typeName: "Query", fieldName: "other", parentFieldRef: ast.InvalidRef},
+		8: {typeName: "Product", fieldName: "upc", parentFieldRef: 7},
+		9: {typeName: "Review", fieldName: "body", parentFieldRef: 8},
 	}
 
 	newCollector := func() *nodesCollector {
@@ -62,9 +67,23 @@ func TestNodesCollectorAssignFields(t *testing.T) {
 			{1, 2, 3},
 			// field 3 for its possible type Product
 			{3},
-			// every field with field info
-			{0, 1, 2, 3, 5, 6},
+			// no field is at or under the @provides field
+			{0},
 			{6},
+		}, assignedFieldRefs(c))
+	})
+
+	t.Run("assigns the fields at or under a @provides field", func(t *testing.T) {
+		c := newCollector()
+		c.assignFields([]int{7, 8, 9})
+
+		assert.Equal(t, [][]int{
+			{7},
+			{},
+			{8},
+			// field 7 once, for the @provides and for the type Query
+			{7, 8, 9},
+			{},
 		}, assignedFieldRefs(c))
 	})
 
@@ -77,7 +96,7 @@ func TestNodesCollectorAssignFields(t *testing.T) {
 			{1},
 			{1},
 			{},
-			{1, 5},
+			{},
 			{},
 		}, assignedFieldRefs(c))
 	})
@@ -91,7 +110,7 @@ func TestNodesCollectorAssignFields(t *testing.T) {
 			{0, 2},
 			{2},
 			{},
-			{0, 2, 5, 6},
+			{0},
 			{6},
 		}, assignedFieldRefs(c))
 	})

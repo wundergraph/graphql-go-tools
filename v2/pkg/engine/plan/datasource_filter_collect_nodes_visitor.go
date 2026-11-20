@@ -26,6 +26,10 @@ type nodesCollector struct {
 
 	// dsIndexesByTypeName are the data sources which know a type, by typeName; see assignField.
 	dsIndexesByTypeName map[string][]int
+	// providesDS are the data sources with a @provides on a field, by "TypeName.FieldName"
+	providesDS map[string][]int
+	// providesScopeDS are the data sources with a @provides at the field or above it, by field ref
+	providesScopeDS map[int][]int
 
 	dsCollectors        []*dsNodesCollector
 	dsCollectorsReports []*operationreport.Report
@@ -88,13 +92,20 @@ func (c *nodesCollector) init() {
 			globalSeenKeys:          c.seenKeys,
 			dataSource:              dataSource,
 			notExternalKeyPaths:     make(map[string]struct{}),
-			hasProvides:             len(dataSource.FederationConfiguration().Provides) > 0,
 		}
 		c.dsCollectors = append(c.dsCollectors, collector)
 		c.dsCollectorsReports = append(c.dsCollectorsReports, operationreport.NewReport())
 	}
 
 	c.dsIndexesByTypeName = make(map[string][]int)
+	c.providesDS = make(map[string][]int)
+	c.providesScopeDS = make(map[int][]int)
+	for i, dataSource := range c.dataSources {
+		for _, provide := range dataSource.FederationConfiguration().Provides {
+			key := provide.TypeName + "." + provide.FieldName
+			c.providesDS[key] = append(c.providesDS[key], i)
+		}
+	}
 }
 
 func (c *nodesCollector) collectNodes(newFieldRefs map[int]struct{}) {
@@ -114,7 +125,6 @@ func (c *nodesCollector) collectNodes(newFieldRefs map[int]struct{}) {
 	c.assignFields(fieldsToVisit)
 
 	wg := &sync.WaitGroup{}
-
 	for i, collector := range c.dsCollectors {
 		// cleanup data from previous runs, but preserve indexes.
 		// A collector without fields is reset too,
@@ -141,7 +151,6 @@ func (c *nodesCollector) collectNodes(newFieldRefs map[int]struct{}) {
 			}
 		})
 	}
-
 	wg.Wait()
 
 	for _, report := range c.dsCollectorsReports {
@@ -170,13 +179,15 @@ func (c *nodesCollector) collectNodes(newFieldRefs map[int]struct{}) {
 
 // assignFields splits the fields of the current run between the collectors.
 // A collector gets the fields of the types its data source knows,
-// in the order of the fields, as the collector builds state during the walk.
+// and the fields at or under a field with a @provides of its data source.
+// Fields keep their order, as the collector builds state during the walk.
 func (c *nodesCollector) assignFields(fieldRefs []int) {
 	for _, collector := range c.dsCollectors {
 		collector.assignedFieldRefs = collector.assignedFieldRefs[:0]
 	}
 
 	for _, fieldRef := range fieldRefs {
+		c.assignProvidesScope(fieldRef)
 		if _, ok := c.unfetchableFieldRefs[fieldRef]; ok {
 			// the field is intentionally left unplanned - it is resolved to null,
 			// so we should not collect suggestions for it
@@ -194,9 +205,37 @@ func (c *nodesCollector) assignFields(fieldRefs []int) {
 	}
 }
 
-// assignField appends the field to the collectors of the data sources which know the type, once per collector.
-// Fields are assigned in order, so a field the collector already has is its last one.
-// The data sources which know the type are kept for the rest of the operation.
+// assignProvidesScope gives the field to each data source with a @provides on it or on a field above it.
+// The parent scope is always known: a parent comes before its children,
+// or was assigned in an earlier Collect call, and scopes are kept.
+func (c *nodesCollector) assignProvidesScope(fieldRef int) {
+	info, ok := c.fieldInfo[fieldRef]
+	if !ok {
+		return
+	}
+	scope := c.providesScopeDS[info.parentFieldRef]
+	if dsIndexes := c.providesDS[info.typeName+"."+info.fieldName]; len(dsIndexes) > 0 {
+		scope = append(slices.Clone(scope), dsIndexes...)
+	}
+	if len(scope) == 0 {
+		return
+	}
+	c.providesScopeDS[fieldRef] = scope
+	if _, ok := c.unfetchableFieldRefs[fieldRef]; ok {
+		return
+	}
+	for _, i := range scope {
+		collector := c.dsCollectors[i]
+		if n := len(collector.assignedFieldRefs); n > 0 && collector.assignedFieldRefs[n-1] == fieldRef {
+			continue
+		}
+		collector.assignedFieldRefs = append(collector.assignedFieldRefs, fieldRef)
+	}
+}
+
+// assignField gives the field to each data source that knows the type, once.
+// Fields come in order, so a field given before is the collector's last one.
+// The data sources of each type are cached for the operation.
 func (c *nodesCollector) assignField(fieldRef int, typeName string) {
 	dsIndexes, ok := c.dsIndexesByTypeName[typeName]
 	if !ok {
@@ -324,9 +363,6 @@ type dsNodesCollector struct {
 	globalSeenKeys map[SeenKeyPath]struct{}
 	// seen keys local to the current run
 	localSeenKeys map[SeenKeyPath]struct{}
-
-	// hasProvides is true when the data source has any @provides
-	hasProvides bool
 }
 
 // reset - cleanups only data which should not be persisted between runs
@@ -337,10 +373,10 @@ func (f *dsNodesCollector) reset() {
 
 // knowsType reports whether collectField could have an effect on a field of the type:
 // the data source has a root or child node of the type, keys for it,
-// a union of that name in its upstream schema, or any @provides.
+// or a union of that name in its upstream schema.
+// The fields under a @provides are assigned by nodesCollector.assignProvidesScope.
 func (f *dsNodesCollector) knowsType(typeName string) bool {
-	if f.hasProvides ||
-		f.dataSource.HasRootNodeWithTypename(typeName) ||
+	if f.dataSource.HasRootNodeWithTypename(typeName) ||
 		f.dataSource.HasChildNodeWithTypename(typeName) ||
 		f.dataSource.HasEntity(typeName) {
 		return true
