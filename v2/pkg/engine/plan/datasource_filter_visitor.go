@@ -55,6 +55,13 @@ func (f *DataSourceFilter) EnableFallbackKeyJumps() {
 	f.allowFallbackKeyJumps = true
 }
 
+// WithMaxDataSourceCollectorsConcurrency returns the filter unchanged.
+//
+// Deprecated: has no effect. Set GOMAXPROCS to limit the CPU used by planning.
+func (f *DataSourceFilter) WithMaxDataSourceCollectorsConcurrency(_ uint) *DataSourceFilter {
+	return f
+}
+
 // WithUnfetchableFieldRefs sets the field refs which must not be planned on any datasource
 func (f *DataSourceFilter) WithUnfetchableFieldRefs(unfetchableFieldRefs map[int]struct{}) *DataSourceFilter {
 	f.unfetchableFieldRefs = unfetchableFieldRefs
