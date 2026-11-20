@@ -40,6 +40,8 @@ type Context struct {
 	InitialPayload   []byte
 	Extensions       []byte
 	LoaderHooks      LoaderHooks
+	// ResponseErrorHandler, when set, rewrites each error before it is written.
+	ResponseErrorHandler ResponseErrorHandler
 
 	InlineArguments []string
 
@@ -548,6 +550,7 @@ func (c *Context) Free() {
 	c.authorizer = nil
 	c.preFetchFieldAuthorizer = nil
 	c.LoaderHooks = nil
+	c.ResponseErrorHandler = nil
 	c.GetDeduplicationData = nil
 	c.SetDeduplicationData = nil
 	c.TypeNameStats = nil
