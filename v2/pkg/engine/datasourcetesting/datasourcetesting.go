@@ -35,6 +35,15 @@ type testOptions struct {
 	withDefer                      bool
 	validationOptions              []astvalidation.Option
 	withCalculateFieldDependencies bool
+	customPlanChecker              func(t *testing.T, actualPlan plan.Plan)
+}
+
+// WithPlanCheck replaces the comparison with the expected plan by the given check of the actual plan.
+// Use it when a test asserts only a part of the plan, e.g. the field dependencies of a single fetch.
+func WithPlanCheck(checker func(t *testing.T, actualPlan plan.Plan)) func(*testOptions) {
+	return func(o *testOptions) {
+		o.customPlanChecker = checker
+	}
 }
 
 func WithDefer() func(*testOptions) {
@@ -258,6 +267,11 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 				t.Log("\n", p.Response.Fetches.QueryPlan().PrettyPrint())
 			default:
 			}
+		}
+
+		if opts.customPlanChecker != nil {
+			opts.customPlanChecker(t, actualPlan)
+			return
 		}
 
 		formatterConfig := map[reflect.Type]any{

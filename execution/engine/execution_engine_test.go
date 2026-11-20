@@ -25,6 +25,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/staticdatasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/graphqlerrors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 )
@@ -128,7 +129,23 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 		execCtx, execCtxCancel := context.WithCancel(context.Background())
 		execCtx = context.WithValue(execCtx, fetchSequencerCtxKey, seq)
 		defer execCtxCancel()
-		err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
+		deferWriter := &testExecutionDeferWriter{EngineResultWriter: &resultWriter}
+		engineOptions := append([]ExecutionOptions{WithDeferResponseWriter(deferWriter)}, testCase.engineOptions...)
+		err = engine.Execute(execCtx, &operation, &resultWriter, engineOptions...)
+		for i, payload := range deferWriter.payloads {
+			var frame struct {
+				HasNext *bool `json:"hasNext"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(payload), &frame))
+			expectedFinal := frame.HasNext == nil || !*frame.HasNext
+			assert.Equal(t, expectedFinal, deferWriter.finals[i], "finality of defer frame %d", i)
+			if deferWriter.finals[i] {
+				assert.Equal(t, len(deferWriter.payloads)-1, i, "no frame may follow a final frame")
+			}
+		}
+		if err == nil && len(deferWriter.finals) > 0 {
+			assert.True(t, deferWriter.finals[len(deferWriter.finals)-1], "last defer frame must be final")
+		}
 		actualResponse := resultWriter.String()
 
 		if testCase.indentJSON {
@@ -147,6 +164,16 @@ func runExecutionTest(testCase ExecutionEngineTestCase, withError bool, expected
 			require.Error(t, err)
 			if expectedErrorMessage != "" {
 				assert.Equal(t, expectedErrorMessage, err.Error())
+			}
+			if testCase.expectedErrorResponse != "" {
+				var requestErrors graphqlerrors.RequestErrors
+				require.ErrorAs(t, err, &requestErrors)
+				errorResponse := bytes.NewBuffer(nil)
+				_, writeErr := requestErrors.WriteResponse(errorResponse)
+				require.NoError(t, writeErr)
+				expectedErrorResponse := bytes.NewBuffer(nil)
+				require.NoError(t, json.Compact(expectedErrorResponse, []byte(testCase.expectedErrorResponse)))
+				assert.Equal(t, expectedErrorResponse.String(), errorResponse.String())
 			}
 		} else {
 			require.NoError(t, err)
@@ -370,6 +397,7 @@ type ExecutionEngineTestCase struct {
 	expectedResponse      string
 	expectedResponses     []string
 	expectedJSONResponse  string
+	expectedErrorResponse string
 	expectedFixture       string
 	expectedEstimatedCost *int
 	expectedActualCost    *int

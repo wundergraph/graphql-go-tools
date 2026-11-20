@@ -463,12 +463,13 @@ func TestFederationIntegrationTest(t *testing.T) {
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
+	// SomeNestedType2 selects c on every someObject, including SomeType3.
 	t.Run("Abstract object nested", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_nested.graphql"), nil, t)
-		expected := `{"data":{"someNestedInterfaces":[{"__typename":"SomeNestedType1","otherInterfaces":[{"__typename":"SomeType1","someObject":{"a":"1.A","c":"1.C","b":"1.B"}},{"__typename":"SomeType2","someObject":{"a":"1.AA","c":"1.CC"}},{"__typename":"SomeType3","someObject":{"a":"1.AAA"}}]},{"__typename":"SomeNestedType2","otherInterfaces":[{"__typename":"SomeType1","someObject":{"a":"2.A","c":"2.C","b":"2.B"}},{"__typename":"SomeType2","someObject":{"a":"2.AA","c":"2.CC"}},{"__typename":"SomeType3","someObject":{"a":"2.AAA"}}]}]}}`
+		expected := `{"data":{"someNestedInterfaces":[{"__typename":"SomeNestedType1","otherInterfaces":[{"__typename":"SomeType1","someObject":{"a":"1.A","c":"1.C","b":"1.B"}},{"__typename":"SomeType2","someObject":{"a":"1.AA","c":"1.CC"}},{"__typename":"SomeType3","someObject":{"a":"1.AAA"}}]},{"__typename":"SomeNestedType2","otherInterfaces":[{"__typename":"SomeType1","someObject":{"a":"2.A","c":"2.C","b":"2.B"}},{"__typename":"SomeType2","someObject":{"a":"2.AA","c":"2.CC"}},{"__typename":"SomeType3","someObject":{"a":"2.AAA","c":"2.CCC"}}]}]}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
@@ -477,7 +478,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_nested_reverse.graphql"), nil, t)
-		expected := `{"data":{"someNestedInterfaces":[{"__typename":"SomeNestedType1","otherInterfaces":[{"someObject":{"a":"1.A","c":"1.C","b":"1.B"},"__typename":"SomeType1"},{"someObject":{"a":"1.AA","c":"1.CC"},"__typename":"SomeType2"},{"someObject":{"a":"1.AAA"},"__typename":"SomeType3"}]},{"__typename":"SomeNestedType2","otherInterfaces":[{"someObject":{"a":"2.A","c":"2.C","b":"2.B"},"__typename":"SomeType1"},{"someObject":{"a":"2.AA","c":"2.CC"},"__typename":"SomeType2"},{"someObject":{"a":"2.AAA"},"__typename":"SomeType3"}]}]}}`
+		expected := `{"data":{"someNestedInterfaces":[{"__typename":"SomeNestedType1","otherInterfaces":[{"someObject":{"a":"1.A","c":"1.C","b":"1.B"},"__typename":"SomeType1"},{"someObject":{"a":"1.AA","c":"1.CC"},"__typename":"SomeType2"},{"someObject":{"a":"1.AAA"},"__typename":"SomeType3"}]},{"__typename":"SomeNestedType2","otherInterfaces":[{"someObject":{"a":"2.A","c":"2.C","b":"2.B"},"__typename":"SomeType1"},{"someObject":{"a":"2.AA","c":"2.CC"},"__typename":"SomeType2"},{"someObject":{"a":"2.AAA","c":"2.CCC"},"__typename":"SomeType3"}]}]}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
 

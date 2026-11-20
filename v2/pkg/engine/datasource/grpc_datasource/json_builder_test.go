@@ -59,8 +59,49 @@ func TestJSONBuilder_MergeWithPath_NullParents(t *testing.T) {
 			resolved := astjson.MustParse(tt.resolved)
 
 			builder := newJSONBuilder(nil, nil)
-			require.NoError(t, builder.mergeWithPath(base, resolved, buildPath(tt.path)))
+			require.NoError(t, builder.mergeWithPath(base, resolved, buildPath(tt.path), nil))
 			require.JSONEq(t, tt.expected, base.String())
 		})
 	}
+}
+
+// TestJSONBuilder_MergeWithPath_LengthMismatch tests that a resolver result must have
+// one value for each parent.
+func TestJSONBuilder_MergeWithPath_LengthMismatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty resolver result returns an error", func(t *testing.T) {
+		t.Parallel()
+
+		base := astjson.MustParse(`{"parents":[{"id":"a"},{"id":"b"}]}`)
+		resolved := astjson.MustParse(`{"result":[]}`)
+
+		err := newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"), nil)
+		require.EqualError(t, err, "length of values doesn't match the length of the result array, expected 2, got 0")
+	})
+
+	t.Run("short resolver result returns an error", func(t *testing.T) {
+		t.Parallel()
+
+		base := astjson.MustParse(`{"parents":[{"id":"a"},{"id":"b"}]}`)
+		resolved := astjson.MustParse(`{"result":[{"value":1}]}`)
+
+		err := newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"), nil)
+		require.EqualError(t, err, "length of values doesn't match the length of the result array, expected 2, got 1")
+	})
+}
+
+// TestJSONBuilder_MergeWithPath_MissingRootField tests that a missing root field
+// returns an error instead of a panic.
+func TestJSONBuilder_MergeWithPath_MissingRootField(t *testing.T) {
+	t.Parallel()
+
+	base := astjson.MustParse(`{"other":[{"id":"a"}]}`)
+	resolved := astjson.MustParse(`{"result":[]}`)
+
+	var err error
+	require.NotPanics(t, func() {
+		err = newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"), nil)
+	})
+	require.EqualError(t, err, "field parents not found in object")
 }

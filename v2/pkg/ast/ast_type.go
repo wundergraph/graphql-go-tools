@@ -123,9 +123,12 @@ func (d *Document) AddNonNullNamedType(name []byte) (ref int) {
 	return d.AddNonNullType(namedRef)
 }
 
+// TypesAreEqualDeep reports whether two types have the same list and non-null wrappers
+// and the same named type, e.g. [String!] equals [String!], but not [String] or [ID!].
+// It reports false when either ref is InvalidRef.
 func (d *Document) TypesAreEqualDeep(left int, right int) bool {
 	for {
-		if left == -1 || right == -1 {
+		if left == InvalidRef || right == InvalidRef {
 			return false
 		}
 		if d.Types[left].TypeKind != d.Types[right].TypeKind {

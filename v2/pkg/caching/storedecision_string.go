@@ -11,21 +11,22 @@ func _() {
 	_ = x[StoreDecisionNone-0]
 	_ = x[StoreDecisionStored-1]
 	_ = x[StoreDecisionFetchFailed-2]
-	_ = x[StoreDecisionResponseErrors-3]
-	_ = x[StoreDecisionInvalidResponse-4]
-	_ = x[StoreDecisionInvalidCacheControl-5]
-	_ = x[StoreDecisionNoStore-6]
-	_ = x[StoreDecisionNoCache-7]
-	_ = x[StoreDecisionNoDirective-8]
-	_ = x[StoreDecisionNoLifetime-9]
-	_ = x[StoreDecisionUnusableVary-10]
-	_ = x[StoreDecisionPrivateWithoutID-11]
-	_ = x[StoreDecisionNoEntity-12]
+	_ = x[StoreDecisionUncacheableStatus-3]
+	_ = x[StoreDecisionResponseErrors-4]
+	_ = x[StoreDecisionInvalidResponse-5]
+	_ = x[StoreDecisionInvalidCacheControl-6]
+	_ = x[StoreDecisionNoStore-7]
+	_ = x[StoreDecisionNoCache-8]
+	_ = x[StoreDecisionNoDirective-9]
+	_ = x[StoreDecisionNoLifetime-10]
+	_ = x[StoreDecisionUnusableVary-11]
+	_ = x[StoreDecisionPrivateWithoutID-12]
+	_ = x[StoreDecisionNoEntity-13]
 }
 
-const _StoreDecision_name = "nonestoredfetch_failedresponse_errorsinvalid_responseinvalid_cache_controlno_storeno_cacheno_directiveno_lifetimeunusable_varyprivate_without_idno_entity"
+const _StoreDecision_name = "nonestoredfetch_faileduncacheable_statusresponse_errorsinvalid_responseinvalid_cache_controlno_storeno_cacheno_directiveno_lifetimeunusable_varyprivate_without_idno_entity"
 
-var _StoreDecision_index = [...]uint8{0, 4, 10, 22, 37, 53, 74, 82, 90, 102, 113, 126, 144, 153}
+var _StoreDecision_index = [...]uint8{0, 4, 10, 22, 40, 55, 71, 92, 100, 108, 120, 131, 144, 162, 171}
 
 func (i StoreDecision) String() string {
 	idx := int(i) - 0

@@ -8,6 +8,8 @@ import (
 	"github.com/wundergraph/go-arena"
 )
 
+const representationsKey = "representations"
+
 // entityIndexMap maps positions in the typed gRPC response back to positions
 // in the original representations array. The slice index is the response
 // position; the value is the representation index. It is built per call by
@@ -30,7 +32,7 @@ func newEntityIndexMap(requestedEntityType string, representations []*astjson.Va
 
 // getRepresentations returns the representations from the variables, or nil if there are none.
 func getRepresentations(variables *astjson.Value) []*astjson.Value {
-	return variables.GetArray("representations")
+	return variables.GetArray(representationsKey)
 }
 
 // filterRepresentations filters the representations to only include the ones of the requested entity type.
@@ -40,7 +42,15 @@ func filterRepresentations(arena arena.Arena, variables *astjson.Value, requeste
 		return nil
 	}
 
+	// Required calls might have arguments, which are provided as additional variables
+	// along with the representations. Therefore we need to copy all other elements into the new variables object.
 	ov := astjson.ObjectValue(arena)
+	variables.GetObject().Visit(func(key []byte, v *astjson.Value) {
+		if string(key) != representationsKey {
+			ov.Set(arena, string(key), v)
+		}
+	})
+
 	representationsArr := astjson.ArrayValue(arena)
 
 	for _, representation := range representations {
@@ -49,7 +59,7 @@ func filterRepresentations(arena arena.Arena, variables *astjson.Value, requeste
 		}
 	}
 
-	ov.Set(arena, "representations", representationsArr)
+	ov.Set(arena, representationsKey, representationsArr)
 	return ov
 }
 

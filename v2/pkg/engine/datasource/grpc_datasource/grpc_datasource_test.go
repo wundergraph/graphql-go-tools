@@ -104,9 +104,95 @@ func setupTestGRPCServer(t testing.TB) (conn *grpc.ClientConn, cleanup func()) {
 func Test_DataSource_Load_NilTransport(t *testing.T) {
 	ds := &DataSource{pool: arena.NewArenaPool(), disabled: false}
 
-	out, err := ds.Load(context.Background(), nil, []byte(`{}`))
+	out, err := ds.Load(t.Context(), nil, []byte(`{}`))
 	require.EqualError(t, err, "gRPC / connect configuration requires an rpc transport")
 	require.Nil(t, out)
+}
+
+func Test_NewDataSource_NilCompiler(t *testing.T) {
+	ds, err := NewDataSource(nil, DataSourceConfig{Mapping: testMapping()})
+	require.EqualError(t, err, "compiler is required")
+	require.Nil(t, ds)
+}
+
+func Test_NewDataSource_Disabled(t *testing.T) {
+	ds, err := NewDataSource(nil, DataSourceConfig{Disabled: true})
+	require.NoError(t, err)
+
+	out, err := ds.Load(t.Context(), nil, []byte(`{}`))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"errors":[{"message":"gRPC / connect datasource needs to be enabled to be used","extensions":{"code":"Internal"}}]}`, string(out))
+}
+
+type panicTransport struct{}
+
+func (panicTransport) Invoke(context.Context, string, any, any) error {
+	panic("transport failure")
+}
+
+// Test_DataSource_Load_TransportPanic makes sure that a panic inside a fetch goroutine
+// becomes a GraphQL error and does not stop the process.
+func Test_DataSource_Load_TransportPanic(t *testing.T) {
+	query := `query CategoriesQuery { categories { id } }`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(panicTransport{}, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	out, err := ds.Load(t.Context(), nil, []byte(`{"query":"`+query+`","body":{}}`))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"errors":[{"message":"internal error during gRPC call","extensions":{"code":"Internal"}}]}`, string(out))
+}
+
+// Test_DataSource_Load_WithoutVariables makes sure that an operation without arguments
+// does not need variables. The upstream input omits the variables key in that case.
+func Test_DataSource_Load_WithoutVariables(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	query := `query CategoriesQuery { categories { id } }`
+
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	require.False(t, report.HasErrors(), report.Error())
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	ds, err := NewDataSource(NewGRPCTransport(conn), DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      testMapping(),
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	expected := `{"data":{"categories":[{"id":"category-1"},{"id":"category-2"},{"id":"category-3"},{"id":"category-4"}]}}`
+
+	t.Run("variables is null", func(t *testing.T) {
+		out, err := ds.Load(t.Context(), nil, []byte(`{"query":"`+query+`","body":{"variables":null}}`))
+		require.NoError(t, err)
+		require.JSONEq(t, expected, string(out))
+	})
+
+	t.Run("variables is an empty string", func(t *testing.T) {
+		out, err := ds.Load(t.Context(), nil, []byte(`{"query":"`+query+`","body":{"variables":""}}`))
+		require.NoError(t, err)
+		require.JSONEq(t, expected, string(out))
+	})
 }
 
 // Test_DataSource_Load_WithRecursiveInputType sends a nested recursive ConditionsInput through the
@@ -141,7 +227,7 @@ func Test_DataSource_Load_WithRecursiveInputType(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	output, err := ds.Load(context.Background(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
 	require.NoError(t, err)
 
 	type response struct {
@@ -195,9 +281,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 
 	// 3. Execute the query through our datasource
 	// Format the input with query and variables
-	inputJSON := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
-
-	output, err := ds.Load(context.Background(), nil, []byte(inputJSON))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
 	require.NoError(t, err)
 
 	// Set up the correct response structure based on your GraphQL schema
@@ -257,9 +341,7 @@ func Test_DataSource_Load_WithProtoReflect(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	inputJSON := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
-
-	output, err := ds.Load(context.Background(), nil, []byte(inputJSON))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"data":{"complexFilterType":[{"id":"test-id-123","name":"HARDCODED_NAME_TEST"}]}}`, string(output))
 }
@@ -322,7 +404,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	require.NoError(t, err)
 
 	// 4. Execute the query
-	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
+	output, err := ds.Load(t.Context(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 	require.NoError(t, err, "Load should not return an error even when the gRPC call fails")
 
 	responseJson := string(output)
@@ -646,8 +728,7 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -916,8 +997,7 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1052,8 +1132,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1132,8 +1211,7 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute the query through our datasource
-	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
-	output, err := ds.Load(context.Background(), nil, []byte(input))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, variables))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -1222,8 +1300,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute the query through our datasource
-	input := fmt.Sprintf(`{"query":%q,"body":{}}`, query)
-	output, err := ds.Load(context.Background(), nil, []byte(input))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":{}}`, query))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -1282,8 +1359,7 @@ func Test_DataSource_Load_WithFieldResolverAndSecondRootField(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	input := fmt.Sprintf(`{"query":%q,"body":{}}`, query)
-	output, err := ds.Load(context.Background(), nil, []byte(input))
+	output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":{}}`, query))
 	require.NoError(t, err)
 
 	var resp struct {
@@ -1751,8 +1827,7 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -2129,8 +2204,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -3430,8 +3504,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), nil, []byte(input))
+			output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -4745,10 +4818,9 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
 			var output []byte
 			require.NotPanics(t, func() {
-				output, err = ds.Load(context.Background(), nil, []byte(input))
+				output, err = ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			})
 			require.NoError(t, err)
 
@@ -4956,8 +5028,7 @@ func Test_Datasource_Load_WithHeaders(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query with headers
-			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), tc.headers, []byte(input))
+			output, err := ds.Load(t.Context(), tc.headers, fmt.Appendf(nil, `{"query":%q,"body":%s}`, tc.query, tc.vars))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -5008,7 +5079,7 @@ func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
 
 	// Create a context with existing metadata
 	ctx := metadata.NewOutgoingContext(
-		context.Background(),
+		t.Context(),
 		metadata.Pairs("x-existing-key", "existing-value"),
 	)
 
@@ -5017,8 +5088,7 @@ func Test_Datasource_Load_PreservesExistingContextMetadata(t *testing.T) {
 	headers.Set("X-User-ID", "header-user-456")
 
 	// Execute the query with both existing context metadata and new HTTP headers
-	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)
-	output, err := ds.Load(ctx, headers, []byte(input))
+	output, err := ds.Load(ctx, headers, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, vars))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -5063,7 +5133,7 @@ func Test_DataSource_Load_WithResolverBelowPlainFieldInResolver(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		output, err := ds.Load(context.Background(), nil, []byte(fmt.Sprintf(`{"query":%q,"body":%s}`, query, vars)))
+		output, err := ds.Load(t.Context(), nil, fmt.Appendf(nil, `{"query":%q,"body":%s}`, query, vars))
 		require.NoError(t, err)
 
 		var resp struct {

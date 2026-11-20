@@ -32,6 +32,7 @@ type runtimeMessage struct {
 
 type runtimeEnum struct {
 	name         string
+	desc         protoref.EnumDescriptor
 	valuesByName map[string]*runtimeEnumValue
 }
 
@@ -97,6 +98,7 @@ func newSchemaRuntime(doc *Document) (*runtimeSchema, error) {
 	for _, enum := range doc.Enums {
 		rtEnum := &runtimeEnum{
 			name:         enum.Name,
+			desc:         enum.Desc,
 			valuesByName: make(map[string]*runtimeEnumValue, len(enum.Values)),
 		}
 

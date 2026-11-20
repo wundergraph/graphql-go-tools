@@ -7,11 +7,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-type ResponseTreeProcessor interface {
-	Process(node resolve.Node)
-	ProcessSubscription(node resolve.Node)
-}
-
 type FetchTreeProcessor interface {
 	ProcessFetchTree(root *resolve.FetchTreeNode)
 }

@@ -46,6 +46,7 @@ type wireField struct {
 	wireType     protowire.Type
 	runtimeEnum  *runtimeEnum
 	staticValue  string
+	defaultValue *astjson.Value // schema default, used when the request omits the field
 	jsonPath     string
 	optional     bool
 	repeated     bool
@@ -131,6 +132,14 @@ func compileMessageFields(schema *runtimeSchema, messageFields []programField, c
 			listMetadata: messageField.listMetadata,
 		}
 
+		if messageField.defaultValue != "" {
+			defaultValue, err := astjson.Parse(messageField.defaultValue)
+			if err != nil {
+				return nil, fmt.Errorf("invalid default value for field %s: %w", messageField.jsonPath, err)
+			}
+			wf.defaultValue = defaultValue
+		}
+
 		if messageField.enumName != "" {
 			rtEnum, ok := schema.enumByName[messageField.enumName]
 			if !ok {
@@ -167,12 +176,17 @@ func compileMessageFields(schema *runtimeSchema, messageFields []programField, c
 	return fields, nil
 }
 
-// jsonStringBytes returns the bytes of a JSON string value.
-// For a JSON number, it returns the raw number text, for example a numeric GraphQL ID.
+// jsonStringBytes returns the bytes for a proto string or bytes field.
+// A JSON string yields its content. Any other value yields its JSON text: a
+// number for a numeric GraphQL ID, or an object, array or boolean for a JSON
+// scalar, which protographic maps to a proto string.
 func jsonStringBytes(data *astjson.Value) []byte {
-	if data.Type() == astjson.TypeNumber {
+	switch data.Type() {
+	case astjson.TypeString:
+		return data.GetStringBytes()
+	case astjson.TypeNull:
+		return nil
+	default:
 		return data.MarshalTo(nil)
 	}
-
-	return data.GetStringBytes()
 }

@@ -95,11 +95,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireWarehouseStockHealthScoreById",
-						ResponsePath: buildPath("_entities.stockHealthScore"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Warehouse",
+						MethodName:          "RequireWarehouseStockHealthScoreById",
+						ResponsePath:        buildPath("_entities.stockHealthScore"),
 						Request: RPCMessage{
 							Name: "RequireWarehouseStockHealthScoreByIdRequest",
 							Fields: []RPCField{
@@ -263,11 +264,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireWarehouseStockHealthScoreById",
-						ResponsePath: buildPath("_entities.aliasedScore"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Warehouse",
+						MethodName:          "RequireWarehouseStockHealthScoreById",
+						ResponsePath:        buildPath("_entities.aliasedScore"),
 						Request: RPCMessage{
 							Name: "RequireWarehouseStockHealthScoreByIdRequest",
 							Fields: []RPCField{
@@ -432,11 +434,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireWarehouseStockHealthScoreById",
-						ResponsePath: buildPath("_entities.stockHealthScore"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Warehouse",
+						MethodName:          "RequireWarehouseStockHealthScoreById",
+						ResponsePath:        buildPath("_entities.stockHealthScore"),
 						Request: RPCMessage{
 							Name: "RequireWarehouseStockHealthScoreByIdRequest",
 							Fields: []RPCField{
@@ -520,11 +523,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           2,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireWarehouseStockHealthScoreById",
-						ResponsePath: buildPath("_entities.aliasedScore"),
+						ID:                  2,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Warehouse",
+						MethodName:          "RequireWarehouseStockHealthScoreById",
+						ResponsePath:        buildPath("_entities.aliasedScore"),
 						Request: RPCMessage{
 							Name: "RequireWarehouseStockHealthScoreByIdRequest",
 							Fields: []RPCField{
@@ -684,11 +688,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageTagSummaryById",
-						ResponsePath: buildPath("_entities.tagSummary"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageTagSummaryById",
+						ResponsePath:        buildPath("_entities.tagSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageTagSummaryByIdRequest",
 							Fields: []RPCField{
@@ -828,11 +833,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageOptionalTagSummaryById",
-						ResponsePath: buildPath("_entities.optionalTagSummary"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageOptionalTagSummaryById",
+						ResponsePath:        buildPath("_entities.optionalTagSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageOptionalTagSummaryByIdRequest",
 							Fields: []RPCField{
@@ -978,11 +984,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageMetadataScoreById",
-						ResponsePath: buildPath("_entities.metadataScore"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageMetadataScoreById",
+						ResponsePath:        buildPath("_entities.metadataScore"),
 						Request: RPCMessage{
 							Name: "RequireStorageMetadataScoreByIdRequest",
 							Fields: []RPCField{
@@ -1136,11 +1143,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageProcessedMetadataById",
-						ResponsePath: buildPath("_entities.processedMetadata"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageProcessedMetadataById",
+						ResponsePath:        buildPath("_entities.processedMetadata"),
 						Request: RPCMessage{
 							Name: "RequireStorageProcessedMetadataByIdRequest",
 							Fields: []RPCField{
@@ -1319,11 +1327,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageOptionalProcessedMetadataById",
-						ResponsePath: buildPath("_entities.optionalProcessedMetadata"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageOptionalProcessedMetadataById",
+						ResponsePath:        buildPath("_entities.optionalProcessedMetadata"),
 						Request: RPCMessage{
 							Name: "RequireStorageOptionalProcessedMetadataByIdRequest",
 							Fields: []RPCField{
@@ -1493,11 +1502,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageProcessedTagsById",
-						ResponsePath: buildPath("_entities.processedTags"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageProcessedTagsById",
+						ResponsePath:        buildPath("_entities.processedTags"),
 						Request: RPCMessage{
 							Name: "RequireStorageProcessedTagsByIdRequest",
 							Fields: []RPCField{
@@ -1648,11 +1658,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageTagSummaryById",
-						ResponsePath: buildPath("_entities.tagSummary"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageTagSummaryById",
+						ResponsePath:        buildPath("_entities.tagSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageTagSummaryByIdRequest",
 							Fields: []RPCField{
@@ -1722,11 +1733,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           2,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageMetadataScoreById",
-						ResponsePath: buildPath("_entities.metadataScore"),
+						ID:                  2,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageMetadataScoreById",
+						ResponsePath:        buildPath("_entities.metadataScore"),
 						Request: RPCMessage{
 							Name: "RequireStorageMetadataScoreByIdRequest",
 							Fields: []RPCField{
@@ -1885,11 +1897,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageKindSummaryById",
-						ResponsePath: buildPath("_entities.kindSummary"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageKindSummaryById",
+						ResponsePath:        buildPath("_entities.kindSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageKindSummaryByIdRequest",
 							Fields: []RPCField{
@@ -2034,11 +2047,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageFilteredTagSummaryById",
-						ResponsePath: buildPath("_entities.filteredTagSummary"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageFilteredTagSummaryById",
+						ResponsePath:        buildPath("_entities.filteredTagSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageFilteredTagSummaryByIdRequest",
 							Fields: []RPCField{
@@ -2198,11 +2212,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageMultiFilteredTagSummaryById",
-						ResponsePath: buildPath("_entities.multiFilteredTagSummary"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageMultiFilteredTagSummaryById",
+						ResponsePath:        buildPath("_entities.multiFilteredTagSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageMultiFilteredTagSummaryByIdRequest",
 							Fields: []RPCField{
@@ -2368,11 +2383,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageNullableFilteredTagSummaryById",
-						ResponsePath: buildPath("_entities.nullableFilteredTagSummary"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageNullableFilteredTagSummaryById",
+						ResponsePath:        buildPath("_entities.nullableFilteredTagSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageNullableFilteredTagSummaryByIdRequest",
 							Fields: []RPCField{
@@ -2533,11 +2549,12 @@ func TestExecutionPlan_FederationRequires(t *testing.T) {
 						},
 					},
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageCategoryInfoSummaryById",
-						ResponsePath: buildPath("_entities.categoryInfoSummary"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageCategoryInfoSummaryById",
+						ResponsePath:        buildPath("_entities.categoryInfoSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageCategoryInfoSummaryByIdRequest",
 							Fields: []RPCField{
@@ -2754,11 +2771,12 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageItemInfoById",
-						ResponsePath: buildPath("_entities.itemInfo"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageItemInfoById",
+						ResponsePath:        buildPath("_entities.itemInfo"),
 						Request: RPCMessage{
 							Name: "RequireStorageItemInfoByIdRequest",
 							Fields: []RPCField{
@@ -2869,11 +2887,12 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageOperationReportById",
-						ResponsePath: buildPath("_entities.operationReport"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageOperationReportById",
+						ResponsePath:        buildPath("_entities.operationReport"),
 						Request: RPCMessage{
 							Name: "RequireStorageOperationReportByIdRequest",
 							Fields: []RPCField{
@@ -2984,11 +3003,12 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageSecuritySummaryById",
-						ResponsePath: buildPath("_entities.securitySummary"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageSecuritySummaryById",
+						ResponsePath:        buildPath("_entities.securitySummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageSecuritySummaryByIdRequest",
 							Fields: []RPCField{
@@ -3114,11 +3134,12 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageItemHandlerInfoById",
-						ResponsePath: buildPath("_entities.itemHandlerInfo"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageItemHandlerInfoById",
+						ResponsePath:        buildPath("_entities.itemHandlerInfo"),
 						Request: RPCMessage{
 							Name: "RequireStorageItemHandlerInfoByIdRequest",
 							Fields: []RPCField{
@@ -3239,11 +3260,12 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageItemSpecsInfoById",
-						ResponsePath: buildPath("_entities.itemSpecsInfo"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageItemSpecsInfoById",
+						ResponsePath:        buildPath("_entities.itemSpecsInfo"),
 						Request: RPCMessage{
 							Name: "RequireStorageItemSpecsInfoByIdRequest",
 							Fields: []RPCField{
@@ -3404,11 +3426,12 @@ func TestExecutionPlan_FederationRequires_AbstractTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageDeepItemInfoById",
-						ResponsePath: buildPath("_entities.deepItemInfo"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageDeepItemInfoById",
+						ResponsePath:        buildPath("_entities.deepItemInfo"),
 						Request: RPCMessage{
 							Name: "RequireStorageDeepItemInfoByIdRequest",
 							Fields: []RPCField{
@@ -3715,11 +3738,12 @@ func TestExecutionPlan_FederationRequires_AbstractReturnTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageRecommendedItemById",
-						ResponsePath: buildPath("_entities.recommendedItem"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageRecommendedItemById",
+						ResponsePath:        buildPath("_entities.recommendedItem"),
 						Request: RPCMessage{
 							Name: "RequireStorageRecommendedItemByIdRequest",
 							Fields: []RPCField{
@@ -3815,11 +3839,12 @@ func TestExecutionPlan_FederationRequires_AbstractReturnTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageRecommendedItemById",
-						ResponsePath: buildPath("_entities.recommendedItem"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageRecommendedItemById",
+						ResponsePath:        buildPath("_entities.recommendedItem"),
 						Request: RPCMessage{
 							Name: "RequireStorageRecommendedItemByIdRequest",
 							Fields: []RPCField{
@@ -3993,11 +4018,12 @@ func TestExecutionPlan_FederationRequires_AbstractReturnTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageRecommendedItemsById",
-						ResponsePath: buildPath("_entities.recommendedItems"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageRecommendedItemsById",
+						ResponsePath:        buildPath("_entities.recommendedItems"),
 						Request: RPCMessage{
 							Name: "RequireStorageRecommendedItemsByIdRequest",
 							Fields: []RPCField{
@@ -4080,11 +4106,12 @@ func TestExecutionPlan_FederationRequires_AbstractReturnTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageLatestOperationById",
-						ResponsePath: buildPath("_entities.latestOperation"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageLatestOperationById",
+						ResponsePath:        buildPath("_entities.latestOperation"),
 						Request: RPCMessage{
 							Name: "RequireStorageLatestOperationByIdRequest",
 							Fields: []RPCField{
@@ -4196,11 +4223,12 @@ func TestExecutionPlan_FederationRequires_AbstractReturnTypes(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageOptionalLatestOperationById",
-						ResponsePath: buildPath("_entities.optionalLatestOperation"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageOptionalLatestOperationById",
+						ResponsePath:        buildPath("_entities.optionalLatestOperation"),
 						Request: RPCMessage{
 							Name: "RequireStorageOptionalLatestOperationByIdRequest",
 							Fields: []RPCField{
@@ -4485,11 +4513,12 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
-						ID:           2,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageTagSummaryById",
-						ResponsePath: buildPath("_entities.tagSummary"),
+						ID:                  2,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageTagSummaryById",
+						ResponsePath:        buildPath("_entities.tagSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageTagSummaryByIdRequest",
 							Fields: []RPCField{
@@ -4727,11 +4756,12 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
-						ID:           2,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageMetadataScoreById",
-						ResponsePath: buildPath("_entities.metadataScore"),
+						ID:                  2,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageMetadataScoreById",
+						ResponsePath:        buildPath("_entities.metadataScore"),
 						Request: RPCMessage{
 							Name: "RequireStorageMetadataScoreByIdRequest",
 							Fields: []RPCField{
@@ -4983,11 +5013,12 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
-						ID:           2,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageOptionalTagSummaryById",
-						ResponsePath: buildPath("_entities.optionalTagSummary"),
+						ID:                  2,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageOptionalTagSummaryById",
+						ResponsePath:        buildPath("_entities.optionalTagSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageOptionalTagSummaryByIdRequest",
 							Fields: []RPCField{
@@ -5228,11 +5259,12 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
-						ID:           2,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageTagSummaryById",
-						ResponsePath: buildPath("_entities.tagSummary"),
+						ID:                  2,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageTagSummaryById",
+						ResponsePath:        buildPath("_entities.tagSummary"),
 						Request: RPCMessage{
 							Name: "RequireStorageTagSummaryByIdRequest",
 							Fields: []RPCField{
@@ -5302,11 +5334,12 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
-						ID:           3,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageMetadataScoreById",
-						ResponsePath: buildPath("_entities.metadataScore"),
+						ID:                  3,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageMetadataScoreById",
+						ResponsePath:        buildPath("_entities.metadataScore"),
 						Request: RPCMessage{
 							Name: "RequireStorageMetadataScoreByIdRequest",
 							Fields: []RPCField{
@@ -5558,11 +5591,12 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
-						ID:           2,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageProcessedMetadataById",
-						ResponsePath: buildPath("_entities.processedMetadata"),
+						ID:                  2,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageProcessedMetadataById",
+						ResponsePath:        buildPath("_entities.processedMetadata"),
 						Request: RPCMessage{
 							Name: "RequireStorageProcessedMetadataByIdRequest",
 							Fields: []RPCField{
@@ -5943,11 +5977,12 @@ func TestExecutionPlan_FederationRequires_WithFieldResolvers(t *testing.T) {
 						},
 					},
 					{
-						ID:           4,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageStorageAuditById",
-						ResponsePath: buildPath("_entities.storageAudit"),
+						ID:                  4,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageStorageAuditById",
+						ResponsePath:        buildPath("_entities.storageAudit"),
 						Request: RPCMessage{
 							Name: "RequireStorageStorageAuditByIdRequest",
 							Fields: []RPCField{
@@ -6224,11 +6259,12 @@ func TestExecutionPlan_FederationRequires_NullableLists(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageOptionalProcessedMetadataHistoryById",
-						ResponsePath: buildPath("_entities.optionalProcessedMetadataHistory"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageOptionalProcessedMetadataHistoryById",
+						ResponsePath:        buildPath("_entities.optionalProcessedMetadataHistory"),
 						Request: RPCMessage{
 							Name: "RequireStorageOptionalProcessedMetadataHistoryByIdRequest",
 							Fields: []RPCField{
@@ -6343,11 +6379,12 @@ func TestExecutionPlan_FederationRequires_NullableLists(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageOptionalRecommendedItemsById",
-						ResponsePath: buildPath("_entities.optionalRecommendedItems"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageOptionalRecommendedItemsById",
+						ResponsePath:        buildPath("_entities.optionalRecommendedItems"),
 						Request: RPCMessage{
 							Name: "RequireStorageOptionalRecommendedItemsByIdRequest",
 							Fields: []RPCField{
@@ -6466,11 +6503,12 @@ func TestExecutionPlan_FederationRequires_NullableLists(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageOptionalOperationHistoryById",
-						ResponsePath: buildPath("_entities.optionalOperationHistory"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageOptionalOperationHistoryById",
+						ResponsePath:        buildPath("_entities.optionalOperationHistory"),
 						Request: RPCMessage{
 							Name: "RequireStorageOptionalOperationHistoryByIdRequest",
 							Fields: []RPCField{
@@ -6589,11 +6627,12 @@ func TestExecutionPlan_FederationRequires_NullableLists(t *testing.T) {
 				Calls: []RPCCall{
 					storageEntityLookupCall(),
 					{
-						ID:           1,
-						ServiceName:  "Products",
-						Kind:         CallKindRequired,
-						MethodName:   "RequireStorageTagsByLengthsById",
-						ResponsePath: buildPath("_entities.tagsByLengths"),
+						ID:                  1,
+						ServiceName:         "Products",
+						Kind:                CallKindRequired,
+						RequestedEntityType: "Storage",
+						MethodName:          "RequireStorageTagsByLengthsById",
+						ResponsePath:        buildPath("_entities.tagsByLengths"),
 						Request: RPCMessage{
 							Name: "RequireStorageTagsByLengthsByIdRequest",
 							Fields: []RPCField{

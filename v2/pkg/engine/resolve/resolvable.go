@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -173,6 +174,11 @@ type Resolvable struct {
 	// incremental item. Reset at the start of every batch (ResolveDeferBatch) and
 	// on Init, so it never leaks across defer batches.
 	deferItemDataNull bool
+
+	// cursor is an opaque resume cursor for the subscription event currently being
+	// rendered, emitted into extensions.streamsCursor when non-empty. Set per update by
+	// executeSubscriptionUpdate; empty for non-subscription resolves.
+	cursor string
 }
 
 type TypeNameStats struct {
@@ -950,6 +956,17 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
+	if r.cursor != "" {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		err := r.printStreamsCursorExtension()
+		if err != nil {
+			return err
+		}
+	}
+
 	if len(r.allowedExtensions) > 0 {
 		if writeComma {
 			r.printBytes(comma)
@@ -989,6 +1006,23 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	r.printBytes(quote)
 	r.printBytes(colon)
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
+}
+
+// printStreamsCursorExtension prints the "streamsCursor" extension key. The value is
+// marshaled before anything is written so a failure leaves r.out untouched.
+func (r *Resolvable) printStreamsCursorExtension() error {
+	content, err := json.Marshal(r.cursor)
+	if err != nil {
+		return err
+	}
+
+	r.printBytes(quote)
+	r.printBytes(literalStreamsCursor)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(content)
+
+	return nil
 }
 
 func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTreeNode) error {
@@ -1038,6 +1072,7 @@ func getDefaultReservedExtensions() map[string]struct{} {
 		string(literalQueryPlan):       {},
 		string(literalTrace):           {},
 		string(literalValueCompletion): {},
+		string(literalStreamsCursor):   {},
 	}
 }
 
@@ -1074,6 +1109,9 @@ func (r *Resolvable) printInlineArgumentsExtension() {
 func (r *Resolvable) hasExtensions() bool {
 	// Apply the filter first to avoid missing extensions or applying empty extensions.
 	if r.filterAllowedSubgraphExtensions(getDefaultReservedExtensions()) {
+		return true
+	}
+	if r.cursor != "" {
 		return true
 	}
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
@@ -1653,10 +1691,9 @@ func (r *Resolvable) walkFields(obj *Object, value *astjson.Value, parent *astjs
 }
 
 func (r *Resolvable) shouldSkipFieldByTypeCondition(field *Field) bool {
-	if field.ParentOnTypeNames != nil && r.skipFieldOnParentTypeNames(field) {
+	if len(field.ParentOnTypeNames) != 0 && !slices.ContainsFunc(field.ParentOnTypeNames, r.parentTypeNamesMatch) {
 		return true
 	}
-
 	if field.OnTypeNames != nil && r.skipFieldOnTypeNames(field) {
 		return true
 	}
@@ -1732,7 +1769,7 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 func (r *Resolvable) objectFieldTypeName(v *astjson.Value, field *Field) string {
 	typeName := v.GetStringBytes("__typename")
 	if typeName != nil {
-		return unsafebytes.BytesToString(typeName)
+		return string(typeName)
 	}
 	return field.Info.ExactParentTypeName
 }
@@ -1807,29 +1844,23 @@ func firstString(values []string) string {
 	return values[0]
 }
 
-func (r *Resolvable) skipFieldOnParentTypeNames(field *Field) bool {
+// parentTypeNamesMatch reports whether every depth of one group matches the runtime parent types.
+// A depth without a runtime __typename never matches.
+func (r *Resolvable) parentTypeNamesMatch(group []ParentOnTypeNames) bool {
 WithNext:
-	for i := range field.ParentOnTypeNames {
-		typeName := r.typeNames[len(r.typeNames)-1-field.ParentOnTypeNames[i].Depth]
+	for i := range group {
+		typeName := r.typeNames[len(r.typeNames)-1-group[i].Depth]
 		if typeName == nil {
-			// The field has a condition but the JSON response object does not have a __typename field
-			// We skip this field
-			return true
+			return false
 		}
-		for j := range field.ParentOnTypeNames[i].Names {
-			if bytes.Equal(typeName, field.ParentOnTypeNames[i].Names[j]) {
-				// on each layer of depth, we only need to match one of the names
-				// merge_fields.go ensures that we only have on ParentOnTypeNames per depth layer
-				// If we have a match, we continue WithNext condition until all layers have been checked
+		for j := range group[i].Names {
+			if bytes.Equal(typeName, group[i].Names[j]) {
 				continue WithNext
 			}
 		}
-		// No match at this depth layer, we skip this field
-		return true
+		return false
 	}
-	// all layers have at least one matching typeName
-	// we don't skip this field (we return false)
-	return false
+	return true
 }
 
 func (r *Resolvable) skipFieldOnTypeNames(field *Field) bool {

@@ -17,9 +17,7 @@ require (
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/jensneuse/byte-template v0.0.0-20231025215717-69252eb3ed56
 	github.com/jensneuse/diffview v1.0.0
-	github.com/kingledion/go-tools v0.6.0
 	github.com/kylelemons/godebug v1.1.0
-	github.com/phf/go-queue v0.0.0-20170504031614-9abe38d0371d
 	github.com/pkg/errors v0.9.1
 	github.com/r3labs/sse/v2 v2.8.1
 	github.com/rs/xid v1.6.0

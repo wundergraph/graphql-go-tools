@@ -1,0 +1,19 @@
+# e02 with the restricted selection first.
+query UnrestrictedSiblingReversed {
+    someNestedInterfaces {
+        __typename
+        ... on SomeNestedType1 {
+            otherInterfaces {
+                someObject {
+                    b
+                }
+            }
+        }
+        otherInterfaces {
+            __typename
+            someObject {
+                a
+            }
+        }
+    }
+}

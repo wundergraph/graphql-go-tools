@@ -3,6 +3,7 @@ package variablesvalidation
 import (
 	"bytes"
 	"fmt"
+	"math"
 
 	"github.com/wundergraph/astjson"
 
@@ -75,6 +76,10 @@ type VariablesValidatorOptions struct {
 	ApolloCompatibilityFlags        apollocompatibility.Flags
 	ApolloRouterCompatibilityFlags  apollocompatibility.ApolloRouterFlags
 	DisableExposingVariablesContent bool
+	// AllowInt64Values relaxes the Int range check from signed 32-bit to signed 64-bit.
+	// It exists for backwards compatibility with clients that send Int values outside the
+	// 32-bit range required by the GraphQL spec. Non-integer values are still rejected.
+	AllowInt64Values bool
 }
 
 func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidator {
@@ -325,6 +330,15 @@ func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, t
 	v.err = v.newInvalidVariableError(fmt.Sprintf(`Variable "$%s" got invalid value null; Expected non-nullable type "%s" not to be null.`, string(variableName), typeName))
 }
 
+func (v *variablesVisitor) renderVariableIntOutOfRangeError(jsonValue *astjson.Value, bitSize int) {
+	invalidValue := string(jsonValue.MarshalTo(nil))
+	var path string
+	if len(v.path) > 1 {
+		path = fmt.Sprintf(` at "%s"`, v.renderPath())
+	}
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Int cannot represent non %d-bit signed integer value%s`, v.invalidValueMessage(string(v.currentVariableName), invalidValue), path, bitSize, v.invalidValueIfAllowed(invalidValue)))
+}
+
 func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, jsonValue *astjson.Value, typeRef, inputFieldRef int) {
 	if v.definition.TypeIsNonNull(typeRef) {
 		if jsonValue == nil || jsonValue.Type() == astjson.TypeNull {
@@ -484,10 +498,23 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 				return
 			}
 		case "Int":
-			if jsonValue.Type() != astjson.TypeNumber {
+			floatVal, err := jsonValue.Float64()
+			if err != nil || math.Trunc(floatVal) != floatVal {
 				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
+
+			if v.opts.AllowInt64Values {
+				// math.MaxInt64 is not representable as float64 and rounds up to 2^63, which is out of range.
+				if floatVal < math.MinInt64 || floatVal >= math.MaxInt64 {
+					v.renderVariableIntOutOfRangeError(jsonValue, 64)
+					return
+				}
+			} else if floatVal < math.MinInt32 || floatVal > math.MaxInt32 {
+				v.renderVariableIntOutOfRangeError(jsonValue, 32)
+				return
+			}
+
 		case "Float":
 			if jsonValue.Type() != astjson.TypeNumber {
 				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
