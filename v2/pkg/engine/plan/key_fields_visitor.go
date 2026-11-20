@@ -178,6 +178,7 @@ func getKeyPaths(input *keyVisitorInput) (keyPaths []KeyInfoFieldPath, hasExtern
 		walker:         &walker,
 		input:          input,
 		selectionStack: []providesSelection{input.providedSelection},
+		rootFieldRef:   ast.InvalidRef,
 	}
 
 	walker.RegisterFieldVisitor(visitor)
@@ -193,7 +194,9 @@ type keyInfoVisitor struct {
 	keyPaths          []KeyInfoFieldPath
 	hasExternalFields bool
 
-	currentKeyPath []KeyInfoFieldPath
+	// Track the outermost field with datasource metadata in the active branch.
+	rootFieldRef        int
+	rootFieldIsExternal bool
 
 	// selectionStack tracks the provided selection at each nesting level of the key
 	// fragment walk; entries are nil below levels which are not provided
@@ -222,15 +225,6 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 	hasNode := hasRootNode || hasChildNode || hasExternalRootNode || hasExternalChildNode
 
 	if !hasNode {
-		// Record this unknown ancestor so LeaveField pops its own entry.
-		// Conservatively treat it as external: an unknown root must not make
-		// external descendants locally available through the key fallback.
-		// This entry only tracks ancestry; it is not added to the output keyPaths.
-		v.currentKeyPath = append(v.currentKeyPath, KeyInfoFieldPath{Path: currentPath, IsExternal: true})
-		// A missing field also prevents supplying the key unless it is provided.
-		if !isProvided {
-			v.hasExternalFields = true
-		}
 		// TODO: report an error
 		return
 	}
@@ -251,7 +245,7 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 			if !v.input.keyIsConditional {
 				isExternal = false
 			}
-		} else if !v.input.keyIsConditional && len(v.currentKeyPath) > 0 && !v.isRootKeyPathExternal() {
+		} else if !v.input.keyIsConditional && v.rootFieldRef != ast.InvalidRef && !v.rootFieldIsExternal {
 
 			// handles edge case when we mark direct child node as not external
 			// but nested fields was external for implicit key
@@ -283,18 +277,15 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 		v.hasExternalFields = true
 	}
 
-	v.currentKeyPath = append(v.currentKeyPath, fieldKeyPath)
+	if v.rootFieldRef == ast.InvalidRef {
+		v.rootFieldRef = ref
+		v.rootFieldIsExternal = isExternal
+	}
 }
 
 func (v *keyInfoVisitor) LeaveField(ref int) {
 	v.selectionStack = v.selectionStack[:len(v.selectionStack)-1]
-	v.currentKeyPath = v.currentKeyPath[:len(v.currentKeyPath)-1]
-}
-
-func (v *keyInfoVisitor) isRootKeyPathExternal() bool {
-	if len(v.currentKeyPath) == 0 {
-		return false
+	if ref == v.rootFieldRef {
+		v.rootFieldRef = ast.InvalidRef
 	}
-
-	return v.currentKeyPath[0].IsExternal
 }
