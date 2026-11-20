@@ -100,7 +100,7 @@ func (c *nodesCollector) init() {
 func (c *nodesCollector) collectNodes(newFieldRefs map[int]struct{}) {
 	// collect fields to visit, in breadth-first order
 	fieldsToVisit := make([]int, 0, len(newFieldRefs))
-	for fieldRef := range TraverseBFS(c.nodes.responseTree) {
+	for fieldRef := range traverseBFS(c.nodes.responseTree) {
 		if fieldRef == treeRootID {
 			continue
 		}
@@ -264,7 +264,7 @@ func (f *treeBuilderVisitor) EnterField(fieldRef int) {
 	if parentID == ast.InvalidRef {
 		parentID = treeRootID
 	}
-	f.nodes.responseTree.Add(fieldRef, parentID)
+	f.nodes.responseTree.add(fieldRef, parentID)
 
 	// must push before collectFieldInfo: it reads the parent field ref at len-2
 	f.parentFieldRefs = append(f.parentFieldRefs, fieldRef)
@@ -613,10 +613,9 @@ func (f *dsNodesCollector) applySuggestions() {
 	// copy local suggestions to the global nodes suggestions
 	for _, suggestion := range f.localSuggestions {
 		f.nodes.addSuggestion(suggestion)
-		field, _ := f.nodes.responseTree.Find(suggestion.FieldRef)
+		field, _ := f.nodes.responseTree.find(suggestion.FieldRef)
 		newID := len(f.nodes.items) - 1
-		indexes := append(field.SuggestionIndexes(), newID)
-		field.SetSuggestionIndexes(indexes)
+		field.suggestionIndexes = append(field.suggestionIndexes, newID)
 	}
 
 	// apply provided selections: used provided fields first, available after,

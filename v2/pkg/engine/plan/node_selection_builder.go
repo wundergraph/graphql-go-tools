@@ -449,12 +449,12 @@ func (p *NodeSelectionBuilder) printOperation(operation *ast.Document) {
 					return
 				}
 
-				field, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.Find(fieldRef)
+				field, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.find(fieldRef)
 				if !ok {
 					return
 				}
 
-				items := field.SuggestionIndexes()
+				items := field.suggestionIndexes
 				for _, id := range items {
 					if p.nodeSelectionsVisitor.nodeSuggestions.items[id].Selected {
 						_, _ = fmt.Fprintf(out, "  %s", p.nodeSelectionsVisitor.nodeSuggestions.items[id].StringShort())

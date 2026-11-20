@@ -615,7 +615,7 @@ func (c *pathBuilderVisitor) LeaveField(ref int) {
 }
 
 func (c *pathBuilderVisitor) haveChildFieldsToPlan(field *currentFieldInfo) bool {
-	fieldInTree, ok := c.nodeSuggestions.responseTree.Find(field.suggestion.FieldRef)
+	fieldInTree, ok := c.nodeSuggestions.responseTree.find(field.suggestion.FieldRef)
 	if !ok {
 		return false
 	}

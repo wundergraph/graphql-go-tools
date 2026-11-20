@@ -445,12 +445,12 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldCtx fieldRequireme
 }
 
 func (c *nodeSelectionVisitor) getSelectedParentsDSHashes(fieldRef int) (out []DSHash) {
-	field, ok := c.nodeSuggestions.responseTree.Find(fieldRef)
+	field, ok := c.nodeSuggestions.responseTree.find(fieldRef)
 	if !ok {
 		return nil
 	}
 
-	parentIndexes := field.GetParent().SuggestionIndexes()
+	parentIndexes := field.parent.suggestionIndexes
 
 	for _, itemID := range parentIndexes {
 		if c.nodeSuggestions.items[itemID].Selected {

@@ -111,14 +111,14 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 	}
 
 	for fieldRef, dsHash := range landedTo {
-		field, ok := f.nodes.responseTree.Find(fieldRef)
+		field, ok := f.nodes.responseTree.find(fieldRef)
 		if !ok {
 			// no such node in the tree
 			// we may removed it as orphaned
 			continue
 		}
 
-		nodeData := field.SuggestionIndexes()
+		nodeData := field.suggestionIndexes
 		for _, itemID := range nodeData {
 			if f.nodes.items[itemID].DataSourceHash == dsHash {
 				f.nodes.items[itemID].unselect()
@@ -525,7 +525,7 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 	currentNode.requiresFallbackKey = false
 
 	// the newly selected parent may itself require a key to be reachable
-	f.assignKeys(parentIdx, f.nodes.treeField(parentIdx).GetParent().SuggestionIndexes())
+	f.assignKeys(parentIdx, f.nodes.treeField(parentIdx).parent.suggestionIndexes)
 }
 
 // firstReachableKeyProvidingParent returns the first not yet selected parent duplicate
@@ -555,7 +555,7 @@ func (f *DataSourceFilter) firstReachableKeyProvidingParent(jumpsForTypename *Da
 		}
 
 		parentField := f.nodes.treeField(parentIdx)
-		if !f.canAssignKeys(parentIdx, parentField.GetParent().SuggestionIndexes()) {
+		if !f.canAssignKeys(parentIdx, parentField.parent.suggestionIndexes) {
 			continue
 		}
 
@@ -632,7 +632,7 @@ func (f *DataSourceFilter) canAssignKeys(itemIdx int, parentNodeIndexes []int) b
 // On a second run in additional to all the checks from the first run
 // we select nodes which was not chosen by previous stages, so we just pick first available datasource
 func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
-	for id, field := range TraverseBFS(f.nodes.responseTree) {
+	for id, field := range traverseBFS(f.nodes.responseTree) {
 		// f.nodes.printNodes("nodes")
 		// fmt.Println()
 
@@ -640,7 +640,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		itemIDs := field.SuggestionIndexes()
+		itemIDs := field.suggestionIndexes
 		if len(itemIDs) == 0 {
 			// no available nodes to select
 			continue
@@ -649,7 +649,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		if len(itemIDs) == 1 {
 			// such node already selected as unique
 
-			parentNodeIndexes := field.GetParent().SuggestionIndexes()
+			parentNodeIndexes := field.parent.suggestionIndexes
 
 			f.assignKeys(itemIDs[0], parentNodeIndexes)
 			continue
@@ -675,7 +675,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				continue
 			}
 
-			parentNodeIndexes := field.GetParent().SuggestionIndexes()
+			parentNodeIndexes := field.parent.suggestionIndexes
 
 			f.assignKeys(itemID, parentNodeIndexes)
 		}
@@ -750,7 +750,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 				// when a node is a root query node, we will not have a parent
 				// so we need to check if the parent node id is not a root of a tree
-				if field.GetParentID() != treeRootID {
+				if field.parent.id != treeRootID {
 					// we need to check if the node with the enabled resolver could actually get a key from the parent node
 					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 						return true
@@ -797,7 +797,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 				// when node is a root query node we will not have parent
 				// so we need to check if parent node id is not a root of a tree
-				if field.GetParentID() != treeRootID {
+				if field.parent.id != treeRootID {
 					// we need to check if the node with enabled resolver could actually get a key from the parent node
 					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 						return true
@@ -846,7 +846,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 				// when node is a root query node we will not have parent
 				// so we need to check if parent node id is not a root of a tree
-				if field.GetParentID() != treeRootID {
+				if field.parent.id != treeRootID {
 					// when node is not a root query node we also check if node could actually get a key from the parent node
 					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 						return true
@@ -920,7 +920,7 @@ func (f *DataSourceFilter) findPossibleParents(i int) (parentIds []int) {
 
 func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx int) bool {
 	field := f.nodes.treeField(idx)
-	parentNodeIndexes := field.GetParent().SuggestionIndexes()
+	parentNodeIndexes := field.parent.suggestionIndexes
 
 	for _, parentIdx := range parentNodeIndexes {
 		if !f.nodes.items[parentIdx].Selected {
@@ -1250,7 +1250,7 @@ func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
 
 func (f *DataSourceFilter) childsHasOnlyTypename(i int) (hasOnlyTypename bool) {
 	field := f.nodes.treeField(i)
-	children := field.GetChildren()
+	children := field.children
 
 	if len(children) == 0 {
 		return false
@@ -1260,7 +1260,7 @@ func (f *DataSourceFilter) childsHasOnlyTypename(i int) (hasOnlyTypename bool) {
 	hasFields := false
 
 	for _, child := range children {
-		itemIds := child.SuggestionIndexes()
+		itemIds := child.suggestionIndexes
 		if len(itemIds) == 0 {
 			// the field is intentionally left unplanned (unfetchable) -
 			// it has no suggestions and contributes neither fields nor typename
