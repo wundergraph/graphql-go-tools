@@ -393,7 +393,9 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 		r.printBytes(null)
 		if r.hasExtensions() {
 			r.printBytes(comma)
-			r.printErr = r.printExtensions(ctx, fetchTree)
+			if err := r.printExtensions(ctx, fetchTree); err != nil {
+				r.printErr = err
+			}
 		}
 		r.printBytes(rBrace)
 		return r.printErr
@@ -429,7 +431,9 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 	if r.hasExtensions() {
 		r.printBytes(comma)
-		r.printErr = r.printExtensions(ctx, fetchTree)
+		if err := r.printExtensions(ctx, fetchTree); err != nil {
+			r.printErr = err
+		}
 	}
 
 	if r.deferMode {
