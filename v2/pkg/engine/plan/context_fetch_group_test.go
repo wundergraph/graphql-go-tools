@@ -35,7 +35,7 @@ type Quote { amount: String }`
 				WithMetadata(func(m *FederationMetaData) {
 					m.ContextProviders = []ContextProvider{{ContextName: "account", TypeName: "Account"}}
 					for _, arg := range []struct{ field, source string }{{"quote", "locale"}, {"sameLocale", "locale"}, {"regionQuote", "region"}} {
-						m.ContextArguments = append(m.ContextArguments, ContextArgument{ContextName: "account", TypeName: "Wallet", FieldName: arg.field, ArgumentName: "input", ArgumentType: "String", SelectionSet: "{ " + arg.source + " }"})
+						m.ContextArguments = append(m.ContextArguments, ContextArgument{ContextName: "account", TypeName: "Wallet", FieldName: arg.field, ArgumentName: "input", ArgumentType: "String", ContextSelection: "{ " + arg.source + " }"})
 					}
 				}).SchemaMergedWithBase(schema).DS()
 			planner, err := NewPlanner(Configuration{DataSources: []DataSource{source, quotes}})

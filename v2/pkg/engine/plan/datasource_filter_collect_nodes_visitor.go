@@ -589,7 +589,7 @@ func (f *dsNodesCollector) hasRequiredContexts(info fieldInfo) bool {
 			matches, all := f.contextMetadata.providerTypes(f.definition, argument.ContextName, ancestor.typeName)
 			if all {
 				if ancestor.parentFieldRef == ast.InvalidRef && rootContextUsesActiveField(f.definition, ancestor.typeName) &&
-					!f.rootFieldProvidesContext(ref, ancestor.typeName, argument.SelectionSet) {
+					!f.rootFieldProvidesContext(ref, ancestor.typeName, argument.ContextSelection) {
 					break
 				}
 				covered = true

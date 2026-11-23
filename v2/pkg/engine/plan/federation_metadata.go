@@ -14,7 +14,7 @@ type ContextProvider struct {
 }
 
 type ContextArgument struct {
-	ContextName, TypeName, FieldName, ArgumentName, ArgumentType, SelectionSet string
+	ContextName, TypeName, FieldName, ArgumentName, ArgumentType, ContextSelection string
 }
 
 type FederationMetaData struct {

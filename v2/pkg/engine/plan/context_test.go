@@ -152,7 +152,7 @@ func TestOperationRootContextEligibility(t *testing.T) {
 					rootField := op.Selections[op.SelectionSets[op.OperationDefinitions[0].SelectionSet].SelectionRefs[0]].Ref
 					metadata := FederationMetaData{
 						ContextProviders: []ContextProvider{{ContextName: "event", TypeName: "Events"}},
-						ContextArguments: []ContextArgument{{ContextName: "event", TypeName: "Wallet", FieldName: "quote", SelectionSet: tt.selection}},
+						ContextArguments: []ContextArgument{{ContextName: "event", TypeName: "Wallet", FieldName: "quote", ContextSelection: tt.selection}},
 					}
 					collector := dsNodesCollector{operation: &op, definition: &schema, contextMetadata: &metadata, info: map[int]fieldInfo{
 						rootField: {typeName: "Events", fieldName: "wallet", parentFieldRef: ast.InvalidRef},
@@ -221,7 +221,7 @@ func TestContextDependencyCoexistsWithRequires(t *testing.T) {
 		WithMetadata(func(m *FederationMetaData) {
 			m.Requires = FederationFieldConfigurations{{TypeName: "Account", FieldName: "score", SelectionSet: "locale"}}
 			m.ContextProviders = []ContextProvider{{ContextName: "account", TypeName: "Account"}}
-			m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ContextName: "account", SelectionSet: "{ locale }"}}
+			m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ContextName: "account", ContextSelection: "{ locale }"}}
 		}).SchemaMergedWithBase(schema).DS()
 	op := unsafeparser.ParseGraphqlDocumentString(`{account {locale score wallet {quote}}}`)
 	report := &operationreport.Report{}

@@ -236,7 +236,7 @@ func (c *nodeSelectionVisitor) handleContextArguments(field fieldRequirementsCon
 			continue
 		}
 		binding := &plannedContext{fieldRef: field.fieldRef, PlannedContextArgument: PlannedContextArgument{ContextArgument: arg}}
-		set := strings.TrimSpace(arg.SelectionSet)
+		set := strings.TrimSpace(arg.ContextSelection)
 		if len(set) < 2 || set[0] != '{' || set[len(set)-1] != '}' {
 			c.walker.StopWithInternalErr(fmt.Errorf("invalid selection for context %s", arg.ContextName))
 			return
