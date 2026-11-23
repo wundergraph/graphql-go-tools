@@ -308,10 +308,9 @@ func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int, fieldRequirem
 
 		parentIndexesToAddDeferID = append(parentIndexesToAddDeferID, parentIdToUpdate)
 
-		// if we have found a root node, and it requires a key - we have found the root node from which we could branch out.
-		// if the node is a root node, but it doesn't require a key, we need to go up to the root query node,
-		// because it is an entity node within the query started from the root query node
-		if f.items[parentIdToUpdate].IsRootNode && f.items[parentIdToUpdate].requiresKey != nil {
+		// The walk stops at a parent with its own entity fetch, because the deferred fetch can branch out from it.
+		// A @requires field on the parent data source has such a fetch without a key jump.
+		if f.isEntityFetchAnchor(parentIdToUpdate, fieldRequirementsConfigs) {
 			break
 		}
 

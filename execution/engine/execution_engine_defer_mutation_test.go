@@ -311,4 +311,170 @@ func TestExecutionEngine_Execute_DeferMutation(t *testing.T) {
 			`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename lastName}}}","variables":{"representations":[{"__typename":"User","id":"u1"}]}}`,
 		}, rec.requests())
 	})
+
+	requiresDefinition := `
+		type User {
+			id: ID!
+			lastName: String!
+			fullName: FullName!
+		}
+
+		type FullName {
+			title: String!
+			slow: String!
+		}
+
+		type Query {
+			user: User!
+		}
+
+		type Mutation {
+			createUser: User!
+		}
+	`
+
+	firstSubgraphSDL := `
+		type User @key(fields: "id") {
+			id: ID!
+			lastName: String! @external
+			fullName: FullName! @requires(fields: "lastName")
+		}
+
+		type FullName {
+			title: String!
+			slow: String!
+		}
+
+		type Query {
+			user: User!
+		}
+
+		type Mutation {
+			createUser: User!
+		}
+	`
+
+	secondSubgraphSDL := `
+		type User @key(fields: "id") {
+			id: ID!
+			lastName: String!
+		}
+	`
+
+	requiresSchema, err := graphql.NewSchemaFromString(requiresDefinition)
+	require.NoError(t, err)
+
+	requiresDataSources := func(t *testing.T, rec *multiFetchRecorder) []plan.DataSource {
+		t.Helper()
+
+		return []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"first-service",
+				mustFactory(t, recordingClient(t, rec, "first", "/", map[string]sendResponse{
+					`{"query":"mutation{createUser {id __typename}}"}`: {
+						statusCode: 200,
+						body:       `{"data":{"createUser":{"id":"u1","__typename":"User"}}}`,
+					},
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {title}}}}","variables":{"representations":[{"__typename":"User","lastName":"Smith","id":"u1"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"User","fullName":{"title":"Dr"}}]}}`,
+					},
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {slow}}}}","variables":{"representations":[{"__typename":"User","lastName":"Smith","id":"u1"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"User","fullName":{"slow":"done"}}]}}`,
+					},
+				})),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"user"}},
+						{TypeName: "Mutation", FieldNames: []string{"createUser"}},
+						{TypeName: "User", FieldNames: []string{"id", "fullName"}},
+					},
+					ChildNodes: []plan.TypeField{
+						{TypeName: "FullName", FieldNames: []string{"title", "slow"}},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{TypeName: "User", SelectionSet: "id"},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{TypeName: "User", FieldName: "fullName", SelectionSet: "lastName"},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{URL: "https://first/", Method: "POST"},
+					SchemaConfiguration: mustSchemaConfig(t,
+						&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: firstSubgraphSDL},
+						firstSubgraphSDL,
+					),
+				}),
+			),
+			mustGraphqlDataSourceConfiguration(t,
+				"second-service",
+				mustFactory(t, recordingClient(t, rec, "second", "/", map[string]sendResponse{
+					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_lastName: lastName}}}","variables":{"representations":[{"__typename":"User","id":"u1"}]}}`: {
+						statusCode: 200,
+						body:       `{"data":{"_entities":[{"__typename":"User","__internal_lastName":"Smith"}]}}`,
+					},
+				})),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "User", FieldNames: []string{"id", "lastName"}},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{TypeName: "User", SelectionSet: "id"},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{URL: "https://second/", Method: "POST"},
+					SchemaConfiguration: mustSchemaConfig(t,
+						&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: secondSubgraphSDL},
+						secondSubgraphSDL,
+					),
+				}),
+			),
+		}
+	}
+
+	t.Run("[E6] nested defer below a deferred @requires field runs the mutation once", func(t *testing.T) {
+		rec := &multiFetchRecorder{}
+
+		runWithoutError(ExecutionEngineTestCase{
+			schema: requiresSchema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					OperationName: "CreateUser",
+					Query: `
+						mutation CreateUser {
+							createUser {
+								id
+								... @defer {
+									fullName {
+										title
+										... @defer {
+											slow
+										}
+									}
+								}
+							}
+						}`,
+				}
+			},
+			dataSources: requiresDataSources(t, rec),
+			expectedResponse: `{"data":{"createUser":{"id":"u1"}},"pending":[{"id":"1","path":["createUser"]}],"hasNext":true}
+{"incremental":[{"data":{"fullName":{"title":"Dr"}},"id":"1"}],"completed":[{"id":"1"}],"pending":[{"id":"2","path":["createUser","fullName"]}],"hasNext":true}
+{"incremental":[{"data":{"slow":"done"},"id":"2"}],"completed":[{"id":"2"}],"hasNext":false}
+`,
+		}, withStreamingResponse())(t)
+
+		assert.Equal(t, []string{
+			`{"query":"mutation{createUser {id __typename}}"}`,
+			`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename __internal_lastName: lastName}}}","variables":{"representations":[{"__typename":"User","id":"u1"}]}}`,
+			`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {title}}}}","variables":{"representations":[{"__typename":"User","lastName":"Smith","id":"u1"}]}}`,
+			`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {slow}}}}","variables":{"representations":[{"__typename":"User","lastName":"Smith","id":"u1"}]}}`,
+		}, rec.requests())
+	})
 }
