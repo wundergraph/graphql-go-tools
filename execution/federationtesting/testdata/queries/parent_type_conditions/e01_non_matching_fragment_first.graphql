@@ -1,0 +1,23 @@
+# The non-matching fragment comes first. someObject must still render for SomeNestedType1.
+query NonMatchingFragmentFirst {
+    someNestedInterfaces {
+        __typename
+        otherInterfaces {
+            __typename
+        }
+        ... on SomeNestedType2 {
+            otherInterfaces {
+                someObject {
+                    a
+                }
+            }
+        }
+        ... on SomeNestedType1 {
+            otherInterfaces {
+                someObject {
+                    a
+                }
+            }
+        }
+    }
+}

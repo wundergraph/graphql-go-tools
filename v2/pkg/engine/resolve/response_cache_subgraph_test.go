@@ -293,7 +293,7 @@ func TestResponseCacheSubgraphResolve(t *testing.T) {
 		require.False(t, resolveWith(t, resolver, accounts, opts).ResponseCacheHit)
 		hit := resolveWith(t, resolver, accounts, opts)
 		require.True(t, hit.ResponseCacheHit)
-		require.Equal(t, time.Hour, hit.ResponseCacheTTL, "the entry's lifetime, not the default minute")
+		require.Equal(t, time.Hour, hit.ResponseCacheTTL.Round(time.Second), "the entry's lifetime, not the default minute")
 	})
 }
 

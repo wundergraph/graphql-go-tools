@@ -18,6 +18,7 @@ type testDeferWriter struct {
 	mu       sync.Mutex
 	buf      bytes.Buffer
 	payloads []string
+	finals   []bool
 	complete bool
 }
 
@@ -27,10 +28,11 @@ func (w *testDeferWriter) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
-func (w *testDeferWriter) Flush() error {
+func (w *testDeferWriter) Flush(final bool) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.payloads = append(w.payloads, w.buf.String())
+	w.finals = append(w.finals, final)
 	w.buf.Reset()
 	return nil
 }
@@ -103,6 +105,7 @@ func TestResolveDeferTree_TwoParallelSiblings(t *testing.T) {
 	require.NoError(t, err)
 	// 1 initial response (pending frame) + 2 deferred incremental payloads
 	assert.Len(t, writer.payloads, 3)
+	assert.Equal(t, []bool{false, false, true}, writer.finals)
 	assert.True(t, writer.complete)
 }
 
@@ -140,6 +143,7 @@ func TestResolveDeferTree_SequenceOrdering(t *testing.T) {
 	require.NoError(t, err)
 	// 1 initial response (pending frame) + 2 deferred incremental payloads
 	require.Len(t, writer.payloads, 3)
+	assert.Equal(t, []bool{false, false, true}, writer.finals)
 	assert.Contains(t, writer.payloads[1], "parent")
 	assert.Contains(t, writer.payloads[2], "child")
 }
@@ -178,6 +182,7 @@ func TestResolveDeferTree_SiblingFailureIsIndependent(t *testing.T) {
 	require.NoError(t, err)
 	// 1 initial response (pending frame) + 2 deferred incremental payloads
 	assert.Len(t, writer.payloads, 3)
+	assert.Equal(t, []bool{false, false, true}, writer.finals)
 }
 
 func TestResolveDeferTree_ParallelSiblings_ErrorsAreIsolated(t *testing.T) {
@@ -235,6 +240,7 @@ func TestResolveDeferTree_ParallelSiblings_ErrorsAreIsolated(t *testing.T) {
 	_, err := r.ResolveGraphQLDeferResponse(ctx, response, writer)
 	require.NoError(t, err)
 	require.Len(t, writer.payloads, 3, "expected 1 initial + 2 incremental frames")
+	assert.Equal(t, []bool{false, false, true}, writer.finals)
 
 	// Each error must appear exactly once across all incremental payloads.
 	// Before the fix both errors are discarded (errors=nil wipes them); this

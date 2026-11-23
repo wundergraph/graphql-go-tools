@@ -64,7 +64,6 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionVisitor := &nodeSelectionVisitor{
 		walker:                        &nodeSelectionsWalker,
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
-		newFieldRefs:                  make(map[int]struct{}),
 		unfetchableFieldRefs:          make(map[int]struct{}),
 		unresolvableFieldRefs:         make(map[int]struct{}),
 		fieldMergingAliasRefs:         make(map[int][]byte),
@@ -97,7 +96,6 @@ func (p *NodeSelectionBuilder) SetOperationName(name string) {
 
 func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
-	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.unfetchableFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.unresolvableFieldRefs = make(map[int]struct{})
 	p.nodeSelectionsVisitor.fieldMergingAliasRefs = make(map[int][]byte)
@@ -106,7 +104,7 @@ func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 // SelectNodes implements Steps 1-2 of the planner pipeline.
 // It assigns all the fields and their requirements (via @key and @requires) to DataSources.
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
-	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs).
+	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources).
 		WithUnfetchableFieldRefs(p.nodeSelectionsVisitor.unfetchableFieldRefs)
 
 	if p.config.Debug.PrintNodeSuggestions {
@@ -134,11 +132,12 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 	// Step 2. For every DataSource-assigned field, check if it has @key or @requires dependencies.
 	// Add newly found dependency/required fields into the GraphQL operation.
-	p.nodeSelectionsVisitor.secondaryRun = false
+	p.nodeSelectionsVisitor.firstRun = true
 	p.nodeSelectionsWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
 		return
 	}
+	p.nodeSelectionsVisitor.firstRun = false
 
 	if p.config.Debug.PrintOperationTransformations {
 		debugMessage("SelectNodes. on run #1 operation:")
@@ -146,9 +145,9 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	i := 1
-	hasUnresolvedFields := false
-	fallbackKeyJumpsEnabled := false
-	refilterWithFallbackKeyJumps := false
+	// fallbackJustEnabled forces one more run, refiltering the datasources with fallback key jumps,
+	// even when the last walk added no new fields.
+	fallbackJustEnabled := false
 	// When the first selection run left unresolved fields (e.g. fields marked with
 	// requiresFallbackKey - reachable only via a fallback subset -> compound key jump),
 	// enable fallback key jumps and force a full refilter: the datasource selection
@@ -159,46 +158,35 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions)
 		if resolvableReport.HasErrors() {
 			dsFilter.EnableFallbackKeyJumps()
-			fallbackKeyJumpsEnabled = true
-			refilterWithFallbackKeyJumps = true
-			hasUnresolvedFields = true
+			fallbackJustEnabled = true
 		}
 	}
 
 	// Additional runs to add paths for the new required fields
-	for p.nodeSelectionsVisitor.hasNewFields || hasUnresolvedFields {
+	for p.nodeSelectionsVisitor.hasNewFields || fallbackJustEnabled {
+		fallbackJustEnabled = false
+
 		for _, fieldRef := range p.nodeSelectionsVisitor.rewrittenFieldRefs {
-			p.nodeSelectionsVisitor.nodeSuggestions.RemoveRewrittenFieldChilds(fieldRef)
+			p.nodeSelectionsVisitor.nodeSuggestions.RemoveRewrittenFieldChildren(fieldRef)
 		}
 
 		for _, fieldRef := range p.nodeSelectionsVisitor.aliasedFieldRefs {
-			p.nodeSelectionsVisitor.nodeSuggestions.AbandonFieldChilds(fieldRef)
+			p.nodeSelectionsVisitor.nodeSuggestions.AbandonFieldChildren(fieldRef)
 		}
 
-		p.nodeSelectionsVisitor.secondaryRun = true
-
-		if p.nodeSelectionsVisitor.hasNewFields || refilterWithFallbackKeyJumps {
-			// Repeat Step 1. Update suggestions for the new required fields.
-			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
-			if report.HasErrors() {
-				return
-			}
-			if fallbackKeyJumpsEnabled {
-				// the refilter with fallback jumps enabled could land fields on other
-				// datasources - drop requirements of the no longer selected (field, ds) pairs
-				p.nodeSelectionsVisitor.pruneStaleFieldRequirements()
-			}
-			refilterWithFallbackKeyJumps = false
+		// Repeat Step 1. Update suggestions for the new required fields.
+		p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions = dsFilter.FilterDataSources(p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
+		if report.HasErrors() {
+			return
 		}
 
-		if len(p.nodeSelectionsVisitor.rewrittenFieldRefs) > 0 {
-			// The fields unselected after a rewrite could have required fields
-			// added to the operation on the parent levels.
-			// When such fields were not re-selected on the requiring datasource
-			// by the filter run above - their requirements are abandoned,
-			// and we have to clean them up.
-			p.cleanupAbandonedFieldDependencies(operation)
-		}
+		// The fields unselected by the filter run above - after a rewrite,
+		// after a key landed them on another datasource,
+		// or after the refilter with fallback key jumps -
+		// could have required fields added to the operation.
+		// When such fields were not re-selected on the requiring datasource,
+		// their requirements are abandoned, and we have to clean them up.
+		p.cleanupAbandonedFieldDependencies(operation)
 
 		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
 			debugMessage(fmt.Sprintf("SelectNodes. on run #%d.", i+1))
@@ -222,15 +210,13 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		i++
 
 		resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions)
-		hasUnresolvedFields = resolvableReport.HasErrors()
-		if hasUnresolvedFields {
+		if resolvableReport.HasErrors() {
 			// same failure gate as before the loop: unresolved fields on a later run
 			// (e.g. on the required fields added by the planner) enable fallback key jumps
-			if !fallbackKeyJumpsEnabled {
+			if !dsFilter.allowFallbackKeyJumps {
 				dsFilter.EnableFallbackKeyJumps()
-				fallbackKeyJumpsEnabled = true
-				refilterWithFallbackKeyJumps = true
-			} else if !p.nodeSelectionsVisitor.hasNewFields && !refilterWithFallbackKeyJumps {
+				fallbackJustEnabled = true
+			} else if !p.nodeSelectionsVisitor.hasNewFields {
 				// fallback key jumps are already enabled, their refilter has run,
 				// and this iteration made no progress (per-walk state is reset in
 				// EnterDocument) - further iterations cannot change anything,
@@ -311,6 +297,10 @@ func (p *NodeSelectionBuilder) dropAbandonedDependencyEntries() map[int]struct{}
 
 		delete(v.fieldDependsOn, key)
 		delete(v.fieldRequirementsConfigs, key)
+		// a later filter run could select the pair again,
+		// so its requirements have to be checked again
+		delete(v.visitedFieldsKeyChecks, key)
+		delete(v.visitedFieldsRequiresChecks, key)
 
 		for _, requiredRef := range requiredRefs {
 			abandonedRequiredRefs[requiredRef] = struct{}{}
@@ -457,13 +447,12 @@ func (p *NodeSelectionBuilder) printOperation(operation *ast.Document) {
 					return
 				}
 
-				treeNodeId := TreeNodeID(fieldRef)
-				node, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.Find(treeNodeId)
+				field, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.find(fieldRef)
 				if !ok {
 					return
 				}
 
-				items := node.GetData()
+				items := field.suggestionIndexes
 				for _, id := range items {
 					if p.nodeSelectionsVisitor.nodeSuggestions.items[id].Selected {
 						_, _ = fmt.Fprintf(out, "  %s", p.nodeSelectionsVisitor.nodeSuggestions.items[id].StringShort())

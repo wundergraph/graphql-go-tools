@@ -972,3 +972,36 @@ func (s *MockService) RequireStorageTagsByLengthsById(_ context.Context, req *pr
 
 	return &productv1.RequireStorageTagsByLengthsByIdResponse{Result: results}, nil
 }
+
+// RequireStorageStorageAuditById implements [productv1.ProductServiceServer].
+// Returns a nested type with field resolvers on several levels.
+func (s *MockService) RequireStorageStorageAuditById(_ context.Context, req *productv1.RequireStorageStorageAuditByIdRequest) (*productv1.RequireStorageStorageAuditByIdResponse, error) {
+	results := make([]*productv1.RequireStorageStorageAuditByIdResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		metadata := ctx.GetFields().GetMetadata()
+		zone := strings.ToUpper(metadata.GetZone())
+
+		// One finding per 50 units of capacity, at least one.
+		findingCount := max(int(metadata.GetCapacity()/50), 1)
+		findings := make([]*productv1.AuditFinding, 0, findingCount)
+		for j := range findingCount {
+			findings = append(findings, &productv1.AuditFinding{
+				Code:     fmt.Sprintf("%s-F%d", zone, j+1),
+				Severity: int32(j + 1),
+			})
+		}
+
+		results = append(results, &productv1.RequireStorageStorageAuditByIdResult{
+			StorageAudit: &productv1.StorageAudit{
+				Zone: zone,
+				Report: &productv1.AuditReport{
+					GeneratedAt: "2024-01-01T00:00:00Z",
+					Findings:    findings,
+				},
+			},
+		})
+	}
+
+	return &productv1.RequireStorageStorageAuditByIdResponse{Result: results}, nil
+}

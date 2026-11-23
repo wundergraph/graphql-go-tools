@@ -125,6 +125,30 @@ func TestGetRepresentations(t *testing.T) {
 		assert.Equal(t, "Storage", string(reps[1].Get("__typename").GetStringBytes()))
 	})
 }
+
+func TestFilterRepresentations(t *testing.T) {
+	t.Run("keeps only the representations of the requested type", func(t *testing.T) {
+		variables := astjson.MustParse(`{"representations":[
+			{"__typename":"Product","id":"1"},
+			{"__typename":"Storage","id":"2"},
+			{"__typename":"Product","id":"3"}
+		]}`)
+
+		filtered := filterRepresentations(nil, variables, "Product")
+		assert.JSONEq(t, `{"representations":[{"__typename":"Product","id":"1"},{"__typename":"Product","id":"3"}]}`, filtered.String())
+	})
+
+	t.Run("keeps the other variables", func(t *testing.T) {
+		variables := astjson.MustParse(`{"prefix":"e","representations":[
+			{"__typename":"Product","id":"1"},
+			{"__typename":"Storage","id":"2"}
+		]}`)
+
+		filtered := filterRepresentations(nil, variables, "Storage")
+		assert.JSONEq(t, `{"prefix":"e","representations":[{"__typename":"Storage","id":"2"}]}`, filtered.String())
+	})
+}
+
 func TestValidateEntityResponse(t *testing.T) {
 	reps := getRepresentations(astjson.MustParse(`{"representations":[
 		{"__typename":"Product","id":"1"},

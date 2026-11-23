@@ -30,12 +30,23 @@ type Item struct {
 	Tags []string
 	// Surrogate keys are what a client response carries so a CDN can purge by them.
 	// Stored with the value and returned by GetMany.
-	SurrogateKeys []string
+	SurrogateKeys []SurrogateKey
 	// Vary makes the entry a vary record rather than a body: the sets of
 	// request headers responses at this key have varied on, newest first.
 	// Each set's values select a variant stored under VariantKey. A record has
 	// no Value and no SurrogateKeys.
 	Vary [][]string
+	// Public is whether the response said public, so a hit says it only then.
+	Public bool
+	// SharedOnly is CachePolicy.SharedOnly: a hit gives a client no max-age of
+	// its own. Stored and returned with the value.
+	SharedOnly bool
+	// ClientTTL is CachePolicy.ClientTTL: how long a client may keep the
+	// entry, never over TTL. Like TTL, GetMany returns what is left of it.
+	ClientTTL time.Duration
+	// FetchedAt is when the fetch behind the item started. A store drops the
+	// item if one of its tags was invalidated since. Not stored.
+	FetchedAt time.Time
 }
 
 // Cache is a batch oriented key/value cache.
@@ -57,6 +68,8 @@ var (
 	ErrMissingTTL = errors.New("cache item requires a positive TTL")
 	ErrNoKeys     = errors.New("response cache lookup requires at least one key")
 	ErrNoItems    = errors.New("response cache write requires at least one item")
+
+	ErrInvalidSurrogateKeyTier = errors.New("surrogate key has an unknown tier")
 )
 
 type SetManyError struct {

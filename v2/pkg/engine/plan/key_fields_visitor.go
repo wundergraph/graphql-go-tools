@@ -88,7 +88,7 @@ type Entity {
 
 */
 
-func (f *collectNodesDSVisitor) collectKeysForPath(typeName, parentPath string, providedSelection providesSelection) error {
+func (f *dsNodesCollector) collectKeysForPath(typeName, parentPath string, providedSelection providesSelection) error {
 	indexKey := SeenKeyPath{
 		TypeName: typeName,
 		Path:     parentPath,

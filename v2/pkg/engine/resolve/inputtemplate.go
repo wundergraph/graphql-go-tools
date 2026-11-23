@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -65,9 +66,15 @@ type InputTemplateWriter interface {
 }
 
 func (i *InputTemplate) Render(ctx *Context, data *astjson.Value, preparedInput InputTemplateWriter) error {
+	return i.RenderWithArena(ctx, nil, data, preparedInput)
+}
+
+// RenderWithArena may mutate data during null propagation. dataArena must be
+// the arena that owns data, or nil for heap-backed data.
+func (i *InputTemplate) RenderWithArena(ctx *Context, dataArena arena.Arena, data *astjson.Value, preparedInput InputTemplateWriter) error {
 	var undefinedVariables []string
 
-	if err := i.renderSegments(ctx, data, i.Segments, preparedInput, &undefinedVariables); err != nil {
+	if err := i.renderSegments(ctx, dataArena, data, i.Segments, preparedInput, &undefinedVariables); err != nil {
 		return err
 	}
 
@@ -75,11 +82,11 @@ func (i *InputTemplate) Render(ctx *Context, data *astjson.Value, preparedInput 
 }
 
 func (i *InputTemplate) RenderAndCollectUndefinedVariables(ctx *Context, data *astjson.Value, preparedInput InputTemplateWriter, undefinedVariables *[]string) (err error) {
-	err = i.renderSegments(ctx, data, i.Segments, preparedInput, undefinedVariables)
+	err = i.renderSegments(ctx, nil, data, i.Segments, preparedInput, undefinedVariables)
 	return
 }
 
-func (i *InputTemplate) renderSegments(ctx *Context, data *astjson.Value, segments []TemplateSegment, preparedInput InputTemplateWriter, undefinedVariables *[]string) (err error) {
+func (i *InputTemplate) renderSegments(ctx *Context, dataArena arena.Arena, data *astjson.Value, segments []TemplateSegment, preparedInput InputTemplateWriter, undefinedVariables *[]string) (err error) {
 	for _, segment := range segments {
 		switch segment.SegmentType {
 		case StaticSegmentType:
@@ -87,7 +94,7 @@ func (i *InputTemplate) renderSegments(ctx *Context, data *astjson.Value, segmen
 		case VariableSegmentType:
 			switch segment.VariableKind {
 			case ObjectVariableKind:
-				err = i.renderObjectVariable(ctx.Context(), data, segment, preparedInput)
+				err = i.renderObjectVariable(ctx.Context(), dataArena, data, segment, preparedInput)
 			case ContextVariableKind:
 				var undefined bool
 				undefined, err = i.renderContextVariable(ctx, segment, preparedInput)
@@ -95,7 +102,7 @@ func (i *InputTemplate) renderSegments(ctx *Context, data *astjson.Value, segmen
 					*undefinedVariables = append(*undefinedVariables, segment.VariableSourcePath[0])
 				}
 			case ResolvableObjectVariableKind:
-				err = i.renderResolvableObjectVariable(ctx.Context(), data, segment, preparedInput)
+				err = renderResponseVariable(ctx.Context(), dataArena, data, segment.Renderer, preparedInput)
 			case HeaderVariableKind:
 				err = i.renderHeaderVariable(ctx, segment.VariableSourcePath, preparedInput)
 			default:
@@ -116,7 +123,7 @@ func (i *InputTemplate) renderSegments(ctx *Context, data *astjson.Value, segmen
 	return err
 }
 
-func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables *astjson.Value, segment TemplateSegment, preparedInput InputTemplateWriter) error {
+func (i *InputTemplate) renderObjectVariable(ctx context.Context, dataArena arena.Arena, variables *astjson.Value, segment TemplateSegment, preparedInput InputTemplateWriter) error {
 	value := variables.Get(segment.VariableSourcePath...)
 	if value == nil || value.Type() == astjson.TypeNull {
 		if i.SetTemplateOutputToNullOnVariableNull {
@@ -125,11 +132,16 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables *ast
 		_, _ = preparedInput.Write(literal.NULL)
 		return nil
 	}
-	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
+	return renderResponseVariable(ctx, dataArena, value, segment.Renderer, preparedInput)
 }
 
-func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData *astjson.Value, segment TemplateSegment, preparedInput InputTemplateWriter) error {
-	return segment.Renderer.RenderVariable(ctx, objectData, preparedInput)
+func renderResponseVariable(ctx context.Context, dataArena arena.Arena, data *astjson.Value, renderer VariableRenderer, out InputTemplateWriter) error {
+	if arenaRenderer, ok := renderer.(interface {
+		RenderVariableWithArena(context.Context, arena.Arena, *astjson.Value, io.Writer) error
+	}); ok {
+		return arenaRenderer.RenderVariableWithArena(ctx, dataArena, data, out)
+	}
+	return renderer.RenderVariable(ctx, data, out)
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput InputTemplateWriter) (variableWasUndefined bool, err error) {

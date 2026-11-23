@@ -2,7 +2,6 @@ package astnormalization
 
 import (
 	"bytes"
-	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -80,14 +79,11 @@ func (v *deferAlignTypenameScopeVisitor) LeaveField(ref int) {}
 // (the object the current field belongs to). deferred is false when there is no
 // ancestor field or that field carries no @__defer_internal.
 func (v *deferAlignTypenameScopeVisitor) enclosingObjectFieldDefer() (id int, label string, parentID int, deferred bool) {
-	for _, v0 := range slices.Backward(v.Walker.Ancestors) {
-		ancestor := v0
-		if ancestor.Kind != ast.NodeKindField {
-			continue
-		}
-		return v.operation.FieldDeferInfo(ancestor.Ref)
+	fieldRef := v.EnclosingFieldRef()
+	if fieldRef == ast.InvalidRef {
+		return 0, "", 0, false
 	}
-	return 0, "", 0, false
+	return v.operation.FieldDeferInfo(fieldRef)
 }
 
 func (v *deferAlignTypenameScopeVisitor) removeFieldDeferDirective(fieldRef, directiveRef int) {

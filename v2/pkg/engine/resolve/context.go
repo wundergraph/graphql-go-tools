@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/wundergraph/astjson"
@@ -280,7 +281,12 @@ type responseCache struct {
 	hasSingleFlightID bool
 	// surrogateKeys is the union over every fetch of the request, merged under
 	// the loader's data lock as each fetch is merged.
-	surrogateKeys []string
+	surrogateKeys []caching.SurrogateKey
+	traceDetails  func(surrogateKeys []caching.SurrogateKey) any
+	// onlyIfCached refuses every fetch the cache cannot answer; unsatisfied
+	// records that one was refused. Fetches run in parallel.
+	onlyIfCached bool
+	unsatisfied  atomic.Bool
 }
 
 // responseCacheFor is the cache's settings for a subgraph, or false when nothing
@@ -324,7 +330,7 @@ func (c *Context) responseCacheSingleFlightID() (caching.Digest, bool) {
 // ResponseCacheSurrogateKeys are the cache tags of every cached fetch in the
 // request so far, hits and misses alike, for the response header. Complete once
 // resolution has finished.
-func (c *Context) ResponseCacheSurrogateKeys() []string {
+func (c *Context) ResponseCacheSurrogateKeys() []caching.SurrogateKey {
 	if c.responseCache == nil {
 		return nil
 	}
@@ -333,7 +339,7 @@ func (c *Context) ResponseCacheSurrogateKeys() []string {
 
 // setResponseCacheSurrogateKeys replaces the set: a fresh resolution starts empty,
 // and a deduplicated follower takes the leader's.
-func (c *Context) setResponseCacheSurrogateKeys(surrogateKeys []string) {
+func (c *Context) setResponseCacheSurrogateKeys(surrogateKeys []caching.SurrogateKey) {
 	if c.responseCache != nil {
 		c.responseCache.surrogateKeys = surrogateKeys
 	}
@@ -376,6 +382,11 @@ type ResponseCacheOptions struct {
 	// An entry replaces DefaultTTL and PrivateID whole for that subgraph. The map
 	// is kept, not copied, and must not change after SetResponseCache.
 	Subgraphs map[string]ResponseCacheSubgraphOptions
+	// OnlyIfCached fails every fetch the cache cannot answer instead of sending
+	// it (RFC 9111 §5.2.1.7). Fetches of uncached subgraphs fail too.
+	OnlyIfCached bool
+	// TraceDetails adds the caller's view of the request's surrogate keys to ART.
+	TraceDetails func(surrogateKeys []caching.SurrogateKey) any
 }
 
 // ResponseCacheSubgraphOptions is the cache's settings for one subgraph.
@@ -400,6 +411,8 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		def:             responseCacheSubgraph{ttl: opts.DefaultTTL},
 		defaultDisabled: opts.DefaultDisabled,
 		subgraphs:       opts.Subgraphs,
+		onlyIfCached:    opts.OnlyIfCached,
+		traceDetails:    opts.TraceDetails,
 	}
 	if opts.DefaultDisabled {
 		// Nothing is keyed by it, so it must not keep users apart either.
@@ -435,6 +448,12 @@ func (c *Context) SetResponseCache(opts ResponseCacheOptions) {
 		rc.hasSingleFlightID = true
 	}
 	c.responseCache = rc
+}
+
+// ResponseCacheUnsatisfied reports whether an only-if-cached request had a
+// fetch the cache could not answer.
+func (c *Context) ResponseCacheUnsatisfied() bool {
+	return c.responseCache != nil && c.responseCache.unsatisfied.Load()
 }
 
 func (c *Context) SubgraphErrors() error {

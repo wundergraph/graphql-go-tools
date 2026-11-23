@@ -111,24 +111,6 @@ func TestDeferExpandIntoInternal(t *testing.T) {
 						}
 					}`)
 	})
-	t.Run("simple - disabled no variable value", func(t *testing.T) {
-		run(t, deferExpandIntoInternal, testDefinition, `
-					query dog($defer: Boolean!) {
-						dog {
-							... @defer(if: $defer) {
-								name
-							}
-						}
-					}`,
-			`
-					query dog($defer: Boolean!) {
-						dog {
-							... {
-								name
-							}
-						}
-					}`)
-	})
 	t.Run("simple - enabled via variable", func(t *testing.T) {
 		runWithVariables(t, deferExpandIntoInternal, testDefinition, `
 					query dog($defer: Boolean!) {

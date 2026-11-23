@@ -131,7 +131,12 @@ type ResponseWriter interface {
 
 type DeferResponseWriter interface {
 	ResponseWriter
-	Flush() error
+	// Flush sends the buffered payload. final is true when no further payloads
+	// will follow, including an initial result with no surviving deferred work.
+	// Transports can use it to close the stream with the final payload.
+	Flush(final bool) error
+	// Complete releases transport resources after a committed response, including
+	// when execution fails before producing a final payload.
 	Complete()
 }
 

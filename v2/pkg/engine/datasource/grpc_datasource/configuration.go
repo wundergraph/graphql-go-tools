@@ -177,6 +177,10 @@ func (g *GRPCMapping) FindEnumValueMapping(enumName, enumValue string) (string, 
 
 // FindEntityRPCConfig finds the gRPC RPC config for a given GraphQL type and key
 func (g *GRPCMapping) FindEntityRPCConfig(typeName, key string) (RPCConfig, bool) {
+	if g == nil || g.EntityRPCs == nil {
+		return RPCConfig{}, false
+	}
+
 	rpcConfig, ok := g.EntityRPCs[typeName]
 	if !ok {
 		return RPCConfig{}, false
@@ -193,6 +197,10 @@ func (g *GRPCMapping) FindEntityRPCConfig(typeName, key string) (RPCConfig, bool
 }
 
 func (g *GRPCMapping) FindRequiredFieldsRPCConfig(typeName, key, field string) (RequiredFieldsRPCTypeField, bool) {
+	if g == nil || g.EntityRPCs == nil {
+		return RequiredFieldsRPCTypeField{}, false
+	}
+
 	rpcConfig, ok := g.EntityRPCs[typeName]
 	if !ok {
 		return RequiredFieldsRPCTypeField{}, false

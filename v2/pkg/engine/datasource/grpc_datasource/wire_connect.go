@@ -82,47 +82,7 @@ func (w *wireMessage) createProtoWire(data *astjson.Value) ([]byte, error) {
 // appendProtoWire encodes the message fields into the given buffer.
 func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) error {
 	if w.oneOfType != OneOfTypeNone {
-		if !data.Exists("__typename") {
-			return fmt.Errorf("__typename is required for oneof fields")
-		}
-
-		typeName := string(data.Get("__typename").GetStringBytes())
-
-		oneOfDescriptor := w.oneOfTypeDecriptor()
-		if oneOfDescriptor == nil {
-			return fmt.Errorf("oneof descriptor not found for message %s", w.runtime.name)
-		}
-
-		found := false
-		fields := oneOfDescriptor.Fields()
-		for i := range fields.Len() {
-			field := fields.Get(i)
-			if field.Kind() != protoref.MessageKind {
-				continue
-			}
-
-			if field.Message().Name() == protoref.Name(typeName) {
-				fieldNumber := field.Number()
-				buf.Write(protowire.AppendTag(buf.AvailableBuffer(), fieldNumber, protowire.BytesType))
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return fmt.Errorf("%s not found in oneof %s", typeName, oneOfDescriptor.Name())
-		}
-
-		oneOfFields := w.oneOfFields[typeName]
-		fieldsBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
-		for _, field := range oneOfFields {
-			if err := field.appendFieldWire(fieldsBuffer, data); err != nil {
-				return err
-			}
-		}
-
-		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), fieldsBuffer.Bytes()))
-		return nil
+		return w.appendOneOfProtoWire(buf, data)
 	}
 
 	for _, field := range w.fields {
@@ -130,6 +90,52 @@ func (w *wireMessage) appendProtoWire(buf *bytes.Buffer, data *astjson.Value) er
 			return err
 		}
 	}
+	return nil
+}
+
+// appendOneOfProtoWire encodes the oneof fields into the given buffer.
+// If the expected type name is not found in the oneof, an error is returned.
+func (w *wireMessage) appendOneOfProtoWire(buf *bytes.Buffer, data *astjson.Value) error {
+	if !data.Exists("__typename") {
+		return fmt.Errorf("__typename is required for oneof fields")
+	}
+
+	typeName := string(data.Get("__typename").GetStringBytes())
+
+	oneOfDescriptor := w.oneOfTypeDecriptor()
+	if oneOfDescriptor == nil {
+		return fmt.Errorf("oneof descriptor not found for message %s", w.runtime.name)
+	}
+
+	found := false
+	fields := oneOfDescriptor.Fields()
+	for i := range fields.Len() {
+		field := fields.Get(i)
+		if field.Kind() != protoref.MessageKind {
+			continue
+		}
+
+		if field.Message().Name() == protoref.Name(typeName) {
+			fieldNumber := field.Number()
+			buf.Write(protowire.AppendTag(buf.AvailableBuffer(), fieldNumber, protowire.BytesType))
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("%s not found in oneof %s", typeName, oneOfDescriptor.Name())
+	}
+
+	oneOfFields := w.oneOfFields[typeName]
+	fieldsBuffer := bytes.NewBuffer(make([]byte, 0, minBufferSize))
+	for _, field := range oneOfFields {
+		if err := field.appendFieldWire(fieldsBuffer, data); err != nil {
+			return err
+		}
+	}
+
+	buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), fieldsBuffer.Bytes()))
 	return nil
 }
 
@@ -159,6 +165,10 @@ func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) erro
 		fieldData = data
 	}
 
+	if !fieldData.Exists() && f.defaultValue != nil {
+		fieldData = f.defaultValue
+	}
+
 	if !fieldData.Exists() {
 		if f.optional {
 			return nil
@@ -173,6 +183,14 @@ func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) erro
 
 	if f.repeated {
 		for _, element := range fieldData.GetArray() {
+			if isNullJSONValue(element) {
+				if err := f.appendNullListItem(buf); err != nil {
+					return err
+				}
+
+				continue
+			}
+
 			err := f.appendFieldValue(buf, element)
 			if err != nil {
 				return err
@@ -212,6 +230,9 @@ func (f *wireField) appendFieldWire(buf *bytes.Buffer, data *astjson.Value) erro
 func (f *wireField) appendListFieldValue(buf *bytes.Buffer, data *astjson.Value, level int) error {
 	if level >= f.listMetadata.NestingLevel {
 		f.listMetadata = nil // reset the list metadata to avoid infinite recursion
+		if isNullJSONValue(data) {
+			return f.appendNullListItem(buf)
+		}
 		return f.appendFieldWire(buf, data)
 	}
 
@@ -318,8 +339,41 @@ func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astj
 	return nil
 }
 
+// isOptionalScalar reports whether the field is a nullable scalar that is
+// wrapped in a google.protobuf.*Value message. Nullable enums are plain proto
+// enum fields: protobuf has no wrapper type for them.
 func (f *wireField) isOptionalScalar() bool {
-	return f.optional && f.dataType != DataTypeMessage
+	return f.optional && f.dataType != DataTypeMessage && f.dataType != DataTypeEnum
+}
+
+// appendNullListItem writes a null item of a list with nullable items
+// (`[Status]`, `[Input]`). A repeated proto field cannot hold null, so the item
+// is sent as its type's default: the first enum value, an empty message, an
+// empty string or 0.
+func (f *wireField) appendNullListItem(buf *bytes.Buffer) error {
+	buf.Write(f.tag)
+
+	if f.runtimeEnum != nil {
+		first := f.runtimeEnum.desc.Values().Get(0).Number()
+		// Sign-extend the enum number.
+		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(int64(first))))
+		return nil
+	}
+
+	switch f.wireType {
+	case protowire.BytesType:
+		buf.Write(protowire.AppendBytes(buf.AvailableBuffer(), nil))
+	case protowire.VarintType:
+		buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), 0))
+	case protowire.Fixed32Type:
+		buf.Write(protowire.AppendFixed32(buf.AvailableBuffer(), 0))
+	case protowire.Fixed64Type:
+		buf.Write(protowire.AppendFixed64(buf.AvailableBuffer(), 0))
+	default:
+		return fmt.Errorf("unsupported wire type %d", f.wireType)
+	}
+
+	return nil
 }
 
 func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) error {
@@ -348,7 +402,7 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 			// Sign-extend the enum number.
 			value = uint64(int64(num))
 		} else {
-			value = getUint64Value(data)
+			value = f.getUint64Value(data)
 		}
 
 		buf.Write(f.tag)
@@ -370,10 +424,15 @@ func (f *wireField) appendFieldValue(buf *bytes.Buffer, data *astjson.Value) err
 	return nil
 }
 
-func getUint64Value(data *astjson.Value) uint64 {
+func (f *wireField) getUint64Value(data *astjson.Value) uint64 {
 	switch data.Type() {
 	case astjson.TypeNumber:
-		return uint64(data.GetInt())
+		switch f.dataType {
+		case DataTypeUint32, DataTypeUint64:
+			return data.GetUint64()
+		default:
+			return uint64(data.GetInt())
+		}
 	case astjson.TypeTrue:
 		return 1
 	default:
@@ -382,16 +441,7 @@ func getUint64Value(data *astjson.Value) uint64 {
 }
 
 func getBytesValue(data *astjson.Value) []byte {
-	switch data.Type() {
-	case astjson.TypeString, astjson.TypeNumber:
-		return jsonStringBytes(data)
-	case astjson.TypeTrue:
-		return []byte{1}
-	case astjson.TypeFalse:
-		return []byte{0}
-	default:
-		return nil
-	}
+	return jsonStringBytes(data)
 }
 
 // getEnumValue gets the enum value from the data.

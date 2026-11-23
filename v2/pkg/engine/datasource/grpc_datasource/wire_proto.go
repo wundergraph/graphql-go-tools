@@ -103,7 +103,7 @@ func (w *wireMessage) appendProtoMessage(msg protoref.Message, data *astjson.Val
 }
 
 // appendOneOfProto resolves the concrete subtype via __typename and populates
-// the matching oneof variant. Mirrors the oneof branch in appendProtoWire.
+// the matching oneof variant. Mirrors appendOneOfProtoWire.
 func (w *wireMessage) appendOneOfProto(msg protoref.Message, data *astjson.Value) error {
 	if !data.Exists("__typename") {
 		return fmt.Errorf("__typename is required for oneof fields")
@@ -128,8 +128,7 @@ func (w *wireMessage) appendOneOfProto(msg protoref.Message, data *astjson.Value
 		}
 	}
 	if matched == nil {
-		// No matching member type — leave the oneof unset.
-		return nil
+		return fmt.Errorf("%s not found in oneof %s", typeName, oneOfDescriptor.Name())
 	}
 
 	subMsg := dynamicpb.NewMessage(matched.Message())
@@ -151,6 +150,10 @@ func (f *wireField) setProtoField(msg protoref.Message, data *astjson.Value) err
 		fieldData = data.Get(f.jsonPath)
 	} else {
 		fieldData = data
+	}
+
+	if !fieldData.Exists() && f.defaultValue != nil {
+		fieldData = f.defaultValue
 	}
 
 	if !fieldData.Exists() {
@@ -214,6 +217,13 @@ func (f *wireField) appendProtoRepeated(msg protoref.Message, fd protoref.FieldD
 
 	list := msg.Mutable(fd).List()
 	for _, element := range elements {
+		// A repeated proto field cannot hold null: a null item is sent as its
+		// type's default (first enum value, empty message, "" or 0), matching
+		// appendNullListItem on the wire path.
+		if isNullJSONValue(element) {
+			list.Append(list.NewElement())
+			continue
+		}
 		switch {
 		case f.child != nil:
 			elem := list.NewElement()
@@ -313,6 +323,13 @@ func (f *wireField) traverseProtoList(rootMsg protoref.Message, wrapperRT *runti
 	if level+1 >= f.listMetadata.NestingLevel {
 		// Leaf level — items are scalars, enums, or messages.
 		for _, element := range elements {
+			// A repeated proto field cannot hold null: a null item is sent as its
+			// type's default (first enum value, empty message, "" or 0), matching
+			// appendNullListItem on the wire path.
+			if isNullJSONValue(element) {
+				itemsList.Append(itemsList.NewElement())
+				continue
+			}
 			switch {
 			case f.child != nil:
 				elem := itemsList.NewElement()

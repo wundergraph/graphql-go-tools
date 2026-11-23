@@ -240,6 +240,30 @@ func testMapping() *GRPCMapping {
 		},
 		SubscriptionRPCs: RPCConfigMap[RPCConfig]{},
 		ResolveRPCs: RPCConfigMap[ResolveRPCMapping]{
+			"AuditFinding": {
+				"remediation": {
+					FieldMappingData: FieldMapData{
+						TargetName: "remediation",
+						ArgumentMappings: FieldArgumentMap{
+							"detailed": "detailed",
+						},
+					},
+					RPC:      "ResolveAuditFindingRemediation",
+					Request:  "ResolveAuditFindingRemediationRequest",
+					Response: "ResolveAuditFindingRemediationResponse",
+				},
+			},
+			"AuditRemediation": {
+				"estimatedHours": {
+					FieldMappingData: FieldMapData{
+						TargetName:       "estimated_hours",
+						ArgumentMappings: FieldArgumentMap{},
+					},
+					RPC:      "ResolveAuditRemediationEstimatedHours",
+					Request:  "ResolveAuditRemediationEstimatedHoursRequest",
+					Response: "ResolveAuditRemediationEstimatedHoursResponse",
+				},
+			},
 			"Category": {
 				"productCount": {
 					FieldMappingData: FieldMapData{
@@ -471,6 +495,19 @@ func testMapping() *GRPCMapping {
 					Response: "ResolveStorageNearbyStoragesResponse",
 				},
 			},
+			"StorageAudit": {
+				"riskScore": {
+					FieldMappingData: FieldMapData{
+						TargetName: "risk_score",
+						ArgumentMappings: FieldArgumentMap{
+							"weight": "weight",
+						},
+					},
+					RPC:      "ResolveStorageAuditRiskScore",
+					Request:  "ResolveStorageAuditRiskScoreRequest",
+					Response: "ResolveStorageAuditRiskScoreResponse",
+				},
+			},
 			"Subcategory": {
 				"itemCount": {
 					FieldMappingData: FieldMapData{
@@ -624,6 +661,14 @@ func testMapping() *GRPCMapping {
 								RPC:      "RequireStorageTagsByLengthsById",
 								Request:  "RequireStorageTagsByLengthsByIdRequest",
 								Response: "RequireStorageTagsByLengthsByIdResponse",
+							},
+						},
+						"storageAudit": {
+							TargetName: "storage_audit",
+							RPCConfig: RPCConfig{
+								RPC:      "RequireStorageStorageAuditById",
+								Request:  "RequireStorageStorageAuditByIdRequest",
+								Response: "RequireStorageStorageAuditByIdResponse",
 							},
 						},
 						"kindSummary": {
@@ -1161,6 +1206,9 @@ func testMapping() *GRPCMapping {
 						"lengths": "lengths",
 					},
 				},
+				"storageAudit": {
+					TargetName: "storage_audit",
+				},
 				"storageKind": {
 					TargetName: "storage_kind",
 				},
@@ -1290,6 +1338,50 @@ func testMapping() *GRPCMapping {
 				},
 				"priority": {
 					TargetName: "priority",
+				},
+			},
+			"StorageAudit": {
+				"zone": {
+					TargetName: "zone",
+				},
+				"report": {
+					TargetName: "report",
+				},
+				"riskScore": {
+					TargetName: "risk_score",
+					ArgumentMappings: FieldArgumentMap{
+						"weight": "weight",
+					},
+				},
+			},
+			"AuditReport": {
+				"generatedAt": {
+					TargetName: "generated_at",
+				},
+				"findings": {
+					TargetName: "findings",
+				},
+			},
+			"AuditFinding": {
+				"code": {
+					TargetName: "code",
+				},
+				"severity": {
+					TargetName: "severity",
+				},
+				"remediation": {
+					TargetName: "remediation",
+					ArgumentMappings: FieldArgumentMap{
+						"detailed": "detailed",
+					},
+				},
+			},
+			"AuditRemediation": {
+				"description": {
+					TargetName: "description",
+				},
+				"estimatedHours": {
+					TargetName: "estimated_hours",
 				},
 			},
 			"StorageCategoryInfo": {

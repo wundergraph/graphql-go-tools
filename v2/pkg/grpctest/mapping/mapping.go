@@ -246,6 +246,30 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 		},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{},
 		ResolveRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.ResolveRPCMapping]{
+			"AuditFinding": {
+				"remediation": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "remediation",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"detailed": "detailed",
+						},
+					},
+					RPC:      "ResolveAuditFindingRemediation",
+					Request:  "ResolveAuditFindingRemediationRequest",
+					Response: "ResolveAuditFindingRemediationResponse",
+				},
+			},
+			"AuditRemediation": {
+				"estimatedHours": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName:       "estimated_hours",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{},
+					},
+					RPC:      "ResolveAuditRemediationEstimatedHours",
+					Request:  "ResolveAuditRemediationEstimatedHoursRequest",
+					Response: "ResolveAuditRemediationEstimatedHoursResponse",
+				},
+			},
 			"Category": {
 				"productCount": {
 					FieldMappingData: grpcdatasource.FieldMapData{
@@ -477,6 +501,19 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Response: "ResolveStorageNearbyStoragesResponse",
 				},
 			},
+			"StorageAudit": {
+				"riskScore": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "risk_score",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"weight": "weight",
+						},
+					},
+					RPC:      "ResolveStorageAuditRiskScore",
+					Request:  "ResolveStorageAuditRiskScoreRequest",
+					Response: "ResolveStorageAuditRiskScoreResponse",
+				},
+			},
 			"Subcategory": {
 				"itemCount": {
 					FieldMappingData: grpcdatasource.FieldMapData{
@@ -630,6 +667,14 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 								RPC:      "RequireStorageTagsByLengthsById",
 								Request:  "RequireStorageTagsByLengthsByIdRequest",
 								Response: "RequireStorageTagsByLengthsByIdResponse",
+							},
+						},
+						"storageAudit": {
+							TargetName: "storage_audit",
+							RPCConfig: grpcdatasource.RPCConfig{
+								RPC:      "RequireStorageStorageAuditById",
+								Request:  "RequireStorageStorageAuditByIdRequest",
+								Response: "RequireStorageStorageAuditByIdResponse",
 							},
 						},
 						"kindSummary": {
@@ -1167,6 +1212,9 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						"lengths": "lengths",
 					},
 				},
+				"storageAudit": {
+					TargetName: "storage_audit",
+				},
 				"storageKind": {
 					TargetName: "storage_kind",
 				},
@@ -1296,6 +1344,50 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"priority": {
 					TargetName: "priority",
+				},
+			},
+			"StorageAudit": {
+				"zone": {
+					TargetName: "zone",
+				},
+				"report": {
+					TargetName: "report",
+				},
+				"riskScore": {
+					TargetName: "risk_score",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"weight": "weight",
+					},
+				},
+			},
+			"AuditReport": {
+				"generatedAt": {
+					TargetName: "generated_at",
+				},
+				"findings": {
+					TargetName: "findings",
+				},
+			},
+			"AuditFinding": {
+				"code": {
+					TargetName: "code",
+				},
+				"severity": {
+					TargetName: "severity",
+				},
+				"remediation": {
+					TargetName: "remediation",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"detailed": "detailed",
+					},
+				},
+			},
+			"AuditRemediation": {
+				"description": {
+					TargetName: "description",
+				},
+				"estimatedHours": {
+					TargetName: "estimated_hours",
 				},
 			},
 			"StorageCategoryInfo": {

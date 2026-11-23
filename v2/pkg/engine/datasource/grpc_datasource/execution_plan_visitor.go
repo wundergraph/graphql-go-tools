@@ -15,21 +15,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-type planningInfo struct {
-	operationType      ast.OperationType
-	operationFieldName string
-
-	currentRequestMessage *RPCMessage
-
-	responseMessageAncestors []*RPCMessage
-	currentResponseMessage   *RPCMessage
-}
-
-type contextField struct {
-	fieldRef    int
-	resolvePath ast.Path
-}
-
 type fieldArgument struct {
 	parentTypeNode        ast.Node
 	jsonPath              string
@@ -197,31 +182,9 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
+	// setResolvedField stores the selection set of a field resolver.
+	// The response message of the resolver call is built from it later.
 	if r.fieldResolverAncestors.len() > 0 {
-		if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
-			return
-		}
-
-		resolverFieldAncestor := r.fieldResolverAncestors.peek()
-		if compositType := r.planCtx.getCompositeType(r.walker.EnclosingTypeDefinition); compositType != OneOfTypeNone {
-			memberTypes, err := r.planCtx.getMemberTypes(r.walker.EnclosingTypeDefinition)
-			if err != nil {
-				r.walker.StopWithInternalErr(err)
-				return
-			}
-			resolvedField := &r.resolverFields[resolverFieldAncestor]
-			resolvedField.memberTypes = memberTypes
-
-			config := r.planCtx.buildCompositeTypeConfig(compositType, ref)
-			resolvedField.fieldsSelectionSetRef = config.fieldsSelectionSetRef
-			resolvedField.fragmentType = config.oneOfType
-			resolvedField.fragmentSelections = config.fragmentSelections
-
-			return
-		}
-
-		r.resolverFields[resolverFieldAncestor].fieldsSelectionSetRef = ref
 		return
 	}
 
@@ -358,10 +321,10 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		return
 	}
 
-	// Check if the field is inside of a resolver call.
+	// Inside of a field resolver we only track the path for nested field resolvers.
+	// buildResolverField adds the plain fields to the response message of the resolver call.
 	if r.fieldResolverAncestors.len() > 0 {
-		// We don't want to call LeaveField here because we ignore the field entirely.
-		r.walker.SkipNode()
+		r.enterPathField(ref, fieldDefRef, fieldName)
 		return
 	}
 
@@ -430,6 +393,13 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	if r.planCtx.isFieldResolver(fieldDefRef, inRootField) {
 		// Pop the field resolver ancestor only when leaving a field resolver field.
 		r.fieldResolverAncestors.pop()
+		return
+	}
+
+	// Remove the plain field from the nested path of the field resolver.
+	if r.fieldResolverAncestors.len() > 0 {
+		resolverField := &r.resolverFields[r.fieldResolverAncestors.peek()]
+		resolverField.nestedPath = resolverField.nestedPath.RemoveLastItem()
 	}
 }
 
@@ -457,14 +427,16 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 	parentID := r.currentCall.ID
 	fieldPath := r.fieldPath
 	if r.fieldResolverAncestors.len() > 0 {
-		fieldPath = r.resolverFields[r.fieldResolverAncestors.peek()].contextPath
-		parentID = r.resolverFields[r.fieldResolverAncestors.peek()].id
+		parentResolverField := &r.resolverFields[r.fieldResolverAncestors.peek()]
+		fieldPath = parentResolverField.nestedContextPath()
+		parentID = parentResolverField.id
 	}
 
 	// We don't want to add fields from the selection set to the actual call
 	resolvedField := resolverField{
 		id:                     r.callIndex,
 		callerRef:              parentID,
+		requiredFieldIdx:       ast.InvalidRef,
 		parentTypeNode:         r.walker.EnclosingTypeDefinition,
 		fieldRef:               ref,
 		responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
@@ -490,5 +462,30 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 	r.resolverFields = append(r.resolverFields, resolvedField)
 	r.fieldResolverAncestors.push(len(r.resolverFields) - 1)
 
+	// Add the resolver field name to the field path.
 	r.fieldPath = r.fieldPath.WithFieldNameItem(buf.Bytes())
+}
+
+// enterPathField adds a field to the field path.
+// LeaveField removes it again.
+func (r *rpcPlanVisitor) enterPathField(ref, fieldDefRef int, fieldName string) {
+	field, err := r.planCtx.buildField(
+		r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		fieldDefRef,
+		fieldName,
+		r.operation.FieldAliasString(ref),
+	)
+	if err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
+	}
+
+	pathItem := []byte(listPrefix(field) + field.Name)
+	r.fieldPath = r.fieldPath.WithFieldNameItem(pathItem)
+
+	// Track the plain fields inside of a field resolver for nested field resolvers.
+	if r.fieldResolverAncestors.len() > 0 {
+		resolverField := &r.resolverFields[r.fieldResolverAncestors.peek()]
+		resolverField.nestedPath = resolverField.nestedPath.WithFieldNameItem(pathItem)
+	}
 }

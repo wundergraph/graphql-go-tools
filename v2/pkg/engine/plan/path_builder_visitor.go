@@ -45,8 +45,8 @@ type pathBuilderVisitor struct {
 
 	fieldsPlannedOn map[int][]int // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
 
-	secondaryRun bool // secondaryRun is a flag to indicate that we're running the pathBuilderVisitor not the first time
-	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
+	firstRun bool // firstRun is a flag to indicate that we're running the pathBuilderVisitor the first time
+	fieldRef int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
 
 	fieldDependsOn           map[fieldIndexKey][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
 	fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration
@@ -313,7 +313,7 @@ func (c *pathBuilderVisitor) EnterDocument(operation, definition *ast.Document) 
 
 	// values of all the fields below should be preserved between walks
 	// so we initialize them only once on a first walk
-	if c.secondaryRun {
+	if !c.firstRun {
 		return
 	}
 
@@ -615,14 +615,12 @@ func (c *pathBuilderVisitor) LeaveField(ref int) {
 }
 
 func (c *pathBuilderVisitor) haveChildFieldsToPlan(field *currentFieldInfo) bool {
-	nodeId := field.suggestion.treeNodeID()
-
-	node, ok := c.nodeSuggestions.responseTree.Find(nodeId)
+	fieldInTree, ok := c.nodeSuggestions.responseTree.find(field.suggestion.FieldRef)
 	if !ok {
 		return false
 	}
 
-	return slices.ContainsFunc(treeNodeChildren(node), func(child int) bool {
+	return slices.ContainsFunc(treeFieldChildren(fieldInTree), func(child int) bool {
 		childNode := c.nodeSuggestions.items[child]
 
 		if childNode.DataSourceHash != field.ds.Hash() || !childNode.Selected {
@@ -851,7 +849,7 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (
 		isRootNode := field.suggestion.IsRootNode
 		isChildNode := !isRootNode
 
-		if c.secondaryRun && plannerConfig.HasPath(field.currentPath) {
+		if !c.firstRun && plannerConfig.HasPath(field.currentPath) {
 			// on the secondary run we need to process only new fields added by the first run
 			return plannerIdx, true
 		}

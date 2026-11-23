@@ -43,14 +43,7 @@ func (f *deferEnsureTypenameVisitor) EnterSelectionSet(ref int) {
 	if len(f.Ancestors) <= 2 {
 		return
 	}
-	hasFieldAncestor := false
-	for _, v := range slices.Backward(f.Ancestors) {
-		if v.Kind == ast.NodeKindField {
-			hasFieldAncestor = true
-			break
-		}
-	}
-	if !hasFieldAncestor {
+	if f.EnclosingFieldRef() == ast.InvalidRef {
 		return
 	}
 

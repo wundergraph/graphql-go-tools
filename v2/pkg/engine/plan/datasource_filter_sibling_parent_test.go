@@ -143,7 +143,7 @@ func TestAssignKeysSkipsUnreachableSiblingParent(t *testing.T) {
 	astvalidation.DefaultOperationValidator().Validate(&operation, &parsedDefinition, &report)
 	require.False(t, report.HasErrors(), report.Error())
 
-	dsFilter := NewDataSourceFilter(&operation, &parsedDefinition, &report, dataSources, nil)
+	dsFilter := NewDataSourceFilter(&operation, &parsedDefinition, &report, dataSources)
 	dsFilter.EnableSelectionReasons()
 	planned, _ := dsFilter.findBestDataSourceSet(nil)
 	require.False(t, report.HasErrors(), report.Error())

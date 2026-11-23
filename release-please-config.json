@@ -1,4 +1,6 @@
 {
+  "pull-request-header": "Release",
+  "pull-request-footer": " ",
   "separate-pull-requests": true,
   "always-update": true,
   "packages": {

@@ -323,6 +323,7 @@ type recordingDataSource struct {
 	response        []byte
 	err             error
 	responseHeaders http.Header
+	status          int // 0 is 200
 	calls           int
 	lastInput       []byte
 }
@@ -347,9 +348,13 @@ func (r *recordingDataSource) record(ctx context.Context, input []byte) {
 	if responseContext == nil {
 		return
 	}
-	responseContext.StatusCode = http.StatusOK
+	status := r.status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	responseContext.StatusCode = status
 	responseContext.Response = &http.Response{
-		StatusCode: http.StatusOK,
+		StatusCode: status,
 		Header:     r.responseHeaders.Clone(),
 	}
 }
@@ -1072,7 +1077,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T
 		var reports []cacheReport
 		ctx.SetEngineLoaderHooks(&spyLoaderHooks{
 			onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
-				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL})
+				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL.Round(time.Second)}) // commit trims elapsed time
 			},
 		})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}
@@ -1338,7 +1343,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheSurrogateKeys(t *testi
 
 		require.Len(t, cache.items, 3)
 
-		want := []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
+		want := []caching.SurrogateKey{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
 		for key, item := range cache.items {
 			assert.Equal(t, want, item.SurrogateKeys, key)
 		}
@@ -1353,7 +1358,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheSurrogateKeys(t *testi
 		ctx := run(t, cache, warm)
 		require.Equal(t, 0, warm.calls)
 
-		want := []string{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
+		want := []caching.SurrogateKey{caching.SubgraphSurrogateKey("products"), caching.TypeSurrogateKey("products", "Employee")}
 		assert.Equal(t, want, ctx.ResponseCacheSurrogateKeys())
 	})
 
@@ -1376,7 +1381,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheSurrogateKeys(t *testi
 		}
 		ctx := run(t, cache, partial)
 		require.Equal(t, 1, partial.calls)
-		assert.ElementsMatch(t, []string{
+		assert.ElementsMatch(t, []caching.SurrogateKey{
 			caching.SubgraphSurrogateKey("products"),
 			caching.TypeSurrogateKey("products", "Contractor"),
 			caching.TypeSurrogateKey("products", "Employee"),
