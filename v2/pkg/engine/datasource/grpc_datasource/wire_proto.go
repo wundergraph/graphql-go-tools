@@ -411,6 +411,11 @@ func scalarProtoValue(dt DataType, data *astjson.Value) (protoref.Value, error) 
 // both scalar and list values. Used by the resolve-context path where values
 // are already typed.
 func setProtoFieldFromValue(msg protoref.Message, fd protoref.FieldDescriptor, value protoref.Value) error {
+	// An invalid value is null. It leaves the field unset.
+	if !value.IsValid() {
+		return nil
+	}
+
 	if fd.IsList() {
 		dst := msg.Mutable(fd).List()
 		src, ok := value.Interface().(protoref.List)

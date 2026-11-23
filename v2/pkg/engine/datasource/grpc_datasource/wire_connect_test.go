@@ -1863,6 +1863,38 @@ func TestCreateProtoWireOptionalScalars(t *testing.T) {
 	})
 }
 
+func TestResolveDataForPath(t *testing.T) {
+	runtime := newWireTestRuntime(t)
+
+	t.Run("returns an invalid value for an unset proto3 optional field", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "OptionalScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		assert.False(t, values[0].IsValid())
+	})
+
+	t.Run("returns the zero value for a proto3 optional field set to zero", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "OptionalScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString(""))
+		})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		require.True(t, values[0].IsValid())
+		assert.Equal(t, "", values[0].String())
+	})
+
+	t.Run("returns the zero value for an unset field without the optional keyword", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		require.True(t, values[0].IsValid())
+		assert.Equal(t, "", values[0].String())
+	})
+}
+
 func TestConvertProtoRefValue(t *testing.T) {
 	t.Run("map value returns error", func(t *testing.T) {
 		// Protographic does not generate map fields. Thus a map value must give an error.

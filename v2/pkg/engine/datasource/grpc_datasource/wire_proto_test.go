@@ -1784,6 +1784,17 @@ func TestSetProtoFieldFromValue(t *testing.T) {
 		assert.Equal(t, "b", gotList.Get(1).String())
 	})
 
+	t.Run("invalid value leaves an optional field unset", func(t *testing.T) {
+		rtMsg := runtime.getMessageByName("OptionalScalarRequest")
+		require.NotNil(t, rtMsg)
+		msg := dynamicpb.NewMessage(rtMsg.desc)
+		fd := rtMsg.desc.Fields().ByName("string_value")
+
+		err := setProtoFieldFromValue(msg, fd, protoref.Value{})
+		require.NoError(t, err)
+		assert.False(t, msg.Has(fd))
+	})
+
 	t.Run("non-list value on list field returns error", func(t *testing.T) {
 		rtMsg := runtime.getMessageByName("RepeatedScalarRequest")
 		require.NotNil(t, rtMsg)

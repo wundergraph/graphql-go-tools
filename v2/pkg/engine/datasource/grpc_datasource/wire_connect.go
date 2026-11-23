@@ -592,6 +592,11 @@ func resolveDataForPath(message protoref.Message, path ast.Path) []protoref.Valu
 
 		return resolveDataForPath(field.Message(), path[1:])
 	default:
+		// An unset proto3 optional field is null. An invalid value keeps its position in the result.
+		if fd.HasOptionalKeyword() && !message.Has(fd) {
+			return []protoref.Value{{}}
+		}
+
 		return []protoref.Value{field}
 	}
 }
