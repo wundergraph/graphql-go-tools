@@ -489,6 +489,12 @@ func (f *DataSourceFilter) deferBranchNode(i int, mutationTypeName string) (bran
 	branchIdx = -1
 	current := i
 	for {
+		// Field requirements are not available here, so use assigned key jumps as fetch anchors.
+		// Include the starting field to reuse its jump on later filter passes.
+		if f.nodes.items[current].requiresKey != nil {
+			return -1, false
+		}
+
 		if _, hasKey := f.keyJumpKey(f.nodes.items[current]); branchIdx == -1 && hasKey {
 			branchIdx = current
 		}
@@ -502,11 +508,6 @@ func (f *DataSourceFilter) deferBranchNode(i int, mutationTypeName string) (bran
 		}
 
 		parent := f.nodes.items[parentIdx]
-		// The field requirements are not known before the node selection visitor runs.
-		// So this walk cannot use NodeSuggestions.isEntityFetchAnchor, and it stops only at an assigned key jump.
-		if parent.requiresKey != nil {
-			return -1, false
-		}
 		if _, hasKey := f.keyJumpKey(parent); parent.deferInfo != nil && parent.deferInfo.ID == deferID && hasKey {
 			// The parent in the same defer takes the jump, and the field joins its fetch.
 			return -1, false

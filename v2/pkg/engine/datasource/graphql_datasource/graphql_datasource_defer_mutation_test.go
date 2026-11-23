@@ -1,7 +1,11 @@
 package graphql_datasource
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -77,10 +81,9 @@ func TestGraphQLDataSourceDeferMutation(t *testing.T) {
 		}
 	`
 
-	mutationDataSource := mustDataSourceConfiguration(
-		t,
-		"mutation-service",
-		&plan.DataSourceMetadata{
+	mutationDataSource := func(thingIsEntity bool) plan.DataSource {
+		sdl := mutationSubgraphSDL
+		metadata := &plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{TypeName: "Query", FieldNames: []string{"thing"}},
 				{TypeName: "Mutation", FieldNames: []string{"createThing", "createUser"}},
@@ -95,15 +98,31 @@ func TestGraphQLDataSourceDeferMutation(t *testing.T) {
 					{TypeName: "User", SelectionSet: "id"},
 				},
 			},
-		},
-		mustCustomConfiguration(t, ConfigurationInput{
-			Fetch: &FetchConfiguration{URL: "http://mutation.service"},
-			SchemaConfiguration: mustSchema(t,
-				&FederationConfiguration{Enabled: true, ServiceSDL: mutationSubgraphSDL},
-				mutationSubgraphSDL,
-			),
-		}),
-	)
+		}
+		if thingIsEntity {
+			sdl += `
+				extend type Thing
+					@key(fields: "id")`
+			metadata.RootNodes = append(metadata.RootNodes, metadata.ChildNodes[0])
+			metadata.ChildNodes = metadata.ChildNodes[1:]
+			metadata.Keys = append(metadata.Keys, plan.FederationFieldConfiguration{
+				TypeName:     "Thing",
+				SelectionSet: "id",
+			})
+		}
+		return mustDataSourceConfiguration(
+			t,
+			"mutation-service",
+			metadata,
+			mustCustomConfiguration(t, ConfigurationInput{
+				Fetch: &FetchConfiguration{URL: "http://mutation.service"},
+				SchemaConfiguration: mustSchema(t,
+					&FederationConfiguration{Enabled: true, ServiceSDL: sdl},
+					sdl,
+				),
+			}),
+		)
+	}
 
 	usersDataSource := mustDataSourceConfiguration(
 		t,
@@ -131,7 +150,7 @@ func TestGraphQLDataSourceDeferMutation(t *testing.T) {
 	)
 
 	planConfiguration := plan.Configuration{
-		DataSources:                  []plan.DataSource{mutationDataSource, usersDataSource},
+		DataSources:                  []plan.DataSource{mutationDataSource(false), usersDataSource},
 		DisableResolveFieldPositions: true,
 	}
 
@@ -844,6 +863,133 @@ func TestGraphQLDataSourceDeferMutation(t *testing.T) {
 			WithCalculateFieldDependencies(),
 		)
 	})
+	t.Run("[P21] refilter preserves the deferred entity key without an ancestor key", func(t *testing.T) {
+		entityPlanConfiguration := planConfiguration
+		entityPlanConfiguration.DataSources = []plan.DataSource{
+			mutationDataSource(true),
+			usersDataSource,
+		}
+		var mutationInput, entityInput bytes.Buffer
+		require.NoError(t, json.Compact(&mutationInput, []byte(`
+			{
+				"method": "POST",
+				"url": "http://mutation.service",
+				"body": {
+					"query": "mutation{a: createThing {owner {__internal_typename: __typename __typename id}}}"
+				}
+			}`)))
+		require.NoError(t, json.Compact(&entityInput, []byte(`
+			{
+				"method": "POST",
+				"url": "http://mutation.service",
+				"body": {
+					"query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}",
+					"variables": {
+						"representations": ["$$0$$"]
+					}
+				}
+			}`)))
+		RunWithPermutations(t, definition, `
+			mutation M {
+				a: createThing {
+					owner {
+						... @defer {
+							title
+						}
+					}
+				}
+			}`, "M", &plan.DeferResponsePlan{
+			Response: &resolve.GraphQLDeferResponse{
+				DeferDescriptors: map[int]resolve.DeferDescriptor{
+					1: {
+						ID:   1,
+						Path: []string{"a", "owner"},
+					},
+				},
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          mutationInput.String(),
+								PostProcessing: DefaultPostProcessingConfiguration,
+								DataSource:     &Source{},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+					),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("a"),
+								Value: &resolve.Object{
+									Path:          []string{"a"},
+									PossibleTypes: map[string]struct{}{"Thing": {}},
+									TypeName:      "Thing",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("owner"),
+											Value: &resolve.Object{
+												Path:          []string{"owner"},
+												PossibleTypes: map[string]struct{}{"User": {}},
+												TypeName:      "User",
+												Fields: []*resolve.Field{
+													{
+														Name:  []byte("title"),
+														Defer: &resolve.DeferField{DeferID: 1},
+														Value: &resolve.String{Path: []string{"title"}},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				DeferTree: resolve.DeferSingle(&resolve.DeferFetchGroup{
+					DeferID: 1,
+					Fetches: resolve.Sequence(
+						resolve.SingleWithPath(&resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
+								DeferID:           1,
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:                                 string(bytes.ReplaceAll(entityInput.Bytes(), []byte(`"$$0$$"`), []byte("$$0$$"))),
+								DataSource:                            &Source{},
+								RequiresEntityFetch:                   true,
+								SetTemplateOutputToNullOnVariableNull: true,
+								PostProcessing:                        SingleEntityPostProcessingConfiguration,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name:        []byte("__typename"),
+													Value:       &resolve.String{Path: []string{"__typename"}},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+												{
+													Name:        []byte("id"),
+													Value:       &resolve.Scalar{Path: []string{"id"}},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+											},
+										}),
+									},
+								},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}, "a.owner", resolve.ObjectPath("a"), resolve.ObjectPath("owner")),
+					),
+				}),
+			},
+		}, entityPlanConfiguration, WithDefaultPostProcessor(), WithDefer(), WithCalculateFieldDependencies())
+	})
+
 	t.Run("[P7] defer around a mutation root field stays deferred without prevalidation", func(t *testing.T) {
 		RunWithPermutations(
 			t,

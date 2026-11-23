@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"bytes"
+	"encoding/json"
 	"slices"
 	"testing"
 
@@ -84,8 +86,28 @@ func TestExecutionEngine_Execute_DeferMutation(t *testing.T) {
 	schema, err := graphql.NewSchemaFromString(definition)
 	require.NoError(t, err)
 
-	dataSources := func(t *testing.T, rec *multiFetchRecorder) []plan.DataSource {
+	dataSources := func(t *testing.T, rec *multiFetchRecorder, thingEntity ...bool) []plan.DataSource {
 		t.Helper()
+		serviceSDL := mutationSubgraphSDL
+		keys := plan.FederationFieldConfigurations{
+			{TypeName: "User", SelectionSet: "id"},
+		}
+		rootNodes := []plan.TypeField{
+			{TypeName: "Query", FieldNames: []string{"thing"}},
+			{TypeName: "Mutation", FieldNames: []string{"createThing", "createUser"}},
+			{TypeName: "User", FieldNames: []string{"id", "title", "info"}},
+		}
+		childNodes := []plan.TypeField{
+			{TypeName: "Thing", FieldNames: []string{"id", "slow", "owner"}},
+			{TypeName: "Info", FieldNames: []string{"a"}},
+		}
+		if len(thingEntity) != 0 && thingEntity[0] {
+			serviceSDL += `
+			extend type Thing @key(fields: "id")`
+			keys = append(keys, plan.FederationFieldConfiguration{TypeName: "Thing", SelectionSet: "id"})
+			rootNodes = append(rootNodes, childNodes[0])
+			childNodes = childNodes[1:]
+		}
 
 		return []plan.DataSource{
 			mustGraphqlDataSourceConfiguration(t,
@@ -111,6 +133,36 @@ func TestExecutionEngine_Execute_DeferMutation(t *testing.T) {
 						statusCode: 200,
 						body:       `{"data":{"a":{"id":"t1","owner":{"__typename":"User","__internal_id":"u1"}}}}`,
 					},
+					compactJSONForAssert(t, `
+						{
+							"query": "mutation{a: createThing {owner {__internal_typename: __typename __typename id}}}"
+						}`): {
+						statusCode: 200,
+						body: compactJSONForAssert(t, `
+							{
+								"data": {
+									"a": {
+										"owner": {"__internal_typename": "User", "__typename": "User", "id": "u1"}
+									}
+								}
+							}`),
+					},
+					compactJSONForAssert(t, `
+						{
+							"query": "mutation{a: createThing {owner {__internal_typename: __typename __typename id} __typename id}}"
+						}`): {
+						statusCode: 200,
+						body: compactJSONForAssert(t, `
+							{
+								"data": {
+									"a": {
+										"owner": {"__internal_typename": "User", "__typename": "User", "id": "u1"},
+										"__typename": "Thing",
+										"id": "t1"
+									}
+								}
+							}`),
+					},
 					`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"u1"}]}}`: {
 						statusCode: 200,
 						body:       `{"data":{"_entities":[{"__typename":"User","title":"Dr"}]}}`,
@@ -129,26 +181,17 @@ func TestExecutionEngine_Execute_DeferMutation(t *testing.T) {
 					},
 				})),
 				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"thing"}},
-						{TypeName: "Mutation", FieldNames: []string{"createThing", "createUser"}},
-						{TypeName: "User", FieldNames: []string{"id", "title", "info"}},
-					},
-					ChildNodes: []plan.TypeField{
-						{TypeName: "Thing", FieldNames: []string{"id", "slow", "owner"}},
-						{TypeName: "Info", FieldNames: []string{"a"}},
-					},
+					RootNodes:  rootNodes,
+					ChildNodes: childNodes,
 					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{TypeName: "User", SelectionSet: "id"},
-						},
+						Keys: keys,
 					},
 				},
 				mustConfiguration(t, graphql_datasource.ConfigurationInput{
 					Fetch: &graphql_datasource.FetchConfiguration{URL: "https://mutation/", Method: "POST"},
 					SchemaConfiguration: mustSchemaConfig(t,
-						&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: mutationSubgraphSDL},
-						mutationSubgraphSDL,
+						&graphql_datasource.FederationConfiguration{Enabled: true, ServiceSDL: serviceSDL},
+						serviceSDL,
 					),
 				}),
 			),
@@ -1036,6 +1079,57 @@ func TestExecutionEngine_Execute_DeferMutation(t *testing.T) {
 		assert.Equal(t, []string{
 			`{"query":"mutation{createUser {id __typename}}"}`,
 			`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"u1"}]}}`,
+		}, rec.requests())
+	})
+
+	t.Run("[E14] nested defer selects only the owner key", func(t *testing.T) {
+		rec := &multiFetchRecorder{}
+		var initialResponse bytes.Buffer
+		require.NoError(t, json.Compact(&initialResponse, []byte(`
+			{
+				"data": {"a": {"owner": {}}},
+				"pending": [{"id": "1", "path": ["a", "owner"]}],
+				"hasNext": true
+			}`)))
+		var deferredResponse bytes.Buffer
+		require.NoError(t, json.Compact(&deferredResponse, []byte(`
+			{
+				"incremental": [{"data": {"title": "Dr"}, "id": "1"}],
+				"completed": [{"id": "1"}],
+				"hasNext": false
+			}`)))
+
+		runWithoutError(ExecutionEngineTestCase{
+			schema: schema,
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					OperationName: "M",
+					Query: `
+						mutation M {
+							a: createThing {
+								owner {
+									... @defer {
+										title
+									}
+								}
+							}
+						}`,
+				}
+			},
+			dataSources:      dataSources(t, rec, true),
+			expectedResponse: initialResponse.String() + "\n" + deferredResponse.String() + "\n",
+		}, withStreamingResponse())(t)
+
+		assert.Equal(t, []string{
+			compactJSONForAssert(t, `
+				{
+					"query": "mutation{a: createThing {owner {__internal_typename: __typename __typename id}}}"
+				}`),
+			compactJSONForAssert(t, `
+				{
+					"query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}",
+					"variables": {"representations": [{"__typename": "User", "id": "u1"}]}
+				}`),
 		}, rec.requests())
 	})
 }
