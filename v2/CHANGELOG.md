@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.32.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.2...v2.32.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* **resolve:** preserve render errors when printing response extensions ([#1779](https://github.com/wundergraph/graphql-go-tools/issues/1779)) ([739d42d](https://github.com/wundergraph/graphql-go-tools/commit/739d42daa9af32ef239b0503e847b64ee08725d9))
+
 ## [2.32.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.1...v2.32.2) (2026-11-20)
 
 
