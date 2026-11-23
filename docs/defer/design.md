@@ -576,7 +576,7 @@ The resolver can still prepare a payload after the cancellation, but the client 
 
 ### 2.6 Wire format
 
-This repository writes no HTTP header for a defer response.
+The engine in this repository writes no HTTP header and no multipart framing for a defer response.
 The router implements `resolve.DeferResponseWriter`:
 
 ```go
@@ -591,7 +591,8 @@ type DeferResponseWriter interface {
 Each payload causes exactly one `Flush()`.
 `Complete()` closes the stream.
 
-The cosmo router sets `Content-Type: multipart/mixed; deferSpec=20220824; boundary="graphql"` in `router/core/defer_response_writer.go`.
+The cosmo router writes the HTTP headers and the multipart framing in `router/core/defer_response_writer.go`.
+It sets `Content-Type: multipart/mixed; deferSpec=20220824; boundary="graphql"`, and it also sets `Transfer-Encoding`, `Cache-Control`, `Connection` and `X-Accel-Buffering` for streaming.
 The `deferSpec=20220824` parameter names an older format.
 The body uses the `pending`, `incremental` and `completed` format of the current draft.
 
