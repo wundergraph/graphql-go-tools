@@ -44,6 +44,17 @@ message ScalarRequest {
   // sint64 sint_64 = 11;
 }
 
+message OptionalScalarRequest {
+  optional string string_value = 1;
+  optional float float_value = 2;
+  optional double double_value = 3;
+  optional bool bool_value = 4;
+  optional uint32 uint_32_value = 5;
+  optional uint64 uint_64_value = 6;
+  optional int32 int_32_value = 7;
+  optional int64 int_64_value = 8;
+}
+
 message WrapperScalarRequest {
   google.protobuf.StringValue string_value = 1;
   google.protobuf.Int32Value int_32 = 2;
@@ -252,6 +263,82 @@ func compileTestProgramMessage(t *testing.T, runtime *runtimeSchema, rpcMessage 
 
 	return message
 }
+
+// compileWrapperScalarRequest compiles WrapperScalarRequest with all of its
+// wrapper fields as nullable scalars.
+func compileWrapperScalarRequest(t *testing.T, runtime *runtimeSchema) *wireMessage {
+	t.Helper()
+	message := compileTestProgramMessage(t, runtime, &RPCMessage{
+		Name: "WrapperScalarRequest",
+		Fields: RPCFields{
+			{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true},
+			{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true},
+			{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value", Optional: true},
+			{Name: "bool_value", ProtoTypeName: DataTypeBool, JSONPath: "bool_value", Optional: true},
+		},
+	}, runtime.getMessageByName("WrapperScalarRequest"))
+	return compileTestWireMessage(t, runtime, message)
+}
+
+// compileOptionalScalarRequest compiles OptionalScalarRequest with all of its
+// proto3 optional fields as nullable scalars.
+func compileOptionalScalarRequest(t *testing.T, runtime *runtimeSchema) *wireMessage {
+	t.Helper()
+	message := compileTestProgramMessage(t, runtime, &RPCMessage{
+		Name: "OptionalScalarRequest",
+		Fields: RPCFields{
+			{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true},
+			{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value", Optional: true},
+			{Name: "float_value", ProtoTypeName: DataTypeFloat, JSONPath: "float_value", Optional: true},
+			{Name: "bool_value", ProtoTypeName: DataTypeBool, JSONPath: "bool_value", Optional: true},
+			{Name: "uint_32_value", ProtoTypeName: DataTypeUint32, JSONPath: "uint_32_value", Optional: true},
+			{Name: "uint_64_value", ProtoTypeName: DataTypeUint64, JSONPath: "uint_64_value", Optional: true},
+			{Name: "int_32_value", ProtoTypeName: DataTypeInt32, JSONPath: "int_32_value", Optional: true},
+			{Name: "int_64_value", ProtoTypeName: DataTypeInt64, JSONPath: "int_64_value", Optional: true},
+		},
+	}, runtime.getMessageByName("OptionalScalarRequest"))
+	return compileTestWireMessage(t, runtime, message)
+}
+
+// Inputs for WrapperScalarRequest and OptionalScalarRequest. They set every
+// field, either to null or to a value.
+const (
+	wrapperScalarNullInput = `{
+		"string_value": null,
+		"int_32": null,
+		"double_value": null,
+		"bool_value": null
+	}`
+
+	wrapperScalarValuesInput = `{
+		"string_value": "hello",
+		"int_32": 25,
+		"double_value": 3.14,
+		"bool_value": true
+	}`
+
+	optionalScalarNullInput = `{
+		"string_value": null,
+		"double_value": null,
+		"float_value": null,
+		"bool_value": null,
+		"uint_32_value": null,
+		"uint_64_value": null,
+		"int_32_value": null,
+		"int_64_value": null
+	}`
+
+	optionalScalarValuesInput = `{
+		"string_value": "hello",
+		"double_value": 3.14,
+		"float_value": 1.5,
+		"bool_value": true,
+		"uint_32_value": 7,
+		"uint_64_value": 8,
+		"int_32_value": -9,
+		"int_64_value": -10
+	}`
+)
 
 // setWrapperValue sets a google.protobuf wrapper field (e.g. StringValue, Int32Value) on a dynamic message.
 func setWrapperValue(msg *dynamicpb.Message, fieldName protoref.Name, value protoref.Value) {

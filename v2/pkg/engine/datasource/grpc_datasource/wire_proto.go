@@ -250,7 +250,13 @@ func (f *wireField) appendProtoRepeated(msg protoref.Message, fd protoref.FieldD
 
 // setProtoOptionalScalar wraps a nullable scalar in its wrapper message
 // (e.g. google.protobuf.StringValue), mirroring appendOptionalScalarFieldValue.
+// A proto3 optional scalar has no wrapper message and is set directly.
 func (f *wireField) setProtoOptionalScalar(msg protoref.Message, fd protoref.FieldDescriptor, data *astjson.Value) error {
+	// A proto3 optional scalar has no wrapper message. Set the value directly.
+	if f.runtime.message == nil && f.runtime.optional {
+		return f.setProtoLeafField(msg, fd, data)
+	}
+
 	if f.fieldMessage == nil {
 		return fmt.Errorf("runtime message not found for optional scalar field %s but was expected", f.jsonPath)
 	}
