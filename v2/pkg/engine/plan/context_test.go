@@ -21,12 +21,12 @@ func TestContextProviderTypes(t *testing.T) {
  union Result = Team | Person
  `)
 	require.False(t, report.HasErrors())
-	provider := []ContextProvider{{ContextName: "locale", TypeName: "Account", ConcreteTypeNames: []string{"Team"}}}
+	provider := []ContextProvider{{ContextName: "locale", Provider: AbstractContextProvider{TypeName: "Account", ConcreteTypeNames: []string{"Team"}}}}
 	metadata := FederationMetaData{ContextProviders: provider}
 	matches, all := metadata.providerTypes(&schema, "locale", "Result")
 	require.ElementsMatch(t, []string{"Person", "Team"}, matches)
 	require.True(t, all)
-	metadata.ContextProviders = []ContextProvider{{ContextName: "locale", TypeName: "Person"}}
+	metadata.ContextProviders = []ContextProvider{{ContextName: "locale", Provider: ConcreteContextProvider{TypeName: "Person"}}}
 	matches, all = metadata.providerTypes(&schema, "locale", "Account")
 	require.Equal(t, []string{"Person"}, matches)
 	require.False(t, all)
@@ -100,7 +100,7 @@ func TestContextualResolverEligibility(t *testing.T) {
 	`)
 	require.False(t, report.HasErrors())
 	metadata := FederationMetaData{
-		ContextProviders: []ContextProvider{{ContextName: "owner", TypeName: "Member"}},
+		ContextProviders: []ContextProvider{{ContextName: "owner", Provider: ConcreteContextProvider{TypeName: "Member"}}},
 		ContextArguments: []ContextArgument{{ContextName: "owner", TypeName: "Wallet", FieldName: "quote"}},
 	}
 	collector := dsNodesCollector{definition: &schema, contextMetadata: &metadata, info: map[int]fieldInfo{
@@ -151,7 +151,7 @@ func TestOperationRootContextEligibility(t *testing.T) {
 					require.False(t, report.HasErrors())
 					rootField := op.Selections[op.SelectionSets[op.OperationDefinitions[0].SelectionSet].SelectionRefs[0]].Ref
 					metadata := FederationMetaData{
-						ContextProviders: []ContextProvider{{ContextName: "event", TypeName: "Events"}},
+						ContextProviders: []ContextProvider{{ContextName: "event", Provider: ConcreteContextProvider{TypeName: "Events"}}},
 						ContextArguments: []ContextArgument{{ContextName: "event", TypeName: "Wallet", FieldName: "quote", ContextSelection: tt.selection}},
 					}
 					collector := dsNodesCollector{operation: &op, definition: &schema, contextMetadata: &metadata, info: map[int]fieldInfo{
@@ -220,7 +220,7 @@ func TestContextDependencyCoexistsWithRequires(t *testing.T) {
 		KeysMetadata(FederationFieldConfigurations{{TypeName: "Account", SelectionSet: "id"}, {TypeName: "Wallet", SelectionSet: "id"}}).
 		WithMetadata(func(m *FederationMetaData) {
 			m.Requires = FederationFieldConfigurations{{TypeName: "Account", FieldName: "score", SelectionSet: "locale"}}
-			m.ContextProviders = []ContextProvider{{ContextName: "account", TypeName: "Account"}}
+			m.ContextProviders = []ContextProvider{{ContextName: "account", Provider: ConcreteContextProvider{TypeName: "Account"}}}
 			m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ContextName: "account", ContextSelection: "{ locale }"}}
 		}).SchemaMergedWithBase(schema).DS()
 	op := unsafeparser.ParseGraphqlDocumentString(`{account {locale score wallet {quote}}}`)

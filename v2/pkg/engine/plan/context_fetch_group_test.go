@@ -33,7 +33,7 @@ type Quote { amount: String }`
 				ChildNode("Quote", "amount").
 				KeysMetadata(FederationFieldConfigurations{{TypeName: "Wallet", SelectionSet: "id"}}).
 				WithMetadata(func(m *FederationMetaData) {
-					m.ContextProviders = []ContextProvider{{ContextName: "account", TypeName: "Account"}}
+					m.ContextProviders = []ContextProvider{{ContextName: "account", Provider: ConcreteContextProvider{TypeName: "Account"}}}
 					for _, arg := range []struct{ field, source string }{{"quote", "locale"}, {"sameLocale", "locale"}, {"regionQuote", "region"}} {
 						m.ContextArguments = append(m.ContextArguments, ContextArgument{ContextName: "account", TypeName: "Wallet", FieldName: arg.field, ArgumentName: "input", ArgumentType: "String", ContextSelection: "{ " + arg.source + " }"})
 					}

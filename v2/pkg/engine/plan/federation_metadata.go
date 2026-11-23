@@ -9,8 +9,30 @@ import (
 )
 
 type ContextProvider struct {
-	ContextName, TypeName string
-	ConcreteTypeNames     []string
+	ContextName string
+	Provider    ContextProviderType
+}
+
+type ContextProviderType interface {
+	matchesRuntimeType(definition *ast.Document, scope, runtimeType string) bool
+}
+
+type ConcreteContextProvider struct {
+	TypeName string
+}
+
+func (p ConcreteContextProvider) matchesRuntimeType(_ *ast.Document, _, runtimeType string) bool {
+	return p.TypeName == runtimeType
+}
+
+type AbstractContextProvider struct {
+	TypeName          string
+	ConcreteTypeNames []string
+}
+
+func (p AbstractContextProvider) matchesRuntimeType(definition *ast.Document, scope, runtimeType string) bool {
+	return p.TypeName == scope || slices.Contains(p.ConcreteTypeNames, runtimeType) ||
+		slices.Contains(contextRuntimeTypes(definition, p.TypeName), runtimeType)
 }
 
 type ContextArgument struct {
@@ -54,7 +76,7 @@ func (m *FederationMetaData) providerTypes(definition *ast.Document, contextName
 			if p.ContextName != contextName {
 				continue
 			}
-			if p.TypeName == scope || slices.Contains(p.ConcreteTypeNames, name) || slices.Contains(contextRuntimeTypes(definition, p.TypeName), name) {
+			if p.Provider != nil && p.Provider.matchesRuntimeType(definition, scope, name) {
 				matches = append(matches, name)
 				break
 			}

@@ -31,7 +31,7 @@ type Wallet { id: ID! quote: String sku: String }`
 				RootNode("Wallet", "id", "quote", "sku").
 				KeysMetadata(FederationFieldConfigurations{{TypeName: "Account", SelectionSet: tc.key}, {TypeName: "Wallet", SelectionSet: "id"}}).
 				WithMetadata(func(m *FederationMetaData) {
-					m.ContextProviders = []ContextProvider{{ContextName: "account", TypeName: "Account"}}
+					m.ContextProviders = []ContextProvider{{ContextName: "account", Provider: ConcreteContextProvider{TypeName: "Account"}}}
 					m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ContextName: "account", ContextSelection: "{ locale }"}}
 				}).SchemaMergedWithBase(schema).DS()
 			ordinary := dsb().Hash(33).Id("ordinary").RootNode("Wallet", "id", "quote").
@@ -72,7 +72,7 @@ type Wallet { id: ID! quote: String }`
 		{name: "unreachable key", key: "token", configureSource: requiresSecret},
 		{name: "cycle through requires", key: "id", configureSource: requiresSecret, secretRequires: "locale"},
 		{name: "cycle through context", key: "id", configureSource: func(m *FederationMetaData) {
-			m.ContextProviders = []ContextProvider{{ContextName: "root", TypeName: "Query"}}
+			m.ContextProviders = []ContextProvider{{ContextName: "root", Provider: ConcreteContextProvider{TypeName: "Query"}}}
 			m.ContextArguments = []ContextArgument{{TypeName: "Account", FieldName: "locale", ContextName: "root", ContextSelection: "{ account { locale } }"}}
 		}},
 	} {
@@ -85,7 +85,7 @@ type Wallet { id: ID! quote: String }`
 			contextual := dsb().Hash(22).Id("contextual").RootNode("Account", tc.key, "secret").RootNode("Wallet", "id", "quote").
 				KeysMetadata(FederationFieldConfigurations{{TypeName: "Account", SelectionSet: tc.key}, {TypeName: "Wallet", SelectionSet: "id"}}).
 				WithMetadata(func(m *FederationMetaData) {
-					m.ContextProviders = []ContextProvider{{ContextName: "account", TypeName: "Account"}}
+					m.ContextProviders = []ContextProvider{{ContextName: "account", Provider: ConcreteContextProvider{TypeName: "Account"}}}
 					m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ContextName: "account", ContextSelection: "{ locale }"}}
 					if tc.secretRequires != "" {
 						m.Requires = FederationFieldConfigurations{{TypeName: "Account", FieldName: "secret", SelectionSet: tc.secretRequires}}
