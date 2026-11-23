@@ -333,7 +333,7 @@ func TestExecutionEngine_Execute_DeferMutation(t *testing.T) {
 		}, requests)
 	})
 
-	t.Run("[E5] response announces only the surviving inner defer", func(t *testing.T) {
+	t.Run("[E5] outer defer on the mutation subgraph and inner entity defer both stay deferred", func(t *testing.T) {
 		rec := &multiFetchRecorder{}
 
 		runWithoutError(ExecutionEngineTestCase{

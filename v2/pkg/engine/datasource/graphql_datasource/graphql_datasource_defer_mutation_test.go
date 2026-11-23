@@ -945,7 +945,7 @@ func TestGraphQLDataSourceDeferMutation(t *testing.T) {
 		)
 	})
 
-	t.Run("[P8] planner deletes an empty outer defer and the inner defer gets its parent", func(t *testing.T) {
+	t.Run("[P8] outer defer on the mutation subgraph and inner entity defer both stay deferred", func(t *testing.T) {
 		RunWithPermutations(
 			t,
 			definition,
