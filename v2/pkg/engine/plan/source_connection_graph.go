@@ -38,6 +38,24 @@ type SourceConnection struct {
 	Type   SourceConnectionType
 }
 
+// sameSourceKeyJump returns a key jump from the data source back into itself.
+// The jump starts a new entity fetch on the same data source.
+func sameSourceKeyJump(dsHash DSHash, typeName string, keySelectionSet string) SourceConnection {
+	return SourceConnection{
+		Source: dsHash,
+		Target: dsHash,
+		Type:   SourceConnectionTypeDirect,
+		Jumps: []KeyJump{
+			{
+				From:         dsHash,
+				To:           dsHash,
+				SelectionSet: keySelectionSet,
+				TypeName:     typeName,
+			},
+		},
+	}
+}
+
 // JumpCacheKey represents a key for the cache map
 type JumpCacheKey struct {
 	Source          DSHash
@@ -50,6 +68,9 @@ type JumpCacheKey struct {
 type DataSourceJumpsGraph struct {
 	Jumps map[DSHash][]KeyJump
 	Cache map[JumpCacheKey][]SourceConnection
+	// Keys holds the keys of each data source that the graph is built from.
+	// A key jump into the same data source has no edge in Jumps, so it reads these keys.
+	Keys map[DSHash][]KeyInfo
 }
 
 func (g *DataSourceJumpsGraph) getPaths(source DSHash, target DSHash, includeFallback bool) ([]SourceConnection, bool) {
@@ -124,6 +145,7 @@ func NewDataSourceJumpsGraph(dataSources []DSHash, keysPerPath map[DSHash][]KeyI
 	graph := &DataSourceJumpsGraph{
 		Jumps: make(map[DSHash][]KeyJump),
 		Cache: make(map[JumpCacheKey][]SourceConnection),
+		Keys:  keysPerPath,
 	}
 
 	// NOTE: we have to record jumps in order of key appearance on the target data source

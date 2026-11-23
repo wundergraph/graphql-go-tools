@@ -181,7 +181,7 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 
 // ProcessDefer propagates each defer ID to its fetch anchor.
 // A field whose fetch anchor is a mutation root field moves to the initial response, because a second fetch runs the mutation again.
-// The planner can fetch a query root field again, so a query defer keeps its anchor.
+// DataSourceFilter.assignDeferKeyJumps gives the nearest entity a key jump before this pass, so only a field without an entity above it moves.
 func (f *NodeSuggestions) ProcessDefer(fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration, descriptors map[int]resolve.DeferDescriptor, mutationTypeName string) error {
 	var movedDeferIDs []int
 	for i := range f.items {

@@ -619,22 +619,26 @@ func (v *Visitor) assignDefer(fieldRef int) {
 	// ignore existence check - we should always have planners for the field
 	plannerIds := v.fieldPlanners[fieldRef]
 
+	deferID := 0
 	for _, plannerId := range plannerIds {
-		planner := v.planners[plannerId]
-
-		fieldPathConfiguration, ok := planner.PathWithFieldRef(fieldRef)
+		fieldPathConfiguration, ok := v.planners[plannerId].PathWithFieldRef(fieldRef)
 		if !ok {
 			continue
 		}
 
-		if fieldPathConfiguration.deferredField {
-			currentField.Defer = &resolve.DeferField{
-				DeferID: fieldPathConfiguration.deferID,
-			}
-
-			// after the normalization we should have only one planner per deferred field
-			break
+		if fieldPathConfiguration.deferID == 0 {
+			// A shareable field can have a planner in the initial response and a deferred planner on another subgraph.
+			// The initial response then renders the field, and the deferred payload adds the other part below it.
+			return
 		}
+
+		if fieldPathConfiguration.deferredField {
+			deferID = fieldPathConfiguration.deferID
+		}
+	}
+
+	if deferID != 0 {
+		currentField.Defer = &resolve.DeferField{DeferID: deferID}
 	}
 }
 

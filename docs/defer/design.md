@@ -280,6 +280,7 @@ Then it does one of these for each deferred field:
 - `v2/pkg/engine/plan/planner.go`
 - `v2/pkg/engine/plan/defer_info_collector.go`
 - `v2/pkg/engine/plan/datasource_filter_collect_nodes_visitor.go`
+- `v2/pkg/engine/plan/datasource_filter_visitor.go`
 - `v2/pkg/engine/plan/datasource_filter_node_suggestions.go`
 - `v2/pkg/engine/plan/node_selection_visitor.go`
 - `v2/pkg/engine/plan/required_fields_visitor.go`
@@ -321,13 +322,27 @@ An ancestor in the same defer gets no mark, and the walk continues above it.
 The walk writes the IDs in a second pass, because the mutation root check can discard the whole path.
 
 **Mutation root fields.**
-When the walk ends at a top-level field of the mutation root type, that mutation root field is the fetch anchor.
-A deferred fetch from that anchor would execute the mutation a second time.
-So the walk marks no parent, and `ProcessDefer` sets the `deferInfo` of the field to `nil`.
+A deferred fetch must never start at a top-level field of the mutation root type, because it would execute the mutation a second time.
+The data source filter prevents this before node selection, in `assignDeferKeyJumps`.
+It walks up from a deferred field toward the mutation root field.
+When the walk reaches the mutation root field without another fetch anchor, the deferred fetch branches out at the nearest entity above the field.
+The branch node is the nearest node, from the field itself up to the mutation root field, whose enclosing type has a resolvable key on its data source.
+The branch node gets a key jump into its own data source.
+Node selection then adds the key fields to its parent, and the deferred fetch is an `_entities` fetch on the same subgraph.
+A deferred field below a parent in the same defer that takes such a jump joins the fetch of that parent.
+The `@requires` back jump builds the same jump with `sameSourceKeyJump`.
+
+The branch node can be a field that is not deferred.
+Example: in `createUser { id info { ... @defer { a } } }` with a value type `Info`, the branch node is `info`.
+The `ProcessDefer` walk marks `info` as a defer parent, so the path builder plans `info` twice.
+The initial fetch is `createUser {id info {__internal_typename: __typename} __typename}`.
+The deferred fetch is `_entities` with `... on User {__typename info {a}}`.
+
+A field without a branch node still reaches the mutation root field in the `ProcessDefer` walk.
+An example is a field of a value type with no entity between it and the mutation root field.
+Then the walk marks no parent, and `ProcessDefer` sets the `deferInfo` of the field to `nil`.
 The field then belongs to the initial response.
 The decision is per field, so an entity-backed field of the same defer stays deferred.
-The decision uses the generated fetch anchor.
-A declared entity key on the mutation subgraph therefore does not keep the field deferred.
 
 After the pass, `deleteEmptyDeferDescriptors` deletes each descriptor that has no deferred field left.
 It gives the children of a deleted descriptor the parent of that descriptor.
@@ -376,6 +391,9 @@ One defer ID can produce more than one planner when its fields have different fe
 
 - `assignDefer` sets `resolve.Field.Defer` on a deferred response field.
   The resolver uses it to select the fields of each payload.
+  A field that also has a planner in the initial response gets no `Defer`.
+  This happens for a shareable field when only one of its subgraphs can stay deferred.
+  The deferred payload then adds the deferred child fields with a `subPath`.
 - `configureFetch` sets `FetchDependencies.DeferID` on each fetch.
   The postprocess steps use it to split the fetches.
 - When a planner has a defer ID, the plan is a `DeferResponsePlan`.
@@ -778,11 +796,12 @@ See [`__typename` scope alignment](#__typename-scope-alignment).
 
 - Each mutation root field executes once.
   The planner never creates a second upstream mutation for a deferred field.
-- A deferred field whose fetch anchor is a mutation root field goes to the initial response.
-- An entity-backed deferred field stays deferred.
-  Its `_entities` fetch depends on the mutation root fetch that returns the key.
+- A deferred field stays deferred when an entity with a resolvable key is between it and the mutation root field, or encloses it.
+  Its `_entities` fetch starts at the nearest such entity and depends on the mutation root fetch that returns the key.
+  On the mutation subgraph, the fetch goes back into the same subgraph.
+- A deferred field with no such entity goes to the initial response.
 - One defer can split.
-  Its fields that need the mutation root go to the initial response, and its entity-backed fields stay deferred.
+  Its fields without an entity go to the initial response, and its other fields stay deferred.
   The engine announces the defer and delivers the remaining fields, with a `subPath` when they are deeper than the descriptor path.
 - A defer that loses all its fields leaves nothing in the response.
   It has no deferred fetch, no descriptor, no `pending` entry and no `completed` entry.

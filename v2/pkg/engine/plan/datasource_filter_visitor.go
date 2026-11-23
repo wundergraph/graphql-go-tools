@@ -105,6 +105,7 @@ func (f *DataSourceFilter) findBestDataSourceSet(landedTo map[int]DSHash) (*Node
 	f.selectUniqueNodes()
 	f.selectDuplicateNodes(false)
 	f.selectDuplicateNodes(true)
+	f.assignDeferKeyJumps()
 
 	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
 
@@ -439,6 +440,87 @@ func sourceConnectionUsesFallback(path SourceConnection) bool {
 	}
 
 	return false
+}
+
+// assignDeferKeyJumps gives the branch node of a deferred field below a mutation root field a key jump into its own data source.
+// The deferred fetch then starts at the nearest entity above the field, so it does not run the mutation again.
+// A field without a branch node moves into the initial response in NodeSuggestions.ProcessDefer.
+func (f *DataSourceFilter) assignDeferKeyJumps() {
+	mutationTypeName := f.definition.Index.MutationTypeName.String()
+	if mutationTypeName == "" {
+		return
+	}
+
+	for i, item := range f.nodes.items {
+		if !item.Selected || item.deferInfo == nil || item.IsRequiredKeyField || item.isTypeName {
+			continue
+		}
+
+		branchIdx, ok := f.deferBranchNode(i, mutationTypeName)
+		if !ok {
+			continue
+		}
+
+		branch := f.nodes.items[branchIdx]
+		keySelectionSet, _ := f.keyJumpKey(branch)
+		sc := sameSourceKeyJump(branch.DataSourceHash, branch.TypeName, keySelectionSet)
+		branch.requiresKey = &sc
+	}
+}
+
+// keyJumpKey returns the first key of the enclosing entity that the data source of the node can supply and resolve.
+// ProcessDefer treats a key jump as a fetch anchor only on a root node, so a child node gets no key.
+func (f *DataSourceFilter) keyJumpKey(item *NodeSuggestion) (selectionSet string, ok bool) {
+	if !item.Selected || !item.IsRootNode || item.requiresKey != nil || item.IsRequiredKeyField || item.isTypeName {
+		return "", false
+	}
+
+	jumps, ok := f.jumpsForPathAndTypeName(item.ParentPath, item.TypeName)
+	if !ok {
+		return "", false
+	}
+	keys := jumps.Keys[item.DataSourceHash]
+	idx := slices.IndexFunc(keys, func(key KeyInfo) bool {
+		return key.Source && key.Target
+	})
+	if idx == -1 {
+		return "", false
+	}
+	return keys[idx].SelectionSet, true
+}
+
+// deferBranchNode returns the node where the deferred fetch of the field branches out with a key jump.
+// It is the nearest node from the field up to the mutation root field that keyJumpKey accepts.
+// It reports false without such a node, at a parent in the same defer with a key, and at another fetch anchor.
+func (f *DataSourceFilter) deferBranchNode(i int, mutationTypeName string) (branchIdx int, ok bool) {
+	deferID := f.nodes.items[i].deferInfo.ID
+	branchIdx = -1
+	current := i
+	for {
+		if _, hasKey := f.keyJumpKey(f.nodes.items[current]); branchIdx == -1 && hasKey {
+			branchIdx = current
+		}
+
+		parentIdx, ok := f.nodes.parentNodeOnSameSource(current)
+		if !ok || !f.nodes.items[parentIdx].Selected {
+			return -1, false
+		}
+		if f.nodes.isMutationRootField(parentIdx, mutationTypeName) {
+			return branchIdx, branchIdx != -1
+		}
+
+		parent := f.nodes.items[parentIdx]
+		// The field requirements are not known before the node selection visitor runs.
+		// So this walk cannot use NodeSuggestions.isEntityFetchAnchor, and it stops only at an assigned key jump.
+		if parent.requiresKey != nil {
+			return -1, false
+		}
+		if _, hasKey := f.keyJumpKey(parent); parent.deferInfo != nil && parent.deferInfo.ID == deferID && hasKey {
+			// The parent in the same defer takes the jump, and the field joins its fetch.
+			return -1, false
+		}
+		current = parentIdx
+	}
 }
 
 func (f *DataSourceFilter) jumpsForPathAndTypeName(path string, typeName string) (*DataSourceJumpsGraph, bool) {
