@@ -534,7 +534,7 @@ func TestGraphQLDataSourceDeferMutation(t *testing.T) {
 		)
 	})
 
-	t.Run("[P5] unsafe nested defer moves to the initial response and the entity-backed outer defer stays", func(t *testing.T) {
+	t.Run("[P5] inner defer on the mutation subgraph and outer entity defer both stay deferred", func(t *testing.T) {
 		RunWithPermutations(
 			t,
 			definition,

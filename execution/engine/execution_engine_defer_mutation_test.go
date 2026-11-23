@@ -258,7 +258,7 @@ func TestExecutionEngine_Execute_DeferMutation(t *testing.T) {
 		}, rec.requests())
 	})
 
-	t.Run("[E3] unsafe nested defer joins the initial response and the outer defer stays", func(t *testing.T) {
+	t.Run("[E3] inner defer on the mutation subgraph and outer entity defer both stay deferred", func(t *testing.T) {
 		rec := &multiFetchRecorder{}
 
 		runWithoutError(ExecutionEngineTestCase{
