@@ -83,6 +83,9 @@ func TestCompileWireMessage(t *testing.T) {
 		assert.Len(t, wm.fields, 4)
 		for _, field := range wm.fields {
 			assert.Truef(t, field.optional, "field %s", field.jsonPath)
+			// A wrapper field has optional cardinality, but no optional keyword.
+			assert.Equalf(t, protoref.Optional, field.runtime.desc.Cardinality(), "field %s", field.jsonPath)
+			assert.Falsef(t, field.runtime.optional, "field %s", field.jsonPath)
 		}
 	})
 

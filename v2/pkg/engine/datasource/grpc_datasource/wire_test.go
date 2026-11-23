@@ -284,7 +284,14 @@ func compileWrapperScalarRequest(t *testing.T, runtime *runtimeSchema) *wireMess
 // proto3 optional fields as nullable scalars.
 func compileOptionalScalarRequest(t *testing.T, runtime *runtimeSchema) *wireMessage {
 	t.Helper()
-	message := compileTestProgramMessage(t, runtime, &RPCMessage{
+	message := compileTestProgramMessage(t, runtime, optionalScalarRequestMessage(), runtime.getMessageByName("OptionalScalarRequest"))
+	return compileTestWireMessage(t, runtime, message)
+}
+
+// optionalScalarRequestMessage returns OptionalScalarRequest with all of its
+// proto3 optional fields as nullable scalars.
+func optionalScalarRequestMessage() *RPCMessage {
+	return &RPCMessage{
 		Name: "OptionalScalarRequest",
 		Fields: RPCFields{
 			{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true},
@@ -296,8 +303,7 @@ func compileOptionalScalarRequest(t *testing.T, runtime *runtimeSchema) *wireMes
 			{Name: "int_32_value", ProtoTypeName: DataTypeInt32, JSONPath: "int_32_value", Optional: true},
 			{Name: "int_64_value", ProtoTypeName: DataTypeInt64, JSONPath: "int_64_value", Optional: true},
 		},
-	}, runtime.getMessageByName("OptionalScalarRequest"))
-	return compileTestWireMessage(t, runtime, message)
+	}
 }
 
 // Inputs for WrapperScalarRequest and OptionalScalarRequest. They set every

@@ -359,6 +359,12 @@ func (j *jsonBuilder) marshalResponseJSON(message *RPCMessage, data protoref.Mes
 			continue
 		}
 
+		// A proto3 optional field that is not set is null.
+		if fd.HasOptionalKeyword() && !data.Has(fd) {
+			root.Set(j.jsonArena, field.AliasOrPath(), astjson.NullValue)
+			continue
+		}
+
 		// Handle scalar fields (string, int, bool, etc.)
 		j.setJSONValue(root, field.AliasOrPath(), data, fd)
 	}

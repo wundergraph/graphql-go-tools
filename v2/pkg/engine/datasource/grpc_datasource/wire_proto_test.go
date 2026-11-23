@@ -1555,6 +1555,16 @@ func TestCreateProtoMessageWrapperScalars(t *testing.T) {
 		assertProtoMessageEqual(t, buildExpectedProto(t, runtime, "WrapperScalarRequest", build), got)
 	}
 
+	t.Run("compiles the wrappers without the optional keyword", func(t *testing.T) {
+		for _, field := range wm.fields {
+			assert.Truef(t, field.isOptionalScalar(), "field %s", field.jsonPath)
+			// A wrapper field has optional cardinality, but no optional keyword.
+			assert.Equalf(t, protoref.Optional, field.runtime.desc.Cardinality(), "field %s", field.jsonPath)
+			assert.Falsef(t, field.runtime.optional, "field %s", field.jsonPath)
+			assert.NotNilf(t, field.fieldMessage, "field %s", field.jsonPath)
+		}
+	})
+
 	t.Run("leaves the wrapper unset when the field is absent", func(t *testing.T) {
 		assertEncodes(t, `{}`, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
 	})
@@ -1589,6 +1599,14 @@ func TestCreateProtoMessageOptionalScalars(t *testing.T) {
 		require.NoError(t, err)
 		assertProtoMessageEqual(t, buildExpectedProto(t, runtime, "OptionalScalarRequest", build), got)
 	}
+
+	t.Run("compiles the fields with the optional keyword", func(t *testing.T) {
+		for _, field := range wm.fields {
+			assert.Truef(t, field.isOptionalScalar(), "field %s", field.jsonPath)
+			assert.Truef(t, field.runtime.optional, "field %s", field.jsonPath)
+			assert.Nilf(t, field.runtime.message, "field %s", field.jsonPath)
+		}
+	})
 
 	t.Run("leaves the field unset when the field is absent", func(t *testing.T) {
 		assertEncodes(t, `{}`, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})

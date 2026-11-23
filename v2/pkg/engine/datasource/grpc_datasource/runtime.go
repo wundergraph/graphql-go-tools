@@ -126,7 +126,7 @@ func appendMessageFields(runtime *runtimeSchema, message *runtimeMessage) error 
 			desc:     fieldDesc,
 			dataType: parseDataType(fieldDesc.Kind()),
 			repeated: fieldDesc.IsList(),
-			optional: fieldDesc.Cardinality() == protoref.Optional,
+			optional: fieldDesc.HasOptionalKeyword(),
 		}
 
 		if field.dataType == DataTypeMessage {
