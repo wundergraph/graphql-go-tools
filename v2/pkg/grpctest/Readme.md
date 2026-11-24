@@ -144,21 +144,25 @@ This will regenerate the .proto file, generate the mapping.go file, and regenera
 
 The mapping.go file is generated using the `mapping_helper` command. This command takes a mapping.json file and generates the mapping.go file.
 
-You can either run the `mapping_helper` command manually or use the `make generate-mapping-code` command.
+You can either run the `mapping_helper` command manually or use the `make generate-<service>` command.
 The recommended way is to use the Makefile.
 
 ### Use Makefile
 
 ```bash
-# Regenerate .proto and mapping files 
-make regenerate-proto
-# or make regenerate-proto-local (if you need to test local changes in protographic)
+# Regenerate the .proto file, the mapping files and the Go code of the products service
+make generate-products
+# or make generate-products-local (if you need to test local changes in protographic)
 
-# Generate the mapping.go file
-make generate-mapping-code
+# Do the same for the events service
+make generate-events
+# or make generate-events-local
+
+# Regenerate only the Go code from the existing .proto files with buf
+make generate-proto
 ```
 
-This will run the `generate-mapping-code` command with the correct arguments.
+The `generate-<service>` targets run the `mapping_helper` command with the correct `-service` and `-func` arguments for the service.
 
 ### Setup a Run Configuration in VSCode
 

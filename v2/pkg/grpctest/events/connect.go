@@ -2,11 +2,13 @@ package events
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/grpc/status"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/events/eventv1"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/events/eventv1/eventv1connect"
@@ -37,9 +39,14 @@ type connectService struct {
 
 var _ eventv1connect.EventServiceHandler = (*connectService)(nil)
 
+// forward calls the MockService method with the request message.
+// It converts a gRPC status error to a ConnectRPC error with the same code.
 func forward[Req, Res any](ctx context.Context, req *connect.Request[Req], call func(context.Context, *Req) (*Res, error)) (*connect.Response[Res], error) {
 	res, err := call(ctx, req.Msg)
 	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			return nil, connect.NewError(connect.Code(st.Code()), errors.New(st.Message()))
+		}
 		return nil, err
 	}
 

@@ -31,7 +31,7 @@ type Event @key(fields: "id") {
   availableSeats: Int @requires(fields: "ticketsSold")
 
   # Null when the price is not known. A discount of 0.25 takes 25% off the price.
-  # A null discount gives the full price.
+  # A null discount gives the full price. A discount must be between 0 and 1.
   ticketPrice(discount: Float): Float @connect__fieldResolver(context: "id price")
 }
 

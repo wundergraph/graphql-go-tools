@@ -235,6 +235,15 @@ func TestDataSourceLoadOptionalFieldsInArguments(t *testing.T) {
 		got := clients.load(t, operation, `{"limit":1}`)
 		require.JSONEq(t, `{"data":{"events":[{"id":"event-1"}]}}`, got)
 	})
+
+	t.Run("returns an error for a negative argument", func(t *testing.T) {
+		// The responses are not compared, because the ConnectRPC transport reports the error with the Internal code.
+		got := clients.loadWith(t, clients.grpc, operation, `{"limit":-1}`, nil)
+		require.JSONEq(t, `{"errors":[{"message":"rpc error: code = InvalidArgument desc = limit must not be negative: -1","extensions":{"code":"InvalidArgument"}}]}`, got)
+
+		gotConnect := clients.loadWith(t, clients.connect, operation, `{"limit":-1}`, nil)
+		require.Contains(t, gotConnect, "limit must not be negative: -1")
+	})
 }
 
 func TestDataSourceLoadOptionalFieldsInEntityLookups(t *testing.T) {
@@ -305,6 +314,24 @@ func TestDataSourceLoadOptionalFieldsInFieldResolvers(t *testing.T) {
 
 	t.Run("sends a null argument as an unset field", func(t *testing.T) {
 		got := clients.load(t, operation, `{"discount":null}`)
+		require.JSONEq(t, `{"data":{"events":[
+			{"id":"event-1","ticketPrice":49.5},
+			{"id":"event-2","ticketPrice":null},
+			{"id":"event-3","ticketPrice":0}
+		]}}`, got)
+	})
+
+	t.Run("returns an error for a discount greater than 1", func(t *testing.T) {
+		// The responses are not compared, because the ConnectRPC transport reports the error with the Internal code.
+		got := clients.loadWith(t, clients.grpc, operation, `{"discount":1.5}`, nil)
+		require.JSONEq(t, `{"errors":[{"message":"rpc error: code = InvalidArgument desc = discount must be between 0 and 1: 1.5","extensions":{"code":"InvalidArgument"}}]}`, got)
+
+		gotConnect := clients.loadWith(t, clients.connect, operation, `{"discount":1.5}`, nil)
+		require.Contains(t, gotConnect, "discount must be between 0 and 1: 1.5")
+	})
+
+	t.Run("sends no field arguments when the argument is omitted", func(t *testing.T) {
+		got := clients.load(t, `query { events { id ticketPrice } }`, `{}`)
 		require.JSONEq(t, `{"data":{"events":[
 			{"id":"event-1","ticketPrice":49.5},
 			{"id":"event-2","ticketPrice":null},

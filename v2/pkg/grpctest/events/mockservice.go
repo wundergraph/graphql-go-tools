@@ -4,6 +4,9 @@ import (
 	"context"
 	"strings"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/events/eventv1"
 )
 
@@ -79,7 +82,12 @@ func (s *MockService) QueryEvent(_ context.Context, req *eventv1.QueryEventReque
 
 // QueryEvents returns the events that match the filter.
 // A null limit does not limit the events. A limit of 0 returns no events.
+// A negative limit returns an InvalidArgument error.
 func (s *MockService) QueryEvents(_ context.Context, req *eventv1.QueryEventsRequest) (*eventv1.QueryEventsResponse, error) {
+	if req.GetLimit() < 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "limit must not be negative: %d", req.GetLimit())
+	}
+
 	result := make([]*eventv1.Event, 0, len(mockEvents))
 	for _, event := range mockEvents {
 		if matchesFilter(event, req.GetFilter()) {
@@ -166,21 +174,21 @@ func (s *MockService) RequireEventAvailableSeatsById(_ context.Context, req *eve
 }
 
 // ResolveEventTicketPrice returns the price with the discount.
-// The result is null when the price is null. A null discount gives the full price.
+// The result is null when the price is null. A null or absent discount gives the full price.
+// A discount that is not between 0 and 1 returns an InvalidArgument error.
 func (s *MockService) ResolveEventTicketPrice(_ context.Context, req *eventv1.ResolveEventTicketPriceRequest) (*eventv1.ResolveEventTicketPriceResponse, error) {
-	discount := req.GetFieldArgs().Discount
+	// GetDiscount returns 0 for a null or absent discount. A discount of 0 gives the full price.
+	discount := req.GetFieldArgs().GetDiscount()
+	if discount < 0 || discount > 1 {
+		return nil, status.Errorf(codes.InvalidArgument, "discount must be between 0 and 1: %g", discount)
+	}
 
 	result := make([]*eventv1.ResolveEventTicketPriceResult, 0, len(req.GetContext()))
 	for _, rctx := range req.GetContext() {
 		item := &eventv1.ResolveEventTicketPriceResult{}
 
 		if rctx.Price != nil {
-			price := rctx.GetPrice()
-			if discount != nil {
-				price *= 1 - *discount
-			}
-
-			item.TicketPrice = new(price)
+			item.TicketPrice = new(rctx.GetPrice() * (1 - discount))
 		}
 
 		result = append(result, item)
