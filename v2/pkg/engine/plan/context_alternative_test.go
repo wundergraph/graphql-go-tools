@@ -14,7 +14,7 @@ import (
 func TestContextOwnerRequiresReachableProjection(t *testing.T) {
 	const schema = `type Query { account(n: Int): Account }
 type Account { id: ID! token: ID! locale: String wallet: Wallet! }
-type Wallet { id: ID! quote: String sku: String }`
+type Wallet { id: ID! quote(input: String): String sku: String }`
 	for _, tc := range []struct {
 		key, want string
 		count     int
@@ -32,7 +32,7 @@ type Wallet { id: ID! quote: String sku: String }`
 				KeysMetadata(FederationFieldConfigurations{{TypeName: "Account", SelectionSet: tc.key}, {TypeName: "Wallet", SelectionSet: "id"}}).
 				WithMetadata(func(m *FederationMetaData) {
 					m.ContextProviders = []ContextProvider{{ContextName: "account", Provider: ConcreteContextProvider{TypeName: "Account"}}}
-					m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ContextName: "account", ContextSelection: "{ locale }"}}
+					m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ArgumentName: "input", ContextName: "account", ContextSelection: "{ locale }"}}
 				}).SchemaMergedWithBase(schema).DS()
 			ordinary := dsb().Hash(33).Id("ordinary").RootNode("Wallet", "id", "quote").
 				KeysMetadata(FederationFieldConfigurations{{TypeName: "Wallet", SelectionSet: "id"}}).SchemaMergedWithBase(schema).DS()
@@ -59,8 +59,8 @@ type Wallet { id: ID! quote: String sku: String }`
 
 func TestContextProjectionRetriesRequiredFieldOwner(t *testing.T) {
 	const schema = `type Query { account: Account }
-type Account { id: ID! token: ID! locale: String secret: String wallet: Wallet! }
-type Wallet { id: ID! quote: String }`
+type Account { id: ID! token: ID! locale(input: String): String secret: String wallet: Wallet! }
+type Wallet { id: ID! quote(input: String): String }`
 	requiresSecret := func(m *FederationMetaData) {
 		m.Requires = FederationFieldConfigurations{{TypeName: "Account", FieldName: "locale", SelectionSet: "secret"}}
 	}
@@ -73,7 +73,7 @@ type Wallet { id: ID! quote: String }`
 		{name: "cycle through requires", key: "id", configureSource: requiresSecret, secretRequires: "locale"},
 		{name: "cycle through context", key: "id", configureSource: func(m *FederationMetaData) {
 			m.ContextProviders = []ContextProvider{{ContextName: "root", Provider: ConcreteContextProvider{TypeName: "Query"}}}
-			m.ContextArguments = []ContextArgument{{TypeName: "Account", FieldName: "locale", ContextName: "root", ContextSelection: "{ account { locale } }"}}
+			m.ContextArguments = []ContextArgument{{TypeName: "Account", FieldName: "locale", ArgumentName: "input", ContextName: "root", ContextSelection: "{ account { locale } }"}}
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -86,7 +86,7 @@ type Wallet { id: ID! quote: String }`
 				KeysMetadata(FederationFieldConfigurations{{TypeName: "Account", SelectionSet: tc.key}, {TypeName: "Wallet", SelectionSet: "id"}}).
 				WithMetadata(func(m *FederationMetaData) {
 					m.ContextProviders = []ContextProvider{{ContextName: "account", Provider: ConcreteContextProvider{TypeName: "Account"}}}
-					m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ContextName: "account", ContextSelection: "{ locale }"}}
+					m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ArgumentName: "input", ContextName: "account", ContextSelection: "{ locale }"}}
 					if tc.secretRequires != "" {
 						m.Requires = FederationFieldConfigurations{{TypeName: "Account", FieldName: "secret", SelectionSet: tc.secretRequires}}
 					}

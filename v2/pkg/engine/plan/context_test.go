@@ -211,7 +211,7 @@ func TestPlanContextOnOperationRoot(t *testing.T) {
 func TestContextDependencyCoexistsWithRequires(t *testing.T) {
 	const schema = `type Query { account: Account }
 	type Account { id: ID! locale: String score: Int wallet: Wallet! }
-	type Wallet { id: ID! quote: String }`
+	type Wallet { id: ID! quote(input: String): String }`
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
 	accounts := dsb().Hash(11).Id("accounts").RootNode("Query", "account").
 		RootNode("Account", "id", "locale", "wallet").ChildNode("Wallet", "id").
@@ -221,7 +221,7 @@ func TestContextDependencyCoexistsWithRequires(t *testing.T) {
 		WithMetadata(func(m *FederationMetaData) {
 			m.Requires = FederationFieldConfigurations{{TypeName: "Account", FieldName: "score", SelectionSet: "locale"}}
 			m.ContextProviders = []ContextProvider{{ContextName: "account", Provider: ConcreteContextProvider{TypeName: "Account"}}}
-			m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ContextName: "account", ContextSelection: "{ locale }"}}
+			m.ContextArguments = []ContextArgument{{TypeName: "Wallet", FieldName: "quote", ArgumentName: "input", ContextName: "account", ContextSelection: "{ locale }"}}
 		}).SchemaMergedWithBase(schema).DS()
 	op := unsafeparser.ParseGraphqlDocumentString(`{account {locale score wallet {quote}}}`)
 	report := &operationreport.Report{}
@@ -245,4 +245,27 @@ func TestContextDependencyCoexistsWithRequires(t *testing.T) {
 		checked = append(checked, field)
 	}
 	require.ElementsMatch(t, []string{"quote", "score"}, checked)
+}
+
+func TestContextArgumentsRequireUpstreamDefinitions(t *testing.T) {
+	schema := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema("type Wallet { quote(input: String): String }")
+	for _, tc := range []struct {
+		name, parent, field, argument string
+		schema                        *ast.Document
+		want                          string
+	}{
+		{"no upstream schema", "Wallet", "quote", "input", nil, "requires an upstream schema"},
+		{"missing type", "Missing", "quote", "input", &schema, "Missing.quote(input:)"},
+		{"missing field", "Wallet", "missing", "input", &schema, "Wallet.missing(input:)"},
+		{"missing argument", "Wallet", "quote", "missing", &schema, "Wallet.quote(missing:)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			metadata := &DataSourceMetadata{FederationMetaData: FederationMetaData{
+				ContextArguments: []ContextArgument{{TypeName: tc.parent, FieldName: tc.field, ArgumentName: tc.argument}},
+			}}
+			_, err := NewDataSourceConfiguration("quotes", &FakeFactory[any]{upstreamSchema: tc.schema}, metadata, nil)
+			require.ErrorContains(t, err, tc.want)
+			require.ErrorContains(t, err, "quotes")
+		})
+	}
 }

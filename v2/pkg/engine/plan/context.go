@@ -17,9 +17,16 @@ type PlannedContextArgument struct {
 	Sources []resolve.ContextSource
 }
 
+// UpstreamType returns the receiving argument's type in its owning schema.
+func (a PlannedContextArgument) UpstreamType() (*ast.Document, int) {
+	return a.upstreamSchema, a.typeRef
+}
+
 // SameInput reports whether one upstream variable can supply both arguments.
 func (a PlannedContextArgument) SameInput(b PlannedContextArgument) bool {
-	return a.ArgumentType == b.ArgumentType && slices.EqualFunc(a.Sources, b.Sources, resolve.ContextSource.Equal)
+	return a.upstreamSchema != nil && a.upstreamSchema == b.upstreamSchema &&
+		a.upstreamSchema.TypesAreEqualDeep(a.typeRef, b.typeRef) &&
+		slices.EqualFunc(a.Sources, b.Sources, resolve.ContextSource.Equal)
 }
 
 type plannedContext struct {

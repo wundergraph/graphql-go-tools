@@ -36,7 +36,11 @@ func (p AbstractContextProvider) matchesRuntimeType(definition *ast.Document, sc
 }
 
 type ContextArgument struct {
-	ContextName, TypeName, FieldName, ArgumentName, ArgumentType, ContextSelection string
+	ContextName, TypeName, FieldName, ArgumentName, ContextSelection string
+
+	// Resolved against the receiving datasource's schema at configuration time.
+	upstreamSchema *ast.Document
+	typeRef        int
 }
 
 type FederationMetaData struct {

@@ -105,6 +105,9 @@ func (b *dsBuilder) DS() DataSource {
 	if err := b.ds.DataSourceMetadata.Init(); err != nil {
 		panic(err)
 	}
+	if err := b.ds.initContextArguments(); err != nil {
+		panic(err)
+	}
 	return b.ds
 }
 

@@ -816,22 +816,13 @@ type contextVariable struct {
 	value ast.Value
 }
 
-func (p *Planner[T]) addContextArgument(field int, binding plan.PlannedContextArgument) error {
+func (p *Planner[T]) addContextArgument(field int, binding plan.PlannedContextArgument) {
 	for _, variable := range p.contextVariables {
 		if binding.SameInput(variable.input) {
 			argument := p.upstreamOperation.ImportArgument(binding.ArgumentName, variable.value)
 			p.upstreamOperation.AddArgumentToField(field, argument)
-			return nil
+			return
 		}
-	}
-	schema := p.config.schemaConfiguration.upstreamSchemaAst
-	t, ok := schema.NodeByNameStr(binding.TypeName)
-	if !ok {
-		return fmt.Errorf("unknown contextual argument parent %s", binding.TypeName)
-	}
-	arg := schema.NodeFieldDefinitionArgumentDefinitionByName(t, []byte(binding.FieldName), []byte(binding.ArgumentName))
-	if arg < 0 {
-		return fmt.Errorf("unknown context argument %s.%s(%s:)", binding.TypeName, binding.FieldName, binding.ArgumentName)
 	}
 	name := fmt.Sprintf("_wg_context_%d", len(p.contextVariables))
 	for p.downstreamDeclaresVariable(name) {
@@ -839,20 +830,17 @@ func (p *Planner[T]) addContextArgument(field int, binding plan.PlannedContextAr
 	}
 	value, argument := p.upstreamOperation.AddVariableValueArgument([]byte(binding.ArgumentName), []byte(name))
 	p.upstreamOperation.AddArgumentToField(field, argument)
-	imported := p.visitor.Importer.ImportType(schema.InputValueDefinitionType(arg), schema, p.upstreamOperation)
+	schema, typeRef := binding.UpstreamType()
+	imported := p.visitor.Importer.ImportType(typeRef, schema, p.upstreamOperation)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, value, imported)
 	placeholder, _ := p.variables.AddVariable(&resolve.ContextBinding{Variable: name, Sources: binding.Sources})
 	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, name, []byte(placeholder))
 	p.contextVariables = append(p.contextVariables, contextVariable{binding, p.upstreamOperation.ArgumentValue(argument)})
-	return nil
 }
 
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
 	for _, binding := range p.dataSourcePlannerConfig.ContextArguments[fieldRef] {
-		if err := p.addContextArgument(upstreamFieldRef, binding); err != nil {
-			p.stopWithError(err)
-			return
-		}
+		p.addContextArgument(upstreamFieldRef, binding)
 	}
 	if fieldConfiguration != nil {
 		for i := range fieldConfiguration.Arguments {
