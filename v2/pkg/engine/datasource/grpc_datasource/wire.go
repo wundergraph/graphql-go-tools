@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protowire"
+	protoref "google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wundergraph/astjson"
 )
@@ -196,4 +197,24 @@ func jsonStringBytes(data *astjson.Value) []byte {
 	default:
 		return data.MarshalTo(nil)
 	}
+}
+
+// isWrapperMessage reports whether the message is a google.protobuf wrapper type,
+// for example google.protobuf.StringValue.
+func isWrapperMessage(md protoref.MessageDescriptor) bool {
+	switch md.FullName() {
+	case "google.protobuf.DoubleValue", "google.protobuf.FloatValue",
+		"google.protobuf.Int64Value", "google.protobuf.UInt64Value",
+		"google.protobuf.Int32Value", "google.protobuf.UInt32Value",
+		"google.protobuf.BoolValue", "google.protobuf.StringValue",
+		"google.protobuf.BytesValue":
+		return true
+	}
+
+	return false
+}
+
+// wrapperValue returns the value field of a wrapper message.
+func wrapperValue(wrapper protoref.Message) protoref.Value {
+	return wrapper.Get(wrapper.Descriptor().Fields().ByName(knownTypeOptionalFieldValueName))
 }

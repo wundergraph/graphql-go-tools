@@ -586,6 +586,15 @@ func resolveDataForPath(message protoref.Message, path ast.Path) []protoref.Valu
 			return []protoref.Value{protoref.ValueOfList(field.List())}
 		}
 
+		// A wrapper message holds a nullable scalar. An unset wrapper is null.
+		if path.Len() == 1 && isWrapperMessage(fd.Message()) {
+			if !field.Message().IsValid() {
+				return []protoref.Value{{}}
+			}
+
+			return []protoref.Value{wrapperValue(field.Message())}
+		}
+
 		if !field.Message().IsValid() {
 			return nil
 		}

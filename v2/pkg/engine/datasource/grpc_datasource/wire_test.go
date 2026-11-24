@@ -191,6 +191,7 @@ message UnionOneOfRequest {
 message MetricContext {
   string id = 1;
   string metric_type = 2;
+  google.protobuf.DoubleValue weight = 3;
 }
 
 message MetricArgs {
@@ -205,6 +206,7 @@ message ResolveMetricRequest {
 message Metric {
   string id = 1;
   string metric_type = 2;
+  google.protobuf.DoubleValue weight = 3;
 }
 
 message MetricsResponse {

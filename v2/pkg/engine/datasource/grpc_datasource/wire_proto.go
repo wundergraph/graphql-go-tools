@@ -416,6 +416,14 @@ func setProtoFieldFromValue(msg protoref.Message, fd protoref.FieldDescriptor, v
 		return nil
 	}
 
+	// A wrapper field gets the scalar value inside a new wrapper message.
+	if fd.Kind() == protoref.MessageKind && isWrapperMessage(fd.Message()) {
+		wrapper := msg.NewField(fd).Message()
+		wrapper.Set(wrapper.Descriptor().Fields().ByName(knownTypeOptionalFieldValueName), value)
+		msg.Set(fd, protoref.ValueOfMessage(wrapper))
+		return nil
+	}
+
 	if fd.IsList() {
 		dst := msg.Mutable(fd).List()
 		src, ok := value.Interface().(protoref.List)
