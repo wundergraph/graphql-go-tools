@@ -28,6 +28,7 @@ func NewListInputCoercion() *ListInputCoercion {
 		withCustomVariables: true,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterEnterOperationVisitor(visitor)
 	walker.RegisterVariableDefinitionVisitor(visitor)
 	return &ListInputCoercion{
 		w: walker,
@@ -53,6 +54,7 @@ func inputCoercionForList(walker *astvisitor.Walker) {
 		Walker: walker,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterEnterOperationVisitor(&visitor)
 	walker.RegisterVariableDefinitionVisitor(&visitor)
 }
 
