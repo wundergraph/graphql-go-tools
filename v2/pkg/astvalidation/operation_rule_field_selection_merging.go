@@ -353,7 +353,7 @@ func (f *fieldSelectionMergingVisitor) printType(ref int) ([]byte, error) {
 // onDifferentObjectTypes reports whether two fields are selected on two different object types.
 func (f *fieldSelectionMergingVisitor) onDifferentObjectTypes(a, b int) bool {
 	left, right := f.fields[a].enclosing, f.fields[b].enclosing
-	return left.Kind == ast.NodeKindObjectTypeDefinition && left.Kind == right.Kind && !f.potentiallySameObject(left, right)
+	return left.Kind == ast.NodeKindObjectTypeDefinition && right.Kind == ast.NodeKindObjectTypeDefinition && !f.potentiallySameObject(left, right)
 }
 
 // leafTypesAreEqual compares leaf types, treating ast.InvalidRef as the String! type of __typename.

@@ -254,7 +254,7 @@ func (c *nodesCollector) assignField(fieldRef int, typeName string) {
 		if len(fieldRefs) > 0 && fieldRefs[len(fieldRefs)-1] == fieldRef {
 			continue
 		}
-		collector.assignedFieldRefs = append(fieldRefs, fieldRef)
+		collector.assignedFieldRefs = append(collector.assignedFieldRefs, fieldRef)
 	}
 }
 
