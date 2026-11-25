@@ -88,7 +88,7 @@ type Entity {
 
 */
 
-func (f *collectNodesDSVisitor) collectKeysForPath(typeName, parentPath string, providedSelection providesSelection) error {
+func (f *dsNodesCollector) collectKeysForPath(typeName, parentPath string, providedSelection providesSelection) error {
 	indexKey := SeenKeyPath{
 		TypeName: typeName,
 		Path:     parentPath,
@@ -178,10 +178,10 @@ func getKeyPaths(input *keyVisitorInput) (keyPaths []KeyInfoFieldPath, hasExtern
 		walker:         &walker,
 		input:          input,
 		selectionStack: []providesSelection{input.providedSelection},
+		rootFieldRef:   ast.InvalidRef,
 	}
 
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.RegisterLeaveFieldVisitor(&keyInfoSelectionPopper{visitor: visitor})
+	walker.RegisterFieldVisitor(visitor)
 	walker.Walk(input.key, input.definition, input.report)
 
 	return visitor.keyPaths, visitor.hasExternalFields
@@ -194,21 +194,13 @@ type keyInfoVisitor struct {
 	keyPaths          []KeyInfoFieldPath
 	hasExternalFields bool
 
-	currentKeyPath []KeyInfoFieldPath
+	// Track the outermost field with datasource metadata in the active branch.
+	rootFieldRef        int
+	rootFieldIsExternal bool
 
 	// selectionStack tracks the provided selection at each nesting level of the key
 	// fragment walk; entries are nil below levels which are not provided
 	selectionStack []providesSelection
-}
-
-// keyInfoSelectionPopper keeps the selection stack of keyInfoVisitor in sync on field
-// leave; a separate type as keyInfoVisitor has an unregistered LeaveField method
-type keyInfoSelectionPopper struct {
-	visitor *keyInfoVisitor
-}
-
-func (p *keyInfoSelectionPopper) LeaveField(ref int) {
-	p.visitor.selectionStack = p.visitor.selectionStack[:len(p.visitor.selectionStack)-1]
 }
 
 func (v *keyInfoVisitor) EnterField(ref int) {
@@ -253,7 +245,7 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 			if !v.input.keyIsConditional {
 				isExternal = false
 			}
-		} else if !v.input.keyIsConditional && len(v.currentKeyPath) > 0 && !v.isRootKeyPathExternal() {
+		} else if !v.input.keyIsConditional && v.rootFieldRef != ast.InvalidRef && !v.rootFieldIsExternal {
 
 			// handles edge case when we mark direct child node as not external
 			// but nested fields was external for implicit key
@@ -285,21 +277,15 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 		v.hasExternalFields = true
 	}
 
-	v.currentKeyPath = append(v.keyPaths, fieldKeyPath)
+	if v.rootFieldRef == ast.InvalidRef {
+		v.rootFieldRef = ref
+		v.rootFieldIsExternal = isExternal
+	}
 }
 
 func (v *keyInfoVisitor) LeaveField(ref int) {
-	if len(v.currentKeyPath) == 0 {
-		return
+	v.selectionStack = v.selectionStack[:len(v.selectionStack)-1]
+	if ref == v.rootFieldRef {
+		v.rootFieldRef = ast.InvalidRef
 	}
-
-	v.currentKeyPath = v.currentKeyPath[:len(v.currentKeyPath)-1]
-}
-
-func (v *keyInfoVisitor) isRootKeyPathExternal() bool {
-	if len(v.currentKeyPath) == 0 {
-		return false
-	}
-
-	return v.currentKeyPath[0].IsExternal
 }

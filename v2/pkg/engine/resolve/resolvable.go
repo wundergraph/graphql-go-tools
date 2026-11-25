@@ -989,7 +989,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 	}
 
 	r.printBytes(rBrace)
-	return nil
+	return r.printErr
 }
 
 func (r *Resolvable) printAuthorizerExtension() error {

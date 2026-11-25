@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.33.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.3...v2.33.0) (2026-11-23)
+
+
+### Features
+
+* negotiate delivery guarantees for subscriptions ([#1735](https://github.com/wundergraph/graphql-go-tools/issues/1735)) ([a60b10b](https://github.com/wundergraph/graphql-go-tools/commit/a60b10b6a3eac139e633dd027a6740e626f95def))
+
+## [2.32.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.2...v2.32.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* **resolve:** preserve render errors when printing response extensions ([#1779](https://github.com/wundergraph/graphql-go-tools/issues/1779)) ([739d42d](https://github.com/wundergraph/graphql-go-tools/commit/739d42daa9af32ef239b0503e847b64ee08725d9))
+
+## [2.32.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.1...v2.32.2) (2026-11-20)
+
+
+### Performance Improvements
+
+* **plan:** collect nodes only for fields new to the response tree ([#1768](https://github.com/wundergraph/graphql-go-tools/issues/1768)) ([b00edf0](https://github.com/wundergraph/graphql-go-tools/commit/b00edf032eea362025824e78e0bbebf49a32e568))
+* **plan:** collect nodes only on data sources that know the field type ([#1775](https://github.com/wundergraph/graphql-go-tools/issues/1775)) ([2365df6](https://github.com/wundergraph/graphql-go-tools/commit/2365df67cf18c2e3908f8bb20eb26ce0dc15df69))
+
+## [2.32.1](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.0...v2.32.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **resolve:** pass the input arena to representation renderers ([#1773](https://github.com/wundergraph/graphql-go-tools/issues/1773)) ([0bdee2d](https://github.com/wundergraph/graphql-go-tools/commit/0bdee2dc604122ec4f2e2b6578f7628fba6d3c05))
+
+## [2.32.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.2...v2.32.0) (2026-11-18)
+
+
+### Features
+
+* **engine:** allow backwards compatible int64 value for Int data types ([#1771](https://github.com/wundergraph/graphql-go-tools/issues/1771)) ([7ef3dee](https://github.com/wundergraph/graphql-go-tools/commit/7ef3deefcc5b85329d183e13a7db99ade68a8176))
+
 ## [2.31.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.31.1...v2.31.2) (2026-11-16)
 
 

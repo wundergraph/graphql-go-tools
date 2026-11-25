@@ -107,7 +107,6 @@ func (c *nodeSelectionVisitor) aliasConflictingMemberFields(fieldRef int) (alias
 		// the response name based paths of the field children have changed,
 		// so the subtree suggestions have to be recollected
 		nestedFieldRefs := collectNestedFieldRefs(c.operation, selectionSetRef)
-		c.addNewFieldRefs(nestedFieldRefs...)
 		c.nodeSuggestions.RemoveSeenFields(nestedFieldRefs...)
 	}
 
