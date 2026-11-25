@@ -397,6 +397,27 @@ func TestFederationIntegrationTest(t *testing.T) {
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
+	t.Run("Union response type with plain and aliased __typename", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/union_typename_with_aliases.graphql"), nil, t)
+		expected := `
+{
+	"data": {
+		"histories": [
+			{"__typename": "Purchase", "__isHistory": "Purchase", "quantity": 1},
+			{"__typename": "Sale", "__isHistory": "Sale", "__isStore": "Sale", "location": "Germany"},
+			{"__typename": "Purchase", "__isHistory": "Purchase", "quantity": 2},
+			{"__typename": "Sale", "__isHistory": "Sale", "__isStore": "Sale", "location": "UK"},
+			{"__typename": "Purchase", "__isHistory": "Purchase", "quantity": 3},
+			{"__typename": "Sale", "__isHistory": "Sale", "__isStore": "Sale", "location": "Ukraine"}
+		]
+	}
+}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
 	// This response data of this test returns location twice: from the interface selection and from the type fragment
 	// Duplicated properties (and therefore invalid JSON) are usually removed during normalization processes.
 	// It is not yet decided whether this should be addressed before these normalization processes.

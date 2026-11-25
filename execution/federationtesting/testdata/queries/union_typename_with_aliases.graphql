@@ -1,0 +1,13 @@
+query Histories {
+    histories {
+        __typename
+        __isHistory: __typename
+        ... on Store {
+            __isStore: __typename
+            location
+        }
+        ... on Info {
+            quantity
+        }
+    }
+}
