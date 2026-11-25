@@ -9,6 +9,7 @@ import (
 	"github.com/buger/jsonparser"
 
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -360,7 +361,14 @@ func (g *GraphQLVariableResolveRenderer) putResolvable(r *Resolvable) {
 }
 
 func (g *GraphQLVariableResolveRenderer) RenderVariable(ctx context.Context, data *astjson.Value, out io.Writer) error {
+	return g.RenderVariableWithArena(ctx, nil, data, out)
+}
+
+// RenderVariableWithArena may mutate data during null propagation. dataArena must be
+// the arena that owns data, or nil for heap-backed data.
+func (g *GraphQLVariableResolveRenderer) RenderVariableWithArena(ctx context.Context, dataArena arena.Arena, data *astjson.Value, out io.Writer) error {
 	r := g.getResolvable()
+	r.astjsonArena = dataArena
 	defer g.putResolvable(r)
 
 	// make depth 1 to not render as the root object fields - we need braces

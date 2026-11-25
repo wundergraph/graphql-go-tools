@@ -12,13 +12,14 @@ import (
 // Entries under an orphaned version are not deleted, they simply stop being
 // asked for and fall out on their own TTL.
 // 2: tiered surrogate keys, which a reader of 1 cannot decode.
+// 3: orphans entries written under 2.
 //
 // Layout: version ':' entity ':' selection, plus ':' privateID for an entry
 // that belongs to one user, each a Digest in hex. The segment count keeps the
 // two forms apart, so a private key never reads as a public one. Either form
 // may carry '+' vary for a variant of a response that varies by request
 // header; the separator differs so a variant never reads as a private key.
-const keyFormatVersion = "2"
+const keyFormatVersion = "3"
 
 const (
 	digestHex     = 2 * sha256.Size

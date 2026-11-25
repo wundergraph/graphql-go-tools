@@ -382,7 +382,19 @@ func TestResponseCacheTagIdentities(t *testing.T) {
 			}))
 	})
 
-	t.Run("a root fetch is not indexed by type", func(t *testing.T) {
+	t.Run("a root fetch is indexed by its root type", func(t *testing.T) {
+		require.Equal(t, []string{"subgraph:accounts", "type:accounts:Query"},
+			tagsOf(responseCacheTagInput{
+				// The value's own __typename is not what names a root entry.
+				value:       parse(t, `{"__typename":"Other"}`),
+				subgraph:    "accounts",
+				isRootFetch: true,
+				rootType:    "Query",
+				opts:        all,
+			}))
+	})
+
+	t.Run("a root fetch without a root type is not indexed by type", func(t *testing.T) {
 		require.Equal(t, []string{"subgraph:accounts"},
 			tagsOf(responseCacheTagInput{
 				value:       parse(t, `{"__typename":"Query"}`),
@@ -610,15 +622,15 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		opts.Type = true
 
 		loader, res := newLoader(t, body, opts)
+		res.rootFields = []GraphCoordinate{{TypeName: "Query", FieldName: "employees"}}
 		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
 		require.NoError(t, loader.responseCacheCollect(prepared))
 
 		require.Len(t, prepared.responseCacheItems, 1)
-		// No type: a root fetch's data object is a selection set rather than an
-		// entity, so there is no one typename it could be indexed under.
+		// Typed by the root type its fields are on.
 		require.Equal(t, []string{
 			"declared:accounts:employees", "declared:accounts:homepage",
-			"subgraph:accounts",
+			"subgraph:accounts", "type:accounts:Query",
 		}, prepared.responseCacheItems[0].Tags)
 		require.JSONEq(t, `{"employees":[{"id":1}]}`, string(prepared.responseCacheItems[0].Value))
 	})
@@ -632,17 +644,19 @@ func TestResponseCacheCollectTags(t *testing.T) {
 		require.Empty(t, collect(t, body, []string{"k-42"}, declaredOnly))
 	})
 
-	t.Run("a root fetch is never indexed by type", func(t *testing.T) {
-		body := `{"data":{"__typename":"Query","employees":[{"id":1}]}}`
+	t.Run("a root fetch is indexed and keyed by its root type", func(t *testing.T) {
+		body := `{"data":{"employees":[{"id":1}]}}`
 		loader, res := newLoader(t, body, ResponseCacheTagIndexOptions{Type: true})
+		res.rootFields = []GraphCoordinate{{TypeName: "Query", FieldName: "employees"}}
 		prepared := &preparedFetch{res: res, responseCacheKeys: []string{"root"}, isRootFetchCache: true}
 		require.NoError(t, loader.responseCacheCollect(prepared))
 		require.Len(t, prepared.responseCacheItems, 1)
-		require.Empty(t, prepared.responseCacheItems[0].Tags)
+		require.Equal(t, []string{caching.TypeTag("accounts", "Query")}, prepared.responseCacheItems[0].Tags)
+		require.Contains(t, prepared.responseCacheItems[0].SurrogateKeys, caching.TypeSurrogateKey("accounts", "Query"))
 	})
 }
 
-func TestRemainingTTL(t *testing.T) {
+func TestHitLifetimesTTL(t *testing.T) {
 	item := func(ttl time.Duration) caching.Item { return caching.Item{TTL: ttl} }
 
 	testCases := []struct {
@@ -674,7 +688,52 @@ func TestRemainingTTL(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, remainingTTL(tc.items))
+			lifetimes := hitLifetimesOf(tc.items)
+			require.Equal(t, tc.expected, max(lifetimes.ttl, 0))
+		})
+	}
+}
+
+func TestHitLifetimesClient(t *testing.T) {
+	clientItem := func(ttl, clientTTL time.Duration) caching.Item {
+		return caching.Item{TTL: ttl, ClientTTL: clientTTL, Public: true}
+	}
+	sharedItem := func(ttl time.Duration) caching.Item {
+		return caching.Item{TTL: ttl, SharedOnly: true, Public: true}
+	}
+
+	testCases := []struct {
+		name       string
+		items      []caching.Item
+		wantTTL    time.Duration
+		wantShared bool
+	}{
+		{name: "max-age under s-maxage", items: []caching.Item{clientItem(60*time.Second, 10*time.Second)}, wantTTL: 10 * time.Second},
+		{name: "shared only gives no client lifetime", items: []caching.Item{sharedItem(60 * time.Second)}, wantShared: true},
+		{name: "shared only entries leave the client lifetime to the others", items: []caching.Item{sharedItem(5 * time.Second), clientItem(60*time.Second, 60*time.Second)}, wantTTL: 60 * time.Second},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			check := func(h hitLifetimes) {
+				t.Helper()
+				res := &result{}
+				h.report(res)
+				require.Equal(t, tc.wantTTL, res.responseCache.ClientTTL)
+				require.True(t, res.responseCache.Public)
+				require.Equal(t, tc.wantShared, res.responseCache.SharedOnly)
+			}
+			check(hitLifetimesOf(tc.items))
+
+			// The same entries as a merged fetch's, one per entry, plus a miss.
+			entries := make([]preparedMultiEntry, 0, len(tc.items)+1)
+			for _, item := range tc.items {
+				entries = append(entries, preparedMultiEntry{
+					cachedValues: [][]byte{[]byte("{}")},
+					lifetimes:    hitLifetimesOf([]caching.Item{item}),
+				})
+			}
+			check(cachedEntryLifetimes(append(entries, preparedMultiEntry{})))
 		})
 	}
 }

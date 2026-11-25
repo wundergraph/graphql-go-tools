@@ -79,7 +79,7 @@ func TestResponseCacheTrace(t *testing.T) {
 		require.False(t, written.Served)
 		require.True(t, written.Written)
 		require.Equal(t, written.Key, written.WrittenKey)
-		require.Equal(t, time.Minute.Nanoseconds(), written.WriteTTLNano)
+		require.InDelta(t, time.Minute.Nanoseconds(), written.WriteTTLNano, float64(time.Second), "aged to the write")
 		require.Equal(t, []string{caching.SubgraphSurrogateKey("accounts").Value}, written.SurrogateKeys)
 		require.Empty(t, written.DeclaredTags)
 		require.JSONEq(t, `{"me":"anonymous"}`, string(written.Value))
@@ -121,7 +121,7 @@ func TestResponseCacheTrace(t *testing.T) {
 		trace := resolve(t, cacheable("public, max-age=60"), opts, enabled)
 		require.Contains(t, trace.WriteError, "write failed")
 		require.False(t, trace.Entries[0].Written)
-		require.Equal(t, time.Minute.Nanoseconds(), trace.Entries[0].WriteTTLNano, "what was attempted")
+		require.InDelta(t, time.Minute.Nanoseconds(), trace.Entries[0].WriteTTLNano, float64(time.Second), "what was attempted, aged to the write")
 	})
 
 	t.Run("a corrupt cached body is a miss and does not fail the trace", func(t *testing.T) {

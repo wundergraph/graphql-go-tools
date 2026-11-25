@@ -1,0 +1,20 @@
+# An interface field under a fragment with an inline fragment inside.
+# The fragment on SomeType1 folds into the parent type groups as depth 0.
+query InterfaceUnderFragment {
+    someNestedInterfaces {
+        __typename
+        ... on SomeNestedType1 {
+            otherInterfaces {
+                __typename
+                someObject {
+                    a
+                }
+                ... on SomeType1 {
+                    someObject {
+                        b
+                    }
+                }
+            }
+        }
+    }
+}

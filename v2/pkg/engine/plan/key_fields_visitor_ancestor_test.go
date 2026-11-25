@@ -1,0 +1,94 @@
+package plan
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+)
+
+func TestCollectKeysForPathExternalSibling(t *testing.T) {
+	t.Parallel()
+
+	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`
+		type User { id: ID! info: Info! }
+		type Info { name: String! }
+	`)
+	cases := []struct {
+		selection string
+		paths     []KeyInfoFieldPath
+	}{
+		{
+			selection: "id info { name }",
+			paths: []KeyInfoFieldPath{
+				{Path: "query.me.id"},
+				{Path: "query.me.info", IsExternal: true},
+				{Path: "query.me.info.name", IsExternal: true},
+			},
+		},
+		{
+			selection: "info { name } id",
+			paths: []KeyInfoFieldPath{
+				{Path: "query.me.info", IsExternal: true},
+				{Path: "query.me.info.name", IsExternal: true},
+				{Path: "query.me.id"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.selection, func(t *testing.T) {
+			t.Parallel()
+
+			dataSource := dsb().Hash(22).
+				RootNode("User", "id").
+				AddRootNodeExternalFieldNames("User", "info").
+				ChildNode("Info").
+				AddChildNodeExternalFieldNames("Info", "name").
+				KeysMetadata(FederationFieldConfigurations{{TypeName: "User", SelectionSet: tc.selection}}).DS()
+			collector := &dsNodesCollector{
+				definition:          &definition,
+				dataSource:          dataSource,
+				localSeenKeys:       make(map[SeenKeyPath]struct{}),
+				notExternalKeyPaths: make(map[string]struct{}),
+			}
+
+			require.NoError(t, collector.collectKeysForPath("User", "query.me", nil))
+			require.Len(t, collector.keys, 1)
+			require.Len(t, collector.keys[0].Keys, 1)
+			key := collector.keys[0].Keys[0]
+			assert.Equal(t, tc.paths, key.FieldPaths)
+			assert.False(t, key.Source, "the external info subtree prevents supplying this key in either field order")
+		})
+	}
+}
+
+func TestCollectKeysForPathSkippedFieldPreservesAncestor(t *testing.T) {
+	t.Parallel()
+
+	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`
+		type User { info: Info! }
+		type Info { untracked: String! name: String! }
+	`)
+	dataSource := dsb().Hash(22).
+		RootNode("User", "info").
+		ChildNode("Info").
+		AddChildNodeExternalFieldNames("Info", "name").
+		KeysMetadata(FederationFieldConfigurations{{TypeName: "User", SelectionSet: "info { untracked name }"}}).DS()
+	collector := &dsNodesCollector{
+		definition:          &definition,
+		dataSource:          dataSource,
+		localSeenKeys:       make(map[SeenKeyPath]struct{}),
+		notExternalKeyPaths: make(map[string]struct{}),
+	}
+
+	require.NoError(t, collector.collectKeysForPath("User", "query.me", nil))
+	require.Len(t, collector.keys, 1)
+	require.Len(t, collector.keys[0].Keys, 1)
+	assert.Equal(t, []KeyInfoFieldPath{
+		{Path: "query.me.info"},
+		{Path: "query.me.info.name"},
+	}, collector.keys[0].Keys[0].FieldPaths)
+}

@@ -323,6 +323,7 @@ type recordingDataSource struct {
 	response        []byte
 	err             error
 	responseHeaders http.Header
+	status          int // 0 is 200
 	calls           int
 	lastInput       []byte
 }
@@ -347,9 +348,13 @@ func (r *recordingDataSource) record(ctx context.Context, input []byte) {
 	if responseContext == nil {
 		return
 	}
-	responseContext.StatusCode = http.StatusOK
+	status := r.status
+	if status == 0 {
+		status = http.StatusOK
+	}
+	responseContext.StatusCode = status
 	responseContext.Response = &http.Response{
-		StatusCode: http.StatusOK,
+		StatusCode: status,
 		Header:     r.responseHeaders.Clone(),
 	}
 }
@@ -1072,7 +1077,7 @@ func TestLoadGraphQLResponseData_MultiEntity_ResponseCacheReporting(t *testing.T
 		var reports []cacheReport
 		ctx.SetEngineLoaderHooks(&spyLoaderHooks{
 			onFinished: func(_ context.Context, _ DataSourceInfo, info *ResponseInfo) {
-				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL})
+				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL.Round(time.Second)}) // commit trims elapsed time
 			},
 		})
 		loader := &Loader{dataBuffer: &DataBuffer{data: astjson.ObjectValue(nil)}}

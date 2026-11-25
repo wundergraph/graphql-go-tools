@@ -2817,7 +2817,7 @@ func TestLoader_CachedFetches(t *testing.T) {
 				if info.ResponseCacheHit {
 					assert.Nil(t, info.ResponseHeaders, "a cache hit must not carry subgraph response headers")
 				}
-				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL})
+				reports = append(reports, cacheReport{hit: info.ResponseCacheHit, ttl: info.ResponseCacheTTL.Round(time.Second)}) // commit trims elapsed time
 			},
 		})
 
