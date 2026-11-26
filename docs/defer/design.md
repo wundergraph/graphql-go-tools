@@ -474,10 +474,12 @@ The structure of the execution satisfies this dependency:
    When no defer survives, the payload has no `pending` and no `hasNext`.
 4. It flushes the initial payload.
    An error before this flush returns to the caller, and the router formats it as an ordinary error response.
-5. It registers `writer.Complete()`.
-   After the first flush, every exit closes the stream.
+5. It defers `writer.Complete()` after the initial flush.
+   The Cosmo writer described in [Wire format](#26-wire-format) makes `Complete()` a no-op.
+   An execution that stops before its final flush leaves the multipart response incomplete.
 6. `pruneDeadDefers` removes the subtrees of the top-level defers that did not survive.
-   When no defer survives, no deferred fetch runs and `Complete()` closes the stream.
+   When no defer survives, no deferred fetch runs.
+   The initial `Flush(true)` writes the closing boundary.
 7. It sets the `outstanding` counter to the number of surviving top-level defers.
    Then it runs the defer tree.
 
@@ -597,9 +599,12 @@ type DeferResponseWriter interface {
 `final` is true for the last payload (`"hasNext":false`).
 When no defer survives, `final` is also true for the initial payload even though it has no `hasNext` field.
 Each payload causes exactly one `Flush()`.
-`Complete()` closes the stream.
 
 The following transport behavior describes Cosmo revision [`4abe82d6`](https://github.com/wundergraph/cosmo/blob/4abe82d6e484a5cd68a21640f282bd76dd7b33cc/router/core/defer_response_writer.go).
+`Complete()` has no effect, including on an error return after the initial flush.
+`Flush(true)` writes the closing boundary of a successful multipart response.
+If execution stops before that final flush, the multipart response remains incomplete.
+
 The router writes the HTTP headers and the multipart framing in `router/core/defer_response_writer.go`.
 It sets `Content-Type: multipart/mixed; boundary="graphql"; incrementalSpec=v0.2`.
 It sets `Transfer-Encoding: chunked` only for HTTP/1 responses (`r.ProtoMajor == 1`), and omits that header for HTTP/2.
