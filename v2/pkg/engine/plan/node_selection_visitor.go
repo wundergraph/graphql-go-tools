@@ -490,20 +490,7 @@ func (c *nodeSelectionVisitor) handleKeyRequirementsForBackJumpOnSameDataSource(
 		return
 	}
 
-	keyToUse := keyConfigurations[0]
-
-	sc := SourceConnection{
-		Type: SourceConnectionTypeDirect,
-		Jumps: []KeyJump{
-			{
-				From:         fieldCtx.dsConfig.Hash(),
-				To:           fieldCtx.dsConfig.Hash(),
-				SelectionSet: keyToUse.SelectionSet,
-				TypeName:     fieldCtx.typeName,
-			},
-		},
-	}
-
+	sc := sameSourceKeyJump(fieldCtx.dsConfig.Hash(), fieldCtx.typeName, keyConfigurations[0].SelectionSet)
 	c.addPendingKeyRequirements(fieldCtx, sc, false)
 }
 
