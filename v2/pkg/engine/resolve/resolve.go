@@ -1795,6 +1795,14 @@ func hashNegotiatedParams(negotiated NegotiatedParams, xxh *xxhash.Digest) {
 // Everything else is returned as an error and nothing is written to the client.
 // Negotiate errors come from the data source and are returned as-is, so callers decide whether to expose them.
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
+	// A terminal response or setup error can return before a subscriber is
+	// registered. In that case there is no state to close later.
+	registered := false
+	defer func() {
+		if !registered && ctx.OnSubscriptionEnd != nil {
+			ctx.OnSubscriptionEnd()
+		}
+	}()
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
@@ -1889,6 +1897,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}); err != nil {
 		return err
 	}
+	registered = true
 
 	// This will immediately block until one of the following conditions is met:
 	select {

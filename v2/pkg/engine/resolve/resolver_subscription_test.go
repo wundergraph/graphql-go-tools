@@ -254,6 +254,16 @@ func TestAsyncSubscriptionEndCallbackOnSetupFailure(t *testing.T) {
 	require.Equal(t, int64(1), ends.Load())
 }
 
+func TestSyncSubscriptionEndCallbackOnSetupFailure(t *testing.T) {
+	resolver := New(t.Context(), ResolverOptions{MaxConcurrency: 1})
+	ctx := NewContext(context.Background())
+	var ends atomic.Int64
+	ctx.OnSubscriptionEnd = func() { ends.Add(1) }
+	err := resolver.ResolveGraphQLSubscription(ctx, &GraphQLSubscription{}, &FakeSubscriptionWriter{})
+	require.ErrorContains(t, err, "no data source found")
+	require.Equal(t, int64(1), ends.Load())
+}
+
 func TestResolver_HeartbeatError_DoesNotDeadlockOnUnsubscribe(t *testing.T) {
 	resolverCtx := t.Context()
 
