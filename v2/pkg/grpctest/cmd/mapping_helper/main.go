@@ -16,6 +16,10 @@ type TemplateData struct {
 	JSONMapping
 
 	ResolveRPCs map[string][]ResolveRPC
+	// ServiceName is the service name in the generated mapping.
+	ServiceName string
+	// FuncName is the name of the generated mapping function.
+	FuncName string
 }
 
 type JSONMapping struct {
@@ -105,11 +109,15 @@ var (
 	tplGRPCDatasource string
 
 	grpcDatasource bool
+	serviceName    string
+	funcName       string
 )
 
 // define flags for the command
 func init() {
 	flag.BoolVar(&grpcDatasource, "grpc-datasource", false, "use the grpc_datasource package template")
+	flag.StringVar(&serviceName, "service", "Products", "service name in the generated mapping")
+	flag.StringVar(&funcName, "func", "", "name of the generated mapping function (default testMapping or DefaultGRPCMapping)")
 }
 
 func main() {
@@ -136,6 +144,8 @@ func main() {
 	data := TemplateData{
 		JSONMapping: mapping,
 		ResolveRPCs: make(map[string][]ResolveRPC),
+		ServiceName: serviceName,
+		FuncName:    funcName,
 	}
 
 	for _, mapping := range mapping.ResolveMappings {
@@ -161,6 +171,13 @@ func main() {
 	var usedTemplate = tpl
 	if grpcDatasource {
 		usedTemplate = tplGRPCDatasource
+	}
+
+	if data.FuncName == "" {
+		data.FuncName = "DefaultGRPCMapping"
+		if grpcDatasource {
+			data.FuncName = "testMapping"
+		}
 	}
 
 	t := template.Must(template.New("mapping").Parse(usedTemplate))

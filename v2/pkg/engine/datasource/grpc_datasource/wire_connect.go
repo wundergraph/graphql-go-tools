@@ -309,6 +309,11 @@ func isNullJSONValue(data *astjson.Value) bool {
 }
 
 func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astjson.Value) error {
+	// A proto3 optional scalar has no wrapper message. Write the value directly.
+	if f.runtime.message == nil && f.runtime.optional {
+		return f.appendFieldValue(buf, data)
+	}
+
 	if f.fieldMessage == nil {
 		return fmt.Errorf("runtime message not found for optional scalar field %s but was expected", f.jsonPath)
 	}
@@ -337,13 +342,6 @@ func (f *wireField) appendOptionalScalarFieldValue(buf *bytes.Buffer, data *astj
 	buf.Write(protowire.AppendVarint(buf.AvailableBuffer(), uint64(fieldBuf.Len())))
 	buf.Write(fieldBuf.Bytes())
 	return nil
-}
-
-// isOptionalScalar reports whether the field is a nullable scalar that is
-// wrapped in a google.protobuf.*Value message. Nullable enums are plain proto
-// enum fields: protobuf has no wrapper type for them.
-func (f *wireField) isOptionalScalar() bool {
-	return f.optional && f.dataType != DataTypeMessage && f.dataType != DataTypeEnum
 }
 
 // appendNullListItem writes a null item of a list with nullable items
@@ -588,12 +586,26 @@ func resolveDataForPath(message protoref.Message, path ast.Path) []protoref.Valu
 			return []protoref.Value{protoref.ValueOfList(field.List())}
 		}
 
+		// A wrapper message holds a nullable scalar. An unset wrapper is null.
+		if path.Len() == 1 && isWrapperMessage(fd.Message()) {
+			if !field.Message().IsValid() {
+				return []protoref.Value{{}}
+			}
+
+			return []protoref.Value{wrapperValue(field.Message())}
+		}
+
 		if !field.Message().IsValid() {
 			return nil
 		}
 
 		return resolveDataForPath(field.Message(), path[1:])
 	default:
+		// An unset proto3 optional field is null. An invalid value keeps its position in the result.
+		if fd.HasOptionalKeyword() && !message.Has(fd) {
+			return []protoref.Value{{}}
+		}
+
 		return []protoref.Value{field}
 	}
 }

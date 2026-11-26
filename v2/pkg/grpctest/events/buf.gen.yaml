@@ -1,0 +1,18 @@
+version: v2
+plugins:
+  - local: ["go", "tool", "protoc-gen-go"]
+    out: eventv1
+    opt:
+      - paths=source_relative
+  - local: ["go", "tool", "protoc-gen-go-grpc"]
+    out: eventv1
+    opt:
+      - paths=source_relative
+  - local: ["go", "tool", "protoc-gen-connect-go"]
+    out: eventv1
+    opt:
+      - paths=source_relative
+inputs:
+  - directory: .
+    paths:
+      - event.proto

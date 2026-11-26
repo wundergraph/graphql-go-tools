@@ -79,21 +79,22 @@ func TestCompileWireMessage(t *testing.T) {
 	})
 
 	t.Run("wrapper scalar fields as optional scalars", func(t *testing.T) {
-		message := compileTestProgramMessage(t, runtime, &RPCMessage{
-			Name: "WrapperScalarRequest",
-			Fields: RPCFields{
-				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true},
-				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true},
-				{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value", Optional: true},
-				{Name: "bool_value", ProtoTypeName: DataTypeBool, JSONPath: "bool_value", Optional: true},
-			},
-		}, runtime.getMessageByName("WrapperScalarRequest"))
-		wm := compileTestWireMessage(t, runtime, message)
+		wm := compileWrapperScalarRequest(t, runtime)
 		assert.Len(t, wm.fields, 4)
-		assert.True(t, wm.fields[0].optional)
-		assert.True(t, wm.fields[1].optional)
-		assert.True(t, wm.fields[2].optional)
-		assert.True(t, wm.fields[3].optional)
+		for _, field := range wm.fields {
+			assert.Truef(t, field.optional, "field %s", field.jsonPath)
+			// A wrapper field has optional cardinality, but no optional keyword.
+			assert.Equalf(t, protoref.Optional, field.runtime.desc.Cardinality(), "field %s", field.jsonPath)
+			assert.Falsef(t, field.runtime.optional, "field %s", field.jsonPath)
+		}
+	})
+
+	t.Run("optional scalar fields as proto3 optional fields", func(t *testing.T) {
+		wm := compileOptionalScalarRequest(t, runtime)
+		assert.Len(t, wm.fields, 8)
+		for _, field := range wm.fields {
+			assert.Truef(t, field.runtime.optional, "field %s", field.jsonPath)
+		}
 	})
 
 	t.Run("repeated scalar fields", func(t *testing.T) {
@@ -361,86 +362,6 @@ func TestCreateProtoWire(t *testing.T) {
 		})
 
 		assertProtoEqual(t, runtime, "ScalarRequest", expected, got)
-	})
-
-	t.Run("wrapper string value present", func(t *testing.T) {
-		message := compileTestProgramMessage(t, runtime, &RPCMessage{
-			Name: "WrapperScalarRequest",
-			Fields: RPCFields{
-				{
-					Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true,
-				},
-			},
-		}, runtime.getMessageByName("WrapperScalarRequest"))
-		wm := compileTestWireMessage(t, runtime, message)
-
-		got, err := wm.createProtoWire(astjson.MustParse(`{"string_value":"hello"}`))
-		require.NoError(t, err)
-
-		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			setWrapperValue(msg, "string_value", protoref.ValueOfString("hello"))
-		})
-
-		assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
-	})
-
-	t.Run("wrapper string value absent", func(t *testing.T) {
-		message := compileTestProgramMessage(t, runtime, &RPCMessage{
-			Name: "WrapperScalarRequest",
-			Fields: RPCFields{
-				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true},
-			},
-		}, runtime.getMessageByName("WrapperScalarRequest"))
-		wm := compileTestWireMessage(t, runtime, message)
-
-		got, err := wm.createProtoWire(astjson.MustParse(`{}`))
-		require.NoError(t, err)
-
-		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			// name not set — wrapper absent means null
-		})
-
-		assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
-	})
-
-	t.Run("wrapper string value explicit null", func(t *testing.T) {
-		message := compileTestProgramMessage(t, runtime, &RPCMessage{
-			Name: "WrapperScalarRequest",
-			Fields: RPCFields{
-				{Name: "string_value", ProtoTypeName: DataTypeString, JSONPath: "string_value", Optional: true},
-			},
-		}, runtime.getMessageByName("WrapperScalarRequest"))
-		wm := compileTestWireMessage(t, runtime, message)
-
-		got, err := wm.createProtoWire(astjson.MustParse(`{"string_value":null}`))
-		require.NoError(t, err)
-
-		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			// explicit null means unset, no Set call.
-		})
-
-		assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
-	})
-
-	t.Run("wrapper int32 and double values", func(t *testing.T) {
-		message := compileTestProgramMessage(t, runtime, &RPCMessage{
-			Name: "WrapperScalarRequest",
-			Fields: RPCFields{
-				{Name: "int_32", ProtoTypeName: DataTypeInt32, JSONPath: "int_32", Optional: true},
-				{Name: "double_value", ProtoTypeName: DataTypeDouble, JSONPath: "double_value", Optional: true},
-			},
-		}, runtime.getMessageByName("WrapperScalarRequest"))
-		wm := compileTestWireMessage(t, runtime, message)
-
-		got, err := wm.createProtoWire(astjson.MustParse(`{"int_32":25,"double_value":3.14}`))
-		require.NoError(t, err)
-
-		expected := marshalDynamic(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
-			setWrapperValue(msg, "int_32", protoref.ValueOfInt32(25))
-			setWrapperValue(msg, "double_value", protoref.ValueOfFloat64(3.14))
-		})
-
-		assertProtoEqual(t, runtime, "WrapperScalarRequest", expected, got)
 	})
 
 	t.Run("repeated strings", func(t *testing.T) {
@@ -1865,6 +1786,217 @@ func TestCreateProtoWire(t *testing.T) {
 			msg.Set(tagGroupsField, protoref.ValueOfMessage(outer))
 		})
 		assertProtoEqual(t, runtime, "NestedListRequest", expected, got)
+	})
+}
+
+func TestCreateProtoWireWrapperScalars(t *testing.T) {
+	runtime := newWireTestRuntime(t)
+	wm := compileWrapperScalarRequest(t, runtime)
+
+	assertEncodes := func(t *testing.T, input string, build func(msg *dynamicpb.Message, desc protoref.MessageDescriptor)) {
+		t.Helper()
+		got, err := wm.createProtoWire(astjson.MustParse(input))
+		require.NoError(t, err)
+		assertProtoEqual(t, runtime, "WrapperScalarRequest", marshalDynamic(t, runtime, "WrapperScalarRequest", build), got)
+	}
+
+	t.Run("leaves the wrapper unset when the field is absent", func(t *testing.T) {
+		assertEncodes(t, `{}`, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+	})
+
+	t.Run("leaves the wrappers unset when all values are null", func(t *testing.T) {
+		assertEncodes(t, wrapperScalarNullInput, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+	})
+
+	t.Run("sets the wrapper when the value is present", func(t *testing.T) {
+		assertEncodes(t, `{"string_value":"hello"}`, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			setWrapperValue(msg, "string_value", protoref.ValueOfString("hello"))
+		})
+	})
+
+	t.Run("sets the wrappers for all scalar types", func(t *testing.T) {
+		assertEncodes(t, wrapperScalarValuesInput, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			setWrapperValue(msg, "string_value", protoref.ValueOfString("hello"))
+			setWrapperValue(msg, "int_32", protoref.ValueOfInt32(25))
+			setWrapperValue(msg, "double_value", protoref.ValueOfFloat64(3.14))
+			setWrapperValue(msg, "bool_value", protoref.ValueOfBool(true))
+		})
+	})
+}
+
+func TestCreateProtoWireOptionalScalars(t *testing.T) {
+	runtime := newWireTestRuntime(t)
+	wm := compileOptionalScalarRequest(t, runtime)
+
+	assertEncodes := func(t *testing.T, input string, build func(msg *dynamicpb.Message, desc protoref.MessageDescriptor)) {
+		t.Helper()
+		got, err := wm.createProtoWire(astjson.MustParse(input))
+		require.NoError(t, err)
+		assertProtoEqual(t, runtime, "OptionalScalarRequest", marshalDynamic(t, runtime, "OptionalScalarRequest", build), got)
+	}
+
+	t.Run("leaves the field unset when the field is absent", func(t *testing.T) {
+		assertEncodes(t, `{}`, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+	})
+
+	t.Run("leaves the fields unset when all values are null", func(t *testing.T) {
+		assertEncodes(t, optionalScalarNullInput, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+	})
+
+	t.Run("sets the field when the value is empty", func(t *testing.T) {
+		assertEncodes(t, `{"string_value":""}`, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString(""))
+		})
+	})
+
+	t.Run("sets the fields for all scalar types", func(t *testing.T) {
+		assertEncodes(t, optionalScalarValuesInput, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString("hello"))
+			msg.Set(desc.Fields().ByName("double_value"), protoref.ValueOfFloat64(3.14))
+			msg.Set(desc.Fields().ByName("float_value"), protoref.ValueOfFloat32(1.5))
+			msg.Set(desc.Fields().ByName("bool_value"), protoref.ValueOfBool(true))
+			msg.Set(desc.Fields().ByName("uint_32_value"), protoref.ValueOfUint32(7))
+			msg.Set(desc.Fields().ByName("uint_64_value"), protoref.ValueOfUint64(8))
+			msg.Set(desc.Fields().ByName("int_32_value"), protoref.ValueOfInt32(-9))
+			msg.Set(desc.Fields().ByName("int_64_value"), protoref.ValueOfInt64(-10))
+		})
+	})
+}
+
+func TestCreateProtoWireWithContext(t *testing.T) {
+	runtime := newWireTestRuntime(t)
+
+	t.Run("wrapper context field sends the value and null for an unset wrapper", func(t *testing.T) {
+		requestRT := runtime.getMessageByName("ResolveMetricRequest")
+		contextRT := runtime.getMessageByName("MetricContext")
+
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ResolveMetricRequest",
+			Fields: RPCFields{
+				{
+					Name:          "context",
+					ProtoTypeName: DataTypeMessage,
+					Repeated:      true,
+					Message: &RPCMessage{
+						Name: "MetricContext",
+						Fields: RPCFields{
+							{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+							{Name: "weight", ProtoTypeName: DataTypeDouble, JSONPath: "weight", Optional: true},
+						},
+					},
+				},
+			},
+		}, requestRT)
+		wm := compileTestWireMessage(t, runtime, message)
+
+		requestContext := &fetchRequestContext{
+			message: contextRT,
+			fields: []fetchRequestContextField{
+				{runtime: contextRT.fieldsByName["id"], jsonName: "id", resolvePath: buildPath("metrics.id")},
+				{runtime: contextRT.fieldsByName["weight"], jsonName: "weight", resolvePath: buildPath("metrics.weight")},
+			},
+		}
+
+		// Metric 1 has a weight, metric 2 has none, metric 3 has the zero weight.
+		upstream := buildExpectedProto(t, runtime, "MetricsResponse", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			metricsField := desc.Fields().ByName("metrics")
+			metricDesc := metricsField.Message()
+			list := msg.Mutable(metricsField).List()
+			for _, m := range []struct {
+				id     string
+				weight *float64
+			}{{"1", new(0.5)}, {"2", nil}, {"3", new(0.0)}} {
+				metric := dynamicpb.NewMessage(metricDesc)
+				metric.Set(metricDesc.Fields().ByName("id"), protoref.ValueOfString(m.id))
+				if m.weight != nil {
+					setWrapperValue(metric, "weight", protoref.ValueOfFloat64(*m.weight))
+				}
+				list.Append(protoref.ValueOfMessage(metric))
+			}
+		})
+
+		got, err := wm.createProtoWireWithContext(arena.NewMonotonicArena(), astjson.MustParse(`{}`), requestContext, upstream)
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "ResolveMetricRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			contextField := desc.Fields().ByName("context")
+			contextDesc := contextField.Message()
+			list := msg.Mutable(contextField).List()
+			for _, m := range []struct {
+				id     string
+				weight *float64
+			}{{"1", new(0.5)}, {"2", nil}, {"3", new(0.0)}} {
+				elem := dynamicpb.NewMessage(contextDesc)
+				elem.Set(contextDesc.Fields().ByName("id"), protoref.ValueOfString(m.id))
+				if m.weight != nil {
+					setWrapperValue(elem, "weight", protoref.ValueOfFloat64(*m.weight))
+				}
+				list.Append(protoref.ValueOfMessage(elem))
+			}
+		})
+		assertProtoEqual(t, runtime, "ResolveMetricRequest", expected, got)
+	})
+}
+
+func TestResolveDataForPath(t *testing.T) {
+	runtime := newWireTestRuntime(t)
+
+	t.Run("returns an invalid value for an unset proto3 optional field", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "OptionalScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		assert.False(t, values[0].IsValid())
+	})
+
+	t.Run("returns the zero value for a proto3 optional field set to zero", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "OptionalScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString(""))
+		})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		require.True(t, values[0].IsValid())
+		assert.Equal(t, "", values[0].String())
+	})
+
+	t.Run("returns the value of a set wrapper field", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			setWrapperValue(msg, "string_value", protoref.ValueOfString("hello"))
+		})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		require.True(t, values[0].IsValid())
+		assert.Equal(t, "hello", values[0].String())
+	})
+
+	t.Run("returns the zero value for a wrapper field set to zero", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			setWrapperValue(msg, "string_value", protoref.ValueOfString(""))
+		})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		require.True(t, values[0].IsValid())
+		assert.Equal(t, "", values[0].String())
+	})
+
+	t.Run("returns an invalid value for an unset wrapper field", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		assert.False(t, values[0].IsValid())
+	})
+
+	t.Run("returns the zero value for an unset field without the optional keyword", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "ScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		require.True(t, values[0].IsValid())
+		assert.Equal(t, "", values[0].String())
 	})
 }
 

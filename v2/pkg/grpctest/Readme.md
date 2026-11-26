@@ -47,21 +47,41 @@ Defines the complete mapping between GraphQL and gRPC:
 
 ## Code Generation
 
-The package includes tools for regenerating Protocol Buffer definitions:
+The package holds more than one service. The `Makefile` defines the same targets for each service:
+
+- `products`: the main product service in this directory. It uses `google.protobuf` wrapper types for nullable scalars (`--legacy-wrapper-types`).
+- `events`: a small event service in `events/`. It uses proto3 `optional` fields for nullable scalars.
 
 ```bash
-# Generate Go code from .proto files
+# Regenerate the proto file, the mappings and the Go code of a service with the published wgc CLI
+make generate-products
+make generate-events
+
+# The same with the CLI of a local cosmo checkout in the same parent directory as graphql-go-tools
+make generate-products-local
+make generate-events-local
+
+# All services
+make generate-all
+make generate-all-local
+
+# Only regenerate the Go code from the proto files
 make generate-proto
-
-# Regenerate .proto from GraphQL schema (requires wgc CLI)
-make regenerate-proto
-
-# Regenerate .proto from GraphQL schema locally (requires cosmo to be checked out in the same parent directory as graphql-go-tools)
-make regenerate-proto-local
 
 # Build plugin service
 make build-plugin
 ```
+
+Before you use the `-local` targets, build the cosmo packages that the CLI uses:
+
+```bash
+cd ../cosmo/protographic && pnpm build
+cd ../cli && pnpm build
+```
+
+The `--legacy-wrapper-types` flag of `wgc grpc-service generate` needs a wgc version that supports it.
+
+To add a service, add its name to `services` in the `Makefile` and set its variables. See the comment at the top of the `Makefile`.
 
 ## File Structure
 
@@ -79,6 +99,19 @@ grpctest/
 │   └── product_grpc.pb.go
 ├── testdata/                # Test schemas and data
 │   ├── products.graphqls    # GraphQL schema
+├── events/                  # Events service with proto3 optional fields
+│   ├── mockservice.go       # Mock service implementation
+│   ├── connect.go           # ConnectRPC adapter and server helper
+│   ├── schema.go            # Schema loading and gRPC server helpers
+│   ├── event.proto          # Protocol buffer definitions
+│   ├── mapping/
+│   │   └── mapping.go       # GraphQL-to-gRPC field mappings
+│   ├── eventv1/             # Generated protobuf and ConnectRPC Go code
+│   │   ├── event.pb.go
+│   │   ├── event_grpc.pb.go
+│   │   └── eventv1connect/
+│   └── testdata/
+│       └── events.graphqls  # GraphQL schema
 ├── plugin/                  # Plugin service implementation
 └── cmd/                     # Command-line utilities
 ```
@@ -87,11 +120,10 @@ grpctest/
 
 When adding new test cases or extending the mock service:
 
-1. Update the GraphQL schema in `testdata/products.graphqls`
-2. Regenerate the Protocol Buffer definitions using `make regenerate-proto`
-3. Update the mock service implementation in `mockservice.go`
-4. Add corresponding field mappings in `mapping/mapping.go`
-5. Update field configurations in `schema.go` if needed
+1. Update the GraphQL schema of the service, for example `testdata/products.graphqls`
+2. Regenerate the proto file, the mappings and the Go code with `make generate-<service>` or `make generate-<service>-local`
+3. Update the mock service implementation, for example `mockservice.go`
+4. Update field configurations in `schema.go` if needed
 
 ## Integration with grpc_datasource
 
@@ -123,21 +155,25 @@ This will regenerate the .proto file, generate the mapping.go file, and regenera
 
 The mapping.go file is generated using the `mapping_helper` command. This command takes a mapping.json file and generates the mapping.go file.
 
-You can either run the `mapping_helper` command manually or use the `make generate-mapping-code` command.
+You can either run the `mapping_helper` command manually or use the `make generate-<service>` command.
 The recommended way is to use the Makefile.
 
 ### Use Makefile
 
 ```bash
-# Regenerate .proto and mapping files 
-make regenerate-proto
-# or make regenerate-proto-local (if you need to test local changes in protographic)
+# Regenerate the .proto file, the mapping files and the Go code of the products service
+make generate-products
+# or make generate-products-local (if you need to test local changes in protographic)
 
-# Generate the mapping.go file
-make generate-mapping-code
+# Do the same for the events service
+make generate-events
+# or make generate-events-local
+
+# Regenerate only the Go code from the existing .proto files with buf
+make generate-proto
 ```
 
-This will run the `generate-mapping-code` command with the correct arguments.
+The `generate-<service>` targets run the `mapping_helper` command with the correct `-service` and `-func` arguments for the service.
 
 ### Setup a Run Configuration in VSCode
 

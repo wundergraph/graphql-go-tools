@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	protoref "google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/wundergraph/astjson"
 )
@@ -104,4 +106,58 @@ func TestJSONBuilder_MergeWithPath_MissingRootField(t *testing.T) {
 		err = newJSONBuilder(nil, nil).mergeWithPath(base, resolved, buildPath("parents.value"), nil)
 	})
 	require.EqualError(t, err, "field parents not found in object")
+}
+
+func TestJSONBuilderMarshalResponseJSON(t *testing.T) {
+	runtime := newWireTestRuntime(t)
+
+	marshal := func(t *testing.T, build func(msg *dynamicpb.Message, desc protoref.MessageDescriptor)) string {
+		t.Helper()
+		data := buildExpectedProto(t, runtime, "OptionalScalarRequest", build)
+		value, err := newJSONBuilder(nil, testWireMapping()).marshalResponseJSON(optionalScalarRequestMessage(), data)
+		require.NoError(t, err)
+		return value.String()
+	}
+
+	t.Run("returns null for unset proto3 optional fields", func(t *testing.T) {
+		got := marshal(t, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+		require.JSONEq(t, optionalScalarNullInput, got)
+	})
+
+	t.Run("returns zero values for proto3 optional fields set to zero", func(t *testing.T) {
+		got := marshal(t, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString(""))
+			msg.Set(desc.Fields().ByName("double_value"), protoref.ValueOfFloat64(0))
+			msg.Set(desc.Fields().ByName("float_value"), protoref.ValueOfFloat32(0))
+			msg.Set(desc.Fields().ByName("bool_value"), protoref.ValueOfBool(false))
+			msg.Set(desc.Fields().ByName("uint_32_value"), protoref.ValueOfUint32(0))
+			msg.Set(desc.Fields().ByName("uint_64_value"), protoref.ValueOfUint64(0))
+			msg.Set(desc.Fields().ByName("int_32_value"), protoref.ValueOfInt32(0))
+			msg.Set(desc.Fields().ByName("int_64_value"), protoref.ValueOfInt64(0))
+		})
+		require.JSONEq(t, `{
+			"string_value": "",
+			"double_value": 0,
+			"float_value": 0,
+			"bool_value": false,
+			"uint_32_value": 0,
+			"uint_64_value": 0,
+			"int_32_value": 0,
+			"int_64_value": 0
+		}`, got)
+	})
+
+	t.Run("returns the values of set proto3 optional fields", func(t *testing.T) {
+		got := marshal(t, func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			msg.Set(desc.Fields().ByName("string_value"), protoref.ValueOfString("hello"))
+			msg.Set(desc.Fields().ByName("double_value"), protoref.ValueOfFloat64(3.14))
+			msg.Set(desc.Fields().ByName("float_value"), protoref.ValueOfFloat32(1.5))
+			msg.Set(desc.Fields().ByName("bool_value"), protoref.ValueOfBool(true))
+			msg.Set(desc.Fields().ByName("uint_32_value"), protoref.ValueOfUint32(7))
+			msg.Set(desc.Fields().ByName("uint_64_value"), protoref.ValueOfUint64(8))
+			msg.Set(desc.Fields().ByName("int_32_value"), protoref.ValueOfInt32(-9))
+			msg.Set(desc.Fields().ByName("int_64_value"), protoref.ValueOfInt64(-10))
+		})
+		require.JSONEq(t, optionalScalarValuesInput, got)
+	})
 }
