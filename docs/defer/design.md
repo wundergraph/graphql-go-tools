@@ -326,8 +326,13 @@ Placement prevalidation rejects `@defer` on a mutation root selection.
 For deferred descendants, a fetch must not repeat an already fetched mutation root field.
 The data source filter prevents that replay before node selection, in `assignDeferKeyJumps`.
 It walks up from a deferred field toward the mutation root field.
-When the walk reaches the mutation root field without another fetch anchor, the deferred fetch branches out at the nearest entity above the field.
-The branch node is the nearest node, from the field itself up to the mutation root field, whose enclosing type has a resolvable key on its data source.
+
+An existing entity fetch anchor keeps the field deferred without a new same-source branch.
+Otherwise, the walk selects the nearest node that `keyJumpKey` accepts before it reaches the mutation root field.
+The node must be a root node on its data source.
+Its data source must both supply and resolve the enclosing entity key at that path.
+A declared resolvable key alone is insufficient when the data source cannot supply its fields.
+
 The branch node gets a key jump into its own data source.
 Node selection then adds the key fields to its parent, and the deferred fetch is an `_entities` fetch on the same subgraph.
 A deferred field below a parent in the same defer that takes such a jump joins the fetch of that parent.
@@ -339,9 +344,9 @@ The `ProcessDefer` walk marks `info` as a defer parent, so the path builder plan
 The initial fetch is `createUser {id info {__internal_typename: __typename} __typename}`.
 The deferred fetch is `_entities` with `... on User {__typename info {a}}`.
 
-A field without a branch node still reaches the mutation root field in the `ProcessDefer` walk.
-An example is a field of a value type with no entity between it and the mutation root field.
-Then the walk marks no parent, and `ProcessDefer` sets the `deferInfo` of the field to `nil`.
+If no usable fetch anchor stops the `ProcessDefer` walk before the mutation root field, the fetch would repeat that mutation.
+An example is a field of a value type with no usable entity key or existing entity fetch anchor along that path.
+The walk then marks no parent, and `ProcessDefer` sets the `deferInfo` of the field to `nil`.
 The field then belongs to the initial response.
 The decision is per field, so an entity-backed field of the same defer stays deferred.
 
@@ -800,12 +805,14 @@ See [`__typename` scope alignment](#__typename-scope-alignment).
 
 - Each mutation root field executes once.
   The planner never creates a second upstream mutation for a deferred field.
-- A deferred field stays deferred when an entity with a resolvable key is between it and the mutation root field, or encloses it.
-  Its `_entities` fetch starts at the nearest such entity and depends on the mutation root fetch that returns the key.
-  On the mutation subgraph, the fetch goes back into the same subgraph.
-- A deferred field with no such entity goes to the initial response.
+- A deferred field stays deferred when its fetch starts at a usable entity fetch anchor.
+  An existing entity fetch can provide that anchor without a new same-source branch.
+  A new same-source branch uses the nearest node whose data source can both supply and resolve the enclosing entity key at that path.
+  Its `_entities` fetch depends on the fetch that returns the key.
+- A deferred field goes to the initial response when its fetch would still start at the mutation root field.
 - One defer can split.
-  Its fields without an entity go to the initial response, and its other fields stay deferred.
+  Fields whose fetches would repeat the mutation go to the initial response.
+  Fields with usable entity fetch anchors stay deferred.
   The engine announces the defer and delivers the remaining fields, with a `subPath` when they are deeper than the descriptor path.
 - A defer that loses all its fields leaves nothing in the response.
   It has no deferred fetch, no descriptor, no `pending` entry and no `completed` entry.
