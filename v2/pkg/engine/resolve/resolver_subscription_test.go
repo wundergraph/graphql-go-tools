@@ -223,7 +223,7 @@ func TestSubscriptionEndCallbackIsPerSubscriberOnSharedTrigger(t *testing.T) {
 	newState := func(id SubscriptionIdentifier, onEnd func()) *subscriptionState {
 		ctx := NewContext(context.Background())
 		ctx.OnSubscriptionEnd = onEnd
-		return &subscriptionState{triggerID: triggerID, ctx: ctx, id: id, completed: make(chan struct{})}
+		return &subscriptionState{triggerID: triggerID, ctx: ctx, id: id, completed: make(chan struct{}), onEnd: onEnd}
 	}
 	first := newState(firstID, func() { firstEnds.Add(1) })
 	second := newState(secondID, func() { secondEnds.Add(1) })

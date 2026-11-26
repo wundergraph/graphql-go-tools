@@ -945,6 +945,10 @@ type subscriptionState struct {
 	id        SubscriptionIdentifier
 	heartbeat bool
 	completed chan struct{}
+	// onEnd is a snapshot of ctx.OnSubscriptionEnd taken at registration.
+	// Reading the callback from ctx at done() time would race with Context.Free()
+	// freeing the request context after the sync caller unblocks on completed.
+	onEnd func()
 	// writeMu protects all writes to writer (Complete, Error, Write, Flush, Heartbeat).
 	// Paired with the removed atomic to prevent writes after removal.
 	writeMu sync.Mutex
@@ -964,16 +968,19 @@ func closeSubs(subs []*subscriptionState) {
 // done closes the completed channel to signal that the subscription is finished.
 // It does not send any downstream messages — Complete/Error are sent separately.
 func (s *subscriptionState) done() {
+	// done is only called for states that won the removed transition. Run the
+	// callback before closing completed so a sync caller waiting on completed
+	// cannot free the Context between the close and the callback. Run it
+	// outside writeMu to preserve writer-lock isolation. Callers must invoke
+	// done() outside subscriptionUpdater.mu so a user callback cannot stall
+	// or re-enter the updater.
+	if s.onEnd != nil {
+		s.onEnd()
+	}
+
 	s.writeMu.Lock()
 	close(s.completed)
 	s.writeMu.Unlock()
-
-	// done is only called for states that won the removed transition. Run the
-	// callback after releasing writeMu so module code cannot block writes or
-	// deadlock if it inspects subscription state.
-	if s.ctx.OnSubscriptionEnd != nil {
-		s.ctx.OnSubscriptionEnd()
-	}
 }
 
 // complete delivers a "subscription done" signal to the downstream writer.
@@ -1219,6 +1226,7 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 		writer:    add.writer,
 		id:        add.id,
 		completed: add.completed,
+		onEnd:     add.ctx.OnSubscriptionEnd,
 	}
 	if add.ctx.ExecutionOptions.SendHeartbeat {
 		s.heartbeat = true
@@ -2104,30 +2112,35 @@ func (s *subscriptionUpdater) Error(data []byte) {
 
 func (s *subscriptionUpdater) Done() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done {
+		s.mu.Unlock()
 		return
 	}
 	s.done = true
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
 	}
+	s.mu.Unlock()
+	// Release mu before trigger teardown so OnSubscriptionEnd callbacks fired
+	// from closeSubs do not run while the updater mutex is held.
 	s.resolver.doneTriggerFromUpdater(s.triggerID)
 }
 
 func (s *subscriptionUpdater) CloseSubscription(id SubscriptionIdentifier) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
 		if s.debug {
 			fmt.Printf("resolver:subscription_updater:close:skip:%d\n", s.triggerID)
 		}
+		s.mu.Unlock()
 		return
 	}
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:close:%d\n", s.triggerID)
 	}
-
+	s.mu.Unlock()
+	// Release mu before UnsubscribeSubscription so the OnSubscriptionEnd
+	// callback fired from closeSubs does not run while the updater mutex is held.
 	_ = s.resolver.UnsubscribeSubscription(id)
 }
 
