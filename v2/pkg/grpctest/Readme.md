@@ -99,11 +99,22 @@ grpctest/
 │   └── product_grpc.pb.go
 ├── testdata/                # Test schemas and data
 │   ├── products.graphqls    # GraphQL schema
+├── events/                  # Events service with proto3 optional fields
+│   ├── mockservice.go       # Mock service implementation
+│   ├── connect.go           # ConnectRPC adapter and server helper
+│   ├── schema.go            # Schema loading and gRPC server helpers
+│   ├── event.proto          # Protocol buffer definitions
+│   ├── mapping/
+│   │   └── mapping.go       # GraphQL-to-gRPC field mappings
+│   ├── eventv1/             # Generated protobuf and ConnectRPC Go code
+│   │   ├── event.pb.go
+│   │   ├── event_grpc.pb.go
+│   │   └── eventv1connect/
+│   └── testdata/
+│       └── events.graphqls  # GraphQL schema
 ├── plugin/                  # Plugin service implementation
 └── cmd/                     # Command-line utilities
 ```
-
-The `events/` directory holds the events service with the same parts: `testdata/events.graphqls`, the generated `event.proto`, `eventv1/` and `mapping/`, the mock service in `mockservice.go`, a ConnectRPC adapter in `connect.go`, and schema and server helpers in `schema.go`.
 
 ## Contributing
 
