@@ -290,7 +290,9 @@ func TestResolver_HeartbeatError_DoesNotDeadlockOnUnsubscribe(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		resolver.heartbeatTriggerSubscriptions(triggerID)
+		for _, id := range resolver.heartbeatTriggerSubscriptions(triggerID) {
+			_ = resolver.UnsubscribeSubscription(id)
+		}
 		close(done)
 	}()
 
