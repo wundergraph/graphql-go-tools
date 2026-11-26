@@ -599,10 +599,12 @@ When no defer survives, `final` is also true for the initial payload even though
 Each payload causes exactly one `Flush()`.
 `Complete()` closes the stream.
 
-The cosmo router writes the HTTP headers and the multipart framing in `router/core/defer_response_writer.go`.
-It sets `Content-Type: multipart/mixed; deferSpec=20220824; boundary="graphql"`, and it also sets `Transfer-Encoding`, `Cache-Control`, `Connection` and `X-Accel-Buffering` for streaming.
-The `deferSpec=20220824` parameter names an older format.
-The body uses the `pending`, `incremental` and `completed` format of the current draft.
+The following transport behavior describes Cosmo revision [`4abe82d6`](https://github.com/wundergraph/cosmo/blob/4abe82d6e484a5cd68a21640f282bd76dd7b33cc/router/core/defer_response_writer.go).
+The router writes the HTTP headers and the multipart framing in `router/core/defer_response_writer.go`.
+It sets `Content-Type: multipart/mixed; boundary="graphql"; incrementalSpec=v0.2`.
+It sets `Transfer-Encoding: chunked` only for HTTP/1 responses (`r.ProtoMajor == 1`), and omits that header for HTTP/2.
+It also sets `Cache-Control`, `Connection` and `X-Accel-Buffering` for streaming.
+The body uses the `pending`, `incremental` and `completed` format.
 
 **Initial payload.**
 It contains every field that is not deferred.
@@ -955,8 +957,8 @@ These points follow the draft or GraphQL.js:
   Without prevalidation, a mutation root selection can execute in a deferred fetch.
   This does not repeat another root selection that the initial fetch already executed.
 - **Transport parameter.**
-  The cosmo router advertises `deferSpec=20220824`, but the body uses the format of the current draft.
-  See [Wire format](#26-wire-format).
+  At the Cosmo revision in [Wire format](#26-wire-format), the router advertises `incrementalSpec=v0.2`.
+  A `multipart/mixed` element with `deferSpec` in the request's `Accept` header names an unsupported format.
 - **Parity tests.**
   No test compares the complex overlap cases with GraphQL.js.
   No test covers the dropped label in [Overlapping defers](#overlapping-defers).
