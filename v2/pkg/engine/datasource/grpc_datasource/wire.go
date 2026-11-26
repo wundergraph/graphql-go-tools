@@ -55,6 +55,13 @@ type wireField struct {
 	child        *wireMessage
 }
 
+// isOptionalScalar reports whether the field is a nullable scalar. The proto
+// field is a google.protobuf.*Value wrapper or a proto3 optional scalar.
+// Nullable enums are plain proto enum fields: protobuf has no wrapper type for them.
+func (f *wireField) isOptionalScalar() bool {
+	return f.optional && f.dataType != DataTypeMessage && f.dataType != DataTypeEnum
+}
+
 const (
 	minBufferSize = 1 << 8 // 256 bytes
 )
