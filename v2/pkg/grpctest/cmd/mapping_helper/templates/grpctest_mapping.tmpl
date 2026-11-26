@@ -6,10 +6,10 @@ import (
 	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
 )
 
-// DefaultGRPCMapping returns a hardcoded default mapping between GraphQL and Protobuf
-func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
+// {{.FuncName}} returns a hardcoded default mapping between GraphQL and Protobuf
+func {{.FuncName}}() *grpcdatasource.GRPCMapping {
 	return &grpcdatasource.GRPCMapping{
-		Service: "Products",
+		Service: "{{.ServiceName}}",
 		QueryRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{
 		{{- range $index, $operation := .OperationMappings}}
 		{{- if eq $operation.Type "OPERATION_TYPE_QUERY"}}
@@ -123,8 +123,8 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 }
 
 
-// MustDefaultGRPCMapping returns the default GRPC mapping
-func MustDefaultGRPCMapping(t *testing.T) *grpcdatasource.GRPCMapping {
-	mapping := DefaultGRPCMapping()
+// Must{{.FuncName}} returns the default GRPC mapping
+func Must{{.FuncName}}(t *testing.T) *grpcdatasource.GRPCMapping {
+	mapping := {{.FuncName}}()
 	return mapping
 }

@@ -1,9 +1,9 @@
 package grpcdatasource
 
-// testMapping returns a hardcoded default mapping between GraphQL and Protobuf
-func testMapping() *GRPCMapping {
+// {{.FuncName}} returns a hardcoded default mapping between GraphQL and Protobuf
+func {{.FuncName}}() *GRPCMapping {
 	return &GRPCMapping{
-		Service: "Products",
+		Service: "{{.ServiceName}}",
 		QueryRPCs: RPCConfigMap[RPCConfig]{
 		{{- range $index, $operation := .OperationMappings}}
 		{{- if eq $operation.Type "OPERATION_TYPE_QUERY"}}
