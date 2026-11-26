@@ -1863,6 +1863,81 @@ func TestCreateProtoWireOptionalScalars(t *testing.T) {
 	})
 }
 
+func TestCreateProtoWireWithContext(t *testing.T) {
+	runtime := newWireTestRuntime(t)
+
+	t.Run("wrapper context field sends the value and null for an unset wrapper", func(t *testing.T) {
+		requestRT := runtime.getMessageByName("ResolveMetricRequest")
+		contextRT := runtime.getMessageByName("MetricContext")
+
+		message := compileTestProgramMessage(t, runtime, &RPCMessage{
+			Name: "ResolveMetricRequest",
+			Fields: RPCFields{
+				{
+					Name:          "context",
+					ProtoTypeName: DataTypeMessage,
+					Repeated:      true,
+					Message: &RPCMessage{
+						Name: "MetricContext",
+						Fields: RPCFields{
+							{Name: "id", ProtoTypeName: DataTypeString, JSONPath: "id"},
+							{Name: "weight", ProtoTypeName: DataTypeDouble, JSONPath: "weight", Optional: true},
+						},
+					},
+				},
+			},
+		}, requestRT)
+		wm := compileTestWireMessage(t, runtime, message)
+
+		requestContext := &fetchRequestContext{
+			message: contextRT,
+			fields: []fetchRequestContextField{
+				{runtime: contextRT.fieldsByName["id"], jsonName: "id", resolvePath: buildPath("metrics.id")},
+				{runtime: contextRT.fieldsByName["weight"], jsonName: "weight", resolvePath: buildPath("metrics.weight")},
+			},
+		}
+
+		// Metric 1 has a weight, metric 2 has none, metric 3 has the zero weight.
+		upstream := buildExpectedProto(t, runtime, "MetricsResponse", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			metricsField := desc.Fields().ByName("metrics")
+			metricDesc := metricsField.Message()
+			list := msg.Mutable(metricsField).List()
+			for _, m := range []struct {
+				id     string
+				weight *float64
+			}{{"1", new(0.5)}, {"2", nil}, {"3", new(0.0)}} {
+				metric := dynamicpb.NewMessage(metricDesc)
+				metric.Set(metricDesc.Fields().ByName("id"), protoref.ValueOfString(m.id))
+				if m.weight != nil {
+					setWrapperValue(metric, "weight", protoref.ValueOfFloat64(*m.weight))
+				}
+				list.Append(protoref.ValueOfMessage(metric))
+			}
+		})
+
+		got, err := wm.createProtoWireWithContext(arena.NewMonotonicArena(), astjson.MustParse(`{}`), requestContext, upstream)
+		require.NoError(t, err)
+
+		expected := marshalDynamic(t, runtime, "ResolveMetricRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			contextField := desc.Fields().ByName("context")
+			contextDesc := contextField.Message()
+			list := msg.Mutable(contextField).List()
+			for _, m := range []struct {
+				id     string
+				weight *float64
+			}{{"1", new(0.5)}, {"2", nil}, {"3", new(0.0)}} {
+				elem := dynamicpb.NewMessage(contextDesc)
+				elem.Set(contextDesc.Fields().ByName("id"), protoref.ValueOfString(m.id))
+				if m.weight != nil {
+					setWrapperValue(elem, "weight", protoref.ValueOfFloat64(*m.weight))
+				}
+				list.Append(protoref.ValueOfMessage(elem))
+			}
+		})
+		assertProtoEqual(t, runtime, "ResolveMetricRequest", expected, got)
+	})
+}
+
 func TestResolveDataForPath(t *testing.T) {
 	runtime := newWireTestRuntime(t)
 
@@ -1883,6 +1958,36 @@ func TestResolveDataForPath(t *testing.T) {
 		require.Len(t, values, 1)
 		require.True(t, values[0].IsValid())
 		assert.Equal(t, "", values[0].String())
+	})
+
+	t.Run("returns the value of a set wrapper field", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			setWrapperValue(msg, "string_value", protoref.ValueOfString("hello"))
+		})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		require.True(t, values[0].IsValid())
+		assert.Equal(t, "hello", values[0].String())
+	})
+
+	t.Run("returns the zero value for a wrapper field set to zero", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {
+			setWrapperValue(msg, "string_value", protoref.ValueOfString(""))
+		})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		require.True(t, values[0].IsValid())
+		assert.Equal(t, "", values[0].String())
+	})
+
+	t.Run("returns an invalid value for an unset wrapper field", func(t *testing.T) {
+		msg := buildExpectedProto(t, runtime, "WrapperScalarRequest", func(msg *dynamicpb.Message, desc protoref.MessageDescriptor) {})
+
+		values := resolveDataForPath(msg, buildPath("string_value"))
+		require.Len(t, values, 1)
+		assert.False(t, values[0].IsValid())
 	})
 
 	t.Run("returns the zero value for an unset field without the optional keyword", func(t *testing.T) {
