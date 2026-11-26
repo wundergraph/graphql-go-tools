@@ -322,8 +322,9 @@ An ancestor in the same defer gets no mark, and the walk continues above it.
 The walk writes the IDs in a second pass, because the mutation root check can discard the whole path.
 
 **Mutation root fields.**
-A deferred fetch must never start at a top-level field of the mutation root type, because it would execute the mutation a second time.
-The data source filter prevents this before node selection, in `assignDeferKeyJumps`.
+Placement prevalidation rejects `@defer` on a mutation root selection.
+For deferred descendants, a fetch must not repeat an already fetched mutation root field.
+The data source filter prevents that replay before node selection, in `assignDeferKeyJumps`.
 It walks up from a deferred field toward the mutation root field.
 When the walk reaches the mutation root field without another fetch anchor, the deferred fetch branches out at the nearest entity above the field.
 The branch node is the nearest node, from the field itself up to the mutation root field, whose enclosing type has a resolvable key on its data source.
@@ -944,7 +945,8 @@ These points follow the draft or GraphQL.js:
   - `mutation { ... on Node { ... @defer { id } } }` passes validation (`[P7]`).
 - **Planning without prevalidation.**
   The planner has no guard for a `@defer` on a mutation root selection, because the placement rule rejects it.
-  A caller that plans without the prevalidation rules gets a deferred fetch that executes the mutation again.
+  Without prevalidation, a mutation root selection can execute in a deferred fetch.
+  This does not repeat another root selection that the initial fetch already executed.
 - **Transport parameter.**
   The cosmo router advertises `deferSpec=20220824`, but the body uses the format of the current draft.
   See [Wire format](#26-wire-format).
