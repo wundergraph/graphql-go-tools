@@ -35,6 +35,7 @@ func (o *DefinitionNormalizer) setupWalkers() {
 	extendInterfaceTypeDefinition(&walker)
 	extendScalarTypeDefinition(&walker)
 	extendUnionTypeDefinition(&walker)
+	extendSchemaDefinition(&walker)
 	removeMergedTypeExtensions(&walker)
 	implicitSchemaDefinition(&walker)
 
@@ -56,6 +57,7 @@ func (o *DefinitionNormalizer) setupSubgraphWalkers() {
 	extendInterfaceTypeDefinitionKeepingOrphans(&walker)
 	extendScalarTypeDefinitionKeepingOrphans(&walker)
 	extendUnionTypeDefinitionKeepingOrphans(&walker)
+	extendSchemaDefinitionKeepingOrphans(&walker)
 	removeMergedTypeExtensions(&walker)
 
 	o.walker = &walker

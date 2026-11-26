@@ -127,6 +127,13 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 		return nil
 	}
 
+	// ProcessDefer can delete a descriptor that the planning visitor reads.
+	err := selectionsConfig.nodeSuggestions.ProcessDefer(selectionsConfig.fieldRequirementsConfigs, p.planningVisitor.deferDescriptors, definition.Index.MutationTypeName.String())
+	if err != nil {
+		report.AddInternalError(err)
+		return nil
+	}
+
 	// Step 3. Create planning paths. We create actual raw plans where all fields are assigned to
 	// fetches with infos about dependencies. A fetch could depend on other fetches and contain
 	// required fields configurations.

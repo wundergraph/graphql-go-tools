@@ -97,6 +97,20 @@ message RecursiveMessage {
 }
 `
 
+var protoSchemaWithOptionalFields = `
+syntax = "proto3";
+package product.v1;
+
+message Foo {
+	optional string optional_string = 1;
+	optional int32 optional_int32 = 2;
+	optional int64 optional_int64 = 3;
+	optional float optional_float = 4;
+	optional double optional_double = 5;
+	optional bool optional_bool = 6;
+}
+`
+
 // TestNewProtoCompiler tests the basic functionality of the Proto compiler
 // It verifies that the compiler can successfully parse a valid protobuf definition
 func TestNewProtoCompiler(t *testing.T) {
@@ -217,4 +231,22 @@ func TestCompileNestedMessages(t *testing.T) {
 	require.Equal(t, "SecondMessage", compiler.doc.Messages[2].Name)
 	require.Equal(t, "SecondMessage.MyMessage", compiler.doc.Messages[3].Name)
 	require.Equal(t, "SecondMessage.MyMessage.NestedMessage", compiler.doc.Messages[4].Name)
+}
+
+func TestCompileMessageWithOptionalFields(t *testing.T) {
+	t.Run("marks proto3 optional fields as optional", func(t *testing.T) {
+		compiler, err := NewProtoCompiler(protoSchemaWithOptionalFields, nil)
+		require.NoError(t, err)
+		require.Equal(t, "product.v1", compiler.doc.Package)
+		require.Len(t, compiler.doc.Messages, 1)
+		require.Equal(t, "Foo", compiler.doc.Messages[0].Name)
+
+		message := compiler.runtime.getMessageByName("Foo")
+		require.NotNil(t, message)
+		require.Len(t, message.fieldsByName, 6)
+
+		for name, field := range message.fieldsByName {
+			require.Truef(t, field.optional, "field %s", name)
+		}
+	})
 }

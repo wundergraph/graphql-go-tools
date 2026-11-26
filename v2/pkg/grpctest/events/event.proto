@@ -1,0 +1,158 @@
+syntax = "proto3";
+package eventv1;
+
+option go_package = "github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/events/eventv1;eventv1";
+
+// Service definition for EventService
+service EventService {
+  // Lookup Event entity by id
+  rpc LookupEventById(LookupEventByIdRequest) returns (LookupEventByIdResponse) {}
+  rpc MutationCreateEvent(MutationCreateEventRequest) returns (MutationCreateEventResponse) {}
+  rpc QueryEvent(QueryEventRequest) returns (QueryEventResponse) {}
+  rpc QueryEvents(QueryEventsRequest) returns (QueryEventsResponse) {}
+  rpc RequireEventAvailableSeatsById(RequireEventAvailableSeatsByIdRequest) returns (RequireEventAvailableSeatsByIdResponse) {}
+  rpc ResolveEventTicketPrice(ResolveEventTicketPriceRequest) returns (ResolveEventTicketPriceResponse) {}
+}
+
+// Key message for Event entity lookup
+message LookupEventByIdRequestKey {
+  // Key field for Event entity lookup.
+  string id = 1;
+}
+
+// Request message for Event entity lookup.
+message LookupEventByIdRequest {
+  /*
+   * List of keys to look up Event entities.
+   * Order matters - each key maps to one entity in LookupEventByIdResponse.
+   */
+  repeated LookupEventByIdRequestKey keys = 1;
+}
+
+// Response message for Event entity lookup.
+message LookupEventByIdResponse {
+  /*
+   * List of Event entities in the same order as the keys in LookupEventByIdRequest.
+   * Always return the same number of entities as keys. Use null for entities that cannot be found.
+   * 
+   * Example:
+   *   LookupUserByIdRequest:
+   *     keys:
+   *       - id: 1
+   *       - id: 2
+   *   LookupUserByIdResponse:
+   *     result:
+   *       - id: 1 # User with id 1 found
+   *       - null  # User with id 2 not found
+   */
+  repeated Event result = 1;
+}
+
+// Request message for event operation.
+message QueryEventRequest {
+  string id = 1;
+}
+// Response message for event operation.
+message QueryEventResponse {
+  Event event = 1;
+}
+// Request message for events operation.
+message QueryEventsRequest {
+  EventFilter filter = 1;
+  optional int32 limit = 2;
+}
+// Response message for events operation.
+message QueryEventsResponse {
+  repeated Event events = 1;
+}
+// Request message for createEvent operation.
+message MutationCreateEventRequest {
+  EventInput input = 1;
+}
+// Response message for createEvent operation.
+message MutationCreateEventResponse {
+  Event create_event = 1;
+}
+message ResolveEventTicketPriceArgs {
+  optional double discount = 1;
+}
+
+message ResolveEventTicketPriceContext {
+  string id = 1;
+  optional double price = 2;
+}
+
+message ResolveEventTicketPriceRequest {
+  // context provides the resolver context for the field ticketPrice of type Event.
+  repeated ResolveEventTicketPriceContext context = 1;
+  // field_args provides the arguments for the resolver field ticketPrice of type Event.
+  ResolveEventTicketPriceArgs field_args = 2;
+}
+
+message ResolveEventTicketPriceResult {
+  optional double ticket_price = 1;
+}
+
+message ResolveEventTicketPriceResponse {
+  repeated ResolveEventTicketPriceResult result = 1;
+}
+
+message RequireEventAvailableSeatsByIdRequest {
+  // RequireEventAvailableSeatsByIdContext provides the context for the required fields method RequireEventAvailableSeatsById.
+  repeated RequireEventAvailableSeatsByIdContext context = 1;
+}
+
+message RequireEventAvailableSeatsByIdContext {
+  LookupEventByIdRequestKey key = 1;
+  RequireEventAvailableSeatsByIdFields fields = 2;
+}
+
+message RequireEventAvailableSeatsByIdResponse {
+  // RequireEventAvailableSeatsByIdResult provides the result for the required fields method RequireEventAvailableSeatsById.
+  repeated RequireEventAvailableSeatsByIdResult result = 1;
+}
+
+message RequireEventAvailableSeatsByIdResult {
+  optional int32 available_seats = 1;
+}
+
+message RequireEventAvailableSeatsByIdFields {
+  optional int32 tickets_sold = 1;
+}
+
+message Event {
+  string id = 1;
+  string title = 2;
+  optional string description = 3;
+  optional int32 capacity = 4;
+  optional double price = 5;
+  optional bool online = 6;
+  optional string organizer_id = 7;
+  EventStatus status = 8;
+}
+
+message EventFilter {
+  optional string title_contains = 1;
+  optional int32 min_capacity = 2;
+  optional double max_price = 3;
+  optional bool online = 4;
+  optional string organizer_id = 5;
+  EventStatus status = 6;
+}
+
+message EventInput {
+  string title = 1;
+  optional string description = 2;
+  optional int32 capacity = 3;
+  optional double price = 4;
+  optional bool online = 5;
+  optional string organizer_id = 6;
+  EventStatus status = 7;
+}
+
+enum EventStatus {
+  EVENT_STATUS_UNSPECIFIED = 0;
+  EVENT_STATUS_SCHEDULED = 1;
+  EVENT_STATUS_POSTPONED = 2;
+  EVENT_STATUS_CANCELLED = 3;
+}

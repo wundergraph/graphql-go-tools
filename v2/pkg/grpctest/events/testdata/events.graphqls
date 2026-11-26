@@ -1,0 +1,56 @@
+type Query {
+  event(id: ID!): Event
+  events(filter: EventFilter, limit: Int): [Event!]!
+}
+
+type Mutation {
+  createEvent(input: EventInput!): Event!
+}
+
+enum EventStatus {
+  SCHEDULED
+  POSTPONED
+  CANCELLED
+}
+
+# An event has a nullable field for each scalar type and for an enum.
+# A null value means that the value is not known.
+type Event @key(fields: "id") {
+  id: ID!
+  title: String!
+  description: String
+  capacity: Int
+  price: Float
+  online: Boolean
+  organizerId: ID
+  status: EventStatus
+
+  # The tickets subgraph owns the sold tickets.
+  ticketsSold: Int @external
+  # Null when the capacity or the sold tickets are not known.
+  availableSeats: Int @requires(fields: "ticketsSold")
+
+  # Null when the price is not known. A discount of 0.25 takes 25% off the price.
+  # A null discount gives the full price. A discount must be between 0 and 1.
+  ticketPrice(discount: Float): Float @connect__fieldResolver(context: "id price")
+}
+
+input EventInput {
+  title: String!
+  description: String
+  capacity: Int
+  price: Float
+  online: Boolean
+  organizerId: ID
+  status: EventStatus
+}
+
+# A null filter field does not filter the events.
+input EventFilter {
+  titleContains: String
+  minCapacity: Int
+  maxPrice: Float
+  online: Boolean
+  organizerId: ID
+  status: EventStatus
+}

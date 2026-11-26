@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.34.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.33.0...v2.34.0) (2026-11-26)
+
+
+### Features
+
+* **grpc_datasource:** support proto3 optional fields for nullable scalars ([#1786](https://github.com/wundergraph/graphql-go-tools/issues/1786)) ([efdec8c](https://github.com/wundergraph/graphql-go-tools/commit/efdec8caf684a4eff4a4b61bc37cf7ce52d79a0a))
+
+
+### Bug Fixes
+
+* **engine:** merge schema extensions into a root schema type ([#1746](https://github.com/wundergraph/graphql-go-tools/issues/1746)) ([5362871](https://github.com/wundergraph/graphql-go-tools/commit/5362871ab1c753555f90c6ca73a030af4b7f3e0c))
+* **grpc_datasource:** send wrapper-typed context fields to field resolvers ([#1790](https://github.com/wundergraph/graphql-go-tools/issues/1790)) ([2131b53](https://github.com/wundergraph/graphql-go-tools/commit/2131b5379f35038c87766ea0588d9a3b4c458b15))
+* **plan:** scope key external-state inheritance to ancestors ([#1727](https://github.com/wundergraph/graphql-go-tools/issues/1727)) ([5e5a884](https://github.com/wundergraph/graphql-go-tools/commit/5e5a884e566685072ba0bb8d75f18159564a5254))
+
+## [2.33.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.3...v2.33.0) (2026-11-23)
+
+
+### Features
+
+* negotiate delivery guarantees for subscriptions ([#1735](https://github.com/wundergraph/graphql-go-tools/issues/1735)) ([a60b10b](https://github.com/wundergraph/graphql-go-tools/commit/a60b10b6a3eac139e633dd027a6740e626f95def))
+
+## [2.32.3](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.2...v2.32.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* **resolve:** preserve render errors when printing response extensions ([#1779](https://github.com/wundergraph/graphql-go-tools/issues/1779)) ([739d42d](https://github.com/wundergraph/graphql-go-tools/commit/739d42daa9af32ef239b0503e847b64ee08725d9))
+
 ## [2.32.2](https://github.com/wundergraph/graphql-go-tools/compare/v2.32.1...v2.32.2) (2026-11-20)
 
 

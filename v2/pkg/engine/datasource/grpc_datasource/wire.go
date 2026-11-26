@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protowire"
+	protoref "google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wundergraph/astjson"
 )
@@ -53,6 +54,13 @@ type wireField struct {
 	listMetadata *ListMetadata
 	fieldMessage *runtimeMessage
 	child        *wireMessage
+}
+
+// isOptionalScalar reports whether the field is a nullable scalar. The proto
+// field is a google.protobuf.*Value wrapper or a proto3 optional scalar.
+// Nullable enums are plain proto enum fields: protobuf has no wrapper type for them.
+func (f *wireField) isOptionalScalar() bool {
+	return f.optional && f.dataType != DataTypeMessage && f.dataType != DataTypeEnum
 }
 
 const (
@@ -189,4 +197,24 @@ func jsonStringBytes(data *astjson.Value) []byte {
 	default:
 		return data.MarshalTo(nil)
 	}
+}
+
+// isWrapperMessage reports whether the message is a google.protobuf wrapper type,
+// for example google.protobuf.StringValue.
+func isWrapperMessage(md protoref.MessageDescriptor) bool {
+	switch md.FullName() {
+	case "google.protobuf.DoubleValue", "google.protobuf.FloatValue",
+		"google.protobuf.Int64Value", "google.protobuf.UInt64Value",
+		"google.protobuf.Int32Value", "google.protobuf.UInt32Value",
+		"google.protobuf.BoolValue", "google.protobuf.StringValue",
+		"google.protobuf.BytesValue":
+		return true
+	}
+
+	return false
+}
+
+// wrapperValue returns the value field of a wrapper message.
+func wrapperValue(wrapper protoref.Message) protoref.Value {
+	return wrapper.Get(wrapper.Descriptor().Fields().ByName(knownTypeOptionalFieldValueName))
 }

@@ -1,70 +1,88 @@
 mkfile_dir := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 grpc_datasource_dir := $(mkfile_dir)/../engine/datasource/grpc_datasource
+cosmo_cli_dir := $(mkfile_dir)/../../../../cosmo/cli
 
-# generate-proto regenerates the Go code for product.proto via buf.
-# This drives three plugins: protoc-gen-go (messages), protoc-gen-go-grpc
-# (gRPC server/client), and protoc-gen-connect-go (Connect handler/client).
-# The Connect handler accepts gRPC, gRPC-Web, and Connect over the same HTTP
-# endpoint, so the mock service can be exercised over either transport from
-# tests. See buf.gen.yaml for the plugin configuration.
+# wgc is the published cosmo CLI. wgc_local runs the CLI from a cosmo checkout
+# in the same parent directory as graphql-go-tools.
+wgc := pnpx wgc@latest
+wgc_local := pnpx tsx --env-file $(cosmo_cli_dir)/.env $(cosmo_cli_dir)/src/index.ts
+
+# Each service sets these variables:
+#   <service>_dir          directory with the service files
+#   <service>_schema       GraphQL schema, relative to the service directory
+#   <service>_proto        generated proto file, relative to the service directory
+#   <service>_package      proto package
+#   <service>_go_package   go_package option of the proto file
+#   <service>_rpc_service  name of the gRPC service
+#   <service>_flags        extra flags for `wgc grpc-service generate`
+#   <service>_name         service name in the generated mappings
+#   <service>_helper       generated mapping helper file in grpc_datasource
+#   <service>_helper_func  function name of the mapping helper in grpc_datasource
+services := products events
+
+# The products service keeps the google.protobuf wrapper types for nullable scalars.
+products_dir := $(mkfile_dir)
+products_schema := testdata/products.graphqls
+products_proto := product.proto
+products_package := productv1
+products_go_package := cosmo/pkg/proto/productv1;productv1
+products_rpc_service := ProductService
+products_flags := --legacy-wrapper-types
+products_name := Products
+products_helper := mapping_helper_test.go
+products_helper_func := testMapping
+
+# The events service uses proto3 optional fields for nullable scalars.
+events_dir := $(mkfile_dir)/events
+events_schema := testdata/events.graphqls
+events_proto := event.proto
+events_package := eventv1
+events_go_package := github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/events/eventv1;eventv1
+events_rpc_service := EventService
+events_flags :=
+events_name := Events
+events_helper := mapping_helper_events_test.go
+events_helper_func := eventsTestMapping
+
+# service_targets defines the generation targets for the service $(1):
+#   generate-$(1)        regenerates the proto, the mappings and the Go code with the published CLI
+#   generate-$(1)-local  does the same with the local CLI
+#   generate-$(1)-proto  regenerates the Go code from the proto file with buf
+define service_targets
+.PHONY: generate-$(1) generate-$(1)-local generate-$(1)-proto
+
+generate-$(1): cli := $(wgc)
+generate-$(1)-local: cli := $(wgc_local)
+
+generate-$(1) generate-$(1)-local:
+	cd $($(1)_dir) && $$(cli) grpc-service generate -i $($(1)_schema) -o testdata/ -p $($(1)_package) -g "$($(1)_go_package)" $($(1)_flags) $($(1)_rpc_service)
+	mv $($(1)_dir)/testdata/service.proto $($(1)_dir)/$($(1)_proto)
+	rm -f $($(1)_dir)/testdata/service.proto.lock.json
+	mkdir -p $($(1)_dir)/mapping
+	go run $(mkfile_dir)/cmd/mapping_helper -service $($(1)_name) $($(1)_dir)/testdata/mapping.json $($(1)_dir)/mapping/mapping.go
+	go run $(mkfile_dir)/cmd/mapping_helper -grpc-datasource -service $($(1)_name) -func $($(1)_helper_func) $($(1)_dir)/testdata/mapping.json $(grpc_datasource_dir)/$($(1)_helper)
+	gofmt -w $($(1)_dir)/mapping/mapping.go $(grpc_datasource_dir)/$($(1)_helper)
+	rm -f $($(1)_dir)/testdata/mapping.json
+	$(MAKE) generate-$(1)-proto
+
+# buf drives protoc-gen-go (messages), protoc-gen-go-grpc (gRPC server and
+# client) and protoc-gen-connect-go (Connect handler and client). See the
+# buf.gen.yaml file of the service.
+generate-$(1)-proto:
+	cd $($(1)_dir) && go tool buf generate
+endef
+
+$(foreach service,$(services),$(eval $(call service_targets,$(service))))
+
+.PHONY: generate-all
+generate-all: $(addprefix generate-,$(services))
+
+.PHONY: generate-all-local
+generate-all-local: $(addsuffix -local,$(addprefix generate-,$(services)))
+
 .PHONY: generate-proto
-generate-proto:
-	go tool buf generate
+generate-proto: $(addsuffix -proto,$(addprefix generate-,$(services)))
 
 .PHONY: build-plugin
 build-plugin:
 	go build -o plugin/plugin_service plugin/plugin_service.go
-
-.PHONY: regenerate-proto
-regenerate-proto:
-	pnpx wgc@latest grpc-service generate -i testdata/products.graphqls -o testdata/ -p productv1 -g "cosmo/pkg/proto/productv1;productv1" ProductService
-	mv $(mkfile_dir)/testdata/service.proto $(mkfile_dir)/product.proto
-	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
-
-.PHONY: generate-mapping-code
-generate-mapping-code: cleanup-mapping-file
-
-.PHONY: generate-mapping-code-grpc-test
-generate-mapping-code-grpc-test: regenerate-proto
-	go run $(mkfile_dir)/cmd/mapping_helper/main.go $(mkfile_dir)/testdata/mapping.json $(mkfile_dir)/mapping/mapping.go
-	go fmt $(mkfile_dir)/mapping/mapping.go
-
-.PHONY: generate-mapping-code-grpc-datasource
-generate-mapping-code-grpc-datasource: generate-mapping-code-grpc-test
-	go run $(mkfile_dir)/cmd/mapping_helper/main.go -grpc-datasource $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_helper_test.go
-	go fmt $(grpc_datasource_dir)/mapping_helper_test.go
-
-.PHONY: cleanup-mapping-file
-cleanup-mapping-file: generate-mapping-code-grpc-datasource
-	rm -f $(mkfile_dir)/testdata/mapping.json
-
-
-.PHONY: regenerate-proto-local
-regenerate-proto-local:
-	pnpx tsx --env-file ../../../../cosmo/cli/.env ../../../../cosmo/cli/src/index.ts grpc-service generate -i testdata/products.graphqls -o testdata/ -p productv1 -g "cosmo/pkg/proto/productv1;productv1" ProductService
-	mv $(mkfile_dir)/testdata/service.proto $(mkfile_dir)/product.proto
-	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
-
-.PHONY: generate-mapping-code-local
-generate-mapping-code-local: cleanup-mapping-file-local
-
-.PHONY: generate-mapping-code-grpc-test-local
-generate-mapping-code-grpc-test-local: regenerate-proto-local
-	go run $(mkfile_dir)/cmd/mapping_helper/main.go $(mkfile_dir)/testdata/mapping.json $(mkfile_dir)/mapping/mapping.go
-	go fmt $(mkfile_dir)/mapping/mapping.go
-
-.PHONY: generate-mapping-code-grpc-datasource-local
-generate-mapping-code-grpc-datasource-local: generate-mapping-code-grpc-test-local
-	go run $(mkfile_dir)/cmd/mapping_helper/main.go -grpc-datasource $(mkfile_dir)/testdata/mapping.json $(grpc_datasource_dir)/mapping_helper_test.go
-	go fmt $(grpc_datasource_dir)/mapping_helper_test.go
-
-.PHONY: cleanup-mapping-file-local
-cleanup-mapping-file-local: generate-mapping-code-grpc-datasource-local
-	rm -f $(mkfile_dir)/testdata/mapping.json
-
-
-.PHONY: generate-all
-generate-all: generate-mapping-code generate-proto
-
-.PHONY: generate-all-local
-generate-all-local: generate-mapping-code-local generate-proto

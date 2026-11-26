@@ -280,6 +280,7 @@ Then it does one of these for each deferred field:
 - `v2/pkg/engine/plan/planner.go`
 - `v2/pkg/engine/plan/defer_info_collector.go`
 - `v2/pkg/engine/plan/datasource_filter_collect_nodes_visitor.go`
+- `v2/pkg/engine/plan/datasource_filter_visitor.go`
 - `v2/pkg/engine/plan/datasource_filter_node_suggestions.go`
 - `v2/pkg/engine/plan/node_selection_visitor.go`
 - `v2/pkg/engine/plan/required_fields_visitor.go`
@@ -321,13 +322,33 @@ An ancestor in the same defer gets no mark, and the walk continues above it.
 The walk writes the IDs in a second pass, because the mutation root check can discard the whole path.
 
 **Mutation root fields.**
-When the walk ends at a top-level field of the mutation root type, that mutation root field is the fetch anchor.
-A deferred fetch from that anchor would execute the mutation a second time.
-So the walk marks no parent, and `ProcessDefer` sets the `deferInfo` of the field to `nil`.
+Placement prevalidation rejects `@defer` on a mutation root selection.
+For deferred descendants, a fetch must not repeat an already fetched mutation root field.
+The data source filter prevents that replay before node selection, in `assignDeferKeyJumps`.
+It walks up from a deferred field toward the mutation root field.
+
+An existing entity fetch anchor keeps the field deferred without a new same-source branch.
+Otherwise, the walk selects the nearest node that `keyJumpKey` accepts before it reaches the mutation root field.
+The node must be a root node on its data source.
+Its data source must both supply and resolve the enclosing entity key at that path.
+A declared resolvable key alone is insufficient when the data source cannot supply its fields.
+
+The branch node gets a key jump into its own data source.
+Node selection then adds the key fields to its parent, and the deferred fetch is an `_entities` fetch on the same subgraph.
+A deferred field below a parent in the same defer that takes such a jump joins the fetch of that parent.
+The `@requires` back jump builds the same jump with `sameSourceKeyJump`.
+
+The branch node can be a field that is not deferred.
+Example: in `createUser { id info { ... @defer { a } } }` with a value type `Info`, the branch node is `info`.
+The `ProcessDefer` walk marks `info` as a defer parent, so the path builder plans `info` twice.
+The initial fetch is `createUser {id info {__internal_typename: __typename} __typename}`.
+The deferred fetch is `_entities` with `... on User {__typename info {a}}`.
+
+If no usable fetch anchor stops the `ProcessDefer` walk before the mutation root field, the fetch would repeat that mutation.
+An example is a field of a value type with no usable entity key or existing entity fetch anchor along that path.
+The walk then marks no parent, and `ProcessDefer` sets the `deferInfo` of the field to `nil`.
 The field then belongs to the initial response.
 The decision is per field, so an entity-backed field of the same defer stays deferred.
-The decision uses the generated fetch anchor.
-A declared entity key on the mutation subgraph therefore does not keep the field deferred.
 
 After the pass, `deleteEmptyDeferDescriptors` deletes each descriptor that has no deferred field left.
 It gives the children of a deleted descriptor the parent of that descriptor.
@@ -376,6 +397,9 @@ One defer ID can produce more than one planner when its fields have different fe
 
 - `assignDefer` sets `resolve.Field.Defer` on a deferred response field.
   The resolver uses it to select the fields of each payload.
+  A field that also has a planner in the initial response gets no `Defer`.
+  This happens for a shareable field when only one of its subgraphs can stay deferred.
+  The deferred payload then adds the deferred child fields with a `subPath`.
 - `configureFetch` sets `FetchDependencies.DeferID` on each fetch.
   The postprocess steps use it to split the fetches.
 - When a planner has a defer ID, the plan is a `DeferResponsePlan`.
@@ -450,10 +474,12 @@ The structure of the execution satisfies this dependency:
    When no defer survives, the payload has no `pending` and no `hasNext`.
 4. It flushes the initial payload.
    An error before this flush returns to the caller, and the router formats it as an ordinary error response.
-5. It registers `writer.Complete()`.
-   After the first flush, every exit closes the stream.
+5. It defers `writer.Complete()` after the initial flush.
+   The Cosmo writer described in [Wire format](#26-wire-format) makes `Complete()` a no-op.
+   An execution that stops before its final flush leaves the multipart response incomplete.
 6. `pruneDeadDefers` removes the subtrees of the top-level defers that did not survive.
-   When no defer survives, no deferred fetch runs and `Complete()` closes the stream.
+   When no defer survives, no deferred fetch runs.
+   The initial `Flush(true)` writes the closing boundary.
 7. It sets the `outstanding` counter to the number of surviving top-level defers.
    Then it runs the defer tree.
 
@@ -558,7 +584,7 @@ The resolver can still prepare a payload after the cancellation, but the client 
 
 ### 2.6 Wire format
 
-This repository writes no HTTP header for a defer response.
+The engine in this repository writes no HTTP header and no multipart framing for a defer response.
 The router implements `resolve.DeferResponseWriter`:
 
 ```go
@@ -573,11 +599,17 @@ type DeferResponseWriter interface {
 `final` is true for the last payload (`"hasNext":false`).
 When no defer survives, `final` is also true for the initial payload even though it has no `hasNext` field.
 Each payload causes exactly one `Flush()`.
-`Complete()` closes the stream.
 
-The cosmo router sets `Content-Type: multipart/mixed; deferSpec=20220824; boundary="graphql"` in `router/core/defer_response_writer.go`.
-The `deferSpec=20220824` parameter names an older format.
-The body uses the `pending`, `incremental` and `completed` format of the current draft.
+The following transport behavior describes Cosmo revision [`4abe82d6`](https://github.com/wundergraph/cosmo/blob/4abe82d6e484a5cd68a21640f282bd76dd7b33cc/router/core/defer_response_writer.go).
+`Complete()` has no effect, including on an error return after the initial flush.
+`Flush(true)` writes the closing boundary of a successful multipart response.
+If execution stops before that final flush, the multipart response remains incomplete.
+
+The router writes the HTTP headers and the multipart framing in `router/core/defer_response_writer.go`.
+It sets `Content-Type: multipart/mixed; boundary="graphql"; incrementalSpec=v0.2`.
+It sets `Transfer-Encoding: chunked` only for HTTP/1 responses (`r.ProtoMajor == 1`), and omits that header for HTTP/2.
+It also sets `Cache-Control`, `Connection` and `X-Accel-Buffering` for streaming.
+The body uses the `pending`, `incremental` and `completed` format.
 
 **Initial payload.**
 It contains every field that is not deferred.
@@ -780,11 +812,14 @@ See [`__typename` scope alignment](#__typename-scope-alignment).
 
 - Each mutation root field executes once.
   The planner never creates a second upstream mutation for a deferred field.
-- A deferred field whose fetch anchor is a mutation root field goes to the initial response.
-- An entity-backed deferred field stays deferred.
-  Its `_entities` fetch depends on the mutation root fetch that returns the key.
+- A deferred field stays deferred when its fetch starts at a usable entity fetch anchor.
+  An existing entity fetch can provide that anchor without a new same-source branch.
+  A new same-source branch uses the nearest node whose data source can both supply and resolve the enclosing entity key at that path.
+  Its `_entities` fetch depends on the fetch that returns the key.
+- A deferred field goes to the initial response when its fetch would still start at the mutation root field.
 - One defer can split.
-  Its fields that need the mutation root go to the initial response, and its entity-backed fields stay deferred.
+  Fields whose fetches would repeat the mutation go to the initial response.
+  Fields with usable entity fetch anchors stay deferred.
   The engine announces the defer and delivers the remaining fields, with a `subPath` when they are deeper than the descriptor path.
 - A defer that loses all its fields leaves nothing in the response.
   It has no deferred fetch, no descriptor, no `pending` entry and no `completed` entry.
@@ -924,10 +959,11 @@ These points follow the draft or GraphQL.js:
   - `mutation { ... on Node { ... @defer { id } } }` passes validation (`[P7]`).
 - **Planning without prevalidation.**
   The planner has no guard for a `@defer` on a mutation root selection, because the placement rule rejects it.
-  A caller that plans without the prevalidation rules gets a deferred fetch that executes the mutation again.
+  Without prevalidation, a mutation root selection can execute in a deferred fetch.
+  This does not repeat another root selection that the initial fetch already executed.
 - **Transport parameter.**
-  The cosmo router advertises `deferSpec=20220824`, but the body uses the format of the current draft.
-  See [Wire format](#26-wire-format).
+  At the Cosmo revision in [Wire format](#26-wire-format), the router advertises `incrementalSpec=v0.2`.
+  A `multipart/mixed` element with `deferSpec` in the request's `Accept` header names an unsupported format.
 - **Parity tests.**
   No test compares the complex overlap cases with GraphQL.js.
   No test covers the dropped label in [Overlapping defers](#overlapping-defers).
