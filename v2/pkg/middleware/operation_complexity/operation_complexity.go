@@ -176,7 +176,7 @@ type multiplier struct {
 
 func (c *complexityVisitor) calculateMultiplied(i int) int {
 	for _, j := range c.multipliers {
-		i = i * j.multi
+		i *= j.multi
 	}
 	return i
 }
@@ -247,13 +247,13 @@ func (c *complexityVisitor) EnterField(ref int) {
 	}
 
 	// A field's multiplier applies to its result, not its own request.
-	c.complexity = c.complexity + c.calculateMultiplied(1)
+	c.complexity += c.calculateMultiplied(1)
 	c.fieldDepth++
 
 	// Operation depth includes the selected child. Root depth is root-relative.
 	c.maxOperationDepth = max(c.maxOperationDepth, c.fieldDepth+1)
 
-	c.currentRootFieldStats.Stats.Complexity = c.currentRootFieldStats.Stats.Complexity + c.calculateMultiplied(1)
+	c.currentRootFieldStats.Stats.Complexity += c.calculateMultiplied(1)
 	c.maxRootFieldDepth = max(c.maxRootFieldDepth, c.fieldDepth)
 }
 
@@ -282,8 +282,8 @@ func (c *complexityVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	c.count = c.count + c.calculateMultiplied(1)
-	c.currentRootFieldStats.Stats.NodeCount = c.currentRootFieldStats.Stats.NodeCount + c.calculateMultiplied(1)
+	c.count += c.calculateMultiplied(1)
+	c.currentRootFieldStats.Stats.NodeCount += c.calculateMultiplied(1)
 }
 
 func (c *complexityVisitor) EnterFragmentDefinition(ref int) {
