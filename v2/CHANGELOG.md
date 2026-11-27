@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.35.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.34.0...v2.35.0) (2026-11-27)
+
+
+### Features
+
+* **resolve:** support a zero fallback TTL per subgraph ([#1783](https://github.com/wundergraph/graphql-go-tools/issues/1783)) ([adb582a](https://github.com/wundergraph/graphql-go-tools/commit/adb582aa9d250271039dd7dbb17e62564202e55f))
+
+
+### Bug Fixes
+
+* **plan:** do not defer a field that repeats a mutation root fetch ([#1699](https://github.com/wundergraph/graphql-go-tools/issues/1699)) ([3496966](https://github.com/wundergraph/graphql-go-tools/commit/3496966c296123f6e4e3f484e5c325dc4a79a599))
+
 ## [2.34.0](https://github.com/wundergraph/graphql-go-tools/compare/v2.33.0...v2.34.0) (2026-11-26)
 
 
