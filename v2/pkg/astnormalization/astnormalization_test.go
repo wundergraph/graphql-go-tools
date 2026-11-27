@@ -1297,6 +1297,32 @@ func TestVariablesNormalizer(t *testing.T) {
 	})
 }
 
+func TestVariablesNormalizerListCoercionSelectedOperationNotFirst(t *testing.T) {
+	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`
+		input Sort { field: String! }
+		type Query { items(sort: [Sort!]!): [String] }
+	`)
+
+	for _, tc := range []struct{ name, operation string }{
+		{"selected operation is first", "query B { items(sort: {field: \"name\"}) }\nquery A { __typename }"},
+		{"selected operation is second", "query A { __typename }\nquery B { items(sort: {field: \"name\"}) }"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			operation := unsafeparser.ParseGraphqlDocumentString(tc.operation)
+			operation.Input.Variables = []byte(`{}`)
+			report := operationreport.Report{}
+
+			NewWithOpts(WithRemoveNotMatchingOperationDefinitions()).NormalizeNamedOperation(&operation, &definition, []byte("B"), &report)
+			require.False(t, report.HasErrors(), report.Error())
+			NewVariablesNormalizer().NormalizeOperation(&operation, &definition, &report)
+			require.False(t, report.HasErrors(), report.Error())
+
+			assert.Equal(t, `query B($a: [Sort!]!){items(sort: $a)}`, unsafeprinter.Print(&operation))
+			assert.Equal(t, `{"a":[{"field":"name"}]}`, string(operation.Input.Variables))
+		})
+	}
+}
+
 func BenchmarkAstNormalization(b *testing.B) {
 
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
