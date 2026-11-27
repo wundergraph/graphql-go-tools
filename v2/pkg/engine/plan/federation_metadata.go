@@ -26,6 +26,20 @@ type FederationInfo interface {
 	HasInterfaceObject(typeName string) bool
 	HasEntityInterface(typeName string) bool
 	EntityInterfaceNames() []string
+	InterfaceObjectNamesForConcreteType(typeName string) []string
+}
+
+// InterfaceObjectNamesForConcreteType returns the names of all interface objects
+// listing typeName as one of their concrete types, in configuration order.
+func (d *FederationMetaData) InterfaceObjectNamesForConcreteType(typeName string) []string {
+	var names []string
+	for _, interfaceObject := range d.InterfaceObjects {
+		if slices.Contains(interfaceObject.ConcreteTypeNames, typeName) {
+			names = append(names, interfaceObject.InterfaceTypeName)
+		}
+	}
+
+	return names
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {

@@ -18,7 +18,10 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 			SelectionSet: keyStr,
 		}
 
-		node, err := buildRepresentationVariableNode(&definition, cfg, federationMeta)
+		dsMeta := plan.DataSourceMetadata{FederationMetaData: federationMeta}
+		interfaceObjectName, _ := dsMeta.InterfaceObjectNameForType(cfg.TypeName)
+
+		node, err := buildRepresentationVariableNode(&definition, cfg, federationMeta, interfaceObjectName)
 		require.NoError(t, err)
 
 		require.Equal(t, expectedNode, node)

@@ -18,7 +18,10 @@ type objectFields struct {
 
 // TODO: add support for remapping path
 
-func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData) (*resolve.Object, error) {
+// buildRepresentationVariableNode builds the representation object of an entity fetch.
+// interfaceObjectName is the interface object used as __typename of the representation,
+// empty when the entity is not fetched through an interface object.
+func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData, interfaceObjectName string) (*resolve.Object, error) {
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
 		return nil, report
@@ -28,11 +31,8 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 	defer walker.Release()
 
 	var interfaceObjectTypeName *string
-	for _, interfaceObjCfg := range federationCfg.InterfaceObjects {
-		if slices.Contains(interfaceObjCfg.ConcreteTypeNames, cfg.TypeName) {
-			interfaceObjectTypeName = &interfaceObjCfg.InterfaceTypeName
-			break
-		}
+	if interfaceObjectName != "" {
+		interfaceObjectTypeName = &interfaceObjectName
 	}
 	var entityInterfaceTypeName *string
 	for _, entityInterfaceCfg := range federationCfg.EntityInterfaces {
