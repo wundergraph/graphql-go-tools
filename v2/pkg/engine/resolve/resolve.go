@@ -400,6 +400,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		// Inject loader output into Resolvable before rendering.
 		resolvable.data = loader.dataBuffer.Get()
 		resolvable.errors = loader.errors
+		resolvable.errorSources = loader.errorSources
 		resolvable.subgraphExtensions = loader.subgraphExtensions
 		resolvable.skipValueCompletion = loader.skipValueCompletion
 	}
@@ -496,6 +497,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		}
 		resolvable.data = loader.dataBuffer.Get()
 		resolvable.errors = loader.errors
+		resolvable.errorSources = loader.errorSources
 		resolvable.subgraphExtensions = loader.subgraphExtensions
 		resolvable.skipValueCompletion = loader.skipValueCompletion
 	}
@@ -608,6 +610,7 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		// Inject loader output before the initial defer render.
 		resolvable.data = loader.dataBuffer.Get()
 		resolvable.errors = loader.errors
+		resolvable.errorSources = loader.errorSources
 		resolvable.subgraphExtensions = loader.subgraphExtensions
 		resolvable.skipValueCompletion = loader.skipValueCompletion
 
@@ -727,6 +730,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	// Inject group-local state into Resolvable for this render.
 	dc.resolvable.data = dc.db.Get()
 	dc.resolvable.errors = groupLoader.errors
+	dc.resolvable.errorSources = groupLoader.errorSources
 	dc.resolvable.subgraphExtensions = groupLoader.subgraphExtensions
 	groupLoader.appendSubgraphErrorsToContext()
 
@@ -1051,6 +1055,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 		return
 	}
 
+	resolvable.setSubscriptionErrorSources(sub.resolve.Trigger)
+
 	// The DataBuffer wraps the base tree produced by InitSubscription (the
 	// subscription event payload). The loader merges fetched data into it.
 	db := &DataBuffer{data: resolvable.data}
@@ -1087,6 +1093,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 			resolvable.errors.AppendArrayItems(resolveArena.Arena, loader.errors)
 		}
 	}
+	resolvable.errorSources = resolvable.errorSources.merge(loader.errorSources)
 	resolvable.skipValueCompletion = loader.skipValueCompletion
 
 	if err := resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {

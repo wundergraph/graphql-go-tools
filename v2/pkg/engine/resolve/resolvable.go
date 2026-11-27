@@ -37,6 +37,9 @@ type Resolvable struct {
 	// errors is the accumulated GraphQL `errors` array (arena-allocated) written
 	// into the response envelope.
 	errors *astjson.Value
+	// errorSources maps values in errors to their subgraph source when a
+	// ResponseErrorHandler is set.
+	errorSources responseErrorSources
 
 	// valueCompletion collects Apollo "value completion" extension entries for
 	// non-nullable fields that resolved to null; emitted under extensions when the
@@ -247,6 +250,7 @@ func (r *Resolvable) Reset() {
 	r.skipValueCompletion = false
 	r.data = nil
 	r.errors = nil
+	r.errorSources = nil
 	r.valueCompletion = nil
 	r.depth = 0
 	r.enableRender = false
@@ -298,6 +302,7 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.data = astjson.ObjectValue(r.astjsonArena)
 	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
+	r.errorSources = nil
 	if initialData != nil {
 		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
 		if err != nil {
@@ -323,6 +328,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.initCostControl()
 	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
+	r.errorSources = nil
 	if initialData != nil {
 		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
 		if err != nil {
@@ -362,6 +368,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 	r.authorizationError = nil
 	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
+	r.errorSources = nil
 
 	hasErrors := r.walkNode(node, data)
 	if hasErrors {
@@ -581,7 +588,7 @@ func (r *Resolvable) renderCompleted(withErrors bool) {
 		r.printBytes(literalErrors)
 		r.printBytes(quote)
 		r.printBytes(colon)
-		r.printNode(r.errors)
+		r.printErrorsArray()
 	}
 	r.printBytes(rBrace)
 	r.printBytes(rBrack)
@@ -597,6 +604,7 @@ func (r *Resolvable) ResolveDeferError(out io.Writer, message string, outstandin
 	r.printErr = nil
 	r.path = r.path[:0]
 	r.errors = nil
+	r.errorSources = nil
 	r.addError(message, nil)
 
 	// The failing defer completes; drive the outstanding count down by one. The
@@ -773,7 +781,7 @@ func (r *Resolvable) printDeferIdAndErrors() {
 		r.printBytes(literalErrors)
 		r.printBytes(quote)
 		r.printBytes(colon)
-		r.printNode(r.errors)
+		r.printErrorsArray()
 	}
 }
 
@@ -869,7 +877,7 @@ func (r *Resolvable) printErrors() {
 	r.printBytes(literalErrors)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.printNode(r.errors)
+	r.printErrorsArray()
 	r.printBytes(comma)
 	r.wroteErrors = true
 }
