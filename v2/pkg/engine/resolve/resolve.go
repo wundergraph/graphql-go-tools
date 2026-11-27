@@ -945,6 +945,10 @@ type subscriptionState struct {
 	id        SubscriptionIdentifier
 	heartbeat bool
 	completed chan struct{}
+	// onEnd is a snapshot of ctx.OnSubscriptionEnd taken at registration.
+	// Reading the callback from ctx at done() time would race with Context.Free()
+	// freeing the request context after the sync caller unblocks on completed.
+	onEnd func()
 	// writeMu protects all writes to writer (Complete, Error, Write, Flush, Heartbeat).
 	// Paired with the removed atomic to prevent writes after removal.
 	writeMu sync.Mutex
@@ -964,9 +968,19 @@ func closeSubs(subs []*subscriptionState) {
 // done closes the completed channel to signal that the subscription is finished.
 // It does not send any downstream messages — Complete/Error are sent separately.
 func (s *subscriptionState) done() {
+	// done is only called for states that won the removed transition. Run the
+	// callback before closing completed so a sync caller waiting on completed
+	// cannot free the Context between the close and the callback. Run it
+	// outside writeMu to preserve writer-lock isolation. Callers must invoke
+	// done() outside subscriptionUpdater.mu so a user callback cannot stall
+	// or re-enter the updater.
+	if s.onEnd != nil {
+		s.onEnd()
+	}
+
 	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
 	close(s.completed)
+	s.writeMu.Unlock()
 }
 
 // complete delivers a "subscription done" signal to the downstream writer.
@@ -1006,7 +1020,7 @@ func (s *subscriptionState) sendHeartbeat() error {
 	return s.writer.Heartbeat()
 }
 
-func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte, md *SubscriptionUpdateMetadata) {
+func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscriptionState, sharedInput []byte, md *SubscriptionUpdateMetadata) (needsRemoval bool) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
@@ -1106,9 +1120,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 
 	if err := sub.writer.Flush(); err != nil {
 		sub.writeMu.Unlock()
-		// If flush fails (e.g. client disconnected), remove the subscription.
-		_ = r.UnsubscribeSubscription(sub.id)
-		return
+		return true
 	}
 	sub.lastWriteTime.Store(time.Now().UnixNano())
 	sub.writeMu.Unlock()
@@ -1123,9 +1135,10 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	if resolvable.WroteErrorsWithoutData() && r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
 	}
+	return
 }
 
-func (r *Resolver) executeSubscriptionHeartbeat(sub *subscriptionState) {
+func (r *Resolver) executeSubscriptionHeartbeat(sub *subscriptionState) (needsRemoval bool) {
 	if r.options.Debug {
 		fmt.Printf("resolver:heartbeat:subscription:%d\n", sub.id.SubscriptionID)
 	}
@@ -1135,13 +1148,13 @@ func (r *Resolver) executeSubscriptionHeartbeat(sub *subscriptionState) {
 	}
 
 	if err := sub.sendHeartbeat(); err != nil {
-		_ = r.UnsubscribeSubscription(sub.id)
-		return
+		return true
 	}
 
 	if r.reporter != nil {
 		r.reporter.SubscriptionUpdateSent()
 	}
+	return
 }
 
 type StartupHookContext struct {
@@ -1212,6 +1225,7 @@ func (r *Resolver) addSubscription(triggerID uint64, add *addSubscription) error
 		writer:    add.writer,
 		id:        add.id,
 		completed: add.completed,
+		onEnd:     add.ctx.OnSubscriptionEnd,
 	}
 	if add.ctx.ExecutionOptions.SendHeartbeat {
 		s.heartbeat = true
@@ -1511,10 +1525,10 @@ type pendingFilterError struct {
 }
 
 // handleTriggerUpdate sends data to all subscriptions of a trigger.
-func (r *Resolver) handleTriggerUpdate(id uint64, data []byte, md *SubscriptionUpdateMetadata) {
+func (r *Resolver) handleTriggerUpdate(id uint64, data []byte, md *SubscriptionUpdateMetadata) []SubscriptionIdentifier {
 	trig, ok := r.getTrigger(id)
 	if !ok {
-		return
+		return nil
 	}
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
@@ -1526,23 +1540,34 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte, md *SubscriptionU
 		fe.sub.writeError(r.errorFormatter, fe.ctx, fe.err, fe.response)
 	}
 
-	var wg sync.WaitGroup
+	var (
+		wg       sync.WaitGroup
+		failedMu sync.Mutex
+		failed   []SubscriptionIdentifier
+	)
 	for _, sub := range subs {
 		if sub.removed.Load() {
 			continue
 		}
 		wg.Go(func() {
-			r.executeSubscriptionUpdate(sub.ctx, sub, data, md)
+			if r.executeSubscriptionUpdate(sub.ctx, sub, data, md) {
+				failedMu.Lock()
+				failed = append(failed, sub.id)
+				failedMu.Unlock()
+			}
 		})
 	}
 	wg.Wait()
+	return failed
 }
 
 // handleUpdateSubscription sends data to a single subscription.
-func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier, md *SubscriptionUpdateMetadata) {
+// Returns true if the subscription's downstream flush failed; the caller must
+// unsubscribe it outside subscriptionUpdater.mu.
+func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier, md *SubscriptionUpdateMetadata) bool {
 	trig, ok := r.getTrigger(id)
 	if !ok {
-		return
+		return false
 	}
 
 	if r.options.Debug {
@@ -1556,14 +1581,15 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 	}
 
 	if sub != nil && !sub.removed.Load() {
-		r.executeSubscriptionUpdate(sub.ctx, sub, data, md)
+		return r.executeSubscriptionUpdate(sub.ctx, sub, data, md)
 	}
+	return false
 }
 
-func (r *Resolver) heartbeatTriggerSubscriptions(id uint64) {
+func (r *Resolver) heartbeatTriggerSubscriptions(id uint64) []SubscriptionIdentifier {
 	trig, ok := r.getTrigger(id)
 	if !ok {
-		return
+		return nil
 	}
 
 	subs := trig.snapshotSubscriptions()
@@ -1578,9 +1604,13 @@ func (r *Resolver) heartbeatTriggerSubscriptions(id uint64) {
 		targets = append(targets, s)
 	}
 
+	var failed []SubscriptionIdentifier
 	for _, s := range targets {
-		r.executeSubscriptionHeartbeat(s)
+		if r.executeSubscriptionHeartbeat(s) {
+			failed = append(failed, s.id)
+		}
 	}
+	return failed
 }
 
 func (r *Resolver) shutdownResolver() {
@@ -1660,7 +1690,9 @@ func (r *Resolver) sendTriggerHeartbeats() {
 	r.mu.Unlock()
 
 	for _, id := range triggerIDs {
-		r.heartbeatTriggerSubscriptions(id)
+		for _, subID := range r.heartbeatTriggerSubscriptions(id) {
+			_ = r.UnsubscribeSubscription(subID)
+		}
 	}
 }
 
@@ -1763,6 +1795,14 @@ func hashNegotiatedParams(negotiated NegotiatedParams, xxh *xxhash.Digest) {
 // Everything else is returned as an error and nothing is written to the client.
 // Negotiate errors come from the data source and are returned as-is, so callers decide whether to expose them.
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
+	// A terminal response or setup error can return before a subscriber is
+	// registered. In that case there is no state to close later.
+	registered := false
+	defer func() {
+		if !registered && ctx.OnSubscriptionEnd != nil {
+			ctx.OnSubscriptionEnd()
+		}
+	}()
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
@@ -1857,6 +1897,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}); err != nil {
 		return err
 	}
+	registered = true
 
 	// This will immediately block until one of the following conditions is met:
 	select {
@@ -1891,6 +1932,14 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 // Errors are handled as in ResolveGraphQLSubscription; additionally, a canceled ctx is returned
 // as an error before anything starts.
 func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter, id SubscriptionIdentifier) (err error) {
+	// A terminal response or setup error can return before a subscriber is
+	// registered. In that case there is no state to close later.
+	registered := false
+	defer func() {
+		if !registered && ctx.OnSubscriptionEnd != nil {
+			ctx.OnSubscriptionEnd()
+		}
+	}()
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
@@ -1966,7 +2015,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return writeFlushComplete(writer, msg)
 	}
 
-	return r.addSubscription(triggerID, &addSubscription{
+	err = r.addSubscription(triggerID, &addSubscription{
 		ctx:        ctx,
 		input:      input,
 		resolve:    subscription,
@@ -1976,6 +2025,8 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		sourceName: subscription.Trigger.SourceName,
 		headers:    headers,
 	})
+	registered = err == nil
+	return err
 }
 
 func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscription) (input []byte, err error) {
@@ -2020,35 +2071,50 @@ type subscriptionUpdater struct {
 
 func (s *subscriptionUpdater) Update(data []byte, md *SubscriptionUpdateMetadata) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
+		s.mu.Unlock()
 		return
 	}
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
-	s.resolver.handleTriggerUpdate(s.triggerID, data, md)
+	failed := s.resolver.handleTriggerUpdate(s.triggerID, data, md)
+	s.mu.Unlock()
+	// Run removals outside mu so OnSubscriptionEnd callbacks do not fire under
+	// the updater mutex. Event serialization is preserved because handleTriggerUpdate
+	// (including wg.Wait for fan-out updates) completed under mu.
+	for _, subID := range failed {
+		_ = s.resolver.UnsubscribeSubscription(subID)
+	}
 }
 
 func (s *subscriptionUpdater) Heartbeat() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
+		s.mu.Unlock()
 		return
 	}
-	s.resolver.heartbeatTriggerSubscriptions(s.triggerID)
+	failed := s.resolver.heartbeatTriggerSubscriptions(s.triggerID)
+	s.mu.Unlock()
+	for _, subID := range failed {
+		_ = s.resolver.UnsubscribeSubscription(subID)
+	}
 }
 
 func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte, md *SubscriptionUpdateMetadata) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
+		s.mu.Unlock()
 		return
 	}
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
-	s.resolver.handleUpdateSubscription(s.triggerID, data, id, md)
+	needsRemoval := s.resolver.handleUpdateSubscription(s.triggerID, data, id, md)
+	s.mu.Unlock()
+	if needsRemoval {
+		_ = s.resolver.UnsubscribeSubscription(id)
+	}
 }
 
 func (s *subscriptionUpdater) Subscriptions() map[context.Context]SubscriptionIdentifier {
@@ -2087,30 +2153,35 @@ func (s *subscriptionUpdater) Error(data []byte) {
 
 func (s *subscriptionUpdater) Done() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done {
+		s.mu.Unlock()
 		return
 	}
 	s.done = true
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
 	}
+	s.mu.Unlock()
+	// Release mu before trigger teardown so OnSubscriptionEnd callbacks fired
+	// from closeSubs do not run while the updater mutex is held.
 	s.resolver.doneTriggerFromUpdater(s.triggerID)
 }
 
 func (s *subscriptionUpdater) CloseSubscription(id SubscriptionIdentifier) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done || s.ctx.Err() != nil {
 		if s.debug {
 			fmt.Printf("resolver:subscription_updater:close:skip:%d\n", s.triggerID)
 		}
+		s.mu.Unlock()
 		return
 	}
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:close:%d\n", s.triggerID)
 	}
-
+	s.mu.Unlock()
+	// Release mu before UnsubscribeSubscription so the OnSubscriptionEnd
+	// callback fired from closeSubs does not run while the updater mutex is held.
 	_ = s.resolver.UnsubscribeSubscription(id)
 }
 
