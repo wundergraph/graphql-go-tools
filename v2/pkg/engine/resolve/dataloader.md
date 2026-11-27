@@ -118,124 +118,122 @@ fetch:
 
 ## How does dataLoader work ?
 
-TODO: add description
+There is no separate `DataLoader` type in the engine. Batching and deduplication are done by the
+`Loader` in [loader.go](./loader.go), using information that the planner and the
+[postprocess](../postprocess) package have already prepared at planning time.
 
-[//]: # (- dataLoader is request scope object. For every new graphql request &#40;or every new Subscription message&#41; it's required to create a new dataloader.)
+### Overview
 
-[//]: # (- resolve.Context keeps dataLoader for current request.)
+- The planner turns the operation into a **fetch tree** (`FetchTreeNode`, see [fetchtree.go](./fetchtree.go)).
+  Each node is one of:
+  - `Single` – one fetch to a data source (`FetchItem`),
+  - `Sequence` – children are resolved one after another (a child depends on data loaded by a previous one),
+  - `Parallel` – children are independent and are resolved concurrently.
+- Every `FetchItem` has a `FetchPath`: a list of `FetchItemPathElement`s (`ObjectPath(...)` / `ArrayPath(...)`)
+  that points from the root of the response to the objects the fetch has to enrich.
+  A path element can also carry `TypeNames`, so only objects with a matching `__typename` are selected
+  (useful for interfaces and unions).
+- During postprocessing, a nested entity fetch becomes a concrete fetch type:
+  - `EntityFetch` – the entity lives on a single object; the request has one representation.
+  - `BatchEntityFetch` – the entity lives inside a list; **all** matching objects are sent in one request.
+  - `MultiEntityFetch` – several entity fetches to the same subgraph are merged into one request with
+    aliased `_entities` fields (see [fetch_multi.go](./fetch_multi.go)).
+- A `Loader` is created for each request (and for each subscription event or defer group). It writes every
+  response into one shared JSON document (the `DataBuffer`). After all fetches finish, `Resolvable` renders the
+  client response from that document.
 
-[//]: # (- resolve.Context keeps last&#40;parent&#41; `lastFetchID` for current request)
+The key point: the engine does **not** walk the response tree node by node and fetch per object.
+Each fetch in the tree runs exactly once. It collects *all* objects that it has to enrich at that moment,
+no matter how deeply they are nested in lists. This is what gives batching.
 
-[//]: # (- resolve.Context keeps `responsePath`, it's an array of all object.Path/Array.Path since `lastFetchID`, )
+### Resolving a fetch
 
-[//]: # (  in case if node is Array additionally add to `responsePath` special symbol - `@` &#40;e.g., [topProducts, @ ]&#41;)
+`Loader.ResolveFetchNode` walks the fetch tree (`resolveSerial` for `Sequence`, `resolveParallel` for `Parallel`).
+Each `Single` node is resolved by `resolveSingle` in three phases:
 
-[//]: # (- current dataLoader implementation is based on synchronous resolve strategy.)
+1. **Prepare** (`preparePhase`, holds the data lock)
+   - If a fetch this one depends on (`DependsOnFetchIDs`) has failed, the fetch is skipped.
+   - `selectItemsForPath` follows the `FetchPath` from the root of the current response data.
+     Arrays found along the way are flattened. The result is a flat list of every object
+     the fetch must enrich (the "siblings" across all list items).
+   - The request body is rendered from those items:
+     - `SingleFetch` / `EntityFetch` render their `InputTemplate` once.
+     - `BatchEntityFetch` renders `Header`, then one `Item` template per selected object
+       (joined by `Separator`), then `Footer`. This builds the `representations` array.
+       Items that render to `null` or `{}`, or that fail to render, can be skipped
+       (`SkipNullItems`, `SkipEmptyObjectItems`, `SkipErrItems`).
+       If every item is skipped, the request is not sent.
+   - Authorization, rate limiting and other pre-fetch checks run on the rendered input.
+2. **Load** (`loadPhase`, no lock held, so parallel fetches really run at the same time)
+   - The response cache is checked (if enabled), then the request is sent to the `DataSource`.
+   - For queries, identical in-flight subgraph requests are shared via `SubgraphRequestSingleFlight`.
+     This can be turned off with `ExecutionOptions.DisableSubgraphRequestDeduplication`.
+3. **Merge** (`mergePhase`, holds the data lock)
+   - The response is parsed. Subgraph errors are collected and their paths are rewritten to the client's path.
+   - Data from `PostProcessing.SelectResponseDataPath` (e.g. `data._entities`) is merged back into the
+     selected items, at `PostProcessing.MergePath` if one is set.
+     For a batch, element `i` of the response goes to the objects that produced representation `i`.
 
-[//]: # (- when Resolver tries to resolve fetch &#40;SingleFetch/BatchFetch&#41; for `fetchID`, dataLoader resolves fetch with `fetchID` for all siblings.)
+### Deduplication inside a batch
 
-[//]: # (- in case SingleFetch dataLoaders &#40;Load&#41; concurrently resolve fetch for all siblings)
+While building a `BatchEntityFetch` request (`prepareBatchEntityFetch`), each rendered representation is hashed.
+If the same representation was already added, it is not added again. The current object is
+remembered as one more merge target for that representation (`result.batchStats`).
 
-[//]: # (- in case BatchFetch dataLoaders &#40;LoadBatch&#41; creates batch request for resolving fetches for all siblings)
+So for `[Product1, Product2, Product1, Product3, Product2]` the request contains three representations.
+In the merge phase, entity `0` is merged into both `Product1` objects, entity `1` into both `Product2` objects,
+and entity `2` into `Product3`.
+This is the "Batch with deduplication" request shown above.
 
-[//]: # (- for creating fetch input dataLoader selects from `lastFetchID` response data by `responsePath` &#40;it's an array of all object.Path/Array.Path since `lastFetchID`&#41;)
-   
-**Example:** 
+**Example:**
 
 _Query :_
-```
-query { 
-     topProducts { 
-          reviews { 
-              body
-              author { 
-                 username 
-              } 
-          } 
-     } 
+```graphql
+query {
+  topProducts {
+    reviews {
+      body
+      author {
+        username
+      }
+    }
   }
+}
 ```
 
-   
-   
+Assume `topProducts` comes from a products subgraph, `reviews` from a reviews subgraph,
+and `author.username` from an accounts subgraph. The fetch tree is roughly:
+
 ```
-                                                    |topProducts|                                               FetchID=0
+Sequence(
+  Single(fetch 0: SingleFetch        -> products  { topProducts { upc } }),
+  Single(fetch 1: BatchEntityFetch   -> reviews   _entities(Product)   path: [ArrayPath("topProducts")]),
+  Single(fetch 2: BatchEntityFetch   -> accounts  _entities(User)      path: [ArrayPath("topProducts"), ArrayPath("reviews"), ObjectPath("author")]),
+)
+```
+
+```
+                                                    |topProducts|                                               fetch 0 (root)
                                                           |
-                                                          |
-                                                          |    
                        |---------------------------|Array of Products|--------------------|
                        |                                  |                               |
-                       |                                  |                               |   
-                  |Product A|                        |Product B|                      |Product C|                
-                       |                                  |                               |  
-                       |                                  |                               |    
-     |----------|Array of Reviews|--------|        |Array of Reviews|       |-----|Array of Reviews|-----|      FetchID=1;LastFetchID=0;responsePath=[topProducts @]
-     |                 |                  |               |                 |                            |  
+                  |Product A|                        |Product B|                      |Product C|                 fetch 1 selects 3 items
+                       |                                  |                               |
+     |----------|Array of Reviews|--------|        |Array of Reviews|       |-----|Array of Reviews|-----|
      |                 |                  |               |                 |                            |
  |Review A1|      |Review A2|      |Review A3|         |Review B1|     |Review C1|                  |Review C2|
      |                 |                  |               |                 |                            |
-     |                 |                  |               |                 |                            |
-  |Author 1|       |Author 2|         |Author 3|       |Author 4|       |Author 5|                   |Author 6| FetchID=2;LastFetchID=1;responsePath=[reviews @ author]
-
-
+  |Author 1|       |Author 2|         |Author 3|       |Author 4|       |Author 5|                   |Author 6|   fetch 2 selects 6 items
 ```
 
-[//]: # ()
-[//]: # (   1. creates dataLoader)
+1. **fetch 0** has an empty `FetchPath`, so it runs against the root. The response
+   `{"topProducts":[{"upc":"top-1"},{"upc":"top-2"},{"upc":"top-3"}]}` is merged into the root of the response data.
+2. **fetch 1** selects `topProducts`. The value is an array, so it is flattened into
+   `[Product A, Product B, Product C]`. It sends **one** request with three representations and merges
+   `_entities[0..2]` back into Product A, B and C. Each product now has its `reviews`.
+3. **fetch 2** selects `topProducts` → `reviews` (flattened again, so all six reviews of all products) → `author`.
+   It sends **one** request with the representations of Author 1..6 and merges the results back.
+   If two reviews have the same author, that author is sent only once and the result is merged into both reviews.
 
-[//]: # (   1. resolve `topProducts`, fetch with `FetchID=0` is required, return an array of products)
-
-[//]: # (      * set `lastFetchID` as `0`, )
-
-[//]: # (      * add `topProducts` to `responsePath`)
-
-[//]: # (      * save response with FetchID `0`)
-
-[//]: # (   1. enters `Array of Products` node, add `@` to the `responsePath`, no need to fetch)
-
-[//]: # (   1. enters `Product A` node, no need to fetch)
-
-[//]: # (   1. enters `Array of Reviews` node, fetch with `FetchID`= 1 is required)
-
-[//]: # (      * dataLoader gets response `{"topProducts": [{"upc": "top1", ...}, {"upc": "top2", ...}, {"upc": "top3", ...}]}` from `lastFetchID` &#40;it has been saved in step 2&#41; )
-
-[//]: # (        and builds fetch input for all `Array of Reviews` siblings &#40;`selectedDataForFetch` method is responsible for finding all siblings&#41;)
-
-[//]: # (      * resolve all fetches from previous step &#40;when fetch is SingleFetch - send N concurrent requests, when fetch is BatchFetch - compose all fetches to single Batch&#41;,)
-
-[//]: # (         Planner is responsible to choose which type of Fetch to use &#40;e.g., for graphql datasource it makes sense to use BatchFetch for resolving Entity&#41;)
-
-[//]: # (      * save response with FetchID `1`)
-
-[//]: # (      * reset `responsePath` and add `reviews` and `@` to `responsePath` &#40;`responsePath` = `["reviews", "@"]`&#41;)
-
-[//]: # (      * set `lastFetchID` as `1`)
-
-[//]: # (   1. enters `Review A1` node, no need to fetch)
-
-[//]: # (      * add `author` to `responsePath` &#40;`responsePath` = `["reviews", "@", "author"]`&#41;)
-
-[//]: # (   1. enters `Author A1` node, fetch with `FetchID`=2 is required &#40;actually, it's the last step that leads to fetching&#41;)
-
-[//]: # (      * dataLoader gets response `[{"reviews":[{review A1}, {review A2}, {review A3}]}, {"reviews": [{review B1}]}, {"reviews": [{review C1}, {review C2}]` from `lastFetchID` &#40;it has been saved in step 5&#41;)
-
-[//]: # (      and builds fetch input for all `Author 1` siblings)
-
-[//]: # (      * resolve all fetches from previous step &#40;when fetch is SingleFetch - send N concurrent requests, when fetch is BatchFetch - compose all fetches to single Batch&#41;)
-
-[//]: # (      * save response with FetchID `2`)
-
-[//]: # (      * reset `responsePath`)
-
-[//]: # (      * set `lastFetchID` as `2`)
-
-[//]: # (   1. enters `Review A2` nodes, no need to fetch )
-
-[//]: # (   1. enters `Author A2` node, fetch with `FetchID=2` is required)
-
-[//]: # (      * dataLoader has already requested required data &#40;it's saved with `FetchID=2`&#41;, it just gets second element from response for `FetchID=2`)
-
-[//]: # ()
-[//]: # (   1. enters second `Array of Reviews` node, fetch with `FetchID`= 1 is required)
-
-[//]: # (      * dataLoader has already requested required data &#40;it's saved with `FetchID=1`&#41;, it just gets second element from response for `FetchID=1`)
+Without batching, this query would send 1 + 3 + 6 = 10 subgraph requests.
+With the `Loader` it sends 3, one per fetch in the tree, however many products and reviews there are.
