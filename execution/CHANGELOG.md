@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.3](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.20.2...execution/v1.20.3) (2026-11-27)
+
+
+### Bug Fixes
+
+* **plan:** do not defer a field that repeats a mutation root fetch ([#1699](https://github.com/wundergraph/graphql-go-tools/issues/1699)) ([3496966](https://github.com/wundergraph/graphql-go-tools/commit/3496966c296123f6e4e3f484e5c325dc4a79a599))
+
 ## [1.20.2](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.20.1...execution/v1.20.2) (2026-11-16)
 
 
