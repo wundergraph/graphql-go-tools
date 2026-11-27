@@ -1237,6 +1237,70 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
+			name:       "one field is external (Admin.name). query has plain and aliased __typename on a union - should preserve all of them",
+			fieldName:  "accounts",
+			definition: definition,
+			upstreamDefinition: `
+				type User {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin {
+					id: ID!
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					accounts: [Account!]!
+				}
+			`,
+			dsBuilder: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}),
+			operation: `
+				query {
+					accounts {
+						__typename
+						__isAccount: __typename
+						... on Node {
+							__isNode: __typename
+							name
+						}
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					accounts {
+						__typename
+						__isAccount: __typename
+						... on Admin {
+							__isNode: __typename
+							name
+						}
+						... on User {
+							__isNode: __typename
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
 			name:       "one field is external. query has admin and user fragment, user fragment has shared field",
 			definition: definition,
 			upstreamDefinition: `

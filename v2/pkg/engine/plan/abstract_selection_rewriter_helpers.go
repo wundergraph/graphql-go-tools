@@ -455,9 +455,11 @@ func (r *fieldSelectionRewriter) preserveTypeNameSelection(selectionSetInfo sele
 		return
 	}
 
-	// copying the original selection preserves its directives (e.g. defer) and
-	// records provenance automatically via the OnCopyField hook
-	*selectionRefs = append(*selectionRefs, r.operation.CopySelection(selectionSetInfo.typenameSelectionRef))
+	// copying the original selections preserves their aliases and directives (e.g. defer)
+	// and records provenance automatically via the OnCopyField hook
+	for _, typenameSelectionRef := range selectionSetInfo.typenameSelectionRefs {
+		*selectionRefs = append(*selectionRefs, r.operation.CopySelection(typenameSelectionRef))
+	}
 }
 
 func (r *fieldSelectionRewriter) fieldTypeNameFromUpstreamSchema(fieldRef int, enclosingTypeName ast.ByteSlice) (typeName string, ok bool) {
