@@ -156,6 +156,10 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 			}
 		default:
 		}
+		if len(n.Item.contextTraces) > 0 {
+			trace.Fetch.Traces = n.Item.contextTraces
+			trace.Fetch.Trace = nil
+		}
 	case FetchTreeNodeKindSequence, FetchTreeNodeKindParallel:
 		trace.Children = make([]*FetchTreeTraceNode, len(n.ChildNodes))
 		for i, c := range n.ChildNodes {

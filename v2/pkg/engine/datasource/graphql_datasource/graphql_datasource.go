@@ -67,6 +67,7 @@ type Planner[T Configuration] struct {
 	upstreamVariables                  []byte
 	upstreamVariablesList              []resolve.SubgraphVariable
 	recordUpstreamVariables            bool
+	contextVariables                   []contextVariable
 	representationsVariableNameCached  string
 	nodes                              []ast.Node
 	variables                          resolve.Variables
@@ -810,7 +811,37 @@ func (p *Planner[T]) EnterField(ref int) {
 	p.addFieldArguments(p.addField(ref), ref, fieldConfiguration)
 }
 
+type contextVariable struct {
+	input plan.PlannedContextArgument
+	value ast.Value
+}
+
+func (p *Planner[T]) addContextArgument(field int, binding plan.PlannedContextArgument) {
+	for _, variable := range p.contextVariables {
+		if binding.SameInput(variable.input) {
+			argument := p.upstreamOperation.ImportArgument(binding.ArgumentName, variable.value)
+			p.upstreamOperation.AddArgumentToField(field, argument)
+			return
+		}
+	}
+	name := fmt.Sprintf("_wg_context_%d", len(p.contextVariables))
+	for p.downstreamDeclaresVariable(name) {
+		name += "_"
+	}
+	value, argument := p.upstreamOperation.AddVariableValueArgument([]byte(binding.ArgumentName), []byte(name))
+	p.upstreamOperation.AddArgumentToField(field, argument)
+	schema, typeRef := binding.UpstreamType()
+	imported := p.visitor.Importer.ImportType(typeRef, schema, p.upstreamOperation)
+	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, value, imported)
+	placeholder, _ := p.variables.AddVariable(&resolve.ContextBinding{Variable: name, Sources: binding.Sources})
+	p.upstreamVariables, _ = p.setUpstreamVariable(p.upstreamVariables, name, []byte(placeholder))
+	p.contextVariables = append(p.contextVariables, contextVariable{binding, p.upstreamOperation.ArgumentValue(argument)})
+}
+
 func (p *Planner[T]) addFieldArguments(upstreamFieldRef int, fieldRef int, fieldConfiguration *plan.FieldConfiguration) {
+	for _, binding := range p.dataSourcePlannerConfig.ContextArguments[fieldRef] {
+		p.addContextArgument(upstreamFieldRef, binding)
+	}
 	if fieldConfiguration != nil {
 		for i := range fieldConfiguration.Arguments {
 			argumentConfiguration := fieldConfiguration.Arguments[i]
@@ -886,7 +917,8 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.parentTypeNodes = p.parentTypeNodes[:0]
 	p.upstreamVariables = nil
 	p.upstreamVariablesList = nil
-	p.recordUpstreamVariables = p.dataSourcePlannerConfig.Options.EnableMultiFetch && p.config.grpc == nil
+	p.contextVariables = p.contextVariables[:0]
+	p.recordUpstreamVariables = len(p.dataSourcePlannerConfig.ContextArguments) == 0 && p.dataSourcePlannerConfig.Options.EnableMultiFetch && p.config.grpc == nil
 	p.representationsVariableNameCached = ""
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false

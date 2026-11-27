@@ -110,6 +110,7 @@ type selectionSetTypeInfo struct {
 }
 
 type objectFetchConfiguration struct {
+	contextInputs      []FederationFieldConfiguration
 	filter             *resolve.SubscriptionFilter
 	planner            DataSourceFetchPlanner
 	isSubscription     bool
@@ -766,6 +767,11 @@ func (c *pathBuilderVisitor) addFieldDependencies(field *currentFieldInfo, curre
 	}
 	for _, requiresConfiguration := range requiresConfigurations {
 		// add required fields to the current planner to pass it in the representation variables
+		if requiresConfiguration.context != nil {
+			planner := c.planners[currentPlannerIdx]
+			*planner.RequiredFields() = append(*planner.RequiredFields(), requiresConfiguration)
+			continue
+		}
 		c.planners[currentPlannerIdx].RequiredFields().AppendIfNotPresent(requiresConfiguration)
 	}
 
@@ -824,7 +830,44 @@ func (c *pathBuilderVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef int
 	return true
 }
 
+// startingAtContextInput returns a view into the requirements owned by node selection.
+func startingAtContextInput(requirements []FederationFieldConfiguration) []FederationFieldConfiguration {
+	for i := range requirements {
+		if requirements[i].context != nil {
+			return requirements[i:]
+		}
+	}
+	return nil
+}
+
+// An entity fetch is skipped as a unit if any context input failed. Its sibling
+// fields must depend on the same projections. Ordinary descendants of those
+// fields belong to their parent's result and can still be selected together.
+func (c *pathBuilderVisitor) canShareContextInputs(planner PlannerConfiguration, inputs []FederationFieldConfiguration) bool {
+	rootInputs := planner.ObjectFetchConfiguration().contextInputs
+	if len(rootInputs) == 0 {
+		return len(inputs) == 0
+	}
+	for _, ancestor := range slices.Backward(c.walker.Ancestors) {
+		if ancestor.Kind == ast.NodeKindField && planner.HasPathWithFieldRef(ancestor.Ref) {
+			return len(inputs) == 0
+		}
+	}
+	for len(rootInputs) > 0 && len(inputs) > 0 {
+		a, b := rootInputs[0].context, inputs[0].context
+		if !a.SameInput(b.PlannedContextArgument) {
+			return false
+		}
+		rootInputs = startingAtContextInput(rootInputs[1:])
+		inputs = startingAtContextInput(inputs[1:])
+	}
+	return len(rootInputs) == len(inputs)
+}
+
 func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (plannerIdx int, planned bool) {
+	fieldKey := fieldIndexKey{field.fieldRef, field.suggestion.DataSourceHash}
+	requiresConfigurations := c.fieldRequirementsConfigs[fieldKey]
+	inputs := startingAtContextInput(requiresConfigurations)
 	for plannerIdx, plannerConfig := range c.planners {
 		dsConfiguration := plannerConfig.DataSourceConfiguration()
 		planningBehaviour := dsConfiguration.PlanningBehavior()
@@ -854,9 +897,6 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (
 			return plannerIdx, true
 		}
 
-		dsHash := dsConfiguration.Hash()
-		fieldKey := fieldIndexKey{field.fieldRef, dsHash}
-		requiresConfigurations := c.fieldRequirementsConfigs[fieldKey]
 		fieldHasRequiresDirective := slices.ContainsFunc(requiresConfigurations, func(config FederationFieldConfiguration) bool {
 			return config.FieldName != ""
 		})
@@ -876,6 +916,9 @@ func (c *pathBuilderVisitor) planWithExistingPlanners(field *currentFieldInfo) (
 		}
 
 		if plannerConfig.HasPath(field.parentPath) || plannerConfig.HasPath(field.precedingParentPath) {
+			if !c.canShareContextInputs(plannerConfig, inputs) {
+				continue
+			}
 			if pathAdded := c.addPlannerPathForTypename(field, plannerIdx, planningBehaviour); pathAdded {
 				return plannerIdx, true
 			}
@@ -1031,6 +1074,7 @@ func (c *pathBuilderVisitor) addNewPlanner(field *currentFieldInfo, isMutationRo
 	isSubscription := c.isSubscriptionRoot(field.currentPath)
 
 	fetchConfiguration := &objectFetchConfiguration{
+		contextInputs:      startingAtContextInput(c.fieldRequirementsConfigs[fieldIndexKey{field.fieldRef, field.ds.Hash()}]),
 		isSubscription:     isSubscription,
 		fieldRef:           field.fieldRef,
 		fieldDefinitionRef: fieldDefinition,

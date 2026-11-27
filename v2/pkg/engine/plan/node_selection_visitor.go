@@ -18,7 +18,9 @@ import (
 //   - added new required fields to the operation,
 //   - rewritten an abstract field selection set.
 type nodeSelectionVisitor struct {
-	debug DebugConfiguration
+	contextScopes map[int]contextScope
+	contextFields map[fieldIndexKey]struct{}
+	debug         DebugConfiguration
 
 	operationName         string        // graphql query name
 	operation, definition *ast.Document // graphql operation and schema documents
@@ -175,6 +177,14 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 	}
 
 	c.operation, c.definition = operation, definition
+	c.contextScopes = nil
+	c.contextFields = nil
+	for _, ds := range c.dataSources {
+		if len(ds.FederationConfiguration().ContextArguments) > 0 {
+			c.contextScopes = make(map[int]contextScope)
+			break
+		}
+	}
 
 	if c.skipFieldsRefs == nil {
 		c.skipFieldsRefs = make([]int, 0, 8)
@@ -208,6 +218,9 @@ func (c *nodeSelectionVisitor) EnterSelectionSet(ref int) {
 	c.debugPrint("EnterSelectionSet ref:", ref)
 	c.selectionSetRefs = append(c.selectionSetRefs, ref)
 
+	if c.contextScopes != nil {
+		c.contextScopes[ref] = contextScope{typeName: c.walker.EnclosingTypeDefinition.NameString(c.definition), depth: c.contextDepth()}
+	}
 	c.handleRequiresInSelectionSet(ref)
 }
 
@@ -350,6 +363,7 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldCtx fieldRequi
 		return
 	}
 
+	c.handleContextArguments(fieldCtx, fieldKey)
 	requiresConfiguration, exists := fieldCtx.dsConfig.RequiredFieldsByRequires(fieldCtx.typeName, fieldCtx.fieldName)
 
 	if !exists {
@@ -603,7 +617,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 		addTypenameInNestedSelections: c.addTypenameInNestedSelections,
 	}
 
-	addFieldsResult, report := addRequiredFields(input)
+	addFieldsResult, report := c.addRequiredFields(input)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s: %w", requirements.selectionSet, typeName, requirements.path, report))
 		return
@@ -856,6 +870,8 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		return
 	}
 
+	_, rewriter.expandContextScope = c.nodeSuggestions.partialContextScopes[fieldRef]
+	delete(c.nodeSuggestions.partialContextScopes, fieldRef)
 	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to rewrite field selection for field %s at path %s: %w", c.operation.FieldNameString(fieldRef), c.walker.Path.DotDelimitedString(), err))

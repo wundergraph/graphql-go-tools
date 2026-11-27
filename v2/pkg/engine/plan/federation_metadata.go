@@ -8,7 +8,44 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
+type ContextProvider struct {
+	ContextName string
+	Provider    ContextProviderType
+}
+
+type ContextProviderType interface {
+	matchesRuntimeType(definition *ast.Document, scope, runtimeType string) bool
+}
+
+type ConcreteContextProvider struct {
+	TypeName string
+}
+
+func (p ConcreteContextProvider) matchesRuntimeType(_ *ast.Document, _, runtimeType string) bool {
+	return p.TypeName == runtimeType
+}
+
+type AbstractContextProvider struct {
+	TypeName          string
+	ConcreteTypeNames []string
+}
+
+func (p AbstractContextProvider) matchesRuntimeType(definition *ast.Document, scope, runtimeType string) bool {
+	return p.TypeName == scope || slices.Contains(p.ConcreteTypeNames, runtimeType) ||
+		slices.Contains(contextRuntimeTypes(definition, p.TypeName), runtimeType)
+}
+
+type ContextArgument struct {
+	ContextName, TypeName, FieldName, ArgumentName, ContextSelection string
+
+	// Resolved against the receiving datasource's schema at configuration time.
+	upstreamSchema *ast.Document
+	typeRef        int
+}
+
 type FederationMetaData struct {
+	ContextProviders []ContextProvider
+	ContextArguments []ContextArgument
 	Keys             FederationFieldConfigurations
 	Requires         FederationFieldConfigurations
 	Provides         FederationFieldConfigurations
@@ -16,6 +53,40 @@ type FederationMetaData struct {
 	InterfaceObjects []EntityInterfaceConfiguration
 
 	entityTypeNames map[string]struct{}
+}
+
+// A selection on an abstract ancestor may run under several concrete providers.
+func contextRuntimeTypes(definition *ast.Document, typeName string) []string {
+	node, ok := definition.NodeByNameStr(typeName)
+	if !ok {
+		return nil
+	}
+	switch node.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		names, _ := definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+		return names
+	case ast.NodeKindUnionTypeDefinition:
+		names, _ := definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+		return names
+	default:
+		return []string{typeName}
+	}
+}
+
+func (m *FederationMetaData) providerTypes(definition *ast.Document, contextName, scope string) (matches []string, coversScope bool) {
+	possible := contextRuntimeTypes(definition, scope)
+	for _, name := range possible {
+		for _, p := range m.ContextProviders {
+			if p.ContextName != contextName {
+				continue
+			}
+			if p.Provider != nil && p.Provider.matchesRuntimeType(definition, scope, name) {
+				matches = append(matches, name)
+				break
+			}
+		}
+	}
+	return matches, len(matches) > 0 && len(matches) == len(possible)
 }
 
 type FederationInfo interface {
@@ -75,6 +146,7 @@ type EntityInterfaceConfiguration struct {
 }
 
 type FederationFieldConfiguration struct {
+	context               *plannedContext
 	TypeName              string         `json:"type_name"`            // TypeName is the name of the Entity the Fragment is for
 	FieldName             string         `json:"field_name,omitempty"` // FieldName is empty for key requirements, otherwise, it is the name of the field that has requires or provides directive
 	SelectionSet          string         `json:"selection_set"`        // SelectionSet is the selection set that is required for the given field (keys, requires, provides)

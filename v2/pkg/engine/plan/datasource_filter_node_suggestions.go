@@ -119,10 +119,11 @@ func (n *NodeSuggestion) StringShort() string {
 }
 
 type NodeSuggestions struct {
-	items           []*NodeSuggestion
-	pathSuggestions map[string][]*NodeSuggestion
-	seenFields      map[int]struct{}
-	responseTree    *responseTree
+	partialContextScopes map[int]struct{}
+	items                []*NodeSuggestion
+	pathSuggestions      map[string][]*NodeSuggestion
+	seenFields           map[int]struct{}
+	responseTree         *responseTree
 	// providedSelections stores, per data source, the provided selection applying to
 	// the children of a field ref - for @provides anchor fields their own selection,
 	// for provided fields the nested selection from the enclosing @provides

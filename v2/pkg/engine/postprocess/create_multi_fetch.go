@@ -28,6 +28,57 @@ func (c *createMultiFetch) ProcessFetchTree(root *resolve.FetchTreeNode) {
 	c.walk(root, root)
 }
 
+// Preserve the dependency IDs of a contextual fetch and its dependents. A
+// context group can fail for only some targets. A merged fetch would replace
+// those IDs with a union and carry the failure into unrelated entries. Do this
+// on the flat graph so dependencies crossing a @defer boundary are included.
+func (c *createMultiFetch) preserveContextDependencies(root *resolve.FetchTreeNode) {
+	if c.disable || root == nil {
+		return
+	}
+	var queue []*resolve.SingleFetch
+	for _, node := range root.ChildNodes {
+		if node.Item == nil {
+			continue
+		}
+		if fetch, ok := node.Item.Fetch.(*resolve.SingleFetch); ok {
+			for _, v := range fetch.Variables {
+				if v.GetVariableKind() == resolve.AncestorVariableKind {
+					queue = append(queue, fetch)
+					break
+				}
+			}
+		}
+	}
+	if len(queue) == 0 {
+		return
+	}
+	children := make(map[int][]*resolve.SingleFetch)
+	for _, node := range root.ChildNodes {
+		if node.Item == nil {
+			continue
+		}
+		if fetch, ok := node.Item.Fetch.(*resolve.SingleFetch); ok {
+			for _, id := range fetch.DependsOnFetchIDs {
+				children[id] = append(children[id], fetch)
+			}
+		}
+	}
+	seen := make(map[int]bool)
+	for len(queue) > 0 {
+		f := queue[0]
+		queue = queue[1:]
+		if seen[f.FetchID] {
+			continue
+		}
+		seen[f.FetchID] = true
+		if f.SubgraphOperation != nil {
+			f.SubgraphOperation.RequiresIndividualFetch = true
+		}
+		queue = append(queue, children[f.FetchID]...)
+	}
+}
+
 // walk descends the ORGANIZED tree (produced by orderSequenceByDependencies +
 // createParallelNodes, run just before this stage) and merges same-datasource
 // entity fetches inside every real FetchTreeNodeKindParallel group. There is no
@@ -368,7 +419,7 @@ func (c *createMultiFetch) isCandidate(node *resolve.FetchTreeNode) bool {
 	if !fetch.RequiresEntityFetch && !fetch.RequiresEntityBatchFetch {
 		return false
 	}
-	if fetch.SubgraphOperation == nil || fetch.Info == nil {
+	if fetch.SubgraphOperation == nil || fetch.SubgraphOperation.RequiresIndividualFetch || fetch.Info == nil {
 		return false
 	}
 	return representationsFragmentIndex(fetch) != -1

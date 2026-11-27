@@ -596,6 +596,9 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 		}
 
 		loader.Init(ctx, response.Response.Info)
+		loader.failedContextTargets = make(map[int]taintedObjects)
+		db.fetchTreeToCheck = response.Response.Fetches
+		db.deferTreeToCheck = response.DeferTree
 
 		// fetch initial response
 		if err := loader.ResolveFetchNode(response.Response.Fetches); err != nil {
@@ -653,12 +656,13 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 				// zero writes hasNext:false.
 				outstanding := int64(len(liveTop))
 				dc := &deferContext{
-					response:   response,
-					info:       response.Response.Info,
-					db:         db,
-					resolvable: resolvable,
-					writer:     writer,
-					arena:      resolveArena.Arena,
+					response:             response,
+					failedContextTargets: loader.failedContextTargets,
+					info:                 response.Response.Info,
+					db:                   db,
+					resolvable:           resolvable,
+					writer:               writer,
+					arena:                resolveArena.Arena,
 				}
 				if err := r.resolveDeferTree(dc, ctx, liveTree, &outstanding); err != nil {
 					return nil, err
@@ -674,11 +678,12 @@ func (r *Resolver) ResolveGraphQLDeferResponse(ctx *Context, response *GraphQLDe
 // defer tree walk. ctx is NOT included — it varies per goroutine (cloned in the
 // parallel branch) and is passed as its own arg.
 type deferContext struct {
-	response   *GraphQLDeferResponse
-	info       *GraphQLResponseInfo
-	db         *DataBuffer
-	resolvable *Resolvable
-	writer     DeferResponseWriter
+	failedContextTargets map[int]taintedObjects
+	response             *GraphQLDeferResponse
+	info                 *GraphQLResponseInfo
+	db                   *DataBuffer
+	resolvable           *Resolvable
+	writer               DeferResponseWriter
 	// arena backs every defer group's loader. It is shared across groups; every
 	// allocation from it is serialised by db's lock (see resolveDeferSingle).
 	arena arena.Arena
@@ -704,6 +709,7 @@ func (r *Resolver) resolveDeferSingle(dc *deferContext, ctx *Context, group *Def
 	// lock therefore serialises every arena allocation across all groups.
 	groupLoader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, dc.arena, dc.db, nil)
 	groupLoader.Init(ctx, dc.info) // fresh taintedObjs; errors=nil
+	groupLoader.failedContextTargets = dc.failedContextTargets
 
 	if fetchErr := groupLoader.ResolveFetchNode(group.Fetches); fetchErr != nil {
 		// A hard fetch-phase error (e.g. pre-fetch authorizer/rate-limiter error) is
@@ -1054,6 +1060,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *subscript
 	// The DataBuffer wraps the base tree produced by InitSubscription (the
 	// subscription event payload). The loader merges fetched data into it.
 	db := &DataBuffer{data: resolvable.data}
+	db.recordSubscriptionContextErrors(sub.resolve.Response.Fetches, sub.resolve.Trigger.PostProcessing, resolvable.errors)
 	loader := NewLoader(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena, db, authorization)
 
 	if err := loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response); err != nil {

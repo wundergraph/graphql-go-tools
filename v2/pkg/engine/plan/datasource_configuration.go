@@ -3,6 +3,8 @@ package plan
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
@@ -270,6 +272,9 @@ func NewDataSourceConfigurationWithName[T any](id string, name string, factory P
 		custom:             customConfig,
 		hash:               DSHash(xxhash.Sum64([]byte(id))),
 	}
+	if err := dsc.initContextArguments(); err != nil {
+		return nil, err
+	}
 	if metadata != nil && metadata.CostConfig != nil && len(metadata.CostConfig.ListSizes) > 0 {
 		if schema, ok := dsc.UpstreamSchema(); ok && schema != nil {
 			// Backfill slicing-argument defaults from the data source's parsed upstream SDL.
@@ -277,6 +282,34 @@ func NewDataSourceConfigurationWithName[T any](id string, name string, factory P
 		}
 	}
 	return dsc, nil
+}
+
+func (d *dataSourceConfiguration[T]) initContextArguments() error {
+	if d.DataSourceMetadata == nil || len(d.ContextArguments) == 0 {
+		return nil
+	}
+	schema, ok := d.UpstreamSchema()
+	if !ok || schema == nil {
+		return fmt.Errorf("datasource %q requires an upstream schema for context arguments", d.id)
+	}
+	// Metadata can be reused across datasources. Keep type references local to this schema.
+	metadata := *d.DataSourceMetadata
+	metadata.ContextArguments = slices.Clone(metadata.ContextArguments)
+	for i := range metadata.ContextArguments {
+		binding := &metadata.ContextArguments[i]
+		parent, found := schema.NodeByNameStr(binding.TypeName)
+		if found {
+			arg := schema.NodeFieldDefinitionArgumentDefinitionByName(parent, []byte(binding.FieldName), []byte(binding.ArgumentName))
+			if arg != ast.InvalidRef {
+				binding.upstreamSchema = schema
+				binding.typeRef = schema.InputValueDefinitionType(arg)
+				continue
+			}
+		}
+		return fmt.Errorf("datasource %q: unknown context argument %s.%s(%s:)", d.id, binding.TypeName, binding.FieldName, binding.ArgumentName)
+	}
+	d.DataSourceMetadata = &metadata
+	return nil
 }
 
 type DataSourceConfiguration[T any] interface {
@@ -363,11 +396,12 @@ func (d *dataSourceConfiguration[T]) GetCostConfig() *DataSourceCostConfig {
 }
 
 type DataSourcePlannerConfiguration struct {
-	RequiredFields FederationFieldConfigurations
-	ParentPath     string
-	PathType       PlannerPathType
-	IsNested       bool
-	Options        plannerConfigurationOptions
+	ContextArguments map[int][]PlannedContextArgument
+	RequiredFields   FederationFieldConfigurations
+	ParentPath       string
+	PathType         PlannerPathType
+	IsNested         bool
+	Options          plannerConfigurationOptions
 }
 
 type PlannerPathType int

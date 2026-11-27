@@ -49,6 +49,7 @@ func (p *FetchTreeProcessors) processFlatFetchTree(response *resolve.GraphQLResp
 	// addMissingNestedDependencies reads only paths and dependency fields and must run while every
 	// child is still a SingleFetch, so it runs before organizeFetchTree.
 	p.addMissingNestedDependencies.ProcessFetchTree(fetches)
+	p.createMultiFetch.preserveContextDependencies(fetches)
 }
 
 // organizeFetchTree merges same-subgraph entity fetches and organizes the tree into
